@@ -1,0 +1,23 @@
+# pre-commit reads this file from the repository root.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+  - repo: local
+    hooks:
+      # Whole-project check against the locked environment, not per file.
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        types: [python]
+        pass_filenames: false
+      # The web UI: types and lint, when anything under web/ changes.
+      - id: web-check
+        name: web (typecheck, lint)
+        entry: bash -c 'cd web && pnpm typecheck && pnpm lint'
+        language: system
+        files: ^web/
+        pass_filenames: false

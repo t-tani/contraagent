@@ -1,0 +1,102 @@
+# A reference pipeline config: every table and key, annotated.
+# tests/test_examples.py loads it and builds a routing plan from it, so it stays valid.
+#
+# The config is operations, not definitions: which coding agent, model and
+# credential each kind of task runs on, where it fails over to, and budgets that
+# outrank the ones its agent_task(...) declares.
+
+# --- run-wide defaults --------------------------------------------------------
+
+[defaults]
+agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc
+effort = "medium"                   # checked against the agent's CLI (Backend.effort_levels)
+credential = "personal"             # without it: "ambient", the host's own setup
+# model = "claude-sonnet-5-5"       # without it: the agent's default model
+# model_failover = false            # hand same-agent fallback models to the CLI's own flag
+# max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
+
+# The failover chain every kind without its own shares; block order is hop order.
+[[defaults.fallbacks]]
+agent = "omp"
+model = "opencode-go/glm-5.3"
+credential = "ambient"
+
+# --- one table per kind of task ---------------------------------------------
+
+[tasks.summarize]                   # agent_task("summarize", ...)
+model = "claude-sonnet-5-5"
+# Budgets. max_turns and timeout_s are required for every kind (here or in agent_task).
+max_turns = 20                      # turns per launch; outranks agent_task(..., max_turns=10)
+timeout_s = 600                     # seconds per launch
+max_budget_usd = 2.0                # cost per launch, as the coding agent reports it
+stall_s = 300                       # stop a launch whose transcript is silent this long
+context_budget = 150000             # stop a launch once one call's input passes this many tokens
+context_warn = 120000               # mark the result over budget past this many input tokens; it still runs
+max_denials = 5                     # stop a launch after this many permission denials
+# Scheduling and retries.
+max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
+retries = 3                         # fresh-session attempts after one that made no progress
+retry_backoff_base = 2.0            # seconds, doubled per attempt
+
+[tasks.analyze]                     # agent_task("analyze", ..., requires=["zdr"])
+credential = "zdr"                  # must carry every trait the task requires
+max_turns = 30
+timeout_s = 1200
+
+# A kind's own failover chain; block order is hop order. A hop that names no
+# credential keeps the kind's own, and every hop is checked like the primary.
+[[tasks.analyze.fallbacks]]
+agent = "claude"
+model = "claude-opus-5-5"
+
+[tasks.research]                    # agent_task("research", ...)
+credential = "subs"                 # a pool: two OAuth tokens taking turns
+model = "claude-sonnet-5-5"
+max_turns = 15
+timeout_s = 600
+
+[[tasks.research.fallbacks]]        # another agent, another identity: omp through the gateway
+agent = "omp"
+model = "litellm/claude-sonnet-5-5"
+credential = "company-gateway"
+
+# --- credentials --------------------------------------------------------------
+# Secrets are references, read in the launching process: env:NAME or file:/path.
+# `traits` are labels a task's `requires` is matched against.
+
+[credentials.personal]              # a /login (Claude Code) or a profile login (omp)
+type = "subscription"
+# config_dir = "/home/me/.claude-work"   # Claude Code: the CLAUDE_CONFIG_DIR holding the login
+# profile = "work"                       # omp: the profile holding it
+
+[credentials.zdr]                   # a provider's own API key
+type = "api_key"
+provider = "anthropic"
+key = "env:ZDR_ANTHROPIC_API_KEY"
+traits = ["zdr"]
+
+[credentials.company-gateway]       # your own endpoint (LiteLLM, a proxy, a self-hosted API)
+type = "gateway"
+base_url = "env:LITELLM_BASE_URL"   # or a literal URL
+token = "env:LITELLM_API_TOKEN"
+# auth = "bearer"                   # or "api_key" (sent as x-api-key; Claude Code only)
+# provider = "litellm"              # how omp addresses it: models are litellm/<model>
+# headers = { X-Team = "research" } # Anthropic-API endpoints only
+
+[credentials.token-a]               # long-lived OAuth tokens (claude setup-token)
+type = "oauth_token"
+token = "env:CLAUDE_TOKEN_A"
+
+[credentials.token-b]
+type = "oauth_token"
+token = "env:CLAUDE_TOKEN_B"
+
+[credentials.subs]                  # several credentials used as one
+type = "pool"
+members = ["token-a", "token-b"]
+strategy = "round_robin"            # or "in_order": the next member only after a 429
+cooldown_s = 900                    # rest after a 429 when the provider states no retry-after
+
+# Also: type = "workload_identity" (federation_rule_id, organization_id,
+# identity_token_file), "bedrock" (region, aws_profile or bearer) and
+# "vertex" (project, region, credentials_file). Claude Code only.

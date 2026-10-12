@@ -1,0 +1,13 @@
+# Operations, not definitions: which coding agent and model each kind runs on, and
+# where it goes on a 429. Budgets declared in tasks.py are defaults this file outranks.
+
+[defaults]
+agent = "stub"
+effort = "medium"
+
+[tasks.summarize]
+model = "primary-model"
+
+[[tasks.summarize.fallbacks]]     # block order is hop order
+agent = "stub"
+model = "fallback-model"

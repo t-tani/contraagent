@@ -1,0 +1,29 @@
+---
+title: "contraagent"
+description: "Run coding-agent CLIs (claude -p, omp -p) as typed, supervised, observable tasks."
+template: splash
+hero:
+  tagline: Run coding-agent CLIs as typed, supervised, observable tasks.
+  actions:
+    - text: Python
+      link: /python/
+      icon: right-arrow
+    - text: Node and the browser
+      link: /node/ui/
+      icon: right-arrow
+      variant: minimal
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import Demo from '../../components/Demo.astro';
+
+<CardGrid>
+  <LinkCard title="Python: contraagent" href="/python/" description="Write, check, test and run pipelines of coding-agent tasks." />
+  <LinkCard title="Node and the browser: @contraagent/ui, @contraagent/api" href="/node/ui/" description="The monitor and its views as web components, and its typed client." />
+</CardGrid>
+
+## A run, live
+
+The demo pipeline's plan, as `<ca-pipeline-graph>` draws it:
+
+<Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} />

@@ -1,0 +1,2119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+<file target-language="ja" source-language="en" original="lit-localize-inputs" datatype="plaintext">
+<body>
+<trans-unit id="scf4185bf1a2d6adf">
+  <source><x id="0" equiv-text="${done}"/> done</source>
+  <target><x id="0" equiv-text="${done}"/> 完了</target>
+</trans-unit>
+<trans-unit id="s7671567ef7075153">
+  <source><x id="0" equiv-text="${this.snap.info.title}"/> monitor</source>
+  <target><x id="0" equiv-text="${this.snap.info.title}"/> モニター</target>
+</trans-unit>
+<trans-unit id="s60147fb4fa4a8e0c">
+  <source>running</source>
+  <target>実行中</target>
+</trans-unit>
+<trans-unit id="s84126fa92f00b4ef">
+  <source>just now</source>
+  <target>たった今</target>
+</trans-unit>
+<trans-unit id="s8c1837e74a81ad0d">
+  <source><x id="0" equiv-text="${Math.floor(s / 60)}"/>m ago</source>
+  <target><x id="0" equiv-text="${Math.floor(s / 60)}"/> 分前</target>
+</trans-unit>
+<trans-unit id="sa86ea054ad5277ce">
+  <source><x id="0" equiv-text="${Math.floor(s / 3600)}"/>h ago</source>
+  <target><x id="0" equiv-text="${Math.floor(s / 3600)}"/> 時間前</target>
+</trans-unit>
+<trans-unit id="s4abcddbf0c24a4e2">
+  <source><x id="0" equiv-text="${Math.floor(s / 86400)}"/>d ago</source>
+  <target><x id="0" equiv-text="${Math.floor(s / 86400)}"/> 日前</target>
+</trans-unit>
+<trans-unit id="seda52979691efde8">
+  <source>no file</source>
+  <target>ファイルなし</target>
+</trans-unit>
+<trans-unit id="s3c0d17bad169557b">
+  <source>none</source>
+  <target>なし</target>
+</trans-unit>
+<trans-unit id="sfd5b8cae918b42cb">
+  <source><x id="0" equiv-text="${keys.length}"/> items: <x id="1" equiv-text="${names}"/></source>
+  <target>要素 <x id="0" equiv-text="${keys.length}"/> 個: <x id="1" equiv-text="${names}"/></target>
+</trans-unit>
+<trans-unit id="s7081cf6429d6e736">
+  <source>loop pass <x id="0" equiv-text="${x.loop_pass}"/></source>
+  <target>ループ <x id="0" equiv-text="${x.loop_pass}"/> 周目</target>
+</trans-unit>
+<trans-unit id="s83a117a0e5a969a7">
+  <source>1 step completed</source>
+  <target>1 ステップ完了</target>
+</trans-unit>
+<trans-unit id="s42c16f17debe21c7">
+  <source><x id="0" equiv-text="${x.completed.length}"/> steps completed</source>
+  <target><x id="0" equiv-text="${x.completed.length}"/> ステップ完了</target>
+</trans-unit>
+<trans-unit id="sdc51fb6761fd6e91">
+  <source>done</source>
+  <target>完了</target>
+</trans-unit>
+<trans-unit id="sd7338946b42394f4">
+  <source>failed</source>
+  <target>失敗</target>
+</trans-unit>
+<trans-unit id="seee13c69133b70b7">
+  <source>skipped</source>
+  <target>スキップ</target>
+</trans-unit>
+<trans-unit id="sc87df95c02f9306d">
+  <source>ended <x id="0" equiv-text="${hhmmss(b.end)}"/></source>
+  <target>終了 <x id="0" equiv-text="${hhmmss(b.end)}"/></target>
+</trans-unit>
+<trans-unit id="sa358ec1ff0c833b9">
+  <source>role</source>
+  <target>ロール</target>
+</trans-unit>
+<trans-unit id="s150f53f8651b4384">
+  <source>output</source>
+  <target>出力</target>
+</trans-unit>
+<trans-unit id="sbaf87689cccc53eb">
+  <source>1 item</source>
+  <target>要素 1 個</target>
+</trans-unit>
+<trans-unit id="s125a86b2f45bbb25">
+  <source><x id="0" equiv-text="${v.length}"/> items</source>
+  <target>要素 <x id="0" equiv-text="${v.length}"/> 個</target>
+</trans-unit>
+<trans-unit id="s8dfeaf9950df0ffa">
+  <source>object</source>
+  <target>オブジェクト</target>
+</trans-unit>
+<trans-unit id="s629576c6b305d539">
+  <source>optional</source>
+  <target>任意</target>
+</trans-unit>
+<trans-unit id="s4f0af1e75e3f4e0d">
+  <source>not in the schema</source>
+  <target>スキーマにない</target>
+</trans-unit>
+<trans-unit id="s0f04e0aca045fbe9">
+  <source>truncated</source>
+  <target>一部省略</target>
+</trans-unit>
+<trans-unit id="s1ebbae8f5810b65b">
+  <source>input</source>
+  <target>入力</target>
+</trans-unit>
+<trans-unit id="s2fe3f0ef38a252c7">
+  <source>tool</source>
+  <target>ツール</target>
+</trans-unit>
+<trans-unit id="s8ab194afc8c3ff86">
+  <source>coding agent</source>
+  <target>コーディングエージェント</target>
+</trans-unit>
+<trans-unit id="se66872955dc59191">
+  <source>1 task</source>
+  <target>1 タスク</target>
+</trans-unit>
+<trans-unit id="sea748bf5cf6f28f3">
+  <source><x id="0" equiv-text="${n.label}"/> tasks</source>
+  <target><x id="0" equiv-text="${n.label}"/> タスク</target>
+</trans-unit>
+<trans-unit id="s47b9912260b01c3c">
+  <source>Python task</source>
+  <target>Python タスク</target>
+</trans-unit>
+<trans-unit id="s77ec32fb8248c021">
+  <source><x id="0" equiv-text="${t.not_started}"/> not started</source>
+  <target><x id="0" equiv-text="${t.not_started}"/> 未実行</target>
+</trans-unit>
+<trans-unit id="s0b355fde970b0df9">
+  <source>passed</source>
+  <target>OK</target>
+</trans-unit>
+<trans-unit id="sd757815e3da2dde5">
+  <source>failed checks</source>
+  <target>検証エラー</target>
+</trans-unit>
+<trans-unit id="s217ae8afd4252eff">
+  <source>found</source>
+  <target>あり</target>
+</trans-unit>
+<trans-unit id="s5f7e595afb1d20c1">
+  <source>missing (required)</source>
+  <target>なし（必須）</target>
+</trans-unit>
+<trans-unit id="sd747248fb64d7bb2">
+  <source>missing (optional)</source>
+  <target>なし（任意）</target>
+</trans-unit>
+<trans-unit id="s967a2db7049dc90e">
+  <source><x id="0" equiv-text="${kindUnit(c)}"/> failed</source>
+  <target><x id="0" equiv-text="${kindUnit(c)}"/> 失敗</target>
+</trans-unit>
+<trans-unit id="sdf922ccc13491763">
+  <source>done after retrying</source>
+  <target>リトライ後に完了</target>
+</trans-unit>
+<trans-unit id="sb5ae7a6b849639af">
+  <source>not started</source>
+  <target>未実行</target>
+</trans-unit>
+<trans-unit id="seac9afef1a00b5e8">
+  <source>waiting</source>
+  <target>待機中</target>
+</trans-unit>
+<trans-unit id="sc46bcff777c978a4">
+  <source>timed out</source>
+  <target>タイムアウト</target>
+</trans-unit>
+<trans-unit id="sa23567d1be73e6a7">
+  <source>turn limit reached</source>
+  <target>ターン数の上限</target>
+</trans-unit>
+<trans-unit id="s9f979c9a653c5aa5">
+  <source>cost limit reached</source>
+  <target>料金の上限</target>
+</trans-unit>
+<trans-unit id="s96ad55844e8c85d9">
+  <source>context limit reached</source>
+  <target>コンテキストの上限</target>
+</trans-unit>
+<trans-unit id="s7cfd548e0b7e3ad7">
+  <source>stalled (no output)</source>
+  <target>出力が止まった</target>
+</trans-unit>
+<trans-unit id="s90f3ce6dfe4ed0ce">
+  <source>authentication failed</source>
+  <target>認証エラー</target>
+</trans-unit>
+<trans-unit id="s1db2936d905dfc71">
+  <source>API error</source>
+  <target>API エラー</target>
+</trans-unit>
+<trans-unit id="scf70a5a7a06e1fa5">
+  <source>rate limited</source>
+  <target>レート制限</target>
+</trans-unit>
+<trans-unit id="sccce3de7b4abfdfe">
+  <source>refused by the model</source>
+  <target>モデルが応答を拒否</target>
+</trans-unit>
+<trans-unit id="s224181db56bd4f90">
+  <source>aborted</source>
+  <target>ツール実行中に中止</target>
+</trans-unit>
+<trans-unit id="s7a4c9d94aaf75c45">
+  <source>permission denied</source>
+  <target>権限エラー</target>
+</trans-unit>
+<trans-unit id="s9d60d7651126c205">
+  <source>ended without a result</source>
+  <target>最終応答なしで終了</target>
+</trans-unit>
+<trans-unit id="sffb00562b267f0a5">
+  <source>could not start the agent</source>
+  <target>エージェントの起動に失敗</target>
+</trans-unit>
+<trans-unit id="s6d739294ba8eba32">
+  <source><x id="0" equiv-text="${p.done}"/> of <x id="1" equiv-text="${p.total}"/> tasks done</source>
+  <target><x id="0" equiv-text="${p.done}"/>/<x id="1" equiv-text="${p.total}"/> タスク完了</target>
+</trans-unit>
+<trans-unit id="sfa04f4ef1995407e">
+  <source>text</source>
+  <target>テキスト</target>
+</trans-unit>
+<trans-unit id="s36eb49cc97df66bc">
+  <source>took <x id="0" equiv-text="${fmtDur(s)}"/></source>
+  <target>所要時間 <x id="0" equiv-text="${fmtDur(s)}"/></target>
+</trans-unit>
+<trans-unit id="s9f7452dd75d54d31">
+  <source>error</source>
+  <target>エラー</target>
+</trans-unit>
+<trans-unit id="saa8171db43ad805a">
+  <source><x id="0" equiv-text="${t.done}"/>/<x id="1" equiv-text="${t.total}"/> tasks done</source>
+  <target><x id="0" equiv-text="${t.done}"/>/<x id="1" equiv-text="${t.total}"/> タスク完了</target>
+</trans-unit>
+<trans-unit id="no-runs-yet">
+  <source>No runs yet</source>
+  <target>実行はまだありません</target>
+</trans-unit>
+<trans-unit id="sc1ae48fd5a58a916">
+  <source><x id="0" equiv-text="${t.waiting}"/> waiting</source>
+  <target><x id="0" equiv-text="${t.waiting}"/> 待機中</target>
+</trans-unit>
+<trans-unit id="se2bad0e4af9e9155">
+  <source><x id="0" equiv-text="${keys.length}"/> keys: <x id="1" equiv-text="${names}"/></source>
+  <target>キー <x id="0" equiv-text="${keys.length}"/> 個: <x id="1" equiv-text="${names}"/></target>
+</trans-unit>
+<trans-unit id="sb53f7a197981b790">
+  <source>yes</source>
+  <target>はい</target>
+</trans-unit>
+<trans-unit id="s08b35907b5589afa">
+  <source>no</source>
+  <target>いいえ</target>
+</trans-unit>
+<trans-unit id="s85e6ce57abc3c81c">
+  <source><x id="0" equiv-text="${name}"/>: model switch</source>
+  <target><x id="0" equiv-text="${name}"/>: モデル切り替え</target>
+</trans-unit>
+<trans-unit id="s45de7528c20a0792">
+  <source><x id="0" equiv-text="${p.description}"/> (custom view)</source>
+  <target><x id="0" equiv-text="${p.description}"/>（カスタムビュー）</target>
+</trans-unit>
+<trans-unit id="se90f184c6aa3ffbb">
+  <source>identity</source>
+  <target>認証情報</target>
+</trans-unit>
+<trans-unit id="s473bad4c26a1a663">
+  <source>cache read</source>
+  <target>キャッシュ読み込み</target>
+</trans-unit>
+<trans-unit id="sb289ca473d87fa82">
+  <source>cache write</source>
+  <target>キャッシュ書き込み</target>
+</trans-unit>
+<trans-unit id="s087d6f07b52b30ec">
+  <source><x id="0" equiv-text="${Math.round(t.share * 100)}"/>%</source>
+  <target><x id="0" equiv-text="${Math.round(t.share * 100)}"/>%</target>
+</trans-unit>
+<trans-unit id="s26e1e2905dce8250">
+  <source><x id="0" equiv-text="${s.calls}"/> API calls</source>
+  <target>API 呼び出し <x id="0" equiv-text="${s.calls}"/> 回</target>
+</trans-unit>
+<trans-unit id="s6f145ecab7e01aae">
+  <source>API calls</source>
+  <target>API 呼び出し</target>
+</trans-unit>
+<trans-unit id="saaaf4d8d7823ecc2">
+  <source>5-hour usage</source>
+  <target>5 時間枠の利用率</target>
+</trans-unit>
+<trans-unit id="s20e04bdc808a6442">
+  <source>resets in <x id="0" equiv-text="${left}"/></source>
+  <target>リセットまで <x id="0" equiv-text="${left}"/></target>
+</trans-unit>
+<trans-unit id="s79faeb77f29174c8">
+  <source>5-hour usage <x id="0" equiv-text="${pct(r.five_hour_pct)}"/></source>
+  <target>5 時間枠の利用率 <x id="0" equiv-text="${pct(r.five_hour_pct)}"/></target>
+</trans-unit>
+<trans-unit id="s919d209719302bd3">
+  <source><x id="0" equiv-text="${Math.floor(h / 24)}"/>d <x id="1" equiv-text="${Math.floor(h % 24)}"/>h</source>
+  <target><x id="0" equiv-text="${Math.floor(h / 24)}"/>d <x id="1" equiv-text="${Math.floor(h % 24)}"/>h</target>
+</trans-unit>
+<trans-unit id="s0382d73823585617">
+  <source><x id="0" equiv-text="${name}"/>: <x id="1" equiv-text="${stopLabel(row.stop)}"/></source>
+  <target><x id="0" equiv-text="${name}"/>: <x id="1" equiv-text="${stopLabel(row.stop)}"/></target>
+</trans-unit>
+<trans-unit id="s55fa598b754cc3cc">
+  <source><x id="0" equiv-text="${hopModel(h)}"/> (<x id="1" equiv-text="${stopLabel(h.stop)}"/>)</source>
+  <target><x id="0" equiv-text="${hopModel(h)}"/>（<x id="1" equiv-text="${stopLabel(h.stop)}"/>）</target>
+</trans-unit>
+<trans-unit id="sef0ce050d92c35e2">
+  <source><x id="0" equiv-text="${t.running}"/> running</source>
+  <target><x id="0" equiv-text="${t.running}"/> 実行中</target>
+</trans-unit>
+<trans-unit id="s387a4a41718122cb">
+  <source><x id="0" equiv-text="${results.length}"/> results</source>
+  <target>検索結果 <x id="0" equiv-text="${results.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="sb1068f146c4596c3">
+  <source>query</source>
+  <target>検索語</target>
+</trans-unit>
+<trans-unit id="s038b2a0deba58916">
+  <source>page</source>
+  <target>ページ</target>
+</trans-unit>
+<trans-unit id="s061a40d8b1403d96">
+  <source>OutputContract</source>
+  <target>OutputContract</target>
+</trans-unit>
+<trans-unit id="s28f91da403800c05">
+  <source>InputContract</source>
+  <target>InputContract</target>
+</trans-unit>
+<trans-unit id="se5d1247fe34fbb95">
+  <source>monitor.Panel</source>
+  <target>monitor.Panel</target>
+</trans-unit>
+<trans-unit id="s3d9b2f1277134dfc">
+  <source>text file</source>
+  <target>テキストファイル</target>
+</trans-unit>
+<trans-unit id="s5e6c4b6767bd9690">
+  <source>text (JSON string)</source>
+  <target>テキスト（JSON 文字列）</target>
+</trans-unit>
+<trans-unit id="s1147e23008e266b7">
+  <source>JSON value of type <x id="0" equiv-text="${root}"/></source>
+  <target><x id="0" equiv-text="${root}"/> 型の JSON 値</target>
+</trans-unit>
+<trans-unit id="h612ee972e5585763">
+  <source>JSON object, schema <x id="0" equiv-text="${schemaName(o)}"/></source>
+  <target>JSON オブジェクト（スキーマ <x id="0" equiv-text="${schemaName(o)}"/>）</target>
+</trans-unit>
+<trans-unit id="s4143df3df612bfdc">
+  <source>while the task runs</source>
+  <target>タスクの実行中</target>
+</trans-unit>
+<trans-unit id="s9de543933e6e703a">
+  <source>model</source>
+  <target>モデル</target>
+</trans-unit>
+<trans-unit id="s558d71789938dd8d">
+  <source>wrong identity used</source>
+  <target>認証情報の不一致</target>
+</trans-unit>
+<trans-unit id="s2575361362fcf642">
+  <source>No task declares an OutputContract or an InputContract</source>
+  <target>OutputContract・InputContract を宣言したタスクはありません</target>
+</trans-unit>
+<trans-unit id="s3f18b1a78ce1a960">
+  <source>Files each task must write</source>
+  <target>各タスクが書き込むファイル</target>
+</trans-unit>
+<trans-unit id="s888d98a196a240d8">
+  <source>Inputs</source>
+  <target>入力</target>
+</trans-unit>
+<trans-unit id="sce26f796a9b94ef1">
+  <source>Files each task reads, checked when the task starts</source>
+  <target>各タスクが読み込むファイル（タスクの開始時に検証）</target>
+</trans-unit>
+<trans-unit id="s6647f4305129ff48">
+  <source>No file</source>
+  <target>ファイルなし</target>
+</trans-unit>
+<trans-unit id="sfe771bfc3355dd51">
+  <source><x id="0" equiv-text="${name}"/>: input and output</source>
+  <target><x id="0" equiv-text="${name}"/>: 入力と出力</target>
+</trans-unit>
+<trans-unit id="sa6295f265bf36f55">
+  <source><x id="0" equiv-text="${name}"/>: transcript</source>
+  <target><x id="0" equiv-text="${name}"/>: トランスクリプト</target>
+</trans-unit>
+<trans-unit id="s40750d44c5ea3271">
+  <source><x id="0" equiv-text="${taskName(c)}"/>: input</source>
+  <target><x id="0" equiv-text="${taskName(c)}"/>: 入力</target>
+</trans-unit>
+<trans-unit id="s23f40d3ffdd352a6">
+  <source>No definitions yet</source>
+  <target>定義はまだありません</target>
+</trans-unit>
+<trans-unit id="sffa12312d4ff4b9c">
+  <source>No definitions</source>
+  <target>定義なし</target>
+</trans-unit>
+<trans-unit id="s7e796fe83982863f">
+  <source>Role <x id="0" equiv-text="${d.role}"/></source>
+  <target>ロール <x id="0" equiv-text="${d.role}"/></target>
+</trans-unit>
+<trans-unit id="s5f22ded7520dee36">
+  <source>No role</source>
+  <target>ロールなし</target>
+</trans-unit>
+<trans-unit id="s1072ae09dfd51f53">
+  <source>As recorded when its first task started (definitions/&lt;kind&gt;.json)</source>
+  <target>種別の最初のタスクの開始時に記録（definitions/&lt;kind&gt;.json）</target>
+</trans-unit>
+<trans-unit id="s755ec54babc00670">
+  <source>Plugin <x id="0" equiv-text="${sel.name || ''}"/></source>
+  <target>プラグイン <x id="0" equiv-text="${sel.name || ''}"/></target>
+</trans-unit>
+<trans-unit id="s8e609688324130a6">
+  <source>Defined in Python code</source>
+  <target>Python コードで定義</target>
+</trans-unit>
+<trans-unit id="s7b1cef9707986270">
+  <source>attempts with corrections</source>
+  <target>修正依頼のあった試行</target>
+</trans-unit>
+<trans-unit id="s4156c144093d2565">
+  <source>Attempts with at least one correction</source>
+  <target>修正依頼が 1 回以上あった試行</target>
+</trans-unit>
+<trans-unit id="s8b14867a2824dc66">
+  <source>tasks retried</source>
+  <target>リトライしたタスク</target>
+</trans-unit>
+<trans-unit id="s7ae3a2df31f642c2">
+  <source>Tasks with more than one attempt</source>
+  <target>試行が 2 回以上のタスク</target>
+</trans-unit>
+<trans-unit id="sf113fa256db9617b">
+  <source>Ended</source>
+  <target>終了時刻</target>
+</trans-unit>
+<trans-unit id="s2dd7dfcce562730a">
+  <source>How the attempt ended (stop)</source>
+  <target>試行の結果（stop）</target>
+</trans-unit>
+<trans-unit id="seea0f53b4dbb2fb3">
+  <source>Outcome</source>
+  <target>結果</target>
+</trans-unit>
+<trans-unit id="s5f31efe25292c85d">
+  <source>Agent, model, identity</source>
+  <target>エージェント・モデル・認証情報</target>
+</trans-unit>
+<trans-unit id="s3afd657caafb54ce">
+  <source>Input / output tokens, then cache read / cache write</source>
+  <target>上段は入力 / 出力トークン、下段はキャッシュ読み込み / キャッシュ書き込み</target>
+</trans-unit>
+<trans-unit id="saa29a2ac03cd9d19">
+  <source>Reason</source>
+  <target>理由</target>
+</trans-unit>
+<trans-unit id="s1b5c88ed6d70d50e">
+  <source>The task was done on attempt <x id="0" equiv-text="${laterTry}"/></source>
+  <target>タスクは <x id="0" equiv-text="${laterTry}"/> 回目で完了</target>
+</trans-unit>
+<trans-unit id="s9ff6bfdb36b47dd6">
+  <source>Model switch</source>
+  <target>モデル切り替え</target>
+</trans-unit>
+<trans-unit id="s1c4244f27dc0a0ad">
+  <source>Usage at session start (account-wide): <x id="0" equiv-text="${accountReading(start)}"/></source>
+  <target>セッション開始時の利用率（アカウント全体）: <x id="0" equiv-text="${accountReading(start)}"/></target>
+</trans-unit>
+<trans-unit id="s8eec5711640b68b9">
+  <source>Event types from the coding agent that this contraagent version does not recognize: <x id="0" equiv-text="${unreadEvents([e])}"/></source>
+  <target>使用中の contraagent が対応していない、コーディングエージェントのイベント種別: <x id="0" equiv-text="${unreadEvents([e])}"/></target>
+</trans-unit>
+<trans-unit id="s47c42ef44972974f">
+  <source>Unrecognized events</source>
+  <target>未対応のイベント</target>
+</trans-unit>
+<trans-unit id="s030b3188c7fcf26d">
+  <source>No custom view named <x id="0" equiv-text="${this.name}"/></source>
+  <target>カスタムビュー <x id="0" equiv-text="${this.name}"/> はありません</target>
+</trans-unit>
+<trans-unit id="s52cfd5bdf53cbac3">
+  <source>Custom view</source>
+  <target>カスタムビュー</target>
+</trans-unit>
+<trans-unit id="s1bf54dcd1c885a20">
+  <source>No running processes</source>
+  <target>実行中のプロセスなし</target>
+</trans-unit>
+<trans-unit id="sca4ca1724004c913">
+  <source>No processes</source>
+  <target>プロセスなし</target>
+</trans-unit>
+<trans-unit id="s9709015aaaed72e8">
+  <source>run not running</source>
+  <target>実行中ではありません</target>
+</trans-unit>
+<trans-unit id="sed0a4ed4fcf1c063">
+  <source>One per task (Backend.run)</source>
+  <target>タスクごとに 1 つ（Backend.run）</target>
+</trans-unit>
+<trans-unit id="s051e95917479e3a4">
+  <source>Agent sessions running</source>
+  <target>実行中のエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s8a59bcc106a68c08">
+  <source>PID <x id="0" equiv-text="${c.pid}"/></source>
+  <target>PID <x id="0" equiv-text="${c.pid}"/></target>
+</trans-unit>
+<trans-unit id="sb51d4fbebeb0e2ec">
+  <source>In the pipeline process</source>
+  <target>パイプラインのプロセス内</target>
+</trans-unit>
+<trans-unit id="s75834d577f713a10">
+  <source>No agent sessions</source>
+  <target>エージェントのセッションなし</target>
+</trans-unit>
+<trans-unit id="se61f0dc09b51fd35">
+  <source>Functions in the pipeline process</source>
+  <target>パイプラインのプロセス内の関数</target>
+</trans-unit>
+<trans-unit id="s1cc744978f1e1e36">
+  <source>Python tasks running</source>
+  <target>実行中の Python タスク</target>
+</trans-unit>
+<trans-unit id="s326385425f7ff3c5">
+  <source>Cache read <x id="0" equiv-text="${tokens(s.cache_read)}"/></source>
+  <target>キャッシュ読み込み <x id="0" equiv-text="${tokens(s.cache_read)}"/></target>
+</trans-unit>
+<trans-unit id="s0d7aa7237dcb1b28">
+  <source>Cache write <x id="0" equiv-text="${tokens(s.cache_creation)}"/></source>
+  <target>キャッシュ書き込み <x id="0" equiv-text="${tokens(s.cache_creation)}"/></target>
+</trans-unit>
+<trans-unit id="sfa6a5b4597c720bc">
+  <source>No tasks match the filter</source>
+  <target>フィルターに一致するタスクなし</target>
+</trans-unit>
+<trans-unit id="s6b94519d3d694140">
+  <source>No tasks</source>
+  <target>タスクなし</target>
+</trans-unit>
+<trans-unit id="s1a3bf4da26280428">
+  <source>Kind · unit</source>
+  <target>種別 · ユニット</target>
+</trans-unit>
+<trans-unit id="s03ee3cfb0919c62c">
+  <source>Task</source>
+  <target>タスク</target>
+</trans-unit>
+<trans-unit id="s3c6c1ae328e812d5">
+  <source>Attempts that ran</source>
+  <target>実行した試行の回数</target>
+</trans-unit>
+<trans-unit id="sbed050affb1455dd">
+  <source>Sum over all attempts</source>
+  <target>全試行の合計</target>
+</trans-unit>
+<trans-unit id="s48e186fb300e5464">
+  <source>Time</source>
+  <target>所要時間</target>
+</trans-unit>
+<trans-unit id="s6338c9c6cf8d4720">
+  <source>Input and output tokens, all attempts</source>
+  <target>入力・出力トークン（全試行）</target>
+</trans-unit>
+<trans-unit id="scb967cb2ce8bd344">
+  <source>Last attempt ended</source>
+  <target>最終試行の終了時刻</target>
+</trans-unit>
+<trans-unit id="sad3e3c8146fc920f">
+  <source>Status</source>
+  <target>状態</target>
+</trans-unit>
+<trans-unit id="s90f27e8c110012a2">
+  <source>In 1 task</source>
+  <target>1 タスクで</target>
+</trans-unit>
+<trans-unit id="sc93f5e83cc8f3ff6">
+  <source>In <x id="0" equiv-text="${tasks}"/> tasks</source>
+  <target><x id="0" equiv-text="${tasks}"/> タスクで</target>
+</trans-unit>
+<trans-unit id="sc797fd9076cc136d">
+  <source>Tasks</source>
+  <target>タスク</target>
+</trans-unit>
+<trans-unit id="sa35c067275510aa7">
+  <source>Attempts</source>
+  <target>試行</target>
+</trans-unit>
+<trans-unit id="sb89b16909f010061">
+  <source>1 agent session</source>
+  <target>エージェントのセッション 1 回</target>
+</trans-unit>
+<trans-unit id="s5cd51fca94ab558d">
+  <source><x id="0" equiv-text="${k.launches}"/> agent sessions</source>
+  <target>エージェントのセッション <x id="0" equiv-text="${k.launches}"/> 回</target>
+</trans-unit>
+<trans-unit id="se14336d3b18ab985">
+  <source><x id="0" equiv-text="${k.python}"/> Python</source>
+  <target>Python <x id="0" equiv-text="${k.python}"/> 回</target>
+</trans-unit>
+<trans-unit id="s26bb7d0992115fe1">
+  <source>Attempts that ran, retries included (journal.jsonl)</source>
+  <target>実行した試行の回数（リトライを含む、journal.jsonl）</target>
+</trans-unit>
+<trans-unit id="sfbb1f6b888aed522">
+  <source>Failed attempts</source>
+  <target>失敗した試行</target>
+</trans-unit>
+<trans-unit id="sff6ef2732281bb26">
+  <source>All attempts passed</source>
+  <target>すべての試行が成功</target>
+</trans-unit>
+<trans-unit id="sbe299a9270c76655">
+  <source>Failed attempts in history</source>
+  <target>実行履歴の失敗した試行</target>
+</trans-unit>
+<trans-unit id="s8f5f41272268128f">
+  <source>Not started</source>
+  <target>未実行</target>
+</trans-unit>
+<trans-unit id="s9a478383ff1f6e59">
+  <source>Input not ready</source>
+  <target>入力が未準備</target>
+</trans-unit>
+<trans-unit id="s1bb7c4234aa7d213">
+  <source>All tasks started</source>
+  <target>すべてのタスクが開始済み</target>
+</trans-unit>
+<trans-unit id="s630a7291de06d7e3">
+  <source>Not-started tasks in history</source>
+  <target>実行履歴の未実行のタスク</target>
+</trans-unit>
+<trans-unit id="sb9c8c7e97598bc93">
+  <source>Python tasks: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></source>
+  <target>Python タスク: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></target>
+</trans-unit>
+<trans-unit id="s6f6ef83186f41f9c">
+  <source>Sum over all agent sessions, including ones running at once</source>
+  <target>すべてのエージェントのセッションの合計（同時実行の分も含む）</target>
+</trans-unit>
+<trans-unit id="s84fb675fb17d4455">
+  <source>Retries</source>
+  <target>リトライ</target>
+</trans-unit>
+<trans-unit id="sdf452c95fdeb4be0">
+  <source>No retries</source>
+  <target>リトライなし</target>
+</trans-unit>
+<trans-unit id="sbce72abc083f229d">
+  <source>Attempts after a failed attempt, each in a new agent session (RetryingRunner)</source>
+  <target>失敗した試行の後の試行（毎回新しいエージェントのセッション、RetryingRunner）</target>
+</trans-unit>
+<trans-unit id="sae675aed0baadfc5">
+  <source>Retried tasks in history</source>
+  <target>実行履歴のリトライしたタスク</target>
+</trans-unit>
+<trans-unit id="s3f7074a6bbbd7726">
+  <source>Corrections</source>
+  <target>修正依頼</target>
+</trans-unit>
+<trans-unit id="sdd826d4b3e02f41b">
+  <source>No corrections</source>
+  <target>修正依頼なし</target>
+</trans-unit>
+<trans-unit id="sd794d5178cc31502">
+  <source>More rounds in the same agent session after the output failed checks (rounds)</source>
+  <target>出力が検証エラーになった後の、同じエージェントのセッションでの追加のラウンド（rounds）</target>
+</trans-unit>
+<trans-unit id="sb067d7b999cdf867">
+  <source>Attempts with corrections in history</source>
+  <target>実行履歴の修正依頼のあった試行</target>
+</trans-unit>
+<trans-unit id="s4d890c06c9c42dee">
+  <source>Model switches</source>
+  <target>モデル切り替え</target>
+</trans-unit>
+<trans-unit id="s8162d2730a5efc31">
+  <source>No model switches</source>
+  <target>モデル切り替えなし</target>
+</trans-unit>
+<trans-unit id="s02044ab83f193b3b">
+  <source>To the next model after a failure such as a rate limit, an error or a timeout (Router hops)</source>
+  <target>レート制限、エラー、タイムアウトなどで失敗した後の、次のモデルへの切り替え（Router のホップ）</target>
+</trans-unit>
+<trans-unit id="s367d079d1aed1358">
+  <source>Cost</source>
+  <target>料金</target>
+</trans-unit>
+<trans-unit id="s6b750985378a05db">
+  <source>Highest: <x id="0" equiv-text="${top.kind}"/>, <x id="1" equiv-text="${usd(top.spend.cost)}"/> (<x id="2" equiv-text="${Math.round(top.share * 100)}"/>%)</source>
+  <target>最も高い種別: <x id="0" equiv-text="${top.kind}"/>（<x id="1" equiv-text="${usd(top.spend.cost)}"/>、<x id="2" equiv-text="${Math.round(top.share * 100)}"/>%）</target>
+</trans-unit>
+<trans-unit id="s14bd607323778cb3">
+  <source>Reported by the coding agent</source>
+  <target>コーディングエージェントが報告した値</target>
+</trans-unit>
+<trans-unit id="s78fd8c03f8c967f3">
+  <source>Tokens</source>
+  <target>トークン</target>
+</trans-unit>
+<trans-unit id="s9f0023dbc7b35c31">
+  <source><x id="0" equiv-text="${tokens(s.input)}"/> input</source>
+  <target>入力 <x id="0" equiv-text="${tokens(s.input)}"/></target>
+</trans-unit>
+<trans-unit id="s96cd46414e7cb3ee">
+  <source><x id="0" equiv-text="${tokens(s.output)}"/> output</source>
+  <target>出力 <x id="0" equiv-text="${tokens(s.output)}"/></target>
+</trans-unit>
+<trans-unit id="s0799e2b0ce300ca7">
+  <source><x id="0" equiv-text="${tokens(s.cache_read + s.cache_creation)}"/> cache</source>
+  <target>キャッシュ <x id="0" equiv-text="${tokens(s.cache_read + s.cache_creation)}"/></target>
+</trans-unit>
+<trans-unit id="s8dd1924ee42c1f45">
+  <source><x id="0" equiv-text="${tokens(s.cache_read)}"/> cache read</source>
+  <target>キャッシュ読み込み <x id="0" equiv-text="${tokens(s.cache_read)}"/></target>
+</trans-unit>
+<trans-unit id="s57402fcb8174003c">
+  <source><x id="0" equiv-text="${tokens(s.cache_creation)}"/> cache write</source>
+  <target>キャッシュ書き込み <x id="0" equiv-text="${tokens(s.cache_creation)}"/></target>
+</trans-unit>
+<trans-unit id="s26012de2ae38a284">
+  <source>1 API call</source>
+  <target>API 呼び出し 1 回</target>
+</trans-unit>
+<trans-unit id="s6ebc9bd6feae62a3">
+  <source>Loading…</source>
+  <target>読み込み中…</target>
+</trans-unit>
+<trans-unit id="s500fd71a4232050e">
+  <source>Empty</source>
+  <target>空</target>
+</trans-unit>
+<trans-unit id="s9fbbc819fe7e66aa">
+  <source>Run</source>
+  <target>実行</target>
+</trans-unit>
+<trans-unit id="s19ed92a422ad7e4c">
+  <source>Limit: max_concurrent</source>
+  <target>上限: max_concurrent</target>
+</trans-unit>
+<trans-unit id="s94f08f46277af7d6">
+  <source>Running tasks</source>
+  <target>実行中のタスク</target>
+</trans-unit>
+<trans-unit id="s6b8a04c7fc4c0cfd">
+  <source><x id="0" equiv-text="${busy}"/> of <x id="1" equiv-text="${max}"/> running at once</source>
+  <target>同時実行 <x id="0" equiv-text="${busy}"/>/<x id="1" equiv-text="${max}"/></target>
+</trans-unit>
+<trans-unit id="s1dd7ab260efc97bf">
+  <source>No tasks running</source>
+  <target>実行中のタスクなし</target>
+</trans-unit>
+<trans-unit id="s8bbe7f1c618318b1">
+  <source>Counted from every finished attempt (journal.jsonl)</source>
+  <target>終了したすべての試行から集計（journal.jsonl）</target>
+</trans-unit>
+<trans-unit id="sf93c7009f950942a">
+  <source>Totals</source>
+  <target>合計</target>
+</trans-unit>
+<trans-unit id="sb557a3a544242a40">
+  <source>Reported by the coding agents</source>
+  <target>コーディングエージェントが報告した値</target>
+</trans-unit>
+<trans-unit id="s5b91c14a6a040e1e">
+  <source>Tokens and cost by kind</source>
+  <target>種別ごとのトークンと料金</target>
+</trans-unit>
+<trans-unit id="s06bab80ab006c3bc">
+  <source>Reported at each agent session start. Account-wide: every task that runs at once shares it.</source>
+  <target>エージェントのセッション開始時に報告された値です。アカウント全体の値で、同時に実行中のタスクすべてに共通です。</target>
+</trans-unit>
+<trans-unit id="sb0c5ebf2450daf53">
+  <source>Subscription usage</source>
+  <target>サブスクリプションの利用率</target>
+</trans-unit>
+<trans-unit id="s179ba9809bdf35c7">
+  <source>Per account, first → last reading</source>
+  <target>アカウントごと、最初の値 → 最後の値</target>
+</trans-unit>
+<trans-unit id="s0e6bbd9fe1101fbd">
+  <source>Problems</source>
+  <target>問題</target>
+</trans-unit>
+<trans-unit id="s3b32dd23d086c992">
+  <source>Process tree</source>
+  <target>プロセスツリー</target>
+</trans-unit>
+<trans-unit id="s9a23fee499e1a22d">
+  <source>All processes</source>
+  <target>すべてのプロセス</target>
+</trans-unit>
+<trans-unit id="s478b912874fef59f">
+  <source>Checked files (OutputContract, InputContract)</source>
+  <target>検証対象のファイル（OutputContract、InputContract）</target>
+</trans-unit>
+<trans-unit id="s066d70cf9d5e2915">
+  <source>Outputs</source>
+  <target>出力</target>
+</trans-unit>
+<trans-unit id="s2f4e0fd086ad4b96">
+  <source>All outputs</source>
+  <target>すべての出力</target>
+</trans-unit>
+<trans-unit id="s0668067982f84dcb">
+  <source>Stage and step per unit (CursorStore)</source>
+  <target>ユニットごとのステージとステップ（CursorStore）</target>
+</trans-unit>
+<trans-unit id="s10337c73438593bc">
+  <source>Resume cursor</source>
+  <target>再開カーソル</target>
+</trans-unit>
+<trans-unit id="sf3e2e1c7b6313910">
+  <source>Custom views</source>
+  <target>カスタムビュー</target>
+</trans-unit>
+<trans-unit id="s680fc90489553ed6">
+  <source>Timeline</source>
+  <target>タイムライン</target>
+</trans-unit>
+<trans-unit id="s3aa67b8233b5ecd0">
+  <source>No output files</source>
+  <target>出力ファイルなし</target>
+</trans-unit>
+<trans-unit id="s1633e83dc53b5d08">
+  <source>No checked files</source>
+  <target>検証対象のファイルなし</target>
+</trans-unit>
+<trans-unit id="sba781480d2e52d6a">
+  <source>1 more output</source>
+  <target>ほかの出力 1 件</target>
+</trans-unit>
+<trans-unit id="s2e3f7c747d87ba60">
+  <source><x id="0" equiv-text="${bad.length - shown.length}"/> more outputs</source>
+  <target>ほかの出力 <x id="0" equiv-text="${bad.length - shown.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="s1acc85c236fed879">
+  <source>1 output not written (task not started)</source>
+  <target>未書き込みの出力 1 件（タスクが未実行）</target>
+</trans-unit>
+<trans-unit id="sc6c0d07e39170334">
+  <source><x id="0" equiv-text="${refused}"/> outputs not written (tasks not started)</source>
+  <target>未書き込みの出力 <x id="0" equiv-text="${refused}"/> 件（タスクが未実行）</target>
+</trans-unit>
+<trans-unit id="s9340e2a9e1808cbd">
+  <source>1 attempt</source>
+  <target>1 試行</target>
+</trans-unit>
+<trans-unit id="s1dc338639fe7aae9">
+  <source><x id="0" equiv-text="${attempts}"/> attempts</source>
+  <target><x id="0" equiv-text="${attempts}"/> 試行</target>
+</trans-unit>
+<trans-unit id="sfc7ed987d0fe9679">
+  <source>No resume cursor</source>
+  <target>再開カーソルなし</target>
+</trans-unit>
+<trans-unit id="s2a2e8a5afcc8d89a">
+  <source>current</source>
+  <target>現在</target>
+</trans-unit>
+<trans-unit id="sede9056322866918">
+  <source>No stage</source>
+  <target>ステージなし</target>
+</trans-unit>
+<trans-unit id="s7c08c2107990421e">
+  <source>Show <x id="0" equiv-text="${p.title || p.name}"/></source>
+  <target><x id="0" equiv-text="${p.title || p.name}"/> を表示</target>
+</trans-unit>
+<trans-unit id="s2f3c9db4daa3e192">
+  <source>No problems</source>
+  <target>問題なし</target>
+</trans-unit>
+<trans-unit id="s73d2ca96ea1a1a1f">
+  <source>1 later task not started</source>
+  <target>未実行の後続タスク 1 件</target>
+</trans-unit>
+<trans-unit id="s605757aea05668c5">
+  <source><x id="0" equiv-text="${stopped.length}"/> later tasks not started</source>
+  <target>未実行の後続タスク <x id="0" equiv-text="${stopped.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="s7ccddac9af610a9c">
+  <source>Done on attempt <x id="0" equiv-text="${n}"/> after 1 failed attempt</source>
+  <target><x id="0" equiv-text="${n}"/> 回目で完了（失敗 1 回）</target>
+</trans-unit>
+<trans-unit id="sa65ede9447b8f6f0">
+  <source>Done on attempt <x id="0" equiv-text="${n}"/> after <x id="1" equiv-text="${fails}"/> failed attempts</source>
+  <target><x id="0" equiv-text="${n}"/> 回目で完了（失敗 <x id="1" equiv-text="${fails}"/> 回）</target>
+</trans-unit>
+<trans-unit id="sc95467f564b3300f">
+  <source>Resume: <x id="0" equiv-text="${done}"/> done | <x id="1" equiv-text="${again}"/> not done</source>
+  <target>再開: <x id="0" equiv-text="${done}"/> 完了 | <x id="1" equiv-text="${again}"/> 未完了</target>
+</trans-unit>
+<trans-unit id="sff660af26c203189">
+  <source>No tasks scheduled yet</source>
+  <target>登録済みのタスクはまだありません</target>
+</trans-unit>
+<trans-unit id="sd3c028fcc08b18ab">
+  <source>No tasks scheduled</source>
+  <target>登録済みのタスクなし</target>
+</trans-unit>
+<trans-unit id="sb105a27af3c34dd9">
+  <source>Not started: <x id="0" equiv-text="${cause}"/></source>
+  <target>未実行: <x id="0" equiv-text="${cause}"/></target>
+</trans-unit>
+<trans-unit id="s94d63573d312fe9b">
+  <source>Identity</source>
+  <target>認証情報</target>
+</trans-unit>
+<trans-unit id="s4085b471de2e2215">
+  <source>Weekly usage</source>
+  <target>週の利用率</target>
+</trans-unit>
+<trans-unit id="s9b1a610c6b10af9d">
+  <source>Not running</source>
+  <target>実行中ではありません</target>
+</trans-unit>
+<trans-unit id="s46f1d86ffec6223c">
+  <source>Finished with errors</source>
+  <target>エラーで終了</target>
+</trans-unit>
+<trans-unit id="sbb99d4ec27fbb263">
+  <source>Finished</source>
+  <target>終了</target>
+</trans-unit>
+<trans-unit id="s48287bbcb6ba7b8d">
+  <source>Ended <x id="0" equiv-text="${localTime(r.last_ts, true)}"/></source>
+  <target>終了 <x id="0" equiv-text="${localTime(r.last_ts, true)}"/></target>
+</trans-unit>
+<trans-unit id="sbf299a5316967a33">
+  <source>No activity</source>
+  <target>アクティビティなし</target>
+</trans-unit>
+<trans-unit id="s1f53dce0721a5fdc">
+  <source>Took <x id="0" equiv-text="${fmtDur(took)}"/></source>
+  <target>所要時間 <x id="0" equiv-text="${fmtDur(took)}"/></target>
+</trans-unit>
+<trans-unit id="s8d4bb019f3bc7202">
+  <source>PID</source>
+  <target>PID</target>
+</trans-unit>
+<trans-unit id="s706837052444dc71">
+  <source>Run group</source>
+  <target>実行グループ</target>
+</trans-unit>
+<trans-unit id="sc7d1e9a9024b4f9c">
+  <source>Running at once (limit)</source>
+  <target>同時実行（上限）</target>
+</trans-unit>
+<trans-unit id="s3fd6bd99e3f6a5be">
+  <source>Started</source>
+  <target>開始</target>
+</trans-unit>
+<trans-unit id="sa48318e1513f445c">
+  <source>Command line</source>
+  <target>コマンドライン</target>
+</trans-unit>
+<trans-unit id="sf2b0c091b94a0303">
+  <source>No tokens reported</source>
+  <target>トークンの報告なし</target>
+</trans-unit>
+<trans-unit id="s451bb7dd42aaf221">
+  <source>Most expensive tasks</source>
+  <target>料金の高いタスク</target>
+</trans-unit>
+<trans-unit id="s234af65b52814aa0">
+  <source>No finished attempts yet</source>
+  <target>終了した試行はまだありません</target>
+</trans-unit>
+<trans-unit id="s351d1cb40ce52b1e">
+  <source>No finished attempts</source>
+  <target>終了した試行なし</target>
+</trans-unit>
+<trans-unit id="s71900089efd0b3f6">
+  <source>Model switch: <x id="0" equiv-text="${sw}"/></source>
+  <target>モデル切り替え: <x id="0" equiv-text="${sw}"/></target>
+</trans-unit>
+<trans-unit id="s9246c889a0392130">
+  <source>Model <x id="0" equiv-text="${e.model}"/></source>
+  <target>モデル <x id="0" equiv-text="${e.model}"/></target>
+</trans-unit>
+<trans-unit id="s5ff154de087b8fbf">
+  <source>Agent task</source>
+  <target>エージェントタスク</target>
+</trans-unit>
+<trans-unit id="s7233e6b5b69a2313">
+  <source>1 older attempt not shown</source>
+  <target>古い試行 1 件は非表示</target>
+</trans-unit>
+<trans-unit id="s03fb84d070eb4d43">
+  <source><x id="0" equiv-text="${tl.hidden}"/> older attempts not shown</source>
+  <target>古い試行 <x id="0" equiv-text="${tl.hidden}"/> 件は非表示</target>
+</trans-unit>
+<trans-unit id="sc92905d14a9421f3">
+  <source>Idle</source>
+  <target>空き</target>
+</trans-unit>
+<trans-unit id="s6c80deca380c99b3">
+  <source>No task</source>
+  <target>タスクなし</target>
+</trans-unit>
+<trans-unit id="s2f54740b39931f87">
+  <source>No definition</source>
+  <target>定義なし</target>
+</trans-unit>
+<trans-unit id="sca7fed2bef53cb99">
+  <source>Role</source>
+  <target>ロール</target>
+</trans-unit>
+<trans-unit id="s0ea064cda0585ae9">
+  <source>Plugin directories</source>
+  <target>プラグインディレクトリ</target>
+</trans-unit>
+<trans-unit id="s5552cf25dfb16715">
+  <source>Plugin directory</source>
+  <target>プラグインディレクトリ</target>
+</trans-unit>
+<trans-unit id="s1c0f7e3a9a6bce79">
+  <source>Parameters</source>
+  <target>パラメータ</target>
+</trans-unit>
+<trans-unit id="sfd77270c3f54f664">
+  <source>Output</source>
+  <target>出力</target>
+</trans-unit>
+<trans-unit id="s68818ff23f9c3cd6">
+  <source>Other checks</source>
+  <target>その他の検証</target>
+</trans-unit>
+<trans-unit id="sd7445330352af2c5">
+  <source>Checked files</source>
+  <target>検証対象のファイル</target>
+</trans-unit>
+<trans-unit id="sd1f67ae2a58049b0">
+  <source>The schema the file is checked against</source>
+  <target>ファイルの検証に使うスキーマ</target>
+</trans-unit>
+<trans-unit id="s69990579b19fd554">
+  <source>Schema <x id="0" equiv-text="${x.schema}"/></source>
+  <target>スキーマ <x id="0" equiv-text="${x.schema}"/></target>
+</trans-unit>
+<trans-unit id="s803ce7e1a2294d50">
+  <source>Files</source>
+  <target>ファイル</target>
+</trans-unit>
+<trans-unit id="had57861b5eb1998e">
+  <source>No files | defined in Python code (<x id="0" equiv-text="&lt;code&gt;"/>TaskAdapter<x id="1" equiv-text="&lt;/code&gt;"/>)</source>
+  <target>ファイルなし | Python コードで定義（<x id="0" equiv-text="&lt;code&gt;"/>TaskAdapter<x id="1" equiv-text="&lt;/code&gt;"/>）</target>
+</trans-unit>
+<trans-unit id="s5f43af3669b1e098">
+  <source>Source</source>
+  <target>ソース</target>
+</trans-unit>
+<trans-unit id="sbf189e73c517d820">
+  <source>Role of this kind</source>
+  <target>種別のロール</target>
+</trans-unit>
+<trans-unit id="sca68313fa6851125">
+  <source>Show rendered</source>
+  <target>プレビューを表示</target>
+</trans-unit>
+<trans-unit id="sa87126e2d984d351">
+  <source>Show source</source>
+  <target>ソースを表示</target>
+</trans-unit>
+<trans-unit id="se1eef901709ee2de">
+  <source>not written: task not started</source>
+  <target>未書き込み: タスクが未実行</target>
+</trans-unit>
+<trans-unit id="s73b93314a162abeb">
+  <source>not written: task failed</source>
+  <target>未書き込み: タスクが失敗</target>
+</trans-unit>
+<trans-unit id="sb859110da342faff">
+  <source>not written yet: task running</source>
+  <target>未書き込み: タスクが実行中</target>
+</trans-unit>
+<trans-unit id="sc1b6e952ddf5f97f">
+  <source>not written yet: task waiting</source>
+  <target>未書き込み: タスクが待機中</target>
+</trans-unit>
+<trans-unit id="sc583ad71c776c16b">
+  <source>The task did not start because an input was not ready</source>
+  <target>入力が未準備のため、タスクは実行されていません</target>
+</trans-unit>
+<trans-unit id="s448ad430047b3ff5">
+  <source>The file passed its checks</source>
+  <target>ファイルの検証: OK</target>
+</trans-unit>
+<trans-unit id="sd5a8fb496330927a">
+  <source>The file failed its checks</source>
+  <target>ファイルに検証エラー</target>
+</trans-unit>
+<trans-unit id="sba8659178319945b">
+  <source>The task failed before it wrote a file that passes its checks</source>
+  <target>検証で OK になるファイルを書き込む前に、タスクが失敗</target>
+</trans-unit>
+<trans-unit id="s2ec303c39937657c">
+  <source>The task is running</source>
+  <target>タスクは実行中</target>
+</trans-unit>
+<trans-unit id="s7ae683e966f797d8">
+  <source>The task is waiting</source>
+  <target>タスクは待機中</target>
+</trans-unit>
+<trans-unit id="s2cf203a7f1d1b7cb">
+  <source>Correction: another round in the same agent session after the output failed checks</source>
+  <target>修正依頼: 出力が検証エラーになった後の、同じエージェントのセッションでの次のラウンド</target>
+</trans-unit>
+<trans-unit id="s87cfcf0fecad5ace">
+  <source>after 1 correction</source>
+  <target>修正依頼 1 回で</target>
+</trans-unit>
+<trans-unit id="s843c1705315bbf4e">
+  <source>after <x id="0" equiv-text="${n}"/> corrections</source>
+  <target>修正依頼 <x id="0" equiv-text="${n}"/> 回で</target>
+</trans-unit>
+<trans-unit id="s2216c1ec1d2b68a8">
+  <source>Not JSON</source>
+  <target>JSON ではありません</target>
+</trans-unit>
+<trans-unit id="s8a56a8c8bd19c9c7">
+  <source>missing</source>
+  <target>なし</target>
+</trans-unit>
+<trans-unit id="sfde497acd6a6a561">
+  <source>A required field that is not in the file</source>
+  <target>ファイルにない必須フィールド</target>
+</trans-unit>
+<trans-unit id="s156d30b96fb26c7f">
+  <source>absent (optional)</source>
+  <target>なし（任意）</target>
+</trans-unit>
+<trans-unit id="s12c35dcdc5890192">
+  <source>wrong type</source>
+  <target>型の不一致</target>
+</trans-unit>
+<trans-unit id="se2cd8c3175e8f91f">
+  <source>Expected <x id="0" equiv-text="${x.type}"/></source>
+  <target>期待する型: <x id="0" equiv-text="${x.type}"/></target>
+</trans-unit>
+<trans-unit id="s42a1ebe17efda727">
+  <source>Field</source>
+  <target>フィールド</target>
+</trans-unit>
+<trans-unit id="sa71f10bfe8f2e3b9">
+  <source>Expected</source>
+  <target>期待する型</target>
+</trans-unit>
+<trans-unit id="s851d0f73d02cf0b5">
+  <source>In the file</source>
+  <target>ファイルの値</target>
+</trans-unit>
+<trans-unit id="s42cbd8dca939a9c7">
+  <source>Check</source>
+  <target>検証</target>
+</trans-unit>
+<trans-unit id="s23005b43f30a04ed">
+  <source>Not in the schema</source>
+  <target>スキーマにないフィールド</target>
+</trans-unit>
+<trans-unit id="s321b04e2b2f863d5">
+  <source>extra field</source>
+  <target>余分なフィールド</target>
+</trans-unit>
+<trans-unit id="s10bcccd513757153">
+  <source>Not written yet</source>
+  <target>まだ書き込まれていません</target>
+</trans-unit>
+<trans-unit id="s04170ed88fb48665">
+  <source>Not written</source>
+  <target>書き込まれていません</target>
+</trans-unit>
+<trans-unit id="s3904df152788b23c">
+  <source>Not a JSON object</source>
+  <target>JSON オブジェクトではありません</target>
+</trans-unit>
+<trans-unit id="s352069454f38346a">
+  <source>Whole file</source>
+  <target>ファイル全体</target>
+</trans-unit>
+<trans-unit id="s837f3597be0e0bda">
+  <source>written <x id="0" equiv-text="${localTime(f.mtime, true)}"/></source>
+  <target>書き込み <x id="0" equiv-text="${localTime(f.mtime, true)}"/></target>
+</trans-unit>
+<trans-unit id="sa3c9339de23c1752">
+  <source>Format</source>
+  <target>形式</target>
+</trans-unit>
+<trans-unit id="s37da018e1fe6a0d7">
+  <source>Checks beyond the schema (validators)</source>
+  <target>スキーマ以外の検証（validators）</target>
+</trans-unit>
+<trans-unit id="sf0d762a3802cb5ce">
+  <source>Must be written</source>
+  <target>書き込みの時期</target>
+</trans-unit>
+<trans-unit id="scf953355dd6fda50">
+  <source>any time, including before the task</source>
+  <target>いつでも（タスクの開始前も含む）</target>
+</trans-unit>
+<trans-unit id="s1c271fd88eea93c6">
+  <source>Checked</source>
+  <target>検証の時期</target>
+</trans-unit>
+<trans-unit id="sbca0391cb2c7c054">
+  <source>when the task starts</source>
+  <target>タスクの開始時</target>
+</trans-unit>
+<trans-unit id="sae5d87e99fe081e0">
+  <source>Required</source>
+  <target>必須</target>
+</trans-unit>
+<trans-unit id="sea0302389e41e09b">
+  <source>The task failed before it wrote this file: <x id="0" equiv-text="${runRelative(opts.reason, run)}"/></source>
+  <target>ファイルを書き込む前にタスクが失敗: <x id="0" equiv-text="${runRelative(opts.reason, run)}"/></target>
+</trans-unit>
+<trans-unit id="sfa189431a532d295">
+  <source>The task failed before it wrote this file</source>
+  <target>ファイルを書き込む前にタスクが失敗</target>
+</trans-unit>
+<trans-unit id="s3d197283cb019b5a">
+  <source>Overview</source>
+  <target>概要</target>
+</trans-unit>
+<trans-unit id="s58c754018ec47b5f">
+  <source>History</source>
+  <target>実行履歴</target>
+</trans-unit>
+<trans-unit id="sf2e5c0d258c9b689">
+  <source>Definitions</source>
+  <target>定義</target>
+</trans-unit>
+<trans-unit id="sfdd447bcde2c13ba">
+  <source>Processes</source>
+  <target>プロセス</target>
+</trans-unit>
+<trans-unit id="sa9ba2bef6a85be35">
+  <source>Task detail</source>
+  <target>タスク詳細</target>
+</trans-unit>
+<trans-unit id="s53c57cf5a0992de1">
+  <source><x id="0" equiv-text="${name}"/>: not started</source>
+  <target><x id="0" equiv-text="${name}"/>: 未実行</target>
+</trans-unit>
+<trans-unit id="sb9855c13b2b8461f">
+  <source><x id="0" equiv-text="${name}"/>: done</source>
+  <target><x id="0" equiv-text="${name}"/>: 完了</target>
+</trans-unit>
+<trans-unit id="sbd4aeb401e751129">
+  <source>Switch run (r)</source>
+  <target>実行を切り替え（r）</target>
+</trans-unit>
+<trans-unit id="sefcf950b3cc4fc3b">
+  <source>Language</source>
+  <target>言語</target>
+</trans-unit>
+<trans-unit id="s49098dfd8a30a9b7">
+  <source>Connected to the monitor server</source>
+  <target>モニターのサーバーに接続中</target>
+</trans-unit>
+<trans-unit id="sac1ead3bc64c3402">
+  <source>Not connected to the monitor server</source>
+  <target>モニターのサーバーに未接続</target>
+</trans-unit>
+<trans-unit id="se3b4c857f91f80d7">
+  <source>Keyboard shortcuts</source>
+  <target>キーボードショートカット</target>
+</trans-unit>
+<trans-unit id="s03b454fb08e876ad">
+  <source>Tabs</source>
+  <target>タブ</target>
+</trans-unit>
+<trans-unit id="sea7bdd2b70c8c2bb">
+  <source>Runs</source>
+  <target>実行の一覧</target>
+</trans-unit>
+<trans-unit id="s7c95876637f6a9d7">
+  <source>Filter</source>
+  <target>フィルター</target>
+</trans-unit>
+<trans-unit id="s70af97de3ad8fb23">
+  <source>Kind</source>
+  <target>種別</target>
+</trans-unit>
+<trans-unit id="sec2574ea71a53cc7">
+  <source>All kinds</source>
+  <target>すべての種別</target>
+</trans-unit>
+<trans-unit id="s980dd0446ac478b4">
+  <source>Text filter</source>
+  <target>テキストフィルター</target>
+</trans-unit>
+<trans-unit id="s07760df6abc2f6a0">
+  <source>Text filter (/)</source>
+  <target>テキストフィルター（/）</target>
+</trans-unit>
+<trans-unit id="s85994a70cd39166c">
+  <source>Running</source>
+  <target>実行中</target>
+</trans-unit>
+<trans-unit id="s115763f2236ae9b6">
+  <source>Last 24 hours</source>
+  <target>過去 24 時間</target>
+</trans-unit>
+<trans-unit id="sc032b109be3096a1">
+  <source>Older</source>
+  <target>それ以前</target>
+</trans-unit>
+<trans-unit id="s75ee52426b34dd6d">
+  <source>Search runs</source>
+  <target>実行を検索</target>
+</trans-unit>
+<trans-unit id="scf1f6260b486064d">
+  <source>No runs match</source>
+  <target>一致する実行なし</target>
+</trans-unit>
+<trans-unit id="sdc40078597054827">
+  <source>Run group <x id="0" equiv-text="${r.run_group}"/></source>
+  <target>実行グループ <x id="0" equiv-text="${r.run_group}"/></target>
+</trans-unit>
+<trans-unit id="s0622a6e6cb77254b">
+  <source>Transcript</source>
+  <target>トランスクリプト</target>
+</trans-unit>
+<trans-unit id="sdb1595f5c742dfbb">
+  <source>Input</source>
+  <target>入力</target>
+</trans-unit>
+<trans-unit id="sea4f20ea1ece70a0">
+  <source>Definition</source>
+  <target>定義</target>
+</trans-unit>
+<trans-unit id="s1c2af4de03b03b48">
+  <source>No task selected</source>
+  <target>タスクが選択されていません</target>
+</trans-unit>
+<trans-unit id="sb4d67c0a20dacf94">
+  <source>No transcript</source>
+  <target>トランスクリプトなし</target>
+</trans-unit>
+<trans-unit id="s6d36170fcecb00d0">
+  <source>Earlier task</source>
+  <target>依存先タスク</target>
+</trans-unit>
+<trans-unit id="sf6e66e6e9a5d83ff">
+  <source>Transcript not saved (keep_transcripts = false)</source>
+  <target>トランスクリプトは保存されていません（keep_transcripts = false）</target>
+</trans-unit>
+<trans-unit id="s123b7254b44dd148">
+  <source>Waiting</source>
+  <target>待機中</target>
+</trans-unit>
+<trans-unit id="sc15ad44c7902a717">
+  <source>Skipped</source>
+  <target>スキップ</target>
+</trans-unit>
+<trans-unit id="s23ba00b0f333e17e">
+  <source>Failed on all <x id="0" equiv-text="${tries.length}"/> attempts: <x id="1" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回の試行がすべて失敗: <x id="1" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s9a44f95f7acf28e0">
+  <source>Failed: <x id="0" equiv-text="${why}"/></source>
+  <target>失敗: <x id="0" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s423b98420bc4f51a">
+  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> after 1 failed attempt. First failure: <x id="1" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了（失敗 1 回）。最初の失敗: <x id="1" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s3f6e4868742b58de">
+  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> after <x id="1" equiv-text="${fails.length}"/> failed attempts. First failure: <x id="2" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了（失敗 <x id="1" equiv-text="${fails.length}"/> 回）。最初の失敗: <x id="2" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="sfadf0e9dfc4b3030">
+  <source>Done after 1 correction</source>
+  <target>修正依頼 1 回で完了</target>
+</trans-unit>
+<trans-unit id="s97c3c9984ad4bbbc">
+  <source>Done after <x id="0" equiv-text="${corrections}"/> corrections</source>
+  <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了</target>
+</trans-unit>
+<trans-unit id="s22d4df747c023383">
+  <source>Done after 1 correction. First failed check: <x id="0" equiv-text="${first}"/></source>
+  <target>修正依頼 1 回で完了。最初の検証エラー: <x id="0" equiv-text="${first}"/></target>
+</trans-unit>
+<trans-unit id="s229e98b8f3010c9f">
+  <source>Done after <x id="0" equiv-text="${corrections}"/> corrections. First failed check: <x id="1" equiv-text="${first}"/></source>
+  <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了。最初の検証エラー: <x id="1" equiv-text="${first}"/></target>
+</trans-unit>
+<trans-unit id="s87b0c0d87ec9c3a1">
+  <source>Done after a model switch: <x id="0" equiv-text="${sw}"/></source>
+  <target>モデル切り替え後に完了: <x id="0" equiv-text="${sw}"/></target>
+</trans-unit>
+<trans-unit id="s0379fc73608ab971">
+  <source>Done</source>
+  <target>完了</target>
+</trans-unit>
+<trans-unit id="sbc95529382a8202f">
+  <source>Earlier attempts used model <x id="0" equiv-text="${otherModels[0] ?? ''}"/></source>
+  <target>以前の試行のモデル: <x id="0" equiv-text="${otherModels[0] ?? ''}"/></target>
+</trans-unit>
+<trans-unit id="s822f38a61c9dbabc">
+  <source>Earlier attempts used models <x id="0" equiv-text="${otherModels.join(', ')}"/></source>
+  <target>以前の試行のモデル: <x id="0" equiv-text="${otherModels.join(', ')}"/></target>
+</trans-unit>
+<trans-unit id="s3cd8af104999d502">
+  <source>1 agent session running</source>
+  <target>実行中のエージェントのセッション 1 件</target>
+</trans-unit>
+<trans-unit id="sfb65f5d860c9a106">
+  <source><x id="0" equiv-text="${launches.length}"/> agent sessions running</source>
+  <target>実行中のエージェントのセッション <x id="0" equiv-text="${launches.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="sdd0fb64c2928422f">
+  <source>Event types from the coding agent that this contraagent version does not recognize</source>
+  <target>使用中の contraagent が対応していない、コーディングエージェントのイベント種別</target>
+</trans-unit>
+<trans-unit id="s79a4abd140c07a19">
+  <source>Unrecognized events: <x id="0" equiv-text="${unreadEvents(tries)}"/></source>
+  <target>未対応のイベント: <x id="0" equiv-text="${unreadEvents(tries)}"/></target>
+</trans-unit>
+<trans-unit id="s3bde79a5267baa21">
+  <source>The task_detail callback failed: <x id="0" equiv-text="${d.task_detail_error ?? ''}"/></source>
+  <target>task_detail コールバックが失敗: <x id="0" equiv-text="${d.task_detail_error ?? ''}"/></target>
+</trans-unit>
+<trans-unit id="sfe9c9abcded61e50">
+  <source>Process <x id="0" equiv-text="${lc.pid ?? '—'}"/></source>
+  <target>プロセス <x id="0" equiv-text="${lc.pid ?? '—'}"/></target>
+</trans-unit>
+<trans-unit id="sa12ff035c78855af">
+  <source>What the coding agent authenticated as: an account or an API key (credential)</source>
+  <target>コーディングエージェントが認証に使ったアカウントまたは API キー（credential）</target>
+</trans-unit>
+<trans-unit id="s3700ce266079b566">
+  <source>1 web search</source>
+  <target>Web 検索 1 回</target>
+</trans-unit>
+<trans-unit id="s9a629cca97d7a771">
+  <source><x id="0" equiv-text="${queries.length}"/> web searches</source>
+  <target>Web 検索 <x id="0" equiv-text="${queries.length}"/> 回</target>
+</trans-unit>
+<trans-unit id="sd5da7ee4a43a6b2d">
+  <source>Tokens: <x id="0" equiv-text="${tokens(s.input)}"/> input, <x id="1" equiv-text="${tokens(s.output)}"/> output, <x id="2" equiv-text="${tokens(s.cache_read)}"/> cache read, <x id="3" equiv-text="${tokens(s.cache_creation)}"/> cache write</source>
+  <target>トークン: 入力 <x id="0" equiv-text="${tokens(s.input)}"/>、出力 <x id="1" equiv-text="${tokens(s.output)}"/>、キャッシュ読み込み <x id="2" equiv-text="${tokens(s.cache_read)}"/>、キャッシュ書き込み <x id="3" equiv-text="${tokens(s.cache_creation)}"/></target>
+</trans-unit>
+<trans-unit id="sda249baca3c52d27">
+  <source>Usage at session start: <x id="0" equiv-text="${readingShort(start)}"/></source>
+  <target>セッション開始時の利用率: <x id="0" equiv-text="${readingShort(start)}"/></target>
+</trans-unit>
+<trans-unit id="s70a75a654c87e121">
+  <source>Usage after this task: <x id="0" equiv-text="${readingShort(next)}"/></source>
+  <target>タスク終了後の利用率: <x id="0" equiv-text="${readingShort(next)}"/></target>
+</trans-unit>
+<trans-unit id="hf139a496c0f9b763">
+  <source>From <x id="0" equiv-text="${this.link(from)}"/></source>
+  <target><x id="0" equiv-text="${this.link(from)}"/> の出力から</target>
+</trans-unit>
+<trans-unit id="s89ece7813063852e">
+  <source>No parameters</source>
+  <target>パラメータなし</target>
+</trans-unit>
+<trans-unit id="s40a3fbe1df331f66">
+  <source>Inputs from earlier tasks</source>
+  <target>依存先タスクからの入力</target>
+</trans-unit>
+<trans-unit id="s6c306ba2a3eafe04">
+  <source>No earlier tasks</source>
+  <target>依存先タスクなし</target>
+</trans-unit>
+<trans-unit id="sa7678024227276be">
+  <source>Other input files</source>
+  <target>その他の入力ファイル</target>
+</trans-unit>
+<trans-unit id="s55ed13a29f9e56db">
+  <source>Checked when the task starts</source>
+  <target>タスクの開始時に検証</target>
+</trans-unit>
+<trans-unit id="s43ab3e3c4dea42fc">
+  <source>Input files</source>
+  <target>入力ファイル</target>
+</trans-unit>
+<trans-unit id="s7b16665b242b03f9">
+  <source>No input files</source>
+  <target>入力ファイルなし</target>
+</trans-unit>
+<trans-unit id="s4dc1b9906b081f0b">
+  <source>1 output file is missing</source>
+  <target>出力ファイル 1 件がありません</target>
+</trans-unit>
+<trans-unit id="sd489b7dc205394ef">
+  <source><x id="0" equiv-text="${missing}"/> output files are missing</source>
+  <target>出力ファイル <x id="0" equiv-text="${missing}"/> 件がありません</target>
+</trans-unit>
+<trans-unit id="se162d3485ea0d5d7">
+  <source>1 output file failed checks</source>
+  <target>出力ファイル 1 件に検証エラー</target>
+</trans-unit>
+<trans-unit id="s94d8c911acbe572f">
+  <source><x id="0" equiv-text="${failed}"/> output files failed checks</source>
+  <target>出力ファイル <x id="0" equiv-text="${failed}"/> 件に検証エラー</target>
+</trans-unit>
+<trans-unit id="s59f1f6a6e10801e3">
+  <source>1 output file passed</source>
+  <target>出力ファイル 1 件が OK</target>
+</trans-unit>
+<trans-unit id="s0ad3c18e14f52ceb">
+  <source><x id="0" equiv-text="${passed}"/> output files passed</source>
+  <target>出力ファイル <x id="0" equiv-text="${passed}"/> 件が OK</target>
+</trans-unit>
+<trans-unit id="s8ffca4adce22d531">
+  <source>Also declared as an input of this task</source>
+  <target>このタスクの入力としても宣言</target>
+</trans-unit>
+<trans-unit id="scd99caf8298e3611">
+  <source>Also an input</source>
+  <target>入力でもある</target>
+</trans-unit>
+<trans-unit id="sd68011705bf4b72f">
+  <source>Prompt not saved (keep_transcripts = false)</source>
+  <target>プロンプトは保存されていません（keep_transcripts = false）</target>
+</trans-unit>
+<trans-unit id="s09bb59cd137c1af4">
+  <source>No prompt</source>
+  <target>プロンプトなし</target>
+</trans-unit>
+<trans-unit id="sb998a18b54658de7">
+  <source>Tokens and cost</source>
+  <target>トークンと料金</target>
+</trans-unit>
+<trans-unit id="s72dd85d5a32d1dc3">
+  <source>Cache read</source>
+  <target>キャッシュ読み込み</target>
+</trans-unit>
+<trans-unit id="s62035be5de828c62">
+  <source>Cache write</source>
+  <target>キャッシュ書き込み</target>
+</trans-unit>
+<trans-unit id="s0b237aba4a56eb22">
+  <source>Subscription usage when the agent session started (account-wide)</source>
+  <target>エージェントのセッション開始時のサブスクリプション利用率（アカウント全体）</target>
+</trans-unit>
+<trans-unit id="sbb202211084591ed">
+  <source>Usage at start</source>
+  <target>開始時の利用率</target>
+</trans-unit>
+<trans-unit id="sf56cc81a8429fcb0">
+  <source>The first reading of the same account after this attempt ended</source>
+  <target>試行の終了後に、同じアカウントで最初に報告された値</target>
+</trans-unit>
+<trans-unit id="sf4897f85932ebf42">
+  <source>Usage after</source>
+  <target>終了後の利用率</target>
+</trans-unit>
+<trans-unit id="s7a30a0774744040b">
+  <source>Output files</source>
+  <target>出力ファイル</target>
+</trans-unit>
+<trans-unit id="s649816288746372b">
+  <source>Later tasks</source>
+  <target>後続タスク</target>
+</trans-unit>
+<trans-unit id="sa335a9687e946152">
+  <source>No later tasks</source>
+  <target>後続タスクなし</target>
+</trans-unit>
+<trans-unit id="sb1ffef0fea624d13">
+  <source>Show 1 earlier line</source>
+  <target>前の 1 行を表示</target>
+</trans-unit>
+<trans-unit id="sa66db52d0401c35d">
+  <source>Show <x id="0" equiv-text="${this.behind}"/> earlier lines</source>
+  <target>前の <x id="0" equiv-text="${this.behind}"/> 行を表示</target>
+</trans-unit>
+<trans-unit id="s343dead26eec35c9">
+  <source>Show 1 new event</source>
+  <target>新しいイベント 1 件を表示</target>
+</trans-unit>
+<trans-unit id="sd77d82bf43357ecd">
+  <source>Show 1 new event in the running agent session</source>
+  <target>実行中のエージェントのセッションの新しいイベント 1 件を表示</target>
+</trans-unit>
+<trans-unit id="sa84bd87e8f0df3f5">
+  <source>Show <x id="0" equiv-text="${this.unseen}"/> new events</source>
+  <target>新しいイベント <x id="0" equiv-text="${this.unseen}"/> 件を表示</target>
+</trans-unit>
+<trans-unit id="sa390213ff60c0fd9">
+  <source>Show <x id="0" equiv-text="${this.unseen}"/> new events in the running agent session</source>
+  <target>実行中のエージェントのセッションの新しいイベント <x id="0" equiv-text="${this.unseen}"/> 件を表示</target>
+</trans-unit>
+<trans-unit id="s3d03990e188bfbff">
+  <source>Agent sessions</source>
+  <target>エージェントのセッション</target>
+</trans-unit>
+<trans-unit id="sba98804fae414565">
+  <source>Attempt: a new agent session. Correction: the same agent session after failed checks. Model switch: a new agent session on the next model.</source>
+  <target>試行は新しいエージェントのセッションです。修正依頼は、検証エラーの後の同じエージェントのセッションです。モデル切り替えは、次のモデルでの新しいエージェントのセッションです。</target>
+</trans-unit>
+<trans-unit id="s3e3b1848b616d72e">
+  <source>Errors: in the correction prompt</source>
+  <target>エラーの内容: 修正依頼のプロンプト内</target>
+</trans-unit>
+<trans-unit id="safdeae829048fe4f">
+  <source>Attempt <x id="0" equiv-text="${info.tryNo}"/> failed: <x id="1" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${info.tryNo}"/> 回目が失敗: <x id="1" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s1e9a9d076c64051d">
+  <source>Prompt (<x id="0" equiv-text="${prompt.length}"/> characters; <x id="1" equiv-text="${trunc}"/> characters not saved)</source>
+  <target>プロンプト（<x id="0" equiv-text="${prompt.length}"/> 文字、ほか <x id="1" equiv-text="${trunc}"/> 文字は未保存）</target>
+</trans-unit>
+<trans-unit id="sb31160f9d54a1178">
+  <source>Prompt (<x id="0" equiv-text="${prompt.length}"/> characters)</source>
+  <target>プロンプト（<x id="0" equiv-text="${prompt.length}"/> 文字）</target>
+</trans-unit>
+<trans-unit id="s5667ab3a2fddedf6">
+  <source>(<x id="0" equiv-text="${trunc}"/> characters not saved)</source>
+  <target>（ほか <x id="0" equiv-text="${trunc}"/> 文字は未保存）</target>
+</trans-unit>
+<trans-unit id="s54393bfa280ea55b">
+  <source>Prompt</source>
+  <target>プロンプト</target>
+</trans-unit>
+<trans-unit id="s6dbe9cb1faacdff3">
+  <source><x id="0" equiv-text="${it.text.length}"/> characters</source>
+  <target><x id="0" equiv-text="${it.text.length}"/> 文字</target>
+</trans-unit>
+<trans-unit id="s8e337d18c39babc7">
+  <source>Assistant</source>
+  <target>アシスタント</target>
+</trans-unit>
+<trans-unit id="sabd480ab5c691fa7">
+  <source>Reasoning</source>
+  <target>思考</target>
+</trans-unit>
+<trans-unit id="sb5061813a78f2d79">
+  <source>API request sent again (<x id="0" equiv-text="${it.attempt}"/>)</source>
+  <target>API リクエストを再送（<x id="0" equiv-text="${it.attempt}"/> 度目）</target>
+</trans-unit>
+<trans-unit id="sad951affb16c18e8">
+  <source>API request sent again</source>
+  <target>API リクエストを再送</target>
+</trans-unit>
+<trans-unit id="s664bf0dfe5ccdd70">
+  <source>The run ended before the tool call returned</source>
+  <target>ツール呼び出しが戻る前に実行が終了</target>
+</trans-unit>
+<trans-unit id="s65ca38fd016064d1">
+  <source>interrupted</source>
+  <target>中断</target>
+</trans-unit>
+<trans-unit id="s4d613d768e2faa0d">
+  <source>1 result</source>
+  <target>検索結果 1 件</target>
+</trans-unit>
+<trans-unit id="scbd3558d2cfc7dc3">
+  <source>Full text</source>
+  <target>全文</target>
+</trans-unit>
+<trans-unit id="sa50a6326530d8a0d">
+  <source>Show less</source>
+  <target>折りたたむ</target>
+</trans-unit>
+<trans-unit id="sda800fa8314eb82c">
+  <source>Show all (<x id="0" equiv-text="${text.length}"/> characters)</source>
+  <target>すべて表示（<x id="0" equiv-text="${text.length}"/> 文字）</target>
+</trans-unit>
+<trans-unit id="sb9e681f6b83c4bc2">
+  <source>Attempt <x id="0" equiv-text="${r.tryNo}"/> | correction <x id="1" equiv-text="${r.fixupNo}"/></source>
+  <target><x id="0" equiv-text="${r.tryNo}"/> 回目 | 修正依頼 <x id="1" equiv-text="${r.fixupNo}"/></target>
+</trans-unit>
+<trans-unit id="s475eae6093ad432f">
+  <source>Attempt <x id="0" equiv-text="${r.tryNo}"/> | model switch</source>
+  <target><x id="0" equiv-text="${r.tryNo}"/> 回目 | モデル切り替え</target>
+</trans-unit>
+<trans-unit id="s88e6f151026426e7">
+  <source>Correction <x id="0" equiv-text="${r.fixupNo}"/></source>
+  <target>修正依頼 <x id="0" equiv-text="${r.fixupNo}"/></target>
+</trans-unit>
+<trans-unit id="s3d99e317c3b7b422">
+  <source>same agent session, after failed checks</source>
+  <target>検証エラー後の、同じエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="sc5b9f26a8c698f76">
+  <source>new agent session on the next model</source>
+  <target>次のモデルでの新しいエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s877a8bf58317ec9e">
+  <source>new agent session after attempt <x id="0" equiv-text="${r.tryNo - 1}"/> failed</source>
+  <target><x id="0" equiv-text="${r.tryNo - 1}"/> 回目の失敗後の、新しいエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="sf14df172fd566bcc">
+  <source>first agent session</source>
+  <target>最初のエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s769a35c122b0add4">
+  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>; switched to <x id="2" equiv-text="${r.switchedTo}"/></source>
+  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>、<x id="2" equiv-text="${r.switchedTo}"/> に切り替え</target>
+</trans-unit>
+<trans-unit id="s2ac18b95949a85cb">
+  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>; switched to the next model</source>
+  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>、次のモデルに切り替え</target>
+</trans-unit>
+<trans-unit id="s09323b2ac0a8afed">
+  <source>Output passed checks</source>
+  <target>出力の検証: OK</target>
+</trans-unit>
+<trans-unit id="sdb80a6330c0fa072">
+  <source>Output failed checks</source>
+  <target>出力に検証エラー</target>
+</trans-unit>
+<trans-unit id="se2788d18bd1f9873">
+  <source>The CLI that ran the task (claude, omp)</source>
+  <target>タスクを実行した CLI（claude、omp）</target>
+</trans-unit>
+<trans-unit id="s7ff1975047cd672c">
+  <source>The language model the coding agent used</source>
+  <target>コーディングエージェントが使ったモデル</target>
+</trans-unit>
+<trans-unit id="sec749d36a5ebf2a6">
+  <source>The agent definition the coding agent ran as (agents/&lt;role&gt;.md)</source>
+  <target>コーディングエージェントが使ったエージェント定義（agents/&lt;role&gt;.md）</target>
+</trans-unit>
+<trans-unit id="se0c4ff9fe6922e71">
+  <source>not started: input not ready</source>
+  <target>未実行: 入力が未準備</target>
+</trans-unit>
+<trans-unit id="sf7b714930ed98b54">
+  <source>unknown (<x id="0" equiv-text="${stop}"/>)</source>
+  <target>不明（<x id="0" equiv-text="${stop}"/>）</target>
+</trans-unit>
+<trans-unit id="se7102b7d5942a59c">
+  <source>Attempt <x id="0" equiv-text="${(attempt ?? 0) + 1}"/></source>
+  <target><x id="0" equiv-text="${(attempt ?? 0) + 1}"/> 回目</target>
+</trans-unit>
+<trans-unit id="s69522c8fd29e217c">
+  <source>1 correction</source>
+  <target>修正依頼 1 回</target>
+</trans-unit>
+<trans-unit id="s594159521842aa08">
+  <source><x id="0" equiv-text="${n}"/> corrections</source>
+  <target>修正依頼 <x id="0" equiv-text="${n}"/> 回</target>
+</trans-unit>
+<trans-unit id="sd7d77bef673bd45f">
+  <source>input <x id="0" equiv-text="${path}"/> from <x id="1" equiv-text="${from.name}"/> failed checks</source>
+  <target>入力 <x id="0" equiv-text="${path}"/>（<x id="1" equiv-text="${from.name}"/> の出力）に検証エラー</target>
+</trans-unit>
+<trans-unit id="sc5751344f7cedf0f">
+  <source>input <x id="0" equiv-text="${path}"/> failed checks</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> に検証エラー</target>
+</trans-unit>
+<trans-unit id="s863c685c886dd083">
+  <source>input <x id="0" equiv-text="${path}"/> is missing</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> がありません</target>
+</trans-unit>
+<trans-unit id="s585632ad63b34266">
+  <source>input <x id="0" equiv-text="${path}"/> is missing because <x id="1" equiv-text="${from.name}"/> failed</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> がありません（<x id="1" equiv-text="${from.name}"/> が失敗）</target>
+</trans-unit>
+<trans-unit id="s571b714236b36ed9">
+  <source>input <x id="0" equiv-text="${path}"/> is missing because <x id="1" equiv-text="${from.name}"/> did not start</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> がありません（<x id="1" equiv-text="${from.name}"/> が未実行）</target>
+</trans-unit>
+<trans-unit id="s892f20ba2aadea33">
+  <source>input <x id="0" equiv-text="${path}"/> from <x id="1" equiv-text="${from.name}"/> is missing</source>
+  <target>入力 <x id="0" equiv-text="${path}"/>（<x id="1" equiv-text="${from.name}"/> の出力）がありません</target>
+</trans-unit>
+<trans-unit id="s6a8fac496ab75484">
+  <source>input <x id="0" equiv-text="${path}"/> is missing because <x id="1" equiv-text="${from.name}"/> did not finish</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> がありません（<x id="1" equiv-text="${from.name}"/> が未完了）</target>
+</trans-unit>
+<trans-unit id="secc170560fffe506">
+  <source>limit reached</source>
+  <target>上限に到達</target>
+</trans-unit>
+<trans-unit id="s59e4f00624df1f3f">
+  <source>near the limit</source>
+  <target>上限に接近</target>
+</trans-unit>
+<trans-unit id="s0f136ff2c086b760">
+  <source>reset</source>
+  <target>リセット済み</target>
+</trans-unit>
+<trans-unit id="sc61813a1424783fc">
+  <source>weekly <x id="0" equiv-text="${pct(r.seven_day_pct)}"/></source>
+  <target>週 <x id="0" equiv-text="${pct(r.seven_day_pct)}"/></target>
+</trans-unit>
+<trans-unit id="s92b7e489ad4779c7">
+  <source>5-hour <x id="0" equiv-text="${pct(r.five_hour_pct)}"/></source>
+  <target>5 時間枠 <x id="0" equiv-text="${pct(r.five_hour_pct)}"/></target>
+</trans-unit>
+<trans-unit id="sa3d3f3845c4fa2c4">
+  <source>Weekly usage <x id="0" equiv-text="${pct(r.seven_day_pct)}"/> (resets <x id="1" equiv-text="${localTime(r.seven_day_resets_at, true)}"/>)</source>
+  <target>週の利用率 <x id="0" equiv-text="${pct(r.seven_day_pct)}"/>（リセット <x id="1" equiv-text="${localTime(r.seven_day_resets_at, true)}"/>）</target>
+</trans-unit>
+<trans-unit id="s158eba9bc2227ce3">
+  <source>Weekly usage <x id="0" equiv-text="${pct(r.seven_day_pct)}"/></source>
+  <target>週の利用率 <x id="0" equiv-text="${pct(r.seven_day_pct)}"/></target>
+</trans-unit>
+<trans-unit id="s2faec8a0d7db08dd">
+  <source>5-hour usage <x id="0" equiv-text="${pct(r.five_hour_pct)}"/> (resets <x id="1" equiv-text="${localTime(r.five_hour_resets_at, true)}"/>)</source>
+  <target>5 時間枠の利用率 <x id="0" equiv-text="${pct(r.five_hour_pct)}"/>（リセット <x id="1" equiv-text="${localTime(r.five_hour_resets_at, true)}"/>）</target>
+</trans-unit>
+<trans-unit id="s370bd0b51ee4fda0">
+  <source>Reported <x id="0" equiv-text="${localTime(r.observed_at, true)}"/></source>
+  <target>報告時刻 <x id="0" equiv-text="${localTime(r.observed_at, true)}"/></target>
+</trans-unit>
+<trans-unit id="s9e06cbf9c5f57859">
+  <source>Status: <x id="0" equiv-text="${status}"/></source>
+  <target>状態: <x id="0" equiv-text="${status}"/></target>
+</trans-unit>
+<trans-unit id="sf3cb3cd43bbe95c2">
+  <source>1 more account</source>
+  <target>ほか 1 アカウント</target>
+</trans-unit>
+<trans-unit id="s8e92b07ba776ed4a">
+  <source><x id="0" equiv-text="${more}"/> more accounts</source>
+  <target>ほか <x id="0" equiv-text="${more}"/> アカウント</target>
+</trans-unit>
+<trans-unit id="scb862deeee160b4a">
+  <source>Finished with 1 task not done</source>
+  <target>終了（未完了のタスク 1 件）</target>
+</trans-unit>
+<trans-unit id="sd3ec6686aaaf1324">
+  <source>Finished with <x id="0" equiv-text="${r.left}"/> tasks not done</source>
+  <target>終了（未完了のタスク <x id="0" equiv-text="${r.left}"/> 件）</target>
+</trans-unit>
+<trans-unit id="scd945ec17b61f103">
+  <source>Agent session time</source>
+  <target>エージェントの所要時間</target>
+</trans-unit>
+<trans-unit id="sb05ee36313adad06">
+  <source>Errors</source>
+  <target>エラー</target>
+</trans-unit>
+<trans-unit id="s337127590b746939">
+  <source>An input was not ready</source>
+  <target>入力が未準備</target>
+</trans-unit>
+<trans-unit id="sebada5168620c5fe">
+  <source>default</source>
+  <target>既定</target>
+</trans-unit>
+<trans-unit id="sd47e3a005069edb9">
+  <source>local credentials (ambient)</source>
+  <target>ローカルの認証情報（ambient）</target>
+</trans-unit>
+<trans-unit id="s1c76dcdfd0d3326d">
+  <source>Every task the run scheduled, by kind (plan.jsonl)</source>
+  <target>実行に登録されたすべてのタスク（種別ごと、plan.jsonl）</target>
+</trans-unit>
+<trans-unit id="s4efee5b48a4593cb">
+  <source>Loop</source>
+  <target>ループ</target>
+</trans-unit>
+<trans-unit id="sab5bbfc5ec1101a1">
+  <source>line <x id="0" equiv-text="${line}"/></source>
+  <target><x id="0" equiv-text="${line}"/> 行目</target>
+</trans-unit>
+<trans-unit id="s33b572e03cbb49a2">
+  <source>Pipeline layer</source>
+  <target>パイプラインの階層</target>
+</trans-unit>
+<trans-unit id="s39ee2f1fc48e6bc3">
+  <source>Pipeline</source>
+  <target>パイプライン</target>
+</trans-unit>
+<trans-unit id="s27bbde3f68fad181">
+  <source>Unit: <x id="0" equiv-text="${pinned}"/></source>
+  <target>ユニット: <x id="0" equiv-text="${pinned}"/></target>
+</trans-unit>
+<trans-unit id="s43809cc80b3f099a">
+  <source>Clear highlight</source>
+  <target>ハイライトを解除</target>
+</trans-unit>
+<trans-unit id="sc65ea2cf2f21a13a">
+  <source>Zoom out</source>
+  <target>縮小</target>
+</trans-unit>
+<trans-unit id="sa74be5e915086e8e">
+  <source>Zoom out (Ctrl + scroll)</source>
+  <target>縮小（Ctrl + スクロール）</target>
+</trans-unit>
+<trans-unit id="s236ae937cbcd6a39">
+  <source>Zoom in</source>
+  <target>拡大</target>
+</trans-unit>
+<trans-unit id="s6645c79330d551d1">
+  <source>Zoom in (Ctrl + scroll)</source>
+  <target>拡大（Ctrl + スクロール）</target>
+</trans-unit>
+<trans-unit id="s864c948d4629240f">
+  <source>Show all</source>
+  <target>全体を表示</target>
+</trans-unit>
+<trans-unit id="s3445d9f4d9c68070">
+  <source>Show as graph</source>
+  <target>グラフで表示</target>
+</trans-unit>
+<trans-unit id="sf05d9f2cb461bc10">
+  <source>Show as table</source>
+  <target>表で表示</target>
+</trans-unit>
+<trans-unit id="sb26f6e41558f71ed">
+  <source>Outside this layer</source>
+  <target>表示中の階層の外</target>
+</trans-unit>
+<trans-unit id="scd693bed9950dfb4">
+  <source>Show the passes of the loop</source>
+  <target>ループの各周を表示</target>
+</trans-unit>
+<trans-unit id="sf2d62a5d815803af">
+  <source>Function <x id="0" equiv-text="${n.name}"/></source>
+  <target>関数 <x id="0" equiv-text="${n.name}"/></target>
+</trans-unit>
+<trans-unit id="sf89368b65754b7f6">
+  <source><x id="0" equiv-text="${c.total}"/> flow calls</source>
+  <target>フロー呼び出し <x id="0" equiv-text="${c.total}"/> 回</target>
+</trans-unit>
+<trans-unit id="scf39b102c7cc194f">
+  <source>Open <x id="0" equiv-text="${n.label}"/></source>
+  <target><x id="0" equiv-text="${n.label}"/> を開く</target>
+</trans-unit>
+<trans-unit id="s552240946fb80e49">
+  <source>Flow call <x id="0" equiv-text="${m.key}"/></source>
+  <target>フロー呼び出し <x id="0" equiv-text="${m.key}"/></target>
+</trans-unit>
+<trans-unit id="s2ee7d42a832ed444">
+  <source>Nested loop</source>
+  <target>入れ子のループ</target>
+</trans-unit>
+<trans-unit id="s87aaf1391fb727b7">
+  <source>not run</source>
+  <target>実行されず</target>
+</trans-unit>
+<trans-unit id="s1703f5cfa8ed0cc9">
+  <source><x id="0" equiv-text="${c.pending}"/> not run</source>
+  <target><x id="0" equiv-text="${c.pending}"/> 実行されず</target>
+</trans-unit>
+<trans-unit id="s18d4d02c2e47cf0f">
+  <source><x id="0" equiv-text="${x.label}"/> in the loop</source>
+  <target>ループ内の <x id="0" equiv-text="${x.label}"/></target>
+</trans-unit>
+<trans-unit id="s342a3f547f11a23b">
+  <source>Function <x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/> of <x id="2" equiv-text="${c.total}"/> flow calls done</source>
+  <target>関数 <x id="0" equiv-text="${n.label}"/>: フロー呼び出し <x id="1" equiv-text="${c.done + c.skipped}"/>/<x id="2" equiv-text="${c.total}"/> 完了</target>
+</trans-unit>
+<trans-unit id="s7815b3ef6921536e">
+  <source><x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/> of <x id="2" equiv-text="${c.total}"/> done</source>
+  <target><x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/>/<x id="2" equiv-text="${c.total}"/> 完了</target>
+</trans-unit>
+<trans-unit id="s95f6abd3bc028e9c">
+  <source>Waits for <x id="0" equiv-text="${waits.join(', ')}"/></source>
+  <target>依存先: <x id="0" equiv-text="${waits.join(', ')}"/></target>
+</trans-unit>
+<trans-unit id="s947887a004e02e33">
+  <source>Created after <x id="0" equiv-text="${after.join(', ')}"/></source>
+  <target>作成元: <x id="0" equiv-text="${after.join(', ')}"/></target>
+</trans-unit>
+<trans-unit id="sad3f75d236eb01c8">
+  <source>Feeds <x id="0" equiv-text="${feeds.join(', ')}"/></source>
+  <target>後続: <x id="0" equiv-text="${feeds.join(', ')}"/></target>
+</trans-unit>
+<trans-unit id="sa0a6e71350fd953b">
+  <source>waits for output</source>
+  <target>出力を待つ</target>
+</trans-unit>
+<trans-unit id="sd798aaccd0308806">
+  <source>created after result</source>
+  <target>結果を受けて作成</target>
+</trans-unit>
+<trans-unit id="sed7bd1552ea928f8">
+  <source>Kind or function</source>
+  <target>種別または関数</target>
+</trans-unit>
+<trans-unit id="sbf9c5c5a8e5efad4">
+  <source>Failed</source>
+  <target>失敗</target>
+</trans-unit>
+<trans-unit id="s02f7b7c4ece3e097">
+  <source>Not run</source>
+  <target>実行されず</target>
+</trans-unit>
+<trans-unit id="s06ac9901d5ec124e">
+  <source>Waits for</source>
+  <target>依存先</target>
+</trans-unit>
+<trans-unit id="sa434ad4d2100f245">
+  <source>Created after</source>
+  <target>作成元</target>
+</trans-unit>
+<trans-unit id="sa6d1d1469bb7b1c2">
+  <source>Feeds</source>
+  <target>後続</target>
+</trans-unit>
+<trans-unit id="sf466a6f271f0b682">
+  <source>Pass <x id="0" equiv-text="${pass}"/></source>
+  <target><x id="0" equiv-text="${pass}"/> 周目</target>
+</trans-unit>
+<trans-unit id="sba376ab929e3896d">
+  <source>1 pass</source>
+  <target>1 周</target>
+</trans-unit>
+<trans-unit id="s9147091d090a92d4">
+  <source>up to <x id="0" equiv-text="${n}"/> passes</source>
+  <target>最大 <x id="0" equiv-text="${n}"/> 周</target>
+</trans-unit>
+<trans-unit id="scdece4ad70d57deb">
+  <source>loop</source>
+  <target>ループ</target>
+</trans-unit>
+<trans-unit id="s06a59d9f860b0c38">
+  <source>Esc: up a level</source>
+  <target>Esc: 1 つ上の階層</target>
+</trans-unit>
+<trans-unit id="sea67cb607ba79bea">
+  <source>Arrow keys: marks</source>
+  <target>矢印キー: マーク</target>
+</trans-unit>
+<trans-unit id="sb271968591691cd3">
+  <source>Enter: open</source>
+  <target>Enter: 開く</target>
+</trans-unit>
+<trans-unit id="s4134711b0b981089">
+  <source>Tab: next node</source>
+  <target>Tab: 次のノード</target>
+</trans-unit>
+<trans-unit id="sa8bd7200899b14c8">
+  <source>Shift + arrow keys: earlier and later tasks</source>
+  <target>Shift + 矢印キー: 依存先タスク・後続タスク</target>
+</trans-unit>
+<trans-unit id="s72dc3c241ce33d1c">
+  <source>Units by number of passes</source>
+  <target>ユニットごとの周回数</target>
+</trans-unit>
+<trans-unit id="s53ebfdf5583cbe71">
+  <source>Next pass</source>
+  <target>次の周</target>
+</trans-unit>
+<trans-unit id="s07e46807b4a9183c">
+  <source>+<x id="0" equiv-text="${more}"/></source>
+  <target>+<x id="0" equiv-text="${more}"/></target>
+</trans-unit>
+<trans-unit id="s521a16a18cfbcf5a">
+  <source>1 unit</source>
+  <target>1 ユニット</target>
+</trans-unit>
+<trans-unit id="s670ef751f29dc9ae">
+  <source><x id="0" equiv-text="${units}"/> units</source>
+  <target><x id="0" equiv-text="${units}"/> ユニット</target>
+</trans-unit>
+<trans-unit id="s5ab755785f15d57e">
+  <source>Sort units</source>
+  <target>並び順</target>
+</trans-unit>
+<trans-unit id="sb26a93fd31e2f700">
+  <source>Scheduled order</source>
+  <target>登録順</target>
+</trans-unit>
+<trans-unit id="s8ad90bcc234667ee">
+  <source>Number of passes</source>
+  <target>周回数</target>
+</trans-unit>
+<trans-unit id="s8f26e0f086cc2787">
+  <source>Unit</source>
+  <target>ユニット</target>
+</trans-unit>
+<trans-unit id="s737a2225351a2d83">
+  <source>Passes of this loop</source>
+  <target>ループの周回数</target>
+</trans-unit>
+<trans-unit id="sf39e43f2714690bc">
+  <source>Passes</source>
+  <target>周回数</target>
+</trans-unit>
+<trans-unit id="sf5dbf772d898f6e7">
+  <source>Tasks that run once per run, not once per unit</source>
+  <target>ユニットごとではなく、実行ごとに 1 回動くタスク</target>
+</trans-unit>
+<trans-unit id="s26bae2d058ab07f8">
+  <source>No unit</source>
+  <target>ユニットなし</target>
+</trans-unit>
+<trans-unit id="sa58fd816ed43f98e">
+  <source>number of passes</source>
+  <target>周回数</target>
+</trans-unit>
+<trans-unit id="s2f3435308f48080e">
+  <source><x id="0" equiv-text="${n}"/> passes</source>
+  <target><x id="0" equiv-text="${n}"/> 周</target>
+</trans-unit>
+<trans-unit id="s467ceab5071e77a3">
+  <source>1 pass: <x id="0" equiv-text="${units}"/></source>
+  <target>1 周: <x id="0" equiv-text="${units}"/></target>
+</trans-unit>
+<trans-unit id="sbc65d1b9648966de">
+  <source><x id="0" equiv-text="${n}"/> passes: <x id="1" equiv-text="${units}"/></source>
+  <target><x id="0" equiv-text="${n}"/> 周: <x id="1" equiv-text="${units}"/></target>
+</trans-unit>
+<trans-unit id="se88220063fb37241">
+  <source>Line <x id="0" equiv-text="${mx.box.loop}"/></source>
+  <target><x id="0" equiv-text="${mx.box.loop}"/> 行目のループ</target>
+</trans-unit>
+</body>
+</file>
+</xliff>

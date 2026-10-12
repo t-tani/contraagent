@@ -1,0 +1,42 @@
+---
+title: "Live elements"
+description: "Each view of the monitor as an element of its own, live, fed with the demo pipeline's run."
+---
+
+import Demo from '../../components/Demo.astro';
+
+Every example below is live, fed with the demo pipeline's run. Click around:
+what an element sends shows under it. Each element's properties, attributes and
+events are in the [reference](/reference/elements/).
+
+## `<ca-transcript>`
+
+<Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
+
+## `<ca-pipeline-graph>`
+
+<Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} describe />
+
+## `<ca-timeline>`
+
+<Demo tag="ca-timeline" props={{ journal: 'journal', run: 'run' }} describe />
+
+## `<ca-kpis>`
+
+<Demo tag="ca-kpis" props={{ journal: 'journal' }} describe />
+
+The same element with `@contraagent/ui`'s example light theme:
+
+<Demo tag="ca-kpis" props={{ journal: 'journal' }} light />
+
+## `<ca-journal-table>`
+
+<Demo tag="ca-journal-table" props={{ rows: 'journal' }} height="360px" describe />
+
+## `<ca-task-table>`
+
+<Demo tag="ca-task-table" props={{ tasks: 'tasks' }} height="360px" describe />
+
+## `<ca-contracts>`
+
+<Demo tag="ca-contracts" props={{ outputs: 'outputs' }} height="420px" describe />

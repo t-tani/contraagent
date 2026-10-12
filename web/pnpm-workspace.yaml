@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+  - apps/*
+# Supply-chain guard: only resolve versions published at least 14 days ago.
+minimumReleaseAge: 20160
+# Install scripts run only for packages listed true here.
+allowBuilds:
+  rs-module-lexer: false # its prebuilt binary comes as an optional dependency
+  esbuild: false # likewise (Astro)

@@ -1,0 +1,95 @@
+import type { Plan, Procs, RunSummary } from '@contraagent/api';
+import { localized, msg, str } from '@lit/localize';
+import { LitElement, css, html } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+import { starts } from '../../lib/clock.js';
+import { facts, fmtDur, localTime } from '../../lib/format.js';
+import { base } from '../../styles/base.js';
+import '../shared/ca-elapsed.js';
+import { elapsedS, result } from './logic.js';
+
+/**
+ * The run's own process: running (pid, run group, how many tasks at once,
+ * command line), or not running, and then how it finished: with errors, or with
+ * tasks not done (from `plan`).
+ */
+@customElement('ca-run-driver')
+@localized()
+export class CaRunDriver extends LitElement {
+  static override styles = [
+    base,
+    css`
+      :host { display: block; }
+      .drv { display: flex; gap: 14px; align-items: flex-start; }
+      .drv-ic { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 16px;
+        background: var(--raise); color: var(--mut); }
+      .drv.on .drv-ic { background: var(--live-a); box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 22px rgba(34, 211, 238, 0.18); }
+      .drv.on .drv-ic .spin { width: 18px; height: 18px; }
+      .drv-t { font-size: 15px; font-weight: 600; }
+      .drv-up { font-family: var(--mono); font-size: 12px; color: var(--live); margin-left: 6px; font-weight: 400; }
+      .drv-cmd { margin-top: 8px; }
+      .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--mut); }
+      .warn { color: var(--warn); }
+      .drv-cmd code { display: block; margin-top: 4px; white-space: pre-wrap; word-break: break-all; color: var(--fg2); max-height: 120px; overflow: auto; }
+    `,
+  ];
+
+  @property({ attribute: false }) procs: Procs | null = null;
+  @property({ attribute: false }) summary: RunSummary | undefined;
+  @property({ attribute: false }) plan: Plan = { nodes: [], groups: [] };
+
+  /**
+   * How a run that is not running ended, as its title: everything scheduled ran
+   * (finished), with or without errors, or some tasks never got their turn (stopped).
+   */
+  private stateTitle(): [text: string, look: string] {
+    if (!this.plan.nodes.length) return [msg('Not running'), ''];
+    const r = result(this.plan);
+    if (r.left) return [r.left === 1 ? msg('Finished with 1 task not done') : msg(str`Finished with ${r.left} tasks not done`), 'warn'];
+    if (r.failed || r.notStarted) return [msg('Finished with errors'), 'warn'];
+    return [msg('Finished'), ''];
+  }
+
+  override render() {
+    const p = this.procs;
+    const r = this.summary;
+    if (!p?.alive) {
+      const [title, look] = this.stateTitle();
+      const took = elapsedS(r);
+      return html`<div class="drv off">
+        <div class="drv-ic" aria-hidden="true">■</div>
+        <div>
+          <div class="drv-t ${look}">${title}</div>
+          <div class="meta">${facts(
+            r?.last_ts ? msg(str`Ended ${localTime(r.last_ts, true)}`) : msg('No activity'),
+            took == null ? '' : msg(str`Took ${fmtDur(took)}`),
+            r?.run_group ? msg(str`Run group ${r.run_group}`) : '',
+          )}</div>
+        </div>
+      </div>`;
+    }
+    const started = Date.parse(p.started_at);
+    const since = starts.at(`drv:${p.pid ?? ''}`, Number.isNaN(started) ? 1 : (Date.now() - started) / 1000);
+    const rows: [string, string | number][] = [
+      [msg('PID'), p.pid ?? '—'],
+      [msg('Run group'), p.run_group],
+      [msg('Running at once (limit)'), p.max_workers || '—'],
+      [msg('Started'), localTime(p.started_at, true)],
+    ];
+    return html`<div class="drv on">
+      <div class="drv-ic"><span class="spin"></span></div>
+      <div style="min-width:0">
+        <div class="drv-t">${msg('Running')} <ca-elapsed class="drv-up" .since=${since}></ca-elapsed></div>
+        <div class="drv-facts">${rows.map(([k, v]) => html`<span><i>${k}</i>${v}</span>`)}</div>
+        <details class="drv-cmd"><summary>${msg('Command line')}</summary><code>${p.argv.join(' ')}</code></details>
+      </div>
+    </div>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'ca-run-driver': CaRunDriver;
+  }
+}
+

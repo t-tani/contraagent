@@ -1,0 +1,324 @@
+"""The pipeline API end to end: agent_task + plugin + call file, Python tasks, validators, resume."""
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+from pydantic import BaseModel, Field
+
+from contraagent import (
+    CallFile,
+    CommandValidator,
+    ConfigError,
+    Overrides,
+    Pipeline,
+    PipelineConfig,
+    agent_task,
+    envvars,
+    python_task,
+)
+from contraagent.calls import validate_call
+from contraagent.plugins import new_plugin
+from contraagent.testing import StubAgent, fails, writes_nothing
+
+
+class Doc(BaseModel):
+    path: str
+
+
+class Summary(BaseModel):
+    unit: str
+    summary: str = Field(description="two or three sentences")
+    points: list[str]
+
+
+class Verdict(BaseModel):
+    approved: bool
+
+
+def good_answer(launch):
+    if launch.kind == "summarize":
+        return {"unit": launch.unit, "summary": "s", "points": ["a", "b"]}
+    if launch.kind == "review":
+        return {"approved": len(launch.params["summary"]["points"]) > 1}
+    return "# doc\n"
+
+
+def stub(reply=good_answer) -> StubAgent:
+    """The stub agent answering every kind with `reply`."""
+    return StubAgent({"summarize": reply, "review": reply, "write_doc": reply})
+
+
+@pytest.fixture
+def plugin_dir(tmp_path):
+    new_plugin(tmp_path / "plugins" / "summarize")
+    return tmp_path / "plugins" / "summarize"
+
+
+def declare(plugin_dir, **kw):
+    summarize = agent_task("summarize", plugin=plugin_dir, params=Doc, output=Summary, max_turns=5, timeout_s=60, **kw)
+    review = agent_task("review", plugin=plugin_dir, output=Verdict, max_turns=5, timeout_s=60)
+    return summarize, review
+
+
+def pipeline(tmp_path, agent, **kw):
+    return Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None, **kw)
+
+
+def test_a_flow_runs_in_dependency_order_with_typed_outputs(tmp_path, plugin_dir):
+    summarize, review = declare(plugin_dir)
+
+    @python_task
+    def report(verdicts: list[Verdict]) -> int:
+        return sum(v.approved for v in verdicts)
+
+    handles = {}
+
+    def docs(units):
+        verdicts = []
+        for u in units:
+            s = summarize(u, path=f"in/{u}.md")
+            verdicts.append(review(u, summary=s))
+            handles[u] = s
+        handles["report"] = report(verdicts=verdicts)
+
+    agent = stub()
+    rep = pipeline(tmp_path, agent).run(docs, units=["a", "b"])
+    assert rep.ok, rep.failed
+    assert handles["a"].output == Summary(unit="a", summary="s", points=["a", "b"])  # typed, checked
+    order = [launch.key for launch in agent.launches]
+    assert order.index("summarize-a") < order.index("review-a")
+    [first] = agent.launches_of("summarize-a")
+    launch, call = first.launch, first.call
+    assert call.params == {"path": "in/a.md"} and call.output.format == "json"
+    assert call.output.json_schema["properties"]["summary"]["description"] == "two or three sentences"
+    assert "in/a.md" not in launch.prompt and "Task call: `summarize`" in launch.prompt  # data stays in the call file
+    assert launch.role == "worker" and launch.plugin_dirs == (str(plugin_dir.resolve()),)
+    review_call = next(launch.call for launch in agent.launches if launch.kind == "review")
+    assert review_call.params["summary"]["points"] == ["a", "b"]  # upstream value, resolved
+    assert handles["report"].output == 2
+
+
+def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
+    def has_two_points(path, s: Summary):
+        if len(s.points) < 2:
+            return ["points: give at least two"]
+
+    no_todo = CommandValidator(
+        [sys.executable, "-c", "import sys; t = open(sys.argv[1]).read(); sys.exit('found TODO' if 'TODO' in t else 0)", "{path}"],
+        name="no-todo",
+    )
+    summarize = agent_task(
+        "summarize", plugin=plugin_dir, params=Doc, output=Summary, validators=[has_two_points, no_todo], max_turns=5, timeout_s=60
+    )
+
+    agent = StubAgent(
+        {
+            "summarize": [
+                {"unit": "u", "summary": "TODO", "points": ["a"]},
+                {"unit": "u", "summary": "TODO", "points": ["a", "b"]},
+                {"unit": "u", "summary": "done", "points": ["a", "b"]},
+            ]
+        }
+    )
+    # omp: no stop hook continues its turn, so every check comes back as a fix-up round
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(lambda: summarize("u", path="x"), run_id="v")
+    [res] = rep.results.values()
+    assert res.ok and res.launch_result.rounds == 3
+    prompts = [launch.prompt for launch in agent.launches]
+    assert "[has_two_points] points: give at least two" in prompts[1]
+    assert "[no-todo] found TODO" in prompts[2]
+    assert "Required JSON Schema" not in prompts[1]  # the file met its schema; only validators failed
+    assert rep.summary["fixups"] == 2 and rep.summary["attempts"] == 1
+    # the command validator travels in the call file, so the in-session hook runs it too
+    assert agent.launches[0].call.output.commands[0]["name"] == "no-todo"
+
+
+def test_a_text_output_with_a_linter(tmp_path, plugin_dir):
+    lint = CommandValidator(
+        [sys.executable, "-c", "import sys; sys.exit('no heading' if not open(sys.argv[1]).read().startswith('#') else 0)"], name="heading"
+    )
+    write_doc = agent_task("write_doc", plugin=plugin_dir, output=str, validators=[lint], max_turns=5, timeout_s=60)
+    agent = StubAgent({"write_doc": ["plain", "# ドキュメント\n本文"]})
+    holder = {}
+    rep = pipeline(tmp_path, agent).run(lambda: holder.setdefault("d", write_doc("u")), run_id="t")
+    assert rep.ok and holder["d"].output.startswith("# ドキュメント")
+    assert holder["d"].path.suffix == ".md" and agent.launches[0].call.output.format == "text"
+
+
+def test_a_failed_upstream_refuses_its_consumers_before_launch(tmp_path, plugin_dir):
+    summarize, review = declare(plugin_dir, retries=1)
+    agent = StubAgent({"summarize": "not json", "review": good_answer})
+
+    def flow():
+        review("u", summary=summarize("u", path="x"))
+
+    rep = pipeline(tmp_path, agent).run(flow)
+    stops = {k: r.stop for k, r in rep.results.items()}
+    assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input"}
+    assert all(launch.kind == "summarize" for launch in agent.launches)  # review never launched
+
+
+def test_resume_skips_finished_work_and_still_reads_its_output(tmp_path, plugin_dir):
+    summarize, review = declare(plugin_dir)
+    handles = {}
+
+    def flow():
+        handles["s"] = summarize("u", path="x")
+        handles["r"] = review("u", summary=handles["s"])
+
+    agent = stub()
+    pipeline(tmp_path, agent).run(flow)
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(flow, resume=True)
+    assert agent.launches == [] and {r.stop for r in rep.results.values()} == {"skipped"}
+    assert handles["s"].output.points == ["a", "b"] and handles["r"].output.approved
+
+
+def test_the_stop_hook_checks_the_call_inside_the_session(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    agent = StubAgent({"summarize": writes_nothing()})  # the runner sees invalid_output
+    pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(lambda: summarize("u", path="x"), run_id="h")
+    call_path = Path(agent.launches[0].launch.env[envvars.CALL])
+    env = {envvars.CALL: str(call_path)}
+    code, msg = validate_call(env=env)
+    assert code == 2 and "file was not written" in msg
+    out = Path(CallFile.read(call_path).output.path)
+    out.write_text('{"unit": "u", "summary": "s", "points": "not a list"}')
+    code, msg = validate_call(env=env)
+    assert code == 2 and "points" in msg and "Required JSON Schema" in msg  # pydantic itself, via schema_ref
+    assert validate_call(stdin_text='{"stop_hook_active": true}', env=env) == (0, "")  # never loops
+    out.write_text('{"unit": "u", "summary": "s", "points": ["a"]}')
+    assert validate_call(env=env) == (0, "")
+
+
+def test_declarations_fail_early(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    with pytest.raises(TypeError, match="missing path"):
+        pipeline(tmp_path, stub()).run(lambda: summarize("u"))
+    with pytest.raises(TypeError, match="plugin="):
+        agent_task("x", output=Summary)
+    with pytest.raises(ConfigError, match="max_turnz"):
+        agent_task("x", plugin=plugin_dir, max_turnz=3)
+    with pytest.raises(RuntimeError, match="inside a flow"):
+        summarize("u", path="x")
+
+
+def test_declared_budgets_are_defaults_and_the_config_outranks_them(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir, model="from-code")
+    cfg = tmp_path / "p.toml"
+    cfg.write_text("[tasks.summarize]\nmax_turns = 9\n")
+    agent = stub()
+    Pipeline(PipelineConfig.load(cfg), runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=lambda line: None).run(
+        lambda: summarize("u", path="x")
+    )
+    launch = agent.launches[0].launch
+    assert launch.model == "from-code" and launch.limits.max_turns == 9 and launch.limits.timeout_s == 60
+
+
+def test_a_validator_may_take_the_tasks_params_and_call_file(tmp_path, plugin_dir):
+    def cites_its_input(path, s: Summary, *, params):
+        if s.unit != params["path"]:
+            return [f"unit: {params['path']!r} expected"]
+
+    reads_call = CommandValidator(
+        [
+            sys.executable,
+            "-c",
+            "import json, sys; c = json.load(open(sys.argv[1])); sys.exit(0 if c['params']['path'] else 'no path')",
+            "{call}",
+        ],
+        name="reads-call",
+    )
+    summarize = agent_task(
+        "summarize", plugin=plugin_dir, params=Doc, output=Summary, validators=[cites_its_input, reads_call], max_turns=5, timeout_s=60
+    )
+    agent = StubAgent({"summarize": [{"unit": "u", "summary": "s", "points": []}, {"unit": "in/u.md", "summary": "s", "points": []}]})
+    handle = {}
+    rep = pipeline(tmp_path, agent).run(lambda: handle.setdefault("s", summarize("u", path="in/u.md")))
+    assert rep.ok and handle["s"].output.unit == "in/u.md"
+    assert "[cites_its_input] unit: 'in/u.md' expected" in agent.launches[1].prompt
+    row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
+    assert row["rounds"] == 2 and "[cites_its_input] unit: 'in/u.md' expected" in row["round_errors"][0][0]
+    # the in-session hook runs the command validator with the call file too
+    call = agent.launches[0].launch.env[envvars.CALL]
+    assert validate_call(env={envvars.CALL: call}) == (0, "")
+
+
+def test_a_python_task_validator_gets_the_resolved_params(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    seen = []
+
+    def same_unit(path, n: int, *, params):
+        seen.append(params["summary"].unit)
+
+    @python_task(validators=[same_unit])
+    def count(summary: Summary) -> int:
+        return len(summary.points)
+
+    def flow():
+        return count(summary=summarize("u", path="x"))
+
+    rep = pipeline(tmp_path, stub()).run(flow)
+    assert rep.ok and seen == ["u"] and rep.value.output == 2  # the flow's return value, read after the run
+    assert rep.value.path.name == "count.json"  # no ':' from the key `python:count`
+
+
+def test_a_refused_task_names_the_task_that_did_not_write_its_input(tmp_path, plugin_dir):
+    summarize, review = declare(plugin_dir, retries=0)
+    rep = pipeline(tmp_path, StubAgent({"summarize": fails()})).run(lambda: review("u", summary=summarize("u", path="x")))
+    assert rep.results["review-u"].reason.startswith("invalid input: input from summarize-u is missing")
+
+
+def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_dir):
+    from contraagent import RunExists
+
+    summarize, _ = declare(plugin_dir)
+    pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
+    with pytest.raises(RunExists, match="continue it with resume=True"):
+        pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
+    assert pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r", resume=True).ok
+
+
+def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
+    import logging
+
+    from contraagent.testing import rate_limited
+
+    summarize, _ = declare(plugin_dir)
+    config = {"tasks": {"summarize": {"model": "m1", "fallbacks": [{"agent": "claude", "model": "m2"}]}}}
+    agent = StubAgent(
+        {
+            "summarize": lambda launch: (
+                rate_limited() if launch.model == "m1" else ({"unit": "u", "summary": "s", "points": []} if launch.resumed else "{")
+            )
+        }
+    )
+    caplog.set_level(logging.INFO, logger="contraagent")
+    Pipeline(PipelineConfig(config), runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(
+        lambda: summarize("u", path="x")
+    )
+    lines = [r.getMessage() for r in caplog.records]
+    assert "[start] summarize-u" in lines
+    assert any(line.startswith("[switch] summarize-u: rate limited on hop 1/2 claude/m1") for line in lines)
+    assert any(
+        line.startswith("[fix-up] summarize-u: round 1 failed its checks, sent back:") and "not valid JSON" in line for line in lines
+    )
+    assert any(line.startswith("[end] summarize-u: completed") and "2 rounds" in line for line in lines)
+
+
+def test_claude_s_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir):
+    lint = CommandValidator(
+        [sys.executable, "-c", "import sys; sys.exit('no heading' if not open(sys.argv[1]).read().startswith('#') else 0)"], name="heading"
+    )
+    write_doc = agent_task("write_doc", plugin=plugin_dir, output=str, validators=[lint], max_turns=5, timeout_s=60)
+    agent = StubAgent({"write_doc": ["plain", "# Doc\n"]})
+    rep = pipeline(tmp_path, agent).run(lambda: write_doc("u"))
+    assert rep.ok and rep.results["write_doc-u"].launch_result.rounds == 1  # fixed before the turn ended
+    first, second = agent.launches
+    assert not first.in_turn and second.in_turn and not second.resumed
+    assert "[heading] no heading" in second.prompt  # what the plugin's rendered Stop hook said
+    assert "JSON output" not in second.prompt  # a text output is not told about JSON
+    row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
+    assert row["rounds"] == 1 and row["hook_errors"] == [[second.prompt.split("- ", 1)[1].strip()]]

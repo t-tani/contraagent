@@ -1,0 +1,3662 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "contraagent monitor",
+    "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
+    "version": "2.5.0"
+  },
+  "paths": {
+    "/api/info": {
+      "get": {
+        "summary": "Api Info",
+        "description": "The title, the panel tabs to offer, and the version of this contract.",
+        "operationId": "api_info_api_info_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Info"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs": {
+      "get": {
+        "summary": "Api Runs",
+        "description": "Every run directory, newest activity first.",
+        "operationId": "api_runs_api_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Api Runs Api Runs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/journal": {
+      "get": {
+        "summary": "Api Journal",
+        "description": "Journal rows after line offset `since`; `total` is the next offset.",
+        "operationId": "api_journal_api_runs__run__journal_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/tasks": {
+      "get": {
+        "summary": "Api Tasks",
+        "description": "Per-(kind, unit) rollup of finished attempts plus what is running now.",
+        "operationId": "api_tasks_api_runs__run__tasks_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRollup"
+                  },
+                  "title": "Response Api Tasks Api Runs  Run  Tasks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/plan": {
+      "get": {
+        "summary": "Api Plan",
+        "description": "Every queued task with its dependencies and state, and the groups the UI draws as columns.",
+        "operationId": "api_plan_api_runs__run__plan_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/outputs": {
+      "get": {
+        "summary": "Api Outputs",
+        "description": "Every declared output/input contract: its file, the model it must satisfy, its status.",
+        "operationId": "api_outputs_api_runs__run__outputs_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Outputs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/definitions": {
+      "get": {
+        "summary": "Api Definitions",
+        "description": "What defined each kind of task in this run.",
+        "operationId": "api_definitions_api_runs__run__definitions_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDefinition"
+                  },
+                  "title": "Response Api Definitions Api Runs  Run  Definitions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/cursor": {
+      "get": {
+        "summary": "Api Cursor",
+        "description": "The resume cursor; `{}` when the run keeps none.",
+        "operationId": "api_cursor_api_runs__run__cursor_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CursorView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/procs": {
+      "get": {
+        "summary": "Api Procs",
+        "description": "The run's live agent launches, process tree and Python tasks.",
+        "operationId": "api_procs_api_runs__run__procs_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Procs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/task/{slot_or_key}": {
+      "get": {
+        "summary": "Api Task",
+        "description": "One slot (`<kind>-<unit>`) or exact task key: journal rows, live launches, definition, input/output, transcript name.",
+        "operationId": "api_task_api_runs__run__task__slot_or_key__get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          },
+          {
+            "name": "slot_or_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slot Or Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/stream/{key}": {
+      "get": {
+        "summary": "Api Stream",
+        "description": "A page of task `key`'s normalized transcript from line `since`; `since=0` is the tail page.",
+        "operationId": "api_stream_api_runs__run__stream__key__get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run}/panels/{name}": {
+      "get": {
+        "summary": "Api Panel",
+        "description": "One registered panel's body: a JSON object whose shape the domain chooses.",
+        "operationId": "api_panel_api_runs__run__panels__name__get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Api Panel Api Runs  Run  Panels  Name  Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no panel of that name"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "Events",
+        "description": "The run, live: journal rows as they land, then each other view when it changes.",
+        "operationId": "events_events_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events; each message is one `RunEvent`",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not a plain run id"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/stream": {
+      "get": {
+        "summary": "Events Stream",
+        "description": "Task `key`'s transcript, live: the tail page, then the events after it as they are written.",
+        "operationId": "events_stream_events_stream_get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server-Sent Events; each message is one `StreamMessage`",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not a plain run id or task key"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountQuota": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "first": {
+            "$ref": "#/components/schemas/QuotaReading"
+          },
+          "last": {
+            "$ref": "#/components/schemas/QuotaReading"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential",
+          "first",
+          "last"
+        ],
+        "title": "AccountQuota",
+        "description": "One account's subscription utilization over a run. `last` was taken when the\naccount's last session started, so it leaves out that session's own use."
+      },
+      "AgentProcess": {
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "age_s": {
+            "type": "integer",
+            "title": "Age S"
+          },
+          "cmd": {
+            "type": "string",
+            "title": "Cmd",
+            "description": "the first three words of the command line"
+          },
+          "full_cmd": {
+            "type": "string",
+            "title": "Full Cmd"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ProcNode"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "the role it runs as, from the prompt's TELEMETRY line; empty when none"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "plugin": {
+            "type": "string",
+            "title": "Plugin"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pid",
+          "age_s",
+          "cmd",
+          "full_cmd",
+          "key",
+          "kind",
+          "unit",
+          "role",
+          "model",
+          "plugin"
+        ],
+        "title": "AgentProcess",
+        "description": "One live agent launch: the topmost process of a coding-agent CLI, found by its\n`CONTRAAGENT_*` environment; or, for an agent behind a library-call backend (no\nchild process), the run's own process, from its in-flight marker, with empty\n`cmd`, `full_cmd`, `role`, `model` and `plugin`."
+      },
+      "ContractField": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "JSON-schema type, `list[...]`, a `$ref` name, or `a|b` for a union"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "required"
+        ],
+        "title": "ContractField",
+        "description": "One top-level field of the model a contract file must satisfy."
+      },
+      "ContractRecord": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": ""
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor",
+            "default": "agent"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Params",
+            "description": "the task's scalar params"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractSpec"
+            },
+            "type": "array",
+            "title": "Outputs"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractSpec"
+            },
+            "type": "array",
+            "title": "Inputs"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "ContractRecord",
+        "description": "What one task declared it reads and leaves behind (`contracts/<key>.json`)."
+      },
+      "ContractSpec": {
+        "properties": {
+          "io": {
+            "type": "string",
+            "enum": [
+              "output",
+              "input"
+            ],
+            "title": "Io"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "schema_name": {
+            "type": "string",
+            "title": "Schema Name"
+          },
+          "schema_ref": {
+            "type": "string",
+            "title": "Schema Ref",
+            "default": ""
+          },
+          "fresh": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fresh"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required"
+          },
+          "validators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Validators"
+          },
+          "file": {
+            "$ref": "#/components/schemas/FileView"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ContractField"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "valid",
+                  "invalid",
+                  "refused",
+                  "pending",
+                  "failed",
+                  "running"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "rounds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rounds",
+            "description": "rounds it took to pass, when the journal recorded it"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "io",
+          "path",
+          "schema_name",
+          "file",
+          "fields"
+        ],
+        "title": "ContractSpec",
+        "description": "One declared `OutputContract` / `InputContract` (its record, passed through,\nminus the raw JSON schema, which `fields` summarizes). `status`, `rounds`\nand `errors` are on outputs only."
+      },
+      "CursorMessage": {
+        "additionalProperties": false,
+        "description": "The resume cursor, or null for a run that keeps none.",
+        "properties": {
+          "event": {
+            "const": "cursor",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CursorView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "CursorMessage",
+        "type": "object"
+      },
+      "CursorView": {
+        "properties": {
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "completed_stages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Completed Stages"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/StageEntry"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At",
+            "default": ""
+          },
+          "units": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/UnitPosition"
+            },
+            "type": "object",
+            "title": "Units"
+          },
+          "markers": {
+            "additionalProperties": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Markers",
+            "description": "free-form event lists by name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CursorView",
+        "description": "The run's resume cursor. The REST endpoint answers `{}` (every field\nabsent) for a run that keeps none; the live feed sends `null`."
+      },
+      "DefinitionFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "part": {
+            "type": "string",
+            "title": "Part"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "path",
+          "part",
+          "text"
+        ],
+        "title": "DefinitionFile",
+        "description": "One file that defines a task: its instructions (a task without a plugin), the role's agent file, a skill, the schema ..."
+      },
+      "DownstreamTask": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "unit",
+          "executor"
+        ],
+        "title": "DownstreamTask"
+      },
+      "FeedReady": {
+        "additionalProperties": false,
+        "properties": {
+          "journal": {
+            "description": "journal rows sent before this message",
+            "title": "Journal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "journal"
+        ],
+        "title": "FeedReady",
+        "type": "object"
+      },
+      "FileView": {
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size",
+            "default": 0
+          },
+          "mtime": {
+            "type": "string",
+            "title": "Mtime",
+            "default": ""
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "content": {
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "exists"
+        ],
+        "title": "FileView",
+        "description": "A contract's file as it is now. `content` is the parsed JSON, else the\ntext (cut at 20 000 characters, `truncated`), else null when unreadable."
+      },
+      "FlowCallNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "`0` for the top flow, `<parent>.<n>` for a child"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent",
+            "description": "the parent flow call's id; null for a top flow"
+          },
+          "function": {
+            "type": "string",
+            "title": "Function",
+            "description": "`module.qualname` of the generator function (or of a flow that does not yield)"
+          },
+          "flow": {
+            "items": {
+              "$ref": "#/components/schemas/FlowFrame"
+            },
+            "type": "array",
+            "title": "Flow",
+            "description": "the flow path where the parent yielded it, with its loops' passes; empty for a top flow"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "returned",
+              "raised",
+              "closed"
+            ],
+            "title": "State"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "`<type>: <message>` of what it raised (or what closing it raised); else null"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "parent",
+          "function",
+          "state"
+        ],
+        "title": "FlowCallNode",
+        "description": "One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself."
+      },
+      "FlowFrame": {
+        "properties": {
+          "function": {
+            "type": "string",
+            "title": "Function",
+            "description": "`module.qualname`"
+          },
+          "file": {
+            "type": "string",
+            "title": "File",
+            "description": "relative to the run's working directory when under it, else as recorded"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "loops": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLoop"
+            },
+            "type": "array",
+            "title": "Loops",
+            "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "function",
+          "file",
+          "line"
+        ],
+        "title": "FlowFrame",
+        "description": "One frame of a flow path (outermost first): a call site in flow code."
+      },
+      "FlowLoop": {
+        "properties": {
+          "line": {
+            "type": "integer",
+            "title": "Line",
+            "description": "the loop's first line, which names it"
+          },
+          "pass": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass",
+            "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "pass"
+        ],
+        "title": "FlowLoop",
+        "description": "A loop of a generator around a call site, and the pass the call site was in."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Hop": {
+        "properties": {
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          },
+          "credential": {
+            "type": "string",
+            "title": "Credential",
+            "default": ""
+          },
+          "stop": {
+            "type": "string",
+            "title": "Stop",
+            "default": ""
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "default": 0.0
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Hop",
+        "description": "One launch in a failover walk: where it ran and how it ended."
+      },
+      "InflightPythonTask": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "age_s": {
+            "type": "integer",
+            "title": "Age S"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "unit",
+          "pid",
+          "age_s"
+        ],
+        "title": "InflightPythonTask",
+        "description": "A Python task running inside the run's own process."
+      },
+      "Info": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "panels": {
+            "items": {
+              "$ref": "#/components/schemas/PanelInfo"
+            },
+            "type": "array",
+            "title": "Panels"
+          },
+          "api_version": {
+            "type": "string",
+            "title": "Api Version",
+            "description": "Version of this API contract (semver)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "panels",
+          "api_version"
+        ],
+        "title": "Info",
+        "description": "What the UI shows before a run is picked: the title, the panel tabs to offer,\nand the version of this contract."
+      },
+      "JournalMessage": {
+        "additionalProperties": false,
+        "description": "One journal row, sent once per row: the whole journal on connect, then each new row.",
+        "properties": {
+          "event": {
+            "const": "journal",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JournalRow"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "JournalMessage",
+        "type": "object"
+      },
+      "JournalPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/JournalRow"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entries",
+          "total"
+        ],
+        "title": "JournalPage",
+        "description": "Journal rows after a line offset; pass `total` back as `since` to get only newer rows."
+      },
+      "JournalRow": {
+        "properties": {
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id",
+            "default": ""
+          },
+          "run_group": {
+            "type": "string",
+            "title": "Run Group",
+            "default": ""
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt",
+            "default": 0
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor",
+            "default": "agent"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          },
+          "credential": {
+            "type": "string",
+            "title": "Credential",
+            "default": ""
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "default": ""
+          },
+          "hops": {
+            "items": {
+              "$ref": "#/components/schemas/Hop"
+            },
+            "type": "array",
+            "title": "Hops"
+          },
+          "stop": {
+            "type": "string",
+            "title": "Stop"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "default": 0.0
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "signal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": ""
+          },
+          "rounds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rounds"
+          },
+          "round_errors": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Round Errors"
+          },
+          "hook_errors": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Hook Errors"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "quota": {
+            "items": {
+              "$ref": "#/components/schemas/QuotaReading"
+            },
+            "type": "array",
+            "title": "Quota"
+          },
+          "web_queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Web Queries"
+          },
+          "unread_events": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Unread Events"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint",
+            "default": ""
+          },
+          "flow_call": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow Call"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "ts",
+          "key",
+          "kind",
+          "stop",
+          "ok"
+        ],
+        "title": "JournalRow",
+        "description": "One finished attempt. `key` is the stable `Task.key`; `kind`/`unit`\ngroup the monitor's rollup; `executor` says who ran it; `stop` is\n`Stop.value` (or a Python task's completed/error)."
+      },
+      "LaunchEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "launch",
+            "title": "Type"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts",
+            "description": "Unix time the launch started"
+          },
+          "argv": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Argv"
+          },
+          "cwd": {
+            "type": "string",
+            "title": "Cwd"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "cut at 200 000 characters"
+          },
+          "prompt_truncated": {
+            "type": "integer",
+            "title": "Prompt Truncated",
+            "description": "characters of the prompt not shown",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "argv",
+          "cwd",
+          "prompt"
+        ],
+        "title": "LaunchEvent",
+        "description": "Head of one invocation: the exact argv, cwd and the submitted prompt."
+      },
+      "MessageEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "message_start",
+              "message_end",
+              "turn_end"
+            ],
+            "title": "Type"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "MessageEvent",
+        "description": "omp: a whole message or a turn's closing thinking. Either `role` + `text`, or `thinking`."
+      },
+      "MessageUpdateEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "message_update",
+            "title": "Type"
+          },
+          "ev": {
+            "type": "string",
+            "title": "Ev"
+          },
+          "delta": {
+            "type": "string",
+            "title": "Delta"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "ev",
+          "delta"
+        ],
+        "title": "MessageUpdateEvent",
+        "description": "A piece of assistant prose: `ev` is `text_delta` or `thinking_delta` (omp may send its other delta kinds)."
+      },
+      "NoticeEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "notice",
+            "title": "Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "text"
+        ],
+        "title": "NoticeEvent",
+        "description": "A line of session bookkeeping: init, a retry, a rate-limit status, a custom message."
+      },
+      "OtherEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "OtherEvent",
+        "description": "Any other event: omp's bare lifecycle markers (`agent_start`, `agent_end`,\n`turn_start`, `auto_retry_end`) and whatever a custom backend's registered\nnormalizer emits, including a known `type` whose fields do not match above."
+      },
+      "OutputTally": {
+        "properties": {
+          "valid": {
+            "type": "integer",
+            "title": "Valid"
+          },
+          "invalid": {
+            "type": "integer",
+            "title": "Invalid"
+          },
+          "refused": {
+            "type": "integer",
+            "title": "Refused"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "valid",
+          "invalid",
+          "refused",
+          "pending",
+          "failed",
+          "running"
+        ],
+        "title": "OutputTally"
+      },
+      "Outputs": {
+        "properties": {
+          "contracts": {
+            "items": {
+              "$ref": "#/components/schemas/ContractRecord"
+            },
+            "type": "array",
+            "title": "Contracts"
+          },
+          "tally": {
+            "$ref": "#/components/schemas/OutputTally",
+            "description": "output contracts per status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "contracts",
+          "tally"
+        ],
+        "title": "Outputs"
+      },
+      "OutputsMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "const": "outputs",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Outputs"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "OutputsMessage",
+        "type": "object"
+      },
+      "PanelInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "description",
+          "icon"
+        ],
+        "title": "PanelInfo",
+        "description": "A panel a domain registered: its tab label, tooltip and glyph."
+      },
+      "PanelMessage": {
+        "additionalProperties": false,
+        "description": "A domain panel's body (any JSON object), sent when it changed. `{\"error\": ...}`\nwhen the panel raised.",
+        "properties": {
+          "event": {
+            "description": "`panel:<name>`, one per name in /api/info `panels`",
+            "pattern": "^panel:.+$",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "PanelMessage",
+        "type": "object"
+      },
+      "Plan": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/PlanNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/PlanGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "flow_calls": {
+            "items": {
+              "$ref": "#/components/schemas/FlowCallNode"
+            },
+            "type": "array",
+            "title": "Flow Calls",
+            "description": "in start order"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nodes",
+          "groups"
+        ],
+        "title": "Plan",
+        "description": "The queued tasks, their groups, and the flow calls that created them. A run with\nno `flow_calls.jsonl` (its tasks queued by hand, not by a flow) has no flow call."
+      },
+      "PlanGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "blocked": {
+            "type": "integer",
+            "title": "Blocked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "total",
+          "done",
+          "failed",
+          "running",
+          "pending",
+          "skipped",
+          "blocked"
+        ],
+        "title": "PlanGroup",
+        "description": "A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts\ntogether), its members counted by state."
+      },
+      "PlanMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "event": {
+            "const": "plan",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Plan"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "PlanMessage",
+        "type": "object"
+      },
+      "PlanNode": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "default": ""
+          },
+          "after": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "After",
+            "description": "task keys it waits for"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor",
+            "default": "agent"
+          },
+          "flow": {
+            "items": {
+              "$ref": "#/components/schemas/FlowFrame"
+            },
+            "type": "array",
+            "title": "Flow",
+            "description": "the flow path: frames of flow code that created it, outermost first"
+          },
+          "created_from": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created From",
+            "description": "keys whose results its flow call had received when it created it"
+          },
+          "flow_call": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow Call",
+            "description": "the id of the flow call that created it; null for a task with no origin"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts",
+            "description": "when it was queued (absent for a node rebuilt from the journal)",
+            "default": ""
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "done",
+              "failed",
+              "skipped",
+              "blocked"
+            ],
+            "title": "State"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "description": "depth in the dependency graph, 0 for a task that waits for nothing"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "default": 0.0
+          },
+          "stop": {
+            "type": "string",
+            "title": "Stop",
+            "default": ""
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "default": ""
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 1
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "state",
+          "level",
+          "group"
+        ],
+        "title": "PlanNode",
+        "description": "A queued task (a `plan.jsonl` row, passed through) with its state and\nlayout. The journal fields (`wall_s` .. `attempts`) appear once it finished.\nThe origin fields (`flow` .. `flow_call`) say where the flow created it."
+      },
+      "ProcNode": {
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "age_s": {
+            "type": "integer",
+            "title": "Age S"
+          },
+          "cmd": {
+            "type": "string",
+            "title": "Cmd",
+            "description": "the first three words of the command line"
+          },
+          "full_cmd": {
+            "type": "string",
+            "title": "Full Cmd"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ProcNode"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role",
+            "description": "the role it runs as, from the prompt's TELEMETRY line"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plugin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plugin"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pid",
+          "age_s",
+          "cmd",
+          "full_cmd"
+        ],
+        "title": "ProcNode",
+        "description": "A process in the run's tree (three levels deep at most). The launch fields\nare set on the topmost process of an agent launch."
+      },
+      "Procs": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "alive": {
+            "type": "boolean",
+            "title": "Alive"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "argv": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Argv"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "max_workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Workers"
+          },
+          "run_group": {
+            "type": "string",
+            "title": "Run Group"
+          },
+          "launches": {
+            "items": {
+              "$ref": "#/components/schemas/AgentProcess"
+            },
+            "type": "array",
+            "title": "Launches"
+          },
+          "tree": {
+            "items": {
+              "$ref": "#/components/schemas/ProcNode"
+            },
+            "type": "array",
+            "title": "Tree"
+          },
+          "python_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/InflightPythonTask"
+            },
+            "type": "array",
+            "title": "Python Tasks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "alive",
+          "pid",
+          "argv",
+          "started_at",
+          "max_workers",
+          "run_group",
+          "launches",
+          "tree",
+          "python_tasks"
+        ],
+        "title": "Procs",
+        "description": "The run's live processes. Everything but the run's own fields is empty when it is not alive."
+      },
+      "ProcsMessage": {
+        "additionalProperties": false,
+        "description": "The live processes, sent when a launch starts or ends (not on every age tick).",
+        "properties": {
+          "event": {
+            "const": "procs",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Procs"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "ProcsMessage",
+        "type": "object"
+      },
+      "QuotaReading": {
+        "properties": {
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "credential": {
+            "type": "string",
+            "title": "Credential",
+            "default": ""
+          },
+          "five_hour_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Five Hour Pct"
+          },
+          "five_hour_resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Five Hour Resets At"
+          },
+          "seven_day_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seven Day Pct"
+          },
+          "seven_day_resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seven Day Resets At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "QuotaReading",
+        "description": "A subscription's utilization as the coding agent reported it during an attempt\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes\nwhatever else used the same account, parallel tasks too."
+      },
+      "ReadyMessage": {
+        "additionalProperties": false,
+        "description": "Sent once per connection, after the first round of messages: the journal\nreplayed so far and the current value of every other view. A row that\narrives after it is new, not part of the replay.",
+        "properties": {
+          "event": {
+            "const": "ready",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FeedReady"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "ReadyMessage",
+        "type": "object"
+      },
+      "RetryEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "auto_retry_start",
+            "title": "Type"
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
+          "err": {
+            "type": "string",
+            "title": "Err",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "RetryEvent",
+        "description": "omp: the agent retrying after a provider error."
+      },
+      "RunEvent": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/JournalMessage"
+          },
+          {
+            "$ref": "#/components/schemas/ProcsMessage"
+          },
+          {
+            "$ref": "#/components/schemas/PlanMessage"
+          },
+          {
+            "$ref": "#/components/schemas/OutputsMessage"
+          },
+          {
+            "$ref": "#/components/schemas/CursorMessage"
+          },
+          {
+            "$ref": "#/components/schemas/TasksMessage"
+          },
+          {
+            "$ref": "#/components/schemas/PanelMessage"
+          },
+          {
+            "$ref": "#/components/schemas/ReadyMessage"
+          }
+        ],
+        "title": "RunEvent",
+        "description": "One message of /events?run="
+      },
+      "RunSummary": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "run_group": {
+            "type": "string",
+            "title": "Run Group",
+            "description": "the label grouping runs (`Run(run_group=)`); the run id when none was given"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "description": "journal rows: finished task attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "not_run": {
+            "type": "integer",
+            "title": "Not Run",
+            "description": "journal rows of tasks that never ran: refused for an input (`invalid_input`) or skipped",
+            "default": 0
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/TaskCounts"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "what the coding agents reported the run cost, in USD; null when none reported"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage",
+            "description": "tokens of every attempt, summed"
+          },
+          "quota": {
+            "items": {
+              "$ref": "#/components/schemas/AccountQuota"
+            },
+            "type": "array",
+            "title": "Quota",
+            "description": "per credential (account): the run's first and last utilization reading; highest weekly use first"
+          },
+          "wall_s": {
+            "type": "integer",
+            "title": "Wall S",
+            "description": "sum of the rows' wall time, rounded to seconds"
+          },
+          "last_ts": {
+            "type": "string",
+            "title": "Last Ts",
+            "description": "ISO time of the last journal row, else the directory's mtime"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds",
+            "description": "journal rows per task kind"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "the process that runs it is alive"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "run_group",
+          "attempts",
+          "ok",
+          "tasks",
+          "tokens",
+          "wall_s",
+          "last_ts",
+          "kinds",
+          "running",
+          "started_at"
+        ],
+        "title": "RunSummary",
+        "description": "One run directory, as the run picker lists it."
+      },
+      "StageEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "at"
+        ],
+        "title": "StageEntry"
+      },
+      "StreamMessage": {
+        "additionalProperties": false,
+        "description": "`/events/stream`: the first message is the transcript's tail page, then each\nmessage carries only the events after the previous one.",
+        "properties": {
+          "event": {
+            "const": "stream",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/StreamPage"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "StreamMessage",
+        "type": "object"
+      },
+      "StreamPage": {
+        "properties": {
+          "events": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LaunchEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/MessageUpdateEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolStartEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolEndEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolCallEchoEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolResultEchoEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/MessageEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/NoticeEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/RetryEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/OtherEvent"
+                }
+              ],
+              "description": "Dispatch on `type`; an event whose `type` is none of the literals above, or whose fields do not fit, is an OtherEvent."
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "behind": {
+            "type": "integer",
+            "title": "Behind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "events",
+          "total",
+          "behind"
+        ],
+        "title": "StreamPage",
+        "description": "A page of one transcript. `total` is the file's line count: pass it back as\n`since` for the next page. The first page (`since=0`) is the tail; `behind`\nlines precede it, fetched by asking again with a smaller `since`."
+      },
+      "TaskCounts": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "not_started": {
+            "type": "integer",
+            "title": "Not Started"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running",
+            "default": 0
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "done",
+          "failed",
+          "not_started",
+          "waiting",
+          "skipped"
+        ],
+        "title": "TaskCounts",
+        "description": "A run's tasks (not attempts) by how they ended. `not_started`: refused for\nan input, or waiting behind a task that failed; `running`: running now (in a\nlive run); `waiting`: queued."
+      },
+      "TaskDefinition": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "plugin_dirs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Plugin Dirs"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DefinitionFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "plugin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plugin"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "requires": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requires"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "validators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Validators"
+          },
+          "executor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "agent",
+                  "python"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor"
+          },
+          "function": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Function",
+            "description": "Python task: `module.qualname` of its function"
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature",
+            "description": "Python task: the function's signature"
+          },
+          "doc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc",
+            "description": "Python task: the function's docstring"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File",
+            "description": "Python task: the source file, relative to the run's working directory when inside it"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line",
+            "description": "Python task: the function's first line in `file`"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "TaskDefinition",
+        "description": "What defined one kind of task in this run (`definitions/<kind>.json`).\nBeyond `kind`, the keys are the task adapter's choice; these are the ones\nthe bundled adapters write."
+      },
+      "TaskDetail": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the slot or task key asked for"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/JournalRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "launches": {
+            "items": {
+              "$ref": "#/components/schemas/TaskLaunch"
+            },
+            "type": "array",
+            "title": "Launches",
+            "description": "its launches running now; empty once it has finished (finished attempts are `rows`)"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "io": {
+            "$ref": "#/components/schemas/TaskIO"
+          },
+          "stream": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stream",
+            "description": "the transcript's task key for /stream and /events/stream, null when it has none"
+          },
+          "task_detail_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Detail Error"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "key",
+          "rows",
+          "launches",
+          "definition",
+          "io",
+          "stream"
+        ],
+        "title": "TaskDetail",
+        "description": "One slot or exact task key. Open: the `task_detail` callback merges its own keys\nin (a failing one leaves `task_detail_error` instead)."
+      },
+      "TaskIO": {
+        "properties": {
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractSpec"
+            },
+            "type": "array",
+            "title": "Inputs"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractSpec"
+            },
+            "type": "array",
+            "title": "Outputs"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          },
+          "upstream": {
+            "items": {
+              "$ref": "#/components/schemas/UpstreamTask"
+            },
+            "type": "array",
+            "title": "Upstream"
+          },
+          "downstream": {
+            "items": {
+              "$ref": "#/components/schemas/DownstreamTask"
+            },
+            "type": "array",
+            "title": "Downstream"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "params",
+          "inputs",
+          "outputs",
+          "executor",
+          "upstream",
+          "downstream"
+        ],
+        "title": "TaskIO",
+        "description": "The task's params, what it reads and leaves behind, and its neighbours in the plan."
+      },
+      "TaskLaunch": {
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "age_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age S"
+          },
+          "plugin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plugin"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "cmd": {
+            "type": "string",
+            "title": "Cmd",
+            "description": "the full command line, cut at 600 characters"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "unit",
+          "pid",
+          "age_s",
+          "plugin",
+          "model",
+          "role",
+          "cmd"
+        ],
+        "title": "TaskLaunch",
+        "description": "A live launch of the task (a child process, or an in-process marker with empty plugin/model/role/cmd)."
+      },
+      "TaskRollup": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot",
+            "description": "`<kind>-<unit>`, or the bare kind for a run-scope task"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "description": "finished attempts (journal rows)"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "last_stop": {
+            "type": "string",
+            "title": "Last Stop"
+          },
+          "last_ts": {
+            "type": "string",
+            "title": "Last Ts"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running",
+            "description": "present (true) only while one of its launches runs",
+            "default": false
+          },
+          "live_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Live Keys",
+            "description": "present only while running: the exact task keys running"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slot",
+          "kind",
+          "unit",
+          "executor",
+          "attempts",
+          "ok",
+          "last_stop",
+          "last_ts",
+          "wall_s"
+        ],
+        "title": "TaskRollup",
+        "description": "One (kind, unit) slot: every finished attempt of it folded together, plus what runs now."
+      },
+      "TasksMessage": {
+        "additionalProperties": false,
+        "description": "The task rollup, re-sent whenever anything above changed.",
+        "properties": {
+          "event": {
+            "const": "tasks",
+            "title": "Event",
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TaskRollup"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "TasksMessage",
+        "type": "object"
+      },
+      "TokenUsage": {
+        "properties": {
+          "input": {
+            "type": "integer",
+            "title": "Input",
+            "default": 0
+          },
+          "output": {
+            "type": "integer",
+            "title": "Output",
+            "default": 0
+          },
+          "cache_read": {
+            "type": "integer",
+            "title": "Cache Read",
+            "default": 0
+          },
+          "cache_creation": {
+            "type": "integer",
+            "title": "Cache Creation",
+            "default": 0
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "TokenUsage",
+        "description": "Tokens one attempt used, summed over its API calls, rounds and hops."
+      },
+      "ToolCallEchoEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "acall",
+            "title": "Type"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "cmd": {
+            "type": "string",
+            "title": "Cmd"
+          },
+          "call": {
+            "type": "string",
+            "title": "Call"
+          },
+          "intent": {
+            "type": "string",
+            "title": "Intent"
+          },
+          "web_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Query",
+            "description": "the query, when the call is a web search"
+          },
+          "web_fetch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Fetch",
+            "description": "the URL, when the call reads a web page"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "tool",
+          "cmd",
+          "call",
+          "intent"
+        ],
+        "title": "ToolCallEchoEvent",
+        "description": "omp: a tool call carried on a message or turn (`acall`)."
+      },
+      "ToolEndEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_execution_end",
+            "title": "Type"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "out": {
+            "type": "string",
+            "title": "Out"
+          },
+          "err": {
+            "type": "boolean",
+            "title": "Err"
+          },
+          "call": {
+            "type": "string",
+            "title": "Call"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "tool",
+          "out",
+          "err",
+          "call"
+        ],
+        "title": "ToolEndEvent",
+        "description": "A tool call's result. `tool` is empty for claude, which names only the call id."
+      },
+      "ToolResultEchoEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "aresult",
+            "title": "Type"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "call": {
+            "type": "string",
+            "title": "Call"
+          },
+          "out": {
+            "type": "string",
+            "title": "Out"
+          },
+          "err": {
+            "type": "boolean",
+            "title": "Err"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "tool",
+          "call",
+          "out",
+          "err"
+        ],
+        "title": "ToolResultEchoEvent",
+        "description": "omp: a tool result carried as a `toolResult` message (`aresult`)."
+      },
+      "ToolStartEvent": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "tool_execution_start",
+              "tool_execution_update"
+            ],
+            "title": "Type"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "cmd": {
+            "type": "string",
+            "title": "Cmd",
+            "description": "a one-line preview: the command, pattern, path, URL or query"
+          },
+          "intent": {
+            "type": "string",
+            "title": "Intent"
+          },
+          "call": {
+            "type": "string",
+            "title": "Call"
+          },
+          "web_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Query",
+            "description": "the query, when the call is a web search"
+          },
+          "web_fetch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Web Fetch",
+            "description": "the URL, when the call reads a web page"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "tool",
+          "cmd",
+          "intent",
+          "call"
+        ],
+        "title": "ToolStartEvent",
+        "description": "A tool call starting (or omp's progress update for it). `call` pairs it with its end event."
+      },
+      "UnitPosition": {
+        "properties": {
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          },
+          "completed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Completed"
+          },
+          "loop_pass": {
+            "type": "integer",
+            "title": "Loop Pass"
+          },
+          "inflight": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Inflight"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stage",
+          "step",
+          "completed",
+          "loop_pass",
+          "inflight"
+        ],
+        "title": "UnitPosition",
+        "description": "One unit's place in the per-unit step sequence; `inflight` are the work\nitems dispatched but not yet recorded."
+      },
+      "UpstreamTask": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/ContractSpec"
+            },
+            "type": "array",
+            "title": "Outputs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "unit",
+          "executor",
+          "outputs"
+        ],
+        "title": "UpstreamTask"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

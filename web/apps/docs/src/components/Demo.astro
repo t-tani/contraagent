@@ -1,0 +1,54 @@
+---
+// A live element fed with the demo pipeline's run (src/fixtures/demo-run.json,
+// written by scripts/fixture.py). `props` maps element properties to fixture
+// keys; `light` shows it with the light theme of @contraagent/ui's docs/examples/theme.css;
+// `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it.
+import { inlineMd, repoJson } from '../lib/repo';
+
+interface Manifest { modules: { declarations?: { tagName?: string; description?: string }[] }[] }
+interface Props {
+  tag: string;
+  props: Record<string, string>;
+  attrs?: Record<string, string>;
+  height?: string;
+  light?: boolean;
+  caption?: string;
+  describe?: boolean;
+}
+const { tag: Tag, props, attrs = {}, height, light = false, caption, describe = false } = Astro.props;
+const description = describe
+  ? repoJson<Manifest>('web/packages/ui/custom-elements.json')
+      .modules.flatMap((m) => m.declarations ?? [])
+      .find((d) => d.tagName === Tag)?.description
+  : undefined;
+---
+
+{description && <p set:html={inlineMd(description)} />}
+
+<figure class:list={['ca-demo', { light }]} style={height ? `--h:${height}` : undefined}>
+  <div class="ca-demo-frame">
+    <Tag data-ca-demo={JSON.stringify(props)} {...attrs} />
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<script>
+  import '@contraagent/ui';
+  import fixture from '../fixtures/demo-run.json';
+
+  const data = fixture as Record<string, unknown>;
+  for (const el of document.querySelectorAll<HTMLElement>('[data-ca-demo]')) {
+    const map = JSON.parse(el.dataset['caDemo'] ?? '{}') as Record<string, string>;
+    for (const [prop, key] of Object.entries(map)) (el as unknown as Record<string, unknown>)[prop] = key.startsWith('=') ? JSON.parse(key.slice(1)) : data[key];
+    // A demo has no monitor around it: show what the element asks for instead of navigating.
+    for (const name of ['ca-open-task', 'ca-navigate', 'ca-filter']) {
+      el.addEventListener(name, (e) => {
+        const detail = (e as CustomEvent).detail;
+        if (name === 'ca-filter' && 'stop' in detail) (el as unknown as { stop: string }).stop = detail.stop;
+        if (name === 'ca-navigate' && 'round' in detail) (el as unknown as { round: unknown }).round = detail.round;
+        if (name === 'ca-navigate') for (const k of ['layer', 'unit']) if (k in detail) (el as unknown as Record<string, unknown>)[k] = detail[k];
+        el.closest('figure')?.setAttribute('data-last-event', `${name} ${JSON.stringify(detail)}`);
+      });
+    }
+  }
+</script>

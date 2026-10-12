@@ -1,0 +1,12 @@
+{
+  // The examples are documentation: they compile against the packages as they are.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@contraagent/api": ["../../api/src/index.ts"],
+      "@contraagent/ui": ["../src/index.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts"]
+}

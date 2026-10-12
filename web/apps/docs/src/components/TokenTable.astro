@@ -1,0 +1,30 @@
+---
+// Every --ca-* property the elements read, with its default: parsed from the
+// elements' own stylesheet (packages/ui/src/styles/base.ts).
+import { repoFile } from '../lib/repo';
+
+const src = repoFile('web/packages/ui/src/styles/base.ts');
+const rows = [...src.matchAll(/--([a-z0-9-]+):\s*var\((--ca-[a-z0-9-]+),\s*([^;]+)\);/g)].map(([, short, name, fallback]) => ({
+  name: name!,
+  short: short!,
+  fallback: fallback!.replace(/\)$/, '').trim(),
+}));
+const isColour = (v: string) => /^(#|rgba?\()/.test(v);
+---
+
+<table>
+  <thead><tr><th>Property</th><th>Default</th></tr></thead>
+  <tbody>
+    {
+      rows.map((r) => (
+        <tr>
+          <td><code>{r.name}</code></td>
+          <td>
+            {isColour(r.fallback) && <span class="swatch" style={`background:${r.fallback}`} />}
+            <code>{r.fallback}</code>
+          </td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>

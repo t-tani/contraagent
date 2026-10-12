@@ -1,0 +1,45 @@
+{
+  "name": "@contraagent/ui",
+  "version": "0.1.0",
+  "description": "Web components for the contraagent monitor: transcripts, task tables, the journal, plans, contracts. Framework-free (Lit), typed by @contraagent/api",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./bundle": "./dist/contraagent-ui.js",
+    "./custom-elements.json": "./custom-elements.json"
+  },
+  "customElements": "custom-elements.json",
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "custom-elements.json"
+  ],
+  "sideEffects": [
+    "./dist/index.js",
+    "./dist/elements/**",
+    "./src/index.ts",
+    "./src/elements/**"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && vite build && cem analyze --litelement --globs 'src/elements/**/*.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs",
+    "i18n": "lit-localize extract && lit-localize build",
+    "i18n:check": "node scripts/i18n-check.mjs"
+  },
+  "dependencies": {
+    "@contraagent/api": "workspace:*",
+    "@lit/localize": "^0.12.2",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.11.0",
+    "@lit/localize-tools": "^0.8.2",
+    "vite": "^8.3.1"
+  }
+}

@@ -1,0 +1,21 @@
+/* A light theme for the elements: every colour and font is a --ca-* property,
+   inherited through their shadow roots. Unset ones keep the dark defaults. */
+.light {
+  --ca-bg: #ffffff;
+  --ca-card: #f6f8fa;
+  --ca-panel: #ffffff;
+  --ca-panel2: #f6f8fa;
+  --ca-raise: #eaeef2;
+  --ca-line: #d0d7de;
+  --ca-line2: #afb8c1;
+  --ca-fg: #1f2328;
+  --ca-fg2: #424a53;
+  --ca-mut: #656d76;
+  --ca-well: #f6f8fa;
+  --ca-track: #eaeef2;
+  --ca-live: #0969da;
+  --ca-llm: #8250df;
+  --ca-ok: #1a7f37;
+  --ca-err: #cf222e;
+  --ca-warn: #9a6700;
+}

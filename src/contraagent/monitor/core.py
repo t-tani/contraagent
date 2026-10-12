@@ -1,0 +1,719 @@
+"""What the monitor reads: runs, journal rows, task rollups, agent transcripts.
+
+`Monitor` is the framework-neutral core (no web dependency): the HTTP
+layer in `server.py` is a thin shell over its methods, so a CLI, a TUI or
+a test can use the same views.
+
+A domain extends it two ways, neither touching the framework:
+
+* `panels` — named callables `fn(run) -> dict`. Each shows up as its own
+  tab in the web UI (rendered as a JSON tree) and is pushed over the live
+  feed whenever its value changes. A security-scan pipeline would register
+  "findings" or "targets"; a data pipeline would register "datasets".
+* `task_detail` — `fn(run, slot_or_key, rows) -> dict` (`TaskDetailFn`), merged into the
+  per-task view (a task's declared inputs/outputs, the state it wrote).
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from itertools import islice
+from pathlib import Path
+
+from contraagent.backends.streams import normalize_stream_event, resolve_format
+from contraagent.monitor import paths, procs
+
+PanelFn = Callable[[str], dict]
+
+
+@dataclass
+class Panel:
+    """A named view a domain adds to the monitor: `fn(run) -> dict`.
+
+    `title` and `description` label its tab and say what it shows; `icon` is a
+    short glyph. A bare callable works too (the dict key becomes the title).
+    """
+
+    fn: PanelFn
+    title: str = ""
+    description: str = ""
+    icon: str = "▤"
+
+    def __call__(self, run: str) -> dict:
+        return self.fn(run)
+
+
+#: The `task_detail` callback: `fn(run, slot_or_key, rows) -> dict`, merged into `Monitor.task_detail`.
+TaskDetailFn = Callable[[str, str, list], dict]
+
+
+def slot_of(kind: str, unit: str) -> str:
+    """Rollup key: one kind x unit row across re-dispatches (`<kind>-<unit>`), or
+    the bare kind for a run-scope task."""
+    return f"{kind}-{unit}" if unit else kind
+
+
+def _running_keys(snap: dict) -> set:
+    """Keys of every task running now: agent launches and Python tasks."""
+    return {lc.get("key") for lc in snap.get("launches", [])} | {pt.get("key") for pt in snap.get("python_tasks", [])}
+
+
+def _first_last(readings: list[dict]) -> dict:
+    """Per credential (account), the run's first and last utilization reading, by when
+    they were received; the account with the highest weekly utilization first."""
+    by: dict[str, list[dict]] = {}
+    for q in sorted((q for q in readings if q.get("observed_at")), key=lambda q: q["observed_at"]):
+        by.setdefault(q.get("credential") or "", []).append(q)
+    accounts = [{"credential": c, "first": qs[0], "last": qs[-1]} for c, qs in by.items()]
+    accounts.sort(key=lambda a: -(a["last"].get("seven_day_pct") or 0))
+    return {"quota": accounts}
+
+
+def _shown(file: str, cwd: Path | None) -> str:
+    """A flow code file as the monitor serves it: relative to the run's working
+    directory when under it, else as recorded."""
+    path = Path(file)
+    if cwd is not None and path.is_absolute() and path.is_relative_to(cwd):
+        return str(path.relative_to(cwd))
+    return file
+
+
+def _shown_flow(flow: list, cwd: Path | None) -> list:
+    """A flow path with each frame's file as `_shown` gives it."""
+    return [{**f, "file": _shown(f.get("file", ""), cwd)} for f in flow if isinstance(f, dict)]
+
+
+def _plain(name: str) -> bool:
+    try:
+        paths.check_name(name)
+    except paths.BadName:
+        return False
+    return True
+
+
+class Monitor:
+    """Read-only views over `runs/<run>/`, shared by the web server and any other front end."""
+
+    def __init__(
+        self,
+        runs_dir: str | Path = "runs",
+        *,
+        title: str = "contraagent",
+        panels: dict[str, Panel | PanelFn] | None = None,
+        task_detail: TaskDetailFn | None = None,
+        static_dir: str | Path | None = None,
+        stream_formats: dict[str, str] | None = None,
+        groups: list[dict] | None = None,
+    ):
+        """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
+        without them each kind is a group of its own.
+        `static_dir` replaces the bundled web UI with the caller's own.
+        `stream_formats` maps a custom coding agent's name to a built-in stream
+        format (`claude`, `omp`) when the monitor runs in another process than
+        the one that called `register_normalizer`."""
+        self.runs_dir = Path(runs_dir).resolve()
+        self.title = title
+        self.panels: dict[str, Panel] = {n: p if isinstance(p, Panel) else Panel(p, title=n) for n, p in (panels or {}).items()}
+        self.task_detail_fn = task_detail
+        self.static_dir = Path(static_dir) if static_dir else None
+        self.stream_formats = dict(stream_formats or {})
+        self.group_defs = list(groups or [])
+
+    def _path(self, run: str, *parts: str) -> Path:
+        """`runs/<run>/<parts...>`; `paths.BadName` (a ValueError) when `run`
+        is not a plain name or the path would leave `runs_dir`."""
+        return paths.under(self.runs_dir, paths.check_name(run, "run id"), *parts)
+
+    def run_dir(self, run: str) -> Path:
+        return self._path(run)
+
+    # --- runs --------------------------------------------------------------
+
+    def runs(self) -> list[dict]:
+        """One row per run directory, newest activity first."""
+        out: list[dict] = []
+        if not self.runs_dir.is_dir():
+            return out
+        live = procs.live_runs(self.runs_dir)
+        for d in sorted(self.runs_dir.iterdir()):
+            if not d.is_dir() or not _plain(d.name):
+                continue
+            info = procs.read_run_info(self.runs_dir, d.name) or {}
+            n = ok = not_run = 0
+            cost: float | None = None
+            tokens = {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0, "calls": 0}
+            readings: list[dict] = []
+            wall = 0.0
+            last = ""
+            run_group = info.get("run_group", "")
+            kinds: dict[str, int] = {}
+            for e in self._read_journal(d.name):
+                n += 1
+                ok += bool(e.get("ok"))
+                not_run += e.get("stop") in ("invalid_input", "skipped")
+                if e.get("cost_usd") is not None:
+                    cost = (cost or 0.0) + float(e["cost_usd"])
+                readings += [q for q in e.get("quota") or [] if isinstance(q, dict)]
+                for k, v in (e.get("usage") or {}).items():
+                    if k in tokens:
+                        tokens[k] += int(v or 0)
+                wall += float(e.get("wall_s") or 0)
+                last = e.get("ts", last)
+                kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
+                run_group = e.get("run_group") or run_group
+            if not last:
+                # A run on its first task has no journal row yet (rows land when
+                # a task finishes); still list it once it has live evidence.
+                if not info and not (d / "streams").is_dir():
+                    continue
+                try:
+                    last = datetime.fromtimestamp(d.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
+                except OSError:
+                    continue
+            out.append(
+                {
+                    "run": d.name,
+                    "run_group": run_group or d.name,
+                    "attempts": n,
+                    "ok": ok,
+                    "not_run": not_run,
+                    "tasks": self._task_counts(d.name, live=d.name in live),
+                    "cost_usd": round(cost, 6) if cost is not None else None,
+                    "tokens": tokens,
+                    **_first_last(readings),
+                    "wall_s": round(wall),
+                    "last_ts": last,
+                    "kinds": kinds,
+                    "running": d.name in live,
+                    "started_at": info.get("started_at", ""),
+                }
+            )
+        out.sort(key=lambda r: r["last_ts"], reverse=True)
+        return out
+
+    def _task_counts(self, run: str, live: bool = False) -> dict:
+        """Tasks (not attempts) by how they ended, from the plan's states: the
+        same numbers the run's own page shows. Running tasks are looked up only
+        for a run that is `live`."""
+        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "skipped": 0}
+        name = {"done": "done", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
+        running = _running_keys(procs.snapshot(self.runs_dir, run)) if live else set()
+        for n in self.plan(run, live={})["nodes"]:
+            counts["total"] += 1
+            state = name.get(n["state"], "waiting")
+            counts["running" if state == "waiting" and n.get("key") in running else state] += 1
+        return counts
+
+    # --- journal -----------------------------------------------------------
+
+    def _read_journal(self, run: str) -> list[dict]:
+        try:
+            lines = self._path(run, "journal.jsonl").read_text().splitlines()
+        except OSError:
+            return []
+        out = []
+        for line in lines:
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+        return out
+
+    def journal(self, run: str, since: int = 0) -> tuple[list[dict], int]:
+        """Rows after line offset `since`, and the new total."""
+        try:
+            lines = self._path(run, "journal.jsonl").read_text().splitlines(True)
+        except OSError:
+            return [], since
+        out = []
+        for line in lines[since:]:
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+        return out, len(lines)
+
+    def tasks(self, run: str, live: dict | None = None) -> list[dict]:
+        """Per-(kind, unit) rollup: latest stop, totals, and what is running now.
+
+        Grouped by slot, not the journal's `key`: a kind dispatched
+        repeatedly over one unit mints a fresh content-addressed key per
+        dispatch, and the slot restores "this unit's ongoing work" as one row.
+        """
+        roll: dict[str, dict] = {}
+
+        def slot_row(kind: str, unit: str, executor: str) -> dict:
+            slot = slot_of(kind, unit)
+            return roll.setdefault(
+                slot,
+                {
+                    "slot": slot,
+                    "kind": kind,
+                    "unit": unit,
+                    "executor": executor,
+                    "attempts": 0,
+                    "last_stop": "",
+                    "last_ts": "",
+                    "wall_s": 0,
+                    "ok": 0,
+                },
+            )
+
+        for e in self._read_journal(run):
+            t = slot_row(e.get("kind") or "?", e.get("unit") or "", e.get("executor") or "agent")
+            t["attempts"] += 1
+            t["ok"] += bool(e.get("ok"))
+            t["last_stop"] = e.get("stop", "")
+            t["last_ts"] = e.get("ts", "")
+            t["wall_s"] += float(e.get("wall_s") or 0)
+        snap = live if live is not None else procs.snapshot(self.runs_dir, run)
+        live_tasks = [(lc, "agent") for lc in snap.get("launches", [])] + [(pt, "python") for pt in snap.get("python_tasks", [])]
+        for lt, executor in live_tasks:
+            t = slot_row(lt.get("kind", ""), lt.get("unit", ""), executor)
+            t["running"] = True
+            t.setdefault("live_keys", []).append(lt.get("key"))
+        return sorted(roll.values(), key=lambda t: (t.get("running", False), t["last_ts"]), reverse=True)
+
+    # --- plan (the pipeline, including work that has not started) ---------
+
+    def _read_plan(self, run: str) -> list[dict]:
+        try:
+            lines = self._path(run, "plan.jsonl").read_text().splitlines()
+        except OSError:
+            return []
+        out, seen = [], set()
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            # A key queued again (a retry, a re-dispatch) is the same node.
+            if row.get("key") not in seen:
+                seen.add(row.get("key"))
+                out.append(row)
+        return out
+
+    def plan(self, run: str, live: dict | None = None) -> dict:
+        """The pipeline as a graph: every task ever queued, its dependencies and
+        state, plus the groups. `failed` is a task that ran and failed;
+        `blocked` is one that did not start because an input was missing or
+        off-contract (refused, `invalid_input`), or that waits for such a task
+        or a failed one: it shows where a failure stopped the work.
+
+        A run with no `plan.jsonl` (an older run, or one not made through
+        `Run.queue`) falls back to the journal: finished tasks only, no edges.
+        """
+        journal = self._read_journal(run)
+        last: dict[str, dict] = {}
+        for e in journal:
+            last[e.get("key", "")] = e
+        rows = self._read_plan(run)
+        known = {r["key"] for r in rows}
+        for e in journal:
+            if e.get("key") not in known:
+                known.add(e.get("key"))
+                rows.append(
+                    {
+                        "key": e.get("key"),
+                        "kind": e.get("kind", "?"),
+                        "unit": e.get("unit", ""),
+                        "after": [],
+                        "executor": e.get("executor") or "agent",
+                        "flow": [],
+                        "created_from": [],
+                        "flow_call": e.get("flow_call"),
+                    }
+                )
+        snap = live if live is not None else procs.snapshot(self.runs_dir, run)
+        running = _running_keys(snap)
+        nodes = []
+        for r in rows:
+            j = last.get(r["key"])
+            if r["key"] in running:
+                state = "running"
+            elif j is None:
+                state = "pending"
+            elif j.get("stop") == "skipped":
+                state = "skipped"
+            elif j.get("stop") == "invalid_input":
+                state = "blocked"  # refused before launch: it never ran
+            else:
+                state = "done" if j.get("ok") else "failed"
+            node = {**r, "state": state}
+            if j:
+                node.update(
+                    {
+                        "wall_s": j.get("wall_s", 0),
+                        "stop": j.get("stop", ""),
+                        "route": j.get("route", ""),
+                        "attempts": j.get("attempt", 0) + 1,
+                    }
+                )
+            nodes.append(node)
+        by_key = {n["key"]: n for n in nodes}
+        changed = True
+        while changed:  # a pending task behind a failed or blocked one is blocked too
+            changed = False
+            for n in nodes:
+                if n["state"] == "pending" and any(by_key.get(d, {}).get("state") in ("failed", "blocked") for d in n["after"]):
+                    n["state"], changed = "blocked", True
+        depth: dict[str, int] = {}
+
+        def level(key: str, trail: tuple = ()) -> int:
+            if key in depth:
+                return depth[key]
+            after = by_key.get(key, {}).get("after", [])
+            deps = [d for d in after if d in by_key and d not in trail]
+            # A dependency not (yet) queued is upstream of this task all the same.
+            floor = 0 if any(d not in by_key for d in after) else -1
+            depth[key] = 1 + max((level(d, trail + (key,)) for d in deps), default=floor)
+            return depth[key]
+
+        cwd = self._cwd(run)
+        for n in nodes:
+            n["level"] = level(n["key"])
+            n["group"] = self._group_name(n)
+            if n.get("flow"):
+                n["flow"] = _shown_flow(n["flow"], cwd)
+        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd)}
+
+    def _cwd(self, run: str) -> Path | None:
+        """The run's working directory, as `run.json` records it."""
+        cwd = (procs.read_run_info(self.runs_dir, run) or {}).get("cwd")
+        return Path(cwd) if isinstance(cwd, str) and cwd else None
+
+    def _flow_calls(self, run: str, cwd: Path | None) -> list[dict]:
+        """Each flow call of `flow_calls.jsonl` in start order, folded with its end. A
+        resumed run starts its flow calls again: the latest start of an id counts."""
+        try:
+            lines = self._path(run, "flow_calls.jsonl").read_text().splitlines()
+        except OSError:
+            return []
+        calls: dict[str, dict] = {}
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            cid = row.get("id") if isinstance(row, dict) else None
+            if not isinstance(cid, str):
+                continue
+            if row.get("event") == "start":
+                flow = row.get("flow")
+                calls[cid] = {
+                    "id": cid,
+                    "parent": row.get("parent"),
+                    "function": row.get("function", ""),
+                    "flow": _shown_flow(flow, cwd) if isinstance(flow, list) else [],
+                    "state": "running",
+                    "error": None,
+                }
+            elif row.get("event") == "end" and cid in calls:
+                calls[cid].update(state=row.get("state") or "closed", error=row.get("error"))
+        return list(calls.values())
+
+    def _group_name(self, n: dict) -> str:
+        """A node's group: the first of `groups` that lists its kind, else its `Task.kind`."""
+        for d in self.group_defs:
+            if n["kind"] in d.get("kinds", ()):
+                return d["id"]
+        return n["kind"]
+
+    def _groups(self, nodes: list[dict]) -> list[dict]:
+        def tally(sid: str, label: str, members: list[dict]) -> dict:
+            c = {s: sum(1 for n in members if n["state"] == s) for s in ("done", "failed", "running", "pending", "skipped", "blocked")}
+            return {"id": sid, "label": label, "total": len(members), **c}
+
+        if self.group_defs:
+            out = []
+            for d in self.group_defs:
+                members = [n for n in nodes if n["kind"] in d.get("kinds", ())]
+                out.append(tally(d["id"], d.get("label", d["id"]), members))
+            return out
+        groups: dict[str, list[dict]] = {}
+        for n in nodes:
+            groups.setdefault(n["group"], []).append(n)
+        order = sorted(groups, key=lambda g: (min(n["level"] for n in groups[g]), nodes.index(groups[g][0])))
+        return [tally(g, g, groups[g]) for g in order]
+
+    def procs(self, run: str) -> dict:
+        return procs.snapshot(self.runs_dir, run)
+
+    def task_detail(self, run: str, slot_or_key: str) -> dict:
+        """Journal rows, live launches and the stream file for one slot or exact task key."""
+        paths.check_name(slot_or_key, "task key")
+        rows = [
+            e
+            for e in self._read_journal(run)
+            if e.get("key") == slot_or_key or slot_of(e.get("kind") or "", e.get("unit") or "") == slot_or_key
+        ]
+        snap = procs.snapshot(self.runs_dir, run)
+        launches = [
+            {k: c.get(k) for k in ("key", "kind", "unit", "pid", "age_s", "plugin", "model", "role")}
+            | {"cmd": (c.get("full_cmd") or "")[:600]}
+            for c in snap.get("launches", [])
+            if c.get("key") == slot_or_key or slot_of(c.get("kind", ""), c.get("unit", "")) == slot_or_key
+        ]
+        # The stream file's own name is the exact Task.key: the live launch's
+        # when one is running, else the newest finished row's.
+        key = launches[0]["key"] if launches else (rows[-1]["key"] if rows else slot_or_key)
+        kind = (rows[-1].get("kind") if rows else None) or (launches[0].get("kind") if launches else None) or slot_or_key.split("-")[0]
+        defs = {d.get("kind"): d for d in self.definitions(run)}
+        detail = {
+            "key": slot_or_key,
+            "rows": rows,
+            "launches": launches,
+            "definition": defs.get(kind),
+            "io": self.task_io(run, rows[-1]["key"] if rows else slot_or_key),
+            "stream": key if _plain(key) and self.stream_path(run, key).is_file() else None,
+        }
+        if self.task_detail_fn is not None:
+            try:
+                detail.update(self.task_detail_fn(run, slot_or_key, rows) or {})
+            except Exception as exc:  # a domain's callback must not break the view
+                detail["task_detail_error"] = f"{type(exc).__name__}: {exc}"
+        return detail
+
+    # --- agent transcript --------------------------------------------------
+
+    def task_agent(self, run: str, key: str) -> str:
+        """The coding agent a task ran on: its journal row, else its live process's
+        executable name. Defaults to omp, whose normalizer is the lenient one."""
+        for e in reversed(self._read_journal(run)):
+            if e.get("key") == key and e.get("agent"):
+                return e["agent"]
+        for c in procs.snapshot(self.runs_dir, run).get("launches", []):
+            if c.get("key") == key and c.get("full_cmd"):
+                return c["full_cmd"].split()[0].rsplit("/", 1)[-1]
+        return "omp"
+
+    def stream_path(self, run: str, key: str) -> Path:
+        """`runs/<run>/streams/<key>.stream.jsonl`; `paths.BadName` for a run id or
+        task key that is not a plain name."""
+        return self._path(run, "streams", f"{paths.check_name(key, 'task key')}.stream.jsonl")
+
+    def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict, int]:
+        """A page of task `key`'s normalized transcript events.
+
+        `since` is a line offset; the first call (`since=0`) returns the TAIL
+        page so a huge stream never crosses the wire whole, and the client
+        pages backward on demand. Always `{events, total, behind}`, including
+        when the file is absent.
+        """
+        path = self.stream_path(run, key)
+        try:
+            with open(path, "rb") as f:
+                total = sum(1 for _ in f)
+        except OSError:
+            return {"events": [], "total": since, "behind": 0}, since
+        behind = 0
+        if since <= 0:
+            behind = max(0, total - limit)
+            since = behind
+        fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
+        out: list[dict] = []
+        try:
+            # errors="replace": a stream is an agent's raw transcript, not
+            # guaranteed UTF-8; one bad byte must not crash the request.
+            with open(path, errors="replace") as f:
+                tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
+                for line in islice(f, since, since + limit * 4):
+                    ev = normalize_stream_event(fmt, line)
+                    if ev is not None:
+                        if ev.get("type") == "tool_execution_start" and ev.get("call"):
+                            tools[ev["call"]] = ev.get("tool") or ""
+                        elif ev.get("type") == "tool_execution_end" and not ev.get("tool"):
+                            ev["tool"] = tools.get(ev.get("call") or "", "")
+                        out.append(ev)
+                        if len(out) >= limit:
+                            break
+        except OSError:
+            return {"events": [], "total": since, "behind": 0}, since
+        return {"events": out, "total": total, "behind": behind}, total
+
+    # --- contracts: the files tasks must leave behind ----------------------
+
+    def outputs(self, run: str) -> dict:
+        """Every declared `OutputContract` / `InputContract` of the run: its file,
+        the model it must satisfy, and where it stands.
+
+        Status comes from the journal, which records what `run_until_valid`
+        concluded: `pending` before the task finishes, `valid` (with the number
+        of rounds it took when it needed a resume), `invalid` when the file
+        was still off-contract after every resume, `refused` when an input was off-contract so
+        the task never started, `failed` when the task ended for another reason before
+        the check could pass.
+        """
+        d = self._path(run, "contracts")
+        last: dict[str, dict] = {}
+        for e in self._read_journal(run):
+            last[e.get("key", "")] = e
+        running = _running_keys(procs.snapshot(self.runs_dir, run))
+        records = []
+        for f in sorted(d.glob("*.json")) if d.is_dir() else []:
+            try:
+                rec = json.loads(f.read_text())
+            except (OSError, ValueError):
+                continue
+            row = last.get(rec.get("key", ""))
+            for spec in rec.get("outputs", []) + rec.get("inputs", []):
+                spec["file"] = self._file_view(Path(spec["path"]))
+                props = (spec.get("schema") or {}).get("properties", {})
+                req = set((spec.get("schema") or {}).get("required", []))
+                spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
+                spec.pop("schema", None)
+            for spec in rec.get("outputs", []):
+                spec["status"], spec["rounds"], spec["errors"] = self._contract_status(row, spec["file"], rec.get("key") in running)
+            records.append(rec)
+        outs = [o for r in records for o in r["outputs"]]
+        tally = {s: sum(1 for o in outs if o["status"] == s) for s in ("valid", "invalid", "refused", "pending", "failed", "running")}
+        return {"contracts": records, "tally": tally}
+
+    @staticmethod
+    def _type_of(prop: dict) -> str:
+        if "$ref" in prop:
+            return prop["$ref"].rsplit("/", 1)[-1]
+        t = prop.get("type", "any")
+        if t == "array":
+            return f"list[{Monitor._type_of(prop.get('items', {}))}]"
+        return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
+
+    @staticmethod
+    def _file_view(path: Path, limit: int = 20_000) -> dict:
+        try:
+            st = path.stat()
+        except OSError:
+            return {"exists": False}
+        out = {"exists": True, "size": st.st_size, "mtime": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(timespec="seconds")}
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            out["content"] = None
+            return out
+        out["truncated"] = len(text) > limit
+        try:
+            out["content"] = json.loads(text) if len(text) <= limit else text[:limit]
+        except ValueError:  # a text output, or JSON that does not parse: the text itself
+            out["content"] = text
+        return out
+
+    @staticmethod
+    def _contract_status(row: dict | None, file: dict, running: bool) -> tuple[str, int | None, list[str]]:
+        if row is None:
+            return ("running" if running else "pending"), None, []
+        rounds = row.get("rounds")
+        errors = (row.get("round_errors") or [[]])[-1] if row.get("stop") == "invalid_output" else []
+        if row.get("stop") == "invalid_input":
+            # the task never started: one of its inputs was off-contract
+            return "refused", rounds, [row.get("reason", "")] if row.get("reason") else errors
+        if row.get("stop") == "invalid_output":
+            return "invalid", rounds, errors
+        if row.get("ok") and file.get("exists"):
+            return "valid", rounds, errors
+        return "failed", rounds, errors
+
+    # --- definitions and per-task input / output ------------------------------
+
+    def definitions(self, run: str) -> list[dict]:
+        """What defined each kind of task in this run (`definitions/<kind>.json`)."""
+        d = self._path(run, "definitions")
+        out = []
+        for f in sorted(d.glob("*.json")) if d.is_dir() else []:
+            try:
+                out.append(json.loads(f.read_text()))
+            except (OSError, ValueError):
+                continue
+        return out
+
+    def task_io(self, run: str, key: str) -> dict:
+        """One task's input and output: its params, the files it read, the files
+        it left behind with the contract verdict, and how data flows around it.
+
+        `upstream` are the output files of the tasks this one waits for (`after=`): for a task
+        that declares no `InputContract`, they are what it actually reads. `downstream` are the
+        tasks that wait for this one.
+        """
+        outs = self.outputs(run)
+        by_key = {c.get("key"): c for c in outs["contracts"]}
+        rec = by_key.get(key) or {}
+        plan = {n["key"]: n for n in self._read_plan(run)}
+        node = plan.get(key, {})
+        upstream = []
+        for dep in node.get("after", []):
+            d = by_key.get(dep)
+            upstream.append(
+                {
+                    "key": dep,
+                    "kind": (plan.get(dep) or {}).get("kind", ""),
+                    "unit": (plan.get(dep) or {}).get("unit", ""),
+                    "executor": (plan.get(dep) or {}).get("executor", "agent"),
+                    "outputs": (d or {}).get("outputs", []),
+                }
+            )
+        downstream = [
+            {"key": k, "kind": n.get("kind", ""), "unit": n.get("unit", ""), "executor": n.get("executor", "agent")}
+            for k, n in plan.items()
+            if key in n.get("after", [])
+        ]
+        return {
+            "params": self._call_params(run, key, rec.get("params", {})),
+            "inputs": rec.get("inputs", []),
+            "outputs": rec.get("outputs", []),
+            "executor": rec.get("executor", node.get("executor", "agent")),
+            "upstream": upstream,
+            "downstream": downstream,
+        }
+
+    def _call_params(self, run: str, key: str, fallback: dict) -> dict:
+        """What the task was given: the call file's params (every value, a value
+        from an earlier task included), else the contract record's scalar ones."""
+        try:
+            params = json.loads(self._path(run, "calls", f"{key}.json").read_text()).get("params")
+        except (OSError, ValueError, AttributeError):
+            return fallback
+        return params if isinstance(params, dict) else fallback
+
+    # --- resume cursor -------------------------------------------------------
+
+    def cursor(self, run: str) -> dict | None:
+        """The run's `CursorStore` (runs/<run>/cursor.json), or None when it keeps none:
+        the stage it is in, the stages behind it, and each unit's step."""
+        from contraagent.execution.cursor import CursorStore
+
+        path = self._path(run, "cursor.json")
+        if not path.is_file():
+            return None
+        cur = CursorStore(path, run).read()
+        if cur is None:
+            return None
+        return {
+            "stage": cur.stage,
+            "completed_stages": cur.completed_stages,
+            "history": [{"name": h.name, "at": h.at.isoformat()} for h in cur.history],
+            "updated_at": cur.updated_at.isoformat(),
+            "units": {
+                u: {
+                    "stage": c.stage,
+                    "step": c.step,
+                    "completed": c.completed,
+                    "loop_pass": c.loop_pass,
+                    "inflight": list(c.inflight.item_ids) if c.inflight else [],
+                }
+                for u, c in cur.units.items()
+            },
+            "markers": {k: v for k, v in cur.markers.items()},
+        }
+
+    # --- panels ------------------------------------------------------------
+
+    def panel(self, name: str, run: str) -> dict:
+        panel = self.panels.get(name)
+        if panel is None:
+            raise KeyError(name)
+        return panel(run)
+
+    def panel_info(self) -> list[dict]:
+        return [{"name": n, "title": p.title or n, "description": p.description, "icon": p.icon} for n, p in sorted(self.panels.items())]

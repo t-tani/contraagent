@@ -1,0 +1,14 @@
+# Hooks, declared once for every coding agent. `contraagent plugin render` writes
+# from this file hooks/hooks.json (Claude Code) and package.json (omp), and for a
+# pre_tool or post_tool hook omp/index.ts, the extension that runs it in omp.
+
+# The output check, inside the session: the agent fixes its file before it stops.
+[[hooks]]
+on = "stop"
+run = "validate"
+
+# [[hooks]]
+# on = "pre_tool"            # exit 2 from the script blocks the call
+# tool = "bash"
+# match = "rm -rf"
+# script = "hooks/guard.sh"

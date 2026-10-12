@@ -1,0 +1,27 @@
+# What every omp launch of contraagent runs with (`--config`): a task agent gets
+# its instructions from the task's plugin and call file only, never from what omp
+# would otherwise discover in the project or the user's home. Every discovery
+# provider is off but `claude-plugins`, which loads the `--plugin-dir` plugin; this
+# directory, which holds no plugins, is also the agent's CLAUDE_CONFIG_DIR, so the
+# user's installed Claude Code plugins are not loaded either.
+# Checked against omp 18.9 (its providers: `strings omp | grep displayName`).
+disabledProviders:
+  - native          # ~/.omp and .omp/: AGENTS.md, skills, rules, hooks, tools, MCP servers
+  - agents-md       # AGENTS.md files
+  - agents          # .agent/ and .agents/
+  - claude-md       # CLAUDE.md files
+  - claude          # .claude/: skills, commands, hooks, tools, MCP servers, settings
+  - cline
+  - codex
+  - cursor
+  - custom-context  # contextFiles.extra
+  - gemini
+  - github          # Copilot instructions, prompts and skills
+  - mcp-json        # mcp.json / .mcp.json in the project
+  - opencode
+  - vscode
+  - windsurf
+  - skillshare      # registry skills installed with `omp skill install`
+  - agent-plugins
+  - omp-plugins     # omp extension packages
+  - ssh-json

@@ -1,0 +1,221 @@
+# contraagent: notes for coding agents
+
+`contraagent` runs coding-agent CLIs (`claude -p`, `omp -p`) as typed,
+supervised tasks. This file is for agents changing the package itself.
+
+## One word, one meaning
+
+The glossary is `src/contraagent/docs/concepts.md`. Every word there means
+exactly one thing in the code, the files a run writes, the monitor (API and UI),
+the documentation and the examples. Do not use one of these words in another
+sense, and do not add a second word for the same thing; a new word goes into
+that glossary first.
+
+## Words the UI shows
+
+The monitor's UI is read by engineers who use coding agents but do not know
+this code, so it shows run data in their terms. The glossary's terms stay in
+the API, the files, and the UI's tooltips (as the secondary detail); the visible
+words come from `web/packages/ui/src/lib/labels.ts`, and the same rule applies
+there: one word, one meaning, on every screen. Japanese follows
+`web/packages/ui/xliff/GLOSSARY.md`.
+
+| Code term | UI (English) | UI (Japanese) |
+|---|---|---|
+| a task's outcome (`Outcome`: done, recovered, failed, not_started, running, waiting, skipped) | status: done, done after retrying, failed, not started, running, waiting, skipped | 状態: 完了, リトライ後に完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
+| plan state `blocked` | not started | 未実行 |
+| plan state `pending` after the run ended | not run | 実行されず |
+| attempt | attempt N | N 回目 |
+| stop `error` | error | エラー |
+| round after contract errors | correction | 修正依頼 |
+| hop, failover | model switch | モデル切り替え |
+| contract, off-contract, valid | checked file, failed checks, passed | 検証対象のファイル, 検証エラー, OK |
+| wall, wall_s | time | 所要時間 |
+| launch | agent session | エージェントのセッション |
+| worker, max_concurrent | running at once | 同時実行 |
+| journal (tab) | history | 実行履歴 |
+| plan | scheduled tasks | 登録済みのタスク |
+| stream (tab) | task detail | タスク詳細 |
+| run not live | not running / finished | 実行中ではありません / 終了 |
+| TaskAdapter (a kind without a plugin) | defined in Python code | Python コードで定義 |
+| panel (`monitor.Panel`) | custom view | カスタムビュー |
+| credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
+| the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
+| a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |
+| `model` (the LLM a session ran on) | model (never "LLM") | モデル |
+| `thinking` (the model's reasoning in a transcript) | reasoning | 思考 |
+| upstream / downstream tasks | earlier tasks / later tasks | 依存先タスク / 後続タスク |
+| the agent's own resend of an API request (`auto_retry_start`) | API request sent again | 再送 |
+| `cost_usd` (reported by the coding agent) | cost | 料金 |
+| `usage` (input, output, cache_read, cache_creation, calls) | tokens: input, output, cache read, cache write, API calls | トークン: 入力, 出力, キャッシュ読み込み, キャッシュ書き込み, API 呼び出し |
+| `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
+| a web fetch tool card (`web_fetch`) | page | ページ |
+| `unread_events` | unrecognized events | 未対応のイベント |
+| `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
+| a layer of the flow path (the pipeline graph's level) | Pipeline › `function` › loop (breadcrumb) | パイプライン › `function` › ループ |
+| a function node (tasks created in a function the flow called) | the function's name; function (tooltip) | 関数 |
+| flow call | flow call (tooltip only) | フロー呼び出し |
+| loop (a loop box) | loop | ループ |
+| a loop's `pass` (`flow[].loops[].pass`) | pass N; up to N passes | N 周目; 最大 N 周 |
+| the passes a unit ran of a loop (`GraphMark.passes`, `MatrixRow.passes`) | N passes (the number in a mark); number of passes (legend); Passes (column) | N 周; 周回数 |
+| `LoopBox.spread` (units by the passes they ran) | 1 pass: 4 \| 2 passes: 1; tooltip: units by number of passes | 1 周: 4 \| 2 周: 1; ユニットごとの周回数 |
+| a loop box's mark of its return to the next pass | next pass (tooltip) | 次の周 |
+| `passMatrix` (a loop's passes: a row per unit, a column per node and pass) | Unit, Passes, Pass N (columns); sort units: scheduled order, number of passes, status | ユニット, 周回数, N 周目; 並び順: 登録順, 周回数, 状態 |
+| a node above 200 marks (`asBar`) | a bar of its counts, its failed units by name, +N for the rest | 件数のバー, 失敗したユニット名, +N |
+| the graph's key hints | Tab: next node \| Arrow keys: marks \| Shift + arrow keys: earlier and later tasks \| Enter: open \| Esc: up a level | Tab: 次のノード \| 矢印キー: マーク \| Shift + 矢印キー: 依存先タスク・後続タスク \| Enter: 開く \| Esc: 1 つ上の階層 |
+| `after` (an edge) | waits for output | 出力を待つ |
+| `created_from` (an edge) | created after result | 結果を受けて作成 |
+
+The UI states facts about the run; it never narrates what the monitor or
+contraagent does, will do, or lets the reader do. No "checked once", "the agent
+is asked to fix it", "shown here while running", "you can see ... in ...",
+"open X to ...", "this is to prevent ...". Show a state, a count, a cause or a
+value instead: "Not started: input out/review/zeta.json is missing because
+review · zeta did not finish", "No transcript", "2 corrections". How the system
+works belongs in the documentation, not on the screen; a tooltip may define a
+term in a short noun phrase or add a fact about this item, never a policy. A
+button's name (verb and object, "Show source") and a key hint ("↑↓ Enter Esc")
+name an action; they are not narration.
+
+### Form
+
+Many readers do not read English as a first language, and some read the
+monitor through machine translation. Write global English, and keep one form
+for each kind of text.
+
+- **Case.** Sentence case for tabs, headings, column names, buttons, tile
+  labels, empty-state titles and tooltips ("Scheduled tasks"). Values in chips
+  and pills, and code, stay as they are ("done", `journal.jsonl`).
+- **Task names and separators.** A task is named `kind · unit` everywhere
+  (`kindUnit`), and `·` appears only inside a task's name. Facts in one row are
+  separated by ` | ` ("Attempt 1 | done | 0.2s | $0.061"); a list of names is a
+  row of chips (`taskChip`) or one name per line.
+- **Punctuation.** At most one `:` in a string (a label and its value or
+  cause); no em dash. `→` means "changed to" or "then" only (a model switch,
+  first → last reading), never a link or a button.
+- **Links and buttons.** A link names where it goes, as a noun ("Failed
+  attempts in history", "All outputs"); a button names its action, verb and
+  object ("Show source"). No arrows in either.
+- **Status marks.** ✓ ✕ ◌ only, always next to a word, and hidden from screen
+  readers; no meaning carried by a glyph or a color alone.
+- **Empty and unknown.** An empty value is "none"; an unknown number is "—";
+  an empty list is "No <things>", with a known reason after ` | `.
+- **Numbers and time.** The number first in text ("3 web searches");
+  "characters", not "chars"; one duration format ("<0.1s", "4.2s", "2m 05s",
+  "1h 02m"); dates that read the same in every locale; absolute times in rows
+  and chips.
+- **Causes.** Name the cause the data has ("input out/review/zeta.json is
+  missing", "... failed checks"); never "X or Y" when the data knows which.
+- **Global English.** Common words; no idioms, phrasal verbs or slang; no
+  abbreviations but API, JSON, CLI, USD and units (B, k, M). Labels may be noun
+  phrases; a string that states a cause or a relation keeps its verbs and
+  articles. Positive forms ("All attempts passed"). The text must keep its
+  meaning through machine translation.
+
+## Kept on purpose
+
+| Name | Why it stays |
+|---|---|
+| `--agent` | Claude Code's own flag; the Claude backend maps `Launch.role` to `--agent <role>` |
+| `plugin render --agent claude\|omp` | there "agent" is the coding agent, as everywhere |
+| `Backend`, `create_backend`, `register_backend`, `known_agents` | the adapter for a coding agent and its registry, keyed by agent name |
+| `[tasks.<kind>]`, `kind` | the config's table name and the task class; unambiguous |
+| `Launch`, `TaskResult`, `RunReport`, `Pending`, `WorkQueue`, `CursorStore`, `TaskAdapter` | already one meaning each |
+| `Route`, `Router`, hop | the failover chain |
+| `ambient` | the built-in credential: the host's own setup |
+| `effort`, `max_turns`, `max_budget_usd` | the coding agents' own flag names |
+| cursor `stage` | a run phase |
+| `slot` | monitor-only row identity |
+| `streams/`, `*.stream.jsonl` | the on-disk layout |
+| `hollow` | defined in the `LaunchResult` docstring |
+| `RoutingPlan` | routing; `plan.jsonl` is the queue |
+
+## Layers
+
+Each layer imports only the layers above it in the list in the
+`src/contraagent/__init__.py` docstring (`errors`, `docs`, `dispatch`, `backends`,
+`contracts`, `routing`, `execution`, `plugins`, `pipeline`, `monitor`).
+`dispatch/` imports nothing outside the standard library. Never import a later
+layer from an earlier one; pass a callback or a protocol instead.
+
+The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
+feeds, store; no UI) comes before `@contraagent/ui` (the elements), which comes
+before `apps/monitor` (the page). Within `ui`, an element renders what its
+properties give it and sends `ca-*` events (`events.ts`); only `ca-monitor`
+holds the store and the router.
+
+Every visible string in an element is wrapped in `msg()` (`@lit/localize`) and
+every element class is `@localized()`. Translations live in
+`web/packages/ui/xliff/<locale>.xlf`; Japanese follows the terms in
+`xliff/GLOSSARY.md`, the same one-word-one-meaning rule as the glossary.
+`pnpm check` fails while a message has no translation.
+
+## Checks
+
+```
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright          # 0 errors; the "yaml" source warning is expected
+uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
+```
+
+After an omp upgrade, record its wire (`uv run python tests/fixtures/omp/record.py`,
+spends a few cents) and run `tests/test_omp_wire.py`: an event `TraceReader` does
+not know fails it.
+
+After changing a monitor response model or route, regenerate the committed
+contract: `uv run python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`
+(a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
+
+The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
+published at least 14 days ago), in `web/`:
+
+```
+pnpm install
+pnpm check              # generated types current, tsc, eslint, vitest
+pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
+pnpm check:dist         # the built packages type-check as an npm consumer sees them
+pnpm dev                # live-reload UI against a monitor on :8787
+pnpm e2e                # build, then Playwright against the real monitor over the demo runs
+pnpm docs               # the documentation site, live reload
+pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
+```
+
+## Documentation
+
+Each package holds its own documentation, installed with it and matching its
+version; nothing else holds that text.
+
+| Package | Index | Topics | Examples |
+|---|---|---|---|
+| `contraagent` | `src/contraagent/docs/README.md` (also the PyPI page) | `src/contraagent/docs/*.md` | `src/contraagent/docs/examples/` |
+| `@contraagent/ui` | `web/packages/ui/README.md` | `web/packages/ui/docs/*.md` | `web/packages/ui/docs/examples/` |
+| `@contraagent/api` | `web/packages/api/README.md` | — | — |
+
+- **An index lists its topics** (`- [Title](file.md): summary`). That list is
+  the order of the site's sidebar and what `contraagent docs` prints. A new
+  topic is a file plus a line in its index.
+- **Code is quoted, never pasted**: a line `::code{file="..." from="..." to="..."}`
+  quotes a file of the same package. The examples run or compile in the tests
+  (`tests/test_docs.py`; `docs/tsconfig.json` and `examples.test.ts` in the UI
+  package), so update them with any API change.
+- **Facts live in the code**: signatures and arguments in docstrings, options in
+  `--help`, config keys in `examples/reference/pipeline.toml`, elements in
+  `custom-elements.json` (describe an element's events with `@fires` in its
+  JSDoc), the HTTP API in `openapi.json`. Prose points to them.
+- **The site** (`web/apps/docs`, Astro Starlight) renders the packages'
+  documentation: `scripts/collect.py` writes it into `src/content/docs/python/`
+  and `node/` (not committed) and fails on a quote or a link that does not
+  resolve. The site itself holds only its landing page, the live examples and the
+  references generated from `openapi.json`, `custom-elements.json` and the
+  elements' stylesheet. The live examples read `src/fixtures/demo-run.json`;
+  rewrite it with `uv run python web/apps/docs/scripts/fixture.py` after a change
+  to what the monitor returns.
+- The root `README.md` points to the packages and holds no documentation of its own.
+- `CHANGELOG.md`: record user-visible changes under `[Unreleased]`.
+
+## Compatibility
+
+The package is unpublished. Rename freely: no compatibility aliases, no
+deprecation shims, no readers for old run directories.

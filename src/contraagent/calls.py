@@ -1,0 +1,182 @@
+"""Call files: how a run hands one agent task its parameters and its output contract.
+
+An agent task's *procedure* lives in its plugin (the role's `agents/<role>.md`,
+skills, hooks); what changes per task is data. The runner writes that data to
+`runs/<run>/calls/<key>.json` and the prompt says only "carry out this call":
+
+    {"key": "summarize-alpha", "kind": "summarize", "unit": "alpha",
+     "params": {"path": "in/alpha.md"},
+     "output": {"path": ".../out/summarize/alpha.json", "format": "json",
+                "json_schema": {...}, "schema_ref": {...}, "commands": [...]}}
+
+The same file is what the plugin's Stop hook reads (`contraagent call validate`,
+found through `CONTRAAGENT_CALL`), so the agent checks its output against the
+same schema and the same command validators the runner checks after the turn.
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from contraagent import envvars
+from contraagent.contracts import Check, OutputContract, check_file, correction_prompt
+from contraagent.validators import CommandValidator
+
+
+class SchemaRef(BaseModel):
+    """Where the output schema can be imported from, so a hook validates with pydantic itself."""
+
+    module: str
+    qualname: str
+    search_path: str | None = None
+
+
+class CallOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: str
+    format: Literal["json", "text"] = "json"
+    json_schema: dict[str, Any] = Field(default_factory=dict)
+    schema_ref: SchemaRef | None = None
+    #: Command validators (`validators.CommandValidator.to_dict()`); Python validators run in the runner only.
+    commands: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CallFile(BaseModel):
+    """One agent task's call: who it is, what it is given, what it must leave behind."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = 1
+    run: str
+    #: The task's key (`Task.key`).
+    key: str
+    kind: str
+    unit: str = ""
+    params: dict[str, Any] = Field(default_factory=dict)
+    output: CallOutput | None = None
+    #: The task's working directory: where its command validators run, in the runner and in the hook.
+    cwd: str = ""
+
+    def write(self, path: Path) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(self.model_dump_json(indent=2) + "\n")
+        os.replace(tmp, path)
+        return path
+
+    @classmethod
+    def read(cls, path: Path) -> CallFile:
+        return cls.model_validate_json(Path(path).read_text())
+
+
+def schema_ref_of(schema: type[BaseModel]) -> SchemaRef | None:
+    """How to import `schema` again from another process, or None when it cannot be.
+
+    A schema defined in a script (`__main__`) or inside a function has no import
+    path; the hook then checks the JSON Schema's shape only through the
+    runner, after the turn.
+    """
+    module = sys.modules.get(schema.__module__)
+    if schema.__module__ == "__main__" or module is None or "<locals>" in schema.__qualname__:
+        return None
+    search_path = None
+    file = getattr(module, "__file__", None)
+    if file:
+        # The directory the top-level package (or the module itself) sits in.
+        depth = schema.__module__.count(".")
+        search_path = str(Path(file).resolve().parents[depth])
+    return SchemaRef(module=schema.__module__, qualname=schema.__qualname__, search_path=search_path)
+
+
+def import_schema(ref: SchemaRef) -> type[BaseModel] | None:
+    """The schema a `SchemaRef` names, or None when it cannot be imported here."""
+    if ref.search_path and ref.search_path not in sys.path:
+        sys.path.insert(0, ref.search_path)
+    try:
+        obj: Any = importlib.import_module(ref.module)
+        for part in ref.qualname.split("."):
+            obj = getattr(obj, part)
+    except Exception:  # the runner's own check is the backstop
+        return None
+    return obj if isinstance(obj, type) and issubclass(obj, BaseModel) else None
+
+
+def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
+    """The prompt of an agent task: a fixed protocol, no task knowledge.
+
+    What to do is the plugin's (its role and skills); what to do it *with* is
+    the call file's. `instructions` is the escape hatch for a task without a plugin.
+    """
+    unit = f" for unit `{call.unit}`" if call.unit else ""
+    lines = [
+        f"Task call: `{call.kind}`{unit}.",
+        "",
+        f"The call file `{call_path}` holds your parameters (`params`) and the output "
+        "you must leave behind (`output`). Read it first, then carry out the task as "
+        "your instructions describe.",
+    ]
+    if call.output is not None:
+        what = (
+            "one JSON document matching `output.json_schema` exactly (no prose, no code fences)"
+            if call.output.format == "json"
+            else "the document the task asks for"
+        )
+        lines += [
+            "",
+            f"Write {what} to `{call.output.path}`. It is checked when you stop; if the "
+            "check fails you will be sent the errors, so fix the file and stop again.",
+        ]
+    if instructions:
+        lines = [instructions.rstrip(), "", *lines]
+    return "\n".join(lines)
+
+
+def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env: dict | None = None) -> tuple[int, str]:
+    """What a plugin's Stop hook runs. Returns (exit_code, message).
+
+    Exit 2 with the errors tells the coding agent to keep going and fix the
+    file in the same turn. `stop_hook_active` (this hook already blocked once)
+    ends the loop: the runner checks again after the turn and resumes the
+    session if it must. Freshness is the runner's to judge; the hook sees no
+    "before".
+    """
+    env = dict(os.environ if env is None else env)
+    try:
+        if json.loads(stdin_text or "{}").get("stop_hook_active"):
+            return 0, ""
+    except ValueError:
+        pass
+    path = call_path or env.get(envvars.CALL)
+    if not path:
+        return 0, f"no call file ({envvars.CALL} is unset): nothing to check"
+    call = CallFile.read(Path(path))
+    if call.output is None:
+        return 0, ""
+    out = call.output
+    schema = None
+    if out.format == "json" and out.schema_ref is not None:
+        schema = import_schema(out.schema_ref)
+        if schema is None:
+            return 0, (f"cannot import {out.schema_ref.module}.{out.schema_ref.qualname} here; the runner checks the output after the turn")
+    commands = tuple(CommandValidator.from_dict(c) for c in out.commands)
+    contract = OutputContract(Path(out.path), schema, fresh=False, validators=commands)
+    cwd = Path(call.cwd) if call.cwd else None
+    chk = check_file(Path(out.path), schema, validators=commands, params=call.params, call=Path(path), cwd=cwd)
+    if chk.ok and out.format == "json" and schema is None:
+        # No importable schema (defined in a script): at least the JSON must parse.
+        try:
+            json.loads(Path(out.path).read_text(encoding="utf-8"))
+        except ValueError as exc:
+            chk = Check(Path(out.path), False, [f"{out.path}: not valid JSON: {exc}"])
+    if chk.ok:
+        return 0, ""
+    return 2, correction_prompt([contract], [chk])

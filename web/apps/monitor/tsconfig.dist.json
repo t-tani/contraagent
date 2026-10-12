@@ -1,0 +1,7 @@
+{
+  // The page's imports type-checked against the built packages (dist/), the
+  // way an npm consumer sees them: run after `pnpm build`.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "customConditions": [], "skipLibCheck": false },
+  "include": ["src"]
+}

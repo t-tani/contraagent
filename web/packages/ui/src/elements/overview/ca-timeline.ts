@@ -1,0 +1,159 @@
+import { isLaunched, liveActivities, taskOutcomes, type JournalRow, type Procs } from '@contraagent/api';
+import { localized, msg, str } from '@lit/localize';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
+import { starts } from '../../lib/clock.js';
+import { getLocale } from '../../i18n.js';
+import { facts, fmtDur, kindUnit } from '../../lib/format.js';
+import { modelSwitch, notStartedCause, runRelative, stopLabel } from '../../lib/labels.js';
+import { base } from '../../styles/base.js';
+import { barBox, timeline, type TimelineBar } from './logic.js';
+
+const hhmm = (t: number) => new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const hhmmss = (t: number) =>
+  new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+/** A span shorter than this shows seconds on its axis (else every tick reads the same minute). */
+const SECONDS_BELOW_MS = 10 * 60e3;
+
+/**
+ * Every finished attempt as a bar as long as it took, on its kind's lane, the
+ * running ones growing until now (the last six hours of the run).
+ */
+@customElement('ca-timeline')
+@localized()
+export class CaTimeline extends LitElement {
+  static override styles = [
+    base,
+    css`
+      :host { display: block; }
+      .tl { position: relative; }
+      .tl-axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--mut); margin: 0 0 6px 120px; }
+      .tl-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 24px; padding: 4px 0; }
+      .nm { font-size: 11.5px; color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .nm.llm { color: var(--llm); }
+      .tl-lane { position: relative; height: calc(var(--tracks, 1) * 14px + 2px); border-radius: 4px;
+        background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 10%); }
+      .tl-bar { position: absolute; top: calc(var(--track, 0) * 14px + 2px); height: 12px; border-radius: 4px; min-width: 3px; cursor: default;
+        transform-origin: left center; transition: width 1s linear; }
+      .tl.anim .tl-bar:not(.run) { animation: growx 0.6s var(--ease) both; }
+      .tl-bar.py { background: linear-gradient(90deg, #64748b, #94a3b8); }
+      .tl-bar.llm { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+      .tl-bar.bad { background: linear-gradient(90deg, #b91c1c, #f87171); }
+      .tl-bar.idle { background: var(--line2); }
+      .tl-bar.run { background: repeating-linear-gradient(45deg, var(--live) 0 6px, #0891b2 6px 12px); background-size: 17px 17px;
+        animation: stripes 0.8s linear infinite; box-shadow: 0 0 12px rgba(34, 211, 238, 0.5); }
+      .tl-bar:hover { filter: brightness(1.25); }
+      .tl-now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--live); border-radius: 2px; box-shadow: 0 0 10px var(--live); }
+      .legend { margin-top: 10px; }
+      .legend + .legend { margin-top: 4px; }
+      @media (max-width: 760px) {
+        .tl-row { grid-template-columns: 78px minmax(0, 1fr); }
+        .tl-axis { margin-left: 86px; }
+      }
+    `,
+  ];
+
+  @property({ attribute: false }) journal: JournalRow[] = [];
+  @property({ attribute: false }) procs: Procs | null = null;
+  /** The run is live: its running tasks are drawn, growing every second. */
+  @property({ type: Boolean }) live = false;
+  /** The run drawn; the bars grow in when a run is first drawn, not on every update. */
+  @property() run = '';
+
+  private drawnRun: string | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  protected override updated(changed: PropertyValues<this>): void {
+    if (changed.has('live')) this.tick(this.live);
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.tick(this.live);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.tick(false);
+  }
+
+  /** Repaint every second while live, so the running bars and the now line move. */
+  private tick(on: boolean): void {
+    if (on && !this.timer) this.timer = setInterval(() => this.requestUpdate(), 1000);
+    if (!on && this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  override render() {
+    const now = Date.now();
+    const live = this.live
+      ? liveActivities(this.procs).map((a) => ({ kind: a.kind, cls: a.cls, t0: starts.at(a.id, a.ageS, now) }))
+      : [];
+    const tl = timeline(this.journal, live, now);
+    if (!tl)
+      return html`<div class="blank" style="padding:28px"><span class="ic" aria-hidden="true">⏱</span>${this.live
+        ? msg('No finished attempts yet')
+        : msg('No finished attempts')}</div>`;
+    const animate = this.drawnRun !== this.run;
+    this.drawnRun = this.run;
+    const outcomes = taskOutcomes(this.journal, { nodes: [], groups: [] });
+    const tip = (lane: string, b: TimelineBar) => {
+      const e = b.row;
+      if (!e) return `${lane}\n${msg('running')}`;
+      // A task that never ran: its name and why, and no time, end or model.
+      if (!isLaunched(e)) {
+        const t = outcomes.get(e.key);
+        const cause = e.stop === 'invalid_input' && t ? notStartedCause(t, outcomes, this.run) : '';
+        return [kindUnit(e), cause ? msg(str`Not started: ${cause}`) : stopLabel(e.stop), e.key].join('\n');
+      }
+      const sw = modelSwitch(e.hops);
+      const reason = e.reason && !e.ok ? runRelative(e.reason, this.run) : '';
+      // One item per line: a task's name holds a `·` of its own.
+      return [
+        kindUnit(e),
+        facts(stopLabel(e.stop), fmtDur(e.wall_s), msg(str`ended ${hhmmss(b.end)}`)),
+        sw ? msg(str`Model switch: ${sw}`) : e.model ? msg(str`Model ${e.model}`) : '',
+        reason,
+        e.key,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    };
+    const nowAt = Math.min(1, (now - tl.t0) / tl.span);
+    const tick = tl.span < SECONDS_BELOW_MS ? hhmmss : hhmm;
+    return html`<div class="tl ${animate ? 'anim' : ''}">
+        <div class="tl-axis">${[0, 0.25, 0.5, 0.75, 1].map((k) => html`<span>${tick(tl.t0 + tl.span * k)}</span>`)}</div>
+        ${repeat(
+          tl.lanes,
+          (l) => l.name,
+          (l) => html`<div class="tl-row">
+            <span class="nm ${l.llm ? 'llm' : ''}" title=${l.name}>${l.name}</span>
+            <div class="tl-lane" style="--tracks:${l.tracks}">
+              ${l.bars.map((b) => {
+                const box = barBox(b, tl, now);
+                return html`<span class="tl-bar ${b.cls}" style="--track:${b.track};left:${box.left.toFixed(3)}%;width:${box.width.toFixed(3)}%" title=${tip(l.name, b)}></span>`;
+              })}
+            </div>
+          </div>`,
+        )}
+        ${tl.live ? html`<span class="tl-now" style="left:calc(120px + (100% - 120px) * ${nowAt.toFixed(4)})"></span>` : nothing}
+      </div>
+      <div class="legend">
+        <span><i style="background:#94a3b8"></i>${msg('Python task')}</span><span><i style="background:#a78bfa"></i>${msg('Agent task')}</span>
+      </div>
+      <div class="legend">
+        <span><i style="background:#22d3ee"></i>${msg('running')}</span><span><i style="background:#f87171"></i>${msg('failed')}</span>
+        <span><i style="background:var(--line2)"></i>${msg('not started')}</span>
+        ${tl.hidden ? html`<span>${tl.hidden === 1 ? msg('1 older attempt not shown') : msg(str`${tl.hidden} older attempts not shown`)}</span>` : nothing}
+      </div>`;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'ca-timeline': CaTimeline;
+  }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  The whole monitor inside a page of your own, with no build step.
+
+  The monitor serves its elements as an ES module (/app.js). Let this page's
+  origin use it, then open the page:
+
+    contraagent-monitor --runs-dir runs --cors-origin http://localhost:8000
+    python -m http.server 8000 --directory docs/examples
+    # http://localhost:8000/embed.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>contraagent, embedded</title>
+    <link rel="stylesheet" href="theme.css" />
+    <script type="module" src="http://127.0.0.1:8787/app.js"></script>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      .pane { height: 70vh; border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; margin: 16px; }
+    </style>
+  </head>
+  <body class="light">
+    <h1 style="margin: 16px">Our release pipeline</h1>
+    <!-- `memory`: the monitor keeps its route to itself and leaves this page's URL alone. -->
+    <div class="pane">
+      <ca-monitor base-url="http://127.0.0.1:8787" history="memory"></ca-monitor>
+    </div>
+  </body>
+</html>

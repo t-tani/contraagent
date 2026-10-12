@@ -1,0 +1,22 @@
+{
+  "name": "@contraagent/docs",
+  "private": true,
+  "type": "module",
+  "description": "The documentation site: Python and Node guides, generated references, live element demos",
+  "scripts": {
+    "dev": "uv run --project ../../.. python scripts/collect.py && astro dev",
+    "build": "uv run --project ../../.. python scripts/collect.py && astro build",
+    "preview": "astro preview",
+    "typecheck": "uv run --project ../../.. python scripts/collect.py && astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "~0.42.4",
+    "@contraagent/api": "workspace:*",
+    "@contraagent/ui": "workspace:*",
+    "astro": "~7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "~5.9.3"
+  }
+}

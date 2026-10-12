@@ -1,0 +1,59 @@
+---
+// Each element's properties, attributes and events, from the custom elements
+// manifest the UI package's build writes (custom-elements.json).
+import { inlineMd as md, repoJson } from '../lib/repo';
+
+interface Member { kind: string; name: string; privacy?: string; static?: boolean; type?: { text: string }; description?: string; attribute?: string; default?: string; readonly?: boolean }
+interface Ev { name: string; description?: string }
+interface Decl { kind: string; name: string; tagName?: string; description?: string; members?: Member[]; events?: Ev[] }
+interface Manifest { modules: { path: string; declarations?: Decl[] }[] }
+
+const manifest = repoJson<Manifest>('web/packages/ui/custom-elements.json');
+const INTERNAL = new Set(['ca-clock']);
+const elements = manifest.modules
+  .flatMap((m) => (m.declarations ?? []).map((d) => ({ ...d, path: m.path })))
+  .filter((d) => d.tagName && !INTERNAL.has(d.tagName))
+  .sort((a, b) => a.tagName!.localeCompare(b.tagName!));
+const props = (d: Decl) =>
+  (d.members ?? []).filter((m) => m.kind === 'field' && !m.static && !m.privacy && !m.name.startsWith('_') && m.name !== 'styles');
+---
+
+{
+  elements.map((d) => (
+    <section>
+      <h2 id={d.tagName}><code>&lt;{d.tagName}&gt;</code></h2>
+      <p set:html={md(d.description)} />
+      <p class="meta">
+        <code>{d.name}</code> · <code>{d.path}</code>
+      </p>
+      {props(d).length > 0 && (
+        <table>
+          <thead><tr><th>Property</th><th>Attribute</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            {props(d).map((m) => (
+              <tr>
+                <td><code>{m.name}</code></td>
+                <td>{m.attribute ? <code>{m.attribute}</code> : '—'}</td>
+                <td><code>{m.type?.text ?? ''}</code></td>
+                <td set:html={md(m.description)} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {(d.events ?? []).length > 0 && (
+        <table>
+          <thead><tr><th>Event</th><th>Detail and meaning</th></tr></thead>
+          <tbody>
+            {d.events!.map((e) => (
+              <tr>
+                <td><code>{e.name}</code></td>
+                <td set:html={md(e.description)} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  ))
+}

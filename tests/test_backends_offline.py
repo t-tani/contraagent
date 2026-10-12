@@ -1,0 +1,270 @@
+"""The real backends' run paths, against fake CLIs: argv, env, the stream reader, the classifier.
+
+The stub backends elsewhere replace `Backend.run`, so they never execute this code. A small
+script on PATH standing in for `claude` / `omp` does, without spending a token.
+"""
+
+import json
+import os
+import stat
+import sys
+
+from contraagent import ApiKey, ClaudeBackend, Launch, Limits, OmpBackend, OmpRpcBackend, Stop
+
+CLAUDE = r"""
+import json, os, sys
+if "--version" in sys.argv:
+    print("2.1.296 (Claude Code)"); sys.exit(0)
+json.dump(dict(os.environ), open(os.environ["FAKE_ENV_DUMP"], "w"))
+source = os.environ.get("FAKE_SOURCE") or ("ANTHROPIC_API_KEY" if os.environ.get("ANTHROPIC_API_KEY") else "none")
+print(json.dumps({"type": "system", "subtype": "init", "model": "fake-model", "tools": ["Read"], "session_id": "s-1",
+                  "apiKeySource": source}))
+print(json.dumps({"type": "assistant", "message": {"id": "m1", "model": "fake-model", "content": [{"type": "text", "text": "hi"}],
+                  "usage": {"input_tokens": 10, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 2}}}))
+print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok", "session_id": "s-1",
+                  "num_turns": 1, "total_cost_usd": 0.001, "usage": {"output_tokens": 2}}))
+"""
+
+OMP = r"""
+import json, os, sys
+if sys.argv[1:2] == ["--version"]:
+    print("omp/18.8.6"); sys.exit(0)
+json.dump(dict(os.environ), open(os.environ["FAKE_ENV_DUMP"], "w"))
+print("Done: wrote the file.")
+"""
+
+
+def fake_cli(tmp_path, name, body):
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    script = bindir / name
+    script.write_text(f"#!{sys.executable}\n{body}")
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return bindir
+
+
+def test_claude_backend_runs_a_launch_end_to_end(tmp_path):
+    bindir = fake_cli(tmp_path, "claude", CLAUDE)
+    dump = tmp_path / "env.json"
+    base = {
+        "PATH": f"{bindir}{os.pathsep}/usr/bin:/bin",
+        "ANTHROPIC_API_KEY": "leftover",
+        "MY_KEY": "sk-test",
+        "CLAUDECODE": "1",
+        "CLAUDE_CODE_MESSAGING_SOCKET": "/run/parent.sock",
+        "CLAUDE_CODE_MESSAGING_TOKEN": "parent-token",
+    }
+    backend = ClaudeBackend(base_env=base)
+    launch_result = backend.run(
+        Launch(
+            prompt="hello",
+            label="t",
+            model="fake-model",
+            cwd=tmp_path,
+            limits=Limits(timeout_s=30, max_turns=1),
+            env={"FAKE_ENV_DUMP": str(dump)},
+            credential=ApiKey(name="k", key="env:MY_KEY"),
+        )
+    )
+    assert launch_result.stop == Stop.COMPLETED and launch_result.ok, launch_result.stderr_tail
+    assert launch_result.result_text == "ok" and launch_result.session_id == "s-1" and launch_result.usage.n_calls == 1
+    assert launch_result.credential == "k" and launch_result.api_key_source == "ANTHROPIC_API_KEY"
+    env = json.loads(dump.read_text())
+    assert env["ANTHROPIC_API_KEY"] == "sk-test"  # the credential named, not the leftover
+    assert not {"CLAUDECODE", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN"} & set(env)  # nor the parent session
+    assert env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] == env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+    argv = launch_result.argv
+    assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings files
+    assert "contraagent-claude-" in env["CLAUDE_CONFIG_DIR"]  # isolated: no stored login to fall back to
+
+
+def test_omp_backend_runs_a_launch_end_to_end(tmp_path):
+    bindir = fake_cli(tmp_path, "omp", OMP)
+    dump = tmp_path / "env.json"
+    backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"}, trace=False)
+    launch_result = backend.run(
+        Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30), env={"FAKE_ENV_DUMP": str(dump)})
+    )
+    assert launch_result.stop == Stop.COMPLETED and launch_result.ok, launch_result.stderr_tail
+    assert "wrote the file" in launch_result.result_text
+
+
+def test_a_missing_binary_is_a_launch_failure_not_a_crash(tmp_path):
+    for backend in (ClaudeBackend(base_env={"PATH": str(tmp_path)}), OmpBackend(base_env={"PATH": str(tmp_path)})):
+        launch_result = backend.run(Launch(prompt="x", label="t", cwd=tmp_path))
+        assert launch_result.stop == Stop.LAUNCH_FAILED
+
+
+def test_an_unstartable_launch_is_a_launch_failure_for_every_backend(tmp_path):
+    """The binary is on PATH but the process cannot start (its cwd is gone): a LaunchResult, not an exception."""
+    bindir = fake_cli(tmp_path, "claude", CLAUDE)
+    fake_cli(tmp_path, "omp", OMP)
+    env = {"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"}
+    for backend in (ClaudeBackend(base_env=env), OmpBackend(base_env=env, trace=False), OmpRpcBackend(base_env=env, trace=False)):
+        launch_result = backend.run(Launch(prompt="x", label="t", cwd=tmp_path / "gone"))
+        assert launch_result.stop == Stop.LAUNCH_FAILED and not launch_result.ok, backend.name
+        assert "gone" in launch_result.stderr_tail, launch_result.stderr_tail
+
+
+def test_a_missing_rpc_binary_is_a_launch_failure(tmp_path):
+    launch_result = OmpRpcBackend(base_env={"PATH": str(tmp_path)}).run(Launch(prompt="x", label="t", cwd=tmp_path))
+    assert launch_result.stop == Stop.LAUNCH_FAILED
+
+
+def test_every_utilization_reading_of_a_session_is_kept():
+    """Claude Code reports the subscription's utilization when a session starts and again when it is
+    resumed (shapes from real transcripts); each reading is kept, with when it arrived."""
+    from contraagent.backends.claude.stream import StreamReader
+
+    def event(five, week):
+        windows = {"five_hour": {"utilization": five, "resetsAt": 1791347400}, "seven_day": {"utilization": week, "resetsAt": 1791800000}}
+        return json.dumps({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": windows}})
+
+    reader = StreamReader(Limits())
+    reader.feed(event(0.1, 0.55))
+    reader.feed(event(0.15, 0.56))
+    assert [(r.five_hour_pct, r.seven_day_pct) for r in reader.rate_limits] == [(10.0, 55.0), (15.0, 56.0)]
+    assert reader.rate_limit is reader.rate_limits[-1] and all(r.observed_at for r in reader.rate_limits)
+
+
+OMP_ACCOUNTED = r"""
+import json, sys
+if "usage" in sys.argv:
+    limit = lambda w, used, resets: {"scope": {"provider": "anthropic", "windowId": w, "shared": True}, "status": "ok",
+                                     "window": {"id": w, "resetsAt": resets}, "amount": {"usedFraction": used, "unit": "percent"}}
+    report = {"provider": "anthropic", "fetchedAt": 1791776226254,
+              "limits": [limit("5h", 0.05, 1791784800000), limit("7d", 0.79, 1791979200000),
+                         {**limit("7d", 0.0, 1791979200000), "scope": {"windowId": "7d", "tier": "fable"}}]}
+    print(json.dumps({"reports": [report]})); sys.exit(0)
+print(json.dumps({"type": "session", "id": "s-1"}))
+for n in (1, 2):
+    usage = {"input": 4, "output": 100 * n, "cacheRead": 1000, "cacheWrite": 50, "cost": {"total": 0.001 * n}}
+    print(json.dumps({"type": "message_end", "message": {"role": "assistant", "model": "claude-haiku-5-5", "usage": usage}}))
+print(json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "text_end", "content": "Done: wrote the file."}}))
+"""
+
+
+def test_omp_reports_tokens_cost_and_the_accounts_usage(tmp_path):
+    bindir = fake_cli(tmp_path, "omp", OMP_ACCOUNTED)
+    backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
+    launch = Launch(prompt="hello", label="t", model="anthropic/claude-haiku-5-5", cwd=tmp_path, limits=Limits(timeout_s=30))
+    result = backend.run(launch)
+    assert result.stop == Stop.COMPLETED and result.cost_usd == 0.003
+    assert (len(result.usage.calls), result.usage.output, result.usage.cache_read, result.usage.cache_creation) == (2, 300, 2000, 100)
+    [reading] = result.rate_limits
+    assert (reading.five_hour_pct, reading.seven_day_pct, reading.status) == (5.0, 79.0, "allowed")
+    assert reading.seven_day_resets_at == "2026-10-14T12:00:00+00:00" and reading.observed_at
+    assert backend.run(launch).rate_limits[0] == reading  # read again at each launch: the latest request's
+
+
+def test_omp_ends_a_launch_past_its_cost_cap(tmp_path):
+    bindir = fake_cli(tmp_path, "omp", OMP_ACCOUNTED)
+    backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
+    launch = Launch(prompt="hello", label="t", model="anthropic/x", cwd=tmp_path, limits=Limits(timeout_s=30, max_budget_usd=0.0015))
+    result = backend.run(launch)
+    assert result.stop == Stop.BUDGET and not result.ok
+
+
+def test_claude_records_what_its_stop_hook_sent_back():
+    from contraagent.backends.claude.stream import StreamReader, normalize_event
+
+    text = "Stop hook feedback:\n[validate]: fix them.\n\n## out.json\nErrors:\n- out.json: [lines] line 99 is past the end\n"
+    feedback = {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
+    reader = StreamReader(Limits())
+    reader.feed(json.dumps(feedback))
+    assert reader.hook_errors == [["out.json: [lines] line 99 is past the end"]]
+    assert normalize_event(feedback)["type"] == "notice"
+
+
+def test_omp_launches_see_only_their_plugin():
+    """omp discovers instructions, skills, hooks and MCP servers in the project and the home
+    directory; every launch turns that off but for the plugin it is given."""
+    from contraagent.backends.omp.backend import ISOLATION
+
+    backend = OmpBackend(base_env={"PATH": "/usr/bin", "CLAUDE_CONFIG_DIR": "/home/me/.claude", "CLAUDE_CODE_MESSAGING_TOKEN": "t"})
+    launch = Launch(prompt="hi", label="t", model="anthropic/x", plugin_dirs=("/p",))
+    argv = backend.argv(launch)
+    assert argv[argv.index("--config") + 1] == str(ISOLATION / "config.yml")
+    assert backend.env(launch)["CLAUDE_CONFIG_DIR"] == str(ISOLATION)  # the user's installed Claude plugins: none
+    assert "CLAUDE_CODE_MESSAGING_TOKEN" not in backend.env(launch)  # nor the session that started the run
+    assert not (ISOLATION / "plugins").exists()
+    disabled = [line.split("#")[0].strip(" -") for line in (ISOLATION / "config.yml").read_text().splitlines() if line.startswith("  - ")]
+    assert "claude-plugins" not in disabled and {"native", "agents-md", "claude-md", "claude", "mcp-json"} <= set(disabled)
+    rpc = OmpRpcBackend(base_env={"PATH": "/usr/bin"}).argv(launch)
+    assert rpc[rpc.index("--config") + 1] == str(ISOLATION / "config.yml")
+
+
+OMP_SEARCHING = r"""
+import json, sys
+if sys.argv[1:2] == ["--version"]:
+    print("omp/18.8.6"); sys.exit(0)
+for q in ("contraagent  docs", ""):
+    call = {"type": "toolcall_end", "toolCall": {"name": "web_search", "arguments": {"query": q}}}
+    print(json.dumps({"type": "message_update", "assistantMessageEvent": call}))
+    print(json.dumps({"type": "tool_execution_end", "toolName": "web_search"}))
+print(json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "text_end", "content": "Done."}}))
+"""
+
+
+def test_omp_records_its_web_searches_and_counts_each_call_once(tmp_path):
+    from contraagent.backends.omp.rpc import _Accumulator
+
+    bindir = fake_cli(tmp_path, "omp", OMP_SEARCHING)
+    backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
+    result = backend.run(Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
+    assert result.ok and result.web_queries == ["contraagent docs"]
+    assert result.tool_uses == {"web_search": 2}  # each call once, not again at its execution
+    acc = _Accumulator()
+    call = {"type": "toolcall_end", "toolCall": {"name": "web_search", "arguments": {"query": "omp rpc"}}}
+    acc.feed({"type": "message_update", "assistantMessageEvent": call}, "p1")
+    acc.feed({"type": "tool_execution_end", "toolName": "web_search"}, "p1")
+    rpc = acc.launch_result(Launch(prompt="x", label="t"), "omp-rpc", [], None)
+    assert rpc.web_queries == ["omp rpc"] and rpc.tool_uses == {"web_search": 1}
+
+
+def test_claude_shows_a_web_search_by_its_query_and_a_web_page_by_its_url():
+    from contraagent.backends.claude.stream import normalize_event
+
+    call = {"type": "tool_use", "id": "c1", "name": "WebSearch", "input": {"query": "omp rpc"}}
+    shown = normalize_event({"type": "assistant", "message": {"content": [call]}})
+    assert (shown["cmd"], shown["web_query"]) == ("omp rpc", "omp rpc")
+    read = {"type": "tool_use", "id": "c2", "name": "Read", "input": {"file_path": "a.md"}}
+    assert "web_query" not in normalize_event({"type": "assistant", "message": {"content": [read]}})
+    fetch = {"type": "tool_use", "id": "c3", "name": "WebFetch", "input": {"url": "https://omp.sh/", "prompt": "what is it"}}
+    shown = normalize_event({"type": "assistant", "message": {"content": [fetch]}})
+    assert (shown["cmd"], shown["web_fetch"], shown["intent"]) == ("https://omp.sh/", "https://omp.sh/", "what is it")
+
+
+def test_omp_shows_a_read_of_a_url_as_a_web_page():
+    from contraagent.backends.omp.trace import normalize_event
+
+    def start(path):
+        return normalize_event({"type": "tool_execution_start", "toolName": "read", "args": {"path": path}, "toolCallId": "c"})
+
+    assert start("https://omp.sh/docs")["web_fetch"] == "https://omp.sh/docs"
+    assert "web_fetch" not in start("notes/a.md")
+
+
+OMP_RPC = r"""
+import json, sys
+if sys.argv[1:2] == ["--version"]:
+    print("omp/18.9.1"); sys.exit(0)
+def send(o):
+    print(json.dumps(o), flush=True)
+send({"type": "ready", "supportedProtocolVersions": [1]})
+for line in sys.stdin:
+    req = json.loads(line)
+    if req["type"] == "prompt":
+        send({"type": "message_update", "assistantMessageEvent": {"type": "text_end", "content": "done"}})
+        send({"type": "agent_end", "isTerminal": True})
+    elif req["type"] == "get_state":
+        send({"type": "extension_ui_request", "id": "w1", "method": "setWidget"})  # before the response
+        send({"type": "response", "id": req["id"], "command": "get_state", "success": True, "data": {"sessionId": "s-42"}})
+"""
+
+
+def test_omp_rpc_reads_its_session_id_past_frames_that_come_first(tmp_path):
+    bindir = fake_cli(tmp_path, "omp", OMP_RPC)
+    backend = OmpRpcBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
+    result = backend.run(Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
+    assert result.ok and result.result_text == "done" and result.session_id == "s-42"

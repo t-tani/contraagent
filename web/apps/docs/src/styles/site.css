@@ -1,0 +1,26 @@
+/* Live element demos: a dark frame like the monitor's own page. */
+.ca-demo { margin: 1.5rem 0; }
+.ca-demo-frame {
+  background: radial-gradient(900px 400px at 8% -12%, #10203a 0%, transparent 62%), #060a11;
+  border: 1px solid #1d2940;
+  border-radius: 12px;
+  padding: 16px;
+  height: var(--h, auto);
+  max-height: 640px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  font: 13px/1.5 system-ui, sans-serif;
+}
+/* The light theme's colours are @contraagent/ui's example theme (customCss). */
+.ca-demo.light .ca-demo-frame { background: var(--ca-bg); border-color: var(--ca-line); }
+.ca-demo[data-last-event]::after {
+  content: 'sent: ' attr(data-last-event);
+  display: block;
+  margin-top: 0.4rem;
+  font: 12px var(--sl-font-mono);
+  color: var(--sl-color-gray-3);
+}
+.ca-demo figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.4rem; }
+.swatch { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 3px; margin-right: 0.4em; vertical-align: -0.1em; border: 1px solid var(--sl-color-gray-5); }
+.meta { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); }

@@ -1,0 +1,59 @@
+---
+// The monitor's HTTP API, from the committed OpenAPI document
+// (src/contraagent/monitor/openapi.json).
+import { inlineMd, repoJson } from '../lib/repo';
+
+interface Op { summary?: string; description?: string; parameters?: { name: string; in: string }[]; responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> }
+interface Doc { info: { version: string }; paths: Record<string, Record<string, Op>>; components: { schemas: Record<string, { anyOf?: { $ref: string }[]; description?: string; properties?: Record<string, { const?: string; enum?: string[]; pattern?: string }> }> } }
+
+const doc = repoJson<Doc>('src/contraagent/monitor/openapi.json');
+const refName = (s: unknown): string => {
+  const x = s as { $ref?: string; type?: string; items?: unknown; anyOf?: unknown[] } | undefined;
+  if (!x) return '';
+  if (x.$ref) return x.$ref.split('/').pop()!;
+  if (x.type === 'array') return `${refName(x.items)}[]`;
+  if (x.anyOf) return x.anyOf.map(refName).filter(Boolean).join(' | ');
+  return x.type ?? '';
+};
+const ops = Object.entries(doc.paths).flatMap(([path, methods]) =>
+  Object.entries(methods).map(([method, op]) => {
+    const ok = op.responses?.['200']?.content ?? {};
+    const [media, body] = Object.entries(ok)[0] ?? ['', {}];
+    return { method: method.toUpperCase(), path, op, media, schema: refName(body.schema), query: (op.parameters ?? []).filter((p) => p.in === 'query').map((p) => p.name) };
+  }),
+);
+const s = doc.components.schemas;
+const feed = (name: string) =>
+  (s[name]?.anyOf ?? [{ $ref: `#/components/schemas/${name}` }]).map((r) => {
+    const m = r.$ref.split('/').pop()!;
+    const ev = s[m]?.properties?.['event'];
+    return { model: m, event: ev?.const ?? ev?.enum?.[0] ?? (ev?.pattern ? 'panel:<name>' : '?'), description: s[m]?.description ?? '' };
+  });
+---
+
+<p>Contract version <code>{doc.info.version}</code>. All routes are <code>GET</code>.</p>
+<table>
+  <thead><tr><th>Route</th><th>Answers</th><th>What</th></tr></thead>
+  <tbody>
+    {
+      ops.map((o) => (
+        <tr>
+          <td><code>{o.path}{o.query.length ? `?${o.query.join('&')}` : ''}</code></td>
+          <td><code>{o.media === 'text/event-stream' ? `SSE: ${o.schema}` : o.schema}</code></td>
+          <td set:html={inlineMd(o.op.description ?? o.op.summary)} />
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<h3 id="run-feed">Messages of <code>/events?run=</code></h3>
+<table>
+  <thead><tr><th>Event</th><th>Model</th><th>Sent</th></tr></thead>
+  <tbody>{feed('RunEvent').map((m) => <tr><td><code>{m.event}</code></td><td><code>{m.model}</code></td><td set:html={inlineMd(m.description)} /></tr>)}</tbody>
+</table>
+<h3 id="stream-feed">Messages of <code>/events/stream?run=&key=</code></h3>
+<table>
+  <thead><tr><th>Event</th><th>Model</th><th>Sent</th></tr></thead>
+  <tbody>{feed('StreamMessage').map((m) => <tr><td><code>{m.event}</code></td><td><code>{m.model}</code></td><td set:html={inlineMd(m.description)} /></tr>)}</tbody>
+</table>

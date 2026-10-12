@@ -1,0 +1,418 @@
+"""One run of a pipeline: its directory, journal, lock, and queue wiring.
+
+A `Run` owns `runs/<run-id>/`:
+
+    run.json                who is running it (pid, start time, working directory) — how a
+                            monitor knows it is live
+    journal.jsonl           one `JournalRow` per finished task
+    launches.jsonl          the full `LaunchResult` of each agent launch
+    streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
+    plan.jsonl              every task a queue accepted, with its `after` and its origin
+                            (`flow`, `created_from`, `flow_call`)
+    flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
+                            (`state`, `error`)
+    inflight/<key>.json     one marker per running task
+    contracts/, definitions/  what each task declared, for the monitor
+
+and the run lock `runs/<run-id>.lock`, which refuses a second process
+driving the same run id: two drivers would launch the same work twice and
+bill for it twice.
+
+It builds `WorkQueue`s that journal every result, record the plan and mark
+running tasks, and reads its own journal back (`Journal`) so a resumed
+run skips the work a previous attempt finished: a key whose last journal row
+is ok and carries the task's `fingerprint`.
+"""
+
+from __future__ import annotations
+
+import fcntl
+import json
+import logging
+import os
+import sys
+import threading
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+
+from contraagent import procfs
+from contraagent.backends.base import Backend
+from contraagent.backends.launch import Stop
+from contraagent.dispatch.python_task import make_python_task
+from contraagent.dispatch.queue import WorkQueue
+from contraagent.dispatch.task import Frame, Task, TaskResult, kind_name
+from contraagent.errors import ContraagentError
+from contraagent.execution import teardown as _teardown
+from contraagent.execution.cursor import CursorStore
+from contraagent.execution.estimates import JournalEstimates
+from contraagent.execution.journal import Journal, utcnow_iso
+from contraagent.execution.python_tasks import PythonTaskRunner
+from contraagent.execution.runner import AgentRunner
+
+_logger = logging.getLogger(__name__)
+
+#: A launch that never ran is retried once by the queue; a rate limit counts
+#: toward its throttle. These are the stop values naming those cases.
+RETRY_ON = frozenset({Stop.API_ERROR.value, Stop.NO_OUTPUT.value, Stop.LAUNCH_FAILED.value})
+THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
+
+
+def finished_before(row: dict | None, task: Task) -> bool:
+    """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
+    task's fingerprint. What a resume skips."""
+    return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+
+
+def frames_row(frames: Sequence[Frame]) -> list[dict]:
+    """A flow path as `plan.jsonl` and `flow_calls.jsonl` record it: `{function, file, line,
+    loops: [{line, pass}]}` per frame, outermost first."""
+    return [
+        {"function": f.function, "file": f.file, "line": f.line, "loops": [{"line": loop.line, "pass": loop.pass_} for loop in f.loops]}
+        for f in frames
+    ]
+
+
+class RunLocked(ContraagentError):
+    """Another process already holds this run id."""
+
+
+class RunExists(ContraagentError):
+    """The run id already holds a run, and the caller did not ask to resume it."""
+
+
+class Run:
+    """One run of a pipeline: `runs/<run-id>/`, its journal, its lock, and its queues."""
+
+    def __init__(
+        self,
+        run_id: str,
+        runs_dir: str | Path = "runs",
+        *,
+        run_group: str = "",
+        lock: bool = True,
+        row_extras: Callable[[TaskResult], dict] | None = None,
+        unit_of: Callable[[Task], str] | None = None,
+        log: Callable[[str], None] | None = None,
+        cwd: str | Path | None = None,
+    ):
+        """`run_group` is a label grouping runs (default: the run id).
+        `row_extras(result)` adds a domain's own columns to a journal row;
+        `unit_of(task)` names the row's `unit` (default `task.unit`).
+        `log` receives the run's progress lines (duplicates, retries, failed
+        `follow_up()`); without it they go to this module's logger, so a library
+        caller decides through `logging` whether and where they appear.
+        `cwd` is the run's working directory, where its agents run (default: this
+        process's); `run.json` records it, and the monitor shows the flow code
+        files under it relative to it."""
+        self.run_id = run_id
+        self.run_group = run_group or run_id
+        self.runs_dir = Path(runs_dir)
+        self.dir = self.runs_dir / run_id
+        self.dir.mkdir(parents=True, exist_ok=True)
+        (self.dir / "streams").mkdir(exist_ok=True)
+        # A task given no unit has it defaulted to its own key, which names
+        # no unit; the journal row then carries an empty unit.
+        self._unit_of = unit_of or (lambda t: t.declared_unit)
+        self.journal = Journal(
+            self.dir / "journal.jsonl",
+            self.dir / "launches.jsonl",
+            run_id=run_id,
+            run_group=self.run_group,
+            unit_of=self._unit_of,
+            row_extras=row_extras,
+        )
+        self._log_to = log
+        self._lock_fd: int | None = None
+        self._estimates: JournalEstimates | None = None
+        self._plan_lock = threading.Lock()
+        self._torn_down = False
+        self._teardown_lock = threading.Lock()
+        self._teardown_callbacks: list[Callable[[], None]] = []
+        if lock:
+            self._acquire()
+        (self.dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "run_group": self.run_group,
+                    "pid": os.getpid(),
+                    "start_ticks": procfs.pid_start_ticks(os.getpid()),
+                    "argv": list(sys.argv),
+                    "cwd": str(Path(cwd or os.getcwd()).resolve()),
+                    "started_at": utcnow_iso(),
+                }
+            )
+        )
+
+    # --- lock and lifecycle ------------------------------------------------
+
+    def _acquire(self) -> None:
+        """Hold an flock until `close()` or process exit. Process exit, normal or
+        killed, always releases it, which is what makes this safe under SIGKILL."""
+        path = self.runs_dir / f"{self.run_id}.lock"
+        fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            raise RunLocked(
+                f"another process already holds run id {self.run_id!r} ({path}); wait for it or pick a different run id"
+            ) from None
+        self._lock_fd = fd
+
+    def close(self) -> None:
+        """Release the run lock (process exit releases it too)."""
+        if self._lock_fd is not None:
+            os.close(self._lock_fd)
+            self._lock_fd = None
+
+    def __enter__(self) -> Run:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
+        """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor
+        looks for it. `stages` / `steps` are the legal vocabulary (see `CursorStore`)."""
+        return CursorStore(self.dir / "cursor.json", self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
+
+    def finish(self) -> None:
+        """Mark the run finished in run.json. The monitor then shows it as no
+        longer live even while this process stays up (to serve a monitor, say)."""
+        self.update_info(finished_at=utcnow_iso())
+
+    def update_info(self, **fields) -> None:
+        """Merge `fields` into run.json (what the monitor shows about this run)."""
+        path = self.dir / "run.json"
+        try:
+            info = json.loads(path.read_text())
+        except (OSError, ValueError):
+            info = {}
+        info.update(fields)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(info))
+        os.replace(tmp, path)
+
+    def on_teardown(self, callback: Callable[[], None]) -> None:
+        """Register a stop callback (a server, a VM lease) for `teardown`."""
+        self._teardown_callbacks.append(callback)
+
+    def teardown(self) -> None:
+        """Stop the live agents and every registered callback. Idempotent, never raises.
+
+        Reached from the main thread, a signal handler and atexit, possibly
+        overlapping (a SIGTERM landing mid-teardown), so the flag is claimed
+        under a lock. Non-blocking: a signal handler that finds a teardown
+        already under way on its own thread must return, not wait on itself.
+        """
+        if not self._teardown_lock.acquire(blocking=False):
+            return
+        try:
+            if self._torn_down:
+                return
+            self._torn_down = True
+        finally:
+            self._teardown_lock.release()
+        _teardown.run(*self._teardown_callbacks)
+
+    def install_signal_handlers(self) -> None:
+        """Run `teardown` on SIGTERM/SIGINT and at interpreter exit."""
+        import atexit
+
+        _teardown.install_signal_handlers(self.teardown)
+        atexit.register(self.teardown)
+
+    # --- journal -----------------------------------------------------------
+
+    def record_attempt(self, result: TaskResult) -> None:
+        """Journal one finished attempt, and say so in one progress line.
+        Pass as `RetryingRunner(on_attempt=run.record_attempt)`."""
+        row = self.journal.append(result)
+        if self._estimates is not None:
+            self._estimates.observe_attempt(row.model_dump())
+        rounds = result.launch_result.rounds if result.launch_result is not None else None
+        line = f"[end] {result.task.key}: {result.stop} in {result.wall_s:.1f}s"
+        line += f", {rounds} rounds" if rounds and rounds > 1 else ""
+        line += f", on {result.route}" if len(result.hops) > 1 else ""
+        self._log(logging.INFO, line)
+
+    def rows(self) -> list[dict]:
+        return self.journal.rows()
+
+    # --- running tasks -----------------------------------------------------
+
+    def agent_runner(self, backends: Backend | Mapping[str, Backend], configs: Mapping, **kwargs) -> AgentRunner:
+        """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
+        return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
+
+    def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None) -> PythonTaskRunner:
+        """The runner for a queue that mixes Python tasks with agent tasks: Python
+        tasks run in-process with their declared contracts checked, agent tasks go
+        to `inner` (`RetryingRunner(...)`)."""
+        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd)
+
+    def estimator(self) -> JournalEstimates:
+        """The estimates of durations and tails (`JournalEstimates`): read from the recent
+        runs when first asked for, then told of this run's plan rows, attempts and flow
+        call ends as they are recorded."""
+        if self._estimates is None:
+            self._estimates = JournalEstimates(self.runs_dir)
+        return self._estimates
+
+    def queue(self, runner, *, follow_up: Callable[[TaskResult], list[Task]] | None = None, resume: bool = False, **kwargs) -> WorkQueue:
+        """A `WorkQueue` over `runner` that records the plan and journals Python tasks.
+
+        Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
+        run.record_attempt)`, so nothing is written twice. `resume=True` skips every
+        task an earlier attempt finished (`finished_before`). `kwargs` pass through
+        (`max_concurrent`, `tag_capacity`, `finishing_kinds`, `deadline_s`...);
+        `retry_on`/`throttle_on` default to the stop sets above.
+        """
+        kwargs.setdefault("retry_on", RETRY_ON)
+        kwargs.setdefault("throttle_on", THROTTLE_ON)
+        kwargs.setdefault("estimate", self.estimator().estimate)
+        if resume:
+            last = self.journal.last_rows()
+            kwargs.setdefault("skip", lambda task: finished_before(last.get(task.key), task))
+        q = WorkQueue(runner, follow_up=follow_up, on_event=self._on_event, on_result=self._journal_python_task, **kwargs)
+        self.update_info(max_workers=q.max_concurrent)
+        return q
+
+    def run_python_steps(self, steps: list[tuple[str, Callable[[], None]]]) -> None:
+        """Run `(name, fn)` steps as Python tasks, in order, through a queue, each
+        queued by the previous one's success. The first failure is re-raised and
+        queues nothing further."""
+        if not steps:
+            return
+        failure: list[BaseException] = []
+
+        def make(i: int) -> Task:
+            name, fn = steps[i]
+
+            def call():
+                try:
+                    fn()
+                except Exception as exc:
+                    failure.append(exc)
+                    raise
+
+            return make_python_task(name, call)
+
+        index = {make_python_task(name, fn).key: i for i, (name, fn) in enumerate(steps)}
+
+        def follow_up(res: TaskResult) -> list[Task]:
+            i = index[res.task.key]
+            return [make(i + 1)] if res.ok and i + 1 < len(steps) else []
+
+        q = self.queue(self.python_runner(), follow_up=follow_up, max_concurrent=1)
+        q.add(make(0))
+        q.run()
+        if failure:
+            raise failure[0]
+
+    # --- queue callbacks ---------------------------------------------------
+
+    def _journal_python_task(self, res: TaskResult, attempt: int) -> None:
+        if res.task.fn is not None:
+            self.record_attempt(res)
+
+    def _on_event(self, event: str, task: Task | None, **fields) -> None:
+        if event == "queued" and task is not None:
+            self._record_plan(task)
+        elif event in ("start", "end") and task is not None:
+            self._mark_inflight(task, running=event == "start")
+            if event == "start":
+                self._log(logging.INFO, f"[start] {task.key}")
+            elif fields.get("stop") == "skipped":
+                self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
+        if event == "duplicate_key_refused":
+            self._log(logging.WARNING, f"[refused] {fields.get('key')}: already in flight")
+        elif event == "retry" and task is not None:
+            wait = f" in {fields['wait_s']:.0f}s" if isinstance(fields.get("wait_s"), (int, float)) else ""
+            self._log(logging.INFO, f"[retry] {task.key}: {fields.get('stop') or 'no progress'}; again{wait}")
+        elif event == "note" and "follow_up_failed" in fields:
+            self._log(logging.WARNING, f"[error] {task.key if task is not None else '?'}: follow_up() raised {fields['follow_up_failed']}")
+
+    def _log(self, level: int, line: str) -> None:
+        """A progress line to the caller's `log`, else to this module's logger at `level`:
+        a refused duplicate or a flow callback that raised is a warning, a retry is routine."""
+        if self._log_to is not None:
+            self._log_to(line)
+        else:
+            _logger.log(level, "%s", line)
+
+    def _record_plan(self, task: Task) -> None:
+        """Record every task a queue accepts, with its dependencies and its origin, in
+        `plan.jsonl`: the monitor draws the pipeline from it, including the
+        work that has not started yet (the journal only knows what finished).
+        A task with no origin (built by hand) has an empty `flow` and `created_from`, and
+        `flow_call` null."""
+        origin = task.origin
+        row = {
+            "ts": utcnow_iso(),
+            "key": task.key,
+            "kind": kind_name(task.kind),
+            "unit": self._unit_of(task),
+            "after": list(task.after),
+            "executor": task.executor,
+            "flow": frames_row(origin.flow) if origin is not None else [],
+            "created_from": list(origin.created_from) if origin is not None else [],
+            "flow_call": origin.flow_call if origin is not None else None,
+        }
+        self._append("plan.jsonl", row)
+        if self._estimates is not None:
+            self._estimates.observe_plan(row)
+
+    def record_flow_call(
+        self,
+        event: str,
+        call_id: str,
+        *,
+        parent: str | None = None,
+        function: str = "",
+        flow: Sequence[Frame] = (),
+        state: str = "",
+        error: BaseException | None = None,
+    ) -> None:
+        """One line of `flow_calls.jsonl`. `event` "start": `{ts, id, parent, function,
+        flow}`, where `flow` is the flow path where the parent yielded it (the parent's
+        frames, with their loops' passes, as in `plan.jsonl`; empty for a top flow call);
+        "end": `{ts, id, state, error}`, where `state` is `returned`, `raised` or `closed`
+        and `error` is `"<type>: <message>"` or null."""
+        row: dict = {"ts": utcnow_iso(), "id": call_id, "event": event}
+        if event == "start":
+            row |= {"parent": parent, "function": function, "flow": frames_row(flow)}
+        else:
+            row |= {"state": state, "error": f"{type(error).__name__}: {error}" if error is not None else None}
+        self._append("flow_calls.jsonl", row)
+        if event == "end" and self._estimates is not None:
+            self._estimates.flow_call_ended(call_id, state)
+
+    def _append(self, name: str, row: dict) -> None:
+        with self._plan_lock, open(self.dir / name, "a") as f:
+            f.write(json.dumps(row) + "\n")
+
+    def _mark_inflight(self, task: Task, *, running: bool) -> None:
+        """One marker per running task, so the monitor can show it even when
+        nothing is a child process (a Python task, a backend that is a
+        library call). A marker whose process is gone is ignored by the monitor,
+        so a crash leaves nothing that looks live."""
+        d = self.dir / "inflight"
+        d.mkdir(exist_ok=True)
+        path = d / (task.key.replace(":", "_").replace("/", "_") + ".json")
+        if not running:
+            path.unlink(missing_ok=True)
+            return
+        path.write_text(
+            json.dumps(
+                {
+                    "key": task.key,
+                    "kind": kind_name(task.kind),
+                    "unit": self._unit_of(task),
+                    "executor": task.executor,
+                    "started_at": utcnow_iso(),
+                    "pid": os.getpid(),
+                }
+            )
+        )
