@@ -28,7 +28,14 @@ per function it called as a flow call, which opens that function's own layer;
 while a layer holds a single node, the graph opens it, and stops at a node whose
 flow call raised, where that failure shows. Each node has one mark per unit: a
 task in a kind node, a flow call in a function node; above 200 marks, a bar of
-its counts and its failed units by name. A breadcrumb names the layer
+its counts and its failed units by name. A mark that stands for several tasks
+shows the most severe state among them (failed, running, not started, waiting,
+skipped, done): a flow call's mark covers its own tasks and those of every flow
+call it started, and counts as failed when the call raised or was closed, so a
+call that caught a task's failure and returned still shows it failed. A node's
+count ("12/13") is its tasks done out of its tasks, those of its flow calls
+included, and the tasks not done follow by state ("1 failed | 1 not started");
+a function node also names its flow calls that stopped with an error. A breadcrumb names the layer
 (Pipeline › function › loop). A solid edge is a dependency (`after`); a dashed
 one joins a task to a result its flow call had received when it created the task
 (`created_from`), drawn only where the task does not also wait for that output.

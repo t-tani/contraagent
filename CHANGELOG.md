@@ -347,6 +347,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tooltips that describe a task put one item per line, so the `·` inside a
   task's name (`kind · unit`) is not also the separator between items.
   `Activity.unit` in `@contraagent/api`.
+- The monitor names causes the data has: a task that did not start says
+  whether its input is missing or failed checks (`not started (input missing)`),
+  or which earlier task failed (`earlier task review · zeta failed`); an output
+  that is not written says why in parentheses (`not written (task failed)`). A
+  count by status ("3 failed") and a cause are separate messages, so each
+  language can order them its own way. A loop is named by its file and line
+  (`Loop at flow.py:130`); the Retries, Corrections and Model switches tiles say
+  how many tasks ("2 tasks retried"); an agent's own resend of an API request
+  shows the error it got. Labels in tiles, table headers, chips, legends and the
+  Definitions list wrap at spaces and between Japanese phrases, never inside a
+  word or a fact.
+- The pipeline graph shows a failure inside a flow call at every layer: a flow
+  call's mark shows the most severe state of its tasks and of the flow calls it
+  started, and failed when the call raised or was closed, so a call that caught
+  a task's failure and returned shows it failed. A node's count is its tasks done
+  of its tasks ("28/30"), followed by the others by status ("1 failed | 1 not
+  started"); a function node names its flow calls that stopped with an error.
+- The Cost tile puts the most expensive kind on one line and its cost and share
+  of the total on the next. A failed task's output that was not written shows
+  its status once, with no second line repeating it.
 - The monitor's Japanese reads as written in Japanese, not translated: tooltips
   are whole sentences that say the cause first, stiff words are plain, and one
   word keeps one meaning (再送 for an agent's own request after a provider

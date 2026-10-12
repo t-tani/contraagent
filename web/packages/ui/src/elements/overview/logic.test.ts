@@ -291,10 +291,44 @@ describe('layerGraph: a generator flow', () => {
     expect(derived?.units.map((m) => m?.state)).toEqual(['done', 'running']);
   });
 
+  it('shows the worst of a flow call and its tasks, so a call that caught a failure and returned shows it', () => {
+    // b's review_loop caught its fix's failure and returned; a check after it did not start.
+    const plan = reviewRun({ a: 0, b: 2 }, { calls: true, failed: 'b' });
+    const calls = (plan.flow_calls ?? []).map((c) => ({ ...c, state: 'returned' as const }));
+    plan.nodes.push(ft('check-b~3', 'b', 'check', 'blocked', [F(RUN), F(LOOP, AT)], { flow_call: '0.2', pass: 2, after: ['fix-b~2'] }));
+    const g = layerGraph({ ...plan, flow_calls: calls }, [RUN]);
+    const fn = byId(g).get(`flow:${LOOP}`);
+    expect(fn?.units.map((m) => m?.state)).toEqual(['done', 'failed']);
+    expect(fn?.units[1]).toMatchObject({ counts: { failed: 1, blocked: 1 } });
+    expect(fn?.units[1]?.error).toBeUndefined();
+    // The node counts its tasks, not its calls: 1 failed and 1 not started among them.
+    expect(fn?.counts).toMatchObject({ failed: 1, blocked: 1 });
+    expect(fn?.counts.total).toBe(fn?.units.reduce((n, m) => n + (m?.count ?? 0), 0));
+    expect(fn).toMatchObject({ calls: 2, errors: 0 });
+    // A call that raised with every task done still shows failed, and keeps its error.
+    const ok = reviewRun({ a: 0, b: 1 }, { calls: true });
+    const raised = (ok.flow_calls ?? []).map((c) => (c.id === '0.2' ? { ...c, state: 'raised' as const, error: 'ValueError: no score' } : c));
+    const r = byId(layerGraph({ ...ok, flow_calls: raised }, [RUN])).get(`flow:${LOOP}`);
+    expect(r?.units.map((m) => [m?.state, m?.error])).toEqual([['done', undefined], ['failed', 'ValueError: no score']]);
+    expect(r).toMatchObject({ errors: 1, counts: { failed: 0 } });
+  });
+
+  it('descends into a single function node whose call returned with a failed task: the layer below shows the task', () => {
+    const DOCS = 'flows.docs';
+    const RL = 'flows.review_loop';
+    const inRL = [F(DOCS), F(RL)];
+    const plan = planOf(
+      [ft('summarize-a', 'a', 'summarize', 'done', inRL, { flow_call: '0.1' }), ft('summarize-b', 'b', 'summarize', 'failed', inRL, { flow_call: '0.2' })],
+      [call('0', DOCS), call('0.1', RL), call('0.2', RL)],
+    );
+    expect(autoLayer(plan)).toEqual([DOCS, RL]);
+    expect(byId(layerGraph(plan, [DOCS, RL])).get('kind:summarize')?.units.map((m) => m?.state)).toEqual(['done', 'failed']);
+  });
+
   it('draws a loop known at pass 1 as a box that stays the same after pass 2', () => {
     const first = layerGraph(reviewRun({ a: 0, b: 1 }), [RUN, LOOP]);
     const box = `loop:${AT}`;
-    expect(first.boxes).toEqual([{ id: box, loop: AT, parent: null, passes: 1, spread: [[1, 1]], layers: [[`kind:fix@${AT}`], [`kind:score@${AT}`], [`kind:check@${AT}`]] }]);
+    expect(first.boxes).toEqual([{ id: box, loop: AT, file: 'flow.py', parent: null, passes: 1, spread: [[1, 1]], layers: [[`kind:fix@${AT}`], [`kind:score@${AT}`], [`kind:check@${AT}`]] }]);
     expect(rows(first)).toEqual([['kind:summarize'], ['kind:check'], [box]]);
     expect(byId(first).get(`kind:fix@${AT}`)?.box).toBe(box);
     const second = layerGraph(reviewRun({ a: 0, b: 2 }), [RUN, LOOP], first.order);
@@ -332,10 +366,12 @@ describe('layerGraph: a generator flow', () => {
     expect(sortRows(m?.rows ?? [], 'state').map((r) => r.unit)).toEqual(['d', 'a', 'b']);
   });
 
-  it("counts a node's marks: flow calls in a function node, each unit's latest pass in a loop box", () => {
+  it("counts a node's tasks: those of its flow calls in a function node, each unit's latest pass in a loop box", () => {
     const plan = reviewRun({ a: 0, b: 1, c: 2 }, { calls: true, failed: 'c' });
     const fn = byId(layerGraph(plan, [RUN])).get(`flow:${LOOP}`);
-    expect(fn?.counts).toMatchObject({ total: 3, done: 2, failed: 1 });
+    // a: summarize, check; b: those and fix, score, check; c: those and fix, score, check, fix (failed).
+    expect(fn?.counts).toMatchObject({ total: 2 + 5 + 6, done: 12, failed: 1 });
+    expect(fn).toMatchObject({ calls: 3, errors: 1 });
     const box = byId(layerGraph(plan, [RUN, LOOP]));
     // fix: b's pass 1 done, c's pass 2 failed (its pass 1 was done): 2 units, not 3 tasks.
     expect(box.get(`kind:fix@${AT}`)?.units.map((m) => m && [m.key, m.state])).toEqual([null, ['fix-b', 'done'], ['fix-c~2', 'failed']]);

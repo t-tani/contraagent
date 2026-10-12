@@ -16,13 +16,13 @@ export function statusLabel(s: ContractStatus): string {
     case 'invalid':
       return msg('failed checks');
     case 'refused':
-      return msg('not written: task not started');
+      return msg('not written (task not started)');
     case 'failed':
-      return msg('not written: task failed');
+      return msg('not written (task failed)');
     case 'running':
-      return msg('not written yet: task running');
+      return msg('not written yet (task running)');
     case 'pending':
-      return msg('not written yet: task waiting');
+      return msg('not written yet (task waiting)');
   }
 }
 
@@ -30,7 +30,7 @@ export function statusLabel(s: ContractStatus): string {
 export function statusWhy(s: ContractStatus): string {
   switch (s) {
     case 'refused':
-      return msg('The task did not start because an input was not ready');
+      return msg('The task did not start because an input was missing or failed checks');
     case 'valid':
       return msg('The file passed its checks');
     case 'invalid':
@@ -213,7 +213,7 @@ export function otherChecks(o: ContractSpec): TemplateResult | null {
   if (!names.length) return null;
   const errors = (o.errors ?? []).join('\n');
   const mark = (n: string) =>
-    o.status === 'valid' ? fieldMark(true, msg('passed')) : errors.includes(n) ? fieldMark(false, msg('failed')) : nothing;
+    o.status === 'valid' ? fieldMark(true, msg('passed')) : errors.includes(n) ? fieldMark(false, msg('failed checks')) : nothing;
   return html`${names.map((n, i) => html`${i ? ', ' : ''}<span class="jmono">${n}</span> ${mark(n)}`)}`;
 }
 
@@ -234,7 +234,7 @@ export interface Producer {
 export function notRunText(o: ContractSpec, run: string, producerOf?: (path: string) => Producer | undefined): string {
   const errors = o.errors ?? [];
   const p = inputProblems(`invalid input: ${errors.map((e) => e.replace(/^invalid input:\s*/, '')).join('; ')}`)[0];
-  if (!p) return errors[0] ? sentence(runRelative(errors[0], run)) : msg('An input was not ready');
+  if (!p) return errors[0] ? sentence(runRelative(errors[0], run)) : msg('An input was missing or failed checks');
   const from = producerOf?.(p.path);
   return sentence(inputCause(runRelative(p.path, run), p.problem, from));
 }
@@ -253,12 +253,12 @@ export function fileConditions(o: ContractSpec, role: 'input' | 'output'): Templ
       ? [
           [msg('Format'), format],
           ...(checks ? [[msg('Other checks'), checks, msg('Checks beyond the schema (validators)')] as [string, unknown, string]] : []),
-          [msg('Must be written'), o.fresh ? msg('while the task runs') : msg('any time, including before the task')],
+          [msg('Must be written during the task'), o.fresh ? msg('yes') : msg('no'), o.fresh ? msg('A file from before the task does not count') : msg('A file from before the task counts')],
         ]
       : [
           [msg('Format'), format],
           ...(checks ? [[msg('Other checks'), checks, msg('Checks beyond the schema (validators)')] as [string, unknown, string]] : []),
-          [msg('Checked'), msg('when the task starts')],
+          [msg('Check time'), msg('when the task starts')],
           [msg('Required'), o.required ? msg('yes') : msg('no')],
         ];
   return html`<dl class="conds">
@@ -269,14 +269,14 @@ export function fileConditions(o: ContractSpec, role: 'input' | 'output'): Templ
 /**
  * One contract file of a task, as a card: status, path, what it must be, the
  * field check, the check errors. A task that never ran gets one line saying
- * why; a task that failed without writing the file gets its reason instead of
- * an empty field table.
+ * why; a task that failed without writing the file gets its status and path
+ * only (the status names the cause).
  */
 export function ioFileCard(
   o: ContractSpec,
   role: 'input' | 'output',
   run = '',
-  opts: { reason?: string; producerOf?: (path: string) => Producer | undefined } = {},
+  opts: { producerOf?: (path: string) => Producer | undefined } = {},
 ): TemplateResult {
   const stat =
     role === 'output'
@@ -289,9 +289,7 @@ export function ioFileCard(
     return html`<div class="io-card one">${head}<div class="meta">${notRunText(o, run, opts.producerOf)}</div></div>`;
   }
   if (role === 'output' && o.status === 'failed' && !o.file.exists) {
-    return html`<div class="io-card one">${head}
-      <div class="meta">${opts.reason ? msg(str`The task failed before it wrote this file: ${runRelative(opts.reason, run)}`) : msg('The task failed before it wrote this file')}</div>
-    </div>`;
+    return html`<div class="io-card one">${head}</div>`;
   }
   const errors = o.errors ?? [];
   return html`<div class="io-card">

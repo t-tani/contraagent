@@ -21,7 +21,7 @@ import type { FilterDetail, OpenTaskDetail, SelectRunDetail } from '../../events
 import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, preferredLocale, setLocale, type Locale } from '../../i18n.js';
 import { ClockController } from '../../lib/clock.js';
 import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
-import { modelSwitch, runRelative, stopLabel } from '../../lib/labels.js';
+import { modelSwitch, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
 import { ScrollMemory } from '../../lib/scroll.js';
 import { elapsedS, tryCounts } from '../overview/logic.js';
 import type { Route, RoutePatch, Tab } from '../../route.js';
@@ -295,6 +295,8 @@ export class CaMonitor extends LitElement {
     if (changed.has('locale') && isLocale(this.locale) && this.locale !== getLocale()) void setLocale(this.locale);
     // A page that is the monitor speaks its language; an embedded monitor leaves the host's <html lang> alone.
     if (this.history === 'url') document.documentElement.lang = getLocale();
+    // Its own text is in its language either way (line breaking between Japanese phrases reads it).
+    this.lang = getLocale();
     this.moveTabIndicator();
     if (this.main) this.mainScroll.attach(this.main);
     if (this.pendingScroll) {
@@ -333,7 +335,7 @@ export class CaMonitor extends LitElement {
     const tail = facts(took == null ? '' : msg(str`took ${fmtDur(took)}`), cost, usage, summary.running ? msg('running') : '');
     if (!this.snap.state.ready) return tail; // the feed is still replaying: no count yet rather than a wrong one
     const c = outcomeCounts(taskOutcomes(this.snap.state.journal, this.snap.state.plan));
-    return facts(msg(str`${c.done + c.recovered}/${c.total} tasks done`), tail);
+    return facts(msg(str`${c.done + c.recovered} of ${c.total} tasks done`), tail);
   }
 
   /** Each account's latest subscription reading, busiest weekly first: from the live journal once replayed, else the run list's. */
@@ -344,7 +346,7 @@ export class CaMonitor extends LitElement {
   /** The history bar's count, as the overview counts: "23 attempts | 4 not started". */
   private triesLine(): string {
     const { tries, notStarted } = tryCounts(this.snap.state.journal);
-    return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? msg(str`${notStarted} not started`) : '');
+    return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
   }
 
   /** The header's language switch: switch now, and remember it for the next visit. */

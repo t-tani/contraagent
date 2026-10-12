@@ -475,7 +475,7 @@ export class CaTranscript extends LitElement {
     const tries = infos[infos.length - 1]?.tryNo ?? 1;
     return html`<div class="rounds" role="group" aria-label=${msg('Agent sessions')}>
       <span class="rounds-lbl"
-        title=${msg('Attempt: a new agent session. Correction: the same agent session after failed checks. Model switch: a new agent session on the next model.')}
+        title=${[msg('Attempt: a new agent session'), msg('Correction: the same agent session after failed checks'), msg('Model switch: a new agent session on the next model')].join('\n')}
         >${msg('Agent sessions')}</span>
       ${rounds.map((r, i) => {
         const info = infos[i];
@@ -506,7 +506,7 @@ export class CaTranscript extends LitElement {
         <b>${msg('Output failed checks')}</b>
         ${info.rejectedWith.length
           ? html`<ul>${info.rejectedWith.map((e) => html`<li>${runRelative(e, this.run)}</li>`)}</ul>`
-          : html`<span class="meta">${msg('Errors: in the correction prompt')}</span>`}
+          : html`<span class="meta">${msg('The errors are in the correction prompt')}</span>`}
       </div>`;
     }
     if (info.result === 'switched') {
@@ -571,9 +571,9 @@ export class CaTranscript extends LitElement {
       case 'summary':
         return this.bubble('✦', 'av-t', msg('Reasoning'), html`<div class="tx">${unsafeHTML(this.mdOf(it, it.text))}</div>`);
       case 'retry':
-        return html`<div class="msg"><div class="av av-t" aria-hidden="true">↻</div><div class="bd"><div class="hd">${it.attempt
-          ? msg(str`API request sent again (${it.attempt})`)
-          : msg('API request sent again')}</div></div></div>`;
+        return html`<div class="msg"><div class="av av-t" aria-hidden="true">↻</div><div class="bd"><div class="hd">${msg('API request sent again')}</div>${it.err
+          ? html`<div class="tx meta">${it.err}</div>`
+          : nothing}</div></div>`;
       case 'notice':
         return html`<div class="sysline"><span aria-hidden="true">⚙</span><span class="tx">${it.text}</span></div>`;
       case 'tool':

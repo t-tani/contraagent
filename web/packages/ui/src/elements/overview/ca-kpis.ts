@@ -1,11 +1,13 @@
-import { outcomeCounts, spendByKind, spendOf, taskOutcomes, totalTokens, type JournalRow, type Plan } from '@contraagent/api';
+import { outcomeCounts, spendByKind, spendOf, taskOutcomes, totalTokens, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, tokens, usd } from '../../lib/format.js';
+import { inputProblems, stateCount } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
+import { factLine } from '../shared/fact-line.js';
 import { kpis } from './logic.js';
 
 interface Tile {
@@ -14,11 +16,31 @@ interface Tile {
   label: string;
   /** A count (counts up and bumps the tile when it changes), or a text. */
   value: number | string;
-  sub: string;
+  /** The line under the value, or several lines. */
+  sub: string | string[];
   /** The code's term for what is counted: the tooltip. */
   tip?: string;
   /** A link under the sub line. */
   action?: { label: string; run: () => void };
+}
+
+/**
+ * Why the tasks that did not start did not start, as the data names it: an
+ * input missing, an input that failed checks, an earlier task that failed.
+ */
+function notStartedCauses(outcomes: Iterable<TaskOutcome>): string {
+  let missing = false;
+  let checks = false;
+  let earlier = false;
+  for (const t of outcomes) {
+    if (t.outcome !== 'not_started') continue;
+    const last = t.attempts[t.attempts.length - 1];
+    const ps = last?.stop === 'invalid_input' ? inputProblems(last.reason) : [];
+    if (ps.some((p) => p.problem === 'missing')) missing = true;
+    if (ps.some((p) => p.problem === 'checks')) checks = true;
+    if (!ps.length && t.cause) earlier = true;
+  }
+  return facts(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
 }
 
 const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -76,15 +98,14 @@ export class CaKpis extends LitElement {
 
   private tiles(): Tile[] {
     const k = kpis(this.journal);
-    const c = outcomeCounts(taskOutcomes(this.journal, this.plan));
+    const outcomes = taskOutcomes(this.journal, this.plan);
+    const c = outcomeCounts(outcomes);
     const done = c.done + c.recovered;
     const tasksSub = facts(
-      msg(str`${done} done`),
-      c.failed ? msg(str`${c.failed} failed`) : '',
-      c.not_started ? msg(str`${c.not_started} not started`) : '',
+      stateCount('done', done),
+      c.failed ? stateCount('failed', c.failed) : '',
+      c.not_started ? stateCount('not_started', c.not_started) : '',
     );
-    /** "In 1 task", "In 3 tasks". */
-    const inTasks = (tasks: number) => (tasks === 1 ? msg('In 1 task') : msg(str`In ${tasks} tasks`));
     return [
       { id: 'tasks', cls: c.failed ? 'err' : '', label: msg('Tasks'), value: c.total, sub: tasksSub },
       {
@@ -92,7 +113,7 @@ export class CaKpis extends LitElement {
         cls: '',
         label: msg('Attempts'),
         value: k.attempts,
-        sub: facts(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), msg(str`${k.python} Python`)),
+        sub: facts(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), k.python === 1 ? msg('1 Python task attempt') : msg(str`${k.python} Python task attempts`)),
         tip: msg('Attempts that ran, retries included (journal.jsonl)'),
       },
       ...this.spendTiles(),
@@ -109,7 +130,7 @@ export class CaKpis extends LitElement {
         cls: c.not_started ? 'warn' : '',
         label: msg('Not started'),
         value: c.not_started,
-        sub: c.not_started ? msg('Input not ready') : msg('All tasks started'),
+        sub: c.not_started ? notStartedCauses(outcomes.values()) : msg('All tasks started'),
         ...(c.not_started ? { action: { label: msg('Not-started tasks in history'), run: this.history('invalid_input') } } : {}),
       },
       {
@@ -125,7 +146,7 @@ export class CaKpis extends LitElement {
         cls: k.retries ? 'warn' : '',
         label: msg('Retries'),
         value: k.retries,
-        sub: k.retries ? inTasks(k.retriedTasks) : msg('No retries'),
+        sub: !k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`),
         tip: msg('Attempts after a failed attempt, each in a new agent session (RetryingRunner)'),
         ...(k.retries ? { action: this.show(k.retriedKeys, 'retried', msg('Retried tasks in history')) } : {}),
       },
@@ -134,7 +155,7 @@ export class CaKpis extends LitElement {
         cls: k.fixups ? 'warn' : '',
         label: msg('Corrections'),
         value: k.fixups,
-        sub: k.fixups ? inTasks(k.fixupTasks) : msg('No corrections'),
+        sub: !k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`),
         tip: msg('More rounds in the same agent session after the output failed checks (rounds)'),
         ...(k.fixups ? { action: this.show(k.fixupKeys, 'fixup', msg('Attempts with corrections in history')) } : {}),
       },
@@ -143,7 +164,7 @@ export class CaKpis extends LitElement {
         cls: k.switches ? 'warn' : '',
         label: msg('Model switches'),
         value: k.switches,
-        sub: k.switches ? inTasks(k.switchTasks) : msg('No model switches'),
+        sub: !k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`),
         tip: msg('To the next model after a failure such as a rate limit, an error or a timeout (Router hops)'),
       },
     ];
@@ -160,7 +181,7 @@ export class CaKpis extends LitElement {
         cls: 'llm',
         label: msg('Cost'),
         value: usd(s.cost),
-        sub: top && top.share !== null ? msg(str`Highest: ${top.kind}, ${usd(top.spend.cost)} (${Math.round(top.share * 100)}%)`) : '',
+        sub: top && top.share !== null ? [msg(str`Highest cost: ${top.kind}`), facts(usd(top.spend.cost), msg(str`${Math.round(top.share * 100)}% of the total`))] : '',
         tip: msg('Reported by the coding agent'),
       },
       {
@@ -191,11 +212,13 @@ export class CaKpis extends LitElement {
 
   private tile(t: Tile): TemplateResult {
     return html`<div class="kpi ${t.cls}" data-id=${t.id} title=${t.tip ?? nothing}>
-      <div class="k">${t.label}</div>
+      <div class="k words">${t.label}</div>
       <div class="v">${typeof t.value === 'number' ? html`<ca-count .value=${t.value}></ca-count>` : t.value}</div>
-      <div class="s">${t.sub}</div>
+      ${(typeof t.sub === 'string' ? [t.sub] : t.sub).map(
+        (line) => html`<div class="s words">${factLine(line)}</div>`,
+      )}
       ${t.action
-        ? html`<div class="a"><a class="lnk" href="#" @click=${(e: Event) => {
+        ? html`<div class="a words"><a class="lnk" href="#" @click=${(e: Event) => {
             e.preventDefault();
             t.action?.run();
           }}>${t.action.label}</a></div>`

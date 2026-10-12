@@ -60,15 +60,48 @@ export function planStateLabel(s: PlanNode['state']): string {
   }
 }
 
-/** How one attempt ended (a journal row's `stop`), in words. Unknown values are shown as they are. */
-export function stopLabel(stop: string | null | undefined): string {
+/**
+ * How many tasks are in a state, number first: "3 failed", "2 not started".
+ * A count only: a cause ("review · zeta failed") has its own message.
+ * `not_run`: waiting when the run ended.
+ */
+export function stateCount(s: Outcome | 'not_run', n: number): string {
+  switch (s) {
+    case 'done':
+      return msg(str`${n} done`);
+    case 'recovered':
+      return msg(str`${n} done after retrying`);
+    case 'failed':
+      return msg(str`${n} failed`);
+    case 'not_started':
+      return msg(str`${n} not started`);
+    case 'running':
+      return msg(str`${n} running`);
+    case 'waiting':
+      return msg(str`${n} waiting`);
+    case 'skipped':
+      return msg(str`${n} skipped`);
+    case 'not_run':
+      return msg(str`${n} not run`);
+  }
+}
+
+/**
+ * How one attempt ended (a journal row's `stop`), in words. Unknown values are shown as they are.
+ * With the row's `reason`, a refused input names its problem (missing, or failed checks).
+ */
+export function stopLabel(stop: string | null | undefined, reason?: string | null): string {
   switch (stop) {
     case 'completed':
       return msg('done');
     case 'skipped':
       return msg('skipped');
-    case 'invalid_input':
-      return msg('not started: input not ready');
+    case 'invalid_input': {
+      const kinds = new Set(inputProblems(reason).map((p) => p.problem));
+      if (kinds.size === 1 && kinds.has('missing')) return msg('not started (input missing)');
+      if (kinds.size === 1 && kinds.has('checks')) return msg('not started (input failed checks)');
+      return msg('not started (input missing or failed checks)');
+    }
     case 'invalid_output':
       return msg('failed checks');
     case 'timeout':
@@ -201,7 +234,7 @@ export interface InputSource {
 }
 
 /**
- * Why an input was not ready, in one phrase that starts in lower case:
+ * Why an input stopped a task, in one phrase that starts in lower case:
  * `input out/review/zeta.json is missing because review · zeta failed`,
  * `input out/a.json failed checks`. `path` is already shown run-relative.
  */
@@ -219,7 +252,7 @@ export function inputCause(path: string, problem: InputProblem['problem'], from?
  * Why a task did not start, as a phrase after "Not started: ": the input its
  * refusal names and why that input is not ready (`input out/review/zeta.json is
  * missing because review · zeta failed`), or the earlier task that failed and
- * stopped it (`review · zeta failed`); '' when the run does not tell.
+ * stopped it (`earlier task review · zeta failed`); '' when the run does not tell.
  * `writerOf` names the task that writes a path, for a reason that names none.
  */
 export function notStartedCause(
@@ -237,7 +270,7 @@ export function notStartedCause(
     return inputCause(runRelative(p.path, run), p.problem, w ? { name: kindUnit(w), outcome: w.outcome } : undefined);
   }
   const c = t.cause ? outcomes.get(t.cause) : undefined;
-  return c ? msg(str`${kindUnit(c)} failed`) : '';
+  return c ? msg(str`earlier task ${kindUnit(c)} failed`) : '';
 }
 
 /**

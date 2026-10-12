@@ -5,6 +5,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts } from '../../lib/format.js';
+import { factLine } from '../shared/fact-line.js';
 import { base } from '../../styles/base.js';
 import { rollupOutcome } from './filters.js';
 
@@ -124,7 +125,7 @@ export class CaDefinitions extends LitElement {
           (d) => d.kind,
           (d) => html`<div class="defitem ${d.kind === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
             <b class="jmono">${d.kind}</b>
-            <span class="meta">${facts(d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), counts(d.kind))}</span>
+            <span class="meta words">${factLine(facts(d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), counts(d.kind)))}</span>
           </div>`,
         )}
         ${repeat(
@@ -132,7 +133,7 @@ export class CaDefinitions extends LitElement {
           (k) => k,
           (k) => html`<div class="defitem ${k === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: k })}>
             <b class="jmono">${k}</b>
-            <span class="meta">${facts('Python', counts(k))}</span>
+            <span class="meta words">${factLine(facts('Python', counts(k)))}</span>
           </div>`,
         )}
       </div>

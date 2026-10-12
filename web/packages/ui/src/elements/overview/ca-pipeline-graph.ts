@@ -5,7 +5,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit } from '../../lib/format.js';
-import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, planStateLabel } from '../../lib/labels.js';
+import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, planStateLabel, stateCount } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import {
   LOOP_SEGMENT,
@@ -30,6 +30,7 @@ import {
   type GraphMark,
   type GraphNode,
   type LayerGraph,
+  type NodeCounts,
   type LayerOrder,
   type LoopBox,
   type MatrixHead,
@@ -95,7 +96,12 @@ function gridOf(n: Pick<GraphNode, 'units' | 'single'>, units: number): Grid {
  * box's edge stands for the return to its next pass. Inside a node, one mark per
  * unit, at the same place in every node, so a unit can be followed across the
  * layer: a task in a kind node, a flow call in a function node; in a loop box, the
- * unit's latest pass, with the number of passes it ran when more than 1. A problem
+ * unit's latest pass, with the number of passes it ran when more than 1. A mark of
+ * several tasks shows the most severe state among them (failed, running, not
+ * started, waiting, skipped, done); a flow call's mark counts every task of it and
+ * of the flow calls it started, and its own error (raised or closed) as failed. A
+ * node's count is its tasks done of its tasks, with the others by state, and a
+ * function node names its flow calls that stopped with an error. A problem
  * has a square mark (failed: red; not started: hatched), every other state a round
  * one. Above 200 marks, a node shows a bar of its counts and names its failed
  * marks. A solid edge waits for an output; a dashed edge was created after a
@@ -276,6 +282,7 @@ export class CaPipelineGraph extends LitElement {
 
       .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; }
       .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--mut); }
+      .legend > span { white-space: nowrap; }
       .legend span { display: inline-flex; align-items: center; gap: 6px; }
       .legend .mark { --m: 12px; cursor: default; animation: none; }
       .legend .mark:hover { transform: none; outline: none; }
@@ -290,7 +297,8 @@ export class CaPipelineGraph extends LitElement {
       table.list { width: 100%; border-collapse: collapse; font-size: 12px; }
       .list th, .list td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
       .list td.n { text-align: right; font-variant-numeric: tabular-nums; }
-      .list thead th { color: var(--mut); font-weight: 500; font-size: 11px; }
+      /* a header is as wide as its words: a narrow count column never breaks its header inside a word */
+      .list thead th { color: var(--mut); font-weight: 500; font-size: 11px; white-space: nowrap; }
       .list tbody th { font-family: var(--mono); font-weight: 600; }
     `,
   ];
@@ -457,7 +465,7 @@ export class CaPipelineGraph extends LitElement {
       ...path.map((fn, i) => ({ name: shortName(fn), tip: fn, to: path.slice(0, i + 1) })),
       ...(loop ? loop.slice(LOOP_SEGMENT.length).split('.') : []).map((line, i, lines) => ({
         name: loopLabel(),
-        tip: facts(msg('Loop'), /^\d+$/.test(line) ? msg(str`line ${line}`) : ''),
+        tip: /^\d+$/.test(line) ? msg(str`Loop at ${this.where(line, this.matrix?.box.file || this.graph.boxes[0]?.file)}`) : msg('Loop'),
         to: [...path, LOOP_SEGMENT + lines.slice(0, i + 1).join('.')],
       })),
     ];
@@ -708,15 +716,15 @@ export class CaPipelineGraph extends LitElement {
   private box(b: LoopBox, parent: Rect | null, item: (id: string, r: Rect | null) => unknown) {
     const r = this.lay?.at[b.id] ?? null;
     const enter = () => this.go([...this.segments, b.id]);
-    const where = msg(str`line ${b.loop}`);
+    const where = msg(str`Loop at ${this.where(b.loop, b.file)}`);
     const spread = b.spread.length > 1 ? passSpread(b.spread) : '';
     const kids = (this.graph.slots[b.id] ?? []).flat().filter((id) => !isPoint(id));
     const size = r ? `;width:${r.w}px;height:${r.h}px` : '';
     return html`<section class="box" role="group" data-box=${b.id} style=${this.at(b.id, parent) + size}
-        aria-label=${facts(msg('Loop'), where, passCount(b.passes), spread)}>
+        aria-label=${facts(where, passCount(b.passes), spread)}>
       <div class="hd" data-id=${`lbl:${b.id}`}>
         <span class="line">
-          <button type="button" class="name" title=${facts(msg('Loop'), where)} aria-label=${msg('Show the passes of the loop')} @click=${enter}>${loopLabel()}</button>
+          <button type="button" class="name" title=${where} aria-label=${msg('Show the passes of the loop')} @click=${enter}>${loopLabel()}</button>
           <span class="count">${passCount(b.passes)}</span>
         </span>
         ${spread ? html`<span class="spread" title=${msg('Units by number of passes')}>${spread}</span>` : nothing}
@@ -732,21 +740,21 @@ export class CaPipelineGraph extends LitElement {
   private node(n: GraphNode, parent: Rect | null, causeOf: (key: string) => string, on: Set<string> | null) {
     const c = n.counts;
     const fin = c.done + c.skipped;
-    const look = c.failed ? 'fail' : c.running ? 'cur' : fin === c.total ? 'done' : '';
+    const look = c.failed || n.errors ? 'fail' : c.running ? 'cur' : fin === c.total ? 'done' : '';
     const bar = asBar(n);
     const group: MarkGroup = bar
       ? { id: n.id, label: n.label, slots: slotsOf(n).filter((m): m is GraphMark => m?.state === 'failed'), grid: { cols: BAR_LIST, size: 12, gap: 4 } }
       : { id: n.id, label: n.label, slots: slotsOf(n), grid: gridOf(n, this.graph.units.length) };
-    const ex = this.exceptions(n.counts);
+    const ex = this.exceptions(n);
     const name =
       n.type === 'flow'
-        ? html`<button type="button" class="name" title=${facts(msg(str`Function ${n.name}`), msg(str`${c.total} flow calls`))}
+        ? html`<button type="button" class="name" title=${facts(msg(str`Function ${n.name}`), msg(str`${n.calls} flow calls`))}
             aria-label=${msg(str`Open ${n.label}`)} @click=${() => this.go([...this.graph.path, n.name])}>${n.label}</button>`
-        : html`<button type="button" class="name" aria-label=${msg(str`${n.label} tasks`)}
+        : html`<button type="button" class="name" aria-label=${msg(str`Show the tasks of ${n.label}`)}
             @click=${() => emit(this, 'ca-navigate', n.kinds.length === 1 ? { tab: 'tasks', kind: n.kinds[0] } : { tab: 'tasks' })}>${n.label}</button>`;
     return html`<section class="node ${n.type} ${look}" role="group" data-id=${n.id} aria-label=${this.nodeLabel(n)}
       style="${this.at(n.id, parent)};--cols:${group.grid.cols};--m:${group.grid.size}px;--g:${group.grid.gap}px">
-      <div class="hd">${name}<span class="count" aria-hidden="true">${fin}/${c.total}</span></div>
+      <div class="hd">${name}<span class="count" aria-hidden="true" title=${this.doneOf(c)}>${fin}/${c.total}</span></div>
       ${bar ? this.statusBar(n, group, causeOf, on) : this.marks(group, causeOf, on)}
       ${ex.length ? html`<div class="ex" aria-hidden="true">${ex.map(([cls, t]) => html`<span class=${cls}>${t}</span>`)}</div>` : nothing}
     </section>`;
@@ -758,8 +766,8 @@ export class CaPipelineGraph extends LitElement {
     const shown = g.slots.slice(0, BAR_LIST);
     const more = g.slots.length - shown.length;
     const active = Math.min(this.active.get(g.id) ?? 0, Math.max(0, shown.length - 1));
-    return html`<div class="sbar" role="img" aria-label=${this.stateCounts(slotsOf(n))}>
-        ${parts.map((p) => html`<i class=${p.state} style="width:${p.pct}%" title=${`${p.n} ${this.stateWord(p.state)}`}></i>`)}
+    return html`<div class="sbar" role="img" aria-label=${this.stateCounts(n.counts)}>
+        ${parts.map((p) => html`<i class=${p.state} style="width:${p.pct}%" title=${this.countOf(p.state, p.n)}></i>`)}
       </div>
       ${shown.length
         ? html`<div class="fails" @keydown=${(e: KeyboardEvent) => this.onKey(e, { ...g, slots: shown, grid: { ...g.grid, cols: shown.length } })}>
@@ -787,8 +795,11 @@ export class CaPipelineGraph extends LitElement {
     const tries = attempts > 1 ? msg(str`${attempts} attempts`) : '';
     const passes = m.passes ? passesRan(m.passes) : '';
     const many = m.flow || m.count > 1 ? msg(str`${m.count} tasks`) : '';
+    // A flow call's tasks that are not done, and its own error: what its state comes from.
+    const not = m.counts ? this.notDone(m.counts) : [];
+    const error = m.error === undefined ? [] : [msg('Flow call stopped with an error'), m.error];
     const time = !m.flow && (m.state === 'done' || m.state === 'failed') && t?.wall_s ? fmtDur(t.wall_s) : '';
-    return { name, parts: [state, pass, passes, tries, many, time].filter(Boolean), id: m.flow ? msg(str`Flow call ${m.key}`) : m.key };
+    return { name, parts: [state, pass, passes, tries, many, ...not, ...error, time].filter(Boolean), id: m.flow ? msg(str`Flow call ${m.key}`) : m.key };
   }
 
   /** Open a mark: a task (on its input when it did not start, a Python task on its output), or a flow call's function. */
@@ -849,10 +860,10 @@ export class CaPipelineGraph extends LitElement {
       const style = `top:${level * 22}px`;
       if (h.type === 'pass')
         return html`<th scope="colgroup" colspan=${h.span} class="pass ${headCls(col)}" style=${style}
-          title=${h.box.id === mx.box.id ? facts(msg('Loop'), msg(str`line ${h.box.loop}`)) : facts(msg('Nested loop'), msg(str`line ${h.box.loop}`))}>${passLabel(h.pass)}</th>`;
+          title=${h.box.id === mx.box.id ? msg(str`Loop at ${this.where(h.box.loop, h.box.file)}`) : msg(str`Nested loop at ${this.where(h.box.loop, h.box.file)}`)}>${passLabel(h.pass)}</th>`;
       if (h.type === 'loop')
         return html`<th scope="colgroup" colspan=${h.span} class="loop ${headCls(col)}" style=${style}
-          title=${facts(msg('Nested loop'), msg(str`line ${h.box.loop}`))}>${loopLabel()}</th>`;
+          title=${msg(str`Nested loop at ${this.where(h.box.loop, h.box.file)}`)}>${loopLabel()}</th>`;
       return html`<th scope="col" rowspan=${h.rows} class="nh ${headCls(col)}" style=${style}
         title=${h.node.type === 'flow' ? msg(str`Function ${h.node.name}`) : h.node.label}>${h.node.label}</th>`;
     };
@@ -868,7 +879,7 @@ export class CaPipelineGraph extends LitElement {
       return out;
     };
     return html`<div class="mxbar">
-        <span>${facts(msg(str`Line ${mx.box.loop}`), passCount(mx.box.passes), mx.box.spread.length > 1 ? passSpread(mx.box.spread) : '', units === 1 ? msg('1 unit') : msg(str`${units} units`))}</span>
+        <span>${facts(msg(str`Loop at ${this.where(mx.box.loop, mx.box.file)}`), passCount(mx.box.passes), mx.box.spread.length > 1 ? passSpread(mx.box.spread) : '', units === 1 ? msg('1 unit') : msg(str`${units} units`))}</span>
         <label>${msg('Sort units')}
           <select @change=${(e: Event) => (this.sort = (e.target as HTMLSelectElement).value as MatrixSort)}>
             <option value="order" ?selected=${this.sort === 'order'}>${msg('Scheduled order')}</option>
@@ -879,7 +890,7 @@ export class CaPipelineGraph extends LitElement {
       </div>
       <div class="mx ${hl ? 'hl' : ''}" @scroll=${(e: Event) => this.onMatrixScroll(e)} @mouseleave=${() => (this.hover = null)}>
         <table class="matrix big" role="grid" aria-rowcount=${rows.length + headRows} aria-colcount=${cols.length + 2}
-          aria-label=${facts(msg('Loop'), msg(str`line ${mx.box.loop}`), passCount(mx.box.passes))}>
+          aria-label=${facts(msg(str`Loop at ${this.where(mx.box.loop, mx.box.file)}`), passCount(mx.box.passes))}>
           <thead>
             ${mx.head.map((hr, level) => {
               const fc = firstCols(level);
@@ -967,11 +978,19 @@ export class CaPipelineGraph extends LitElement {
     void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`.matrix .mark[data-r="${next[0]}"][data-c="${next[1]}"]`)?.focus());
   }
 
-  /** How many marks are in each state, in words: "2 done | 1 failed". */
-  private stateCounts(slots: readonly (GraphMark | null)[]): string {
-    const n = new Map<TaskState, number>();
-    for (const m of slots) if (m) n.set(m.state, (n.get(m.state) ?? 0) + 1);
-    return facts(...LEGEND.filter((s) => n.get(s)).map((s) => `${n.get(s)} ${this.stateWord(s)}`));
+  /** How many tasks are in each state, in words: "2 done | 1 failed". */
+  private stateCounts(c: NodeCounts): string {
+    return facts(...LEGEND.filter((s) => c[s]).map((s) => this.countOf(s, c[s])));
+  }
+
+  /** How many tasks finished: "5 of 6 tasks done". */
+  private doneOf(c: NodeCounts): string {
+    return msg(str`${c.done + c.skipped} of ${c.total} tasks done`);
+  }
+
+  /** The tasks that are not done, by state, most severe first: "1 failed", "1 not started". */
+  private notDone(c: NodeCounts): string[] {
+    return (['failed', 'blocked', 'running', 'pending'] as const).filter((s) => c[s]).map((s) => this.countOf(s, c[s]));
   }
 
   /** A pending task waits while the run runs; once the run is over, it did not run. */
@@ -979,13 +998,33 @@ export class CaPipelineGraph extends LitElement {
     return s === 'pending' && !this.live ? msg('not run') : planStateLabel(s);
   }
 
-  /** What a node needs a word for: its tasks that are not done, by state. */
-  private exceptions(c: GraphNode['counts']): [string, string][] {
+  /** Where a loop is: `flow.py:130` (the file's name and the loop's first line), or `line 130` when the file is not known. */
+  private where(line: number | string, file?: string): string {
+    const name = file ? file.slice(file.lastIndexOf('/') + 1) : '';
+    return name ? `${name}:${line}` : msg(str`line ${line}`);
+  }
+
+  /** How many marks are in a state, number first: "3 failed". */
+  private countOf(s: TaskState, n: number): string {
+    switch (s) {
+      case 'blocked':
+        return stateCount('not_started', n);
+      case 'pending':
+        return stateCount(this.live ? 'waiting' : 'not_run', n);
+      default:
+        return stateCount(s, n);
+    }
+  }
+
+  /** What a node needs a word for: its tasks that are not done, by state, and its flow calls that stopped with an error. */
+  private exceptions(n: GraphNode): [string, string][] {
+    const c = n.counts;
     const out: [string, string][] = [];
-    if (c.failed) out.push(['err', msg(str`${c.failed} failed`)]);
-    if (c.blocked) out.push(['warn', msg(str`${c.blocked} not started`)]);
-    if (c.running) out.push(['live', msg(str`${c.running} running`)]);
-    if (c.pending) out.push(['mut', this.live ? msg(str`${c.pending} waiting`) : msg(str`${c.pending} not run`)]);
+    if (c.failed) out.push(['err', this.countOf('failed', c.failed)]);
+    if (n.errors) out.push(['err', n.errors === 1 ? msg('1 flow call stopped with an error') : msg(str`${n.errors} flow calls stopped with an error`)]);
+    if (c.blocked) out.push(['warn', this.countOf('blocked', c.blocked)]);
+    if (c.running) out.push(['live', this.countOf('running', c.running)]);
+    if (c.pending) out.push(['mut', this.countOf('pending', c.pending)]);
     return out;
   }
 
@@ -1008,11 +1047,11 @@ export class CaPipelineGraph extends LitElement {
     const c = n.counts;
     const { waits, after, feeds } = this.neighbours(n);
     return [
-      n.type === 'flow' ? msg(str`Function ${n.label}: ${c.done + c.skipped} of ${c.total} flow calls done`) : msg(str`${n.label}: ${c.done + c.skipped} of ${c.total} done`),
-      ...this.exceptions(c).map(([, t]) => t),
+      n.type === 'flow' ? facts(msg(str`Function ${n.label}`), this.doneOf(c)) : facts(n.label, this.doneOf(c)),
+      ...this.exceptions(n).map(([, t]) => t),
       waits.length ? msg(str`Waits for ${waits.join(', ')}`) : '',
       after.length ? msg(str`Created after ${after.join(', ')}`) : '',
-      feeds.length ? msg(str`Feeds ${feeds.join(', ')}`) : '',
+      feeds.length ? msg(str`Later tasks: ${feeds.join(', ')}`) : '',
     ]
       .filter(Boolean)
       .join('. ');
@@ -1098,7 +1137,7 @@ export class CaPipelineGraph extends LitElement {
         <tr>
           <th>${flows ? msg('Kind or function') : msg('Kind')}</th><th>${msg('Done')}</th><th>${msg('Failed')}</th><th>${msg('Not started')}</th>
           <th>${msg('Running')}</th><th>${this.live ? msg('Waiting') : msg('Not run')}</th><th>${msg('Waits for')}</th>
-          ${created ? html`<th>${msg('Created after')}</th>` : nothing}<th>${msg('Feeds')}</th>
+          ${created ? html`<th>${msg('Created after')}</th>` : nothing}<th>${msg('Later tasks')}</th>
         </tr>
       </thead>
       <tbody>

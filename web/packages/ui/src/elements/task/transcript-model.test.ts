@@ -82,7 +82,7 @@ describe('transcript model', () => {
       { type: 'message_start', role: 'assistant', text: 'ignored' },
       { type: 'turn_end', thinking: 'summary' },
       { type: 'turn_end' },
-      { type: 'auto_retry_start', attempt: 2, err: '' },
+      { type: 'auto_retry_start', attempt: 2, err: '429' },
       { type: 'agent_start' },
       { type: 'message_update', ev: 'text_delta', delta: '' },
     ]);
@@ -94,7 +94,7 @@ describe('transcript model', () => {
       { kind: 'notice', text: 'session init: cwd=/w model=claude-x tools=3' },
       { kind: 'prompt', text: 'the prompt' },
       { kind: 'summary', text: 'summary' },
-      { kind: 'retry', attempt: 2 },
+      { kind: 'retry', err: '429' },
     ]);
   });
 

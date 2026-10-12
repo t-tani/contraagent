@@ -72,7 +72,8 @@ export type Item =
   | { kind: 'assistant'; id: string; raw: string }
   /** A turn's closing thinking. */
   | { kind: 'summary'; id: string; text: string }
-  | { kind: 'retry'; id: string; attempt: number | null }
+  /** The coding agent sent an API request again (`auto_retry_start`), with the error it got. */
+  | { kind: 'retry'; id: string; err: string }
   | { kind: 'notice'; id: string; text: string }
   | ToolItem;
 
@@ -197,7 +198,7 @@ export function applyEvents(t: Transcript, events: readonly TranscriptEvent[]): 
         break;
       }
       case 'auto_retry_start':
-        r.items.push({ kind: 'retry', id: newId(t), attempt: e.attempt ?? null });
+        r.items.push({ kind: 'retry', id: newId(t), err: e.err ?? '' });
         break;
       case 'notice': {
         const model = SESSION_MODEL.exec(e.text || '')?.[1];

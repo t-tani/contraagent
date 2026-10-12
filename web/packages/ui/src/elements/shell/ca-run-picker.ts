@@ -4,6 +4,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../lib/format.js';
+import { stateCount } from '../../lib/labels.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
 import { base } from '../../styles/base.js';
 import { elapsedS } from '../overview/logic.js';
@@ -129,11 +130,11 @@ export class CaRunPicker extends LitElement {
   /** Tasks by how they ended, as the run's own page counts them, and how long it took: one line. */
   private counts(r: RunSummary): string {
     const t = r.tasks;
-    const parts = [msg(str`${t.done}/${t.total} tasks done`)];
-    if (t.failed) parts.push(msg(str`${t.failed} failed`));
-    if (t.not_started) parts.push(msg(str`${t.not_started} not started`));
-    if (t.running) parts.push(msg(str`${t.running} running`));
-    if (t.waiting) parts.push(msg(str`${t.waiting} waiting`));
+    const parts = [msg(str`${t.done} of ${t.total} tasks done`)];
+    if (t.failed) parts.push(stateCount('failed', t.failed));
+    if (t.not_started) parts.push(stateCount('not_started', t.not_started));
+    if (t.running) parts.push(stateCount('running', t.running));
+    if (t.waiting) parts.push(stateCount('waiting', t.waiting));
     const s = took(r);
     if (s != null) parts.push(msg(str`took ${fmtDur(s)}`));
     if (r.cost_usd !== null && r.cost_usd !== undefined) parts.push(usd(r.cost_usd));

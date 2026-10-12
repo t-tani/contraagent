@@ -3,8 +3,8 @@
 <file target-language="ja" source-language="en" original="lit-localize-inputs" datatype="plaintext">
 <body>
 <trans-unit id="scf4185bf1a2d6adf">
-  <source><x id="0" equiv-text="${done}"/> done</source>
-  <target><x id="0" equiv-text="${done}"/> 完了</target>
+  <source><x id="0" equiv-text="${n}"/> done</source>
+  <target>完了 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s7671567ef7075153">
   <source><x id="0" equiv-text="${this.snap.info.title}"/> monitor</source>
@@ -119,7 +119,7 @@
   <target>1 タスク</target>
 </trans-unit>
 <trans-unit id="sea748bf5cf6f28f3">
-  <source><x id="0" equiv-text="${n.label}"/> tasks</source>
+  <source><x id="0" equiv-text="${m.count}"/> tasks</source>
   <target><x id="0" equiv-text="${n.label}"/> タスク</target>
 </trans-unit>
 <trans-unit id="s47b9912260b01c3c">
@@ -127,8 +127,8 @@
   <target>Python タスク</target>
 </trans-unit>
 <trans-unit id="s77ec32fb8248c021">
-  <source><x id="0" equiv-text="${t.not_started}"/> not started</source>
-  <target><x id="0" equiv-text="${t.not_started}"/> 未実行</target>
+  <source><x id="0" equiv-text="${n}"/> not started</source>
+  <target>未実行 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s0b355fde970b0df9">
   <source>passed</source>
@@ -151,8 +151,8 @@
   <target>なし（任意）</target>
 </trans-unit>
 <trans-unit id="s967a2db7049dc90e">
-  <source><x id="0" equiv-text="${kindUnit(c)}"/> failed</source>
-  <target><x id="0" equiv-text="${kindUnit(c)}"/> 失敗</target>
+  <source><x id="0" equiv-text="${n}"/> failed</source>
+  <target>失敗 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="sdf922ccc13491763">
   <source>done after retrying</source>
@@ -219,8 +219,8 @@
   <target>エージェントの起動に失敗</target>
 </trans-unit>
 <trans-unit id="s6d739294ba8eba32">
-  <source><x id="0" equiv-text="${p.done}"/> of <x id="1" equiv-text="${p.total}"/> tasks done</source>
-  <target><x id="0" equiv-text="${p.done}"/>/<x id="1" equiv-text="${p.total}"/> タスク完了</target>
+  <source><x id="0" equiv-text="${t.done}"/> of <x id="1" equiv-text="${t.total}"/> tasks done</source>
+  <target><x id="1" equiv-text="${t.total}"/> タスク中 <x id="0" equiv-text="${t.done}"/> 件完了</target>
 </trans-unit>
 <trans-unit id="sfa04f4ef1995407e">
   <source>text</source>
@@ -234,17 +234,13 @@
   <source>error</source>
   <target>エラー</target>
 </trans-unit>
-<trans-unit id="saa8171db43ad805a">
-  <source><x id="0" equiv-text="${t.done}"/>/<x id="1" equiv-text="${t.total}"/> tasks done</source>
-  <target><x id="0" equiv-text="${t.done}"/>/<x id="1" equiv-text="${t.total}"/> タスク完了</target>
-</trans-unit>
 <trans-unit id="no-runs-yet">
   <source>No runs yet</source>
   <target>実行はまだありません</target>
 </trans-unit>
 <trans-unit id="sc1ae48fd5a58a916">
-  <source><x id="0" equiv-text="${t.waiting}"/> waiting</source>
-  <target><x id="0" equiv-text="${t.waiting}"/> 待機中</target>
+  <source><x id="0" equiv-text="${n}"/> waiting</source>
+  <target>待機中 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="se2bad0e4af9e9155">
   <source><x id="0" equiv-text="${keys.length}"/> keys: <x id="1" equiv-text="${names}"/></source>
@@ -315,8 +311,8 @@
   <target><x id="0" equiv-text="${hopModel(h)}"/>（<x id="1" equiv-text="${stopLabel(h.stop)}"/>）</target>
 </trans-unit>
 <trans-unit id="sef0ce050d92c35e2">
-  <source><x id="0" equiv-text="${t.running}"/> running</source>
-  <target><x id="0" equiv-text="${t.running}"/> 実行中</target>
+  <source><x id="0" equiv-text="${n}"/> running</source>
+  <target>実行中 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s387a4a41718122cb">
   <source><x id="0" equiv-text="${results.length}"/> results</source>
@@ -357,10 +353,6 @@
 <trans-unit id="h612ee972e5585763">
   <source>JSON object, schema <x id="0" equiv-text="${schemaName(o)}"/></source>
   <target>JSON オブジェクト（スキーマ <x id="0" equiv-text="${schemaName(o)}"/>）</target>
-</trans-unit>
-<trans-unit id="s4143df3df612bfdc">
-  <source>while the task runs</source>
-  <target>タスクの実行中</target>
 </trans-unit>
 <trans-unit id="s9de543933e6e703a">
   <source>model</source>
@@ -484,7 +476,7 @@
 </trans-unit>
 <trans-unit id="s8eec5711640b68b9">
   <source>Event types from the coding agent that this contraagent version does not recognize: <x id="0" equiv-text="${unreadEvents([e])}"/></source>
-  <target>使用中の contraagent が対応していない、コーディングエージェントのイベント種別: <x id="0" equiv-text="${unreadEvents([e])}"/></target>
+  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの: <x id="0" equiv-text="${unreadEvents([e])}"/></target>
 </trans-unit>
 <trans-unit id="s47c42ef44972974f">
   <source>Unrecognized events</source>
@@ -586,14 +578,6 @@
   <source>Status</source>
   <target>状態</target>
 </trans-unit>
-<trans-unit id="s90f27e8c110012a2">
-  <source>In 1 task</source>
-  <target>1 タスクで</target>
-</trans-unit>
-<trans-unit id="sc93f5e83cc8f3ff6">
-  <source>In <x id="0" equiv-text="${tasks}"/> tasks</source>
-  <target><x id="0" equiv-text="${tasks}"/> タスクで</target>
-</trans-unit>
 <trans-unit id="sc797fd9076cc136d">
   <source>Tasks</source>
   <target>タスク</target>
@@ -609,10 +593,6 @@
 <trans-unit id="s5cd51fca94ab558d">
   <source><x id="0" equiv-text="${k.launches}"/> agent sessions</source>
   <target>エージェントのセッション <x id="0" equiv-text="${k.launches}"/> 回</target>
-</trans-unit>
-<trans-unit id="se14336d3b18ab985">
-  <source><x id="0" equiv-text="${k.python}"/> Python</source>
-  <target>Python <x id="0" equiv-text="${k.python}"/> 回</target>
 </trans-unit>
 <trans-unit id="s26bb7d0992115fe1">
   <source>Attempts that ran, retries included (journal.jsonl)</source>
@@ -633,10 +613,6 @@
 <trans-unit id="s8f5f41272268128f">
   <source>Not started</source>
   <target>未実行</target>
-</trans-unit>
-<trans-unit id="s9a478383ff1f6e59">
-  <source>Input not ready</source>
-  <target>入力が未準備</target>
 </trans-unit>
 <trans-unit id="s1bb7c4234aa7d213">
   <source>All tasks started</source>
@@ -701,10 +677,6 @@
 <trans-unit id="s367d079d1aed1358">
   <source>Cost</source>
   <target>料金</target>
-</trans-unit>
-<trans-unit id="s6b750985378a05db">
-  <source>Highest: <x id="0" equiv-text="${top.kind}"/>, <x id="1" equiv-text="${usd(top.spend.cost)}"/> (<x id="2" equiv-text="${Math.round(top.share * 100)}"/>%)</source>
-  <target>最も高い種別: <x id="0" equiv-text="${top.kind}"/>（<x id="1" equiv-text="${usd(top.spend.cost)}"/>、<x id="2" equiv-text="${Math.round(top.share * 100)}"/>%）</target>
 </trans-unit>
 <trans-unit id="s14bd607323778cb3">
   <source>Reported by the coding agent</source>
@@ -852,19 +824,19 @@
 </trans-unit>
 <trans-unit id="s1acc85c236fed879">
   <source>1 output not written (task not started)</source>
-  <target>未書き込みの出力 1 件（タスクが未実行）</target>
+  <target>書き込まれていない出力 1 件（タスクが未実行）</target>
 </trans-unit>
 <trans-unit id="sc6c0d07e39170334">
   <source><x id="0" equiv-text="${refused}"/> outputs not written (tasks not started)</source>
-  <target>未書き込みの出力 <x id="0" equiv-text="${refused}"/> 件（タスクが未実行）</target>
+  <target>書き込まれていない出力 <x id="0" equiv-text="${refused}"/> 件（タスクが未実行）</target>
 </trans-unit>
 <trans-unit id="s9340e2a9e1808cbd">
   <source>1 attempt</source>
-  <target>1 試行</target>
+  <target>試行 1 回</target>
 </trans-unit>
 <trans-unit id="s1dc338639fe7aae9">
   <source><x id="0" equiv-text="${attempts}"/> attempts</source>
-  <target><x id="0" equiv-text="${attempts}"/> 試行</target>
+  <target>試行 <x id="0" equiv-text="${attempts}"/> 回</target>
 </trans-unit>
 <trans-unit id="sfc7ed987d0fe9679">
   <source>No resume cursor</source>
@@ -901,10 +873,6 @@
 <trans-unit id="sa65ede9447b8f6f0">
   <source>Done on attempt <x id="0" equiv-text="${n}"/> after <x id="1" equiv-text="${fails}"/> failed attempts</source>
   <target><x id="0" equiv-text="${n}"/> 回目で完了（失敗 <x id="1" equiv-text="${fails}"/> 回）</target>
-</trans-unit>
-<trans-unit id="sc95467f564b3300f">
-  <source>Resume: <x id="0" equiv-text="${done}"/> done | <x id="1" equiv-text="${again}"/> not done</source>
-  <target>再開: <x id="0" equiv-text="${done}"/> 完了 | <x id="1" equiv-text="${again}"/> 未完了</target>
 </trans-unit>
 <trans-unit id="sff660af26c203189">
   <source>No tasks scheduled yet</source>
@@ -1078,26 +1046,6 @@
   <source>Show source</source>
   <target>ソースを表示</target>
 </trans-unit>
-<trans-unit id="se1eef901709ee2de">
-  <source>not written: task not started</source>
-  <target>未書き込み: タスクが未実行</target>
-</trans-unit>
-<trans-unit id="s73b93314a162abeb">
-  <source>not written: task failed</source>
-  <target>未書き込み: タスクが失敗</target>
-</trans-unit>
-<trans-unit id="sb859110da342faff">
-  <source>not written yet: task running</source>
-  <target>未書き込み: タスクが実行中</target>
-</trans-unit>
-<trans-unit id="sc1b6e952ddf5f97f">
-  <source>not written yet: task waiting</source>
-  <target>未書き込み: タスクが待機中</target>
-</trans-unit>
-<trans-unit id="sc583ad71c776c16b">
-  <source>The task did not start because an input was not ready</source>
-  <target>入力が未準備のため、タスクは実行されていません</target>
-</trans-unit>
 <trans-unit id="s448ad430047b3ff5">
   <source>The file passed its checks</source>
   <target>ファイルの検証: OK</target>
@@ -1108,7 +1056,7 @@
 </trans-unit>
 <trans-unit id="sba8659178319945b">
   <source>The task failed before it wrote a file that passes its checks</source>
-  <target>検証で OK になるファイルを書き込む前に、タスクが失敗</target>
+  <target>検証を通るファイルを書き込む前に、タスクが失敗</target>
 </trans-unit>
 <trans-unit id="s2ec303c39937657c">
   <source>The task is running</source>
@@ -1124,11 +1072,11 @@
 </trans-unit>
 <trans-unit id="s87cfcf0fecad5ace">
   <source>after 1 correction</source>
-  <target>修正依頼 1 回で</target>
+  <target>修正依頼 1 回後</target>
 </trans-unit>
 <trans-unit id="s843c1705315bbf4e">
   <source>after <x id="0" equiv-text="${n}"/> corrections</source>
-  <target>修正依頼 <x id="0" equiv-text="${n}"/> 回で</target>
+  <target>修正依頼 <x id="0" equiv-text="${n}"/> 回後</target>
 </trans-unit>
 <trans-unit id="s2216c1ec1d2b68a8">
   <source>Not JSON</source>
@@ -1206,18 +1154,6 @@
   <source>Checks beyond the schema (validators)</source>
   <target>スキーマ以外の検証（validators）</target>
 </trans-unit>
-<trans-unit id="sf0d762a3802cb5ce">
-  <source>Must be written</source>
-  <target>書き込みの時期</target>
-</trans-unit>
-<trans-unit id="scf953355dd6fda50">
-  <source>any time, including before the task</source>
-  <target>いつでも（タスクの開始前も含む）</target>
-</trans-unit>
-<trans-unit id="s1c271fd88eea93c6">
-  <source>Checked</source>
-  <target>検証の時期</target>
-</trans-unit>
 <trans-unit id="sbca0391cb2c7c054">
   <source>when the task starts</source>
   <target>タスクの開始時</target>
@@ -1225,14 +1161,6 @@
 <trans-unit id="sae5d87e99fe081e0">
   <source>Required</source>
   <target>必須</target>
-</trans-unit>
-<trans-unit id="sea0302389e41e09b">
-  <source>The task failed before it wrote this file: <x id="0" equiv-text="${runRelative(opts.reason, run)}"/></source>
-  <target>ファイルを書き込む前にタスクが失敗: <x id="0" equiv-text="${runRelative(opts.reason, run)}"/></target>
-</trans-unit>
-<trans-unit id="sfa189431a532d295">
-  <source>The task failed before it wrote this file</source>
-  <target>ファイルを書き込む前にタスクが失敗</target>
 </trans-unit>
 <trans-unit id="s3d197283cb019b5a">
   <source>Overview</source>
@@ -1272,7 +1200,7 @@
 </trans-unit>
 <trans-unit id="s49098dfd8a30a9b7">
   <source>Connected to the monitor server</source>
-  <target>モニターのサーバーに接続中</target>
+  <target>モニターのサーバーに接続済み</target>
 </trans-unit>
 <trans-unit id="sac1ead3bc64c3402">
   <source>Not connected to the monitor server</source>
@@ -1428,7 +1356,7 @@
 </trans-unit>
 <trans-unit id="sdd0fb64c2928422f">
   <source>Event types from the coding agent that this contraagent version does not recognize</source>
-  <target>使用中の contraagent が対応していない、コーディングエージェントのイベント種別</target>
+  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの</target>
 </trans-unit>
 <trans-unit id="s79a4abd140c07a19">
   <source>Unrecognized events: <x id="0" equiv-text="${unreadEvents(tries)}"/></source>
@@ -1606,14 +1534,6 @@
   <source>Agent sessions</source>
   <target>エージェントのセッション</target>
 </trans-unit>
-<trans-unit id="sba98804fae414565">
-  <source>Attempt: a new agent session. Correction: the same agent session after failed checks. Model switch: a new agent session on the next model.</source>
-  <target>試行は新しいエージェントのセッションです。修正依頼は、検証エラーの後の同じエージェントのセッションです。モデル切り替えは、次のモデルでの新しいエージェントのセッションです。</target>
-</trans-unit>
-<trans-unit id="s3e3b1848b616d72e">
-  <source>Errors: in the correction prompt</source>
-  <target>エラーの内容: 修正依頼のプロンプト内</target>
-</trans-unit>
 <trans-unit id="safdeae829048fe4f">
   <source>Attempt <x id="0" equiv-text="${info.tryNo}"/> failed: <x id="1" equiv-text="${why}"/></source>
   <target><x id="0" equiv-text="${info.tryNo}"/> 回目が失敗: <x id="1" equiv-text="${why}"/></target>
@@ -1645,10 +1565,6 @@
 <trans-unit id="sabd480ab5c691fa7">
   <source>Reasoning</source>
   <target>思考</target>
-</trans-unit>
-<trans-unit id="sb5061813a78f2d79">
-  <source>API request sent again (<x id="0" equiv-text="${it.attempt}"/>)</source>
-  <target>API リクエストを再送（<x id="0" equiv-text="${it.attempt}"/> 度目）</target>
 </trans-unit>
 <trans-unit id="sad951affb16c18e8">
   <source>API request sent again</source>
@@ -1733,10 +1649,6 @@
 <trans-unit id="sec749d36a5ebf2a6">
   <source>The agent definition the coding agent ran as (agents/&lt;role&gt;.md)</source>
   <target>コーディングエージェントが使ったエージェント定義（agents/&lt;role&gt;.md）</target>
-</trans-unit>
-<trans-unit id="se0c4ff9fe6922e71">
-  <source>not started: input not ready</source>
-  <target>未実行: 入力が未準備</target>
 </trans-unit>
 <trans-unit id="sf7b714930ed98b54">
   <source>unknown (<x id="0" equiv-text="${stop}"/>)</source>
@@ -1846,10 +1758,6 @@
   <source>Errors</source>
   <target>エラー</target>
 </trans-unit>
-<trans-unit id="s337127590b746939">
-  <source>An input was not ready</source>
-  <target>入力が未準備</target>
-</trans-unit>
 <trans-unit id="sebada5168620c5fe">
   <source>default</source>
   <target>既定</target>
@@ -1927,8 +1835,8 @@
   <target>関数 <x id="0" equiv-text="${n.name}"/></target>
 </trans-unit>
 <trans-unit id="sf89368b65754b7f6">
-  <source><x id="0" equiv-text="${c.total}"/> flow calls</source>
-  <target>フロー呼び出し <x id="0" equiv-text="${c.total}"/> 回</target>
+  <source><x id="0" equiv-text="${n.calls}"/> flow calls</source>
+  <target>フロー呼び出し <x id="0" equiv-text="${n.calls}"/> 回</target>
 </trans-unit>
 <trans-unit id="scf39b102c7cc194f">
   <source>Open <x id="0" equiv-text="${n.label}"/></source>
@@ -1938,29 +1846,17 @@
   <source>Flow call <x id="0" equiv-text="${m.key}"/></source>
   <target>フロー呼び出し <x id="0" equiv-text="${m.key}"/></target>
 </trans-unit>
-<trans-unit id="s2ee7d42a832ed444">
-  <source>Nested loop</source>
-  <target>入れ子のループ</target>
-</trans-unit>
 <trans-unit id="s87aaf1391fb727b7">
   <source>not run</source>
   <target>実行されず</target>
 </trans-unit>
 <trans-unit id="s1703f5cfa8ed0cc9">
-  <source><x id="0" equiv-text="${c.pending}"/> not run</source>
-  <target><x id="0" equiv-text="${c.pending}"/> 実行されず</target>
+  <source><x id="0" equiv-text="${n}"/> not run</source>
+  <target>実行されず <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s18d4d02c2e47cf0f">
   <source><x id="0" equiv-text="${x.label}"/> in the loop</source>
   <target>ループ内の <x id="0" equiv-text="${x.label}"/></target>
-</trans-unit>
-<trans-unit id="s342a3f547f11a23b">
-  <source>Function <x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/> of <x id="2" equiv-text="${c.total}"/> flow calls done</source>
-  <target>関数 <x id="0" equiv-text="${n.label}"/>: フロー呼び出し <x id="1" equiv-text="${c.done + c.skipped}"/>/<x id="2" equiv-text="${c.total}"/> 完了</target>
-</trans-unit>
-<trans-unit id="s7815b3ef6921536e">
-  <source><x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/> of <x id="2" equiv-text="${c.total}"/> done</source>
-  <target><x id="0" equiv-text="${n.label}"/>: <x id="1" equiv-text="${c.done + c.skipped}"/>/<x id="2" equiv-text="${c.total}"/> 完了</target>
 </trans-unit>
 <trans-unit id="s95f6abd3bc028e9c">
   <source>Waits for <x id="0" equiv-text="${waits.join(', ')}"/></source>
@@ -1969,10 +1865,6 @@
 <trans-unit id="s947887a004e02e33">
   <source>Created after <x id="0" equiv-text="${after.join(', ')}"/></source>
   <target>作成元: <x id="0" equiv-text="${after.join(', ')}"/></target>
-</trans-unit>
-<trans-unit id="sad3f75d236eb01c8">
-  <source>Feeds <x id="0" equiv-text="${feeds.join(', ')}"/></source>
-  <target>後続: <x id="0" equiv-text="${feeds.join(', ')}"/></target>
 </trans-unit>
 <trans-unit id="sa0a6e71350fd953b">
   <source>waits for output</source>
@@ -2001,10 +1893,6 @@
 <trans-unit id="sa434ad4d2100f245">
   <source>Created after</source>
   <target>作成元</target>
-</trans-unit>
-<trans-unit id="sa6d1d1469bb7b1c2">
-  <source>Feeds</source>
-  <target>後続</target>
 </trans-unit>
 <trans-unit id="sf466a6f271f0b682">
   <source>Pass <x id="0" equiv-text="${pass}"/></source>
@@ -2088,7 +1976,7 @@
 </trans-unit>
 <trans-unit id="sf5dbf772d898f6e7">
   <source>Tasks that run once per run, not once per unit</source>
-  <target>ユニットごとではなく、実行ごとに 1 回動くタスク</target>
+  <target>ユニットごとではなく、実行ごとに 1 回実行されるタスク</target>
 </trans-unit>
 <trans-unit id="s26bae2d058ab07f8">
   <source>No unit</source>
@@ -2110,9 +1998,169 @@
   <source><x id="0" equiv-text="${n}"/> passes: <x id="1" equiv-text="${units}"/></source>
   <target><x id="0" equiv-text="${n}"/> 周: <x id="1" equiv-text="${units}"/></target>
 </trans-unit>
-<trans-unit id="se88220063fb37241">
-  <source>Line <x id="0" equiv-text="${mx.box.loop}"/></source>
-  <target><x id="0" equiv-text="${mx.box.loop}"/> 行目のループ</target>
+<trans-unit id="sbcce076a4882d945">
+  <source>Earlier task failed</source>
+  <target>依存先タスクが失敗</target>
+</trans-unit>
+<trans-unit id="s98fc8cf0000154d3">
+  <source>Input missing</source>
+  <target>入力ファイルなし</target>
+</trans-unit>
+<trans-unit id="s355f4ca5b99c3871">
+  <source>Input failed checks</source>
+  <target>入力ファイルに検証エラー</target>
+</trans-unit>
+<trans-unit id="sb0fd4b074f0dc196">
+  <source>1 Python task attempt</source>
+  <target>Python タスク 1 回</target>
+</trans-unit>
+<trans-unit id="sfff7f6b9ec291984">
+  <source><x id="0" equiv-text="${k.python}"/> Python task attempts</source>
+  <target>Python タスク <x id="0" equiv-text="${k.python}"/> 回</target>
+</trans-unit>
+<trans-unit id="sb45a9b8907f0b38a">
+  <source>1 task retried</source>
+  <target>リトライしたタスク 1 件</target>
+</trans-unit>
+<trans-unit id="sc1b187568fa11c8c">
+  <source><x id="0" equiv-text="${k.retriedTasks}"/> tasks retried</source>
+  <target>リトライしたタスク <x id="0" equiv-text="${k.retriedTasks}"/> 件</target>
+</trans-unit>
+<trans-unit id="s5b2aca393ddc3642">
+  <source>1 task with corrections</source>
+  <target>修正依頼のあったタスク 1 件</target>
+</trans-unit>
+<trans-unit id="s7239ff29fb5724bc">
+  <source><x id="0" equiv-text="${k.fixupTasks}"/> tasks with corrections</source>
+  <target>修正依頼のあったタスク <x id="0" equiv-text="${k.fixupTasks}"/> 件</target>
+</trans-unit>
+<trans-unit id="s1198336b172c6e1a">
+  <source>1 task with model switches</source>
+  <target>モデル切り替えのあったタスク 1 件</target>
+</trans-unit>
+<trans-unit id="s0cf77430f4bd7c5c">
+  <source><x id="0" equiv-text="${k.switchTasks}"/> tasks with model switches</source>
+  <target>モデル切り替えのあったタスク <x id="0" equiv-text="${k.switchTasks}"/> 件</target>
+</trans-unit>
+<trans-unit id="sbb77dd1d4c08e701">
+  <source><x id="0" equiv-text="${again}"/> of <x id="1" equiv-text="${c.total}"/> tasks not done</source>
+  <target><x id="1" equiv-text="${c.total}"/> タスク中 <x id="0" equiv-text="${again}"/> 件が未完了</target>
+</trans-unit>
+<trans-unit id="s491765412b82838e">
+  <source>Loop at <x id="0" equiv-text="${this.where(line, this.matrix?.box.file || this.graph.boxes[0]?.file)}"/></source>
+  <target><x id="0" equiv-text="${this.where(line, this.matrix?.box.file || this.graph.boxes[0]?.file)}"/> のループ</target>
+</trans-unit>
+<trans-unit id="sd654656b8bf1ee00">
+  <source>Show the tasks of <x id="0" equiv-text="${n.label}"/></source>
+  <target><x id="0" equiv-text="${n.label}"/> のタスクを表示</target>
+</trans-unit>
+<trans-unit id="sa8865b3bf47ba11f">
+  <source>Nested loop at <x id="0" equiv-text="${this.where(h.box.loop, h.box.file)}"/></source>
+  <target><x id="0" equiv-text="${this.where(h.box.loop, h.box.file)}"/> の入れ子のループ</target>
+</trans-unit>
+<trans-unit id="s56838581fa8422a5">
+  <source>Later tasks: <x id="0" equiv-text="${feeds.join(', ')}"/></source>
+  <target>後続タスク: <x id="0" equiv-text="${feeds.join(', ')}"/></target>
+</trans-unit>
+<trans-unit id="s5e30a7b87ccdc74f">
+  <source>not written (task not started)</source>
+  <target>書き込みなし（タスクが未実行）</target>
+</trans-unit>
+<trans-unit id="s9b7d6466c580aa00">
+  <source>not written (task failed)</source>
+  <target>書き込みなし（タスクが失敗）</target>
+</trans-unit>
+<trans-unit id="saa08e9b351f629c4">
+  <source>not written yet (task running)</source>
+  <target>書き込み待ち（タスクが実行中）</target>
+</trans-unit>
+<trans-unit id="s17ee023c53dcd83c">
+  <source>not written yet (task waiting)</source>
+  <target>書き込み待ち（タスクが待機中）</target>
+</trans-unit>
+<trans-unit id="s81816ae715e0080c">
+  <source>The task did not start because an input was missing or failed checks</source>
+  <target>入力ファイルの不足または検証エラーで、タスクは未実行</target>
+</trans-unit>
+<trans-unit id="s2b82c03a0f482d56">
+  <source>An input was missing or failed checks</source>
+  <target>入力ファイルの不足または検証エラー</target>
+</trans-unit>
+<trans-unit id="sb6bb16aa7550533d">
+  <source>Must be written during the task</source>
+  <target>タスク実行中の書き込みが必須</target>
+</trans-unit>
+<trans-unit id="sd8284849892c5c5a">
+  <source>A file from before the task does not count</source>
+  <target>タスクの開始前からあるファイルは無効</target>
+</trans-unit>
+<trans-unit id="s9fd13600c5948a5d">
+  <source>A file from before the task counts</source>
+  <target>タスクの開始前からあるファイルも有効</target>
+</trans-unit>
+<trans-unit id="s168ae294e3e72ce4">
+  <source>Check time</source>
+  <target>検証のタイミング</target>
+</trans-unit>
+<trans-unit id="sfddde3643e5505f4">
+  <source>Attempt: a new agent session</source>
+  <target>試行: 新しいエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s2073c04640f9ffe1">
+  <source>Correction: the same agent session after failed checks</source>
+  <target>修正依頼: 検証エラー後の、同じエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s81784b8f13a711a6">
+  <source>Model switch: a new agent session on the next model</source>
+  <target>モデル切り替え: 次のモデルでの新しいエージェントのセッション</target>
+</trans-unit>
+<trans-unit id="s34970ae2312009f5">
+  <source>The errors are in the correction prompt</source>
+  <target>エラーの内容は修正依頼のプロンプトに記載</target>
+</trans-unit>
+<trans-unit id="sfd313341ca75a38d">
+  <source><x id="0" equiv-text="${n}"/> done after retrying</source>
+  <target>リトライ後に完了 <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s1a20210c3f1e40c9">
+  <source><x id="0" equiv-text="${n}"/> skipped</source>
+  <target>スキップ <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s6aabc9569e449784">
+  <source>not started (input missing)</source>
+  <target>未実行（入力ファイルなし）</target>
+</trans-unit>
+<trans-unit id="s9e8afbe69b10d822">
+  <source>not started (input failed checks)</source>
+  <target>未実行（入力ファイルに検証エラー）</target>
+</trans-unit>
+<trans-unit id="s0dbd76eb398aa733">
+  <source>not started (input missing or failed checks)</source>
+  <target>未実行（入力ファイルの不足または検証エラー）</target>
+</trans-unit>
+<trans-unit id="s6c86e2a18e78587f">
+  <source>earlier task <x id="0" equiv-text="${kindUnit(c)}"/> failed</source>
+  <target>依存先タスク <x id="0" equiv-text="${kindUnit(c)}"/> が失敗</target>
+</trans-unit>
+<trans-unit id="sccad21b77f9a317c">
+  <source>Highest cost: <x id="0" equiv-text="${top.kind}"/></source>
+  <target>最も高い種別: <x id="0" equiv-text="${top.kind}"/></target>
+</trans-unit>
+<trans-unit id="sd7768c230e48ac70">
+  <source><x id="0" equiv-text="${Math.round(top.share * 100)}"/>% of the total</source>
+  <target>全体の <x id="0" equiv-text="${Math.round(top.share * 100)}"/>%</target>
+</trans-unit>
+<trans-unit id="s6fa4fa0db6637ca7">
+  <source>Flow call stopped with an error</source>
+  <target>フロー呼び出しがエラーで終了</target>
+</trans-unit>
+<trans-unit id="s7a14301773287a5c">
+  <source>1 flow call stopped with an error</source>
+  <target>エラーで終了したフロー呼び出し 1 件</target>
+</trans-unit>
+<trans-unit id="sc6fd207e5b80c46e">
+  <source><x id="0" equiv-text="${n.errors}"/> flow calls stopped with an error</source>
+  <target>エラーで終了したフロー呼び出し <x id="0" equiv-text="${n.errors}"/> 件</target>
 </trans-unit>
 </body>
 </file>

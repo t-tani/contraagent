@@ -31,11 +31,13 @@ describe('labels', () => {
   it('names stops in words, and an unknown one as unknown with its value', () => {
     expect([stopLabel('completed'), stopLabel('invalid_input'), stopLabel('invalid_output'), stopLabel('custom_stop'), stopLabel('')]).toEqual([
       'done',
-      'not started: input not ready',
+      'not started (input missing or failed checks)',
       'failed checks',
       'unknown (custom_stop)',
       '—',
     ]);
+    expect(stopLabel('invalid_input', 'invalid input: /r/out/a.json: required input is missing')).toBe('not started (input missing)');
+    expect(stopLabel('invalid_input', 'invalid input: /r/out/a.json: field x: wrong type')).toBe('not started (input failed checks)');
   });
 
   it('counts attempts and corrections as the reader does', () => {
@@ -133,6 +135,6 @@ describe('input causes', () => {
     };
     const o = taskOutcomes(journal, plan);
     expect(notStartedCause(o.get('python:report')!, o, 'docs')).toBe('input out/review/zeta.json is missing because review · zeta failed');
-    expect(notStartedCause(o.get('summary')!, o, 'docs')).toBe('review · zeta failed');
+    expect(notStartedCause(o.get('summary')!, o, 'docs')).toBe('earlier task review · zeta failed');
   });
 });

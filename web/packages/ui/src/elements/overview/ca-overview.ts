@@ -21,7 +21,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, kindUnit, localTime, sentence } from '../../lib/format.js';
-import { notStartedCause, outcomeLabel, runRelative, stopLabel } from '../../lib/labels.js';
+import { notStartedCause, outcomeLabel, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import { formatOf, statusLabel, statusStop, statusWhy } from '../shared/contract-parts.js';
 import { taskChip } from '../shared/task-chip.js';
@@ -231,13 +231,13 @@ export class CaOverview extends LitElement {
       const p = progress(plan);
       return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`));
     }
-    return facts(msg(str`${r.done} done`), r.failed ? msg(str`${r.failed} failed`) : '', r.notStarted ? msg(str`${r.notStarted} not started`) : '');
+    return facts(stateCount('done', r.done), r.failed ? stateCount('failed', r.failed) : '', r.notStarted ? stateCount('not_started', r.notStarted) : '');
   }
 
   /** "23 attempts | 4 not started": a task that never started has no attempt. */
   private triesLine(): string {
     const { tries, notStarted } = tryCounts(this.state.journal);
-    return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? msg(str`${notStarted} not started`) : '');
+    return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
   }
 
   /** A link's click: no navigation of the page's own, then `go`. */
@@ -354,14 +354,13 @@ export class CaOverview extends LitElement {
       ${this.nextStep(live, failed.length + notStarted.length)}`;
   }
 
-  /** For a finished run with problems: what to do now. */
+  /** For a finished run with problems: how many tasks are not done (the tasks resume=True runs again). */
   private nextStep(live: boolean, problemCount: number) {
     if (live || !problemCount) return nothing;
     const c = outcomeCounts(taskOutcomes(this.state.journal, this.state.plan));
-    const done = c.done + c.recovered + c.skipped;
-    const again = c.total - done;
+    const again = c.total - c.done - c.recovered - c.skipped;
     if (!again) return nothing;
-    return html`<div class="next" title="resume=True">${msg(str`Resume: ${done} done | ${again} not done`)}</div>`;
+    return html`<div class="next" title="resume=True">${msg(str`${again} of ${c.total} tasks not done`)}</div>`;
   }
 }
 

@@ -52,13 +52,13 @@ unit names, stop values such as `completed`, model and role names).
 | snapshot | スナップショット |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
-| worker (a WorkQueue place for one concurrent task) | 枠 (idle worker: 空き枠) |
+| worker (a WorkQueue place for one concurrent task) | 枠 (idle worker: 空き) |
 | launch time (summed wall time of launches; the tile "Agent session time") | エージェントの所要時間 |
 | last (time of the last attempt) | 最終試行 |
 | items (length of a list) | 要素 N 個 |
 
-Tabs: overview 概要, tasks タスク, journal ジャーナル, outputs 出力, definitions
-定義, processes プロセス, stream トランスクリプト.
+Tabs: overview 概要, tasks タスク, journal 実行履歴, outputs 出力, definitions
+定義, processes プロセス, stream タスク詳細.
 
 ## Words the UI shows for run data
 
@@ -119,13 +119,17 @@ wherever the UI shows a state or a count to the reader.
 | created after result (a dashed edge: `created_from`) | 結果を受けて作成 |
 | Unit: alpha / Clear highlight (the unit highlighted across layers) | ユニット: alpha / ハイライトを解除 |
 | not run (a task still waiting when the run ended; not the same as not started) | 実行されず |
-| counts by state in one row: 12 done \| 3 failed \| 2 not started (the number first, no counter) | 12 完了 \| 3 失敗 \| 2 未実行（`${x} failed` は「review · zeta 失敗」にも使われるため、数を先に書く形にそろえる） |
-| N attempts / N tasks (a count) | N 試行 / N タスク |
-| Waits for / Created after / Feeds (the graph's table and a node's label) | 依存先 / 作成元 / 後続 |
-| line N (where a loop is in the flow's code) | N 行目（バーでは「N 行目のループ」） |
-| input X is missing because Y failed (why an input was not ready) | 入力 X がありません（Y が失敗） |
-| not ready (an input) | 未準備 |
-| not written (an output file) | 未書き込み |
+| counts by state in one row: 12 done \| 3 failed \| 2 not started (a count only; a cause has its own message) | 完了 12 件 \| 失敗 3 件 \| 未実行 2 件（状態の語が先、数と「件」が後） |
+| N attempts / N tasks (a count) | 試行 N 回 / N タスク |
+| 29 of 31 tasks done / 5 of 31 tasks not done; review: 1 of 1 done | 31 タスク中 29 件完了 / 31 タスク中 5 件が未完了; review: 1 件中 1 件完了 |
+| Waits for / Created after / Later tasks (the graph's table and a node's label) | 依存先 / 作成元 / 後続タスク |
+| Loop at flow.py:130 / Nested loop at flow.py:130 (where a loop is in the flow's code: file and first line; `line N` when the file is not known) | flow.py:130 のループ / flow.py:130 の入れ子のループ（`line N` は「N 行目」） |
+| input X is missing because Y failed (why an input stopped a task) | 入力 X がありません（Y が失敗） |
+| input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルの不足または検証エラー）; 未実行（入力ファイルなし） |
+| earlier task Y failed (why a task did not start: the failed task it waited for) | 依存先タスク Y が失敗 |
+| not written (task failed) / not written yet (task running) (an output file's state, then its cause) | 書き込みなし（タスクが失敗） / 書き込み待ち（タスクが実行中） |
+| N tasks retried / N tasks with corrections / N tasks with model switches (a tile's sub-line) | リトライしたタスク N 件 / 修正依頼のあったタスク N 件 / モデル切り替えのあったタスク N 件 |
+| Must be written during the task: yes / no; Check time: when the task starts (a checked file's conditions) | タスク実行中の書き込みが必須: はい / いいえ; 検証のタイミング: タスクの開始時 |
 | monitor / filter | モニター / フィルター |
 
 ## Style
@@ -139,7 +143,7 @@ button; ✓ ✕ ◌ only, always next to a word.
 what the monitor or contraagent does or will do, and never addresses the
 reader with what they can do: no 「〜します」「〜しません」「〜させます」
 「〜できます」「〜してください」「〜のためです」 about the system. Use a state,
-a count, a cause or a value: 「未実行 · 入力 out/review/zeta.json なし（review ·
+a count, a cause or a value: 「未実行: 入力 out/review/zeta.json がありません（review ·
 zeta が未完了）」「トランスクリプトなし」「修正依頼 2 回」. How the system works
 belongs in the documentation. A tooltip may define a term in a short noun
 phrase or add a fact about this item, never a policy.

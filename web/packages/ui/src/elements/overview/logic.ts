@@ -84,6 +84,10 @@ export interface GraphMark {
   flow?: string;
   /** In a loop box: the passes its unit's tasks (or flow calls) of this node ran in, when more than 1. */
   passes?: number;
+  /** A function node's mark: its tasks by state (those of the flow calls it started included). */
+  counts?: NodeCounts;
+  /** A function node's mark whose flow call raised or was closed: what it raised (`<type>: <message>`), '' when not recorded. */
+  error?: string;
 }
 
 export type NodeCounts = Pick<PlanGroup, 'total' | 'done' | 'failed' | 'running' | 'pending' | 'skipped' | 'blocked'>;
@@ -105,8 +109,12 @@ export interface GraphNode {
   single: GraphMark[];
   /** Its tasks also wait for each other. */
   inOrder: boolean;
-  /** Its marks by state: tasks in a kind node, flow calls in a function node; in a loop box, each unit's latest pass. */
+  /** Its tasks by state (in a function node, those of the flow calls they started included); in a loop box, each unit's latest pass. */
   counts: NodeCounts;
+  /** A function node: its flow calls (in a loop box, each unit's latest pass); 0 for a kind node. */
+  calls: number;
+  /** A function node: those of its flow calls that raised or were closed. */
+  errors: number;
 }
 
 /** The nodes created by one loop of the layer's function; a nested loop is a box inside it. */
@@ -115,6 +123,8 @@ export interface LoopBox {
   id: string;
   /** The loop's first line. */
   loop: number;
+  /** The file the loop is in (the layer's function's file, as recorded); '' when not known. */
+  file: string;
   /** The loop box this one is nested in, or null when it is at the layer's top level. */
   parent: string | null;
   /** Its last pass: the most passes of this loop (never a nested loop's) in one run of it. */
@@ -332,15 +342,8 @@ function instanceOf(t: FlowTask, d: number, calls: Map<string, FlowCallNode> | n
 
 const CALL_STATE: Record<FlowCallNode['state'], TaskState> = { running: 'running', returned: 'done', raised: 'failed', closed: 'failed' };
 
-/** A flow call's state from its tasks, while the plan has no flow calls: running while any task runs or waits. */
-function stateFromTasks(ns: readonly PlanNode[]): TaskState {
-  const has = (s: TaskState) => ns.some((n) => n.state === s);
-  if (has('running')) return 'running';
-  if (has('pending')) return 'pending';
-  if (has('failed')) return 'failed';
-  if (has('blocked')) return 'blocked';
-  return ns.length && ns.every((n) => n.state === 'skipped') ? 'skipped' : 'done';
-}
+/** A flow call stopped with an error: it raised, or it was closed. */
+const callFailed = (c: FlowCallNode | undefined): c is FlowCallNode => c?.state === 'raised' || c?.state === 'closed';
 
 function taskMark(ts: readonly FlowTask[], unit: string): GraphMark {
   const ns = ts.map((t) => t.n);
@@ -351,6 +354,9 @@ function taskMark(ts: readonly FlowTask[], unit: string): GraphMark {
 interface Marks {
   byUnit: Map<string, GraphMark>;
   single: GraphMark[];
+  /** A function node's flow calls, and those that raised or were closed. */
+  calls?: number;
+  errors?: number;
 }
 
 const push = <K, V>(m: Map<K, V[]>, k: K, v: V): void => {
@@ -392,34 +398,43 @@ function instances(ts: readonly FlowTask[], d: number, calls: Map<string, FlowCa
   return [...by.values()];
 }
 
-/** A function node's marks: its flow calls, one mark per unit when a call's tasks share one unit, else one per call. */
+/**
+ * A function node's marks: its flow calls, one mark per unit when a call's tasks share one unit, else one per call.
+ * A call's state is the most severe of its own (raised or closed: failed) and its tasks' (those of the calls it
+ * started included), so a call that caught a task's failure and returned still shows it.
+ */
 function flowMarks(ts: readonly FlowTask[], d: number, name: string, calls: Map<string, FlowCallNode> | null): Marks {
   const markOf = (xs: readonly Instance[], unit: string): GraphMark => {
-    const states = xs.map((x): TaskState => {
-      const c = x.own ? calls?.get(x.id) : undefined;
-      return c && CALL_STATE[c.state] ? CALL_STATE[c.state] : stateFromTasks(x.tasks.map((t) => t.n));
+    const own = xs.map((x) => (x.own ? calls?.get(x.id) : undefined));
+    const states = xs.map((x, i): TaskState => {
+      const c = own[i];
+      const tasks = worstState(x.tasks.map((t) => t.n));
+      return c && CALL_STATE[c.state] ? worstOf([CALL_STATE[c.state], tasks]) : tasks;
     });
-    const keys = xs.flatMap((x) => x.tasks.map((t) => t.n.key));
+    const tasks = xs.flatMap((x) => x.tasks);
+    const keys = tasks.map((t) => t.n.key);
     const last = xs.find((_, i) => states[i] === 'running') ?? xs[xs.length - 1];
-    return { key: last?.id ?? '', unit, state: worstOf(states), count: keys.length, keys, flow: name };
+    const failed = own.find(callFailed);
+    const mark: GraphMark = { key: last?.id ?? '', unit, state: worstOf(states), count: keys.length, keys, flow: name, counts: taskCounts(tasks) };
+    return failed ? { ...mark, error: failed.error ?? '' } : mark;
   };
   const byUnit = new Map<string, Instance[]>();
   const single: GraphMark[] = [];
-  for (const x of instances(ts, d, calls)) {
+  const xs = instances(ts, d, calls);
+  for (const x of xs) {
     if (x.unit) push(byUnit, x.unit, x);
     else single.push(markOf([x], ''));
   }
-  return { byUnit: new Map([...byUnit].map(([u, xs]) => [u, markOf(xs, u)])), single };
+  const errors = calls ? xs.filter((x) => x.own && callFailed(calls.get(x.id))).length : 0;
+  return { byUnit: new Map([...byUnit].map(([u, ys]) => [u, markOf(ys, u)])), single, calls: xs.length, errors };
 }
 
-/** A node's counts: its marks (tasks, or flow calls) by the state each shows. */
-function counts(marks: readonly GraphMark[]): NodeCounts {
-  const c: NodeCounts = { total: marks.length, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
-  for (const m of marks) c[m.state] += 1;
+/** Tasks by state. */
+function taskCounts(ts: readonly FlowTask[]): NodeCounts {
+  const c: NodeCounts = { total: ts.length, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
+  for (const t of ts) c[t.n.state] += 1;
   return c;
 }
-
-const slotsOf = (m: Marks): GraphMark[] => [...m.byUnit.values(), ...m.single];
 
 /** The tasks of each unit's latest pass, by the passes of the loops around them at depth `d` (tasks without a unit count as one unit). */
 function latestPass(ts: readonly FlowTask[], d: number): FlowTask[] {
@@ -610,6 +625,7 @@ function project(plan: Plan, path: readonly string[], prev?: LayerOrder, down = 
     nodeOfKey.set(t.n.key, p.id);
   }
   const marks = new Map<string, Marks>();
+  const shownOf = new Map<string, FlowTask[]>(); // node id -> the tasks it counts
   const boxOf = new Map<string, string>(); // node id -> its innermost loop box
   const boxParent = new Map<string, string | null>(); // loop box -> the box it nests in
   for (const x of drafts.values()) {
@@ -619,6 +635,7 @@ function project(plan: Plan, path: readonly string[], prev?: LayerOrder, down = 
     if (inner) boxOf.set(x.id, inner);
     // In a loop box, a unit's mark is its latest pass, and counts the passes it ran in.
     const shown = inner ? latestPass(x.tasks, d) : x.tasks;
+    shownOf.set(x.id, shown);
     const m = x.type === 'kind' ? kindMarks(shown) : flowMarks(shown, d, x.name, ix.calls);
     if (inner) {
       const per = passesByUnit(x.tasks, d);
@@ -863,6 +880,7 @@ function project(plan: Plan, path: readonly string[], prev?: LayerOrder, down = 
     return {
       id,
       loop: Number(id.slice(LOOP_SEGMENT.length).split('.').pop()),
+      file: inside[0]?.frames[d - 1]?.file ?? '',
       parent: boxParent.get(id) ?? null,
       passes: boxLast.get(id) ?? 1,
       spread: [...spread].sort((a, b) => a[0] - b[0]),
@@ -884,7 +902,9 @@ function project(plan: Plan, path: readonly string[], prev?: LayerOrder, down = 
       units: hasUnits ? units.map((u) => m.byUnit.get(u) ?? null) : [],
       single: m.single,
       inOrder: inOrder.has(x.id),
-      counts: counts(slotsOf(m)),
+      counts: taskCounts(shownOf.get(x.id) ?? []),
+      calls: m.calls ?? 0,
+      errors: m.errors ?? 0,
     };
   };
   const byBox = new Map(boxes.map((b) => [b.id, b]));
@@ -920,8 +940,9 @@ export function layerGraph(plan: Plan, path: readonly string[] = [], prev?: Laye
 /**
  * The layer the graph opens on: from the top, down while a layer has a single
  * node and it is a function's. It stops at a single function node whose flow call
- * failed, so a run that failed inside a flow opens on the node that shows it,
- * not inside it. A static flow lands on its kinds.
+ * raised or was closed, so a run that failed inside a flow opens on the node that
+ * shows it, not inside it. A failed or not started task does not stop it: the layer
+ * below shows that task's own mark. A static flow lands on its kinds.
  */
 export function autoLayer(plan: Plan): string[] {
   const ix = indexOf(plan);

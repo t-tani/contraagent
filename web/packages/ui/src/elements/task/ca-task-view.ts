@@ -440,7 +440,7 @@ export class CaTaskView extends LitElement {
       ${launches.map(
         (lc) => html`<details class="launch">
           <summary>${facts(msg(str`Process ${lc.pid ?? '—'}`), lc.key || '')}</summary>
-          <div class="meta">${facts(msg(str`Plugin ${lc.plugin || 'none'}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || 'none'}`))}</div>
+          <div class="meta">${facts(msg(str`Plugin ${lc.plugin || msg('none')}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || msg('none')}`))}</div>
         </details>`,
       )}
       ${extras.map(
@@ -528,7 +528,7 @@ export class CaTaskView extends LitElement {
       .join('\n');
     const cost = r.cost_usd !== null && r.cost_usd !== undefined ? usd(r.cost_usd) : '';
     return html`<span class="runchip ${ok ? 'ok' : 'bad'}" title=${tip}>
-      ${mark(ok)} ${facts(attemptLabel(r.attempt), stopLabel(r.stop), fmtDur(r.wall_s), cost)}
+      ${mark(ok)} ${facts(attemptLabel(r.attempt), stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost)}
     </span>`;
   }
 
@@ -699,7 +699,7 @@ export class CaTaskView extends LitElement {
       ${last
         ? html`<h4 class="sect-h">${msg('Outcome')}</h4>
             <div class="ct-in">
-              ${pill(stopTone(last.stop), stopLabel(last.stop))}
+              ${pill(stopTone(last.stop), stopLabel(last.stop, last.reason))}
               ${isLaunched(last) ? html`<span class="meta">${facts(attemptLabel(last.attempt), fmtDur(last.wall_s), correctionsOf(last))}</span>` : nothing}
 
             </div>`

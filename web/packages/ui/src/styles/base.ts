@@ -57,6 +57,13 @@ export const base = css`
   .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .jmono { font-size: 11.5px; }
   .meta { color: var(--mut); font-size: 11px; }
+  /* a label in a tight box: it wraps at spaces and between phrases, never inside a word (Japanese included) */
+  .words { word-break: keep-all; overflow-wrap: break-word; line-break: strict; }
+  /* one fact of a row in .words (factLine): the line breaks between facts first, inside one only when it is wider than the box */
+  .words .f { display: inline-block; max-width: 100%; }
+  @supports (word-break: auto-phrase) {
+    .words:lang(ja) { word-break: auto-phrase; }
+  }
   .mut, .jdim { color: var(--mut); }
   .v-ok { color: var(--ok); }
   .v-bad { color: var(--err); }
@@ -98,7 +105,7 @@ export const base = css`
 
   .tag { font-size: 10px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line2); color: var(--mut); white-space: nowrap; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--mut); }
+  .chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--mut); white-space: nowrap; }
   .chip.done { color: var(--ok); border-color: rgba(52, 211, 153, 0.5); }
   .chip.cur { background: var(--live); color: #03222a; border-color: var(--live); font-weight: 600; animation: ping 1.6s var(--ease) infinite; }
   .chip.todo { opacity: 0.65; }
@@ -133,6 +140,7 @@ export const base = css`
   .fl > .meta:last-child { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
   .fl:hover { background: var(--raise); }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--mut); }
+  .legend > span { white-space: nowrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 
   /* who ran it: an agent launch or Python */

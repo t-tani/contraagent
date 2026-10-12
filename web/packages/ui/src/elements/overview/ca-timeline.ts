@@ -107,7 +107,7 @@ export class CaTimeline extends LitElement {
       if (!isLaunched(e)) {
         const t = outcomes.get(e.key);
         const cause = e.stop === 'invalid_input' && t ? notStartedCause(t, outcomes, this.run) : '';
-        return [kindUnit(e), cause ? msg(str`Not started: ${cause}`) : stopLabel(e.stop), e.key].join('\n');
+        return [kindUnit(e), cause ? msg(str`Not started: ${cause}`) : stopLabel(e.stop, e.reason), e.key].join('\n');
       }
       const sw = modelSwitch(e.hops);
       const reason = e.reason && !e.ok ? runRelative(e.reason, this.run) : '';
