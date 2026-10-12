@@ -239,6 +239,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An agent task with no plugin (`agent_task(instructions=)`) can write its output
+  file in Claude Code: it runs with the plugin template's permissions
+  (`--settings`). Headless Claude Code denied the `Write`, so the task always
+  ended `invalid_output`.
 - Tasks of one kind and one unit given different `key=` write their own output
   files (`out/<kind>/<key>.json`); they wrote one file (`out/<kind>/<unit>.json`)
   and raced.
@@ -260,6 +264,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The monitor returns a text output's content (it returned null for anything
   that is not JSON).
+- The monitor's tasks tab lists every task of the plan, one row each, with the
+  same count as the header and the overview: a task that never ran (waiting,
+  not started, not run) is a row with its status and cause, and the passes of a
+  loop over one unit are a row each, with their pass. It listed one row per kind
+  and unit, from the journal only. `@contraagent/api` adds `taskRows` and
+  `loopPass`; `<ca-task-table>` and `<ca-definitions>` take the run's `journal`
+  and `plan` in place of `tasks`.
 - A refused task's reason names the task whose output it was missing.
 - A Python task without a unit writes `<kind>.json`, not `python:<kind>.json`.
 - `contraagent monitor --openapi` without a path writes to stdout, not into the

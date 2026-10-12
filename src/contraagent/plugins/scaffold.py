@@ -90,6 +90,11 @@ Each task's data arrives in a call file the prompt names; nothing here mentions 
 """,
 }
 
+#: What an agent task with no plugin may do in Claude Code (`agent_task(instructions=)`):
+#: the template's `settings.json`, passed as `--settings`. Without it, headless Claude Code
+#: denies the `Write` of the output file.
+DEFAULT_SETTINGS = FILES["settings.json"]
+
 
 def new_plugin(directory: str | Path, name: str = "") -> list[Path]:
     """Write the template into `directory`. Refuses to overwrite an existing plugin."""

@@ -127,6 +127,7 @@ wherever the UI shows a state or a count to the reader.
 | input X is missing because Y failed (why an input stopped a task) | 入力 X がありません（Y が失敗） |
 | input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルの不足または検証エラー）; 未実行（入力ファイルなし） |
 | earlier task Y failed (why a task did not start: the failed task it waited for) | 依存先タスク Y が失敗 |
+| waits for output of Y / of N earlier tasks (why a waiting task has not run: the earlier tasks that have not finished) | 依存先タスク Y の出力待ち / 依存先タスク N 件の出力待ち |
 | not written (task failed) / not written yet (task running) (an output file's state, then its cause) | 書き込みなし（タスクが失敗） / 書き込み待ち（タスクが実行中） |
 | N tasks retried / N tasks with corrections / N tasks with model switches (a tile's sub-line) | リトライしたタスク N 件 / 修正依頼のあったタスク N 件 / モデル切り替えのあったタスク N 件 |
 | Must be written during the task: yes / no; Check time: when the task starts (a checked file's conditions) | タスク実行中の書き込みが必須: はい / いいえ; 検証のタイミング: タスクの開始時 |

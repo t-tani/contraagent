@@ -1,9 +1,10 @@
-import type { JournalRow, TaskRollup } from '@contraagent/api';
+import type { JournalRow, Outcome, TaskRow } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { attemptFacts, filterJournal, filterTasks, journalTally, rollupOutcome } from './filters.js';
+import { attemptFacts, filterJournal, filterTasks, journalTally, sortTasks } from './filters.js';
 
-const task = (slot: string, kind: string, last_stop = 'completed'): TaskRollup => ({
-  slot, kind, unit: '', executor: 'agent', attempts: 1, ok: 1, last_stop, last_ts: '', wall_s: 1,
+const task = (key: string, kind: string, last_stop = 'completed', outcome: Outcome = 'done', last_ts = ''): TaskRow => ({
+  key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null,
+  pass: null, wall_s: 1, last_ts, last_stop, waits_for: [],
 });
 const row = (key: string, kind: string, stop: string, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '', key, kind, stop, ok: stop === 'completed', ...extra,
@@ -11,10 +12,25 @@ const row = (key: string, kind: string, stop: string, extra: Partial<JournalRow>
 
 describe('filterTasks', () => {
   const ts = [task('a-x', 'a'), task('b-y', 'b', 'timeout')];
-  it('by kind and by text over slot and last stop', () => {
-    expect(filterTasks(ts, 'a', '').map((t) => t.slot)).toEqual(['a-x']);
-    expect(filterTasks(ts, '', 'TIME').map((t) => t.slot)).toEqual(['b-y']);
+  it('by kind and by text over kind, unit, key and last stop', () => {
+    expect(filterTasks(ts, 'a', '').map((t) => t.key)).toEqual(['a-x']);
+    expect(filterTasks(ts, '', 'TIME').map((t) => t.key)).toEqual(['b-y']);
+    expect(filterTasks(ts, '', 'y').map((t) => t.key)).toEqual(['b-y']);
     expect(filterTasks(ts, '', '')).toHaveLength(2);
+  });
+});
+
+describe('sortTasks', () => {
+  it('failed, not started, running and waiting first; then the latest; a task that never ran stays in the list', () => {
+    const ts = [
+      task('a-1', 'a', 'completed', 'done', '2026-10-11T00:00:01'),
+      task('a-2', 'a', '', 'waiting'),
+      task('a-3', 'a', 'completed', 'recovered', '2026-10-11T00:00:03'),
+      task('a-4', 'a', 'invalid_input', 'not_started', '2026-10-11T00:00:02'),
+      task('a-5', 'a', 'error', 'failed', '2026-10-11T00:00:01'),
+      task('a-6', 'a', '', 'not_started'),
+    ];
+    expect(sortTasks(ts).map((t) => t.key)).toEqual(['a-5', 'a-4', 'a-6', 'a-2', 'a-3', 'a-1']);
   });
 });
 
@@ -39,15 +55,6 @@ describe('journalTally', () => {
   });
 });
 
-describe('rollupOutcome', () => {
-  it('names a task by how it ended', () => {
-    expect(rollupOutcome(task('a', 'a'))).toBe('done');
-    expect(rollupOutcome({ ...task('a', 'a'), attempts: 3, ok: 1 })).toBe('recovered');
-    expect(rollupOutcome(task('a', 'a', 'invalid_input'))).toBe('not_started');
-    expect(rollupOutcome({ ...task('a', 'a', 'error'), ok: 0 })).toBe('failed');
-    expect(rollupOutcome({ ...task('a', 'a'), running: true })).toBe('running');
-  });
-});
 
 describe('attemptFacts', () => {
   it('counts attempts per task and finds the last success', () => {

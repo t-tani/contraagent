@@ -181,7 +181,9 @@ def one_unit(overdue_s: float) -> list[str]:
     """`b` waits for unit `u` while tasks of kind `A` keep arriving on it (the P2 probe)."""
     q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
     q.add(Task("A", key="a0", unit="u", params={"sleep": 0.1}))
-    q.add(Task("A", key="a1", unit="u", params={"sleep": 0.2}))
+    # a1 holds the unit until the chain a2..a5 is done: between two of those, no A task would
+    # hold it, and b, with the higher level, would take it however long it waited
+    q.add(Task("A", key="a1", unit="u", params={"sleep": 0.6}))
     n = [1]
 
     def follow_up(res: TaskResult) -> list[Task]:

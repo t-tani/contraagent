@@ -27,6 +27,20 @@ export function outcomeLabel(o: Outcome): string {
   }
 }
 
+/** What happened to a task, in a run that is `live` or over: a task still waiting when the run ended is "not run". */
+export const statusLabel = (o: Outcome, live: boolean): string => (o === 'waiting' && !live ? msg('not run') : outcomeLabel(o));
+
+/**
+ * Why a waiting task has not run, as a phrase that starts in lower case: the
+ * earlier task it waits for (`waits for output of review · zeta`), or how many
+ * (`waits for output of 3 earlier tasks`); '' for none.
+ */
+export function waitCause(waits: readonly { kind?: string | null; unit?: string | null }[]): string {
+  const first = waits[0];
+  if (!first) return '';
+  return waits.length === 1 ? msg(str`waits for output of ${kindUnit(first)}`) : msg(str`waits for output of ${waits.length} earlier tasks`);
+}
+
 /**
  * A task's state: what the run says about it (`own`, from the journal and the
  * plan: a task with no attempt is `waiting` or, behind a failed task,

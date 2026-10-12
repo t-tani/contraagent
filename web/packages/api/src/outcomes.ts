@@ -128,3 +128,58 @@ export function outcomeCounts(outcomes: ReadonlyMap<string, TaskOutcome>): Recor
   }
   return c;
 }
+
+/**
+ * One task of the run as a list shows it: what happened to it (`TaskOutcome`)
+ * and what its tries add up to. A task that never ran has no tries: `wall_s` 0,
+ * `last_ts` and `last_stop` ''.
+ */
+export interface TaskRow extends TaskOutcome {
+  /** Its loop pass (the innermost loop of its flow path), from 1; null outside a loop. */
+  pass: number | null;
+  /** Time of its tries, summed, in seconds. */
+  wall_s: number;
+  /** When its last journal row was written; '' for none. */
+  last_ts: string;
+  /** The stop of its last journal row; '' for none. */
+  last_stop: string;
+  /** A waiting task: the keys of the earlier tasks it waits for that have not finished, in plan order. */
+  waits_for: string[];
+}
+
+/** The innermost loop pass of a plan node's flow path; null outside a loop (a pass not counted reads as the first). */
+export function loopPass(node: Pick<PlanNode, 'flow'> | undefined): number | null {
+  const frames = Array.isArray(node?.flow) ? node.flow : [];
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const loops = frames[i]?.loops ?? [];
+    const inner = loops[loops.length - 1];
+    if (inner) return typeof inner.pass === 'number' && inner.pass >= 1 ? inner.pass : 1;
+  }
+  return null;
+}
+
+const FINISHED: ReadonlySet<Outcome> = new Set(['done', 'recovered', 'skipped']);
+
+/**
+ * Every task of the run, one row each: the plan joined with the journal
+ * (`taskOutcomes`), so a task that never ran (waiting, not started) is a row
+ * too. The count of rows is `outcomeCounts(...).total`, the number every view
+ * shows. In plan order.
+ */
+export function taskRows(journal: readonly JournalRow[], plan: Plan): TaskRow[] {
+  const outcomes = taskOutcomes(journal, plan);
+  const nodes = new Map(plan.nodes.map((n) => [n.key, n]));
+  return [...outcomes.values()].map((t) => {
+    const last = t.attempts[t.attempts.length - 1];
+    const node = nodes.get(t.key);
+    return {
+      ...t,
+      pass: loopPass(node),
+      wall_s: t.tries.reduce((s, r) => s + (r.wall_s || 0), 0),
+      last_ts: last?.ts ?? '',
+      last_stop: last?.stop ?? '',
+      waits_for:
+        t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !FINISHED.has(outcomes.get(d)?.outcome ?? 'waiting')) : [],
+    };
+  });
+}

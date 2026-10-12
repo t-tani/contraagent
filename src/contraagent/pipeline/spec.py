@@ -119,7 +119,8 @@ def agent_task[Out](
     it, failover hops included, is refused before anything launches.
     `tags`: named resources each of its tasks holds while it runs (`["heavy"]`);
     `Pipeline(tag_capacity={"heavy": 1})` caps how many run at once.
-    `instructions`: a text put before the call protocol, for a task with no plugin.
+    `instructions`: a text put before the call protocol, for a task with no plugin. Such a
+    task runs with the permissions of the plugin template's `settings.json` (Claude Code).
     `output_name`: the output file's name under `<run>/out/<kind>/`, a template:
     `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
     `{key}` and `{kind}`. Default `{unit}.json` (`{unit}.md` for a text output).

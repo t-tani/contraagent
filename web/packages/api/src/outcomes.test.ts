@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outcomeCounts, problems, taskOutcomes } from './outcomes.js';
+import { loopPass, outcomeCounts, problems, taskOutcomes, taskRows } from './outcomes.js';
 import type { JournalRow, Plan, PlanNode } from './types.js';
 
 const row = (key: string, stop: string, attempt = 0): JournalRow => ({
@@ -60,5 +60,49 @@ describe('taskOutcomes', () => {
 
   it('counts tasks, not attempts', () => {
     expect(outcomeCounts(o)).toMatchObject({ total: 6, done: 0, recovered: 1, failed: 1, not_started: 3, waiting: 1 });
+  });
+});
+
+describe('taskRows', () => {
+  it('one row per task of the plan, a task that never ran included: as many as outcomeCounts counts', () => {
+    const rows = taskRows(journal, plan);
+    expect(rows.map((t) => t.key)).toEqual(plan.nodes.map((n) => n.key));
+    expect(rows).toHaveLength(outcomeCounts(taskOutcomes(journal, plan)).total);
+    const w = rows.find((t) => t.key === 'write-a');
+    expect(w).toMatchObject({ outcome: 'waiting', tries: [], wall_s: 0, last_ts: '', last_stop: '' });
+    const r = rows.find((t) => t.key === 'review-z');
+    expect(r).toMatchObject({ outcome: 'not_started', cause: 'prepare-z', last_stop: 'invalid_input', tries: [] });
+  });
+
+  it('a loop pass per task: two tasks of one kind and unit are two rows', () => {
+    const at = (pass: number | null) => [{ function: 'f', file: 'f.py', line: 1, loops: [{ line: 3, pass }] }];
+    const p: Plan = {
+      nodes: [
+        { ...node('review-g', 'done'), flow: at(1) },
+        { ...node('fix-g', 'done', ['review-g']), flow: at(1) },
+        { ...node('review-g~2', 'pending', ['fix-g']), unit: 'g', flow: at(2) },
+        { ...node('late-g', 'pending', ['review-g~2', 'gone-g']), flow: [] },
+      ],
+      groups: [],
+    };
+    const j = [{ ...row('review-g', 'completed'), unit: 'g', wall_s: 2 }, { ...row('fix-g', 'completed'), wall_s: 1.5 }];
+    const rows = taskRows(j, p);
+    expect(rows.map((t) => [t.key, t.unit, t.pass, t.outcome])).toEqual([
+      ['review-g', 'g', 1, 'done'],
+      ['fix-g', 'g', 1, 'done'],
+      ['review-g~2', 'g', 2, 'waiting'],
+      ['late-g', 'g', null, 'waiting'],
+    ]);
+    expect(rows[0]?.wall_s).toBe(2);
+    expect(rows[2]?.waits_for).toEqual([]);
+    expect(rows[3]?.waits_for).toEqual(['review-g~2', 'gone-g']);
+    expect(outcomeCounts(taskOutcomes(j, p)).total).toBe(4);
+  });
+
+  it('loopPass: the innermost loop of the last frame in a loop; a pass not counted is the first', () => {
+    expect(loopPass(undefined)).toBeNull();
+    expect(loopPass({ flow: [] })).toBeNull();
+    expect(loopPass({ flow: [{ function: 'f', file: '', line: 1, loops: [{ line: 2, pass: 3 }] }, { function: 'g', file: '', line: 1, loops: [] }] })).toBe(3);
+    expect(loopPass({ flow: [{ function: 'f', file: '', line: 1, loops: [{ line: 2, pass: 2 }, { line: 5, pass: null }] }] })).toBe(1);
   });
 });

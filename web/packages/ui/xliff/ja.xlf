@@ -2162,6 +2162,14 @@
   <source><x id="0" equiv-text="${n.errors}"/> flow calls stopped with an error</source>
   <target>エラーで終了したフロー呼び出し <x id="0" equiv-text="${n.errors}"/> 件</target>
 </trans-unit>
+<trans-unit id="sd93128c9fde34bb6">
+  <source>waits for output of <x id="0" equiv-text="${kindUnit(first)}"/></source>
+  <target>依存先タスク <x id="0" equiv-text="${kindUnit(first)}"/> の出力待ち</target>
+</trans-unit>
+<trans-unit id="s92a32f8361a3a3b0">
+  <source>waits for output of <x id="0" equiv-text="${waits.length}"/> earlier tasks</source>
+  <target>依存先タスク <x id="0" equiv-text="${waits.length}"/> 件の出力待ち</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

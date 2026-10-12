@@ -137,6 +137,18 @@ def test_the_review_loop_converges_at_pass_2_and_the_report_joins_every_unit(tmp
     assert (rep.run_dir / "out/review/b~2.json").is_file() and (rep.run_dir / "out/review/b.json").is_file()
 
 
+def test_a_task_with_no_plugin_may_write_its_output_in_claude_code(tmp_path):
+    """Headless Claude Code denies a `Write` its settings do not allow: a task with no plugin
+    runs with the template's permissions (found against the real CLI: every such task ended
+    `invalid_output`, its file never written)."""
+    agent = stub()
+    rep = pipeline(tmp_path, agent).run(example.docs, units=["a"])
+    assert rep.ok
+    for launch in agent.launches:
+        settings = json.loads(launch.launch.settings or "{}")
+        assert {"Read", "Write", "Edit"} <= set(settings["permissions"]["allow"]), launch.key
+
+
 def test_two_runs_of_the_same_flow_record_the_same_structure_and_fingerprints(tmp_path):
     runs = [pipeline(tmp_path, stub({"b": 3})).run(example.docs, units=["a", "b"], run_id=f"r{i}") for i in (1, 2)]
     assert structure(runs[0]) == structure(runs[1])

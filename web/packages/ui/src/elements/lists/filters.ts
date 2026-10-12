@@ -1,21 +1,24 @@
 // The list filters and row facts, pure: what the tasks and journal tabs show
 // for a kind, a stop and a text.
-import { isBad, isLaunched, type JournalRow, type Outcome, type TaskRollup } from '@contraagent/api';
+import { isBad, isLaunched, type JournalRow, type Outcome, type TaskRow } from '@contraagent/api';
 
-/** Tasks of `kind` (all when ''), whose slot or last stop contains `q`. */
-export function filterTasks(tasks: readonly TaskRollup[], kind: string, q: string): TaskRollup[] {
+/** Tasks of `kind` (all when ''), whose kind, unit, key or last stop contains `q`. */
+export function filterTasks(tasks: readonly TaskRow[], kind: string, q: string): TaskRow[] {
   const needle = q.toLowerCase();
-  return tasks.filter((t) => (!kind || t.kind === kind) && (!needle || (t.slot + t.last_stop).toLowerCase().includes(needle)));
+  return tasks.filter(
+    (t) => (!kind || t.kind === kind) && (!needle || `${t.kind} ${t.unit} ${t.key} ${t.last_stop}`.toLowerCase().includes(needle)),
+  );
 }
 
-/** What happened to a task, from its rollup: the same outcome words every screen uses. */
-export function rollupOutcome(t: TaskRollup): Outcome {
-  if (t.running) return 'running';
-  if (!t.attempts) return 'waiting';
-  if (t.last_stop === 'skipped') return 'skipped';
-  if (t.last_stop === 'invalid_input') return 'not_started';
-  if (t.last_stop === 'completed') return t.ok < t.attempts ? 'recovered' : 'done';
-  return 'failed';
+/** Failed first, then not started, running and waiting; the rest after them. */
+const RANK: Partial<Record<Outcome, number>> = { failed: 0, not_started: 1, running: 2, waiting: 3 };
+
+/** The tasks list's order: by `RANK`, then the latest journal row first, then plan order. */
+export function sortTasks(tasks: readonly TaskRow[]): TaskRow[] {
+  return tasks
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => (RANK[a.t.outcome] ?? 9) - (RANK[b.t.outcome] ?? 9) || b.t.last_ts.localeCompare(a.t.last_ts) || a.i - b.i)
+    .map((x) => x.t);
 }
 
 const JOURNAL_TEXT = ['key', 'unit', 'stop', 'kind', 'route', 'reason'] as const;

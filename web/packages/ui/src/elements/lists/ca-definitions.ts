@@ -1,4 +1,4 @@
-import { isPython, type JournalRow, type MonitorClient, type TaskDefinition, type TaskRollup } from '@contraagent/api';
+import { isPython, taskOutcomes, type JournalRow, type MonitorClient, type Plan, type TaskDefinition, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -7,7 +7,6 @@ import { emit } from '../../events.js';
 import { facts } from '../../lib/format.js';
 import { factLine } from '../shared/fact-line.js';
 import { base } from '../../styles/base.js';
-import { rollupOutcome } from './filters.js';
 
 /** How long to wait before asking again for definitions that have not been recorded yet. */
 const REFETCH_MS = 3000;
@@ -41,12 +40,11 @@ export class CaDefinitions extends LitElement {
 
   @property({ attribute: false }) client!: MonitorClient;
   @property() run = '';
-  /** The run's task rollup: attempts per kind, and which kinds should have a definition. */
-  @property({ attribute: false }) tasks: TaskRollup[] = [];
   /** The run is live: definitions may still appear. */
   @property({ type: Boolean }) live = false;
-  /** The run's journal: which agents and models each kind ran on. Optional. */
+  /** The run's journal and plan: tasks and attempts per kind, and which kinds should have a definition. */
   @property({ attribute: false }) journal: JournalRow[] = [];
+  @property({ attribute: false }) plan: Plan | null = null;
   /** The selected kind (null: the first with a plugin, else the first). */
   @property({ attribute: false }) selected: string | null = null;
 
@@ -74,13 +72,18 @@ export class CaDefinitions extends LitElement {
 
   protected override updated(): void {
     // A definition appears when the first task of its kind launches: ask again while the run is live and one is missing.
-    const kinds = new Set(this.tasks.filter((t) => !isPython(t)).map((t) => t.kind)).size;
+    const kinds = new Set(this.tasks().filter((t) => !isPython(t) && (t.tries.length || t.outcome === 'running')).map((t) => t.kind)).size;
     if (this.live && this.defsRun === this.run && this.defs.length < kinds && !this.timer) {
       this.timer = setTimeout(() => {
         this.timer = null;
         void this.load();
       }, REFETCH_MS);
     }
+  }
+
+  /** Every task of the run: the plan joined with the journal. */
+  private tasks(): TaskOutcome[] {
+    return [...taskOutcomes(this.journal, this.plan ?? { nodes: [], groups: [] }).values()];
   }
 
   private clearTimer(): void {
@@ -103,8 +106,9 @@ export class CaDefinitions extends LitElement {
 
   override render() {
     const defs = this.defs;
-    // Python kinds record no definition: they are listed from the rollup so the list matches the tasks tab.
-    const pyKinds = [...new Set(this.tasks.filter((t) => isPython(t)).map((t) => t.kind))].filter((k) => !defs.some((d) => d.kind === k));
+    // Python kinds record no definition: they are listed from the tasks so the list matches the tasks tab.
+    const tasks = this.tasks();
+    const pyKinds = [...new Set(tasks.filter((t) => isPython(t)).map((t) => t.kind))].filter((k) => !defs.some((d) => d.kind === k));
     if (!defs.length && !pyKinds.length) {
       return html`<div class="blank"><span class="ic" aria-hidden="true">⌘</span><b>${this.live ? msg('No definitions yet') : msg('No definitions')}</b></div>`;
     }
@@ -112,10 +116,10 @@ export class CaDefinitions extends LitElement {
     const sel = pySel ? undefined : (defs.find((d) => d.kind === this.selected) ?? defs.find((d) => d.plugin) ?? defs[0]);
     const selKind = pySel ?? sel?.kind ?? pyKinds[0] ?? '';
     const counts = (k: string) => {
-      const ts = this.tasks.filter((t) => t.kind === k);
+      const ts = tasks.filter((t) => t.kind === k);
       const n = ts.length;
       // A task refused before it started has a journal row but no attempt.
-      const a = ts.filter((t) => !['not_started', 'skipped', 'waiting'].includes(rollupOutcome(t))).reduce((x, t) => x + t.attempts, 0);
+      const a = ts.reduce((x, t) => x + t.tries.length, 0);
       return facts(n === 1 ? msg('1 task') : msg(str`${n} tasks`), a === 1 ? msg('1 attempt') : msg(str`${a} attempts`));
     };
     return html`<div class="defs">

@@ -20,6 +20,7 @@ from contraagent.contracts import InputContract, OutputContract
 from contraagent.dispatch.task import Task
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.pipeline.graph import Node
+from contraagent.plugins.scaffold import DEFAULT_SETTINGS
 from contraagent.validators import CommandValidator
 
 
@@ -80,6 +81,13 @@ class SpecAdapter(TaskAdapter):
     def plugin_dirs(self, task: Task) -> tuple[str, ...]:
         plugin = self._node(task).spec.plugin
         return (str(plugin.root),) if plugin is not None else ()
+
+    def settings_path(self, task: Task) -> str | None:
+        """The plugin's `settings.json`; for a task with no plugin, the template's permissions
+        (`DEFAULT_SETTINGS`, as JSON text)."""
+        if self._node(task).spec.plugin is None:
+            return " ".join(DEFAULT_SETTINGS.split())
+        return super().settings_path(task)
 
     def context_files(self, task: Task, backend: Backend) -> tuple[str, ...]:
         """A coding agent with no named-agent flag (omp) gets the role's file attached;

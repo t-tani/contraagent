@@ -409,10 +409,11 @@ export class CaMonitor extends LitElement {
   private renderTabs(busy: number) {
     const { state } = this.snap;
     const { tries } = tryCounts(state.journal);
+    const tasks = outcomeCounts(taskOutcomes(state.journal, state.plan));
     const failed = state.journal.filter((r) => isLaunched(r) && isBad(r)).length;
     const badge = (id: Tab): [string | number, string] | null =>
       id === 'tasks'
-        ? [state.tasks.length || '', state.tasks.some((t) => t.running) ? 'live' : '']
+        ? [tasks.total || '', tasks.running ? 'live' : '']
         : id === 'journal'
           ? [tries || '', failed ? 'err' : '']
           : id === 'procs'
@@ -440,7 +441,9 @@ export class CaMonitor extends LitElement {
     const { route } = this;
     if (route.tab !== 'tasks' && route.tab !== 'journal') return nothing;
     const { state } = this.snap;
-    const kinds = [...new Set(state.tasks.map((t) => t.kind))].sort();
+    const outcomes = taskOutcomes(state.journal, state.plan);
+    const total = outcomeCounts(outcomes).total;
+    const kinds = [...new Set([...outcomes.values()].map((t) => t.kind))].sort();
     return html`<div class="bar">
       <select title=${msg('Kind')} aria-label=${msg('Kind')} @change=${(e: Event) => this.navigate({ kind: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!route.kind}>${msg('All kinds')}</option>
@@ -450,7 +453,7 @@ export class CaMonitor extends LitElement {
         @input=${(e: Event) => this.setQ((e.target as HTMLInputElement).value)} />
       <span class="meta">${route.tab === 'journal'
         ? this.triesLine()
-        : state.tasks.length === 1 ? msg('1 task') : msg(str`${state.tasks.length} tasks`)}</span>
+        : total === 1 ? msg('1 task') : msg(str`${total} tasks`)}</span>
     </div>`;
   }
 
@@ -467,13 +470,13 @@ export class CaMonitor extends LitElement {
       case 'overview':
         return html`<ca-overview .state=${state} .summary=${summary} .info=${snap.info} .run=${route.run} .layer=${route.layer} .unit=${route.unit}></ca-overview>`;
       case 'tasks':
-        return html`<ca-task-table .run=${route.run} .tasks=${state.tasks} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q}></ca-task-table>`;
+        return html`<ca-task-table .run=${route.run} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q} ?live=${live}></ca-task-table>`;
       case 'journal':
         return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}></ca-journal-table>`;
       case 'outputs':
         return html`<ca-contracts .run=${route.run} .outputs=${state.outputs} .journal=${state.journal} .plan=${state.plan}></ca-contracts>`;
       case 'definitions':
-        return html`<ca-definitions .client=${this.store.client} .run=${route.run} .tasks=${state.tasks} .journal=${state.journal} .live=${live}
+        return html`<ca-definitions .client=${this.store.client} .run=${route.run} .journal=${state.journal} .plan=${state.plan} .live=${live}
           .selected=${route.def}></ca-definitions>`;
       case 'procs':
         return html`<ca-procs-view .procs=${state.procs}></ca-procs-view>`;
