@@ -2,8 +2,10 @@
 // <script type="module" src=".../contraagent-ui.js"></script>. The npm entry
 // (`dist/index.js`, built by tsc) leaves Lit to the consumer's bundler.
 import { defineConfig } from 'vite';
+import { minifyCss } from '../../scripts/minify-css.mjs';
 
 export default defineConfig({
+  plugins: [minifyCss()],
   resolve: { conditions: ['source'] },
   build: {
     outDir: 'dist',
