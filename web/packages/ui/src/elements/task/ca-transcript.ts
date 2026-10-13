@@ -11,7 +11,7 @@ import { transcriptSections } from '../../adapters/transcript/sections.js';
 import { StreamController } from '../../controllers/stream.js';
 import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
 import { getLocale } from '../../core/i18n.js';
-import { SessionSet, recall, remember } from '../../core/memory.js';
+import { RememberedSet, SessionSet, memoryOf, pageMemory } from '../../core/memory.js';
 import { promptText } from '../shared/prompt-text.js';
 
 /** The transcript's words, in the reader's language (call at render time). */
@@ -111,13 +111,16 @@ export class CaTranscript extends LitElement {
     if (!changed.has('events') && source === this.feed.loaded) return;
     const { run, stream } = this;
     const id = `transcript:${run}/${stream ?? ''}`;
-    const open = new SessionSet(`${id}:open`);
+    // The page's monitor keeps the open cards for the browser tab and the position in the history entry;
+    // an embedded one (`history="memory"`) keeps both in its own memory.
+    const memory = memoryOf(this);
+    const open = memory === pageMemory ? new SessionSet(`${id}:open`) : new RememberedSet(`${id}:open`, this);
     const tailed = !this.events && !!stream;
     this.memory = {
       isOpen: (card) => open.has(card),
       setOpen: (card, on) => open.set(card, on),
-      scroll: () => (tailed ? recall(`${id}:scroll`) : undefined),
-      setScroll: (at) => tailed && remember(`${id}:scroll`, at),
+      scroll: () => (tailed ? memory.recall(`${id}:scroll`) : undefined),
+      setScroll: (at) => tailed && memory.remember(`${id}:scroll`, at),
     };
     this.shown = -1;
     this.feed.load(source, this.events ? { events: this.events } : source && stream ? { run, stream, baseUrl: this.baseUrl } : null);

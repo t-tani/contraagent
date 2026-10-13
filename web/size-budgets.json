@@ -25,8 +25,8 @@
     "@contraagent/elements/transcript": 15.5,
     "@contraagent/elements/transcript/define": 15.5,
     "@contraagent/ui": 106.7,
-    "@contraagent/ui/bundle": 132,
-    "src/contraagent/monitor/static/app.js": 120.3
+    "@contraagent/ui/bundle": 133,
+    "src/contraagent/monitor/static/app.js": 121.5
   },
   "files": ["src/contraagent/monitor/static/app.js"],
   "baseline": {

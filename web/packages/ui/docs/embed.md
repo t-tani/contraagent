@@ -42,10 +42,6 @@ sections and shortcuts. They share what is one per page:
 - Lit Localize's `lit-localize-status` event on `window`, which every element
   listens for to change its language.
 
-A transcript in the task detail remembers its scroll position and its
-open tool calls in the page's history entry and in `sessionStorage`, under keys
-that begin with `contraagent`.
-
 `e2e/embed.spec.ts` (in the repository's `web/`) checks this on a host page
 with its own title, text field and single-key shortcuts, and two monitors.
 
