@@ -20,11 +20,32 @@ from contraagent.hub.source import HeartbeatLiveness
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent.monitor import Monitor
 from contraagent.monitor.source import DirectorySource
+from hub_services import (
+    hub_services,  # noqa: F401  # the fixture that stops the containers
+    postgres_dsn,
+    s3_url,
+)
 
-STORES: dict[str, Callable[[Path], HubStore]] = {"memory": lambda tmp: MemoryHubStore()}
+pytestmark = pytest.mark.usefixtures("hub_services")
+
+
+def _postgres(tmp: Path) -> HubStore:
+    from contraagent.hub.postgres import PostgresHubStore
+
+    return PostgresHubStore(postgres_dsn())
+
+
+def _s3(tmp: Path) -> BlobStore:
+    from contraagent.hub.s3 import S3Blobs
+
+    return S3Blobs(s3_url())
+
+
+STORES: dict[str, Callable[[Path], HubStore]] = {"memory": lambda tmp: MemoryHubStore(), "postgres": _postgres}
 BLOBS: dict[str, Callable[[Path], BlobStore]] = {
     "memory": lambda tmp: MemoryBlobs(),
     "directory": lambda tmp: DirectoryBlobs(tmp / "blobs"),
+    "s3": _s3,
 }
 
 RUN = RunRef(host_id="h1", run_id="r1", run_uid="u1")
