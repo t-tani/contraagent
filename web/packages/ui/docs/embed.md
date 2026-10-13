@@ -54,8 +54,11 @@ monitor names that origin: `contraagent-monitor --cors-origin http://localhost:8
 
 ## In an application
 
-Import the package once; the elements register themselves. Give
-`<ca-monitor>` a box with a height: it fills it and scrolls inside it. In React
+Import the package once; the elements register themselves. When it connects,
+`<ca-monitor>` sets up the languages (`configureLocales()`) and adds the
+themes' rules to its document (`adoptThemes(this.ownerDocument)`); a page
+that shows other elements without a monitor calls them itself (`adoptThemes`
+is in `@contraagent/elements/themes`). Give `<ca-monitor>` a box with a height: it fills it and scrolls inside it. In React
 19, Vue, Svelte, Astro or plain HTML, `<ca-monitor>` is an ordinary element.
 Properties without an attribute take objects and arrays: set them from script
 (`el.rows = [...]`), or with a property binding in your framework (`.rows=${...}`

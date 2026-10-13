@@ -13,11 +13,23 @@ monitor follows the browser's languages, then falls back to English.
 your own page, set it for every element at once:
 
 ```ts
-import { setLocale, chooseLocale } from '@contraagent/ui';
+import { setLocale, chooseLocale } from '@contraagent/ui/localize';
 
 await setLocale('ja');     // this page only
 await chooseLocale('ja');  // and remember it, as the monitor's switch does
 ```
+
+## Setting up Lit Localize
+
+Importing the package does not configure Lit Localize. `configureLocales()`
+does, once per page; `<ca-monitor>` calls it when it connects, and `setLocale`
+calls it first if nothing has. Until then the elements speak English. A
+language's text is a module of its own, loaded the first time the language is
+chosen; `<ca-monitor>` draws its first view after it is loaded.
+
+Lit Localize can be configured only once per page. On a page whose own code
+configured it first, `configureLocales()` returns `false`: the elements stay
+in English and `<ca-monitor>` shows no language switch.
 
 What is translated is the monitor's own wording: labels, headings, tooltips and
 causes, and the words for a run's codes (a stop such as `completed` shows as
@@ -31,6 +43,6 @@ paths, failure reasons, and the transcripts.
 The English text is written in the sources, wrapped in `msg()`. Translations
 live in one XLIFF file per language (`xliff/<locale>.xlf`), and a typed module is
 generated from each. A new language is one more code in `targetLocales` of
-`lit-localize.json`, its name in `LOCALE_NAMES`, and its generated module:
+`lit-localize.json`, its name in `LOCALE_NAMES`, and a loader for its generated module:
 
-::code{file="../src/core/i18n.ts" from="/** Each locale's name" to="const STORE_KEY"}
+::code{file="../src/core/i18n.ts" from="/** Each locale's name" to="let localization"}

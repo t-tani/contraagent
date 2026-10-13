@@ -29,11 +29,12 @@ export default defineConfig({
     outDir: fileURLToPath(new URL('../../../src/contraagent/monitor/static', import.meta.url)),
     emptyOutDir: true,
     target: 'es2022',
-    // Flat, stable names: the server answers only `/<name>.<js|css>`.
+    // Flat, stable names: the server answers only `/<name>.<js|css>`. Two modules: app.js, and
+    // ja.js, the Japanese text, which app.js loads when a reader first chooses Japanese.
     assetsDir: '',
     modulePreload: false,
     rolldownOptions: {
-      output: { entryFileNames: 'app.js', chunkFileNames: '[name].js', assetFileNames: '[name][extname]', codeSplitting: false },
+      output: { entryFileNames: 'app.js', chunkFileNames: '[name].js', assetFileNames: '[name][extname]' },
     },
   },
 });

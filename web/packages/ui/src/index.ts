@@ -1,18 +1,16 @@
 // @contraagent/ui: the monitor's web components. Importing this module
-// registers every element; `ca-monitor` is the whole monitor. The generic parts
-// they are built from (styles, themes, primitives, `cae-*` elements) are
+// registers every element (define/all.ts); `ca-monitor` is the whole monitor.
+// One view alone is a subpath (`@contraagent/ui/transcript`, define/). Nothing
+// else happens at import: the page sets up the languages (`configureLocales`)
+// and the themes (`adoptThemes`, `@contraagent/elements/themes`), or
+// `<ca-monitor>` does when it connects. The generic parts the elements are
+// built from (styles, themes, primitives, `cae-*` elements) are
 // `@contraagent/elements`.
-import { adoptThemes } from '@contraagent/elements/themes';
+import './define/all.js';
 
-export * from './core/events.js';
-export * from './core/route.js';
-export { Router, type RouteCause, type RouterMode } from './core/router.js';
-export { LOCALE_NAMES, allLocales, chooseLocale, getLocale, preferredLocale, setLocale, type Locale } from './core/i18n.js';
+export * from './core/index.js';
 export * from './words/format.js';
 export * from './adapters/index.js';
-
-// `data-ca-theme` works anywhere in the page: the rules are in its document.
-if (typeof document !== 'undefined') adoptThemes(document);
 
 export * from './elements/shared/ca-definition.js';
 export * from './elements/shell/ca-monitor.js';

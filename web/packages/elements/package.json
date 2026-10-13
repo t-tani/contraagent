@@ -149,7 +149,7 @@
     "./src/define/*.ts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/**/*.ts' --exclude 'src/**/*.test.ts'",
+    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/*/{segmented,data-table,layered-graph,mark-matrix,stat-tiles,lanes,check-table,transcript,json-tree,cae-markdown,count,elapsed}.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs"
   },
   "peerDependencies": {

@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - consumer
 # Supply-chain guard: only resolve versions published at least 14 days ago.
 minimumReleaseAge: 20160
 # Install scripts run only for packages listed true here.

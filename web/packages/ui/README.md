@@ -24,13 +24,33 @@ the monitor with `--cors-origin` naming your page's origin.
 <ca-monitor base-url="http://127.0.0.1:8787" history="memory"></ca-monitor>
 ```
 
-From npm, import the package once; the elements register themselves.
-`@contraagent/ui/bundle` is a self-contained module (Lit included) for pages
-without a build step.
+From npm, import the package once: every element registers itself. Lit and
+Lit Localize are peer dependencies. Importing changes nothing else in the page:
+call `configureLocales()` for the languages and `adoptThemes(document)` for the
+themes, or let `<ca-monitor>` call both when it connects.
 
 ```ts
 import '@contraagent/ui';
+import { configureLocales } from '@contraagent/ui/localize';
+import { adoptThemes } from '@contraagent/elements/themes';
+
+configureLocales();
+adoptThemes(document);
 ```
+
+One view alone is a subpath; it registers its `ca-*` elements and the `cae-*`
+elements they render, and nothing of the other views:
+
+```ts
+import '@contraagent/ui/transcript'; // <ca-transcript>
+```
+
+The views are `monitor`, `overview`, `pipeline-graph`, `task-view`,
+`transcript`, `task-table`, `journal-table`, `contracts`, `definitions`,
+`kpis`, `timeline` and `procs`. `adapters`, `words`, `core` and `localize`
+hold functions and register nothing. `@contraagent/ui/bundle` is one
+self-contained, minified module (Lit and the translations included) for pages
+without a build step.
 
 ## Documentation
 

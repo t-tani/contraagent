@@ -1,0 +1,14 @@
+{
+  "name": "@contraagent/consumer-test",
+  "private": true,
+  "type": "module",
+  "description": "A page that imports one generic component (@contraagent/elements/graph/define) from the built packages, as an npm consumer would; consumer.test.mjs checks it in `pnpm check:dist`",
+  "dependencies": {
+    "@contraagent/elements": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.14.5",
+    "vite": "^8.3.1"
+  }
+}

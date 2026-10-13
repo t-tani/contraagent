@@ -3,9 +3,10 @@
 The elements take their colours, fonts, type scale and corners from the
 `--ca-*` custom properties and the built-in themes of `@contraagent/elements`:
 [its theming page](../../elements/docs/theming.md) lists them, what each colour
-means, and how to build a theme of your own. Importing `@contraagent/ui` adds
-the themes' rules to the page's document, so `data-ca-theme` on any ancestor
-picks a theme.
+means, and how to build a theme of your own. `adoptThemes(document)` adds the
+themes' rules to the page's document, so `data-ca-theme` on any ancestor picks
+a theme; `<ca-monitor>` calls it when it connects, and importing the package
+does not.
 
 ## The monitor's theme
 

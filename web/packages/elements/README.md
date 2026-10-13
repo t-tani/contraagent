@@ -9,9 +9,12 @@ event. `@contraagent/ui` builds the contraagent monitor from them.
 
 ## Getting it
 
-Lit is a peer dependency. Importing a module registers nothing; a `define`
-entry registers its elements under their `cae-*` tags, or you register a class
-under a tag name of your own.
+Lit is a peer dependency. Importing a module registers nothing and changes no
+page; a `define` entry registers its elements under their `cae-*` tags (and
+the `cae-*` elements they render), or you register a class under a tag name of
+your own. An element speaks English unless the page gives its words in its
+`strings` property ([Strings](docs/strings.md)), and takes its colours from the
+themes once `adoptThemes(document)` has added their rules ([Theming](docs/theming.md)).
 
 ```ts
 import '@contraagent/elements/segmented/define'; // <cae-segmented>

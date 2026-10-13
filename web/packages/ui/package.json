@@ -10,6 +10,86 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./monitor": {
+      "source": "./src/define/monitor.ts",
+      "types": "./dist/define/monitor.d.ts",
+      "default": "./dist/define/monitor.js"
+    },
+    "./overview": {
+      "source": "./src/define/overview.ts",
+      "types": "./dist/define/overview.d.ts",
+      "default": "./dist/define/overview.js"
+    },
+    "./pipeline-graph": {
+      "source": "./src/define/pipeline-graph.ts",
+      "types": "./dist/define/pipeline-graph.d.ts",
+      "default": "./dist/define/pipeline-graph.js"
+    },
+    "./task-view": {
+      "source": "./src/define/task-view.ts",
+      "types": "./dist/define/task-view.d.ts",
+      "default": "./dist/define/task-view.js"
+    },
+    "./transcript": {
+      "source": "./src/define/transcript.ts",
+      "types": "./dist/define/transcript.d.ts",
+      "default": "./dist/define/transcript.js"
+    },
+    "./task-table": {
+      "source": "./src/define/task-table.ts",
+      "types": "./dist/define/task-table.d.ts",
+      "default": "./dist/define/task-table.js"
+    },
+    "./journal-table": {
+      "source": "./src/define/journal-table.ts",
+      "types": "./dist/define/journal-table.d.ts",
+      "default": "./dist/define/journal-table.js"
+    },
+    "./contracts": {
+      "source": "./src/define/contracts.ts",
+      "types": "./dist/define/contracts.d.ts",
+      "default": "./dist/define/contracts.js"
+    },
+    "./definitions": {
+      "source": "./src/define/definitions.ts",
+      "types": "./dist/define/definitions.d.ts",
+      "default": "./dist/define/definitions.js"
+    },
+    "./kpis": {
+      "source": "./src/define/kpis.ts",
+      "types": "./dist/define/kpis.d.ts",
+      "default": "./dist/define/kpis.js"
+    },
+    "./timeline": {
+      "source": "./src/define/timeline.ts",
+      "types": "./dist/define/timeline.d.ts",
+      "default": "./dist/define/timeline.js"
+    },
+    "./procs": {
+      "source": "./src/define/procs.ts",
+      "types": "./dist/define/procs.d.ts",
+      "default": "./dist/define/procs.js"
+    },
+    "./adapters": {
+      "source": "./src/adapters/index.ts",
+      "types": "./dist/adapters/index.d.ts",
+      "default": "./dist/adapters/index.js"
+    },
+    "./words": {
+      "source": "./src/words/index.ts",
+      "types": "./dist/words/index.d.ts",
+      "default": "./dist/words/index.js"
+    },
+    "./core": {
+      "source": "./src/core/index.ts",
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./localize": {
+      "source": "./src/core/i18n.ts",
+      "types": "./dist/core/i18n.d.ts",
+      "default": "./dist/core/i18n.js"
+    },
     "./bundle": "./dist/contraagent-ui.js",
     "./custom-elements.json": "./custom-elements.json"
   },
@@ -22,8 +102,10 @@
   ],
   "sideEffects": [
     "./dist/index.js",
+    "./dist/define/*.js",
     "./dist/elements/**",
     "./src/index.ts",
+    "./src/define/*.ts",
     "./src/elements/**"
   ],
   "scripts": {
