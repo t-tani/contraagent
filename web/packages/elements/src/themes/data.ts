@@ -3,11 +3,13 @@
 // import), so a page, a build script and the documentation site can read them
 // too (`@contraagent/elements/themes`).
 //
-// Two layers of custom properties reach an element:
-//   1. `data-ca-theme="<name>"` on any ancestor sets `--ca-theme-*` (the rules below);
-//   2. a `--ca-*` property set on any ancestor overrides its token, whatever the theme.
-// With neither, an element shows the contraagent theme (the fallbacks in
-// `tokenStyles`, styles/tokens.ts).
+// A theme is a value for each `--ca-*` property (TOKENS, tokens-list.ts) that
+// has no `derive`: `data-ca-theme="<name>"` on an element sets them there (the
+// rules below), so that element, everything inside it (the page's own CSS too)
+// and every element's shadow root read the same properties. A `--ca-*` property
+// set on that element or inside it wins over the theme. With neither, an element
+// shows the contraagent theme (the fallbacks in `tokenStyles`, styles/tokens.ts).
+import { TOKENS } from './tokens-list.js';
 
 /**
  * The built-in themes, in the order of the monitor's theme control. Each is a
@@ -363,17 +365,20 @@ export const THEMES: Record<ThemeName, Theme> = {
   },
 };
 
-/** The property a theme sets for a token (the layer under `--ca-*`). */
-export const themeProp = (token: string): string => `--ca-theme-${token}`;
+const propOf: Readonly<Record<string, string>> = Object.fromEntries(TOKENS.map((t) => [t.name, t.prop]));
+
+/** A theme's selector on a page: `:where()` gives it no specificity, so any rule of the page that sets a `--ca-*` property wins. */
+export const pageThemeSelector = (name: ThemeName): string => `:where([data-ca-theme="${name}"])`;
 
 /**
- * The rules that apply each theme, for a selector per theme name: for a page,
- * `n => `[data-ca-theme="${n}"]``; inside a shadow root, `n => `:host([data-ca-theme="${n}"])``.
+ * The rules that apply each theme: each sets `color-scheme`, `--ca-color-scheme`
+ * and the theme's `--ca-*` properties. The selector per theme name is
+ * `pageThemeSelector` unless given; inside a shadow root, `n => `:host([data-ca-theme="${n}"])``.
  */
-export function themeRules(selector: (name: ThemeName) => string): string {
+export function themeRules(selector: (name: ThemeName) => string = pageThemeSelector): string {
   return THEME_NAMES.map((n) => {
     const t = THEMES[n];
-    const decls = Object.entries(t.tokens).map(([k, v]) => `${themeProp(k)}: ${v};`);
-    return `${selector(n)} { color-scheme: ${t.scheme}; ${themeProp('color-scheme')}: ${t.scheme}; ${decls.join(' ')} }`;
+    const decls = Object.entries(t.tokens).map(([k, v]) => `${propOf[k]}: ${v};`);
+    return `${selector(n)} { color-scheme: ${t.scheme}; --ca-color-scheme: ${t.scheme}; ${decls.join(' ')} }`;
   }).join('\n');
 }

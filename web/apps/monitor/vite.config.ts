@@ -14,7 +14,7 @@ const theme = (): Plugin => ({
   name: 'contraagent-theme',
   transformIndexHtml: () => [
     { tag: 'script', children: themeBootScript, injectTo: 'head-prepend' },
-    { tag: 'style', children: themeRules((n) => `[data-ca-theme="${n}"]`), injectTo: 'head' },
+    { tag: 'style', children: themeRules(), injectTo: 'head' },
   ],
 });
 

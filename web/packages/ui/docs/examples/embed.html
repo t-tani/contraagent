@@ -21,11 +21,12 @@
       .pane { height: 70vh; border: 1px solid #93a1a1; border-radius: 8px; overflow: hidden; margin: 16px; }
     </style>
   </head>
-  <body class="solarized-light">
+  <body>
     <h1 style="margin: 16px">Our release pipeline</h1>
-    <!-- `memory`: the monitor keeps its route to itself and leaves this page's URL alone. -->
+    <!-- `memory`: the monitor keeps its route to itself and leaves this page's URL alone.
+         The class sets a theme of your own on the monitor itself, which carries `data-ca-theme`. -->
     <div class="pane">
-      <ca-monitor base-url="http://127.0.0.1:8787" history="memory"></ca-monitor>
+      <ca-monitor class="solarized-light" base-url="http://127.0.0.1:8787" history="memory"></ca-monitor>
     </div>
   </body>
 </html>

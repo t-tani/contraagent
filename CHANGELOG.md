@@ -441,6 +441,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
+  `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
+  `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when
+  it is set on that element or inside it; an embedded `<ca-monitor>` carries
+  `data-ca-theme`, so a theme of your own goes on it. `themeRules()` takes the page's
+  selector by default (`pageThemeSelector`, no specificity); `themeProp` is removed.
 - `ca-json-tree`, `ca-markdown`, `ca-count` and `ca-elapsed` are
   `cae-json-tree`, `cae-markdown`, `cae-count` and `cae-elapsed` in
   `@contraagent/elements`. `@contraagent/ui` no longer exports the styles,
