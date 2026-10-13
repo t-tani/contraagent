@@ -14,3 +14,4 @@ demo-runs/
 demo-out/
 inputs/
 live-demo/
+.claude/worktrees/
