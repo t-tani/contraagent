@@ -24,12 +24,13 @@ services:
       - --segments=s3://contraagent/segments?endpoint=http://minio:9000&region=us-east-1
       - --ingest-token-file=/run/secrets/ingest-tokens
       - --read-token-file=/run/secrets/read-token
+      # Unset: 30 days; set but empty: every run is kept.
+      - --retain-days=${CONTRAAGENT_RETENTION_DAYS-30}
     environment:
       # libpq and boto3 read these, so no password is on the hub's command line.
       PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (make-tokens writes it)}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env (make-tokens writes it)}
-      CONTRAAGENT_RETENTION_DAYS: ${CONTRAAGENT_RETENTION_DAYS:-30}
     secrets:
       - ingest-tokens
       - read-token

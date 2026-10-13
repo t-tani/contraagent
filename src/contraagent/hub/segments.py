@@ -1066,11 +1066,13 @@ def _ticker(ref: weakref.ref[SegmentedStreamLogs], stop: threading.Event, every:
         del logs
 
 
-def from_spec(hot_dir: str | os.PathLike[str], objects_url: str | None, index_dsn: str | None, **kwargs) -> SegmentedStreamLogs:
+def from_spec(
+    hot_dir: str | os.PathLike[str], objects_url: str | None, index_dsn: str | None, *, sweep: bool = True, **kwargs
+) -> SegmentedStreamLogs:
     """`SegmentedStreamLogs` over `hot_dir`, the objects at `objects_url` (`open_objects`) and
     the index at `index_dsn` (a Postgres DSN, or None or `memory:` for a `MemorySegmentIndex`
-    rebuilt from the objects), its orphan objects swept. Keyword arguments pass through to
-    `SegmentedStreamLogs`."""
+    rebuilt from the objects), its orphan objects swept unless `sweep` is false. Keyword
+    arguments pass through to `SegmentedStreamLogs`."""
     objects = open_objects(objects_url)
     index: SegmentIndex
     if index_dsn in (None, "memory:"):
@@ -1079,5 +1081,6 @@ def from_spec(hot_dir: str | os.PathLike[str], objects_url: str | None, index_ds
     else:
         index = PostgresSegmentIndex(str(index_dsn))
     logs = SegmentedStreamLogs(hot_dir, objects, index, **kwargs)
-    logs.sweep()
+    if sweep:
+        logs.sweep()
     return logs
