@@ -6,7 +6,8 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight } from '../../lib/highlight.js';
 import { instructionsHtml, markInstructions, mdFile } from '../../lib/markdown.js';
 import { RememberedSet } from '../../core/memory.js';
-import { base, prose } from '../../styles/base.js';
+import { base, factStyles, prose } from '../../styles/index.js';
+import { contractChipStyles } from './contract-parts.js';
 
 const OPEN_FIRST = new Set(['instructions', 'schema', 'agent']);
 
@@ -33,6 +34,8 @@ export class CaDefinition extends LitElement {
   static override styles = [
     base,
     prose,
+    factStyles,
+    contractChipStyles,
     css`
       :host { display: block; }
       .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }

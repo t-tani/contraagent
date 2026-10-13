@@ -152,8 +152,8 @@ holds the store and the router.
 | Where | Imports only |
 |---|---|
 | `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
-| `ui`: `core/` (route, router, events, i18n, memory, scroll, clock) | `@contraagent/api`, `lit`, `@lit/localize`, `styles/` and each other; never `words/`, `lib/` or `elements/` |
-| `ui`: `words/` (the words the UI shows), `lib/`, `styles/` | the above and each other; never `elements/` |
+| `ui`: `core/` (route, router, events, i18n, memory, scroll, clock) | `@contraagent/api`, `lit`, `@lit/localize`, `styles/`, `themes/` and each other; never `words/`, `lib/` or `elements/` |
+| `ui`: `words/` (the words the UI shows), `lib/`, `styles/`, `themes/` | the above and each other; never `elements/` |
 | `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
 | `apps/*` | the packages, through the subpaths in their `exports` |
 

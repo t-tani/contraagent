@@ -4,7 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TONES } from '../lib/tone.js';
-import { base } from './base.js';
+import { base } from './index.js';
 
 // Vitest runs from web/.
 const UI = join(process.cwd(), 'packages/ui/src');
@@ -23,7 +23,7 @@ const CLASS_STATUS = /\.(?:o|p|j|t|mk)-[a-z_]+\b|\.ct-chip\.[a-z_]+/;
 const MARKUP_STATUS = /class="[^"]*\b(?:o|p|j|t|mk)-(?:\$\{|[a-z_]+)/;
 
 describe('status styles', () => {
-  const text = base.cssText;
+  const text = base.map((s) => s.cssText).join('\n');
 
   it('have no class per status', () => {
     expect(text).not.toMatch(CLASS_STATUS);

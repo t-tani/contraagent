@@ -7,7 +7,7 @@ import { localTime } from '../../words/format.js';
 import { credentialLabel } from '../../words/index.js';
 import { pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
 import { statusPill } from '../../lib/status.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 
 type Window = 'five_hour' | 'seven_day';
 

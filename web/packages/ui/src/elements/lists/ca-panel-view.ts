@@ -2,7 +2,7 @@ import type { JsonObject, PanelInfo } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import '../shared/ca-json-tree.js';
 
 /** A view the pipeline added (`monitor.Panel`): its body as a JSON tree, updating live. */

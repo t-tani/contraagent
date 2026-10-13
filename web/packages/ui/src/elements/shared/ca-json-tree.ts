@@ -1,7 +1,7 @@
 import { localized } from '@lit/localize';
 import { LitElement, html, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { base, prose } from '../../styles/base.js';
+import { base, prose } from '../../styles/index.js';
 
 const isLeaf = (x: unknown): boolean =>
   x === null || typeof x !== 'object' || (Array.isArray(x) ? !x.length : !Object.keys(x).length);

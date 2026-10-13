@@ -11,7 +11,7 @@
 //
 //   inside @contraagent/ui  a folder imports only from the folders before it
 //   core/                   never words/, lib/ or elements/
-//   words/, lib/, styles/   never elements/
+//   words/, lib/, styles/, themes/   never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
 //
@@ -127,8 +127,8 @@ describe('@contraagent/ui folders', () => {
     expect(imports.length).toBeGreaterThan(100);
   });
 
-  it('core/, words/, lib/ and styles/ never import elements/', () => {
-    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|styles)\//.test(f);
+  it('core/, words/, lib/, styles/ and themes/ never import elements/', () => {
+    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|styles|themes)\//.test(f);
     const bad = imports.filter((i) => lower(i.file) && target(i).startsWith(`${UI}/elements/`));
     expect(bad.map(where)).toEqual([]);
   });

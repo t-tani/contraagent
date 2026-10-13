@@ -253,6 +253,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   New properties: `--ca-backdrop`, `--ca-shadow`, `--ca-focus`,
   `--ca-focus-width`, `--ca-selection`, `--ca-tint`, `--ca-color-scheme`. The
   example of a theme of one's own is Solarized Light.
+- A type and radius scale for the elements: `--ca-font-size-xs`, `-sm`, `-md`,
+  `-lg`, `-xl`, `-2xl` (10, 11, 12, 13, 15 and 28 px) and `--ca-radius-sm`,
+  `-md`, `-lg`, `-pill` (4, 8, 12 and 999 px), the same in every theme. The
+  shared stylesheets read them; `@contraagent/ui` exports each shared sheet
+  (`resetStyles`, `textStyles`, `statusStyles`, `chipStyles`, `layoutStyles`,
+  `motionStyles`, `meterStyles`, `legendStyles`, `executorIconStyles`,
+  `factStyles`), and `base` is the list every element starts from.
 
 ### Fixed
 
@@ -262,6 +269,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   One rule set draws every status: a status element carries `data-tone`
   (and `data-mark` for ✓ ✕ ◌) in place of a class per stop, outcome or
   contract status (`.o-*`, `.p-*`, `.j-*`, `.t-*`, `.mk-*`, `.ct-chip.<status>`).
+  The notices, the run's result, a task's summary line, a round's verdict in
+  the transcript and the stage chips take `data-tone` too; the dot beside a
+  transcript's live round is in the running colour again.
 - Task counts agree everywhere: done counts tasks done and done after retrying;
   skipped tasks are counted on their own. The pipeline graph's nodes, the
   overview's progress line and the run's result counted skipped tasks as done;

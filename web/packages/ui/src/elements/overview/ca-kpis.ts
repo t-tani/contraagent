@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
 import { factList, facts, fmtDur, kindUnit, tokenCount, usd } from '../../words/format.js';
 import { stateCount } from '../../words/index.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import '../shared/ca-count.js';
 import { factLine } from '../shared/fact-line.js';
 import { markOf } from '../../lib/status.js';

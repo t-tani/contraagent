@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 
 /** The notice's status (its mark and the colour of its edge); `agent` is a model switch, which is not a status. */
 export type ToastKind = 'done' | 'failed' | 'attention' | 'running' | 'agent';
@@ -33,12 +33,8 @@ export class CaToasts extends LitElement {
       b { display: block; font-size: 12.5px; }
       span.sub { font-size: 11.5px; color: var(--text-muted); }
       .ti { color: var(--text-muted); }
-      .done .ti { color: var(--status-done); }
-      .failed { border-color: color-mix(in srgb, var(--status-failed) 50%, var(--line2)); }
-      .failed .ti { color: var(--status-failed); }
-      .attention { border-color: color-mix(in srgb, var(--status-attention) 50%, var(--line2)); }
-      .attention .ti { color: var(--status-attention); }
-      .running .ti { color: var(--status-running); }
+      .toast[data-tone] .ti { color: var(--tone); }
+      .toast[data-tone='failed'], .toast[data-tone='attention'] { border-color: color-mix(in srgb, var(--tone) 50%, var(--line2)); }
       .agent .ti { color: var(--agent); }
     `,
   ];
@@ -60,7 +56,7 @@ export class CaToasts extends LitElement {
       ${repeat(
         this.toasts,
         (t) => t.id,
-        (t) => html`<div class="toast ${t.kind} ${t.out ? 'out' : ''}">
+        (t) => html`<div class="toast ${t.kind === 'agent' ? 'agent' : ''} ${t.out ? 'out' : ''}" data-tone=${t.kind === 'agent' ? nothing : t.kind}>
           <span class="ti" aria-hidden="true">${ICON[t.kind]}</span>
           <div><b>${t.title}</b>${t.sub ? html`<span class="sub">${t.sub}</span>` : nothing}</div>
         </div>`,

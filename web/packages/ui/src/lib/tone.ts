@@ -3,7 +3,7 @@
 // problem takes the problem's colour only when it is above 0, and a whole is
 // never coloured by its worst part (a run's dot is the exception: it is the
 // run's own status). An element shows its tone as `data-tone` (no attribute
-// for ''); the rules are in `styles/base.ts`.
+// for ''); the rules are in `styles/status.ts`.
 import type { ContractStatus, Outcome, Stop } from '@contraagent/api';
 
 /** A status colour, or '' for the neutral text colour. */

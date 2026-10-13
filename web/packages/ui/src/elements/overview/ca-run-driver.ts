@@ -1,11 +1,11 @@
 import { elapsedS, result, type Plan, type Procs, type RunSummary } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
-import { LitElement, css, html } from 'lit';
+import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { starts } from '../../core/clock.js';
 import { facts, fmtDur, localTime } from '../../words/format.js';
 import { type Tone } from '../../lib/tone.js';
-import { base } from '../../styles/base.js';
+import { base, factStyles } from '../../styles/index.js';
 import '../shared/ca-elapsed.js';
 
 /** The mark of how a run ended (■ for a run with no tasks). */
@@ -21,6 +21,7 @@ const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓
 export class CaRunDriver extends LitElement {
   static override styles = [
     base,
+    factStyles,
     css`
       :host { display: block; }
       .drv { display: flex; gap: 14px; align-items: flex-start; }
@@ -28,16 +29,13 @@ export class CaRunDriver extends LitElement {
         background: var(--raise); color: var(--text-muted); }
       .drv.on .drv-ic { background: var(--status-running-bg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-running) 35%, transparent), 0 0 22px var(--status-running-bg); }
       /* how a run ended: the mark's shape and the title's words carry it; the colour only where a status applies */
-      .drv-ic.failed { background: var(--status-failed-bg); color: var(--status-failed); font-weight: 700; }
-      .drv-ic.attention { background: var(--status-attention-bg); color: var(--status-attention); font-weight: 700; }
-      .drv-ic.done { color: var(--status-done); font-weight: 700; }
+      .drv-ic[data-tone] { color: var(--tone); font-weight: 700; }
+      .drv-ic[data-tone='failed'], .drv-ic[data-tone='attention'] { background: var(--tone-bg); }
       .drv.on .drv-ic .spin { width: 18px; height: 18px; }
       .drv-t { font-size: 15px; font-weight: 600; }
       .drv-up { font-family: var(--mono); font-size: 12px; color: var(--status-running); margin-left: 6px; font-weight: 400; }
       .drv-cmd { margin-top: 8px; }
       .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
-      .failed { color: var(--status-failed); }
-      .attention { color: var(--status-attention); }
       .drv-cmd code { display: block; margin-top: 4px; white-space: pre-wrap; word-break: break-all; color: var(--text-2); max-height: 120px; overflow: auto; }
     `,
   ];
@@ -66,9 +64,9 @@ export class CaRunDriver extends LitElement {
       const [title, tone] = this.stateTitle();
       const took = elapsedS(r);
       return html`<div class="drv off">
-        <div class="drv-ic ${tone}" aria-hidden="true">${MARK[tone]}</div>
+        <div class="drv-ic" data-tone=${tone || nothing} aria-hidden="true">${MARK[tone]}</div>
         <div>
-          <div class="drv-t ${tone === 'done' ? '' : tone}">${title}</div>
+          <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : tone || nothing}>${title}</div>
           <div class="meta">${facts(
             r?.last_ts ? msg(str`Ended ${localTime(r.last_ts, true)}`) : msg('No activity'),
             took == null ? '' : msg(str`Took ${fmtDur(took)}`),

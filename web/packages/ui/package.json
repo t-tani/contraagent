@@ -11,9 +11,9 @@
       "default": "./dist/index.js"
     },
     "./themes": {
-      "source": "./src/styles/themes.ts",
-      "types": "./dist/styles/themes.d.ts",
-      "default": "./dist/styles/themes.js"
+      "source": "./src/themes/index.ts",
+      "types": "./dist/themes/index.d.ts",
+      "default": "./dist/themes/index.js"
     },
     "./bundle": "./dist/contraagent-ui.js",
     "./custom-elements.json": "./custom-elements.json"

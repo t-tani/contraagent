@@ -6,7 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { starts } from '../../core/clock.js';
 import { facts, kindUnit } from '../../words/format.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import '../shared/ca-elapsed.js';
 import './ca-proc-tree.js';
 

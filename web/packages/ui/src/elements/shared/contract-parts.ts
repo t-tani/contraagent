@@ -236,7 +236,18 @@ export function ioFileCard(
   </div>`;
 }
 
+/** A chip that names a checked file's status (`statusChip`), or a neutral label in its shape. */
+export const contractChipStyles = css`
+  .ct-chip { display: inline-block; padding: 1px 10px; border-radius: var(--radius-pill); font-size: 11.5px; background: var(--raise); color: var(--text-2); white-space: nowrap; }
+  .ct-chip b { margin-left: 4px; }
+  /* a checked file's status: tinted by its tone, passed quiet with its ✓ in an outline */
+  .ct-chip[data-tone] { background: var(--tone-bg); color: var(--tone); }
+  .ct-chip[data-tone='done'] { background: none; box-shadow: inset 0 0 0 1px var(--line2); color: var(--text-2); }
+`;
+
 export const contractStyles = css`
+  ${contractChipStyles}
+  .ct-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ct-lead { margin: 2px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
   .conds { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 2px 0 10px; font-size: 12px; }
   .conds dt { color: var(--text-muted); }
