@@ -1,10 +1,10 @@
 import {
+  deriveRun,
   isPython,
   isRunLive,
   liveActivities,
-  outcomeCounts,
-  problems,
-  taskOutcomes,
+  progress,
+  result,
   type ContractRecord,
   type ContractSpec,
   type Info,
@@ -33,7 +33,6 @@ import './ca-pipeline-graph.js';
 import './ca-run-driver.js';
 import './ca-timeline.js';
 import './ca-workers.js';
-import { progress, result, tryCounts } from './logic.js';
 
 /** Failed outputs listed on the overview; the rest are behind a link to the outputs tab. */
 const OUTPUTS_SHOWN = 5;
@@ -183,7 +182,7 @@ export class CaOverview extends LitElement {
       <section class="panel c12 enter">
         <h3>${msg('Timeline')}
           <span class="r">${this.triesLine()}</span></h3>
-        <ca-timeline .journal=${s.journal} .procs=${s.procs} .live=${live} .run=${this.run}></ca-timeline>
+        <ca-timeline .journal=${s.journal} .plan=${s.plan} .procs=${s.procs} .live=${live} .run=${this.run}></ca-timeline>
       </section>
     </div>`;
   }
@@ -232,14 +231,19 @@ export class CaOverview extends LitElement {
     const r = result(plan);
     if (live || r.left) {
       const p = progress(plan);
-      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`));
+      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`), p.skipped ? stateCount('skipped', p.skipped) : '');
     }
-    return facts(stateCount('done', r.done), r.failed ? stateCount('failed', r.failed) : '', r.notStarted ? stateCount('not_started', r.notStarted) : '');
+    return facts(
+      stateCount('done', r.done),
+      r.skipped ? stateCount('skipped', r.skipped) : '',
+      r.failed ? stateCount('failed', r.failed) : '',
+      r.notStarted ? stateCount('not_started', r.notStarted) : '',
+    );
   }
 
   /** "23 attempts | 4 not started": a task that never started has no attempt. */
   private triesLine(): string {
-    const { tries, notStarted } = tryCounts(this.state.journal);
+    const { tries, notStarted } = deriveRun(this.state.journal, this.state.plan).tries;
     return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
   }
 
@@ -302,9 +306,8 @@ export class CaOverview extends LitElement {
   }
 
   private problems(live: boolean) {
-    const outcomes = taskOutcomes(this.state.journal, this.state.plan);
-    const { failed, notStarted } = problems(outcomes);
-    const recovered = [...outcomes.values()].filter((t) => t.outcome === 'recovered');
+    const { outcomes, problems } = deriveRun(this.state.journal, this.state.plan);
+    const { failed, notStarted, recovered } = problems;
     if (!failed.length && !notStarted.length && !recovered.length) {
       return html`<div class="blank" style="padding:22px"><span class="ic" aria-hidden="true">✓</span>${msg('No problems')}</div>`;
     }
@@ -360,8 +363,8 @@ export class CaOverview extends LitElement {
   /** For a finished run with problems: how many tasks are not done (the tasks resume=True runs again). */
   private nextStep(live: boolean, problemCount: number) {
     if (live || !problemCount) return nothing;
-    const c = outcomeCounts(taskOutcomes(this.state.journal, this.state.plan));
-    const again = c.total - c.done - c.recovered - c.skipped;
+    const c = deriveRun(this.state.journal, this.state.plan).counts;
+    const again = c.total - c.finished;
     if (!again) return nothing;
     return html`<div class="next" title="resume=True">${msg(str`${again} of ${c.total} tasks not done`)}</div>`;
   }

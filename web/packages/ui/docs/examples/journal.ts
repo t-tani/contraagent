@@ -11,6 +11,7 @@ export function showJournal(host: HTMLElement, run: string, openTask: (key: stri
   // Every change: the newest state, already typed (`RunState`).
   const unsubscribe = store.subscribe((s) => {
     table.rows = s.state.journal;
+    table.plan = s.state.plan;
     table.fresh = s.fresh;
   });
   // Rows that arrive after the replay: tasks that just finished.

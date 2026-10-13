@@ -1,40 +1,7 @@
-// The overview's arithmetic, apart from its templates: progress, the pipeline
-// graph by layer, the KPI counts and the timeline layout. Pure.
-import { isLaunched, isPython, type JournalRow, type Plan, type PlanGroup, type PlanNode, type RunSummary, type TaskState } from '@contraagent/api';
+// The overview's arithmetic, apart from its templates: the pipeline graph by
+// layer, the KPI counts and the timeline layout. Pure.
+import { isLaunched, isPython, type JournalRow, type Plan, type PlanGroup, type PlanNode, type TaskState } from '@contraagent/api';
 import type { FlowCallNode, FlowFrame, FlowLoop } from './flow-types.js';
-
-// --- progress by kind ---------------------------------------------------------
-
-export interface Progress {
-  total: number;
-  done: number;
-  pct: number;
-}
-
-export function progress(plan: Plan): Progress {
-  const total = plan.groups.reduce((a, g) => a + g.total, 0);
-  const done = plan.groups.reduce((a, g) => a + g.done + g.skipped, 0);
-  return { total, done, pct: Math.round((100 * done) / Math.max(1, total)) };
-}
-
-/** Tries (journal rows that ran) and rows of tasks that never started: the one way the UI counts them. */
-export function tryCounts(journal: readonly JournalRow[]): { tries: number; notStarted: number } {
-  const tries = journal.filter(isLaunched).length;
-  return { tries, notStarted: journal.length - tries };
-}
-
-/** How a run's tasks ended, from the plan: for a run that is over, in place of a progress bar. */
-export function result(plan: Plan): { done: number; failed: number; notStarted: number; left: number } {
-  const count = (...states: PlanNode['state'][]) => plan.nodes.filter((n) => states.includes(n.state)).length;
-  return { done: count('done', 'skipped'), failed: count('failed'), notStarted: count('blocked'), left: count('pending', 'running') };
-}
-
-/** How long a run took, wall clock: from its start to its last activity (null when unknown). */
-export function elapsedS(r: Pick<RunSummary, 'started_at' | 'last_ts'> | undefined): number | null {
-  const a = Date.parse(r?.started_at ?? '');
-  const b = Date.parse(r?.last_ts ?? '');
-  return Number.isNaN(a) || Number.isNaN(b) ? null : Math.max(0, (b - a) / 1000);
-}
 
 // --- the pipeline graph, by layer ---------------------------------------------------
 //
@@ -1684,7 +1651,7 @@ export function zoomView(v: View, factor: number, cx: number, cy: number, min: n
 /**
  * The run's figures, from the journal. Only tries that ran count: a task
  * refused before launch (`invalid_input`) has a row but is not a try, not an
- * agent session and not a failed attempt; tasks are counted by `outcomeCounts`.
+ * agent session and not a failed attempt; tasks are counted by `deriveRun`.
  */
 export interface Kpis {
   /** Tries that ran. */

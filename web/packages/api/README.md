@@ -39,7 +39,24 @@ Each returns a function that closes it.
 its messages into one `RunState`, and tells subscribers. It knows nothing of
 any UI framework: a Lit controller, a React hook or plain code subscribe alike.
 The reducer behind it, `reduceRun(state, actions)`, is pure: use it with your
-own state management if you prefer. A task is one task key: `taskRows(journal,
-plan)` gives every task of the run, one row each, the plan joined with the
-journal, and `latestTask(rows)` the one a page opens by default. `@contraagent/ui`'s documentation shows
+own state management if you prefer. `@contraagent/ui`'s documentation shows
 the store feeding its elements.
+
+## Tasks and their outcomes
+
+A task is one task key. `deriveRun(journal, plan)` gives what every view counts
+and lists about the run's tasks, computed once per state (the same `journal` and
+`plan` objects give the same result):
+
+- `outcomes` and `rows`: every task of the run, the plan joined with the
+  journal, with its outcome (`done`, `recovered`, `failed`, `not_started`,
+  `running`, `waiting`, `skipped`);
+- `counts`: tasks by outcome, `doneTotal` (done and recovered: "N of M tasks
+  done") and `finished` (done, recovered and skipped);
+- `problems`: failed tasks with the tasks they stopped, tasks not started for a
+  reason of their own, and recovered tasks;
+- `kinds` and `tries`.
+
+`latestTask(rows)` is the task a page opens by default. A refusal before launch
+(`invalid_input`) is not a try: a task refused and then done is `done`, not
+`recovered`.

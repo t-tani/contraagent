@@ -4,5 +4,6 @@ export * from './feed.js';
 export * from './run-state.js';
 export * from './store.js';
 export * from './outcomes.js';
+export * from './derive.js';
 export * from './spend.js';
 export * from './quota.js';

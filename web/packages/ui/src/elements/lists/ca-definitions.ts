@@ -1,4 +1,4 @@
-import { isPython, taskOutcomes, type JournalRow, type MonitorClient, type Plan, type TaskDefinition, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, isPython, type JournalRow, type MonitorClient, type Plan, type TaskDefinition, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -83,7 +83,7 @@ export class CaDefinitions extends LitElement {
 
   /** Every task of the run: the plan joined with the journal. */
   private tasks(): TaskOutcome[] {
-    return [...taskOutcomes(this.journal, this.plan ?? { nodes: [], groups: [] }).values()];
+    return [...deriveRun(this.journal, this.plan).outcomes.values()];
   }
 
   private clearTimer(): void {

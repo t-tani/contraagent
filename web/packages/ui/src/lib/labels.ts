@@ -3,7 +3,7 @@
 // in tooltips; what the reader sees comes from here, so every screen says the
 // same thing for the same state. The mapping is documented in AGENTS.md
 // ("Words the UI shows").
-import { isLaunched, runStarts, type Hop, type JournalRow, type Outcome, type PlanNode, type TaskOutcome } from '@contraagent/api';
+import { isFinished, planOutcome, runStarts, type Hop, type Outcome, type PlanNode, type TaskOutcome } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { facts, fmtDur, kindUnit, localTime } from './format.js';
 
@@ -41,38 +41,8 @@ export function waitCause(waits: readonly { kind?: string | null; unit?: string 
   return waits.length === 1 ? msg(str`waits for output of ${kindUnit(first)}`) : msg(str`waits for output of ${waits.length} earlier tasks`);
 }
 
-/**
- * A task's state: what the run says about it (`own`, from the journal and the
- * plan: a task with no attempt is `waiting` or, behind a failed task,
- * `not_started`), else what its own journal rows say.
- */
-export function taskState(rows: readonly JournalRow[], own?: Pick<TaskOutcome, 'outcome'>): Outcome {
-  if (own) return own.outcome;
-  const last = rows[rows.length - 1];
-  if (!last) return 'waiting';
-  if (last.stop === 'invalid_input') return 'not_started';
-  if (last.stop === 'skipped') return 'skipped';
-  if (last.ok) return rows.some((r) => isLaunched(r) && !r.ok) ? 'recovered' : 'done';
-  return 'failed';
-}
-
 /** A plan node's state (the task matrix, progress by kind). */
-export function planStateLabel(s: PlanNode['state']): string {
-  switch (s) {
-    case 'done':
-      return msg('done');
-    case 'failed':
-      return msg('failed');
-    case 'blocked':
-      return msg('not started');
-    case 'running':
-      return msg('running');
-    case 'pending':
-      return msg('waiting');
-    case 'skipped':
-      return msg('skipped');
-  }
-}
+export const planStateLabel = (s: PlanNode['state']): string => outcomeLabel(planOutcome(s));
 
 /**
  * How many tasks are in a state, number first: "3 failed", "2 not started".
@@ -269,7 +239,7 @@ export function inputCause(path: string, problem: InputProblem['problem'], from?
   if (!from) return msg(str`input ${path} is missing`);
   if (from.outcome === 'failed') return msg(str`input ${path} is missing because ${from.name} failed`);
   if (from.outcome === 'not_started') return msg(str`input ${path} is missing because ${from.name} did not start`);
-  if (from.outcome === 'done' || from.outcome === 'recovered' || from.outcome === 'skipped')
+  if (from.outcome && isFinished(from.outcome))
     return msg(str`input ${path} from ${from.name} is missing`);
   return msg(str`input ${path} is missing because ${from.name} did not finish`);
 }

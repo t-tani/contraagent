@@ -12,7 +12,6 @@ export {
   markGrid,
   parentLayer,
   passMatrix,
-  progress,
   splitLayer,
   timeline,
   type EdgeRoute,

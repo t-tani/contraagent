@@ -1,4 +1,4 @@
-import { isPython, taskOutcomes, type ContractRecord, type ContractSpec, type ContractStatus, type JournalRow, type Outputs, type Plan, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, isPython, type ContractRecord, type ContractSpec, type ContractStatus, type JournalRow, type Outputs, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -81,14 +81,14 @@ export class CaContracts extends LitElement {
   @property({ attribute: false }) journal: JournalRow[] = [];
   /** The run's plan: with the journal, what happened to the task that writes a missing input. Optional. */
   @property({ attribute: false }) plan: Plan | null = null;
-  private outcomes = new Map<string, TaskOutcome>();
+  private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
 
   /** Which contracts the reader opened, kept across Back and reload. */
   private readonly open = new RememberedSet('contracts:open');
 
   override render() {
     const cs = this.outputs?.contracts ?? [];
-    this.outcomes = this.plan ? taskOutcomes(this.journal, this.plan) : new Map<string, TaskOutcome>();
+    this.outcomes = this.plan ? deriveRun(this.journal, this.plan).outcomes : new Map<string, TaskOutcome>();
     if (!cs.length) {
       return html`<div class="blank"><span class="ic" aria-hidden="true">▣</span><b>${msg('No checked files')}</b>
         <span>${msg('No task declares an OutputContract or an InputContract')}</span></div>`;

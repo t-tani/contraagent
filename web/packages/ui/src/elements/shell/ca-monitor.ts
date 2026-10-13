@@ -1,10 +1,9 @@
 import {
   MonitorStore,
+  deriveRun,
+  elapsedS,
   isBad,
-  outcomeCounts,
   spendOf,
-  taskOutcomes,
-  taskRows,
   isRunLive,
   latestTask,
   liveActivities,
@@ -24,7 +23,6 @@ import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
 import { modelSwitch, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
 import { ScrollMemory } from '../../lib/scroll.js';
 import { runTone } from '../../lib/tone.js';
-import { elapsedS, tryCounts } from '../overview/logic.js';
 import type { Route, RoutePatch, Tab } from '../../route.js';
 import { Router, type RouteCause, type RouterMode } from '../../router.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
@@ -380,8 +378,8 @@ export class CaMonitor extends LitElement {
     const usage = accountsLine(this.accounts(summary));
     const tail = facts(took == null ? '' : msg(str`took ${fmtDur(took)}`), cost, usage, summary.running ? msg('running') : '');
     if (!this.snap.state.ready) return tail; // the feed is still replaying: no count yet rather than a wrong one
-    const c = outcomeCounts(taskOutcomes(this.snap.state.journal, this.snap.state.plan));
-    return facts(msg(str`${c.done + c.recovered} of ${c.total} tasks done`), tail);
+    const c = deriveRun(this.snap.state.journal, this.snap.state.plan).counts;
+    return facts(msg(str`${c.doneTotal} of ${c.total} tasks done`), tail);
   }
 
   /** Each account's latest subscription reading, busiest weekly first: from the live journal once replayed, else the run list's. */
@@ -391,7 +389,7 @@ export class CaMonitor extends LitElement {
 
   /** The history bar's count, as the overview counts: "23 attempts | 4 not started". */
   private triesLine(): string {
-    const { tries, notStarted } = tryCounts(this.snap.state.journal);
+    const { tries, notStarted } = deriveRun(this.snap.state.journal, this.snap.state.plan).tries;
     return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
   }
 
@@ -455,8 +453,9 @@ export class CaMonitor extends LitElement {
 
   private renderTabs(busy: number) {
     const { state } = this.snap;
-    const { tries } = tryCounts(state.journal);
-    const tasks = outcomeCounts(taskOutcomes(state.journal, state.plan));
+    const d = deriveRun(state.journal, state.plan);
+    const { tries } = d.tries;
+    const tasks = d.counts;
     // A tab's count is a total: neutral, never coloured by its worst part. Only a count of what is running is.
     const badge = (id: Tab): [string | number, string] | null =>
       id === 'tasks'
@@ -488,9 +487,8 @@ export class CaMonitor extends LitElement {
     const { route } = this;
     if (route.tab !== 'tasks' && route.tab !== 'journal') return nothing;
     const { state } = this.snap;
-    const outcomes = taskOutcomes(state.journal, state.plan);
-    const total = outcomeCounts(outcomes).total;
-    const kinds = [...new Set([...outcomes.values()].map((t) => t.kind))].sort();
+    const { counts, kinds } = deriveRun(state.journal, state.plan);
+    const total = counts.total;
     return html`<div class="bar">
       <select title=${msg('Kind')} aria-label=${msg('Kind')} @change=${(e: Event) => this.navigate({ kind: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!route.kind}>${msg('All kinds')}</option>
@@ -519,7 +517,7 @@ export class CaMonitor extends LitElement {
       case 'tasks':
         return html`<ca-task-table .run=${route.run} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q} ?live=${live}></ca-task-table>`;
       case 'journal':
-        return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}></ca-journal-table>`;
+        return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .plan=${state.plan} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}></ca-journal-table>`;
       case 'outputs':
         return html`<ca-contracts .run=${route.run} .outputs=${state.outputs} .journal=${state.journal} .plan=${state.plan}></ca-contracts>`;
       case 'definitions':
@@ -529,7 +527,7 @@ export class CaMonitor extends LitElement {
         return html`<ca-procs-view .procs=${state.procs}></ca-procs-view>`;
       case 'stream':
         return html`<ca-task-view .client=${this.store.client} .journal=${state.journal} .plan=${state.plan} base-url=${this.baseUrl} .run=${route.run}
-          .taskKey=${route.key ?? latestTask(taskRows(state.journal, state.plan))} .view=${route.view} .round=${route.round} .live=${live}></ca-task-view>`;
+          .taskKey=${route.key ?? latestTask(deriveRun(state.journal, state.plan).rows)} .view=${route.view} .round=${route.round} .live=${live}></ca-task-view>`;
       default: {
         const name = route.tab.slice('panel:'.length);
         const info = snap.info.panels.find((p) => p.name === name);

@@ -1,10 +1,11 @@
 import {
+  deriveRun,
   isLaunched,
   isPython,
+  outcomeOf,
   runReadings,
   runStarts,
   spendOf,
-  taskOutcomes,
   tryQuota,
   type JournalRow,
   type LaunchEvent,
@@ -35,7 +36,6 @@ import {
   outcomeLabel,
   runRelative,
   stopLabel,
-  taskState,
 } from '../../lib/labels.js';
 import { accountReading, readingShort, readingTip } from '../../lib/quota-format.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
@@ -192,12 +192,12 @@ export class CaTaskView extends LitElement {
   @state() private shownRound = -1;
   @state() private rounds: RoundInfo[] = [];
   private token = 0;
-  /** What happened to every task of the run (from `journal` and `plan`), by key; recomputed per render. */
-  private outcomes = new Map<string, TaskOutcome>();
+  /** What happened to every task of the run (`deriveRun` of `journal` and `plan`), by key. */
+  private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('run') || changed.has('taskKey') || changed.has('client')) void this.fetch();
-    this.outcomes = this.plan ? taskOutcomes(this.journal, this.plan) : new Map<string, TaskOutcome>();
+    this.outcomes = this.plan ? deriveRun(this.journal, this.plan).outcomes : new Map<string, TaskOutcome>();
   }
 
   private async fetch(): Promise<void> {
@@ -239,7 +239,7 @@ export class CaTaskView extends LitElement {
 
   /** The task's state in the run: running, waiting, not started, done ... */
   private stateOf(d: TaskDetail, live: boolean): Outcome {
-    return live ? 'running' : taskState(d.rows, this.outcomes.get(d.key));
+    return live ? 'running' : (this.outcomes.get(d.key)?.outcome ?? outcomeOf(undefined, d.rows));
   }
 
   /** The earlier task that writes `path`, by the task's own upstream list. */
