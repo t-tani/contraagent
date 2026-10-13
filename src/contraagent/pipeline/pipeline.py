@@ -31,8 +31,8 @@ from typing import Any
 
 from contraagent.backends import Backend, create_backend, known_agents
 from contraagent.dispatch.flow import FlowCall, FlowDriver
-from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
+from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.task import Task, TaskResult
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
