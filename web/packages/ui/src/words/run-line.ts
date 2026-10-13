@@ -34,3 +34,6 @@ export function triesLine({ tries, notStarted }: RunDerived['tries']): string {
 
 /** A stub run's mark (`RunSummary.stub`): its tasks were played by the stub agent. */
 export const stubLabel = (): string => msg('stub agent', { desc: 'A run whose tasks a coding agent with scripted replies played' });
+
+/** What a stub run's mark means, for its tooltip. */
+export const stubTip = (): string => msg('A run whose tasks the stub agent played with scripted replies, not a model (stub)');

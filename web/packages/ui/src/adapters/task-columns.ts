@@ -8,7 +8,7 @@ import { html, nothing } from 'lit';
 import { outcomeMark, outcomeTone } from '../lib/tone.js';
 import { executorIcon } from '../words/executor.js';
 import { facts, fmtDur, localTime, tokenCount, usd } from '../words/format.js';
-import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../words/index.js';
+import { alsoLocksNames, alsoLocksShort, notStartedCause, passLabel, taskStatusLabel, waitCause } from '../words/index.js';
 
 export interface TaskColumnsContext {
   /** The run id: paths in a cause are shown relative to it. */
@@ -65,6 +65,7 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
         return html`<span class="grow jmono" title=${t.key}>
           ${executorIcon(py, py ? msg('Python task') : msg('Agent task'))}${t.kind}
           ${t.unit ? html`<span class="jdim">· ${t.unit}</span>` : nothing}${pass !== null ? html`<span class="pass">${passLabel(pass)}</span>` : nothing}
+          ${t.extra_units?.length ? html`<span class="jdim also" title=${alsoLocksNames(t.extra_units)}>${alsoLocksShort(t.extra_units)}</span>` : nothing}
         </span>`;
       },
     },

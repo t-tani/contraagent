@@ -2416,6 +2416,26 @@
   <target>最後のメッセージから</target>
   <note from="lit-localize">The task's output is the agent's last message of a session</note>
 </trans-unit>
+<trans-unit id="s04286bec7654cf3f">
+  <source>Files under the task's declared patterns that its attempts created, modified or deleted (changes)</source>
+  <target>タスクが宣言したパターンの下で、試行が作成・変更・削除したファイル（changes）</target>
+</trans-unit>
+<trans-unit id="s223237cc8c577db8">
+  <source>A run whose tasks the stub agent played with scripted replies, not a model (stub)</source>
+  <target>モデルを使わず、スタブエージェントが台本の応答で各タスクを処理した実行（stub）</target>
+</trans-unit>
+<trans-unit id="s141208d30dab2e4d">
+  <source>Units this task locks while it runs, besides its own unit (extra_units)</source>
+  <target>実行中、自分のユニットに加えてロックするユニット（extra_units）</target>
+</trans-unit>
+<trans-unit id="s2d7f4105cbd49f03">
+  <source>Also locks <x id="0" equiv-text="${units.length}"/> units</source>
+  <target>併せてロックするユニット <x id="0" equiv-text="${units.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="s99ebe4b8ebe10374">
+  <source>Also locks <x id="0" equiv-text="${listText(units)}"/></source>
+  <target>併せてロックするユニット <x id="0" equiv-text="${listText(units)}"/></target>
+</trans-unit>
 </body>
 </file>
 </xliff>

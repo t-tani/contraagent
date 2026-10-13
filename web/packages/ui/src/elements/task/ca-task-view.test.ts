@@ -87,6 +87,9 @@ describe('ca-task-view', () => {
     const el = await view({ client, taskKey: 'write-a' });
     const fold = [...root(el).querySelectorAll('details.io-fold')].find((d) => text(d.querySelector('summary')) === '4 changed files');
     expect(fold).toBeDefined();
+    expect(fold!.querySelector('summary')!.getAttribute('title')).toBe(
+      "Files under the task's declared patterns that its attempts created, modified or deleted (changes)",
+    );
     expect([...fold!.querySelectorAll('li')].map(text)).toEqual([
       'Attempt 1 | t/a/x.md | created, removed after the failed attempt',
       'Attempt 2 | t/a/y.md | created',
