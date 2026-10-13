@@ -30,10 +30,10 @@ export class CaSpendBreakdown extends LitElement {
       .bar i { display: block; height: 100%; }
       .num { font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; white-space: nowrap; }
       .share { color: var(--text-muted); min-width: 3.5em; }
-      .p-input { background: var(--tok-input); }
-      .p-cache_read { background: var(--tok-cache-read); }
-      .p-cache_creation { background: var(--tok-cache-write); }
-      .p-output { background: var(--tok-output); }
+      .seg-input { background: var(--tok-input); }
+      .seg-cache_read { background: var(--tok-cache-read); }
+      .seg-cache_creation { background: var(--tok-cache-write); }
+      .seg-output { background: var(--tok-output); }
       .legend { margin-top: 10px; }
       h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
       .top { display: grid; grid-template-columns: minmax(160px, max-content) 64px 64px 40px; column-gap: 24px; row-gap: 4px; align-items: baseline; }
@@ -63,7 +63,7 @@ export class CaSpendBreakdown extends LitElement {
     const width = max ? (100 * total) / max : 0;
     const tip = facts(...PARTS.map((p) => `${this.partLabel(p)} ${tokenCount(s[p])}`));
     return html`<div class="bar" title=${tip} style="width:${Math.max(width, 0.5).toFixed(2)}%">
-      ${PARTS.map((p) => (s[p] && total ? html`<i class="p-${p}" style="width:${((100 * s[p]) / total).toFixed(2)}%"></i>` : nothing))}
+      ${PARTS.map((p) => (s[p] && total ? html`<i class="seg-${p}" style="width:${((100 * s[p]) / total).toFixed(2)}%"></i>` : nothing))}
     </div>`;
   }
 
@@ -81,7 +81,7 @@ export class CaSpendBreakdown extends LitElement {
             <span class="num share">${k.share !== null ? `${Math.round(k.share * 100)}%` : ''}</span>`,
         )}
       </div>
-      <div class="legend">${PARTS.map((p) => html`<span><i class="p-${p}"></i>${this.partLabel(p)}</span>`)}</div>
+      <div class="legend">${PARTS.map((p) => html`<span><i class="seg-${p}"></i>${this.partLabel(p)}</span>`)}</div>
       <h4>${msg('Most expensive tasks')}</h4>
       <div class="top">
         ${tasks.map(

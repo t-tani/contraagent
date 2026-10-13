@@ -38,14 +38,15 @@ import {
   stopLabel,
 } from '../../words/index.js';
 import { accountReading, readingShort, readingTip } from '../../words/quota.js';
-import { stopTone, type Tone } from '../../lib/tone.js';
+import { outcomePill, statusPill } from '../../lib/status.js';
+import { stopTone } from '../../lib/tone.js';
 import { TASK_VIEWS, type TaskView } from '../../core/route.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-definition.js';
 import '../shared/ca-json-tree.js';
 import '../shared/ca-markdown.js';
-import { contractStyles, ioFileCard } from '../shared/contract-parts.js';
-import { contractStatusLabel, contractStatusWhy, type Producer } from '../../words/contract.js';
+import { contractChip, contractStyles, ioFileCard } from '../shared/contract-parts.js';
+import { type Producer } from '../../words/contract.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from './inputs.js';
 import { taskChip } from '../shared/task-chip.js';
 import './ca-transcript.js';
@@ -77,9 +78,6 @@ const emptyDetail = (key: string): TaskDetail => ({
   stream: null,
 });
 
-const pill = (s: string, label = s) => html`<span class="pill p-${s}">${label}</span>`;
-/** The pill class of a stop's tone (`stopTone`). */
-const STOP_PILL: Partial<Record<Tone, string>> = { done: 'completed', attention: 'invalid_input', muted: 'skipped', running: 'running', failed: 'error' };
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
 const sameJson = (a: unknown, b: unknown): boolean => {
   try {
@@ -411,7 +409,7 @@ export class CaTaskView extends LitElement {
       <div class="tm-head">
         <span class="tm-av ${py ? 'py' : ''}" title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
         <div style="min-width:0">
-          <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? pill('running', msg('running')) : nothing}</div>
+          <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? statusPill(msg('running'), 'running') : nothing}</div>
           <div class="verdict ${look}">${verdict}</div>
           ${session
             ? html`<div class="whos">
@@ -587,12 +585,12 @@ export class CaTaskView extends LitElement {
     const u = f.from;
     const state = u ? this.outcomes.get(u.key)?.outcome : undefined;
     const origin = u
-      ? html`<span>${msg(html`Output of ${this.link(u)}`)}</span>${state && state !== 'done' ? html`<span class="pill o-${state}">${outcomeLabel(state)}</span>` : nothing}`
+      ? html`<span>${msg(html`Output of ${this.link(u)}`)}</span>${state && state !== 'done' ? outcomePill(state, outcomeLabel(state)) : nothing}`
       : msg('File from before the run');
     // Written by an earlier task: that task's check of it ("passed", "not written (task failed)").
     const st = f.out?.status;
     if (!st) return ioFileCard(f.spec, 'input', this.run, { origin });
-    const chip = html`<span class="ct-chip ${st}" title=${contractStatusWhy(st)}>${contractStatusLabel(st)}</span>`;
+    const chip = contractChip(st);
     return ioFileCard({ ...f.spec, status: st }, 'input', this.run, { origin, chip });
   }
 
@@ -608,7 +606,7 @@ export class CaTaskView extends LitElement {
     const head = html`<div class="up-hd">
       <span class="k-ic ${isPython(u) ? '' : 'llm'}" title=${kindName}><span aria-hidden="true">${isPython(u) ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
       ${this.link(u)}
-      ${state ? html`<span class="pill o-${state}">${outcomeLabel(state)}</span>` : nothing}
+      ${state ? outcomePill(state, outcomeLabel(state)) : nothing}
       <span class="meta">${summary}</span>
     </div>`;
     if (!e.rest.length) return html`<div class="upstream">${head}</div>`;
@@ -700,7 +698,7 @@ export class CaTaskView extends LitElement {
       ${last
         ? html`<h4 class="sect-h">${msg('Outcome')}</h4>
             <div class="ct-in">
-              ${pill(STOP_PILL[stopTone(last.stop)] ?? 'error', stopLabel(last.stop, last.reason))}
+              ${statusPill(stopLabel(last.stop, last.reason), stopTone(last.stop))}
               ${isLaunched(last) ? html`<span class="meta">${facts(attemptLabel(last.attempt), fmtDur(last.wall_s), correctionsOf(last))}</span>` : nothing}
 
             </div>`

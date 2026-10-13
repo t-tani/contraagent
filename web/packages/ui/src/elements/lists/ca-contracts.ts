@@ -8,8 +8,8 @@ import { RememberedSet } from '../../core/memory.js';
 import type { TaskView } from '../../core/route.js';
 import { base } from '../../styles/base.js';
 import { kindUnit } from '../../words/format.js';
-import { contractStatusLabel, contractStatusWhy, correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
-import { contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
+import { correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
+import { contractChip, contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
 
 const CT_ORDER: readonly ContractStatus[] = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'];
 
@@ -18,7 +18,7 @@ export function ctChips(outputs: Outputs | null) {
   const t = outputs?.tally;
   const chips = t ? CT_ORDER.filter((k) => t[k]) : [];
   return chips.length
-    ? chips.map((k) => html`<span class="ct-chip ${k}" title=${contractStatusWhy(k)}>${contractStatusLabel(k)} <b>${t?.[k]}</b></span>`)
+    ? chips.map((k) => contractChip(k, t?.[k]))
     : html`<span class="meta">${msg('No checked files')}</span>`;
 }
 
@@ -147,7 +147,7 @@ export class CaContracts extends LitElement {
     // A task that never ran: one line saying why, nothing to open.
     if (o.status === 'refused') {
       return html`<div class="one">
-        <span class="ct-chip refused" title=${contractStatusWhy('refused')}>${contractStatusLabel('refused')}</span>${this.who(c)}
+        ${contractChip('refused')}${this.who(c)}
         <span class="why">${notRunText(o, this.run, this.producerOf)}</span>
       </div>`;
     }
@@ -159,7 +159,7 @@ export class CaContracts extends LitElement {
     // The chip says why there is no file; the size column shows a size only when there is one.
     return this.details(
       `out|${c.key}|${o.path}`,
-      html`<span class="ct-chip ${status ?? ''}" title=${status ? contractStatusWhy(status) : ''}>${status ? contractStatusLabel(status) : '—'}</span>
+      html`${contractChip(status)}
         ${rounds > 1 ? html`<span class="meta" title=${correctionTip()}>${correctionsLabel(rounds, status === 'valid')}</span>` : nothing}
         ${this.who(c)}
         <span class="jmono jdim ct-path" title=${o.path}>${shortPath(o.path)}</span>

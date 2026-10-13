@@ -1,12 +1,19 @@
 // How an attempt ended (a journal row's `stop`), in words.
-import { inputProblems } from '@contraagent/api';
+import { inputProblems, type Stop } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
+import { isStop } from '../lib/tone.js';
 
 /**
- * How one attempt ended (a journal row's `stop`), in words. Unknown values are shown as they are.
+ * How one attempt ended (a journal row's `stop`), in words. A value contraagent does not write is shown as it is.
  * With the row's `reason`, a refused input names its problem (missing, or failed checks).
  */
 export function stopLabel(stop: string | null | undefined, reason?: string | null): string {
+  if (!stop) return '—';
+  return isStop(stop) ? knownStopLabel(stop, reason) : msg(str`unknown (${stop})`);
+}
+
+/** A stop contraagent writes, in words: every `Stop` has a case, or this fails type-checking. */
+function knownStopLabel(stop: Stop, reason?: string | null): string {
   switch (stop) {
     case 'completed':
       return msg('done', { id: 'stop-completed', desc: 'How an attempt ended: completed' });
@@ -50,11 +57,5 @@ export function stopLabel(stop: string | null | undefined, reason?: string | nul
       return msg('could not start the agent');
     case 'credential_mismatch':
       return msg('wrong identity used');
-    case null:
-    case undefined:
-    case '':
-      return '—';
-    default:
-      return msg(str`unknown (${stop})`);
   }
 }

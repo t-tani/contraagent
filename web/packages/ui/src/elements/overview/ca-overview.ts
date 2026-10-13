@@ -24,7 +24,9 @@ import { emit } from '../../core/events.js';
 import { facts, kindUnit, localTime, sentence } from '../../words/format.js';
 import { notStartedCause, outcomeLabel, stateCount, stopLabel } from '../../words/index.js';
 import { base } from '../../styles/base.js';
-import { formatOf, statusStop } from '../shared/contract-parts.js';
+import { statusPill, statusWord } from '../../lib/status.js';
+import { contractTone, outcomeTone } from '../../lib/tone.js';
+import { contractChip, formatOf } from '../shared/contract-parts.js';
 import { contractStatusLabel, contractStatusWhy } from '../../words/contract.js';
 import { taskChip } from '../shared/task-chip.js';
 import '../lists/ca-proc-tree.js';
@@ -86,8 +88,6 @@ export class CaOverview extends LitElement {
       .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
       .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
       .fl.muted { opacity: 0.7; }
-      .fl.muted .jstop { color: var(--text-2); font-weight: 500; }
-      .fl.muted .jstop::before { content: '✓'; content: '✓' / ''; color: var(--status-done); margin-right: 0.35em; font-weight: 700; }
       .next { margin: 10px 2px 2px; font-size: 12px; color: var(--text-2); }
       .next code { font-family: var(--mono); }
       .more { font-size: 12px; margin: 6px 10px 0; }
@@ -204,12 +204,12 @@ export class CaOverview extends LitElement {
     const refused = tally.refused;
     return html`<div class="ct-row">
         ${chips.length
-          ? chips.map((k) => html`<span class="ct-chip ${k}" title=${contractStatusWhy(k)}>${contractStatusLabel(k)} <b>${tally[k]}</b></span>`)
+          ? chips.map((k) => contractChip(k, tally[k]))
           : html`<span class="meta">${msg('No checked files')}</span>`}
       </div>
       ${shown.map(
         ([c, o]) => html`<div class="fl" @click=${() => this.go('outputs')}>
-          <span class="jstop j-${statusStop(o.status)}" title=${o.status ? contractStatusWhy(o.status) : ''}>${o.status ? contractStatusLabel(o.status) : '—'}</span>
+          ${statusWord(o.status ? contractStatusLabel(o.status) : '—', contractTone(o.status), { title: o.status ? contractStatusWhy(o.status) : null })}
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
           <div class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</div>
@@ -276,7 +276,7 @@ export class CaOverview extends LitElement {
                 <span class="jmono">${u}</span>
                 <span class="meta">${facts(x.step || '—', x.loop_pass ? msg(str`loop pass ${x.loop_pass}`) : '')}</span>
                 <span class="cu-bar" title=${x.completed.length === 1 ? msg('1 step completed') : msg(str`${x.completed.length} steps completed`)}><i style="width:${Math.min(100, 12 * (x.completed.length + 1))}%"></i></span>
-                ${x.inflight.length ? html`<span class="pill p-running" title=${x.inflight.join('\n')}>${msg('running')}</span>` : nothing}
+                ${x.inflight.length ? statusPill(msg('running'), 'running', { title: x.inflight.join('\n') }) : nothing}
               </div>`,
             )}
           </div>`
@@ -327,7 +327,7 @@ export class CaOverview extends LitElement {
         (p) => {
           const last = p.task.attempts[p.task.attempts.length - 1];
           return html`<div class="fl" @click=${() => this.open(p.task)}>
-            <span class="jstop j-error">${outcomeLabel('failed')}</span>
+            ${statusWord(outcomeLabel('failed'), 'failed')}
             <b class="jmono" title=${p.task.key}>${this.name(p.task)}</b><span class="meta">${localTime(last?.ts, true)}</span>
             <div class="meta">${stopLabel(last?.stop)}: ${reason(p.task)}</div>
             ${stoppedLine(p.stopped)}
@@ -338,7 +338,7 @@ export class CaOverview extends LitElement {
         notStarted,
         (t) => t.key,
         (t) => html`<div class="fl" @click=${() => this.open(t)}>
-          <span class="jstop j-invalid_input">${outcomeLabel('not_started')}</span>
+          ${statusWord(outcomeLabel('not_started'), 'attention')}
           <b class="jmono" title=${t.key}>${this.name(t)}</b><span></span>
           <div class="meta">${notStartedCause(t, outcomes, this.run) ? sentence(notStartedCause(t, outcomes, this.run)) : reason(t)}</div>
         </div>`,
@@ -351,7 +351,7 @@ export class CaOverview extends LitElement {
           const n = t.tries.length;
           const name = this.name(t);
           return html`<div class="fl muted" @click=${() => this.open(t)}>
-            <span class="jstop">${outcomeLabel('recovered')}</span>
+            ${statusWord(outcomeLabel('recovered'), outcomeTone('recovered'))}
             <b class="jmono" title=${t.key}>${name}</b><span></span>
             <div class="meta">${fails === 1
               ? msg(str`Done on attempt ${n} after 1 failed attempt`)

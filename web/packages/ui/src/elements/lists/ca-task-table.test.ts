@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 // The tasks list: one row per task of the plan, a task that never ran included.
-import type { JournalRow, Plan, PlanNode } from '@contraagent/api';
+import type { JournalRow, Plan, PlanNode, Stop } from '@contraagent/api';
 import { deriveRun } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import './ca-task-table.js';
@@ -9,7 +9,7 @@ import type { CaTaskTable } from './ca-task-table.js';
 const node = (key: string, state: PlanNode['state'], after: string[] = [], extra: Partial<PlanNode> = {}): PlanNode => ({
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!, ...extra,
 });
-const row = (key: string, stop: string, extra: Partial<JournalRow> = {}): JournalRow => ({
+const row = (key: string, stop: Stop, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '2026-10-11T00:00:01', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', wall_s: 1.5, ...extra,
 });
 

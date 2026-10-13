@@ -6,6 +6,7 @@ import { ClockController } from '../../core/clock.js';
 import { localTime } from '../../words/format.js';
 import { credentialLabel } from '../../words/index.js';
 import { pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
+import { statusPill } from '../../lib/status.js';
 import { base } from '../../styles/base.js';
 
 type Window = 'five_hour' | 'seven_day';
@@ -74,7 +75,7 @@ export class CaQuota extends LitElement {
       const status = quotaStatusLabel(a.last.status);
       return html`<div class="acct">
         <div class="acct-h"><i>${msg('Identity')}</i><b>${credentialLabel(a.credential) || '—'}</b>${status
-            ? html`<span class="pill p-near" title=${a.last.status ?? ''}>${status}</span>`
+            ? statusPill(status, 'attention', { title: a.last.status, mark: null })
             : nothing}</div>
         <div class="rows">
           ${this.row('seven_day', msg('Weekly usage'), a.first, a.last)} ${this.row('five_hour', msg('5-hour usage'), a.first, a.last)}

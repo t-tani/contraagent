@@ -23,7 +23,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from contraagent.backends.launch import Stop
+from contraagent.dispatch.task import STOP_SKIPPED
+
 # --- journal ---------------------------------------------------------------
+
+#: The `stop` values contraagent writes: every `Stop`, and `skipped`. The schema lists
+#: them as an enum; a row a domain's own code wrote with another value still validates.
+JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED)
 
 
 class Hop(BaseModel):
@@ -97,7 +104,7 @@ class JournalRow(BaseModel):
     credential: str = ""
     route: str = ""
     hops: list[Hop] = Field(default_factory=list)
-    stop: str
+    stop: str = Field(json_schema_extra={"enum": list(JOURNAL_STOPS)})
     ok: bool
     wall_s: float = 0.0
     exit_code: int | None = None

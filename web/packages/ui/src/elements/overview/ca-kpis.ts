@@ -8,6 +8,7 @@ import { stateCount } from '../../words/index.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
 import { factLine } from '../shared/fact-line.js';
+import { markOf } from '../../lib/status.js';
 import { problemTone, type Tone } from '../../lib/tone.js';
 import { kpis } from './kpis-model.js';
 
@@ -53,12 +54,9 @@ interface Fact {
   tone: Tone;
 }
 
-/** The mark before a problem tile's label: the shape keeps the status without colour. */
-const MARK: Partial<Record<Tone, string>> = { failed: 'mk-failed', attention: 'mk-pending' };
-
 /** One line of facts, each kept whole (as `factLine`), a status fact in its colour. */
 function tonedFacts(fs: readonly Fact[]): TemplateResult {
-  return html`${fs.filter((f) => f.text).map((f, i) => html`${i ? ' | ' : ''}<span class="f ${f.tone ? `t-${f.tone}` : ''}">${f.text}</span>`)}`;
+  return html`${fs.filter((f) => f.text).map((f, i) => html`${i ? ' | ' : ''}<span class="f tone-text" data-tone=${f.tone || nothing}>${f.text}</span>`)}`;
 }
 
 const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -90,10 +88,9 @@ export class CaKpis extends LitElement {
       .v { font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--text); }
       .s { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
       .a { font-size: 11.5px; margin-top: 4px; }
-      .kpi.failed { --edge: var(--status-failed); }
-      .kpi.failed .v, .kpi.failed .k::before { color: var(--status-failed); }
-      .kpi.attention { --edge: var(--status-attention); }
-      .kpi.attention .v, .kpi.attention .k::before { color: var(--status-attention); }
+      .kpi[data-tone] { --edge: var(--tone); }
+      .kpi[data-tone] .v, .kpi[data-tone] .k::before { color: var(--tone); }
+      .k[data-mark]::before { display: inline-block; }
     `,
   ];
 
@@ -233,8 +230,8 @@ export class CaKpis extends LitElement {
   }
 
   private tile(t: Tile): TemplateResult {
-    return html`<div class="kpi ${t.tone}" data-id=${t.id} title=${t.tip ?? nothing}>
-      <div class="k words ${MARK[t.tone] ?? ''}">${t.label}</div>
+    return html`<div class="kpi" data-tone=${t.tone || nothing} data-id=${t.id} title=${t.tip ?? nothing}>
+      <div class="k words" data-mark=${markOf(t.tone) ?? nothing}>${t.label}</div>
       <div class="v">${typeof t.value === 'number' ? html`<ca-count .value=${t.value}></ca-count>` : t.value}</div>
       ${t.parts
         ? html`<div class="s words">${tonedFacts(t.parts)}</div>`

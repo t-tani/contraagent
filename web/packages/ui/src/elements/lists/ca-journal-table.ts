@@ -7,6 +7,7 @@ import { emit } from '../../core/events.js';
 import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../../words/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../../words/index.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
+import { markOf, statusWord } from '../../lib/status.js';
 import { accountReading, readingShort } from '../../words/quota.js';
 import { base } from '../../styles/base.js';
 import { attemptFacts, filterJournal, hadFixup, journalTally, retriedKeys } from './filters.js';
@@ -36,12 +37,8 @@ export class CaJournalTable extends LitElement {
       .jchip b { color: var(--text); }
       .jchip:hover { border-color: var(--line2); color: var(--text); }
       .jchip.on { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
-      /* a stop's chip: marked by its status (done quiet with a ✓, a failure red with a ✕, not started ◌) */
-      .jchip.done::before { content: '✓'; content: '✓' / ''; color: var(--status-done); margin-right: 0.35em; font-weight: 700; }
-      .jchip.failed { color: var(--status-failed); border-color: color-mix(in srgb, var(--status-failed) 40%, transparent); }
-      .jchip.failed::before { content: '✕'; content: '✕' / ''; margin-right: 0.35em; font-weight: 700; }
-      .jchip.attention { color: var(--status-attention); border-color: color-mix(in srgb, var(--status-attention) 40%, transparent); }
-      .jchip.attention::before { content: '◌'; content: '◌' / ''; margin-right: 0.35em; font-weight: 700; }
+      /* a stop's chip: marked by its status (data-mark: done quiet with a ✓, a failure red with a ✕, not started ◌) */
+      .jchip[data-tone='failed'], .jchip[data-tone='attention'] { color: var(--tone); border-color: color-mix(in srgb, var(--tone) 40%, transparent); }
       .table { overflow-x: auto; }
       .jrow { display: grid; column-gap: 12px; row-gap: 2px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 12px; align-items: center; min-width: 980px; }
       .jrow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -97,7 +94,8 @@ export class CaJournalTable extends LitElement {
     const fixups = this.rows.filter(hadFixup).length;
     const retried = retriedKeys(this.rows).size;
     const chip = (k: string, label: string, n: number, tip: string, tone: Tone = '') =>
-      html`<button type="button" class="jchip j-${k} ${tone} ${this.stop === k ? 'on' : ''}" aria-pressed=${this.stop === k} title=${tip}
+      html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${tone || nothing} data-mark=${markOf(tone) ?? nothing}
+        aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
     return html`<div class="jtally">
         ${journalTally(this.rows).map(([k, c]) => chip(k, this.shortStop(k), c, k, stopTone(k)))}
@@ -186,9 +184,13 @@ export class CaJournalTable extends LitElement {
       <span class="jmono" title=${localTime(e.ts, true)}>${localTime(e.ts)}</span>
       <span class="jmono" title=${e.key}><span title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
         ${kindUnit(e)}</span>
-      <span class="jstop two j-${e.stop || '?'}" title=${e.stop || ''}><span class="nw">${this.shortStop(e.stop)}</span>${(numbered && ran) || corrections
-        ? html`<span class="sub">${facts(numbered && ran ? attemptLabel(e.attempt) : '', corrections)}</span>`
-        : nothing}</span>
+      ${statusWord(
+        html`<span class="nw">${this.shortStop(e.stop)}</span>${(numbered && ran) || corrections
+          ? html`<span class="sub">${facts(numbered && ran ? attemptLabel(e.attempt) : '', corrections)}</span>`
+          : nothing}`,
+        stopTone(e.stop),
+        { cls: 'two', title: e.stop },
+      )}
       <span class="jmono jdim two" title=${facts(e.route, sw) || nothing}>${ran
         ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${this.identity(e)}`
         : '—'}</span>

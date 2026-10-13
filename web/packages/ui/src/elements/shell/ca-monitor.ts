@@ -24,7 +24,7 @@ import { flushMemory } from '../../core/memory.js';
 import { facts, fmtDur, kindUnit, usd } from '../../words/format.js';
 import { modelSwitch, stateCount, stopLabel } from '../../words/index.js';
 import { ScrollMemory } from '../../core/scroll.js';
-import { runTone } from '../../lib/tone.js';
+import { runTone, type Tone } from '../../lib/tone.js';
 import type { Route, RoutePatch, Tab } from '../../core/route.js';
 import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
@@ -131,7 +131,7 @@ export class CaMonitor extends LitElement {
       .tab-ic { opacity: 0.55; margin-right: 6px; font-size: 12px; }
       .tab.sel .tab-ic { opacity: 1; color: var(--accent); }
       .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); font-variant-numeric: tabular-nums; }
-      .badge.running { background: var(--status-running-bg); color: var(--status-running); }
+      .badge[data-tone] { background: var(--tone-bg); color: var(--tone); }
       .tab-sep { width: 1px; height: 18px; background: var(--line2); margin: 0 8px 3px; flex: none; align-self: center; }
       .tab-ind { position: absolute; bottom: 0; left: 0; width: 0; height: 2px; border-radius: 2px;
         background: var(--accent); transition: left 0.3s var(--ease), width 0.3s var(--ease); }
@@ -418,7 +418,7 @@ export class CaMonitor extends LitElement {
           <span>${snap.info.title}</span>
         </div>
         <button type="button" class="runbtn" title=${msg('Switch run (r)')} @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          <span class="dot ${dot}" aria-hidden="true"></span>
+          <span class="dot" data-tone=${dot || nothing} aria-hidden="true"></span>
           <span class="rn">${route.run || '—'}</span>
           <span class="rs" title=${summary ? accountsTip(this.accounts(summary)) : ''}>${summary ? this.runLine(summary) : ''}</span>
           <span class="chev" aria-hidden="true">▾</span>
@@ -457,7 +457,7 @@ export class CaMonitor extends LitElement {
     const { tries } = d.tries;
     const tasks = d.counts;
     // A tab's count is a total: neutral, never coloured by its worst part. Only a count of what is running is.
-    const badge = (id: Tab): [string | number, string] | null =>
+    const badge = (id: Tab): [string | number, Tone] | null =>
       id === 'tasks'
         ? [tasks.total || '', '']
         : id === 'journal'
@@ -472,7 +472,7 @@ export class CaMonitor extends LitElement {
         return html`${t.panel && !tabs[i - 1]?.panel ? html`<span class="tab-sep" title=${msg('Custom views')}></span>` : nothing}
           <button type="button" class="tab ${t.panel ? 'panel-tab' : ''} ${t.id === this.route.tab ? 'sel' : ''}" title=${t.tip ?? nothing}
             @click=${() => this.navigate({ tab: t.id })}>
-            <span class="tab-ic" aria-hidden="true">${t.icon}</span>${t.label}${b && b[0] !== '' ? html`<span class="badge ${b[1]}">${b[0]}</span>` : nothing}
+            <span class="tab-ic" aria-hidden="true">${t.icon}</span>${t.label}${b && b[0] !== '' ? html`<span class="badge" data-tone=${b[1] || nothing}>${b[0]}</span>` : nothing}
           </button>`;
       })}
       <span class="tab-ind init"></span>

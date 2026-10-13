@@ -12,6 +12,8 @@ field the server removes fails your type check, not your page.
 Every response and feed message has a type, with readable aliases:
 `JournalRow`, `RunSummary`, `Plan`, `Outputs`, `TaskDetail`, `StreamPage`,
 `TranscriptEvent`, and so on. Fields the server may leave out are optional.
+Closed vocabularies are unions: `Stop` (how an attempt ended, `JournalRow['stop']`),
+`TaskState`, `ContractStatus`.
 
 The live feeds are discriminated unions on the SSE event name, so a `switch` on
 `msg.event` narrows `msg.data`:
