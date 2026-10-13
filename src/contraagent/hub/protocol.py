@@ -7,7 +7,9 @@ another language can speak it.
     PUT  /ingest/blobs/<sha256>   the raw bytes; 204, or 400 when they do not hash to <sha256>
 
 Every request carries `Authorization: Bearer <token>`, a token the hub was given for
-ingest.
+ingest; a token bound to one host is refused (403) for another host's runs. A records or
+heartbeat body may be sent with `Content-Encoding: gzip`. The full contract, with limits,
+is `contraagent/hub/openapi.json`.
 
 Delivery is at least once, and storing is idempotent:
 
