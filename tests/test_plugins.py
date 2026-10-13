@@ -1,8 +1,10 @@
 """Plugins: the implementation of an agent task, with hooks declared once for every coding agent."""
 
 import json
+import runpy
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -115,3 +117,79 @@ def test_cli(plugin, tmp_path):
     assert bad.returncode == 1 and "no role" in bad.stdout
     assert "refusing" in run("plugin", "new", str(plugin)).stderr
     assert run("call", "validate").returncode == 0  # no call file: nothing to check
+
+
+def skill_plugin(root, name="common", skill="house-style"):
+    (root / ".claude-plugin").mkdir(parents=True)
+    (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": name}))
+    (root / "skills" / skill).mkdir(parents=True)
+    (root / "skills" / skill / "SKILL.md").write_text(f"---\nname: {skill}\ndescription: d\n---\nShort sentences.\n")
+    return root
+
+
+def test_a_skill_plugin_is_loaded_after_the_tasks_own(plugin, tmp_path):
+    common = skill_plugin(tmp_path / "plugins" / "common")
+    spec = agent_task("summarize", plugin=plugin, skills_from=[common])
+    graph = Graph(tmp_path / "out")
+    with graph.building():
+        spec("a")
+    [task] = graph.tasks()
+    adapter = SpecAdapter("r", tmp_path)
+    assert adapter.plugin_dirs(task) == (str(plugin.resolve()), str(common.resolve()))
+    assert adapter.settings_path(task) == str(plugin.resolve() / "settings.json")  # the task's own plugin's only
+    assert adapter.mcp_config_path(task) is None
+    definition = adapter.definition(task)
+    assert definition["plugin_dirs"] == [str(plugin.resolve()), str(common.resolve())]
+    assert {"path": "common/skills/house-style/SKILL.md", "part": "skill"}.items() <= next(
+        f for f in definition["files"] if f["path"].startswith("common/")
+    ).items()
+
+
+def test_a_skill_plugin_holds_skills_only(plugin, tmp_path):
+    common = skill_plugin(tmp_path / "common")
+    assert Plugin.load(common).skills_only and Plugin.load(common).lint() == []  # no role, no stop hook: not asked for
+    (common / "settings.json").write_text("{}")
+    (common / "agents").mkdir()
+    with pytest.raises(PluginError, match=r"holds agents, settings.json; a plugin it names holds skills only"):
+        agent_task("summarize", plugin=plugin, skills_from=[common])
+    with pytest.raises(PluginError, match="hooks.toml, hooks, package.json;"):  # a task's own plugin is not a skill plugin
+        agent_task("summarize", plugin=plugin, skills_from=[plugin])
+
+
+def test_skills_from_is_relative_to_the_declaring_file_and_part_of_the_fingerprint(plugin, tmp_path):
+    common = skill_plugin(tmp_path / "plugins" / "common")
+    declaring = tmp_path / "tasks.py"
+    declaring.write_text(
+        "from contraagent import agent_task\nspec = agent_task('summarize', plugin='plugins/summarize', skills_from=['plugins/common'])\n"
+    )
+    declared = runpy.run_path(str(declaring))["spec"]
+    assert [p.root for p in declared.plugins] == [plugin.resolve(), common.resolve()]
+    a = agent_task("summarize", plugin=plugin, skills_from=[common])
+    assert a.differences(agent_task("summarize", plugin=plugin)) == ["skills", "skills_from"]
+    digest = a.digest()
+    (common / "skills" / "house-style" / "SKILL.md").write_text("---\nname: house-style\ndescription: d\n---\nLong sentences.\n")
+    assert a.digest() != digest  # an edited skill runs the task again on resume
+
+
+def test_check_lints_every_plugin_a_task_loads(plugin, tmp_path):
+    from contraagent import Pipeline
+    from contraagent.testing import StubAgent
+
+    common = skill_plugin(tmp_path / "common")
+    spec = agent_task("summarize", plugin=plugin, skills_from=[common], max_turns=1, timeout_s=10)
+    (common / "skills" / "house-style" / "SKILL.md").write_text("no frontmatter\n")
+    report = Pipeline(backends=StubAgent().backends()).check(lambda: spec("a"))
+    assert any(str(common.resolve()) in e and "frontmatter has no name" in e for e in report.errors)
+
+
+def test_the_example_shares_one_skill_plugin(tmp_path):
+    from contraagent import Pipeline
+    from contraagent.docs.examples.skills import tasks
+    from contraagent.testing import StubAgent
+
+    agent = StubAgent({"summarize": lambda launch: {"unit": launch.unit, "points": ["a"]}, "write_note": "# Note\n"})
+    report = Pipeline(runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(tasks.notes, units=["alpha"])
+    assert report.ok
+    style = str(Path(tasks.__file__).parent / "plugins" / "house-style")
+    assert {launch.kind: launch.launch.plugin_dirs[-1] for launch in agent.launches} == {"summarize": style, "write_note": style}
+    assert {launch.role for launch in agent.launches} == {"summarizer", "writer"}

@@ -3,7 +3,9 @@
 An agent file whose frontmatter names someone else, a skill without a
 description, a hook script that is missing, rendered hook files out of date
 with `hooks.toml`: each is a plugin that loads and runs and then does the
-wrong thing, so each is reported here instead.
+wrong thing, so each is reported here instead. A skill plugin (skills and
+nothing else that acts) has no role and no hooks to agree with: only its
+skills are checked.
 """
 
 from __future__ import annotations
@@ -21,6 +23,9 @@ def lint_plugin(plugin: Plugin) -> list[str]:
     errs: list[str] = []
     r = plugin.root
     errs += _json_errors(r / PLUGIN_JSON, required=("name",))
+    errs += lint_skills(plugin)
+    if plugin.skills_only:
+        return errs
     if not plugin.roles:
         errs.append("agents/: no role (agents/<role>.md) — the task has no procedure")
     for role in plugin.roles:
@@ -29,11 +34,6 @@ def lint_plugin(plugin: Plugin) -> list[str]:
             errs.append(f"agents/{role}.md: frontmatter name is {fm.get('name')!r}, expected {role!r}")
         if not fm.get("description"):
             errs.append(f"agents/{role}.md: frontmatter has no description")
-    for skill in sorted((r / "skills").glob("*/SKILL.md")) if (r / "skills").is_dir() else []:
-        fm = frontmatter(skill.read_text())
-        for k in ("name", "description"):
-            if not fm.get(k):
-                errs.append(f"{skill.relative_to(r)}: frontmatter has no {k}")
     for opt in ("settings.json", "package.json", ".mcp.json"):
         if (r / opt).is_file():
             errs += _json_errors(r / opt)
@@ -51,6 +51,18 @@ def lint_plugin(plugin: Plugin) -> list[str]:
     if not hook_errs:
         for rel in hooks.stale(plugin):
             errs.append(f"{rel}: out of date with {HOOKS_TOML} — run `contraagent plugin render {r}`")
+    return errs
+
+
+def lint_skills(plugin: Plugin) -> list[str]:
+    """Each skill's frontmatter names it and says what it is for."""
+    r = plugin.root
+    errs: list[str] = []
+    for skill in sorted((r / "skills").glob("*/SKILL.md")) if (r / "skills").is_dir() else []:
+        fm = frontmatter(skill.read_text())
+        for k in ("name", "description"):
+            if not fm.get(k):
+                errs.append(f"{skill.relative_to(r)}: frontmatter has no {k}")
     return errs
 
 

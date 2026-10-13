@@ -8,7 +8,8 @@ Every argument is in the docstrings of `agent_task`, `python_task`
 An agent task's interface: what it takes (`params`, a pydantic model), what it
 must leave behind (`output`: a model, or `str` for a text document), the extra
 checks its output must pass, and its default budget. Its implementation is a
-role of a plugin. The config file may change where and how it runs, never what
+role of a plugin, with the skills of any skill plugins it names
+([plugins](plugins.md)). The config file may change where and how it runs, never what
 it is.
 
 ::code{file="examples/demo/tasks.py" from="summarize = agent_task(" to="@python_task"}

@@ -17,7 +17,7 @@ would otherwise find out one launch at a time:
 * each kind: an agent task's output schema has a JSON Schema and can be
   imported by the in-session hook (in a fresh interpreter, as the hook does),
   its command validators' programs are on PATH;
-* each plugin: `plugin lint`;
+* each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
 * routing: the config against those kinds (budgets, efforts, failover chains,
   credentials and the traits tasks require), the coding agents' programs on
   PATH, and each model against the list its coding agent keeps locally
@@ -297,10 +297,11 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
     errs: list[str] = []
     seen: set[Path] = set()
     for spec in specs.values():
-        if spec.plugin is None or spec.plugin.root in seen:
-            continue
-        seen.add(spec.plugin.root)
-        errs += [f"plugin {spec.plugin.root}: {e}" for e in spec.plugin.lint()]
+        for plugin in spec.plugins:  # its own plugin, then the skill plugins of skills_from
+            if plugin.root in seen:
+                continue
+            seen.add(plugin.root)
+            errs += [f"plugin {plugin.root}: {e}" for e in plugin.lint()]
     return errs
 
 

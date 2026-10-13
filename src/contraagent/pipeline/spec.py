@@ -24,7 +24,7 @@ from typing import Any, TypeVar, overload
 from pydantic import BaseModel, RootModel
 
 from contraagent.pipeline.graph import Pending, current_graph
-from contraagent.plugins import Plugin
+from contraagent.plugins import Plugin, PluginError
 from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.validators import Validator, validator_name
 
@@ -46,6 +46,8 @@ class AgentTask[Out]:
     output_name: str
     requires: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    #: Plugins whose skills the task loads too, after its own plugin (`agent_task(skills_from=)`).
+    skills_from: tuple[Plugin, ...] = ()
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -61,22 +63,29 @@ class AgentTask[Out]:
             return None
         return "text" if self.output is str else "json"
 
+    @property
+    def plugins(self) -> tuple[Plugin, ...]:
+        """Every plugin the task loads: its own first, then those of `skills_from`."""
+        return ((self.plugin,) if self.plugin is not None else ()) + self.skills_from
+
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
-        instructions, its role file's content, its output schema, its validators and its
-        params schema."""
+        instructions, its role file's content, the skills of its plugins, its output schema,
+        its validators and its params schema."""
         return _digest(self._defined())
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `config`, `requires`, `tags` and `output_name`. None: one kind,
-        declared twice the same way."""
+        digest, the plugin, `skills_from`, `config`, `requires`, `tags` and `output_name`. None:
+        one kind, declared twice the same way."""
         if other is self:
             return []
         mine, theirs = self._defined(), other._defined()
         parts = [name for name in mine if mine[name] != theirs[name]]
         if (self.plugin and self.plugin.root) != (other.plugin and other.plugin.root):
             parts.append("plugin")
+        if [p.root for p in self.skills_from] != [p.root for p in other.skills_from]:
+            parts.append("skills_from")
         return parts + [name for name in ("config", "requires", "tags", "output_name") if getattr(self, name) != getattr(other, name)]
 
     def _defined(self) -> dict[str, Any]:
@@ -89,6 +98,7 @@ class AgentTask[Out]:
         return {
             "instructions": self.instructions,
             "role": role,
+            "skills": {f"{p.name}/{rel}": text for p in self.plugins for rel, text in p.skill_files()},
             "output": _schema(self.output_schema) if self.output_schema is not None else self.output_format,
             "validators": [_validator_identity(v) for v in self.validators],
             "params": _schema(self.params) if self.params is not None else None,
@@ -107,6 +117,7 @@ def agent_task[Out](
     output: type[Out] | None = None,
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
+    skills_from: Sequence[str | Path] = (),
     role: str | None = None,
     instructions: str | None = None,
     validators: Sequence[Validator] = (),
@@ -120,6 +131,10 @@ def agent_task[Out](
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
     to the file that declares the task. Its role (`agents/<role>.md`) is the
     procedure; `role` picks one when the plugin has several.
+    `skills_from`: plugin directories (relative the same way) whose skills the task
+    loads too, after its own plugin's: skills several tasks share. Such a plugin holds
+    skills only; its agents, settings, tools and hooks would act on every task that
+    loads it, so a plugin with any of them is refused here.
     `params`: a pydantic model the task's parameters must satisfy (default: any
     JSON values). They reach the agent in its call file, never in the prompt.
     `output`: a pydantic model (a JSON file checked against it) or `str` (a text
@@ -153,7 +168,12 @@ def agent_task[Out](
             PipelineConfig({"tasks": {kind: dict(config)}}).task_tables()
         except ConfigError as exc:
             raise ConfigError(str(exc).replace("<config>: [tasks.", "agent_task: [", 1)) from None
-    loaded = Plugin.load(_relative_to_caller(plugin)) if plugin is not None else None
+    base = _caller_dir()
+    loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
+    shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
+    for p in shared:
+        if others := p.besides_skills():
+            raise PluginError(f"agent_task({kind!r}): skills_from {p.root} holds {', '.join(others)}; a plugin it names holds skills only")
     resolved_role = loaded.resolve_role(role) if loaded is not None else role
     return AgentTask(
         kind=kind,
@@ -166,6 +186,7 @@ def agent_task[Out](
         validators=tuple(validators),
         requires=tuple(requires),
         tags=tuple(tags),
+        skills_from=shared,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
     )
 
@@ -333,12 +354,17 @@ def _check_param_names(kind: str, model: type[BaseModel], params: dict) -> None:
         raise TypeError(f"{kind}(): parameters do not match {model.__name__}: {'; '.join(bits)}")
 
 
-def _relative_to_caller(path: str | Path) -> Path:
+def _caller_dir() -> Path | None:
+    """The directory of the file that called `agent_task` (None from a REPL)."""
+    frame = inspect.currentframe()
+    caller = frame.f_back.f_back if frame and frame.f_back else None
+    file = caller.f_globals.get("__file__") if caller else None
+    return Path(file).resolve().parent if file else None
+
+
+def _relative_to(base: Path | None, path: str | Path) -> Path:
     """A relative plugin path is relative to the file that called `agent_task`."""
     p = Path(path)
     if p.is_absolute():
         return p
-    frame = inspect.currentframe()
-    caller = frame.f_back.f_back if frame and frame.f_back else None
-    file = caller.f_globals.get("__file__") if caller else None
-    return (Path(file).resolve().parent / p) if file else p.resolve()
+    return base / p if base is not None else p.resolve()

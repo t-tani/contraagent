@@ -43,6 +43,24 @@ call file, does the work, writes the output as the call describes, and stops:
 
 ::code{file="examples/demo/plugins/docs/agents/summarizer.md"}
 
+## Skills several tasks share
+
+A task's own plugin holds its role, and so its permissions, tools and hooks. A
+skill that tasks with different roles share goes in a skill plugin of its own:
+a plugin with `skills/` and nothing else that acts (no `agents/`, `commands/`,
+`settings.json`, `.mcp.json` or hooks). Each task names it in `skills_from`:
+
+::code{file="examples/skills/tasks.py" from="summarize = agent_task(" to="def notes("}
+
+The coding agent loads the task's plugin first, then each skill plugin
+(`--plugin-dir`, in that order); the role, `settings.json` and `.mcp.json` come
+from the task's plugin alone. Claude Code names a skill `<plugin name>:<skill>`
+(`house-style:house-style`). A skill plugin that holds anything else is refused
+where the task is declared, since it would act on every task that loads it.
+`plugin lint` checks a skill plugin's skills only, and `contraagent check` lints
+every plugin a task loads. The skills' text is part of each task's fingerprint,
+as its role file is: a resume runs a task again after its skills changed.
+
 ## What a task agent sees
 
 A task agent's instructions come from its plugin and its call file. Both coding
@@ -51,8 +69,8 @@ user's home; every launch keeps that out, and keeps what the agent itself can do
 
 | | kept out | kept |
 |---|---|---|
-| Claude Code | the user's, the project's and local settings files (their hooks, skills, commands, agents, plugins, permissions), CLAUDE.md files, auto-memory, skills synced from the account | its built-in tools, skills, subagents and plugins; the task's plugin (roles, skills, hooks, `settings.json`, `.mcp.json`) |
-| omp | AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` and other tools' context files, skills, rules, hooks, tools and MCP servers; the user's installed Claude Code plugins | its built-in tools and subagents; the task's plugin |
+| Claude Code | the user's, the project's and local settings files (their hooks, skills, commands, agents, plugins, permissions), CLAUDE.md files, auto-memory, skills synced from the account | its built-in tools, skills, subagents and plugins; the task's plugin (roles, skills, hooks, `settings.json`, `.mcp.json`) and the skills of its `skills_from` |
+| omp | AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` and other tools' context files, skills, rules, hooks, tools and MCP servers; the user's installed Claude Code plugins | its built-in tools and subagents; the task's plugin and the skills of its `skills_from` |
 
 A launch also leaves out the variables that tie it to a Claude Code session the
 pipeline was started from. A skill, a hook, a permission or an MCP server a task
