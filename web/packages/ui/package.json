@@ -32,7 +32,7 @@
     "./src/elements/**"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && vite build && cem analyze --litelement --globs 'src/elements/**/*.ts'",
+    "build": "tsc -p tsconfig.build.json && vite build && cem analyze --litelement --globs 'src/elements/**/*.ts' --exclude 'src/elements/**/graph/**' 'src/elements/**/*-model.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs",
     "i18n": "lit-localize extract && lit-localize build",
     "i18n:check": "node scripts/i18n-check.mjs"
