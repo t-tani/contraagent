@@ -14,13 +14,13 @@ import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
 import { accountsTip } from '../../words/quota.js';
 import { runTone, type Tone } from '../../lib/tone.js';
-import { toneAttr } from '@contraagent/elements';
+import { RovingFocusController, toneAttr } from '@contraagent/elements';
 import '@contraagent/elements/segmented/define';
 import { base } from '@contraagent/elements/styles';
 import { hostThemeStyles, rememberTheme, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
 import { rowToast, type CaToasts } from './ca-toasts.js';
 import { monitorStyles } from './styles.js';
-import { monitorTabs, moveTabIndicator, tabBar, tabStyles } from './tabs.js';
+import { monitorTabs, moveTabIndicator, tabBar, tabId, tabStyles } from './tabs.js';
 import { brand, connection, nowLine } from './header.js';
 import { tabView } from './views.js';
 import './ca-clock.js';
@@ -71,8 +71,17 @@ export class CaMonitor extends LitElement {
 
   @query('main') private main!: HTMLElement;
   @query('ca-toasts') private toasts!: CaToasts;
+  @query('.runbtn') private runBtn!: HTMLButtonElement;
+  @query('ca-run-picker') private picker!: HTMLElement;
 
   private readonly themes = new ThemeController(this, { theme: () => this.theme, pageWide: () => this.history === 'url' });
+
+  /** One tab stop for the tab list, on the selected tab; the arrow keys, Home and End move between the tabs. */
+  private readonly tabFocus = new RovingFocusController(this, {
+    items: () => [...this.renderRoot.querySelectorAll<HTMLElement>('[role="tablist"] [role="tab"]')],
+    layout: 'horizontal',
+    wrap: true,
+  });
   private store!: MonitorStore;
   private router!: Router;
   private readonly mainScroll = new ScrollMemory('main');
@@ -178,7 +187,21 @@ export class CaMonitor extends LitElement {
     }
   }
 
+  /** The index of the selected tab in the tab list, or -1 (a custom view the run does not have). */
+  private selectedTab(): number {
+    return monitorTabs(this.snap.info.panels).findIndex((t) => t.id === this.route.tab);
+  }
+
+  /** Close the run picker; the focus goes back to the button that opens it when it was in the picker. */
+  private closePicker(): void {
+    const inside = this.picker?.matches(':focus-within');
+    this.pickerOpen = false;
+    if (inside) this.runBtn?.focus();
+  }
+
   protected override updated(): void {
+    // Tab comes back into the tab list on the selected tab.
+    if (this.snap && this.route) this.tabFocus.set(Math.max(0, this.selectedTab()));
     moveTabIndicator(this.renderRoot);
     if (this.main) this.mainScroll.attach(this.main);
     if (this.pendingScroll) {
@@ -211,10 +234,12 @@ export class CaMonitor extends LitElement {
     const acts = liveActivities(snap.state.procs);
     const dot = runTone(!!summary?.running, summary?.tasks);
     const derived = deriveRun(snap.state.journal, snap.state.plan);
+    const tab = this.selectedTab();
     return html`
       <header>
         ${brand(snap.info.title)}
-        <button type="button" class="runbtn" title=${msg('Switch run (r)')} @click=${() => (this.pickerOpen = !this.pickerOpen)}>
+        <button type="button" class="runbtn" title=${msg('Switch run (r)')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
+          @click=${() => (this.pickerOpen = !this.pickerOpen)}>
           <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
           <span class="rn">${route.run || '—'}</span>
           <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>
@@ -230,10 +255,11 @@ export class CaMonitor extends LitElement {
           <ca-clock class="clock"></ca-clock>
         </div>
         <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen}
-          @ca-close=${() => (this.pickerOpen = false)}></ca-run-picker>
+          @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)}
-      <main class=${route.tab === 'stream' ? 'stream' : ''}>${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.baseUrl })}</main>
+      <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
+        >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.baseUrl })}</main>
       <ca-toasts></ca-toasts>
     `;
   }
@@ -251,7 +277,7 @@ export class CaMonitor extends LitElement {
           : id === 'procs'
             ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
-    return tabBar(monitorTabs(this.snap.info.panels), this.route.tab, badge, (id) => this.navigate({ tab: id }));
+    return tabBar(monitorTabs(this.snap.info.panels), this.route.tab, badge, (id) => this.navigate({ tab: id }), 'main');
   }
 
   private renderBar(d: RunDerived) {

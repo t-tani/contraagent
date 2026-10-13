@@ -590,9 +590,13 @@ export class CaTranscript extends LitElement {
             : html`<span class="st-int" title=${msg('The run ended before the tool call returned')}><span aria-hidden="true">◌</span> ${msg('interrupted')}</span>`;
     const tool = c.webQuery ? 'web-search' : c.webFetch ? 'web-fetch' : c.icon;
     return html`<div class="toolcard ${c.status} ${this.revealed === c.id ? 'revealed' : ''}" data-tool=${tool} data-card=${c.id}>
-      <div class="th" @click=${() => {
+      <div class="th" role="button" tabindex="0" aria-expanded=${open ? 'true' : 'false'} @click=${() => {
         this.openCards.set(c.id, !open);
         this.requestUpdate();
+      }} @keydown=${(e: KeyboardEvent) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).click();
       }}>
         <span class="tn">${c.name || msg('tool')}</span><span class="tp">${c.preview}</span><span class="ti"
           >${results.length === 1 ? msg('1 result') : results.length ? msg(str`${results.length} results`) : c.intent}</span

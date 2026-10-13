@@ -372,7 +372,7 @@ test.describe('colour means status', () => {
     await expect(kpis.locator('[part~="tile"][data-id="bad"]')).toHaveAttribute('data-tone', 'failed');
     expect(await colour('bad')).not.toBe(text);
     // A tab's count is a total too.
-    const badge = page.locator('ca-monitor').locator('.tab', { hasText: 'History' }).locator('.badge');
+    const badge = page.getByRole('tab', { name: /History/ }).locator('.badge');
     await expect(badge).not.toHaveAttribute('data-tone');
   });
 });

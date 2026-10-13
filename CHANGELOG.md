@@ -418,6 +418,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The pipeline graph's Graph | Table switch and the header's language switch
   are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
   The legends are lists for screen readers.
+- The monitor's tabs are a tab list ("Views"): one tab stop, the arrow keys,
+  Home and End move between the tabs, Enter opens one, and the view below is
+  its tab panel. The selected tab is bold as well as underlined.
+- The run picker is a dialog: its search field (a combobox) takes the focus
+  when it opens and keeps it, the arrow keys name the active run, and Escape or
+  a pick returns the focus to the run button.
+- Every element that opens something on a click opens it from the keyboard too:
+  the task names in Problems and Processes, the rows of Outputs in the
+  overview, the definitions, the running tasks, a tool call in a transcript and
+  a definition file are buttons. Notices are read by screen readers (failures
+  at once). `pnpm e2e` checks every tab with axe (`e2e/a11y.spec.ts`; serious
+  and critical violations fail it).
 - The monitor writes a list of names (tasks, passes, models, identities) as the
   page's language writes a list: "a, b, and c" in English, "a、b、c" in
   Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).

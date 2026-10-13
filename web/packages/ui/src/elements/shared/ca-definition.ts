@@ -40,10 +40,12 @@ export class CaDefinition extends LitElement {
       :host { display: block; }
       .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }
       .df { border-top: 1px solid var(--line); }
-      .df > summary { cursor: pointer; padding: 6px 2px; display: flex; gap: 10px; align-items: center; list-style: none; }
-      .df > summary::-webkit-details-marker { display: none; }
-      .df > summary::before { content: '▸'; color: var(--text-muted); width: 10px; transition: transform 0.15s; }
-      .df[open] > summary::before { transform: rotate(90deg); }
+      /* A file: its name opens and closes it (a disclosure button), and a Markdown file has its own toggle beside it. */
+      .df-hd { padding: 6px 2px; display: flex; gap: 10px; align-items: center; }
+      .df-sum { flex: 1 1 auto; min-width: 0; display: flex; gap: 10px; align-items: center; padding: 0; background: none; border: 0;
+        color: inherit; text-align: start; cursor: pointer; }
+      .df-sum::before { content: '▸'; color: var(--text-muted); width: 10px; flex: none; transition: transform 0.15s; }
+      .df-sum[aria-expanded='true']::before { transform: rotate(90deg); }
       .py-sig { font-family: var(--mono); font-size: 14px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line);
         border-radius: 8px; overflow-x: auto; white-space: pre; }
       .py-where { margin: 6px 2px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
@@ -142,28 +144,31 @@ export class CaDefinition extends LitElement {
     // Of the role files, only the one this kind uses opens by default.
     const openFirst = f.part === 'agent' && hasRole ? isRole : OPEN_FIRST.has(f.part);
     const isOpen = this.open.has(id) || (openFirst && !this.open.has(`closed:${id}`));
-    const toggle = (e: Event) => {
-      const open = (e.target as HTMLDetailsElement).open;
-      this.open.set(id, open);
-      this.open.set(`closed:${id}`, !open);
+    const toggle = () => {
+      this.open.set(id, !isOpen);
+      this.open.set(`closed:${id}`, isOpen);
+      this.requestUpdate();
     };
-    const flip = (e: Event) => {
-      e.preventDefault(); // inside a <summary>: do not fold the file
+    const flip = () => {
       this.source.set(id, !this.source.has(id));
       this.requestUpdate();
     };
-    return html`<details class="df" ?open=${isOpen} @toggle=${toggle}>
-      <summary>
-        <span class="tag">${f.part}</span><span class="jmono">${f.path}</span>
-        ${isRole ? html`<span class="ct-chip">${msg('Role of this kind')}</span>` : nothing}
+    return html`<div class="df">
+      <div class="df-hd">
+        <button type="button" class="df-sum" aria-expanded=${isOpen ? 'true' : 'false'} @click=${toggle}>
+          <span class="tag">${f.part}</span><span class="jmono">${f.path}</span>
+          ${isRole ? html`<span class="ct-chip">${msg('Role of this kind')}</span>` : nothing}
+        </button>
         ${isMd
           ? html`<button type="button" class="df-tog" @click=${flip}>${showSource ? msg('Show rendered') : msg('Show source')}</button>`
           : nothing}
-      </summary>
-      ${showSource
-        ? html`<pre class="df-text"><code class="hl">${unsafeHTML(instructions ? instructionsHtml(f.text) : highlight(f.text, f.path))}</code></pre>`
-        : unsafeHTML(mdFile(f.text, instructions ? markInstructions : undefined))}
-    </details>`;
+      </div>
+      ${!isOpen
+        ? nothing
+        : showSource
+          ? html`<pre class="df-text"><code class="hl">${unsafeHTML(instructions ? instructionsHtml(f.text) : highlight(f.text, f.path))}</code></pre>`
+          : unsafeHTML(mdFile(f.text, instructions ? markInstructions : undefined))}
+    </div>`;
   }
 }
 

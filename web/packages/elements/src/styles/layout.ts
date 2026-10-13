@@ -23,8 +23,10 @@ export const layoutStyles = css`
   .blank a.lnk { text-decoration: underline; }
   .blank.small { padding: 24px; }
 
-  /* a short clickable row (failures, launches) */
+  /* a short clickable row (failures, launches): a button, or a row whose name (.fl-name) is the button */
   .fl { padding: 7px 10px; border-radius: var(--radius-md); cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: baseline; }
+  button.fl { width: 100%; background: none; border: 0; color: inherit; text-align: start; }
+  .fl-name { background: none; border: 0; padding: 0; color: inherit; font-weight: 700; text-align: start; cursor: pointer; min-width: 0; }
   .fl > .meta:last-child { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
   .fl:hover { background: var(--raise); }
 `;

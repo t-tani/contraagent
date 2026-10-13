@@ -1,6 +1,6 @@
 import { liveActivities, type Procs } from '@contraagent/api';
 import { localized, msg } from '@lit/localize';
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
@@ -26,7 +26,8 @@ export class CaWorkers extends LitElement {
       .wks { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px; }
       @media (max-width: 900px) { .wks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       .wk { border-radius: 11px; padding: 10px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2.5%, transparent); min-width: 0;
-        position: relative; overflow: hidden; }
+        position: relative; overflow: hidden; display: block; width: 100%; color: inherit; text-align: start; }
+      .wk > .meta { display: block; }
       .wk.py, .wk.llm { border-color: var(--line2); }
       .wk.llm { box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--agent) 60%, transparent); cursor: pointer; }
       .wk.llm:hover { border-color: var(--accent); }
@@ -55,13 +56,16 @@ export class CaWorkers extends LitElement {
       ${repeat(
         work,
         (a) => a.id,
-        (a) => html`<div class="wk ${a.cls}"
-          @click=${a.key ? () => emit(this, 'ca-open-task', { key: a.key }) : nothing}>
-          <div class="wk-top">${executorIcon(a.cls !== 'llm', a.cls === 'llm' ? msg('Agent task') : msg('Python task'), 'wk-ic')}<b>${a.kind}</b>
-            <cae-elapsed class="wk-el" .since=${starts.at(a.id, a.ageS)}></cae-elapsed></div>
-          <div class="meta">${a.detail}</div>
-          <div class="wk-bar"><i></i></div>
-        </div>`,
+        (a) => {
+          const body = html`<span class="wk-top">${executorIcon(a.cls !== 'llm', a.cls === 'llm' ? msg('Agent task') : msg('Python task'), 'wk-ic')}<b>${a.kind}</b>
+              <cae-elapsed class="wk-el" .since=${starts.at(a.id, a.ageS)}></cae-elapsed></span>
+            <span class="meta">${a.detail}</span>
+            <span class="wk-bar"><i></i></span>`;
+          // A slot with a task opens it: a button.
+          return a.key
+            ? html`<button type="button" class="wk ${a.cls}" @click=${() => emit(this, 'ca-open-task', { key: a.key })}>${body}</button>`
+            : html`<div class="wk ${a.cls}">${body}</div>`;
+        },
       )}
       ${free.map(
         () => html`<div class="wk idle"><div class="wk-top"><b>${msg('Idle')}</b></div>
