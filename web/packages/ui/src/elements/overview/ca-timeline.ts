@@ -1,12 +1,12 @@
-import { deriveRun, isLaunched, liveActivities, type JournalRow, type Plan, type Procs } from '@contraagent/api';
+import { deriveRun, isLaunched, liveActivities, runRelative, type JournalRow, type Plan, type Procs } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { starts } from '../../lib/clock.js';
-import { getLocale } from '../../i18n.js';
-import { facts, fmtDur, kindUnit } from '../../lib/format.js';
-import { modelSwitch, notStartedCause, runRelative, stopLabel } from '../../lib/labels.js';
+import { starts } from '../../core/clock.js';
+import { getLocale } from '../../core/i18n.js';
+import { facts, fmtDur, kindUnit } from '../../words/format.js';
+import { modelSwitch, notStartedCause, stopLabel } from '../../words/index.js';
 import { base } from '../../styles/base.js';
 import { barBox, timeline, type TimelineBar } from './timeline-model.js';
 

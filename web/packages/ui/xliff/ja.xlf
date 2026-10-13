@@ -30,10 +30,6 @@
   <source><x id="0" equiv-text="${Math.floor(s / 86400)}"/>d ago</source>
   <target><x id="0" equiv-text="${Math.floor(s / 86400)}"/> 日前</target>
 </trans-unit>
-<trans-unit id="s3c0d17bad169557b">
-  <source>none</source>
-  <target>なし</target>
-</trans-unit>
 <trans-unit id="sfd5b8cae918b42cb">
   <source><x id="0" equiv-text="${keys.length}"/> items: <x id="1" equiv-text="${names}"/></source>
   <target>要素 <x id="0" equiv-text="${keys.length}"/> 個: <x id="1" equiv-text="${names}"/></target>
@@ -49,10 +45,6 @@
 <trans-unit id="s42c16f17debe21c7">
   <source><x id="0" equiv-text="${x.completed.length}"/> steps completed</source>
   <target><x id="0" equiv-text="${x.completed.length}"/> ステップ完了</target>
-</trans-unit>
-<trans-unit id="sdc51fb6761fd6e91">
-  <source>done</source>
-  <target>完了</target>
 </trans-unit>
 <trans-unit id="sd7338946b42394f4">
   <source>failed</source>
@@ -566,14 +558,6 @@
   <source>Last attempt ended</source>
   <target>最終試行の終了時刻</target>
 </trans-unit>
-<trans-unit id="sad3e3c8146fc920f">
-  <source>Status</source>
-  <target>状態</target>
-</trans-unit>
-<trans-unit id="sc797fd9076cc136d">
-  <source>Tasks</source>
-  <target>タスク</target>
-</trans-unit>
 <trans-unit id="sa35c067275510aa7">
   <source>Attempts</source>
   <target>試行</target>
@@ -994,10 +978,6 @@
   <source>Parameters</source>
   <target>パラメータ</target>
 </trans-unit>
-<trans-unit id="sfd77270c3f54f664">
-  <source>Output</source>
-  <target>出力</target>
-</trans-unit>
 <trans-unit id="s68818ff23f9c3cd6">
   <source>Other checks</source>
   <target>その他の検証</target>
@@ -1266,10 +1246,6 @@
   <source>No transcript</source>
   <target>トランスクリプトなし</target>
 </trans-unit>
-<trans-unit id="s6d36170fcecb00d0">
-  <source>Earlier task</source>
-  <target>依存先タスク</target>
-</trans-unit>
 <trans-unit id="sf6e66e6e9a5d83ff">
   <source>Transcript not saved (keep_transcripts = false)</source>
   <target>トランスクリプトは保存されていません（keep_transcripts = false）</target>
@@ -1327,7 +1303,7 @@
   <target>以前の試行のモデル: <x id="0" equiv-text="${otherModels[0] ?? ''}"/></target>
 </trans-unit>
 <trans-unit id="s822f38a61c9dbabc">
-  <source>Earlier attempts used models <x id="0" equiv-text="${otherModels.join(', ')}"/></source>
+  <source>Earlier attempts used models <x id="0" equiv-text="${listText(otherModels)}"/></source>
   <target>以前の試行のモデル: <x id="0" equiv-text="${otherModels.join(', ')}"/></target>
 </trans-unit>
 <trans-unit id="s3cd8af104999d502">
@@ -1771,11 +1747,11 @@
   <target>ループ内の <x id="0" equiv-text="${x.label}"/></target>
 </trans-unit>
 <trans-unit id="s95f6abd3bc028e9c">
-  <source>Waits for <x id="0" equiv-text="${waits.join(', ')}"/></source>
+  <source>Waits for <x id="0" equiv-text="${listText(waits)}"/></source>
   <target>依存先: <x id="0" equiv-text="${waits.join(', ')}"/></target>
 </trans-unit>
 <trans-unit id="s947887a004e02e33">
-  <source>Created after <x id="0" equiv-text="${after.join(', ')}"/></source>
+  <source>Created after <x id="0" equiv-text="${listText(after)}"/></source>
   <target>作成元: <x id="0" equiv-text="${after.join(', ')}"/></target>
 </trans-unit>
 <trans-unit id="sa0a6e71350fd953b">
@@ -1955,7 +1931,7 @@
   <target><x id="0" equiv-text="${this.where(h.box.loop, h.box.file)}"/> の入れ子のループ</target>
 </trans-unit>
 <trans-unit id="s56838581fa8422a5">
-  <source>Later tasks: <x id="0" equiv-text="${feeds.join(', ')}"/></source>
+  <source>Later tasks: <x id="0" equiv-text="${listText(feeds)}"/></source>
   <target>後続タスク: <x id="0" equiv-text="${feeds.join(', ')}"/></target>
 </trans-unit>
 <trans-unit id="s5e30a7b87ccdc74f">
@@ -2186,14 +2162,6 @@
   <source>View</source>
   <target>表示形式</target>
 </trans-unit>
-<trans-unit id="sef467f8fe7307be7">
-  <source>Graph</source>
-  <target>グラフ</target>
-</trans-unit>
-<trans-unit id="s337a1e9022a8d19f">
-  <source>Table</source>
-  <target>表</target>
-</trans-unit>
 <trans-unit id="s8eaa2ebab2c57d9f">
   <source>Tab: next row</source>
   <target>Tab: 次の行</target>
@@ -2205,6 +2173,79 @@
 <trans-unit id="sda7d6c86fb627ba9">
   <source>Tasks retried after a failed attempt</source>
   <target>失敗した回のあとにリトライしたタスク</target>
+</trans-unit>
+<trans-unit id="hca6c01d40814d5b0">
+  <source>Running <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(this, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></source>
+  <target>実行中 <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(this, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></target>
+</trans-unit>
+<trans-unit id="h876bf17c2237f30a">
+  <source>Earlier task <x id="0" equiv-text="${taskChip(this, kindUnit(up), up)}"/></source>
+  <target>依存先タスク <x id="0" equiv-text="${taskChip(this, kindUnit(up), up)}"/></target>
+</trans-unit>
+<trans-unit id="tasks">
+  <source>Tasks</source>
+  <target>タスク</target>
+  <note from="lit-localize">A count of tasks</note>
+</trans-unit>
+<trans-unit id="stage-done">
+  <source>done</source>
+  <target>完了</target>
+  <note from="lit-localize">A stage of the resume cursor that is complete</note>
+</trans-unit>
+<trans-unit id="tool-done">
+  <source>done</source>
+  <target>完了</target>
+  <note from="lit-localize">A tool call that finished</note>
+</trans-unit>
+<trans-unit id="none">
+  <source>none</source>
+  <target>なし</target>
+  <note from="lit-localize">An empty value</note>
+</trans-unit>
+<trans-unit id="view-graph">
+  <source>Graph</source>
+  <target>グラフ</target>
+  <note from="lit-localize">Button: show the pipeline as a graph</note>
+</trans-unit>
+<trans-unit id="view-table">
+  <source>Table</source>
+  <target>表</target>
+  <note from="lit-localize">Button: show the pipeline as a table</note>
+</trans-unit>
+<trans-unit id="tokens-output">
+  <source>Output</source>
+  <target>出力</target>
+  <note from="lit-localize">Column: output tokens</note>
+</trans-unit>
+<trans-unit id="stop-completed">
+  <source>done</source>
+  <target>完了</target>
+  <note from="lit-localize">How an attempt ended: completed</note>
+</trans-unit>
+<trans-unit id="view-output">
+  <source>Output</source>
+  <target>出力</target>
+  <note from="lit-localize">Tab: the files a task wrote</note>
+</trans-unit>
+<trans-unit id="tab-tasks">
+  <source>Tasks</source>
+  <target>タスク</target>
+  <note from="lit-localize">Tab: the list of tasks</note>
+</trans-unit>
+<trans-unit id="definition-output">
+  <source>Output</source>
+  <target>出力</target>
+  <note from="lit-localize">The output file of a task definition</note>
+</trans-unit>
+<trans-unit id="outcome-done">
+  <source>done</source>
+  <target>完了</target>
+  <note from="lit-localize">The status of a task: done</note>
+</trans-unit>
+<trans-unit id="status">
+  <source>Status</source>
+  <target>状態</target>
+  <note from="lit-localize">The status of a task: done, failed, not started</note>
 </trans-unit>
 </body>
 </file>

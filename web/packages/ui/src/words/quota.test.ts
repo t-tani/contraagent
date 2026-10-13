@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { accountReading, quotaStatusLabel, readingShort, resetsIn } from './quota-format.js';
+import { accountReading, quotaStatusLabel, readingShort, resetsIn } from './quota.js';
 
-describe('quota-format', () => {
+describe('quota words', () => {
   it('writes a reading with whole windows, and its account in words', () => {
     const r = { seven_day_pct: 41.4, five_hour_pct: 14, credential: 'ambient' };
     expect(readingShort(r)).toBe('weekly 41% | 5-hour 14%');

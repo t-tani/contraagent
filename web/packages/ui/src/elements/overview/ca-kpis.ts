@@ -1,10 +1,10 @@
-import { deriveRun, spendByKind, spendOf, totalTokens, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, inputProblems, spendByKind, spendOf, totalTokens, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, tokenCount, usd } from '../../lib/format.js';
-import { inputProblems, stateCount } from '../../lib/labels.js';
+import { emit } from '../../core/events.js';
+import { factList, facts, fmtDur, kindUnit, tokenCount, usd } from '../../words/format.js';
+import { stateCount } from '../../words/index.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
 import { factLine } from '../shared/fact-line.js';
@@ -19,8 +19,8 @@ interface Tile {
   label: string;
   /** A count (counts up and bumps the tile when it changes), or a text. */
   value: number | string;
-  /** The line under the value, or several lines. */
-  sub: string | string[];
+  /** The lines under the value, each a list of facts (`factList`); an empty line keeps its place. */
+  sub: string[][];
   /** Instead of `sub`: one line of facts, each with the tone of its status ("29 done | 1 failed"). */
   parts?: Fact[];
   /** The code's term for what is counted: the tooltip. */
@@ -33,7 +33,7 @@ interface Tile {
  * Why the tasks that did not start did not start, as the data names it: an
  * input missing, an input that failed checks, an earlier task that failed.
  */
-function notStartedCauses(outcomes: Iterable<TaskOutcome>): string {
+function notStartedCauses(outcomes: Iterable<TaskOutcome>): string[] {
   let missing = false;
   let checks = false;
   let earlier = false;
@@ -45,7 +45,7 @@ function notStartedCauses(outcomes: Iterable<TaskOutcome>): string {
     if (ps.some((p) => p.problem === 'checks')) checks = true;
     if (!ps.length && t.cause) earlier = true;
   }
-  return facts(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
+  return factList(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
 }
 
 /** A fact that is a status ("1 failed"): shown in that status's colour. */
@@ -126,13 +126,13 @@ export class CaKpis extends LitElement {
       { text: c.not_started ? stateCount('not_started', c.not_started) : '', tone: problemTone(c.not_started, 'attention') },
     ];
     return [
-      { id: 'tasks', tone: '', label: msg('Tasks'), value: c.total, sub: '', parts },
+      { id: 'tasks', tone: '', label: msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), value: c.total, sub: [[]], parts },
       {
         id: 'attempts',
         tone: '',
         label: msg('Attempts'),
         value: k.attempts,
-        sub: facts(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), k.python === 1 ? msg('1 Python task attempt') : msg(str`${k.python} Python task attempts`)),
+        sub: [factList(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), k.python === 1 ? msg('1 Python task attempt') : msg(str`${k.python} Python task attempts`))],
         tip: msg('Attempts that ran, retries included (journal.jsonl)'),
       },
       ...this.spendTiles(),
@@ -141,7 +141,7 @@ export class CaKpis extends LitElement {
         tone: problemTone(k.bad, 'failed'),
         label: msg('Failed attempts'),
         value: k.bad,
-        sub: k.bad ? '' : msg('All attempts passed'),
+        sub: [k.bad ? [] : [msg('All attempts passed')]],
         ...(k.bad ? { action: { label: msg('Failed attempts in history'), run: this.history('bad') } } : {}),
       },
       {
@@ -149,7 +149,7 @@ export class CaKpis extends LitElement {
         tone: problemTone(c.not_started, 'attention'),
         label: msg('Not started'),
         value: c.not_started,
-        sub: c.not_started ? notStartedCauses(outcomes.values()) : msg('All tasks started'),
+        sub: [c.not_started ? notStartedCauses(outcomes.values()) : [msg('All tasks started')]],
         ...(c.not_started ? { action: { label: msg('Not-started tasks in history'), run: this.history('invalid_input') } } : {}),
       },
       {
@@ -157,7 +157,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Agent session time'),
         value: fmtDur(k.launchWall),
-        sub: msg(str`Python tasks: ${fmtDur(k.pythonWall)}`),
+        sub: [[msg(str`Python tasks: ${fmtDur(k.pythonWall)}`)]],
         tip: msg('Sum over all agent sessions, including ones running at once'),
       },
       {
@@ -165,7 +165,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Retries'),
         value: k.retries,
-        sub: !k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`),
+        sub: [[!k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`)]],
         tip: msg('Attempts after a failed attempt, each in a new agent session (RetryingRunner)'),
         ...(k.retries ? { action: this.show(k.retriedKeys, 'retried', msg('Retried tasks in history')) } : {}),
       },
@@ -174,7 +174,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Corrections'),
         value: k.fixups,
-        sub: !k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`),
+        sub: [[!k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`)]],
         tip: msg('More rounds in the same agent session after the output failed checks (rounds)'),
         ...(k.fixups ? { action: this.show(k.fixupKeys, 'fixup', msg('Attempts with corrections in history')) } : {}),
       },
@@ -183,7 +183,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Model switches'),
         value: k.switches,
-        sub: !k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`),
+        sub: [[!k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`)]],
         tip: msg('To the next model after a failure such as a rate limit, an error or a timeout (Router hops)'),
       },
     ];
@@ -200,7 +200,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Cost'),
         value: usd(s.cost),
-        sub: top && top.share !== null ? [msg(str`Highest cost: ${top.kind}`), facts(usd(top.spend.cost), msg(str`${Math.round(top.share * 100)}% of the total`))] : '',
+        sub: top && top.share !== null ? [[msg(str`Highest cost: ${top.kind}`)], factList(usd(top.spend.cost), msg(str`${Math.round(top.share * 100)}% of the total`))] : [[]],
         tip: msg('Reported by the coding agent'),
       },
       {
@@ -208,7 +208,7 @@ export class CaKpis extends LitElement {
         tone: '',
         label: msg('Tokens'),
         value: tokenCount(totalTokens(s)),
-        sub: facts(msg(str`${tokenCount(s.input)} input`), msg(str`${tokenCount(s.output)} output`), msg(str`${tokenCount(s.cache_read + s.cache_creation)} cache`)),
+        sub: [factList(msg(str`${tokenCount(s.input)} input`), msg(str`${tokenCount(s.output)} output`), msg(str`${tokenCount(s.cache_read + s.cache_creation)} cache`))],
         tip: facts(
           msg(str`${tokenCount(s.cache_read)} cache read`),
           msg(str`${tokenCount(s.cache_creation)} cache write`),
@@ -235,7 +235,7 @@ export class CaKpis extends LitElement {
       <div class="v">${typeof t.value === 'number' ? html`<ca-count .value=${t.value}></ca-count>` : t.value}</div>
       ${t.parts
         ? html`<div class="s words">${tonedFacts(t.parts)}</div>`
-        : (typeof t.sub === 'string' ? [t.sub] : t.sub).map((line) => html`<div class="s words">${factLine(line)}</div>`)}
+        : t.sub.map((line) => html`<div class="s words">${factLine(line)}</div>`)}
       ${t.action
         ? html`<div class="a words"><a class="lnk" href="#" @click=${(e: Event) => {
             e.preventDefault();

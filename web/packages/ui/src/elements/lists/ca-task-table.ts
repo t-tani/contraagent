@@ -3,9 +3,9 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, localTime, tokenCount, usd } from '../../lib/format.js';
-import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../lib/labels.js';
+import { emit } from '../../core/events.js';
+import { facts, fmtDur, localTime, tokenCount, usd } from '../../words/format.js';
+import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../words/index.js';
 import { outcomePill } from '../../lib/status.js';
 import { base } from '../../styles/base.js';
 import { filterTasks, sortTasks } from './filters.js';
@@ -66,7 +66,7 @@ export class CaTaskTable extends LitElement {
 
   /** Tokens and cost cells: 'none' for a task that never ran, '—' for one that reported none (a Python task). */
   private spendCells(ran: boolean, s: Spend | undefined) {
-    if (!ran) return html`<span class="num jdim">${msg('none')}</span><span class="num jdim">${msg('none')}</span>`;
+    if (!ran) return html`<span class="num jdim">${msg('none', { id: 'none', desc: 'An empty value' })}</span><span class="num jdim">${msg('none', { id: 'none', desc: 'An empty value' })}</span>`;
     if (!s?.reported) return html`<span class="num jdim">—</span><span class="num jdim">—</span>`;
     const cache = facts(msg(str`Cache read ${tokenCount(s.cache_read)}`), msg(str`Cache write ${tokenCount(s.cache_creation)}`));
     return html`<span class="num" title=${cache}>${tokenCount(s.input + s.output)}</span><span class="num">${usd(s.cost)}</span>`;
@@ -92,7 +92,7 @@ export class CaTaskTable extends LitElement {
         <span class="num" title=${msg('Input and output tokens, all attempts')}>${msg('Tokens')}</span>
         <span class="num" title=${msg('Reported by the coding agent')}>${msg('Cost')}</span>
         <span class="num">${msg('Last attempt ended')}</span>
-        <span class="st">${msg('Status')}</span>
+        <span class="st">${msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' })}</span>
       </div>
       ${repeat(
         rows,
@@ -115,9 +115,9 @@ export class CaTaskTable extends LitElement {
             <span class="num wall">${ran
               ? html`${fmtDur(t.wall_s)}<span class="jdur"><i class=${py ? '' : 'llm'}
                   style="width:${Math.max(4, Math.round((100 * t.wall_s) / maxWall))}%"></i></span>`
-              : html`<span class="jdim">${msg('none')}</span><span class="jdur" style="visibility:hidden"></span>`}</span>
+              : html`<span class="jdim">${msg('none', { id: 'none', desc: 'An empty value' })}</span><span class="jdur" style="visibility:hidden"></span>`}</span>
             ${this.spendCells(ran, spend.get(t.key))}
-            <span class="num meta">${ran ? localTime(t.tries[t.tries.length - 1]?.ts, true) : msg('none')}</span>
+            <span class="num meta">${ran ? localTime(t.tries[t.tries.length - 1]?.ts, true) : msg('none', { id: 'none', desc: 'An empty value' })}</span>
             <span class="st">${outcomePill(t.outcome, taskStatusLabel(t.outcome, this.live), t.last_stop)}${cause
               ? html`<span class="cause">${cause}</span>`
               : nothing}</span>

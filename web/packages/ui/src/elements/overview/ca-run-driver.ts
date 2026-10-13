@@ -2,8 +2,8 @@ import { elapsedS, result, type Plan, type Procs, type RunSummary } from '@contr
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { starts } from '../../lib/clock.js';
-import { facts, fmtDur, localTime } from '../../lib/format.js';
+import { starts } from '../../core/clock.js';
+import { facts, fmtDur, localTime } from '../../words/format.js';
 import { type Tone } from '../../lib/tone.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-elapsed.js';

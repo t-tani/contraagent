@@ -2,7 +2,7 @@
 import type { QuotaReading } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { facts, fmtDur, localTime } from './format.js';
-import { credentialLabel } from './labels.js';
+import { credentialLabel } from './credential.js';
 
 /** A utilization as a whole percent: `14%`; '—' when not reported. */
 export const pct = (v: number | null | undefined): string => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);

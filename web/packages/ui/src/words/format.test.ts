@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { facts, fmtDur, localTime, sentence, tokenCount, unreadEvents, usd } from './format.js';
+import { factList, facts, fmtDur, listText, localTime, sentence, tokenCount, unreadEvents, usd } from './format.js';
 
 describe('format', () => {
   it('writes token counts compactly', () => {
@@ -53,5 +53,19 @@ describe('sentence', () => {
     expect(sentence('input out/a.json is missing')).toBe('Input out/a.json is missing');
     expect(sentence('入力 out/a.json がありません')).toBe('入力 out/a.json がありません');
     expect(sentence('')).toBe('');
+  });
+});
+
+describe('factList and listText', () => {
+  it('keeps the facts that are not empty, in order', () => {
+    expect(factList('attempt 1', '', null, 'done', undefined, false, '0.2s')).toEqual(['attempt 1', 'done', '0.2s']);
+    expect(facts('attempt 1', '', 'done')).toBe('attempt 1 | done');
+  });
+
+  it('writes a list as the locale does', () => {
+    expect(listText(['a', 'b', 'c'], 'en')).toBe('a, b, and c');
+    expect(listText(['a', 'b'], 'en')).toBe('a and b');
+    expect(listText(['a', 'b', 'c'], 'ja')).toBe('a、b、c');
+    expect(listText([], 'en')).toBe('');
   });
 });

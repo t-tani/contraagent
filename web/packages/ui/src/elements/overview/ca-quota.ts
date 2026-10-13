@@ -2,10 +2,10 @@ import { runAccounts, type JournalRow, type QuotaReading } from '@contraagent/ap
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { ClockController } from '../../lib/clock.js';
-import { localTime } from '../../lib/format.js';
-import { credentialLabel } from '../../lib/labels.js';
-import { pct, quotaStatusLabel, resetsIn } from '../../lib/quota-format.js';
+import { ClockController } from '../../core/clock.js';
+import { localTime } from '../../words/format.js';
+import { credentialLabel } from '../../words/index.js';
+import { pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
 import { statusPill } from '../../lib/status.js';
 import { base } from '../../styles/base.js';
 

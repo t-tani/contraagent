@@ -8,7 +8,7 @@ another page might open its own view, or ignore it. Each event crosses shadow
 roots and all but `ca-rounds` bubble, so you can listen on any ancestor, and
 each is typed in `HTMLElementEventMap`:
 
-::code{file="../src/events.ts" from="export interface OpenTaskDetail" to="declare global"}
+::code{file="../src/core/events.ts" from="export interface OpenTaskDetail" to="declare global"}
 
 ```ts
 document.addEventListener('ca-open-task', (e) => {
@@ -21,7 +21,7 @@ document.addEventListener('ca-open-task', (e) => {
 `<ca-monitor>` keeps one typed value for where the reader is, and mirrors it in
 the URL (or in memory, with `history="memory"`):
 
-::code{file="../src/route.ts" from="export interface Route" to="export type RoutePatch"}
+::code{file="../src/core/route.ts" from="export interface Route" to="export type RoutePatch"}
 
 Moving to another place (a tab, a task, a view, a round, a definition, a run)
 pushes a history entry, so Back returns. Changing a filter replaces the entry,

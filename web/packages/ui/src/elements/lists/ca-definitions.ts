@@ -3,8 +3,8 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts } from '../../lib/format.js';
+import { emit } from '../../core/events.js';
+import { factList } from '../../words/format.js';
 import { factLine } from '../shared/fact-line.js';
 import { base } from '../../styles/base.js';
 
@@ -120,7 +120,7 @@ export class CaDefinitions extends LitElement {
       const n = ts.length;
       // A task refused before it started has a journal row but no attempt.
       const a = ts.reduce((x, t) => x + t.tries.length, 0);
-      return facts(n === 1 ? msg('1 task') : msg(str`${n} tasks`), a === 1 ? msg('1 attempt') : msg(str`${a} attempts`));
+      return factList(n === 1 ? msg('1 task') : msg(str`${n} tasks`), a === 1 ? msg('1 attempt') : msg(str`${a} attempts`));
     };
     return html`<div class="defs">
       <div class="deflist">
@@ -129,7 +129,7 @@ export class CaDefinitions extends LitElement {
           (d) => d.kind,
           (d) => html`<div class="defitem ${d.kind === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
             <b class="jmono">${d.kind}</b>
-            <span class="meta words">${factLine(facts(d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), counts(d.kind)))}</span>
+            <span class="meta words">${factLine([d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), ...counts(d.kind)])}</span>
           </div>`,
         )}
         ${repeat(
@@ -137,7 +137,7 @@ export class CaDefinitions extends LitElement {
           (k) => k,
           (k) => html`<div class="defitem ${k === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: k })}>
             <b class="jmono">${k}</b>
-            <span class="meta words">${factLine(facts('Python', counts(k)))}</span>
+            <span class="meta words">${factLine(['Python', ...counts(k)])}</span>
           </div>`,
         )}
       </div>

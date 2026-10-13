@@ -1,6 +1,6 @@
 import type { Stop } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { stopLabel } from './labels.js';
+import { stopLabel } from '../words/stop.js';
 import { ALL_STOPS, contractTone, isStop, outcomeTone, problemTone, runTone, stopTone, type Tone } from './tone.js';
 
 describe('problemTone', () => {

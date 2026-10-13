@@ -1,7 +1,7 @@
 // Syntax highlighting: a small tokenizer for what plugins and contracts contain
 // (Python, JSON), no library. Returns escaped HTML: every token is escaped
 // before it is wrapped, so no input can inject markup.
-import { esc } from './format.js';
+import { esc } from '../words/format.js';
 
 const PY_KW = new Set(
   'and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield'.split(

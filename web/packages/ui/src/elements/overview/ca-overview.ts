@@ -5,6 +5,9 @@ import {
   liveActivities,
   progress,
   result,
+  runAccounts,
+  runRelative,
+  spendOf,
   type ContractRecord,
   type ContractSpec,
   type Info,
@@ -12,20 +15,19 @@ import {
   type RunState,
   type RunSummary,
   type TaskOutcome,
-  spendOf,
-  runAccounts,
 } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts, kindUnit, localTime, sentence } from '../../lib/format.js';
-import { notStartedCause, outcomeLabel, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
+import { emit } from '../../core/events.js';
+import { facts, kindUnit, localTime, sentence } from '../../words/format.js';
+import { notStartedCause, outcomeLabel, stateCount, stopLabel } from '../../words/index.js';
 import { base } from '../../styles/base.js';
 import { statusPill, statusWord } from '../../lib/status.js';
 import { contractTone, outcomeTone } from '../../lib/tone.js';
-import { contractChip, contractStatusLabel, contractStatusWhy, formatOf } from '../shared/contract-parts.js';
+import { contractChip, formatOf } from '../shared/contract-parts.js';
+import { contractStatusLabel, contractStatusWhy } from '../../words/contract.js';
 import { taskChip } from '../shared/task-chip.js';
 import '../lists/ca-proc-tree.js';
 import './ca-kpis.js';
@@ -262,7 +264,7 @@ export class CaOverview extends LitElement {
     const done = c.completed_stages ?? [];
     return html`<div class="chips" style="margin-bottom:10px">
         ${done.length || c.stage
-          ? html`${done.map((n) => html`<span class="chip done"><span aria-hidden="true">✓</span><span class="sr">${msg('done')}</span> ${n}</span>`)}${c.stage
+          ? html`${done.map((n) => html`<span class="chip done"><span aria-hidden="true">✓</span><span class="sr">${msg('done', { id: 'stage-done', desc: 'A stage of the resume cursor that is complete' })}</span> ${n}</span>`)}${c.stage
               ? html`<span class="chip cur"><span class="sr">${msg('current')}</span>${c.stage}</span>`
               : nothing}`
           : html`<span class="meta">${msg('No stage')}</span>`}
