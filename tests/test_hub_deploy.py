@@ -180,6 +180,7 @@ def test_compose_config_validates(tmp_path):
     assert hub["ports"][0]["target"] == 8790
     assert Path(hub["build"]["context"]) == REPO
     assert not any("PASSWORD" in arg or "secret" in arg.lower() for arg in hub["command"] if "secrets/" not in arg)
+    assert "--retain-days=30" in hub["command"]
     assert config["secrets"]["read-token"]["file"] == str(tmp_path / "secrets" / "read-token")
 
 
