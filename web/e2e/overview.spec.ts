@@ -363,13 +363,13 @@ test.describe('colour means status', () => {
   test('the Tasks total stays neutral though a task failed; the failed count is red', async ({ page }) => {
     await open(page, 'docs');
     const kpis = page.locator('ca-kpis');
-    const colour = (id: string) => kpis.locator(`.kpi[data-id="${id}"] .v`).evaluate((e) => getComputedStyle(e).color);
+    const colour = (id: string) => kpis.locator(`[part~="tile"][data-id="${id}"] [part="value"]`).evaluate((e) => getComputedStyle(e).color);
     const text = await kpis.evaluate((e) => getComputedStyle(e).color);
-    await expect(kpis.locator('.kpi[data-id="tasks"]')).not.toHaveAttribute('data-tone');
-    await expect(kpis.locator('.kpi[data-id="tasks"] [data-tone="failed"]')).toHaveText('1 failed');
+    await expect(kpis.locator('[part~="tile"][data-id="tasks"]')).not.toHaveAttribute('data-tone');
+    await expect(kpis.locator('[part~="tile"][data-id="tasks"] [data-tone="failed"]')).toHaveText('1 failed');
     expect(await colour('tasks')).toBe(text);
     expect(await colour('cost')).toBe(text);
-    await expect(kpis.locator('.kpi[data-id="bad"]')).toHaveAttribute('data-tone', 'failed');
+    await expect(kpis.locator('[part~="tile"][data-id="bad"]')).toHaveAttribute('data-tone', 'failed');
     expect(await colour('bad')).not.toBe(text);
     // A tab's count is a total too.
     const badge = page.locator('ca-monitor').locator('.tab', { hasText: 'History' }).locator('.badge');
