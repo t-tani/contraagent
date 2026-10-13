@@ -7,6 +7,7 @@ import {
   THEME_NAMES,
   THEME_STORE_KEY,
   TOKENS,
+  TOKEN_MEANINGS,
   preferredTheme,
   rememberTheme,
   resolveTheme,
@@ -138,6 +139,11 @@ describe('theme contrast', () => {
 });
 
 describe('theme data', () => {
+  it('gives every token a meaning, in the order of the tokens', () => {
+    expect(Object.keys(TOKEN_MEANINGS)).toEqual(TOKENS.map((t) => t.name));
+    for (const m of Object.values(TOKEN_MEANINGS)) expect(m.length).toBeGreaterThan(3);
+  });
+
   it('every theme sets every token that is not derived', () => {
     const set = TOKENS.filter((t) => !t.derive).map((t) => t.name).sort();
     for (const n of THEME_NAMES) expect(Object.keys(THEMES[n].tokens).sort(), n).toEqual(set);

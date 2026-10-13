@@ -506,10 +506,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configured Lit Localize itself, the elements stay in English and the
   monitor shows no language switch.
 - The Japanese text loads when a reader first chooses Japanese: the monitor
-  serves it as `ja.js` beside `app.js` (114 kB gzip, from 126 kB), and
+  serves it as `ja.js` beside `app.js` (110 kB gzip, from 126 kB), and
   `<ca-monitor>` draws its first view once it is loaded.
-- `@contraagent/ui/bundle` is minified: 128 kB gzip, from 139 kB. It keeps
-  Lit and the Japanese text in one file.
+- `@contraagent/ui/bundle` is minified: 117 kB gzip, from 139 kB. It keeps
+  Lit and the Japanese text in one file. In it and in the monitor's `app.js`
+  and `ja.js`, the indentation of the elements' HTML templates is left out
+  and the Japanese text is keyed by short prefixes of its message ids.
+- `@contraagent/api` makes its requests with `fetch` itself and no longer
+  depends on `openapi-fetch`; `createMonitorClient` keeps its options and calls.
+- `@contraagent/elements/themes`: each token's meaning is `TOKEN_MEANINGS[name]`,
+  not `TokenInfo.meaning`, so the elements' code does not carry the text.
 - `custom-elements.json` of `@contraagent/elements` lists the elements' modules
   and their `define` entries only, not the layout and model modules.
 - The monitor's colours mean a status, and only where it applies: totals, cost,

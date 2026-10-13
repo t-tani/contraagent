@@ -1,7 +1,7 @@
 ---
 // Every --ca-* property the elements read, its meaning and its value in each built-in theme:
 // from @contraagent/elements' own data (src/themes/), which the elements' stylesheet is built from.
-import { THEMES, THEME_NAMES, TOKENS } from '@contraagent/elements/themes';
+import { THEMES, THEME_NAMES, TOKENS, TOKEN_MEANINGS } from '@contraagent/elements/themes';
 
 const isColour = (v: string) => /^(#|rgba?\()/.test(v);
 const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[theme].tokens as Record<string, string>)[name];
@@ -20,7 +20,7 @@ const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[t
       TOKENS.map((t) => (
         <tr>
           <td><code>{t.prop}</code></td>
-          <td>{t.meaning}</td>
+          <td>{TOKEN_MEANINGS[t.name]}</td>
           {t.derive ? (
             <td colspan={THEME_NAMES.length}>
               <code>{t.derive}</code>
