@@ -2,7 +2,7 @@
 
 `<ca-monitor>` is the complete monitor: header, run switcher, tabs, filters,
 views and notifications. It holds the data (a `MonitorStore`) and the route.
-Its attributes (`base-url`, `history`, `run`, `locale`, `theme`) are described in
+Its attributes (`base-url`, `history`, `shortcuts`, `run`, `locale`, `theme`) are described in
 `custom-elements.json`. `history="url"` suits a page that is the monitor;
 inside an application with its own router, use `history="memory"`.
 
@@ -44,6 +44,35 @@ sections and shortcuts. They share what is one per page:
 
 `e2e/embed.spec.ts` (in the repository's `web/`) checks this on a host page
 with its own title, text field and single-key shortcuts, and two monitors.
+
+## Connection
+
+`base-url` names the monitor server, such as `http://127.0.0.1:8787`; unset,
+it is the page's own origin. Every attribute takes effect whenever it is set,
+as an attribute or a property, before or after the element connects or the
+package loads:
+
+| Attribute | A change after connecting |
+|---|---|
+| `base-url` | closes the old server's feeds and reads the new server: the run named by `run`, else its newest run |
+| `history` | `memory` keeps the route shown; `url` takes the address bar's |
+| `run` | opens that run |
+| `locale`, `theme`, `shortcuts` | show at once |
+
+A request to the API that gets no JSON answer is shown above the view, with
+its URL and its cause, and written to the console with `console.error`; the
+monitor then never shows "No runs yet". The causes (`ApiError.failure` in
+`@contraagent/api`):
+
+| Cause | Typical reason |
+|---|---|
+| the response is HTML, not JSON | `base-url` names a server without the API, such as a development server that answers every path with the page (`index.html`) |
+| the response status is 404 | `base-url` names a server, or a path on it, without the API |
+| network error, no response | the monitor server is not running, or it does not allow the page's origin (`--cors-origin`, below) |
+
+The run list (`/api/runs`) is asked for every 5 seconds, and the title and the
+custom views (`/api/info`) with it until they arrive, so a server that starts
+later is read when it answers, and the message goes.
 
 ## Without a build step
 

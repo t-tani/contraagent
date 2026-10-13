@@ -23,7 +23,9 @@ The live feeds are discriminated unions on the SSE event name, so a `switch` on
 ## The client
 
 `createMonitorClient({ baseUrl })` has one typed method per JSON route
-(`src/client.ts`); each throws `ApiError` on a non-2xx answer.
+(`src/client.ts`); each throws `ApiError` when it gets no JSON answer: its
+`failure` is `network`, `status`, `empty` or `not-json` (an HTML page from a
+server without the API), and its message states the URL and the cause.
 
 ## The live feeds
 
@@ -40,6 +42,9 @@ Each returns a function that closes it.
 `MonitorStore` keeps the run list fresh, opens the selected run's feed, folds
 its messages into one `RunState`, and tells subscribers. It knows nothing of
 any UI framework: a Lit controller, a React hook or plain code subscribe alike.
+Its snapshot's `error` is the `ApiError` of the last request for the title or
+the run list that got no answer (also written to the console), and
+`runsLoaded` says the run list has been answered.
 The reducer behind it, `reduceRun(state, actions)`, is pure: use it with your
 own state management if you prefer. `@contraagent/ui`'s documentation shows
 the store feeding its elements.

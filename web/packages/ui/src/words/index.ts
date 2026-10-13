@@ -15,3 +15,4 @@ export * from './quota.js';
 export * from './contract.js';
 export * from './run-line.js';
 export * from './table.js';
+export * from './api-error.js';

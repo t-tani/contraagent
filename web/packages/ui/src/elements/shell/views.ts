@@ -2,7 +2,7 @@
 // the data it reads.
 import { isRunLive, latestTask, runRow, type MonitorClient, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
 import { msg } from '@lit/localize';
-import { html, type TemplateResult } from 'lit';
+import { html, nothing, type TemplateResult } from 'lit';
 import type { Route } from '../../core/route.js';
 import '../overview/ca-overview.js';
 import '../lists/ca-task-table.js';
@@ -24,11 +24,16 @@ export interface TabViewData {
   baseUrl: string;
 }
 
-/** The view of `route.tab`, or a blank page when there is no run yet. */
+/**
+ * The view of `route.tab`; with no run, a blank page that says there are no
+ * runs once the server's run list says so (the API's error is above it).
+ */
 export function tabView({ snap, route, derived, q, client, baseUrl }: TabViewData): TemplateResult {
   const { state } = snap;
   if (!route.run) {
-    return html`<div class="blank"><span class="ic" aria-hidden="true">✦</span><b>${msg('No runs yet', { id: 'no-runs-yet' })}</b></div>`;
+    return html`<div class="blank">${snap.runsLoaded && !snap.error
+      ? html`<span class="ic" aria-hidden="true">✦</span><b>${msg('No runs yet', { id: 'no-runs-yet' })}</b>`
+      : nothing}</div>`;
   }
   const summary = runRow(snap.runs, snap.run);
   const live = isRunLive(state, summary);

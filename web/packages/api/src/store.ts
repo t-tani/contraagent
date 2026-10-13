@@ -1,7 +1,7 @@
 // The monitor's data, live: the run list, the selected run's feed folded into a
 // `RunState`, and a change notification. No UI framework: a Lit controller, a
 // React hook or plain code can subscribe alike.
-import { createMonitorClient, type MonitorClient } from './client.js';
+import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
 import type { Info, JournalRow, RunSummary } from './types.js';
@@ -16,6 +16,10 @@ export interface MonitorSnapshot {
   connected: boolean;
   /** Journal rows (by `rowId`) that arrived in the last few seconds, after the replay. */
   fresh: ReadonlySet<string>;
+  /** The run list has been answered: `runs` is the server's, not the empty start. */
+  runsLoaded: boolean;
+  /** Why the last request for `info` or `runs` got no answer; null while both are answered. */
+  error: ApiError | null;
 }
 
 export interface StoreOptions {
@@ -32,6 +36,9 @@ export interface StoreOptions {
 
 const DEFAULT_INFO: Info = { title: 'contraagent', panels: [], api_version: '' };
 
+/** A client given in the options may throw something else: it counts as no response from `url`. */
+const asApiError = (e: unknown, url: string): ApiError => (e instanceof ApiError ? e : new ApiError(url, 'network'));
+
 export class MonitorStore {
   readonly client: MonitorClient;
   private snap: MonitorSnapshot = {
@@ -41,7 +48,16 @@ export class MonitorStore {
     state: emptyRunState(),
     connected: false,
     fresh: new Set(),
+    runsLoaded: false,
+    error: null,
   };
+  /** Why the last request for `info`, and for `runs`, got no answer. */
+  private infoError: ApiError | null = null;
+  private runsError: ApiError | null = null;
+  private infoLoaded = false;
+  private stopped = false;
+  /** The message last written to the console, so a poll that fails the same way does not repeat it. */
+  private logged = '';
   private readonly listeners = new Set<(s: MonitorSnapshot) => void>();
   private readonly rowListeners = new Set<(row: JournalRow) => void>();
   private closeFeed: Unsubscribe | null = null;
@@ -71,26 +87,56 @@ export class MonitorStore {
     return () => this.rowListeners.delete(fn);
   }
 
-  /** Load the title, panels and run list, and keep the run list fresh. */
+  /**
+   * Load the title, panels and run list, and keep the run list fresh. A request
+   * that gets no answer sets `error` and is written to the console; the title
+   * and panels are asked for again with each refresh until they arrive.
+   */
   async start(): Promise<void> {
+    this.stopped = false;
+    await this.refresh();
+    if (!this.stopped) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
+  }
+
+  private async refresh(): Promise<void> {
+    if (!this.infoLoaded) await this.loadInfo();
+    await this.refreshRuns();
+  }
+
+  private async loadInfo(): Promise<void> {
     try {
       const before = this.panelNames();
-      this.set({ info: await this.client.info() });
+      const info = await this.client.info();
+      if (this.stopped) return;
+      this.infoLoaded = true;
+      this.infoError = null;
+      this.set({ info });
       // A run opened before the panel list arrived listens for no panel: open it again.
       if (this.snap.run && this.panelNames() !== before) this.reopen();
-    } catch {
-      /* an older or unreachable server: keep the defaults */
+    } catch (e) {
+      this.infoError = asApiError(e, `${this.client.baseUrl}/api/info`);
     }
-    await this.refreshRuns();
-    this.pollTimer ??= setInterval(() => void this.refreshRuns(), this.opts.runsEveryMs);
   }
 
   async refreshRuns(): Promise<void> {
     try {
-      this.set({ runs: await this.client.runs() });
-    } catch {
-      /* keep the last list */
+      const runs = await this.client.runs();
+      if (this.stopped) return;
+      this.runsError = null;
+      this.set({ runs, runsLoaded: true });
+    } catch (e) {
+      // The last list stays.
+      this.runsError = asApiError(e, `${this.client.baseUrl}/api/runs`);
     }
+    if (!this.stopped) this.report();
+  }
+
+  /** Set `error` from the last answers, and write a new one to the console. */
+  private report(): void {
+    const error = this.infoError ?? this.runsError;
+    if (error && error.message !== this.logged) console.error(error);
+    this.logged = error?.message ?? '';
+    if (error?.message !== this.snap.error?.message) this.set({ error });
   }
 
   private panelNames(): string {
@@ -128,7 +174,9 @@ export class MonitorStore {
     );
   }
 
+  /** Close the feed and stop refreshing; an answer that arrives later is dropped. */
   stop(): void {
+    this.stopped = true;
     this.closeFeed?.();
     this.closeFeed = null;
     if (this.pollTimer) clearInterval(this.pollTimer);

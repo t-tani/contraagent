@@ -34,6 +34,9 @@ export const monitorStyles = css`
     padding: 5px 9px; outline: none; font: inherit; font-size: 12px; }
   .bar input:focus, .bar select:focus { border-color: var(--focus); box-shadow: 0 0 0 calc(var(--focus-width) - 2px) var(--focus); }
 
+  .api-error { flex: none; margin: 0; padding: 8px 18px; border-top: 1px solid var(--line); color: var(--status-failed);
+    font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+  .api-error:empty { padding: 0; border: 0; }
   main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
   main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
   @media (max-width: 760px) {
