@@ -29,7 +29,7 @@ const file = `web/packages/elements/docs/examples/${name}.ts`;
     const load = modules[`../../../../packages/elements/docs/examples/${host.dataset['caeExample']}.ts`];
     if (!load) continue;
     void load().then((m) => m.mount(host));
-    for (const name of ['cae-activate', 'cae-select', 'cae-sort', 'cae-change', 'cae-action']) {
+    for (const name of ['cae-activate', 'cae-select', 'cae-sort', 'cae-change', 'cae-action', 'cae-drill', 'cae-view-change']) {
       host.addEventListener(name, (e) => host.closest('figure')?.setAttribute('data-last-event', `${name} ${JSON.stringify((e as CustomEvent).detail)}`));
     }
   }

@@ -107,8 +107,12 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |
 | **element** | a web component: `ca-*` in `@contraagent/ui`, `cae-*` in `@contraagent/elements` | `CaMonitor`, `CaTranscript`, `CaeSegmented`, ... |
 | **tone** | the status colour a value takes: failed, attention, done, running, muted, neutral | `Tone`, `data-tone` |
-| **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | route `sel`, `markSel`, `selected` |
-| **inspector** | the card beside the selection in the pipeline graph's frame (a sheet under the frame on a narrow screen) that shows its facts and where it leads | `ca-pipeline-graph` |
+| **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | route `sel`, `markSel`, `parseSelection` |
+| **inspector** | the card beside the selection in the pipeline graph's frame (a sheet under the frame on a narrow screen) that shows its facts and where it leads | `ca-pipeline-graph` (its content), the `inspector` slot of `cae-layered-graph` |
+| **cluster** | a box of nodes in a layered graph; a loop box is one | `GraphClusterInput`, `.cluster` |
+| **series** | the id that lines marks up across a layered graph's nodes; the pipeline graph's units | `GraphInput.series` |
+| **adapter** | a function in `@contraagent/ui/adapters` that turns run data into a generic element's model | `graphFromPlan`, `matrixFromPlan`, `kpiTiles`, ... |
+| **wrapper** | a `ca-*` element that feeds a `cae-*` element through an adapter and turns its `cae-*` events into `ca-*` events | `ca-pipeline-graph`, `ca-kpis`, ... |
 | **run start** | one start of a run over its directory: the first, or a resume; a task numbers its attempts from 0 in each | `run.json` `started_at` (the latest), `runStarts` |
 
 The monitor's screens show some of these in the words of engineers who use

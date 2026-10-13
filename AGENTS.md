@@ -58,7 +58,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | flow call | flow call (tooltip only) | フロー呼び出し |
 | loop (a loop box) | loop | ループ |
 | a loop's `pass` (`flow[].loops[].pass`) | pass N; up to N passes | N 周目; 最大 N 周 |
-| the passes a unit ran of a loop (`GraphMark.passes`, `MatrixRow.passes`) | N passes (the number in a mark); number of passes (legend); Passes (column) | N 周; 周回数 |
+| the passes a unit ran of a loop (`LayerMark.passes`, `MatrixRow.passes`) | N passes (the number in a mark); number of passes (legend); Passes (column) | N 周; 周回数 |
 | `LoopBox.spread` (units by the passes they ran) | 1 pass: 4 \| 2 passes: 1; tooltip: units by number of passes | 1 周: 4 \| 2 周: 1; ユニットごとの周回数 |
 | `passMatrix` (a loop's passes: a row per unit, a column per node and pass) | Unit, Passes, Pass N (columns); sort units: scheduled order, number of passes, status | ユニット, 周回数, N 周目; 並び順: 登録順, 周回数, 状態 |
 | a node above 200 marks (`asBar`) | a bar of its counts, its failed units by name, +N for the rest | 件数のバー, 失敗したユニット名, +N |
@@ -157,7 +157,7 @@ element of `elements` takes plain data and its words (`strings`), and sends
 |---|---|
 | `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
 | `@contraagent/elements` | its own files and `lit`; no `@contraagent/*`, no `@lit/localize`, no `msg()`, and no glossary word in an exported name or in a `types.ts` property |
-| `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`table/`, `json/`, `markdown/`, `count/`, ...); `define/` | the folders before it and its own; a component never imports another component, and only `define/` registers a tag |
+| `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`table/`, `matrix/`, `json/`, `markdown/`, `count/`, ...); `graph/` (it shows a mark matrix); `define/` | the folders before it and its own; a component imports another only from an earlier rank, and only `define/` registers a tag |
 | `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
 | `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `adapters/`, `controllers/` or `elements/` |
 | `ui`: `adapters/` (run data → what a generic element takes: a table's columns, the lists' filters) | the above and each other; never `controllers/` or `elements/` |

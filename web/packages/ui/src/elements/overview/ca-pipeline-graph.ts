@@ -144,7 +144,6 @@ export class CaPipelineGraph extends LitElement {
       else this.missing = '';
     }
     if (changed.has('run') && changed.get('run') !== undefined) this.missing = '';
-    if (changed.has('live')) this.states = taskStateStyles(this.live);
     if (changed.has('plan')) this.links = taskLinks(this.plan.nodes);
     const structure = changed.has('plan') || changed.has('layer') || changed.has('run') || changed.has('down');
     if (structure) {
@@ -180,6 +179,7 @@ export class CaPipelineGraph extends LitElement {
     const x = { plan: this.plan, journal: this.journal, run: this.run, live: this.live, links: this.links };
     if (words) {
       this.locale = locale;
+      this.states = taskStateStyles(this.live);
       this.input = graphInput(proj.model, x);
       const a = arrange(this.input, this.prevOrder, this.down);
       this.graph = arranged(proj.model, a);
