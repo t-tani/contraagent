@@ -4,11 +4,13 @@
 import { createMonitorClient, type MonitorClient } from './client.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
-import type { Info, JournalRow, RunSummary } from './types.js';
+import type { Hosts, Info, JournalRow, RunSummary } from './types.js';
 
 export interface MonitorSnapshot {
   info: Info;
   runs: RunSummary[];
+  /** The hosts behind the runs, on a hub (`Info.hosts`); null elsewhere and until they arrive. */
+  hosts: Hosts | null;
   /** The run whose feed is open; '' for none. */
   run: string;
   state: RunState;
@@ -22,7 +24,7 @@ export interface StoreOptions {
   baseUrl?: string;
   client?: MonitorClient;
   feed?: FeedOptions;
-  /** How often the run list is refreshed. */
+  /** How often the run list (and on a hub, the host list) is refreshed. */
   runsEveryMs?: number;
   /** Feed messages are folded in batches this far apart. */
   batchMs?: number;
@@ -37,6 +39,7 @@ export class MonitorStore {
   private snap: MonitorSnapshot = {
     info: DEFAULT_INFO,
     runs: [],
+    hosts: null,
     run: '',
     state: emptyRunState(),
     connected: false,
@@ -85,12 +88,14 @@ export class MonitorStore {
     this.pollTimer ??= setInterval(() => void this.refreshRuns(), this.opts.runsEveryMs);
   }
 
+  /** Fetch the run list, and on a hub the host list beside it: both refresh together, so a run's host reads the same in both. */
   async refreshRuns(): Promise<void> {
-    try {
-      this.set({ runs: await this.client.runs() });
-    } catch {
-      /* keep the last list */
-    }
+    const [runs, hosts] = await Promise.allSettled([this.client.runs(), this.snap.info.hosts ? this.client.hosts() : Promise.resolve(null)]);
+    // A failed request keeps the last list.
+    const patch: Partial<MonitorSnapshot> = {};
+    if (runs.status === 'fulfilled') patch.runs = runs.value;
+    if (hosts.status === 'fulfilled') patch.hosts = hosts.value;
+    if (Object.keys(patch).length) this.set(patch);
   }
 
   private panelNames(): string {

@@ -1,5 +1,6 @@
 // The REST half of the monitor API, typed by the generated `paths`.
 import type {
+  Hosts,
   Info,
   JournalPage,
   JsonObject,
@@ -32,6 +33,8 @@ export interface MonitorClient {
   readonly baseUrl: string;
   info(): Promise<Info>;
   runs(): Promise<RunSummary[]>;
+  /** The hosts behind the runs (a hub: `Info.hosts`). */
+  hosts(): Promise<Hosts>;
   journal(run: string, since?: number): Promise<JournalPage>;
   definitions(run: string): Promise<TaskDefinition[]>;
   task(run: string, key: string): Promise<TaskDetail>;
@@ -69,6 +72,7 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
     baseUrl,
     info: () => get('/api/info'),
     runs: () => get('/api/runs'),
+    hosts: () => get('/api/hosts'),
     journal: (run, since = 0) => get('/api/runs/{run}/journal', { path: { run }, query: { since } }),
     definitions: (run) => get('/api/runs/{run}/definitions', { path: { run } }),
     task: (run, key) => get('/api/runs/{run}/task/{key}', { path: { run, key } }),
