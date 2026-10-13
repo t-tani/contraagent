@@ -7,7 +7,10 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { facts, fmtDur, kindUnit, listText, usd } from '../../words/format.js';
 import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../words/index.js';
-import { base, executorIconStyles, legendStyles } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
+import { legend, legendStyles, type LegendItem } from '@contraagent/elements/primitives';
+import '@contraagent/elements/segmented/define';
+import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import { isPoint } from './graph/arrange.js';
 import { shortName } from './graph/flow-index.js';
 import { autoLayer, layerGraph, parentLayer, resolveLayer, splitLayer } from './graph/layer.js';
@@ -52,9 +55,6 @@ const innerIcon = () =>
     <rect x="3.4" y="0.7" width="7.9" height="7.9" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.2"></rect>
     <path d="M0.7,3.6 V9.7 Q0.7,11.3 2.3,11.3 H8.4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
   </svg>`;
-
-/** Who runs a kind node's tasks, as the Tasks list shows it: ✦ a coding agent, ⚙ Python. */
-const exIcon = (python: boolean) => html`<span class="k-ic ${python ? '' : 'llm'}" aria-hidden="true">${python ? '⚙' : '✦'}</span>`;
 
 /** How a group of marks lays out. */
 interface Grid {
@@ -176,12 +176,8 @@ export class CaPipelineGraph extends LitElement {
       .tools button:hover:not(:disabled) { color: var(--text); border-color: var(--line2); }
       .tools button:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
       .tools button:disabled { cursor: default; opacity: 0.4; }
-      /* Graph | Table: the pressed one is raised, as the header's language switch. */
-      .views { display: inline-flex; margin-left: 6px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-      .tools .views button { height: 20px; line-height: 20px; padding: 0 10px; border: 0; border-radius: 0; color: var(--text-muted); }
-      .tools .views button + button { border-left: 1px solid var(--line); }
-      .tools .views button[aria-pressed='true'] { background: var(--raise); color: var(--text); cursor: default; }
-      .tools .views button:focus-visible { outline-offset: -2px; }
+      /* Graph | Table: the chosen one is raised, as the header's language switch. */
+      .views { margin-left: 6px; }
 
       .dag { position: relative; }
       .dag.unplaced { visibility: hidden; }
@@ -1026,10 +1022,12 @@ export class CaPipelineGraph extends LitElement {
    * with its box selected.
    */
   private viewSwitch(table: boolean) {
-    return html`<div class="views" role="group" aria-label=${msg('View')}>
-      <button type="button" aria-pressed=${!table} @click=${() => this.showGraph()}>${msg('Graph', { id: 'view-graph', desc: 'Button: show the pipeline as a graph' })}</button>
-      <button type="button" aria-pressed=${table} @click=${() => this.showTable()}>${msg('Table', { id: 'view-table', desc: 'Button: show the pipeline as a table' })}</button>
-    </div>`;
+    const options = [
+      { value: 'graph', label: msg('Graph', { id: 'view-graph', desc: 'Button: show the pipeline as a graph' }) },
+      { value: 'table', label: msg('Table', { id: 'view-table', desc: 'Button: show the pipeline as a table' }) },
+    ];
+    return html`<cae-segmented class="views" .options=${options} .value=${table ? 'table' : 'graph'} label=${msg('View')}
+      @cae-change=${(e: CustomEvent<{ value: string }>) => (e.detail.value === 'table' ? this.showTable() : this.showGraph())}></cae-segmented>`;
   }
 
   private showGraph(): void {
@@ -1156,7 +1154,7 @@ export class CaPipelineGraph extends LitElement {
     const on_ = this.sel === n.id;
     const tip = n.type === 'flow' ? facts(msg(str`Function ${n.name}`), this.doneOf(c)) : facts(n.label, this.executorWord(n), this.doneOf(c));
     const icons =
-      n.executor === 'mixed' ? html`${exIcon(false)}${exIcon(true)}` : n.executor ? exIcon(n.executor === 'python') : nothing;
+      n.executor === 'mixed' ? html`${executorIcon(false)}${executorIcon(true)}` : n.executor ? executorIcon(n.executor === 'python') : nothing;
     return html`<section class="node ${n.type} ${n.executor === 'agent' ? 'agent' : ''} ${look} ${on_ ? 'sel' : ''}" role="group" data-id=${n.id}
       aria-label=${this.nodeLabel(n)}
       style="${this.at(n.id, parent)};--cols:${group.grid.cols};--m:${group.grid.size}px;--g:${group.grid.gap}px"
@@ -1294,7 +1292,7 @@ export class CaPipelineGraph extends LitElement {
       return html`<th scope="col" rowspan=${h.rows} class="nh ${headCls(col)}" style=${style}
         title=${h.node.type === 'flow' ? msg(str`Function ${h.node.name}`) : facts(h.node.label, this.executorWord(h.node))}
         aria-label=${h.node.type === 'flow' ? h.node.label : facts(h.node.label, this.executorWord(h.node))}>${h.node.executor && h.node.executor !== 'mixed'
-          ? exIcon(h.node.executor === 'python')
+          ? executorIcon(h.node.executor === 'python')
           : nothing}${h.node.label}</th>`;
     };
     // The column each cell of a header row starts at: a cell under one that spans down starts after it.
@@ -1581,20 +1579,29 @@ export class CaPipelineGraph extends LitElement {
     const loops = !this.matrix && !flat && this.graph.boxes.length > 0;
     const inner = !this.matrix && (loops || this.graph.nodes.some((n) => n.type === 'flow'));
     const line = (dash: boolean) => svg`<svg width="22" height="8" aria-hidden="true"><path d="M1,4 H21" stroke-dasharray=${dash ? '5 4' : 'none'}></path></svg>`;
-    return html`<div class="legend big">
-      ${LEGEND.filter((s) => present.has(s)).map((s) => html`<span aria-hidden="true"><i class="mark ${s}"></i>${this.stateWord(s)}</span>`)}
-      ${passes ? html`<span aria-hidden="true"><i class="mark done" data-n="2"></i>${msg('number of passes')}</span>` : nothing}
-      ${ex.has('agent') ? html`<span>${exIcon(false)}${msg('agent task')}</span>` : nothing}
-      ${ex.has('python') ? html`<span>${exIcon(true)}${msg('Python task')}</span>` : nothing}
-      ${created
-        ? html`<span>${line(false)}${msg('waits for output')}</span><span>${line(true)}${msg('created after result')}</span>`
-        : nothing}
-      ${loops
-        ? html`<span><svg width="24" height="12" aria-hidden="true"><path class="ret" d="M20,1.5 V5.5 Q20,9.5 16,9.5 H8 Q4,9.5 4,5.5 V5"></path>
-            <path class="ret-head" d="M4,0.8 L1.4,5 L6.6,5 z"></path></svg>${msg('next pass')}</span>`
-        : nothing}
-      ${inner ? html`<span>${innerIcon()}${msg('has an inner view')}</span>` : nothing}
-    </div>`;
+    const items: LegendItem[] = [
+      ...LEGEND.filter((s) => present.has(s)).map((s) => ({ label: this.stateWord(s), icon: html`<i class="mark ${s}"></i>`, decorative: true })),
+      ...(passes ? [{ label: msg('number of passes'), icon: html`<i class="mark done" data-n="2"></i>`, decorative: true }] : []),
+      ...(ex.has('agent') ? [{ label: msg('agent task'), icon: executorIcon(false) }] : []),
+      ...(ex.has('python') ? [{ label: msg('Python task'), icon: executorIcon(true) }] : []),
+      ...(created
+        ? [
+            { label: msg('waits for output'), icon: line(false) },
+            { label: msg('created after result'), icon: line(true) },
+          ]
+        : []),
+      ...(loops
+        ? [
+            {
+              label: msg('next pass'),
+              icon: html`<svg width="24" height="12" aria-hidden="true"><path class="ret" d="M20,1.5 V5.5 Q20,9.5 16,9.5 H8 Q4,9.5 4,5.5 V5"></path>
+            <path class="ret-head" d="M4,0.8 L1.4,5 L6.6,5 z"></path></svg>`,
+            },
+          ]
+        : []),
+      ...(inner ? [{ label: msg('has an inner view'), icon: innerIcon() }] : []),
+    ];
+    return legend(items, { cls: 'big' });
   }
 
   // ---- the inspector ----
@@ -1649,7 +1656,7 @@ export class CaPipelineGraph extends LitElement {
           </dl>
           <div class="acts">${link(msg(str`Inside ${n.label}`), () => this.primary(s), true)}${clear}</div>`;
       }
-      return html`<h4>${n.executor && n.executor !== 'mixed' ? exIcon(n.executor === 'python') : nothing}${n.label}</h4>
+      return html`<h4>${n.executor && n.executor !== 'mixed' ? executorIcon(n.executor === 'python') : nothing}${n.label}</h4>
         <div class="sub">${this.executorWord(n)}</div>
         <dl>
           ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${this.doneOf(c)}${states}`)}
@@ -1730,7 +1737,7 @@ export class CaPipelineGraph extends LitElement {
             const on = this.sel === n.id;
             const tip = n.type === 'flow' ? facts(msg(str`Function ${n.name}`), this.doneOf(c)) : facts(n.label, this.executorWord(n), this.doneOf(c));
             const icon =
-              n.type === 'flow' ? innerIcon() : n.executor && n.executor !== 'mixed' ? exIcon(n.executor === 'python') : n.executor ? html`${exIcon(false)}${exIcon(true)}` : nothing;
+              n.type === 'flow' ? innerIcon() : n.executor && n.executor !== 'mixed' ? executorIcon(n.executor === 'python') : n.executor ? html`${executorIcon(false)}${executorIcon(true)}` : nothing;
             const where = box ? msg(str`Loop at ${this.where(box.loop, box.file)}`) : '';
             return html`<tr class=${on ? 'sel' : ''} data-id=${n.id}
                 @click=${(e: MouseEvent) => !(e.target as Element).closest('.loopchip') && e.detail < 2 && this.select(n.id)}

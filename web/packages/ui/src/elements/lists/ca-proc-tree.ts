@@ -2,10 +2,10 @@ import type { ProcNode, Procs } from '@contraagent/api';
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { starts } from '../../core/clock.js';
+import { starts } from '@contraagent/elements';
 import { kindUnit } from '../../words/format.js';
-import { base } from '../../styles/index.js';
-import '../shared/ca-elapsed.js';
+import { base } from '@contraagent/elements/styles';
+import '@contraagent/elements/count/define';
 
 /** The run's live process tree (its first root): pid, command, and how long each has run. */
 @customElement('ca-proc-tree')
@@ -44,7 +44,7 @@ export class CaProcTree extends LitElement {
     return html`<div class="pt-n ${llm ? 'llm' : ''} ${d ? '' : 'root'}" style="--d:${d}" title=${cmd}>
         <span class="pt-pid">${n.pid}</span>
         <span class="pt-cmd">${n.key ? html`<b>${kindUnit(n)}</b> ` : nothing}${label.length > 70 ? `${label.slice(0, 70)}…` : label}</span>
-        <ca-elapsed class="pt-age" .since=${starts.at(`p:${n.pid}`, n.age_s)}></ca-elapsed>
+        <cae-elapsed class="pt-age" .since=${starts.at(`p:${n.pid}`, n.age_s)}></cae-elapsed>
       </div>
       ${(n.children ?? []).map((c) => this.node(c, d + 1))}`;
   }

@@ -17,10 +17,10 @@ import { repeat } from 'lit/directives/repeat.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
 import { attemptNames, stopLabel } from '../../words/index.js';
-import { md } from '../../lib/markdown.js';
+import { md } from '@contraagent/elements/markdown';
 import { SessionSet, recall, remember } from '../../core/memory.js';
-import { base, prose } from '../../styles/index.js';
-import '../shared/ca-markdown.js';
+import { base, prose } from '@contraagent/elements/styles';
+import { promptText } from '../shared/prompt-text.js';
 import { roundLabel, roundMark, switchText } from './rounds.js';
 import {
   applyEvents,
@@ -536,7 +536,7 @@ export class CaTranscript extends LitElement {
           ? msg(str`Prompt (${prompt.length} characters; ${trunc} characters not saved)`)
           : msg(str`Prompt (${prompt.length} characters)`)}</summary>
         ${open
-          ? html`<div class="inv-ptext"><ca-markdown .text=${prompt + (trunc ? `\n\n${msg(str`(${trunc} characters not saved)`)}` : '')}></ca-markdown></div>`
+          ? html`<div class="inv-ptext">${promptText(prompt + (trunc ? `\n\n${msg(str`(${trunc} characters not saved)`)}` : ''))}</div>`
           : nothing}
       </details>
     </div>`;

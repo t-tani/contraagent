@@ -2,20 +2,8 @@
 import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
 
-/**
- * A duration in seconds, the one format every view uses: `<0.1s`, `4.2s`,
- * `37s`, `2m 05s`, `1h 02m`; '—' when unknown.
- */
-export function fmtDur(s: number | null | undefined): string {
-  if (s === null || s === undefined || Number.isNaN(s)) return '—';
-  const v = Math.max(0, s);
-  if (v < 0.05) return '<0.1s';
-  if (v < 9.95) return `${v.toFixed(1)}s`;
-  const r = Math.round(v);
-  if (r < 60) return `${r}s`;
-  if (r < 3600) return `${Math.floor(r / 60)}m ${String(r % 60).padStart(2, '0')}s`;
-  return `${Math.floor(r / 3600)}h ${String(Math.floor((r % 3600) / 60)).padStart(2, '0')}m`;
-}
+// The formats that read the same in every language are the generic package's.
+export { esc, fmtDur } from '@contraagent/elements';
 
 const formats = new Map<string, Intl.DateTimeFormat>();
 function formatter(locale: string, withDate: boolean): Intl.DateTimeFormat {
@@ -92,14 +80,6 @@ export function firstLine(s: string | null | undefined): string {
   const l = (t.split('\n')[0] || '').trim();
   return l.length > 100 ? `${l.slice(0, 100)}…` : l;
 }
-
-/** HTML-escape a text for the few places that build markup as a string (markdown, highlighting). */
-export const esc = (s: string | number | null | undefined): string =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 
 /** A token count, compact: `950`, `1.2k`, `34k`, `1.3M`. */
 export function tokenCount(n: number | null | undefined): string {

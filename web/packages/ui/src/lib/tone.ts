@@ -1,26 +1,23 @@
-// Which status colour a value takes. A colour means a status, and only where
-// that status applies: totals and measures stay neutral (''), a count of a
-// problem takes the problem's colour only when it is above 0, and a whole is
-// never coloured by its worst part (a run's dot is the exception: it is the
-// run's own status). An element shows its tone as `data-tone` (no attribute
-// for ''); the rules are in `styles/status.ts`.
+// Which status colour (`Tone`, from @contraagent/elements) run data takes. A
+// colour means a status, and only where that status applies: totals and
+// measures stay neutral, a count of a problem takes the problem's colour only
+// when it is above 0, and a whole is never coloured by its worst part (a run's
+// dot is the exception: it is the run's own status). An element shows its tone
+// as `data-tone` (none for neutral); the rules are in the elements' styles.
 import type { ContractStatus, Outcome, Stop } from '@contraagent/api';
+import { markOf, type Mark, type Tone } from '@contraagent/elements';
 
-/** A status colour, or '' for the neutral text colour. */
-export type Tone = 'failed' | 'attention' | 'done' | 'running' | 'muted' | '';
-
-/** Every status colour (`data-tone` values), without the neutral ''. */
-export const TONES: readonly Exclude<Tone, ''>[] = ['failed', 'attention', 'done', 'running', 'muted'];
+export type { Tone };
 
 /** The tone of a count of a problem: the problem's tone above 0, neutral at 0 (a 0 is not good news to colour). */
-export function problemTone(n: number, tone: Exclude<Tone, ''>): Tone {
-  return n > 0 ? tone : '';
+export function problemTone(n: number, tone: Exclude<Tone, 'neutral'>): Tone {
+  return n > 0 ? tone : 'neutral';
 }
 
-/** A run's own status: running, failed (a task failed), attention (only tasks not started), done; '' before it has tasks. */
+/** A run's own status: running, failed (a task failed), attention (only tasks not started), done; neutral before it has tasks. */
 export function runTone(running: boolean, tasks: { total: number; failed: number; not_started: number } | undefined): Tone {
   if (running) return 'running';
-  if (!tasks?.total) return '';
+  if (!tasks?.total) return 'neutral';
   if (tasks.failed) return 'failed';
   if (tasks.not_started) return 'attention';
   return 'done';
@@ -97,6 +94,9 @@ export function contractTone(s: ContractStatus | null | undefined): Tone {
       return 'muted';
     case null:
     case undefined:
-      return '';
+      return 'neutral';
   }
 }
+
+/** The mark of a task's outcome: a waiting task is ◌ too, though muted. */
+export const outcomeMark = (o: Outcome): Mark | null => (o === 'waiting' ? 'pending' : markOf(outcomeTone(o)));

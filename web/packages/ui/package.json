@@ -10,11 +10,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./themes": {
-      "source": "./src/themes/index.ts",
-      "types": "./dist/themes/index.d.ts",
-      "default": "./dist/themes/index.js"
-    },
     "./bundle": "./dist/contraagent-ui.js",
     "./custom-elements.json": "./custom-elements.json"
   },
@@ -38,7 +33,8 @@
     "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
-    "@contraagent/api": "workspace:*"
+    "@contraagent/api": "workspace:*",
+    "@contraagent/elements": "workspace:*"
   },
   "peerDependencies": {
     "@lit/localize": "^0.12.2",

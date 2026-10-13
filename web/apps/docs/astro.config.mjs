@@ -17,8 +17,8 @@ export default defineConfig({
     starlight({
       title: 'contraagent',
       description: 'Run coding-agent CLIs as typed, supervised, observable tasks.',
-      // A live demo can show @contraagent/ui's example of a theme of one's own.
-      customCss: ['./src/styles/site.css', '../../packages/ui/docs/examples/theme.css'],
+      // A live demo can show @contraagent/elements' example of a theme of one's own.
+      customCss: ['./src/styles/site.css', '../../packages/elements/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
         { label: 'Python', items: [{ autogenerate: { directory: 'python' } }] },
@@ -26,6 +26,7 @@ export default defineConfig({
           label: 'Node and the browser',
           items: [
             { label: '@contraagent/ui', items: [{ autogenerate: { directory: 'node/ui' } }] },
+            { label: '@contraagent/elements', items: [{ autogenerate: { directory: 'node/elements' } }] },
             { label: '@contraagent/api', items: [{ autogenerate: { directory: 'node/api' } }] },
           ],
         },

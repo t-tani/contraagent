@@ -2,8 +2,8 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
-import { base } from '../../styles/index.js';
-import { EDITOR_THEMES, THEMES, THEME_CHOICES, type ThemeChoice, type ThemeName } from '../../themes/index.js';
+import { base } from '@contraagent/elements/styles';
+import { EDITOR_THEMES, THEMES, THEME_CHOICES, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
 
 /** A choice's name in the control: a theme's own name stays as it is; `system` and High contrast are words. */
 export function themeLabel(choice: ThemeChoice): string {

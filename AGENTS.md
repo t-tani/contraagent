@@ -144,16 +144,22 @@ Each layer imports only the layers above it in the list in the
 layer from an earlier one; pass a callback or a protocol instead.
 
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
-feeds, store; no UI) comes before `@contraagent/ui` (the elements), which comes
-before `apps/monitor` (the page). Within `ui`, an element renders what its
-properties give it and sends `ca-*` events (`core/events.ts`); only `ca-monitor`
-holds the store and the router.
+feeds, store; no UI) and `@contraagent/elements` (generic elements and their
+parts: tokens, themes, primitives; no contraagent data) come before
+`@contraagent/ui` (the contraagent elements), which comes before `apps/monitor`
+(the page). `api` and `elements` never import each other. Within `ui`, an
+element renders what its properties give it and sends `ca-*` events
+(`core/events.ts`); only `ca-monitor` holds the store and the router. A `cae-*`
+element of `elements` takes plain data and its words (`strings`), and sends
+`cae-*` events (`core/events.ts` there).
 
 | Where | Imports only |
 |---|---|
 | `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
-| `ui`: `core/` (route, router, events, i18n, memory, scroll, clock) | `@contraagent/api`, `lit`, `@lit/localize`, `styles/`, `themes/` and each other; never `words/`, `lib/` or `elements/` |
-| `ui`: `words/` (the words the UI shows), `lib/`, `styles/`, `themes/` | the above and each other; never `elements/` |
+| `@contraagent/elements` | its own files and `lit`; no `@contraagent/*`, no `@lit/localize`, no `msg()`, and no glossary word in an exported name or in a `types.ts` property |
+| `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`json/`, `markdown/`, `count/`, ...); `define/` | the folders before it and its own; a component never imports another component, and only `define/` registers a tag |
+| `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/` or `elements/` |
+| `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `elements/` |
 | `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
 | `apps/*` | the packages, through the subpaths in their `exports` |
 
@@ -161,7 +167,8 @@ holds the store and the router.
 `packages/ui/src/layers.test.ts` check this table; the test also checks that a
 package imports another workspace package only when it depends on it.
 `packages/ui/src/fires.test.ts` checks that each element's `@fires` tags name
-exactly the events it sends, and that every event is in `CaEventMap`.
+exactly the events it sends, and that every event is in `CaEventMap` (`ca-*`)
+or `CaeEventMap` (`cae-*`).
 
 Every visible string in an element is wrapped in `msg()` (`@lit/localize`) and
 every element class is `@localized()`. Translations live in
@@ -191,7 +198,7 @@ published at least 14 days ago), in `web/`:
 
 ```
 pnpm install
-pnpm check              # generated types current, tsc, eslint, vitest
+pnpm check              # generated types current, tsc, eslint, vitest (every package)
 pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
 pnpm check:dist         # the built packages type-check as an npm consumer sees them, and stay within the gzip budgets in size-budgets.json
 pnpm dev                # live-reload UI against a monitor on :8787
@@ -209,6 +216,7 @@ version; nothing else holds that text.
 |---|---|---|---|
 | `contraagent` | `src/contraagent/docs/README.md` (also the PyPI page) | `src/contraagent/docs/*.md` | `src/contraagent/docs/examples/` |
 | `@contraagent/ui` | `web/packages/ui/README.md` | `web/packages/ui/docs/*.md` | `web/packages/ui/docs/examples/` |
+| `@contraagent/elements` | `web/packages/elements/README.md` | `web/packages/elements/docs/*.md` | `web/packages/elements/docs/examples/` |
 | `@contraagent/api` | `web/packages/api/README.md` | — | — |
 
 - **An index lists its topics** (`- [Title](file.md): summary`). That list is
@@ -216,8 +224,8 @@ version; nothing else holds that text.
   topic is a file plus a line in its index.
 - **Code is quoted, never pasted**: a line `::code{file="..." from="..." to="..."}`
   quotes a file of the same package. The examples run or compile in the tests
-  (`tests/test_docs.py`; `docs/tsconfig.json` and `examples.test.ts` in the UI
-  package), so update them with any API change.
+  (`tests/test_docs.py`; `docs/tsconfig.json` and `examples.test.ts` in each
+  web package), so update them with any API change.
 - **Facts live in the code**: signatures and arguments in docstrings, options in
   `--help`, config keys in `examples/reference/pipeline.toml`, elements in
   `custom-elements.json` (describe an element's events with `@fires` in its

@@ -3,11 +3,12 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { starts } from '../../core/clock.js';
+import { starts } from '@contraagent/elements';
 import { getLocale } from '../../core/i18n.js';
 import { facts, fmtDur, kindUnit } from '../../words/format.js';
 import { modelSwitch, notStartedCause, stopLabel } from '../../words/index.js';
-import { base, legendStyles } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
+import { legend, legendStyles } from '@contraagent/elements/primitives';
 import { barBox, timeline, type TimelineBar } from './timeline-model.js';
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -147,14 +148,16 @@ export class CaTimeline extends LitElement {
         )}
         ${tl.live ? html`<span class="tl-now" style="left:calc(120px + (100% - 120px) * ${nowAt.toFixed(4)})"></span>` : nothing}
       </div>
-      <div class="legend">
-        <span><i class="py"></i>${msg('Python task')}</span><span><i class="llm"></i>${msg('Agent task')}</span>
-      </div>
-      <div class="legend">
-        <span><i class="run"></i>${msg('running')}</span><span><i class="bad"></i>${msg('failed')}</span>
-        <span><i class="idle"></i>${msg('not started')}</span>
-        ${tl.hidden ? html`<span>${tl.hidden === 1 ? msg('1 older attempt not shown') : msg(str`${tl.hidden} older attempts not shown`)}</span>` : nothing}
-      </div>`;
+      ${legend([
+        { label: msg('Python task'), cls: 'py' },
+        { label: msg('Agent task'), cls: 'llm' },
+      ])}
+      ${legend([
+        { label: msg('running'), cls: 'run' },
+        { label: msg('failed'), cls: 'bad' },
+        { label: msg('not started'), cls: 'idle' },
+        ...(tl.hidden ? [{ label: tl.hidden === 1 ? msg('1 older attempt not shown') : msg(str`${tl.hidden} older attempts not shown`) }] : []),
+      ])}`;
   }
 }
 

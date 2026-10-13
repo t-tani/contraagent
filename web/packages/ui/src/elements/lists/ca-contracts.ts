@@ -6,7 +6,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { RememberedSet } from '../../core/memory.js';
 import type { TaskView } from '../../core/route.js';
-import { base, executorIconStyles } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
+import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import { kindUnit } from '../../words/format.js';
 import { correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
 import { contractChip, contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
@@ -122,7 +123,7 @@ export class CaContracts extends LitElement {
   private who(c: ContractRecord) {
     const py = isPython(c);
     const kindName = py ? msg('Python task') : msg('Agent task');
-    return html`<span class="k-ic ${py ? '' : 'llm'}" title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
+    return html`${executorIcon(py, kindName)}
       <b class="jmono" title=${c.key}>${taskName(c)}</b>`;
   }
 

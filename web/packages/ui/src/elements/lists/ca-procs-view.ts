@@ -4,10 +4,10 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
-import { starts } from '../../core/clock.js';
+import { starts } from '@contraagent/elements';
 import { facts, kindUnit } from '../../words/format.js';
-import { base } from '../../styles/index.js';
-import '../shared/ca-elapsed.js';
+import { base } from '@contraagent/elements/styles';
+import '@contraagent/elements/count/define';
 import './ca-proc-tree.js';
 
 /**
@@ -46,7 +46,7 @@ export class CaProcsView extends LitElement {
               (c) => html`<div class="fl" @click=${() => emit(this, 'ca-open-task', { key: c.key })}>
                 <b class="jmono">${kindUnit(c)}</b>
                 <span class="meta">${facts(msg(str`PID ${c.pid}`), msg(str`Model ${c.model || '—'}`), c.role ? msg(str`Role ${c.role}`) : '')} |
-                  <ca-elapsed .since=${starts.at(`c:${c.key}`, c.age_s)}></ca-elapsed></span>
+                  <cae-elapsed .since=${starts.at(`c:${c.key}`, c.age_s)}></cae-elapsed></span>
                 <div class="meta mono cmd">${(c.full_cmd || msg('In the pipeline process')).slice(0, 400)}</div>
               </div>`,
             )
@@ -60,7 +60,7 @@ export class CaProcsView extends LitElement {
               (pt) => pt.key,
               (pt) => html`<div class="fl">
                 <b class="jmono">${kindUnit(pt)}</b>
-                <span class="meta">${msg(str`PID ${pt.pid}`)} | <ca-elapsed .since=${starts.at(`p:${pt.key}`, pt.age_s)}></ca-elapsed></span>
+                <span class="meta">${msg(str`PID ${pt.pid}`)} | <cae-elapsed .since=${starts.at(`p:${pt.key}`, pt.age_s)}></cae-elapsed></span>
               </div>`,
             )}
           </section>`

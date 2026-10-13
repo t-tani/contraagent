@@ -6,9 +6,9 @@ import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { facts, localTime } from '../../words/format.js';
 import { contractStatusLabel, contractStatusWhy, correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
-import { statusChip } from '../../lib/status.js';
+import { statusChip } from '@contraagent/elements/primitives';
 import { contractTone } from '../../lib/tone.js';
-import './ca-json-tree.js';
+import '@contraagent/elements/json-tree/define';
 
 /** A ✓ or ✕ with its word for screen readers (the word is also in the row). */
 const fieldMark = (ok: boolean, word: string, tip = '') =>
@@ -18,13 +18,17 @@ const fieldMark = (ok: boolean, word: string, tip = '') =>
 export function inputChip(o: ContractSpec): TemplateResult {
   const ok = !!o.file.exists;
   const text = ok ? msg('found') : o.required ? msg('missing (required)') : msg('missing (optional)');
-  return statusChip(text, ok ? 'done' : o.required ? 'failed' : 'muted');
+  return statusChip('ct-chip', { text, tone: ok ? 'done' : o.required ? 'failed' : 'muted' });
 }
 
 /** A checked file's status as a chip, with its cause as the tooltip, and a count after the word when given; '—' without one. */
 export function contractChip(s: ContractStatus | null | undefined, count?: number): TemplateResult {
-  if (!s) return statusChip('—', '');
-  return statusChip(count === undefined ? contractStatusLabel(s) : html`${contractStatusLabel(s)} <b>${count}</b>`, contractTone(s), { title: contractStatusWhy(s) });
+  if (!s) return statusChip('ct-chip', { text: '—' });
+  return statusChip('ct-chip', {
+    text: count === undefined ? contractStatusLabel(s) : html`${contractStatusLabel(s)} <b>${count}</b>`,
+    tone: contractTone(s),
+    title: contractStatusWhy(s),
+  });
 }
 
 
@@ -60,7 +64,7 @@ function shortValue(v: unknown): TemplateResult {
 export function fileContent(f: FileView): TemplateResult {
   const c = f.content;
   return c !== null && typeof c === 'object'
-    ? html`<ca-json-tree .value=${c}></ca-json-tree>`
+    ? html`<cae-json-tree .value=${c}></cae-json-tree>`
     : html`<pre class="jtree">${typeof c === 'string' ? c : msg('Not JSON')}</pre>`;
 }
 

@@ -90,7 +90,7 @@ test('a task: its transcript, its views as places, open tool cards kept', async 
 
   await page.locator('ca-task-view .tview', { hasText: 'input' }).click();
   await expect.poll(() => params(page).view).toBe('input');
-  await expect(page.locator('ca-task-view ca-markdown').first()).toBeVisible(); // the round's prompt
+  await expect(page.locator('ca-task-view cae-markdown').first()).toBeVisible(); // the round's prompt
   await page.reload();
   await expect(page.locator('ca-task-view .tview.sel')).toHaveText(/Input/);
 

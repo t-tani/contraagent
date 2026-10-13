@@ -79,9 +79,9 @@ test.describe('docs: a review loop per unit', () => {
     const frame = graph(page).locator('.main > .frame');
     const views = graph(page).locator('.views');
     const before = { frame: (await frame.boundingBox())!, views: (await views.boundingBox())! };
-    await expect(views.getByRole('button', { name: 'Graph' })).toHaveAttribute('aria-pressed', 'true');
-    await views.getByRole('button', { name: 'Table' }).click();
-    await expect(views.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(views.getByRole('radio', { name: 'Graph' })).toHaveAttribute('aria-checked', 'true');
+    await views.getByRole('radio', { name: 'Table' }).click();
+    await expect(views.getByRole('radio', { name: 'Table' })).toHaveAttribute('aria-checked', 'true');
     const table = frame.locator('table.list');
     await expect(table).toBeVisible();
     const after = { frame: (await frame.boundingBox())!, views: (await views.boundingBox())! };
@@ -104,7 +104,7 @@ test.describe('docs: a review loop per unit', () => {
     await expect(inspector(page).locator('h4')).toHaveText(/summarize$/);
     await expect.poll(() => params(page).sel).toBe('kind:summarize');
     // Back to the graph: the same node is selected there.
-    await views.getByRole('button', { name: 'Graph' }).click();
+    await views.getByRole('radio', { name: 'Graph' }).click();
     await expect(graph(page).locator('.node.sel .name')).toHaveText('summarize');
     expect(Math.abs((await views.boundingBox())!.x - before.views.x)).toBeLessThan(1);
   });
@@ -127,8 +127,8 @@ test.describe('docs: a review loop per unit', () => {
     expect(Math.abs(sort.x + sort.width - (mx.x + mx.width))).toBeLessThan(2);
     // The switch is where it was, Table pressed.
     expect(Math.abs((await views.boundingBox())!.x - at.x)).toBeLessThan(1);
-    await expect(views.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
-    await views.getByRole('button', { name: 'Graph' }).click();
+    await expect(views.getByRole('radio', { name: 'Table' })).toHaveAttribute('aria-checked', 'true');
+    await views.getByRole('radio', { name: 'Graph' }).click();
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     await expect(graph(page).locator('.box.sel')).toHaveCount(1);
     await expect(inspector(page).locator('h4')).toHaveText(/Loop at tasks\.py:\d+$/);

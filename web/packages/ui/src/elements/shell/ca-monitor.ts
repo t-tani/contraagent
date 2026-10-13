@@ -19,18 +19,20 @@ import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
 import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, preferredLocale, setLocale, type Locale } from '../../core/i18n.js';
-import { ClockController } from '../../core/clock.js';
+import { ClockController } from '@contraagent/elements';
 import { flushMemory } from '../../core/memory.js';
 import { facts, fmtDur, kindUnit, usd } from '../../words/format.js';
 import { modelSwitch, stateCount, stopLabel } from '../../words/index.js';
 import { ScrollMemory } from '../../core/scroll.js';
 import { runTone, type Tone } from '../../lib/tone.js';
+import { toneAttr } from '@contraagent/elements';
+import '@contraagent/elements/segmented/define';
 import type { Route, RoutePatch, Tab } from '../../core/route.js';
 import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
-import { base } from '../../styles/index.js';
-import { hostThemeStyles } from '../../themes/sheet.js';
-import { isThemeChoice, preferredTheme, prefersLight, rememberTheme, resolveTheme, type ThemeChoice, type ThemeName } from '../../themes/index.js';
+import { base } from '@contraagent/elements/styles';
+import { hostThemeStyles } from '@contraagent/elements/themes';
+import { isThemeChoice, preferredTheme, prefersLight, rememberTheme, resolveTheme, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
 import { taskChip } from '../shared/task-chip.js';
 import type { CaToasts } from './ca-toasts.js';
 import './ca-run-picker.js';
@@ -115,10 +117,8 @@ export class CaMonitor extends LitElement {
       .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40vw;
         display: inline-flex; align-items: center; gap: 4px; }
       .clock { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
-      .langs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-      .langs button { background: none; border: 0; padding: 2px 9px; font-size: 11px; color: var(--text-muted); cursor: pointer; }
-      .langs button:hover { color: var(--text-2); }
-      .langs button[aria-pressed='true'] { background: var(--raise); color: var(--text); }
+      .langs { --cae-segmented-radius: 999px; --cae-segmented-height: auto; --cae-segmented-padding: 2px 9px; --cae-segmented-font-size: 11px;
+        --cae-segmented-divider: 0; --cae-segmented-hover: var(--text-2); }
       .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--status-running); display: inline-block; animation: breathe 1.8s ease-in-out infinite; }
       .live-dot.off { background: var(--line2); animation: none; box-shadow: none; }
 
@@ -418,7 +418,7 @@ export class CaMonitor extends LitElement {
           <span>${snap.info.title}</span>
         </div>
         <button type="button" class="runbtn" title=${msg('Switch run (r)')} @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          <span class="dot" data-tone=${dot || nothing} aria-hidden="true"></span>
+          <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
           <span class="rn">${route.run || '—'}</span>
           <span class="rs" title=${summary ? accountsTip(this.accounts(summary)) : ''}>${summary ? this.runLine(summary) : ''}</span>
           <span class="chev" aria-hidden="true">▾</span>
@@ -428,13 +428,9 @@ export class CaMonitor extends LitElement {
             ? msg(html`Running ${acts.slice(0, 3).map((a) => taskChip(this, kindUnit(a), { key: a.key }))}${acts.length > 3 ? html` <span>+${acts.length - 3}</span>` : nothing}`)
             : nothing}</span>
           <ca-theme-switch .value=${this.themeChoice()} .system=${resolveTheme('system', this.light)}></ca-theme-switch>
-          <span class="langs" role="group" aria-label=${msg('Language')}>
-            ${allLocales.map(
-              (l) => html`<button type="button" lang=${l} aria-pressed=${l === getLocale()} @click=${() => this.pickLocale(l)}>
-                ${LOCALE_NAMES[l]}
-              </button>`,
-            )}
-          </span>
+          <cae-segmented class="langs" label=${msg('Language')} .value=${getLocale()}
+            .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
+            @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>
           <span title=${snap.connected ? msg('Connected to the monitor server') : msg('Not connected to the monitor server')}
             ><span class="live-dot ${snap.connected ? '' : 'off'}"></span><span class="sr">${snap.connected
               ? msg('Connected to the monitor server')
@@ -459,9 +455,9 @@ export class CaMonitor extends LitElement {
     // A tab's count is a total: neutral, never coloured by its worst part. Only a count of what is running is.
     const badge = (id: Tab): [string | number, Tone] | null =>
       id === 'tasks'
-        ? [tasks.total || '', '']
+        ? [tasks.total || '', 'neutral']
         : id === 'journal'
-          ? [tries || '', '']
+          ? [tries || '', 'neutral']
           : id === 'procs'
             ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
@@ -472,7 +468,7 @@ export class CaMonitor extends LitElement {
         return html`${t.panel && !tabs[i - 1]?.panel ? html`<span class="tab-sep" title=${msg('Custom views')}></span>` : nothing}
           <button type="button" class="tab ${t.panel ? 'panel-tab' : ''} ${t.id === this.route.tab ? 'sel' : ''}" title=${t.tip ?? nothing}
             @click=${() => this.navigate({ tab: t.id })}>
-            <span class="tab-ic" aria-hidden="true">${t.icon}</span>${t.label}${b && b[0] !== '' ? html`<span class="badge" data-tone=${b[1] || nothing}>${b[0]}</span>` : nothing}
+            <span class="tab-ic" aria-hidden="true">${t.icon}</span>${t.label}${b && b[0] !== '' ? html`<span class="badge" data-tone=${toneAttr(b[1])}>${b[0]}</span>` : nothing}
           </button>`;
       })}
       <span class="tab-ind init"></span>

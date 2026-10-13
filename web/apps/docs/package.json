@@ -12,6 +12,7 @@
   "dependencies": {
     "@astrojs/starlight": "~0.42.4",
     "@contraagent/api": "workspace:*",
+    "@contraagent/elements": "workspace:*",
     "@contraagent/ui": "workspace:*",
     "astro": "~7.3.5"
   },

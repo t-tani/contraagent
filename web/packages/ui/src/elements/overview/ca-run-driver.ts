@@ -2,14 +2,14 @@ import { elapsedS, result, type Plan, type Procs, type RunSummary } from '@contr
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { starts } from '../../core/clock.js';
+import { starts } from '@contraagent/elements';
 import { facts, fmtDur, localTime } from '../../words/format.js';
-import { type Tone } from '../../lib/tone.js';
-import { base, factStyles } from '../../styles/index.js';
-import '../shared/ca-elapsed.js';
+import { toneAttr, type Tone } from '@contraagent/elements';
+import { base, factStyles } from '@contraagent/elements/styles';
+import '@contraagent/elements/count/define';
 
 /** The mark of how a run ended (■ for a run with no tasks). */
-const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓', running: '', muted: '■', '': '■' };
+const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓', running: '', muted: '■', neutral: '■' };
 
 /**
  * The run's own process: running (pid, run group, how many tasks at once,
@@ -49,7 +49,7 @@ export class CaRunDriver extends LitElement {
    * (finished), with or without errors, or some tasks never got their turn (stopped).
    */
   private stateTitle(): [text: string, tone: Tone] {
-    if (!this.plan.nodes.length) return [msg('Not running'), ''];
+    if (!this.plan.nodes.length) return [msg('Not running'), 'neutral'];
     const r = result(this.plan);
     if (r.failed) return [msg('Finished with errors'), 'failed'];
     if (r.left) return [r.left === 1 ? msg('Finished with 1 task not done') : msg(str`Finished with ${r.left} tasks not done`), 'attention'];
@@ -64,9 +64,9 @@ export class CaRunDriver extends LitElement {
       const [title, tone] = this.stateTitle();
       const took = elapsedS(r);
       return html`<div class="drv off">
-        <div class="drv-ic" data-tone=${tone || nothing} aria-hidden="true">${MARK[tone]}</div>
+        <div class="drv-ic" data-tone=${toneAttr(tone)} aria-hidden="true">${MARK[tone]}</div>
         <div>
-          <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : tone || nothing}>${title}</div>
+          <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : toneAttr(tone)}>${title}</div>
           <div class="meta">${facts(
             r?.last_ts ? msg(str`Ended ${localTime(r.last_ts, true)}`) : msg('No activity'),
             took == null ? '' : msg(str`Took ${fmtDur(took)}`),
@@ -86,7 +86,7 @@ export class CaRunDriver extends LitElement {
     return html`<div class="drv on">
       <div class="drv-ic"><span class="spin"></span></div>
       <div style="min-width:0">
-        <div class="drv-t">${msg('Running')} <ca-elapsed class="drv-up" .since=${since}></ca-elapsed></div>
+        <div class="drv-t">${msg('Running')} <cae-elapsed class="drv-up" .since=${since}></cae-elapsed></div>
         <div class="drv-facts">${rows.map(([k, v]) => html`<span><i>${k}</i>${v}</span>`)}</div>
         <details class="drv-cmd"><summary>${msg('Command line')}</summary><code>${p.argv.join(' ')}</code></details>
       </div>

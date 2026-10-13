@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
-import { themeBootScript, themeRules } from '../../packages/ui/src/themes/index.ts';
+import { themeBootScript } from '../../packages/elements/src/themes/boot.ts';
+import { themeRules } from '../../packages/elements/src/themes/data.ts';
 
 /** Where `contraagent-monitor` runs during `pnpm dev` (override with CONTRAAGENT_MONITOR). */
 const API = process.env['CONTRAAGENT_MONITOR'] ?? 'http://127.0.0.1:8787';

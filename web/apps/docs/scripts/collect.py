@@ -27,6 +27,7 @@ SECTIONS = [
     (docs.INDEX, docs.DIR, "python"),
     (ROOT / "web/packages/api/README.md", ROOT / "web/packages/api", "node/api"),
     (ROOT / "web/packages/ui/README.md", ROOT / "web/packages/ui", "node/ui"),
+    (ROOT / "web/packages/elements/README.md", ROOT / "web/packages/elements", "node/elements"),
 ]
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 FENCE = re.compile(r"^\s*```")

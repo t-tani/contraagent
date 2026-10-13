@@ -4,9 +4,10 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
-import { starts } from '../../core/clock.js';
-import { base } from '../../styles/index.js';
-import '../shared/ca-elapsed.js';
+import { starts } from '@contraagent/elements';
+import { base } from '@contraagent/elements/styles';
+import '@contraagent/elements/count/define';
+import { executorIcon } from '../../words/executor.js';
 
 /**
  * What runs now: one card per running task (an agent session opens its
@@ -56,8 +57,8 @@ export class CaWorkers extends LitElement {
         (a) => a.id,
         (a) => html`<div class="wk ${a.cls}"
           @click=${a.key ? () => emit(this, 'ca-open-task', { key: a.key }) : nothing}>
-          <div class="wk-top"><span class="wk-ic" title=${a.cls === 'llm' ? msg('Agent task') : msg('Python task')}><span aria-hidden="true">${a.cls === 'llm' ? '✦' : '⚙'}</span><span class="sr">${a.cls === 'llm' ? msg('Agent task') : msg('Python task')}</span></span><b>${a.kind}</b>
-            <ca-elapsed class="wk-el" .since=${starts.at(a.id, a.ageS)}></ca-elapsed></div>
+          <div class="wk-top">${executorIcon(a.cls !== 'llm', a.cls === 'llm' ? msg('Agent task') : msg('Python task'), 'wk-ic')}<b>${a.kind}</b>
+            <cae-elapsed class="wk-el" .since=${starts.at(a.id, a.ageS)}></cae-elapsed></div>
           <div class="meta">${a.detail}</div>
           <div class="wk-bar"><i></i></div>
         </div>`,

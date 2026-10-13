@@ -7,9 +7,11 @@ import { emit } from '../../core/events.js';
 import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../../words/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../../words/index.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
-import { markOf, statusWord } from '../../lib/status.js';
+import { toneAttr } from '@contraagent/elements';
+import { markOf, statusWord } from '@contraagent/elements/primitives';
+import { executorIcon } from '../../words/executor.js';
 import { accountReading, readingShort } from '../../words/quota.js';
-import { base, meterStyles } from '../../styles/index.js';
+import { base, meterStyles } from '@contraagent/elements/styles';
 import { attemptFacts, filterJournal, hadFixup, journalTally, retriedKeys } from './filters.js';
 
 // Each row is its own grid, so every track is fixed or a share of the width, never content-sized:
@@ -94,8 +96,8 @@ export class CaJournalTable extends LitElement {
     const index = new Map(this.rows.map((r, i) => [r, i]));
     const fixups = this.rows.filter(hadFixup).length;
     const retried = retriedKeys(this.rows).size;
-    const chip = (k: string, label: string, n: number, tip: string, tone: Tone = '') =>
-      html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${tone || nothing} data-mark=${markOf(tone) ?? nothing}
+    const chip = (k: string, label: string, n: number, tip: string, tone: Tone = 'neutral') =>
+      html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${toneAttr(tone)} data-mark=${markOf(tone) ?? nothing}
         aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
     return html`<div class="jtally">
@@ -183,15 +185,16 @@ export class CaJournalTable extends LitElement {
     return html`<div class=${cls} style=${COLS}
       @click=${() => emit(this, 'ca-open-task', py ? { key: e.key, view: 'output' } : { key: e.key })}>
       <span class="jmono" title=${localTime(e.ts, true)}>${localTime(e.ts)}</span>
-      <span class="jmono" title=${e.key}><span title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
+      <span class="jmono" title=${e.key}>${executorIcon(py, kindName, '')}
         ${kindUnit(e)}</span>
-      ${statusWord(
-        html`<span class="nw">${this.shortStop(e.stop)}</span>${(numbered && ran) || corrections
+      ${statusWord({
+        text: html`<span class="nw">${this.shortStop(e.stop)}</span>${(numbered && ran) || corrections
           ? html`<span class="sub">${facts(numbered && ran ? attemptLabel(e.attempt) : '', corrections)}</span>`
           : nothing}`,
-        stopTone(e.stop),
-        { cls: 'two', title: e.stop },
-      )}
+        tone: stopTone(e.stop),
+        cls: 'two',
+        title: e.stop,
+      })}
       <span class="jmono jdim two" title=${facts(e.route, sw) || nothing}>${ran
         ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${this.identity(e)}`
         : '—'}</span>

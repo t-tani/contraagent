@@ -11,9 +11,12 @@
 //
 //   inside @contraagent/ui  a folder imports only from the folders before it
 //   core/                   never words/, lib/ or elements/
-//   words/, lib/, styles/, themes/   never elements/
+//   words/, lib/            never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
+//
+//   inside @contraagent/elements   a folder imports only from itself and the ranks before it
+//   (ELEMENTS_LAYERS): core, themes, styles, primitives, the components, define
 //
 //   taskOutcomes, outcomeCounts, taskRows   called only in @contraagent/api (deriveRun)
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -127,8 +130,8 @@ describe('@contraagent/ui folders', () => {
     expect(imports.length).toBeGreaterThan(100);
   });
 
-  it('core/, words/, lib/, styles/ and themes/ never import elements/', () => {
-    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|styles|themes)\//.test(f);
+  it('core/, words/ and lib/ never import elements/', () => {
+    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib)\//.test(f);
     const bad = imports.filter((i) => lower(i.file) && target(i).startsWith(`${UI}/elements/`));
     expect(bad.map(where)).toEqual([]);
   });
@@ -144,6 +147,41 @@ describe('@contraagent/ui folders', () => {
       const a = folder(i.file);
       const b = folder(target(i));
       return a && b && b !== a && b !== 'shared' && i.names && !CROSS_FOLDER_GAPS.has(`${i.file} -> ${target(i)}`);
+    });
+    expect(bad.map(where)).toEqual([]);
+  });
+});
+
+// The folders of @contraagent/elements in layer order (eslint.config.js has the
+// same table): a folder imports only from itself and the ranks before it, so a
+// component never imports another, and only define/ registers. The files at
+// the root (index.ts, the tests) may import any folder.
+const ELEMENTS_LAYERS: readonly (readonly string[])[] = [
+  ['core'],
+  ['themes'],
+  ['styles'],
+  ['primitives'],
+  ['table', 'graph', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'],
+  ['define'],
+];
+
+describe('@contraagent/elements folders', () => {
+  const ELEMENTS = 'packages/elements/src';
+  const imports = packageImports('elements');
+  const folder = (p: string) => new RegExp(`^${ELEMENTS}/([^/]+)/`).exec(p)?.[1];
+  const rank = (f: string) => ELEMENTS_LAYERS.findIndex((r) => r.includes(f));
+
+  it.runIf(existsSync(join(WEB, ELEMENTS)))('every folder has a rank', () => {
+    const folders = readdirSync(join(WEB, ELEMENTS), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    expect(folders.filter((f) => rank(f) < 0)).toEqual([]);
+  });
+
+  it.runIf(existsSync(join(WEB, ELEMENTS)))('a folder imports only from itself and the ranks before it', () => {
+    expect(imports.length).toBeGreaterThan(10);
+    const bad = imports.filter((i) => {
+      const a = folder(i.file);
+      const b = folder(target(i));
+      return a && b && a !== b && rank(b) >= rank(a);
     });
     expect(bad.map(where)).toEqual([]);
   });

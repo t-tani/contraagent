@@ -5,6 +5,8 @@
     "noEmit": true,
     "paths": {
       "@contraagent/api": ["../../api/src/index.ts"],
+      "@contraagent/elements": ["../../elements/src/index.ts"],
+      "@contraagent/elements/*": ["../../elements/src/*"],
       "@contraagent/ui": ["../src/index.ts"]
     }
   },

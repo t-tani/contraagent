@@ -1,0 +1,12 @@
+{
+  // The examples are documentation: they compile against the package as it is.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@contraagent/elements": ["../src/index.ts"],
+      "@contraagent/elements/segmented/define": ["../src/define/segmented.ts"]
+    }
+  },
+  "include": ["examples/**/*.ts"]
+}

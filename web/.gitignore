@@ -1,6 +1,7 @@
 node_modules/
 dist/
 packages/ui/custom-elements.json
+packages/elements/custom-elements.json
 e2e/.runs/
 test-results/
 playwright-report/
