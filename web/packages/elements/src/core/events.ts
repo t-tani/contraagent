@@ -23,6 +23,12 @@ export interface SortDetail {
   direction: 'asc' | 'desc';
 }
 
+/** A named action of an item (a tile's link): the item's id and the action's id. */
+export interface ActionDetail {
+  id: string;
+  action: string;
+}
+
 /** Every `cae-*` event and its detail. */
 export interface CaeEventMap {
   'cae-change': ChangeDetail;
@@ -30,6 +36,7 @@ export interface CaeEventMap {
   'cae-activate': ItemDetail;
   'cae-select': SelectDetail;
   'cae-sort': SortDetail;
+  'cae-action': ActionDetail;
 }
 
 declare global {
@@ -38,6 +45,7 @@ declare global {
     'cae-activate': CustomEvent<ItemDetail>;
     'cae-select': CustomEvent<SelectDetail>;
     'cae-sort': CustomEvent<SortDetail>;
+    'cae-action': CustomEvent<ActionDetail>;
   }
 }
 

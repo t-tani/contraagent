@@ -289,6 +289,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`cae-activate`) or selection (`cae-select`), sortable headers (`cae-sort`,
   `sortRows`), and above `windowAt` rows only the rows on screen drawn. Its
   columns are `DataColumn`s; documented in `docs/data-table.md`.
+- `<cae-stat-tiles>` (`@contraagent/elements/tiles`): figures as tiles, each a
+  label, a value that counts up, lines of facts and a link (`cae-action`).
+  `<cae-lanes>` (`@contraagent/elements/lanes`): bars on a time axis, a lane
+  per group, overlapping bars stacked (`stack`), running bars growing until
+  now. `<cae-check-table>` (`@contraagent/elements/check-table`): named values
+  checked one by one, with `verdict()` for a verdict elsewhere. Each has a
+  `define` entry and a page in the package's `docs/`. `@contraagent/ui` builds
+  `ca-kpis`, `ca-timeline` and a checked file's field table on them, from the
+  adapters `kpiTiles`, `lanesFromJournal` and `checkRowsFromContract`.
 
 ### Fixed
 

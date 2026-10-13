@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import { themeBootScript } from '../../packages/elements/src/themes/boot.ts';
 import { themeRules } from '../../packages/elements/src/themes/data.ts';
+import { minifyCss } from '../../scripts/minify-css.mjs';
 
 /** Where `contraagent-monitor` runs during `pnpm dev` (override with CONTRAAGENT_MONITOR). */
 const API = process.env['CONTRAAGENT_MONITOR'] ?? 'http://127.0.0.1:8787';
@@ -16,7 +17,7 @@ const theme = (): Plugin => ({
 });
 
 export default defineConfig({
-  plugins: [theme()],
+  plugins: [theme(), minifyCss()],
   // Relative asset URLs: the monitor may be served under a path prefix.
   base: './',
   resolve: { conditions: ['source'] },

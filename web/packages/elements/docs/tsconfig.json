@@ -7,7 +7,13 @@
       "@contraagent/elements": ["../src/index.ts"],
       "@contraagent/elements/segmented/define": ["../src/define/segmented.ts"],
       "@contraagent/elements/data-table": ["../src/table/index.ts"],
-      "@contraagent/elements/data-table/define": ["../src/define/data-table.ts"]
+      "@contraagent/elements/data-table/define": ["../src/define/data-table.ts"],
+      "@contraagent/elements/tiles": ["../src/tiles/index.ts"],
+      "@contraagent/elements/tiles/define": ["../src/define/tiles.ts"],
+      "@contraagent/elements/lanes": ["../src/lanes/index.ts"],
+      "@contraagent/elements/lanes/define": ["../src/define/lanes.ts"],
+      "@contraagent/elements/check-table": ["../src/checks/index.ts"],
+      "@contraagent/elements/check-table/define": ["../src/define/check-table.ts"]
     }
   },
   "include": ["examples/**/*.ts"]
