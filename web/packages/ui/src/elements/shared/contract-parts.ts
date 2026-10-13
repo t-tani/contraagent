@@ -6,6 +6,8 @@ import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { inputCause, inputProblems, runRelative } from '../../lib/labels.js';
 import { facts, localTime, sentence } from '../../lib/format.js';
+import { statusChip } from '../../lib/status.js';
+import { contractTone } from '../../lib/tone.js';
 import './ca-json-tree.js';
 
 /** A contract status in words, in the current locale. */
@@ -63,7 +65,13 @@ const fieldMark = (ok: boolean, word: string, tip = '') =>
 export function inputChip(o: ContractSpec): TemplateResult {
   const ok = !!o.file.exists;
   const text = ok ? msg('found') : o.required ? msg('missing (required)') : msg('missing (optional)');
-  return html`<span class="ct-chip ${ok ? 'valid' : o.required ? 'invalid' : 'pending'}">${text}</span>`;
+  return statusChip(text, ok ? 'done' : o.required ? 'failed' : 'muted');
+}
+
+/** A checked file's status as a chip, with its cause as the tooltip, and a count after the word when given; '—' without one. */
+export function contractChip(s: ContractStatus | null | undefined, count?: number): TemplateResult {
+  if (!s) return statusChip('—', '');
+  return statusChip(count === undefined ? contractStatusLabel(s) : html`${contractStatusLabel(s)} <b>${count}</b>`, contractTone(s), { title: contractStatusWhy(s) });
 }
 
 const STATUSES: readonly ContractStatus[] = ['valid', 'invalid', 'refused', 'failed', 'running', 'pending'];
@@ -79,10 +87,6 @@ export const CONTRACT_STATUS_WHY = Object.defineProperties(
   {},
   Object.fromEntries(STATUSES.map((k) => [k, { enumerable: true, get: () => contractStatusWhy(k) }])),
 ) as Readonly<Record<ContractStatus, string>>;
-
-/** The journal stop a contract status reads as, for colouring. */
-export const statusStop = (s: ContractStatus | null | undefined): string =>
-  s === 'invalid' ? 'invalid_output' : s === 'refused' ? 'invalid_input' : 'error';
 
 function typeOk(t: string, v: unknown): boolean {
   if (t.startsWith('list[') || t === 'array') return Array.isArray(v);
@@ -292,7 +296,7 @@ export function ioFileCard(
 ): TemplateResult {
   const stat =
     role === 'output'
-      ? html`<span class="ct-chip ${o.status ?? ''}" title=${o.status ? contractStatusWhy(o.status) : ''}>${o.status ? contractStatusLabel(o.status) : '—'}</span>${(o.rounds ?? 0) > 1
+      ? html`${contractChip(o.status)}${(o.rounds ?? 0) > 1
             ? html` <span class="meta" title=${correctionTip()}>${correctionsLabel(o.rounds, o.status === 'valid')}</span>`
             : nothing}`
       : inputChip(o);

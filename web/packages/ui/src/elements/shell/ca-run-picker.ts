@@ -148,7 +148,7 @@ export class CaRunPicker extends LitElement {
     const dot = runTone(r.running, r.tasks);
     const cls = `item${r.run === this.current ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
     return html`<div class=${cls} role="option" aria-selected=${r.run === this.current} @click=${() => this.pick(r.run)}>
-      <span class="dot ${dot}" aria-hidden="true"></span><span class="nm">${r.run}</span>
+      <span class="dot" data-tone=${dot || nothing} aria-hidden="true"></span><span class="nm">${r.run}</span>
       <span class="when" title=${localTime(r.last_ts, true)}>${r.running ? msg('running') : relAgo(r.last_ts)}</span>
       <span class="sub">
         ${r.run_group && r.run_group !== r.run ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}

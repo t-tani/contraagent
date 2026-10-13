@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { JOURNAL_CAP, emptyRunState, isBad, liveActivities, reduceRun, runStarts, type RunAction } from './run-state.js';
-import type { JournalRow, Plan, Procs } from './types.js';
+import type { JournalRow, Plan, Procs, Stop } from './types.js';
 
-const row = (key: string, stop = 'completed'): JournalRow => ({ ts: `2026-10-11T00:00:${key}`, key, kind: 'k', stop, ok: stop === 'completed' });
+const row = (key: string, stop: Stop = 'completed'): JournalRow => ({ ts: `2026-10-11T00:00:${key}`, key, kind: 'k', stop, ok: stop === 'completed' });
 
 describe('reduceRun', () => {
   it('appends journal rows and keeps only the newest JOURNAL_CAP', () => {

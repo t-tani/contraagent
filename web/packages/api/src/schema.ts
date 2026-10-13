@@ -742,8 +742,11 @@ export type components = {
             route?: string;
             /** Hops */
             hops?: components["schemas"]["Hop"][];
-            /** Stop */
-            stop: string;
+            /**
+             * Stop
+             * @enum {string}
+             */
+            stop: "completed" | "timeout" | "max_turns" | "budget" | "context_budget" | "stalled" | "auth_failed" | "api_error" | "rate_limited" | "refused" | "aborted" | "denied" | "error" | "no_output" | "launch_failed" | "invalid_output" | "invalid_input" | "credential_mismatch" | "skipped";
             /** Ok */
             ok: boolean;
             /**

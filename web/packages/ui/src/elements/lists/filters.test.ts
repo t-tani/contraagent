@@ -1,4 +1,4 @@
-import type { JournalRow, Outcome, TaskRow } from '@contraagent/api';
+import type { JournalRow, Outcome, Stop, TaskRow } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import { attemptFacts, filterJournal, filterTasks, journalTally, sortTasks } from './filters.js';
 
@@ -6,7 +6,7 @@ const task = (key: string, kind: string, last_stop = 'completed', outcome: Outco
   key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null,
   pass: null, wall_s: 1, last_ts, last_stop, waits_for: [],
 });
-const row = (key: string, kind: string, stop: string, extra: Partial<JournalRow> = {}): JournalRow => ({
+const row = (key: string, kind: string, stop: Stop, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '', key, kind, stop, ok: stop === 'completed', ...extra,
 });
 
