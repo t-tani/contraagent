@@ -4,9 +4,13 @@ import { css } from 'lit';
 
 export const graphStyles = css`
   :host { display: block; }
+  /* A column: the crumbs, the frame, the row under it. A height set on the host is the frame's to fill or give up. */
+  .col { display: flex; flex-direction: column; height: 100%; }
+  .main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .foot { flex: none; }
 
   /* One frame for every view: the drawing, the node table and a mark matrix. */
-  .frame { position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
+  .frame { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
   .gframe { cursor: grab; touch-action: none; }
   .gframe.drag { cursor: grabbing; }
   .stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -141,9 +145,12 @@ export const graphStyles = css`
   .insp.sheet { position: sticky; bottom: 8px; width: auto; max-width: none; margin-top: 8px; visibility: visible; }
   .insp.sheet .ptr { display: none; }
   @keyframes insp-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
-  .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); display: none; }
+  /* The key hints keep their room: the focus moves nothing. */
+  .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); visibility: hidden; }
   .keys span { white-space: nowrap; }
-  :host(:focus-within) .keys { display: block; }
+  :host(:focus-within) .keys { visibility: visible; }
+  /* Touch alone: no keys, no line. */
+  @media not (any-pointer: fine) { .keys { display: none; } }
 
   /* The node table: across the frame's content box, the name and status as wide as their content, the relations sharing the rest. */
   /* A shadow at an edge the table scrolls past: a lid over it at the end, a shadow fixed to the frame. */

@@ -15,11 +15,11 @@ import { arrange } from './arrange.js';
 import { CardController } from './card.js';
 import type { GraphHost } from './host.js';
 import { layoutGraph, type GraphLayout, type Size } from './layout.js';
-import { BAR_MARKS } from './marks.js';
+import { BAR_MARKS, fillNode } from './marks.js';
 import { PanZoomController } from './pan-zoom.js';
 import { DEFAULT_LAYERED_GRAPH_STRINGS, type LayeredGraphStrings } from './strings.js';
 import { graphStyles } from './styles.js';
-import type { Arrangement, GraphClusterInput, GraphInput, GraphNodeInput, GraphOrder } from './types.js';
+import type { Arrangement, DrawnGraph, GraphClusterInput, GraphInput, GraphNode, GraphOrder } from './types.js';
 import { dag } from './views/dag.js';
 import { foot } from './views/foot.js';
 import { nodeTable } from './views/node-table.js';
@@ -54,6 +54,13 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * per node, with its status and the nodes it is joined to. With `matrix`, the frame
  * shows that `<cae-mark-matrix>` as the table instead.
  *
+ * Size: the element is as wide as its container. Without a height set on it, the
+ * frame is as tall as the whole drawing at that width (never scaled up), up to 70% of
+ * the window's height or 360 px, whichever is more, and taller when the card needs
+ * it; top to bottom, as tall as the drawing. A height set on the element
+ * (or given it by a flex or grid container) is shared: the `crumbs` slot and the row
+ * under the frame keep theirs, and the frame takes the rest, the drawing fitted in it.
+ *
  * Keyboard: Tab moves between nodes; the arrow keys, Home and End move between a
  * node's marks, and a mark out of the frame is brought into it; Shift and an arrow
  * key move along an edge to an earlier or a later node, on the same series; what has
@@ -78,6 +85,7 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * @csspart edge - each edge
  * @csspart stub - each stub
  * @csspart legend - the legend
+ * @csspart keys - the line of key hints under the legend
  * @csspart inspector - the selected item's card
  * @csspart table - the node table
  * @csspart row - each row of the node table
@@ -93,7 +101,7 @@ export class CaeLayeredGraph extends LitElement {
   @property({ attribute: false }) highlight: string | null = null;
   /** The order of an earlier drawing of this graph (`arrange(...).order`): its items stay where they are. */
   @property({ attribute: false }) order: GraphOrder | undefined = undefined;
-  /** The graph's identity: a new key is a new graph (the view shows all of it again). */
+  /** The graph's identity: a new key is a new graph (the frame shows all of it again); the same key while the graph changes keeps the zoom and pan. */
   @property() key = '';
   /** Left to right, top to bottom, or by the width (`auto`: top to bottom below `NARROW` px). */
   @property() direction: 'auto' | 'across' | 'down' = 'auto';
@@ -111,6 +119,10 @@ export class CaeLayeredGraph extends LitElement {
   @property({ attribute: false }) renderIcon: (name: string) => unknown = (name) => icon(name);
   /** Styles for what `renderIcon` draws, added to the element's own. */
   @property({ attribute: false }) iconStyles: readonly CSSResult[] = [];
+  /** The line of key hints under the legend (the part `keys`): its room is kept, its words shown while the graph has the focus. */
+  @property({ type: Boolean }) showKeys = true;
+  /** The card of the selected item (the part `inspector`); there is no card while nothing is in the `inspector` slot. */
+  @property({ type: Boolean }) showInspector = true;
 
   /** The series (or a mark's id) under the pointer or focus. */
   @state() private hover: string | null = null;
@@ -123,7 +135,9 @@ export class CaeLayeredGraph extends LitElement {
 
   private arr: Arrangement = arrange(EMPTY);
   private words: LayeredGraphStrings = DEFAULT_LAYERED_GRAPH_STRINGS;
-  private nodes = new Map<string, GraphNodeInput>();
+  /** The graph, its nodes with their defaults. */
+  private drawn: DrawnGraph = { ...EMPTY, nodes: [] };
+  private nodes = new Map<string, GraphNode>();
   private clusters = new Map<string, GraphClusterInput>();
   /** Each mark's series ('' outside any series), by its id. */
   private markSeries = new Map<string, string>();
@@ -173,20 +187,44 @@ export class CaeLayeredGraph extends LitElement {
     if (changed.has('direction') && this.direction !== 'auto') this.down = this.direction === 'down';
     if (changed.has('graph') || changed.has('order') || changed.has('down') || changed.has('direction')) {
       this.arr = arrange(this.graph, this.order, this.down);
-      this.nodes = new Map(this.graph.nodes.map((n) => [n.id, n]));
       this.clusters = new Map(this.graph.clusters.map((c) => [c.id, c]));
-      this.markSeries = new Map(this.graph.nodes.flatMap((n) => [...n.marks.map((m, i) => (m ? [m.id, this.graph.series[i] ?? ''] : null)), ...n.loose.map((m) => [m.id, ''])].filter((x): x is [string, string] => x !== null)));
+    }
+    if (changed.has('graph') || changed.has('states') || changed.has('strings')) {
+      const g = this.graph;
+      this.drawn = { ...g, nodes: g.nodes.map((n) => fillNode(n, this.states, this.words.progress)) };
+      this.nodes = new Map(this.drawn.nodes.map((n) => [n.id, n]));
+      this.markSeries = new Map(
+        this.drawn.nodes.flatMap((n) =>
+          [...n.marks.map((m, i) => (m ? [m.id, g.series[i] ?? ''] : null)), ...n.loose.map((m) => [m.id, ''])].filter((x): x is [string, string] => x !== null),
+        ),
+      );
     }
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
     this.addEventListener('keydown', this.onEscape);
+    this.slotted.observe(this, { childList: true, attributes: true, attributeFilter: ['slot'], subtree: true });
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.removeEventListener('keydown', this.onEscape);
+    this.slotted.disconnect();
+  }
+
+  /** The host's content changed: whether the `inspector` slot holds anything may have. */
+  private readonly slotted = new MutationObserver(() => {
+    if (this.showInspector && this.hasCard() !== this.carded) this.requestUpdate();
+  });
+
+  /** At the last render: the card was on (`showInspector`) and something was in the `inspector` slot. */
+  private carded = false;
+
+  /** Something is in the `inspector` slot. */
+  private hasCard(): boolean {
+    for (const c of this.children) if (c.slot === 'inspector') return true;
+    return false;
   }
 
   protected override updated(changed: PropertyValues<this>): void {
@@ -280,7 +318,7 @@ export class CaeLayeredGraph extends LitElement {
   }
 
   private findMark(id: string): { drill?: boolean } | null {
-    for (const n of this.graph.nodes) for (const m of [...n.marks, ...n.loose]) if (m?.id === id) return m;
+    for (const n of this.drawn.nodes) for (const m of [...n.marks, ...n.loose]) if (m?.id === id) return m;
     for (const r of this.matrix?.rows ?? []) for (const m of r.cells) if (m?.id === id) return m;
     return null;
   }
@@ -306,8 +344,9 @@ export class CaeLayeredGraph extends LitElement {
     const mx = this.matrix;
     const body = mx ? this.matrixView(mx) : this.view === 'table' ? nodeTable(h) : dag(h);
     const sel = this.selected;
+    this.carded = this.showInspector && this.hasCard();
     const card =
-      sel && this.known(sel)
+      sel && this.carded && this.known(sel)
         ? keyed(
             sel,
             html`<section id="insp" class="insp ${this.down ? 'sheet' : ''}" part="inspector" aria-label=${h.strings.inspector} @keydown=${this.card.onCardKey}>
@@ -316,9 +355,11 @@ export class CaeLayeredGraph extends LitElement {
             </section>`,
           )
         : nothing;
-    return html`<slot name="crumbs"></slot>
+    return html`<div class="col">
+      <slot name="crumbs"></slot>
       <div class="main">${body}${card}<div class="sr" role="status">${this.announced}</div></div>
-      ${foot(h, mx)}`;
+      ${foot(h, mx)}
+    </div>`;
   }
 
   /** A mark matrix in the frame, at least as tall as the drawing was (and as the card needs), centred in it. */
@@ -337,7 +378,8 @@ export class CaeLayeredGraph extends LitElement {
     return {
       el,
       get root() { return el.renderRoot; },
-      get graph() { return el.graph; },
+      get graph() { return el.drawn; },
+      get showKeys() { return el.showKeys; },
       get arr() { return el.arr; },
       get states() { return el.states; },
       get strings() { return el.words; },

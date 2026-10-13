@@ -11,7 +11,7 @@ import type { Rect } from '../layout.js';
 import { asBar, barParts } from '../marks.js';
 import { alongEdge } from '../nav.js';
 import { edgePath, returnPath } from '../paths.js';
-import type { GraphClusterInput, GraphNodeInput } from '../types.js';
+import type { GraphClusterInput, GraphNode } from '../types.js';
 
 /** A note's class by its tone: failed, attention, running, muted. */
 export const NOTE_CLASS: Partial<Record<Tone, string>> = { failed: 'err', attention: 'warn', running: 'live', muted: 'mut' };
@@ -116,10 +116,10 @@ function cluster(h: GraphHost, b: GraphClusterInput, parent: Rect | null, item: 
 }
 
 /** A node's notes ("1 failed | 1 not started"), each in its tone's class. */
-export const notes = (n: GraphNodeInput, tag: 'span' | 'div' = 'span') =>
+export const notes = (n: GraphNode, tag: 'span' | 'div' = 'span') =>
   (n.notes ?? []).map((f) => (tag === 'span' ? html`<span class=${NOTE_CLASS[f.tone ?? 'neutral'] ?? ''}>${f.text}</span>` : html`<div class=${NOTE_CLASS[f.tone ?? 'neutral'] ?? ''}>${f.text}</div>`));
 
-function node(h: GraphHost, n: GraphNodeInput, parent: Rect | null) {
+function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
   const series = h.graph.series;
   const bar = asBar(n, h.barAt);
   const all = slotsOf(n, series);
@@ -136,7 +136,9 @@ function node(h: GraphHost, n: GraphNodeInput, parent: Rect | null) {
     <div class="hd" part="node-header">
       <span class="nm">${icons}<button type="button" class="name" part="node-name" title=${n.tip ?? nothing} aria-pressed=${sel}
         @focus=${() => h.focusSelect(n.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, n.id)}>${n.label}</button></span>
-      <span class="right"><span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>${n.drill
+      <span class="right">${n.progress
+        ? html`<span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>`
+        : nothing}${n.drill
         ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
         : nothing}</span>
     </div>
@@ -146,7 +148,7 @@ function node(h: GraphHost, n: GraphNodeInput, parent: Rect | null) {
 }
 
 /** A node with too many marks to draw: a bar of its counts, and its failed marks by name. */
-function statusBar(h: GraphHost, n: GraphNodeInput, g: MarkGroup) {
+function statusBar(h: GraphHost, n: GraphNode, g: MarkGroup) {
   const order = Object.keys(h.states);
   const parts = barParts(n.counts, order);
   const shown = g.slots.slice(0, BAR_LIST);

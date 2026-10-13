@@ -25,6 +25,13 @@ export interface GraphMark {
   drill?: boolean;
 }
 
+/** A node's header count: `done` of `total`, and its words. */
+export interface NodeProgress {
+  done: number;
+  total: number;
+  label: string;
+}
+
 export interface GraphNodeInput {
   id: string;
   label: string;
@@ -40,18 +47,35 @@ export interface GraphNodeInput {
   accent?: boolean;
   /** It has an inner view: it is drawn as a stack, and Enter and a double click send `cae-drill`. */
   drill?: boolean;
-  /** One per series id (`GraphInput.series`), null where the series has no mark here; [] when it has no series marks. */
-  marks: readonly (GraphMark | null)[];
-  /** Its marks outside any series. */
-  loose: readonly GraphMark[];
-  /** Its items by state (the states of `StateStyles`): the bar a node with many marks draws. */
-  counts: Readonly<Record<string, number>>;
-  /** Its header's count ("28/30") and its words. */
-  progress: { done: number; total: number; label: string };
+  /**
+   * One per series id (`GraphInput.series`), null where the series has no mark here.
+   * A mark belongs in a series when the same item has a mark in several nodes (a
+   * service in each step); default: [].
+   */
+  marks?: readonly (GraphMark | null)[];
+  /** Its marks outside any series: items of this node only (the jobs of one step); default: []. */
+  loose?: readonly GraphMark[];
+  /** Its items by state (the states of `StateStyles`): the bar a node with many marks draws; default: its marks by state. */
+  counts?: Readonly<Record<string, number>>;
+  /**
+   * Its header's count ("28/30") and its words; default: its marks whose state has
+   * the tone `done`, of all its marks, in the words of `strings.progress` (no count
+   * without marks).
+   */
+  progress?: NodeProgress;
   /** The line under its marks ("1 failed | 1 not started"). */
   notes?: readonly Fact[];
   /** Its frame's tone: failed, running or done. */
   look?: Tone;
+}
+
+/** A node as the graph draws it: its input with the defaults filled in (`fillNode`). */
+export interface GraphNode extends Omit<GraphNodeInput, 'marks' | 'loose' | 'counts' | 'progress'> {
+  marks: readonly (GraphMark | null)[];
+  loose: readonly GraphMark[];
+  counts: Readonly<Record<string, number>>;
+  /** Null: no count in its header. */
+  progress: NodeProgress | null;
 }
 
 /** A box of nodes (and of other clusters) in a layered graph. */
@@ -105,6 +129,11 @@ export interface GraphInput {
   clusters: readonly GraphClusterInput[];
   edges: readonly GraphEdgeInput[];
   stubs: readonly GraphStubInput[];
+}
+
+/** A graph as it is drawn: its nodes with their defaults. */
+export interface DrawnGraph extends Omit<GraphInput, 'nodes'> {
+  nodes: readonly GraphNode[];
 }
 
 /** Where a graph's items are: give it back to `arrange` to keep them there. */

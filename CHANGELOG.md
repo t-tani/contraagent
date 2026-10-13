@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `<cae-layered-graph>`: `showKeys` and `showInspector` turn off the line of key hints
+  and the selection's card; the part `keys`. A node's `marks`, `loose`, `counts` and
+  `progress` are optional: `counts` and `progress` default to what its marks say
+  (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,
+  series and `key`.
+- `sortRows` orders a `sortable` column without `compare` or `text` by its cell when the
+  cell is a string or a number.
+
 - `run.json` names the run across hosts: `run_uid`, an id no other run has (kept when
   the run is resumed), and `host_id` (`CONTRAAGENT_HOST_ID`, else the host name).
 - `Monitor(source=..., liveness=...)`: the monitor reads runs through a `RunSource` and a
@@ -331,6 +339,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `StreamController` that tails the stream feed.
 
 ### Fixed
+
+- `<cae-layered-graph>`: the line of key hints keeps its height when the graph has no
+  focus, so a click into the graph no longer moves what is under it (a click on a sort
+  header there was lost); on a touch screen there is no such line. There is no card
+  while the `inspector` slot is empty. A height set on the element is the frame's: the
+  frame fills it, the drawing fitted in it.
 
 - The monitor's transcript feed no longer skips the lines after a page that stopped at
   its event or byte limit, no longer sends a transcript's last page again on reconnect,

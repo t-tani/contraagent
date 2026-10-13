@@ -45,7 +45,7 @@ export interface PanZoomOptions {
 export class PanZoomController implements ReactiveController {
   /** The zoom and pan, written on the stage. */
   view: View = { k: 1, x: 0, y: 0 };
-  /** The frame's height. */
+  /** The frame's height as the drawing needs it; a height set on the host makes the frame taller or shorter. */
   frameH = 0;
   /** The scale that shows the whole drawing. */
   fitK = 1;
@@ -98,16 +98,22 @@ export class PanZoomController implements ReactiveController {
   fit(): void {
     const d = this.o.drawing();
     if (!d) return;
+    const frame = this.o.frame();
     // The frame is beside the inspector, or above it on a narrow screen.
-    const width = this.o.frame()?.clientWidth || this.host.clientWidth;
+    const width = frame?.clientWidth || this.host.clientWidth;
     // Top to bottom, the drawing is as tall as it needs at the frame's width.
-    const whole = fitView(d.w, d.h, width, d.down ? Infinity : Math.max(FRAME_MIN, FRAME_SHARE * globalThis.innerHeight));
+    const own = fitView(d.w, d.h, width, d.down ? Infinity : Math.max(FRAME_MIN, FRAME_SHARE * globalThis.innerHeight));
+    // A height set on the host: the frame is not as tall as it was drawn, and the drawing fits the frame as it is.
+    const drawnH = frame ? parseFloat(frame.style.height) : NaN;
+    const held = frame && drawnH > 0 && Math.abs(frame.clientHeight - drawnH) > 0.5 ? frame.clientHeight : 0;
+    const fitted = held ? fitView(d.w, d.h, width, held) : own;
+    const whole = held ? { ...fitted, y: (held - d.h * fitted.k) / 2 } : fitted;
     if (whole.k !== this.fitK) {
       this.fitK = whole.k;
       this.host.requestUpdate();
     }
     // A short drawing's frame grows down to hold the selection's card; the drawing stays where it is.
-    const h = d.down ? whole.h : Math.max(whole.h, d.room);
+    const h = d.down ? own.h : Math.max(own.h, d.room);
     if (!this.moved) {
       this.setHeight(h);
       if (whole.k !== this.view.k || whole.x !== this.view.x || whole.y !== this.view.y) this.setView({ k: whole.k, x: whole.x, y: whole.y });
@@ -121,7 +127,7 @@ export class PanZoomController implements ReactiveController {
     this.host.requestUpdate();
   }
 
-  zoomBy(factor: number, cx = (this.o.frame()?.clientWidth ?? this.host.clientWidth) / 2, cy = this.frameH / 2): void {
+  zoomBy(factor: number, cx = (this.o.frame()?.clientWidth ?? this.host.clientWidth) / 2, cy = (this.o.frame()?.clientHeight ?? this.frameH) / 2): void {
     this.setMoved();
     this.setView(zoomView(this.view, factor, cx, cy, Math.min(1, this.fitK) / 2, ZOOM_MAX));
   }
