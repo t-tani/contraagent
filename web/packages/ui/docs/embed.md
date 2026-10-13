@@ -54,6 +54,20 @@ monitor names that origin: `contraagent monitor --cors-origin http://localhost:8
 
 ## In an application
 
+A Vite application: the page holds a box for the monitor, and `src/main.ts`
+creates `<ca-monitor>` with its attributes set, then puts it in the box.
+
+::code{file="examples/vite/index.html"}
+
+::code{file="examples/vite/main.ts"}
+
+`<ca-monitor>` reads `base-url` when it connects. An element written in the
+page's HTML connects as soon as the import registers it, so a `base-url` set
+from script after the import is not read; create the element after the import,
+as above, or write `base-url` in the HTML. A page served by Vite answers an
+unknown path such as `/api/runs` with its own `index.html`, so a monitor
+without its `base-url` shows no runs.
+
 Import the package once; the elements register themselves. When it connects,
 `<ca-monitor>` sets up the languages (`configureLocales()`) and adds the
 themes' rules to its document (`adoptThemes(this.ownerDocument)`); a page
