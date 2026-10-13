@@ -80,6 +80,8 @@ documentation. No other word is used for the same thing.
 | **blob** | a file's content on a hub, named by its SHA-256 | `BlobStore` |
 | **segment** / **open segment** | a sealed part of a transcript on a hub: one object of zstd frames with an index of their first lines / the part still being written, a file on the hub's disk | `SegmentedStreamLogs`, `segment_format`, `SegmentIndex`; `--segments` / `--streams-dir` |
 | **held** / **durable** | the lines of a log a hub holds / those of them that survive the loss of the hub's disk (sealed segments, the database) | `Held`, `Accepted.logs` / `Accepted.durable` |
+| **retention** / **prune** | how long a hub keeps a run after its last activity / removing what is older, with everything the hub holds of it | `contraagent hub --retain-days`, `Hub.prune`, `PruneReport`, `contraagent hub prune` |
+| **grace period** | how long an unreferenced blob is kept before a prune removes it (it may be on its way) | `Hub.prune(blob_grace=)` |
 | **active transcript** | a transcript whose task is running or whose file grew in the last seconds; a relay ships it between its full passes | `Relay.fast_once` |
 | **journal** / **plan** | the finished attempts / the queued tasks | `journal.jsonl` / `plan.jsonl` |
 | **unread event** | an event type a coding agent sent that its reader in this contraagent does not know: a newer coding agent | `LaunchResult.unread_events`, `JournalRow.unread_events` |
