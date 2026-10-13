@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still launch on it for `grace_s`.
 - `deferred.jsonl` records each deferred task and why; the monitor shows a deferred task
   as "not run" with the reason, while the run goes on too (`PlanNode.deferred`).
+- A task call takes `extra_units=[...]`: further units the task locks while it runs, as it
+  locks its own (no task of another kind on any of them runs at the same time). Its key,
+  output file and place in the monitor stay its own unit's; `plan.jsonl` records them, and
+  the task's detail in the monitor shows them ("Also locks").
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

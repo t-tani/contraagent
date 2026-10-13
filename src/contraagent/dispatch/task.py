@@ -101,6 +101,8 @@ class Task:
     unit never overlap (a domain decides what a unit is -- a file, a
     document, anything with a serialization boundary). Empty: the task's
     own key, so it shares its lock with nothing.
+    `extra_units`: further units it locks while it runs, by the same rule as
+    `unit`; its output, its name and its place in the monitor stay its `unit`'s.
     `after`: task keys this one depends on, named in terms of `key` below,
     never `id`.
     `fn`: a Python task's function, run in-process on the pool instead of
@@ -127,6 +129,7 @@ class Task:
 
     kind: str
     unit: str = ""
+    extra_units: tuple[str, ...] = ()
     after: tuple[str, ...] = ()
     fn: Callable[[], None] | None = None
     tags: tuple[str, ...] = ()
@@ -155,6 +158,11 @@ class Task:
         """The unit the task was given: empty for one given none (whose `unit` is its key,
         so that it still has a unit of its own to lock)."""
         return "" if self.unit == self.key else self.unit
+
+    @property
+    def units(self) -> tuple[str, ...]:
+        """Every unit it locks: its `unit`, then its `extra_units`."""
+        return (self.unit, *(u for u in self.extra_units if u != self.unit))
 
     @property
     def executor(self) -> Literal["agent", "python"]:

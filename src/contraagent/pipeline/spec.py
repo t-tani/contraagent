@@ -104,11 +104,22 @@ class AgentTask[Out]:
             "params": _schema(self.params) if self.params is not None else None,
         }
 
-    def __call__(self, unit: str = "", *, key: str | None = None, after: Sequence[Pending | str] = (), **params: Any) -> Pending[Out]:
-        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks."""
+    def __call__(
+        self,
+        unit: str = "",
+        *,
+        key: str | None = None,
+        after: Sequence[Pending | str] = (),
+        extra_units: Sequence[str] = (),
+        **params: Any,
+    ) -> Pending[Out]:
+        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
+        `extra_units`: further units it locks while it runs, as it locks `unit` (no task of
+        another kind on any of them runs at the same time); its output and its name stay
+        its `unit`'s."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(self, unit=unit, key=key, after=after, params=params)
+        return current_graph().add(self, unit=unit, key=key, after=after, params=params, extra_units=extra_units)
 
 
 def agent_task[Out](
@@ -213,10 +224,19 @@ class PythonTask[Out]:
     def output_name(self) -> str:
         return "{unit}.json"
 
-    def __call__(self, unit: str = "", *, key: str | None = None, after: Sequence[Pending | str] = (), **kwargs: Any) -> Pending[Out]:
+    def __call__(
+        self,
+        unit: str = "",
+        *,
+        key: str | None = None,
+        after: Sequence[Pending | str] = (),
+        extra_units: Sequence[str] = (),
+        **kwargs: Any,
+    ) -> Pending[Out]:
         """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
-        A function with a `unit` parameter is given the unit too."""
-        return current_graph().add(self, unit=unit, key=key, after=after, params=kwargs)
+        A function with a `unit` parameter is given the unit too. `extra_units`, as for an
+        agent task: further units it locks while it runs."""
+        return current_graph().add(self, unit=unit, key=key, after=after, params=kwargs, extra_units=extra_units)
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the

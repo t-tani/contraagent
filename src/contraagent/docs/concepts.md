@@ -13,6 +13,7 @@ documentation. No other word is used for the same thing.
 | **agent task** / **Python task** | a task a coding agent executes / one this process executes | `agent_task`, `@python_task`; on disk `executor: "agent" \| "python"` |
 | **kind** | the class of work (`summarize`); a Python task's kind is its own name | `Task.kind` |
 | **unit** | what a kind is applied to (`alpha`); tasks of different kinds on one unit do not overlap | `Task.unit` |
+| **extra units** | further units a task locks while it runs, by the same rule as its unit; its key, output file and place in the monitor stay its unit's | task call `extra_units=`, `Task.extra_units`, `Task.units`; plan `extra_units` |
 | **task** | one kind applied to one unit | `Task` |
 | **key** | a task's stable identity: `<kind>-<unit>` or `key=`; the n-th task a flow call creates under one key is `<key>~n` | `Task.key`, field `key` everywhere, monitor URL `key` |
 | **params** | what a task is given | `Task.params`, call file `params`, `CONTRAAGENT_PARAMS` |
