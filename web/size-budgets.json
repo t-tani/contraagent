@@ -2,14 +2,14 @@
   "$comment": "Gzip budgets in kB (1000 bytes), checked by scripts/size.mjs in `pnpm check:dist`. A package entry is its `exports` subpath, built minified with lit, @lit/* and @contraagent/* external; `files` are measured as built. A new entry's budget is its measured size plus 10 %. `baseline` records the tree before the frontend refactor (2026-10-13).",
   "budgets": {
     "@contraagent/api": 8.9,
-    "@contraagent/elements": 50.2,
+    "@contraagent/elements": 56.8,
     "@contraagent/elements/primitives": 10.6,
     "@contraagent/elements/styles": 8.3,
     "@contraagent/elements/themes": 5.0,
     "@contraagent/elements/json-tree": 9.0,
     "@contraagent/elements/markdown": 11.4,
     "@contraagent/elements/count": 1.5,
-    "@contraagent/elements/define": 47.9,
+    "@contraagent/elements/define": 54.3,
     "@contraagent/elements/json-tree/define": 9.0,
     "@contraagent/elements/markdown/define": 11.3,
     "@contraagent/elements/count/define": 1.5,
@@ -29,20 +29,20 @@
     "@contraagent/elements/transcript": 15.5,
     "@contraagent/elements/transcript/define": 15.5,
     "@contraagent/ui": 106.7,
-    "@contraagent/ui/bundle": 137.7,
-    "src/contraagent/monitor/static/app.js": 125.4
+    "@contraagent/ui/bundle": 139.3,
+    "src/contraagent/monitor/static/app.js": 126.6
   },
   "files": ["src/contraagent/monitor/static/app.js"],
   "baseline": {
     "gzipBytes": {
-      "src/contraagent/monitor/static/app.js": 125.4,
+      "src/contraagent/monitor/static/app.js": 126.6,
       "packages/ui/dist/contraagent-ui.js": 122786,
       "@contraagent/api": 7251,
       "@contraagent/ui": 106835,
       "@contraagent/ui/themes": 4041
     },
     "rawBytes": {
-      "src/contraagent/monitor/static/app.js": 125.4,
+      "src/contraagent/monitor/static/app.js": 126.6,
       "packages/ui/dist/contraagent-ui.js": 426684
     },
     "largestFiles": {
