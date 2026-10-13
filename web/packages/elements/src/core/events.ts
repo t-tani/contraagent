@@ -34,6 +34,11 @@ export interface ActionDetail {
   action: string;
 }
 
+/** A section of a list of sections (a transcript's), by its 0-based index; null: the latest. */
+export interface SectionDetail {
+  index: number | null;
+}
+
 /** Every `cae-*` event and its detail. */
 export interface CaeEventMap {
   'cae-change': ChangeDetail;
@@ -46,6 +51,12 @@ export interface CaeEventMap {
   'cae-drill': ItemDetail;
   /** The reader chose another view. */
   'cae-view-change': ViewDetail;
+  /** The reader picked a section (null: follow the latest). */
+  'cae-section-change': SectionDetail;
+  /** The section on screen changed (-1: none). */
+  'cae-section-shown': { index: number };
+  /** The reader asked for the content before what is loaded. */
+  'cae-load-earlier': Record<string, never>;
 }
 
 declare global {
@@ -57,6 +68,9 @@ declare global {
     'cae-action': CustomEvent<ActionDetail>;
     'cae-drill': CustomEvent<ItemDetail>;
     'cae-view-change': CustomEvent<ViewDetail>;
+    'cae-section-change': CustomEvent<SectionDetail>;
+    'cae-section-shown': CustomEvent<{ index: number }>;
+    'cae-load-earlier': CustomEvent<Record<string, never>>;
   }
 }
 

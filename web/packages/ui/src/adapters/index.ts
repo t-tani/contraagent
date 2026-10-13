@@ -1,7 +1,8 @@
 // Pure functions from contraagent's run data to what the generic elements of
 // `@contraagent/elements` take: the lists' filters, the columns of the tasks
 // list and the history, the figures' tiles, the timeline's lanes, a checked
-// file's rows, and the pipeline graph's layers and loops' passes.
+// file's rows, the pipeline graph's layers and loops' passes, and a transcript's
+// sections.
 export * from './filters.js';
 export * from './task-columns.js';
 export * from './journal-columns.js';
@@ -14,3 +15,4 @@ export { passMatrix, sortRows as sortPassRows, type MatrixSort, type PassMatrix 
 export { markSel, parseSelection, type Selected } from './graph/selection.js';
 export { taskStateStyles } from './graph/words.js';
 export { LOOP_SEGMENT, type GraphNode, type LayerGraph, type LayerMark, type LayerModel, type LoopBox } from './graph/types.js';
+export * from './transcript/index.js';

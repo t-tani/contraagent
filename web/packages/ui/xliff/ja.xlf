@@ -303,8 +303,8 @@
   <target>実行中 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s387a4a41718122cb">
-  <source><x id="0" equiv-text="${results.length}"/> results</source>
-  <target>検索結果 <x id="0" equiv-text="${results.length}"/> 件</target>
+  <source><x id="0" equiv-text="${n}"/> results</source>
+  <target>検索結果 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="sb1068f146c4596c3">
   <source>query</source>
@@ -1427,8 +1427,8 @@
   <target>前の 1 行を表示</target>
 </trans-unit>
 <trans-unit id="sa66db52d0401c35d">
-  <source>Show <x id="0" equiv-text="${this.behind}"/> earlier lines</source>
-  <target>前の <x id="0" equiv-text="${this.behind}"/> 行を表示</target>
+  <source>Show <x id="0" equiv-text="${n}"/> earlier lines</source>
+  <target>前の <x id="0" equiv-text="${n}"/> 行を表示</target>
 </trans-unit>
 <trans-unit id="s343dead26eec35c9">
   <source>Show 1 new event</source>
@@ -1439,12 +1439,12 @@
   <target>実行中のエージェントのセッションの新しいイベント 1 件を表示</target>
 </trans-unit>
 <trans-unit id="sa84bd87e8f0df3f5">
-  <source>Show <x id="0" equiv-text="${this.unseen}"/> new events</source>
-  <target>新しいイベント <x id="0" equiv-text="${this.unseen}"/> 件を表示</target>
+  <source>Show <x id="0" equiv-text="${n}"/> new events</source>
+  <target>新しいイベント <x id="0" equiv-text="${n}"/> 件を表示</target>
 </trans-unit>
 <trans-unit id="sa390213ff60c0fd9">
-  <source>Show <x id="0" equiv-text="${this.unseen}"/> new events in the running agent session</source>
-  <target>実行中のエージェントのセッションの新しいイベント <x id="0" equiv-text="${this.unseen}"/> 件を表示</target>
+  <source>Show <x id="0" equiv-text="${n}"/> new events in the running agent session</source>
+  <target>実行中のエージェントのセッションの新しいイベント <x id="0" equiv-text="${n}"/> 件を表示</target>
 </trans-unit>
 <trans-unit id="s3d03990e188bfbff">
   <source>Agent sessions</source>
@@ -1471,8 +1471,8 @@
   <target>プロンプト</target>
 </trans-unit>
 <trans-unit id="s6dbe9cb1faacdff3">
-  <source><x id="0" equiv-text="${it.text.length}"/> characters</source>
-  <target><x id="0" equiv-text="${it.text.length}"/> 文字</target>
+  <source><x id="0" equiv-text="${n}"/> characters</source>
+  <target><x id="0" equiv-text="${n}"/> 文字</target>
 </trans-unit>
 <trans-unit id="s8e337d18c39babc7">
   <source>Assistant</source>
@@ -1507,8 +1507,8 @@
   <target>折りたたむ</target>
 </trans-unit>
 <trans-unit id="sda800fa8314eb82c">
-  <source>Show all (<x id="0" equiv-text="${text.length}"/> characters)</source>
-  <target>すべて表示（<x id="0" equiv-text="${text.length}"/> 文字）</target>
+  <source>Show all (<x id="0" equiv-text="${n}"/> characters)</source>
+  <target>すべて表示（<x id="0" equiv-text="${n}"/> 文字）</target>
 </trans-unit>
 <trans-unit id="s88e6f151026426e7">
   <source>Correction <x id="0" equiv-text="${r.fixupNo}"/></source>

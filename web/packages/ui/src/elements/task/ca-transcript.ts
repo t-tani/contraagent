@@ -1,64 +1,48 @@
-import {
-  createMonitorClient,
-  isLaunched,
-  openStreamFeed,
-  runRelative,
-  type JournalRow,
-  type LaunchEvent,
-  type MonitorClient,
-  type StreamPage,
-  type TranscriptEvent,
-  type Unsubscribe,
-} from '@contraagent/api';
-import { localized, msg, str } from '@lit/localize';
-import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
-import { attemptNames, stopLabel } from '../../words/index.js';
+import { createMonitorClient, type JournalRow, type MonitorClient, type TranscriptEvent } from '@contraagent/api';
 import { md } from '@contraagent/elements/markdown';
-import { SessionSet, recall, remember } from '../../core/memory.js';
-import { base, prose } from '@contraagent/elements/styles';
+import type { CaeTranscript, TranscriptMemory, TranscriptSection, TranscriptStrings } from '@contraagent/elements/transcript';
+import '@contraagent/elements/transcript/define';
+import { localized, msg, str } from '@lit/localize';
+import { LitElement, css, html, type PropertyValues } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
+import { classifyRounds } from '../../adapters/transcript/rounds.js';
+import { transcriptSections } from '../../adapters/transcript/sections.js';
+import { StreamController } from '../../controllers/stream.js';
+import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
+import { getLocale } from '../../core/i18n.js';
+import { RememberedSet, SessionSet, memoryOf, pageMemory } from '../../core/memory.js';
 import { promptText } from '../shared/prompt-text.js';
-import { roundLabel, roundMark, switchText } from './rounds.js';
-import {
-  applyEvents,
-  classifyRounds,
-  emptyTranscript,
-  type Item,
-  type Round,
-  type ToolItem,
-  webResults,
-  type WebResult,
-  type Transcript,
-} from './transcript-model.js';
-import { whoChips, whoStyles } from './who.js';
 
-/** Within this many pixels of the bottom, the transcript follows new events. */
-const STICK_PX = 60;
-/** Tool output longer than this is folded. */
-const FOLD_AT = 1200;
-/** A tool card shows at most this much of a command or an output. */
-const SHOW_MAX = 4000;
-/** How far back "load earlier" reaches, in transcript lines. */
-const EARLIER_LINES = 3000;
-const RESTORE_GIVE_UP_MS = 4000;
-
-
-/** The host of a URL, for the line under a result; '' when it does not parse. */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return '';
-  }
-}
-
-interface SavedScroll {
-  stick: boolean;
-  top: number;
-}
+/** The transcript's words, in the reader's language (call at render time). */
+const strings = (): TranscriptStrings => ({
+  sections: msg('Agent sessions'),
+  sectionsTip: [
+    msg('Attempt: a new agent session'),
+    msg('Correction: the same agent session after failed checks'),
+    msg('Model switch: a new agent session on the next model'),
+  ].join('\n'),
+  loadEarlier: (n) => (n === 1 ? msg('Show 1 earlier line') : msg(str`Show ${n} earlier lines`)),
+  newBelow: (n) => (n === 1 ? msg('Show 1 new event') : msg(str`Show ${n} new events`)),
+  newInLatest: (n) =>
+    n === 1 ? msg('Show 1 new event in the running agent session') : msg(str`Show ${n} new events in the running agent session`),
+  prompt: msg('Prompt'),
+  assistant: msg('Assistant'),
+  reasoning: msg('Reasoning'),
+  characters: (n) => msg(str`${n} characters`),
+  tool: msg('tool'),
+  results: (n) => (n === 1 ? msg('1 result') : msg(str`${n} results`)),
+  done: msg('done', { id: 'tool-done', desc: 'A tool call that finished' }),
+  failed: msg('failed'),
+  running: msg('running'),
+  interrupted: msg('interrupted'),
+  interruptedTip: msg('The run ended before the tool call returned'),
+  query: msg('query'),
+  page: msg('page'),
+  fullText: msg('Full text'),
+  showAll: (n) => msg(str`Show all (${n} characters)`),
+  showLess: msg('Show less'),
+});
 
 /**
  * The transcript of one task: every round (one session of the coding agent,
@@ -67,7 +51,8 @@ interface SavedScroll {
  * read its URL as a link),
  * tailed live. A round is a try (a new session) or a fix-up (the same session,
  * sent back because its output failed its checks); give it the task's journal
- * rows (`.rows`) and each round says how it ended.
+ * rows (`.rows`) and each round says how it ended. It draws them with
+ * `<cae-transcript>`.
  *
  * Give it `.events` to show a saved transcript, or `run` + `stream` (and
  * `base-url`) to tail one from the monitor. Sends `ca-navigate` with `round`
@@ -80,121 +65,11 @@ interface SavedScroll {
 @customElement('ca-transcript')
 @localized()
 export class CaTranscript extends LitElement {
-  static override styles = [
-    base,
-    prose,
-    whoStyles,
-    css`
-      :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
-      :host([mode='none']) { display: none; }
-      :host([mode='tabs']) { flex: none; }
-      :host([mode='tabs']) .scroller, :host([mode='tabs']) .newpill { display: none; }
-
-      .rounds { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; padding-left: 2px; }
-      .rounds-lbl { color: var(--text-muted); font-size: 11.5px; font-weight: 600; margin-right: 4px; cursor: help; }
-      .stab { padding: 3px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text-muted);
-        cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; }
-      .stab:hover { border-color: var(--accent); }
-      .stab.sel { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
-      .stab-m { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-left: 4px; }
-      .stab .dot { width: 6px; height: 6px; margin-left: 4px; }
-      .stab .mk { margin-right: 4px; }
-      .stab .mk.ok { color: var(--status-done); }
-      .stab .mk.bad { color: var(--status-failed); }
-      .verdict { margin: 6px 10px 4px 41px; padding: 7px 11px; border-radius: 10px; border: 1px solid; font-size: 12px; }
-      .verdict[data-tone] { background: var(--tone-bg); color: var(--text); }
-      .verdict[data-tone='attention'] { border-color: color-mix(in srgb, var(--tone) 40%, transparent); }
-      .verdict[data-tone='failed'] { border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
-      .verdict b { display: block; margin-bottom: 2px; }
-      .verdict ul { margin: 2px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 11.5px; }
-
-      .scroller { flex: 1 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--line); border-radius: 14px;
-        background: linear-gradient(180deg, var(--panel), var(--well)); padding: 4px 2px 8px; font-size: 12.5px; }
-      .back { margin: 6px 10px; background: var(--raise); border: 1px solid var(--line2); border-radius: 8px; padding: 3px 10px; cursor: pointer; color: var(--text-2); }
-      .back:hover { border-color: var(--accent); }
-
-      .inv-body { display: flex; flex-direction: column; gap: 10px; }
-      .inv-head { border: 1px solid var(--line2); border-radius: 12px; background: var(--raise); padding: 8px 10px; margin: 4px 8px 6px; }
-      .inv-who { display: flex; flex-wrap: wrap; gap: 6px; }
-      .inv-cmdbox { margin-top: 6px; }
-      .inv-cmdbox summary, .inv-prompt summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
-      .inv-prompt summary { font-size: 11.5px; }
-      .inv-prompt summary:hover { color: var(--accent); }
-      .inv-cmd { font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-all; margin: 4px 0 6px; max-height: 160px; overflow: auto; color: var(--text); }
-      .inv-ptext { margin-top: 6px; max-height: 360px; overflow: auto; }
-
-      .msg { display: flex; gap: 9px; padding: 3px 10px; }
-      .av { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px; line-height: 22px; font-size: 11px; text-align: center; font-weight: 700; }
-      .av-a { background: var(--agent-bg); color: var(--agent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 35%, transparent); }
-      .av-l { background: var(--raise); color: var(--text-2); }
-      .av-t { background: var(--raise); color: var(--text-muted); }
-      .bd { flex: 1; min-width: 0; background: color-mix(in srgb, var(--text) 2.5%, transparent); border: 1px solid var(--line); border-radius: 3px 10px 10px 10px; padding: 5px 10px; }
-      .hd { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 1px; }
-      .tx { color: var(--text); line-height: 1.5; word-break: break-word; }
-      .tx pre, .tx code { white-space: pre-wrap; }
-      .tx pre { margin: 0 0 4px; }
-
-      .toolcard, .typing { margin-left: 41px; margin-right: 10px; }
-      .toolcard { border: 1px solid var(--line); border-left: 3px solid var(--line2); border-radius: 10px; margin-top: 3px; margin-bottom: 3px;
-        overflow: hidden; background: var(--well); transition: border-color 0.3s; }
-      .toolcard.run { border-left-color: var(--status-running); }
-      .toolcard.err { border-left-color: var(--status-failed); }
-      .th { display: flex; gap: 9px; align-items: baseline; padding: 4px 9px; cursor: pointer; }
-      .th:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
-      .tn { font-family: var(--mono); font-weight: 600; flex: none; display: inline-flex; align-items: center; }
-      .tn::before { content: '⚒'; display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 7px;
-        border-radius: 6px; background: var(--raise); color: var(--text-2); font-size: 11px; }
-      /* a tool's icon: its shape tells the tool; the colour stays neutral (a colour is a status) */
-      .toolcard[data-tool='bash'] .tn::before { content: '❯'; }
-      .toolcard[data-tool='read'] .tn::before { content: '▤'; }
-      .toolcard[data-tool='grep'] .tn::before, .toolcard[data-tool='glob'] .tn::before { content: '⌕'; }
-      .toolcard[data-tool='edit'] .tn::before, .toolcard[data-tool='write'] .tn::before { content: '✎'; }
-      .toolcard[data-tool='task'] .tn::before, .toolcard[data-tool='agent'] .tn::before { content: '✦'; color: var(--agent); }
-      .toolcard[data-tool='web-search'] .tn::before { content: '◍'; }
-      .toolcard[data-tool='web-fetch'] .tn::before { content: '⇣'; }
-      .toolcard.revealed { box-shadow: 0 0 0 1px var(--accent); }
-      .tp { font-family: var(--mono); font-size: 11.5px; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .ti { color: var(--text-muted); font-size: 11px; flex: none; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .st-run, .st-ok, .st-err, .st-int { flex: none; white-space: nowrap; }
-      .st-run { color: var(--status-running); display: inline-flex; align-items: center; gap: 6px; }
-      .st-ok { color: var(--text-muted); }
-      .st-ok > [aria-hidden] { color: var(--status-done); font-weight: 700; }
-      .st-err { color: var(--status-failed); }
-      .st-int { color: var(--status-attention); }
-      .pdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--status-running); animation: breathe 1.8s ease-in-out infinite; }
-      .tb { padding: 6px 9px; border-top: 1px solid var(--line); background: var(--bg); }
-      .tb pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0; font-family: var(--mono); font-size: 12px; }
-      .fold { max-height: 220px; overflow: hidden; position: relative; }
-      .fold.open { max-height: none; }
-      .foldbtn { cursor: pointer; color: var(--accent); font-size: 11px; background: none; border: 0; padding: 0; font-family: inherit; }
-      .wq { font-size: 12px; margin: 2px 0 6px; }
-      .wq b { font-family: var(--mono); font-weight: 600; }
-      .wl { color: var(--text-muted); font-size: 11px; margin-right: 6px; }
-      .links { margin: 0 0 6px; padding-left: 30px; font-size: 12px; }
-      .links li { margin: 2px 0; overflow-wrap: anywhere; }
-      .links a { color: var(--accent); text-decoration: none; }
-      .links a:hover { text-decoration: underline; }
-      .rawfold > summary { cursor: pointer; color: var(--text-muted); font-size: 11px; }
-      .plink { color: var(--accent); text-decoration: none; font-family: var(--mono); overflow-wrap: anywhere; }
-      .plink:hover { text-decoration: underline; }
-      .host { color: var(--text-muted); font-family: var(--mono); font-size: 11px; margin-left: 6px; }
-
-      .sysline { display: flex; gap: 8px; align-items: baseline; padding: 2px 10px 2px 41px; font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
-      .sysline .tx { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .typing { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
-      .typing .av { width: 26px; height: 26px; flex: 0 0 26px; border-radius: 9px; display: grid; place-items: center; font-size: 12px; }
-      .dots { display: inline-flex; gap: 4px; padding: 8px 12px; border-radius: 12px; background: var(--agent-bg); }
-      .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--agent); animation: bounce 1.2s infinite ease-in-out; }
-      .dots i:nth-child(2) { animation-delay: 0.15s; }
-      .dots i:nth-child(3) { animation-delay: 0.3s; }
-      .scroller:not(.bulk) .msg, .scroller:not(.bulk) .toolcard { animation: enter 0.35s var(--ease) both; }
-
-      .newpill { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 5; cursor: pointer; padding: 6px 14px;
-        border-radius: 999px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--panel) 92%, transparent); color: var(--accent);
-        font-size: 12px; font-weight: 600; box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 50%, transparent); backdrop-filter: blur(6px); animation: toast-in 0.3s var(--ease) both; }
-      .newpill:hover { background: var(--accent-bg); }
-    `,
-  ];
+  static override styles = css`
+    :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
+    :host([mode='none']) { display: none; }
+    :host([mode='tabs']) { flex: none; }
+  `;
 
   /** A saved transcript to show as is (no feed). */
   @property({ attribute: false }) events: TranscriptEvent[] | null = null;
@@ -213,46 +88,17 @@ export class CaTranscript extends LitElement {
   /** `full`; `tabs`: only the round picker (another view of the task is shown); `none`: hidden. */
   @property({ reflect: true }) mode: 'full' | 'tabs' | 'none' = 'full';
 
-  @state() private version = 0;
-  @state() private behind = 0;
-  @state() private bulk = true;
-  @state() private unseen = 0;
-  /** A round kept on screen while the reader reads it and a new one starts (the route still says "latest"). */
-  @state() private pinned: number | null = null;
-  /** The card `revealWebSearch` asked for: scrolled to once it is drawn. */
-  @state() private revealed = '';
-  private revealPending = false;
+  /** The round on screen, 0-based; -1 while there is none. */
+  @state() private shown = -1;
+  @query('cae-transcript') private view?: CaeTranscript;
 
-  @query('.scroller') private scroller?: HTMLElement;
-
-  private model: Transcript = emptyTranscript();
-  private close: Unsubscribe | null = null;
-  private loaded = '';
-  private token = 0;
-  private first = true;
-  private stick = true;
-  private restored = false;
-  private lastTop = 0;
-  private lastShown = -1;
+  private readonly feed = new StreamController(this);
+  private memory: TranscriptMemory | null = null;
+  private drawn: { key: unknown[]; rounds: RoundInfo[]; sections: TranscriptSection[] } | null = null;
   private lastSent = '';
-  private openCards = new SessionSet('transcript::open');
-  private readonly folds = new Set<string>();
-  private readonly openPrompts = new Set<string>();
-  private readonly mdCache = new WeakMap<Item, { raw: string; html: string }>();
 
   private get source(): string {
     return this.events ? 'static' : this.run && this.stream ? `${this.run}\n${this.stream}` : '';
-  }
-
-  private get memoryId(): string {
-    return `transcript:${this.run}/${this.stream ?? ''}`;
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    this.close?.();
-    this.close = null;
-    this.loaded = '';
   }
 
   override connectedCallback(): void {
@@ -262,385 +108,68 @@ export class CaTranscript extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     const source = this.source;
-    if (changed.has('events') || source !== this.loaded) this.load(source);
-  }
-
-  /** Start over: a new transcript (or the same one after the element was re-attached). */
-  private load(source: string): void {
-    this.close?.();
-    this.close = null;
-    this.loaded = source;
-    this.token++;
-    this.model = emptyTranscript();
-    this.first = true;
-    this.behind = 0;
-    this.bulk = true;
-    this.unseen = 0;
-    this.pinned = null;
-    this.stick = true;
-    this.restored = false;
-    this.lastShown = -1;
-    this.folds.clear();
-    this.openPrompts.clear();
-    this.openCards = new SessionSet(`${this.memoryId}:open`);
-    if (this.events) {
-      applyEvents(this.model, this.events);
-      this.version++;
-      void this.afterFirstPage(this.token);
-      return;
-    }
-    if (!source || !this.stream) return;
-    const token = this.token;
-    this.close = openStreamFeed(this.run, this.stream, { message: (page) => this.onPage(page, token) }, { baseUrl: this.baseUrl });
-  }
-
-  private onPage(page: StreamPage, token: number): void {
-    if (token !== this.token) return;
-    if (this.first && page.behind) this.behind = page.behind;
-    const rounds = this.model.rounds.length;
-    const n = applyEvents(this.model, page.events);
-    // A new round while the reader is scrolled up in the latest one: keep showing the one being read.
-    if (rounds && this.model.rounds.length > rounds && this.round === null && this.pinned === null && !this.stick && !this.bulk)
-      this.pinned = rounds;
-    this.version++;
-    if (this.first) {
-      this.first = false;
-      void this.afterFirstPage(token);
-      return;
-    }
-    void this.updateComplete.then(() => {
-      if (token !== this.token) return;
-      if (this.stick && this.onLiveRound()) this.toBottom();
-      else this.unseen += n;
-    });
-  }
-
-  /** The first page is drawn without entry animations, then the reader is put back where they were. */
-  private async afterFirstPage(token: number): Promise<void> {
-    await this.updateComplete;
-    if (token !== this.token) return;
-    const saved = this.stream ? recall<SavedScroll>(`${this.memoryId}:scroll`) : undefined;
-    const sc = this.scroller;
-    if (!saved || saved.stick || !sc) {
-      this.stick = true;
-      this.toBottom();
-    } else {
-      this.stick = false;
-      const until = performance.now() + RESTORE_GIVE_UP_MS;
-      await new Promise<void>((done) => {
-        const step = () => {
-          const max = sc.scrollHeight - sc.clientHeight;
-          sc.scrollTop = Math.min(saved.top, max);
-          if (max >= saved.top || performance.now() > until || token !== this.token) done();
-          else requestAnimationFrame(step);
-        };
-        step();
-      });
-      this.lastTop = sc.scrollTop;
-    }
-    this.restored = true;
-    requestAnimationFrame(() => {
-      if (token === this.token) this.bulk = false;
-    });
-  }
-
-  private shownIndex(): number {
-    const n = this.model.rounds.length;
-    if (!n) return -1;
-    const want = this.round !== null ? this.round - 1 : (this.pinned ?? n - 1);
-    return Math.max(0, Math.min(n - 1, want));
-  }
-
-  private onLiveRound(): boolean {
-    const n = this.model.rounds.length;
-    return n < 2 || this.shownIndex() === n - 1;
-  }
-
-  private toBottom(smooth = false): void {
-    const sc = this.scroller;
-    if (!sc) return;
-    if (smooth) sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' });
-    else sc.scrollTop = sc.scrollHeight;
-  }
-
-  private onScroll(): void {
-    const sc = this.scroller;
-    if (!sc || !sc.clientHeight) return; // hidden: no position to keep
-    this.stick = sc.scrollHeight - sc.scrollTop - sc.clientHeight < STICK_PX;
-    this.lastTop = sc.scrollTop;
-    if (this.stick && this.onLiveRound()) this.unseen = 0;
-    if (this.restored && this.stream) remember(`${this.memoryId}:scroll`, { stick: this.stick, top: Math.round(sc.scrollTop) } satisfies SavedScroll);
-  }
-
-  protected override updated(changed: PropertyValues<this>): void {
-    const shown = this.shownIndex();
-    if (shown !== this.lastShown) {
-      const before = this.lastShown;
-      this.lastShown = shown;
-      if (before !== -1 && this.restored) this.toBottom();
-    }
-    const prevMode = changed.get('mode');
-    if (prevMode && prevMode !== 'full' && this.mode === 'full' && this.scroller) {
-      // Shown again after another view of the task: back to where the reader was.
-      if (this.stick) this.toBottom();
-      else this.scroller.scrollTop = this.lastTop;
-    }
-    const sig = `${this.version}|${shown}|${this.model.rounds.length}|${this.rows.length}`;
-    if (sig !== this.lastSent) {
-      this.lastSent = sig;
-      const detail: RoundsChangedDetail = { launches: this.model.rounds.map((r) => r.launch), shown, rounds: this.infos() };
-      emit(this, 'ca-rounds', detail, { bubbles: false });
-    }
-    if (this.revealPending) {
-      const card = this.renderRoot.querySelector<HTMLElement>(`[data-card="${CSS.escape(this.revealed)}"]`);
-      if (card && this.mode === 'full') {
-        this.revealPending = false;
-        this.stick = false;
-        card.scrollIntoView({ block: 'center' });
-      }
-    }
-  }
-
-  private infos(): RoundInfo[] {
-    return classifyRounds(this.model.rounds.map((r) => r.launch), this.rows);
-  }
-
-  private pickRound(i: number): void {
-    this.pinned = null;
-    const last = this.model.rounds.length - 1;
-    emit(this, 'ca-navigate', { round: i === last ? null : i + 1 });
-  }
-
-  private jumpToLive(): void {
-    const n = this.model.rounds.length;
-    if (n > 1 && this.shownIndex() !== n - 1) {
-      this.pinned = null;
-      if (this.round !== null) emit(this, 'ca-navigate', { round: null });
-    }
-    this.stick = true;
-    this.unseen = 0;
-    void this.updateComplete.then(() => this.toBottom(true));
-  }
-
-  private async loadEarlier(): Promise<void> {
+    if (!changed.has('events') && source === this.feed.loaded) return;
     const { run, stream } = this;
-    if (!stream) return;
-    const token = this.token;
-    const back = Math.max(0, this.behind - EARLIER_LINES);
-    this.behind = 0;
-    const client = this.client ?? createMonitorClient({ baseUrl: this.baseUrl });
-    const page = await client.stream(run, stream, back);
-    if (token !== this.token) return;
-    this.model = emptyTranscript();
-    this.lastShown = -1;
-    applyEvents(this.model, page.events);
-    this.version++;
+    const id = `transcript:${run}/${stream ?? ''}`;
+    // The page's monitor keeps the open cards for the browser tab and the position in the history entry;
+    // an embedded one (`history="memory"`) keeps both in its own memory.
+    const memory = memoryOf(this);
+    const open = memory === pageMemory ? new SessionSet(`${id}:open`) : new RememberedSet(`${id}:open`, this);
+    const tailed = !this.events && !!stream;
+    this.memory = {
+      isOpen: (card) => open.has(card),
+      setOpen: (card, on) => open.set(card, on),
+      scroll: () => (tailed ? memory.recall(`${id}:scroll`) : undefined),
+      setScroll: (at) => tailed && memory.remember(`${id}:scroll`, at),
+    };
+    this.shown = -1;
+    this.feed.load(source, this.events ? { events: this.events } : source && stream ? { run, stream, baseUrl: this.baseUrl } : null);
+  }
+
+  /** The rounds and their sections, drawn again only when the transcript, the rows or the language changed. */
+  private sections(): { rounds: RoundInfo[]; sections: TranscriptSection[] } {
+    const active = this.live && this.feed.tailing;
+    const key = [this.feed.version, this.rows, this.run, active, getLocale()];
+    if (this.drawn?.key.every((k, i) => k === key[i])) return this.drawn;
+    const t = this.feed.model;
+    const rounds = classifyRounds(
+      t.rounds.map((r) => r.launch),
+      this.rows,
+    );
+    this.drawn = { key, rounds, sections: transcriptSections(t, rounds, { run: this.run, rows: this.rows, active }) };
+    return this.drawn;
   }
 
   override render() {
-    const rounds = this.model.rounds;
-    const shown = this.shownIndex();
-    const round = rounds[shown];
-    const onLive = this.onLiveRound();
-    return html`${this.renderRounds(rounds, shown)}
-      <div class="scroller ${this.bulk ? 'bulk' : ''}" @scroll=${() => this.onScroll()}>
-        ${this.behind
-          ? html`<div class="meta"><button type="button" class="back" @click=${() => void this.loadEarlier()}>
-              ${this.behind === 1 ? msg('Show 1 earlier line') : msg(str`Show ${this.behind} earlier lines`)}</button></div>`
-          : nothing}
-        ${round ? this.renderRound(round, shown === rounds.length - 1, this.infos()[shown]) : nothing}
-        ${!round && this.live ? this.typing() : nothing}
-      </div>
-      ${this.unseen
-        ? html`<button type="button" class="newpill" @click=${() => this.jumpToLive()}>
-            ${this.unseen === 1
-              ? onLive
-                ? msg('Show 1 new event')
-                : msg('Show 1 new event in the running agent session')
-              : onLive
-                ? msg(str`Show ${this.unseen} new events`)
-                : msg(str`Show ${this.unseen} new events in the running agent session`)}</button>`
-        : nothing}`;
+    const feed = this.feed;
+    const { sections } = this.sections();
+    return keyed(
+      feed.generation,
+      html`<cae-transcript .sections=${sections} .shown=${this.round === null ? null : this.round - 1} ?live=${this.live}
+        .earlier=${feed.behind} ?loading=${!feed.ready} .count=${feed.count} mode=${this.mode} .memory=${this.memory}
+        .markdown=${md} .renderDetail=${(d: { text: string }) => promptText(d.text)} .strings=${strings()}
+        @cae-section-change=${(e: CustomEvent<{ index: number | null }>) => {
+          e.stopPropagation();
+          emit(this, 'ca-navigate', { round: e.detail.index === null ? null : e.detail.index + 1 });
+        }}
+        @cae-section-shown=${(e: CustomEvent<{ index: number }>) => {
+          e.stopPropagation();
+          this.shown = e.detail.index;
+        }}
+        @cae-load-earlier=${(e: Event) => {
+          e.stopPropagation();
+          if (this.stream) void feed.loadEarlier(this.client ?? createMonitorClient({ baseUrl: this.baseUrl }), this.run, this.stream);
+        }}></cae-transcript>`,
+    );
   }
 
-  private renderRounds(rounds: Round[], shown: number) {
-    if (rounds.length < 2) return nothing;
-    const last = rounds.length - 1;
-    const infos = this.infos();
-    const tries = infos[infos.length - 1]?.tryNo ?? 1;
-    const names = attemptNames(this.rows.filter(isLaunched));
-    return html`<div class="rounds" role="group" aria-label=${msg('Agent sessions')}>
-      <span class="rounds-lbl"
-        title=${[msg('Attempt: a new agent session'), msg('Correction: the same agent session after failed checks'), msg('Model switch: a new agent session on the next model')].join('\n')}
-        >${msg('Agent sessions')}</span>
-      ${rounds.map((r, i) => {
-        const info = infos[i];
-        const [mark, word, why] = info ? roundMark(info, this.run) : ['', '', ''];
-        return html`<button type="button" class="stab ${i === shown ? 'sel' : ''}" title=${why || nothing} aria-pressed=${i === shown}
-          @click=${() => this.pickRound(i)}>
-          ${mark ? html`<span class="mk ${mark === '✓' ? 'ok' : 'bad'}" aria-hidden="true">${mark}</span><span class="sr">${word}</span>` : nothing}${info ? roundLabel(info, tries, names[info.tryNo - 1]) : String(i + 1)}
-          ${r.who?.model ? html` <span class="stab-m">${r.who.model.replace(/^claude-/, '')}</span>` : nothing}
-          ${i === last && this.live && this.close ? html`<span class="dot" data-tone="running"></span>` : nothing}
-        </button>`;
-      })}
-    </div>`;
-  }
-
-  private renderRound(r: Round, isLast: boolean, info: RoundInfo | undefined) {
-    return html`<div class="inv-body">
-      ${r.launch ? this.renderHead(r, r.launch) : nothing}
-      ${repeat(r.items, (it) => it.id, (it) => this.renderItem(it))}
-      ${isLast && this.live ? this.typing() : nothing}
-      ${info ? this.renderVerdict(info) : nothing}
-    </div>`;
-  }
-
-  /** How the round ended, after its transcript: its output was sent back, or its try failed. */
-  private renderVerdict(info: RoundInfo) {
-    if (info.result === 'rejected') {
-      return html`<div class="verdict" data-tone="attention">
-        <b>${msg('Output failed checks')}</b>
-        ${info.rejectedWith.length
-          ? html`<ul>${info.rejectedWith.map((e) => html`<li>${runRelative(e, this.run)}</li>`)}</ul>`
-          : html`<span class="meta">${msg('The errors are in the correction prompt')}</span>`}
-      </div>`;
-    }
-    if (info.result === 'switched') {
-      return html`<div class="verdict" data-tone="failed">
-        <b>${switchText(info)}</b>
-      </div>`;
-    }
-    if (info.result === 'failed' && info.row) {
-      const why = runRelative(info.row.reason, this.run) || stopLabel(info.row.stop);
-      return html`<div class="verdict" data-tone="failed"><b>${msg(str`Attempt ${info.tryNo} failed: ${why}`)}</b></div>`;
-    }
-    return nothing;
-  }
-
-  private renderHead(r: Round, launch: LaunchEvent) {
-    const prompt = launch.prompt || '';
-    const trunc = launch.prompt_truncated || 0;
-    const open = this.openPrompts.has(r.id);
-    return html`<div class="inv-head">
-      <div class="inv-who">${whoChips(r.who)}</div>
-      <details class="inv-cmdbox"><summary>${msg('Command line')}</summary><pre class="inv-cmd"><code>${launch.argv.join(' ')}</code></pre></details>
-      <details class="inv-prompt" ?open=${open}
-        @toggle=${(e: Event) => {
-          const on = (e.target as HTMLDetailsElement).open;
-          if (on === this.openPrompts.has(r.id)) return;
-          if (on) this.openPrompts.add(r.id);
-          else this.openPrompts.delete(r.id);
-          this.requestUpdate();
-        }}>
-        <summary>${trunc
-          ? msg(str`Prompt (${prompt.length} characters; ${trunc} characters not saved)`)
-          : msg(str`Prompt (${prompt.length} characters)`)}</summary>
-        ${open
-          ? html`<div class="inv-ptext">${promptText(prompt + (trunc ? `\n\n${msg(str`(${trunc} characters not saved)`)}` : ''))}</div>`
-          : nothing}
-      </details>
-    </div>`;
-  }
-
-  private mdOf(item: Item, raw: string): string {
-    const hit = this.mdCache.get(item);
-    if (hit?.raw === raw) return hit.html;
-    const out = md(raw);
-    this.mdCache.set(item, { raw, html: out });
-    return out;
-  }
-
-  private bubble(av: string, avCls: string, head: string, body: TemplateResult | string, title?: string) {
-    return html`<div class="msg" title=${title ?? nothing}>
-      <div class="av ${avCls}">${av}</div>
-      <div class="bd"><div class="hd">${head}</div>${body}</div>
-    </div>`;
-  }
-
-  private renderItem(it: Item) {
-    switch (it.kind) {
-      case 'prompt':
-        return this.bubble('▸', 'av-l', msg('Prompt'),
-          html`<div class="tx meta">${msg(str`${it.text.length} characters`)}</div>`, it.text.slice(0, 600));
-      case 'assistant':
-        return this.bubble('A', 'av-a', msg('Assistant'), html`<div class="tx">${unsafeHTML(this.mdOf(it, it.raw))}</div>`);
-      case 'summary':
-        return this.bubble('✦', 'av-t', msg('Reasoning'), html`<div class="tx">${unsafeHTML(this.mdOf(it, it.text))}</div>`);
-      case 'retry':
-        return html`<div class="msg"><div class="av av-t" aria-hidden="true">↻</div><div class="bd"><div class="hd">${msg('API request sent again')}</div>${it.err
-          ? html`<div class="tx meta">${it.err}</div>`
-          : nothing}</div></div>`;
-      case 'notice':
-        return html`<div class="sysline"><span aria-hidden="true">⚙</span><span class="tx">${it.text}</span></div>`;
-      case 'tool':
-        return this.toolCard(it);
-    }
-  }
-
-  private toolCard(c: ToolItem) {
-    const open = this.openCards.has(c.id);
-    const results = c.webQuery ? webResults(c.out) : [];
-    const status =
-      c.status === 'ok'
-        ? html`<span class="st-ok"><span aria-hidden="true">✓</span> ${msg('done', { id: 'tool-done', desc: 'A tool call that finished' })}</span>`
-        : c.status === 'err'
-          ? html`<span class="st-err"><span aria-hidden="true">✕</span> ${msg('failed')}</span>`
-          : this.live
-            ? html`<span class="st-run"><i class="pdot"></i>${msg('running')}</span>`
-            : html`<span class="st-int" title=${msg('The run ended before the tool call returned')}><span aria-hidden="true">◌</span> ${msg('interrupted')}</span>`;
-    const tool = c.webQuery ? 'web-search' : c.webFetch ? 'web-fetch' : c.icon;
-    return html`<div class="toolcard ${c.status} ${this.revealed === c.id ? 'revealed' : ''}" data-tool=${tool} data-card=${c.id}>
-      <div class="th" role="button" tabindex="0" aria-expanded=${open ? 'true' : 'false'} @click=${() => {
-        this.openCards.set(c.id, !open);
-        this.requestUpdate();
-      }} @keydown=${(e: KeyboardEvent) => {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        e.preventDefault();
-        (e.currentTarget as HTMLElement).click();
-      }}>
-        <span class="tn">${c.name || msg('tool')}</span><span class="tp">${c.preview}</span><span class="ti"
-          >${results.length === 1 ? msg('1 result') : results.length ? msg(str`${results.length} results`) : c.intent}</span
-        >${status}
-      </div>
-      ${open
-        ? html`<div class="tb">${c.webQuery ? this.webSearchBody(c, results) : c.webFetch ? this.webFetchBody(c) : this.toolBody(c)}</div>`
-        : nothing}
-    </div>`;
-  }
-
-  private toolBody(c: ToolItem) {
-    return c.out === null
-      ? this.codeBlock(c.cmd, `${c.id}:cmd`)
-      : html`${c.cmd ? this.codeBlock(c.cmd, `${c.id}:cmd`) : nothing}${this.codeBlock(c.out, `${c.id}:out`)}`;
-  }
-
-  /** A web search: its query, the pages it returned as links, and its full text (folded when it listed pages). */
-  private webSearchBody(c: ToolItem, results: WebResult[]) {
-    return html`<div class="wq"><span class="wl">${msg('query')}</span><b>${c.webQuery}</b></div>
-      ${results.length
-        ? html`<ol class="links">
-            ${results.map(
-              (r) =>
-                html`<li><a href=${r.url} target="_blank" rel="noopener noreferrer">${r.title}</a><span class="host">${hostOf(r.url)}</span></li>`,
-            )}
-          </ol>`
-        : nothing}
-      ${c.out === null
-        ? nothing
-        : results.length
-          ? html`<details class="rawfold"><summary>${msg('Full text')}</summary>${this.codeBlock(c.out, `${c.id}:out`)}</details>`
-          : this.codeBlock(c.out, `${c.id}:out`)}`;
-  }
-
-  /** A web page read: its URL as a link, then what the agent got from it. */
-  private webFetchBody(c: ToolItem) {
-    const url = /^https?:\/\//.test(c.webFetch) ? c.webFetch : '';
-    return html`<div class="wq">
-        <span class="wl">${msg('page')}</span>${url
-          ? html`<a class="plink" href=${url} target="_blank" rel="noopener noreferrer">${url}</a>`
-          : html`<b>${c.webFetch}</b>`}
-      </div>
-      ${c.out !== null ? this.codeBlock(c.out, `${c.id}:out`) : nothing}`;
+  protected override updated(): void {
+    const { rounds } = this.sections();
+    const sig = `${this.feed.version}|${this.shown}|${rounds.length}|${this.rows.length}`;
+    if (sig === this.lastSent) return;
+    this.lastSent = sig;
+    const detail: RoundsChangedDetail = { launches: this.feed.model.rounds.map((r) => r.launch), shown: this.shown, rounds };
+    emit(this, 'ca-rounds', detail, { bubbles: false });
   }
 
   /**
@@ -649,38 +178,10 @@ export class CaTranscript extends LitElement {
    * (1-based; null for the latest), or undefined when the transcript holds no such search.
    */
   revealWebSearch(query: string, nth = 0): { round: number | null } | undefined {
-    let seen = 0;
-    const last = this.model.rounds.length - 1;
-    for (const [i, r] of this.model.rounds.entries()) {
-      for (const it of r.items) {
-        if (it.kind !== 'tool' || it.webQuery !== query || seen++ !== nth) continue;
-        this.openCards.set(it.id, true);
-        this.pinned = null;
-        this.revealed = it.id;
-        this.revealPending = true;
-        this.requestUpdate();
-        return { round: i === last ? null : i + 1 };
-      }
-    }
-    return undefined;
-  }
-
-  private codeBlock(text: string, id: string) {
-    const pre = html`<pre><code>${text.slice(0, SHOW_MAX)}</code></pre>`;
-    if (text.length <= FOLD_AT) return pre;
-    const open = this.folds.has(id);
-    return html`<div>
-      <div class="fold ${open ? 'open' : ''}">${pre}</div>
-      <button type="button" class="foldbtn" @click=${() => {
-        if (open) this.folds.delete(id);
-        else this.folds.add(id);
-        this.requestUpdate();
-      }}>${open ? msg('Show less') : msg(str`Show all (${text.length} characters)`)}</button>
-    </div>`;
-  }
-
-  private typing() {
-    return html`<div class="typing"><span class="av av-a">A</span><span class="dots"><i></i><i></i><i></i></span><span class="meta">${msg('running')}</span></div>`;
+    const card = this.feed.model.rounds.flatMap((r) => r.items).filter((it) => it.type === 'tool' && it.query === query)[nth];
+    const i = card && this.view ? this.view.reveal(card.id) : -1;
+    if (i < 0) return undefined;
+    return { round: i === this.feed.model.rounds.length - 1 ? null : i + 1 };
   }
 }
 

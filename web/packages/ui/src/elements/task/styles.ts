@@ -15,7 +15,6 @@ export const taskViewStyles = css`
   .verdict[data-tone='muted'] { color: var(--text-muted); }
   .whos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
   .runchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .who.ident { color: var(--text-2); font-family: var(--mono); font-weight: 500; }
   .spend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .spend b { color: var(--text); font-weight: 600; }
   .spend.quota { flex-direction: column; gap: 0; }

@@ -307,9 +307,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `cae-view-change`. `ca-pipeline-graph` is built on them, from the adapters
   `graphFromPlan` and `matrixFromPlan`; both are documented in `docs/graph.md`
   and `docs/matrix.md`.
+- `<cae-transcript>` (`@contraagent/elements/transcript`, registered by
+  `…/transcript/define`): a conversation with an agent in sections, with
+  bubbles, reasoning, notices and tool cards (a web search lists its pages,
+  a page read shows its URL), a section picker, following the end as it grows
+  and counting what arrived below (`cae-section-change`, `cae-section-shown`,
+  `cae-load-earlier`); documented in `docs/transcript.md`. `<ca-transcript>`
+  draws a task's transcript with it, from the adapter `transcriptSections`
+  and the `StreamController` that tails the stream feed.
 
 ### Fixed
 
+- A new agent session that starts while the reader is scrolled up in a
+  transcript keeps the session being read on screen; it showed the new one.
 - Failures that stopped for a limit, a rate limit, an API or authentication
   error, a refusal, a permission denial or a wrong identity are shown in the
   failure colour, with ✕, in the history, the problems list and the outputs.

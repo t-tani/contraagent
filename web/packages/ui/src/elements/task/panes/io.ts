@@ -16,7 +16,7 @@ import { contractChip } from '../../shared/contract-parts.js';
 import { ioFileCard } from '../../shared/file-card.js';
 import { taskChip } from '../../shared/task-chip.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from '../inputs.js';
-import { roundLabel, roundWhy } from '../rounds.js';
+import { roundLabel, roundWhy } from '../../../words/rounds.js';
 import { correctionsOf, hadSession, isPy, producerOf, stateOf, taskLink, type TaskContext } from '../context.js';
 
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));

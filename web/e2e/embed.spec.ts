@@ -76,3 +76,24 @@ test("each monitor's run picker opens on its own and closes on a click in the ho
   await page.mouse.click(600, 4);
   await expect(picker(page, '#b')).not.toHaveAttribute('open');
 });
+
+test("a task's transcript keeps its open tool calls and position in its monitor, not in the page", async ({ page }) => {
+  await open(page);
+  await page.locator('#a').getByRole('tab', { name: /Tasks/ }).click();
+  await page.locator('#a ca-task-table tbody tr', { hasText: 'beta' }).filter({ hasText: 'summarize' }).first().click();
+  const transcript = page.locator('#a ca-transcript');
+  await expect(transcript.locator('.msg').first()).toBeVisible();
+  const card = transcript.locator('.toolcard').first();
+  await card.locator('.th').click();
+  await expect(card.locator('.tb')).toBeVisible();
+  await transcript.locator('.scroller').evaluate((sc) => {
+    sc.scrollTop = 0;
+    sc.dispatchEvent(new Event('scroll'));
+  });
+  await page.waitForTimeout(400); // the page's memory is written 200 ms after a change
+  const kept = await page.evaluate(() => ({
+    state: history.state as unknown,
+    session: Object.keys(sessionStorage).filter((k) => k.startsWith('contraagent')),
+  }));
+  expect(kept).toEqual({ state: null, session: [] });
+});

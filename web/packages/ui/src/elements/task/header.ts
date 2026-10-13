@@ -11,8 +11,9 @@ import { readingShort, readingTip } from '../../words/quota.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
-import { agentLabel, checkMessage, launchWho, type Who } from './transcript-model.js';
-import { whoChips } from './who.js';
+import { tagChips, type TranscriptTag } from '@contraagent/elements/transcript';
+import { checkMessage } from '../../adapters/transcript/rounds.js';
+import { agentLabel, launchWho, whoTags, type Who } from '../../adapters/transcript/who.js';
 import { correctionsOf, hadSession, isPy, notStartedWhy, stateOf, type TaskContext } from './context.js';
 
 /** Keys of `TaskDetail` the header shows itself; any other key (a `task_detail` callback's) is shown as JSON. */
@@ -118,7 +119,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
           <div class="verdict" data-tone=${toneAttr(tone)}>${verdictText}</div>
           ${session
             ? html`<div class="whos">
-                ${whoChips(who)}${identityChip(tries)}
+                ${tagChips([...whoTags(who), ...identityTags(tries)])}
                 ${otherModels.length
                   ? html`<span class="meta">${otherModels.length === 1
                       ? msg(str`Earlier attempts used model ${otherModels[0] ?? ''}`)
@@ -154,15 +155,11 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
 }
 
 /** The identities the task's attempts authenticated as (each hop's, when a model switch changed it). */
-function identityChip(tries: JournalRow[]) {
+function identityTags(tries: JournalRow[]): TranscriptTag[] {
   const ids = [...new Set(tries.flatMap((r) => [...(r.hops ?? []).map((h) => h.credential), r.credential]).filter((x): x is string => !!x))];
-  return ids.length
-    ? html`<span class="who ident" title=${[msg('What the coding agent authenticated as: an account or an API key (credential)'), ...ids.map(credentialTip)]
-          .filter(Boolean)
-          .join('\n')}
-        ><span class="who-l">${msg('identity')}</span>${listText(ids.map(credentialLabel))}</span
-      >`
-    : nothing;
+  if (!ids.length) return [];
+  const tip = [msg('What the coding agent authenticated as: an account or an API key (credential)'), ...ids.map(credentialTip)].filter(Boolean).join('\n');
+  return [{ label: msg('identity'), value: listText(ids.map(credentialLabel)), tip, look: 'quiet' }];
 }
 
 /** The queries of the web searches the task's attempts made, in call order; each opens its card in the transcript. */
