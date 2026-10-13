@@ -1,5 +1,4 @@
 // The REST half of the monitor API, typed by the generated `paths`.
-import createClient from 'openapi-fetch';
 import type {
   Info,
   JournalPage,
@@ -40,29 +39,40 @@ export interface MonitorClient {
   panel(run: string, name: string): Promise<JsonObject>;
 }
 
-async function unwrap<T>(
-  call: Promise<{ data?: T; error?: unknown; response: Response }>,
-): Promise<T> {
-  const { data, response } = await call;
-  if (!response.ok || data === undefined) throw new ApiError(response.status, new URL(response.url, 'http://x').pathname);
-  return data;
-}
+/** The monitor's GET routes. */
+type Route = { [P in keyof paths]: paths[P] extends { get: object } ? P : never }[keyof paths];
+type Operation<P extends Route> = paths[P] extends { get: infer O } ? O : never;
+/** A route's parameters: `path` fills its `{name}` parts, `query` is its query string. */
+type Params<P extends Route> = Operation<P> extends { parameters: infer X } ? X : never;
+/** A route's JSON answer (status 200). */
+type Answer<P extends Route> =
+  Operation<P> extends { responses: { 200: { content: { 'application/json': infer T } } } } ? T : never;
 
 export function createMonitorClient(options: ClientOptions = {}): MonitorClient {
   const baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
-  const c = createClient<paths>({
-    baseUrl: baseUrl || globalThis.location?.origin || '',
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-  });
+  const origin = (baseUrl || globalThis.location?.origin || '').replace(/\/$/, '');
+  const fetch = options.fetch ?? globalThis.fetch;
+  /** The JSON answer of GET `route`; `ApiError` on a non-2xx status or an empty answer. */
+  async function get<P extends Route>(route: P, params?: Params<P>): Promise<Answer<P>> {
+    const { path = {}, query = {} } = (params ?? {}) as { path?: Record<string, string>; query?: Record<string, number> };
+    const url = origin + route.replace(/\{(\w+)\}/g, (part, name: string) => (name in path ? encodeURIComponent(path[name]!) : part));
+    const search = Object.entries(query)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    const response = await fetch(new Request(search ? `${url}?${search}` : url));
+    if (!response.ok || response.status === 204 || response.headers.get('Content-Length') === '0')
+      throw new ApiError(response.status, new URL(response.url, 'http://x').pathname);
+    return (await response.json()) as Answer<P>;
+  }
   return {
     baseUrl,
-    info: () => unwrap(c.GET('/api/info')),
-    runs: () => unwrap(c.GET('/api/runs')),
-    journal: (run, since = 0) => unwrap(c.GET('/api/runs/{run}/journal', { params: { path: { run }, query: { since } } })),
-    definitions: (run) => unwrap(c.GET('/api/runs/{run}/definitions', { params: { path: { run } } })),
-    task: (run, key) => unwrap(c.GET('/api/runs/{run}/task/{key}', { params: { path: { run, key } } })),
-    stream: (run, key, since = 0) =>
-      unwrap(c.GET('/api/runs/{run}/stream/{key}', { params: { path: { run, key }, query: { since } } })),
-    panel: (run, name) => unwrap(c.GET('/api/runs/{run}/panels/{name}', { params: { path: { run, name } } })),
+    info: () => get('/api/info'),
+    runs: () => get('/api/runs'),
+    journal: (run, since = 0) => get('/api/runs/{run}/journal', { path: { run }, query: { since } }),
+    definitions: (run) => get('/api/runs/{run}/definitions', { path: { run } }),
+    task: (run, key) => get('/api/runs/{run}/task/{key}', { path: { run, key } }),
+    stream: (run, key, since = 0) => get('/api/runs/{run}/stream/{key}', { path: { run, key }, query: { since } }),
+    panel: (run, name) => get('/api/runs/{run}/panels/{name}', { path: { run, name } }),
   };
 }

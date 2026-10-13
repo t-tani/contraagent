@@ -21,9 +21,6 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "openapi-fetch": "^0.17.0"
-  },
   "devDependencies": {
     "openapi-typescript": "^7.13.0"
   }

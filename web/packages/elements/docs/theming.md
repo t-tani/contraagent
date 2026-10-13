@@ -101,7 +101,8 @@ A colour means one thing, on every screen and in every theme:
 | `--ca-radius-sm`, `--ca-radius-md`, `--ca-radius-lg`, `--ca-radius-pill` | the corners |
 
 Every property, its meaning and its value in each built-in theme are in the
-site's theme reference, generated from `src/themes/tokens-list.ts` (`TOKENS`)
+site's theme reference, generated from `src/themes/tokens-list.ts` (`TOKENS`),
+`src/themes/token-meanings.ts` (`TOKEN_MEANINGS`)
 and `src/themes/data.ts` (`THEMES`).
 
 ## Type and corners
