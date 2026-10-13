@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const params = (page: Page) => Object.fromEntries(new URL(page.url()).searchParams);
 const main = (page: Page) => page.locator('ca-monitor main');
-const tab = (page: Page, name: string) => page.locator('ca-monitor nav .tab', { hasText: name });
+const tab = (page: Page, name: string) => page.getByRole('tab', { name: new RegExp(name, 'i') });
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');

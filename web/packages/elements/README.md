@@ -2,8 +2,8 @@
 
 Generic web components (Lit) and the parts they are built from: the design
 tokens and the built-in themes, status pills, legends, rows of facts, icons, a
-segmented control, keyboard focus for a group of items, a data table, and
-elements for a JSON tree, markdown and counters. Nothing here knows contraagent's data: an element
+segmented control, keyboard focus for a group of items, a data table, stat
+tiles, time lanes, a check table, and elements for a JSON tree, markdown and counters. Nothing here knows contraagent's data: an element
 takes plain data and its words, and reports what the reader did as a `cae-*`
 event. `@contraagent/ui` builds the contraagent monitor from them.
 
@@ -16,13 +16,15 @@ under a tag name of your own.
 ```ts
 import '@contraagent/elements/segmented/define'; // <cae-segmented>
 import '@contraagent/elements/data-table/define'; // <cae-data-table>
+import '@contraagent/elements/tiles/define'; // <cae-stat-tiles>
 import '@contraagent/elements/define'; // every cae-* element
 import { pill, legend, base } from '@contraagent/elements';
 ```
 
-The subpaths are `primitives`, `styles`, `themes`, `data-table`, `json-tree`,
-`markdown` and `count`, and a `define` entry for each element
-(`segmented/define`, `data-table/define`, `json-tree/define`,
+The subpaths are `primitives`, `styles`, `themes`, `data-table`, `tiles`,
+`lanes`, `check-table`, `json-tree`, `markdown` and `count`, and a `define`
+entry for each element (`segmented/define`, `data-table/define`,
+`tiles/define`, `lanes/define`, `check-table/define`, `json-tree/define`,
 `markdown/define`, `count/define`).
 
 ## Documentation
@@ -31,6 +33,9 @@ The subpaths are `primitives`, `styles`, `themes`, `data-table`, `json-tree`,
 - [Theming](docs/theming.md): colours, fonts, type and corners as `--ca-*` custom properties, and the built-in themes.
 - [Strings](docs/strings.md): an element's words, in English unless the host gives its own.
 - [Data table](docs/data-table.md): rows in a real table, reached and opened with the keyboard, long lists drawn by window.
+- [Stat tiles](docs/tiles.md): figures as tiles, each a label, a value that counts up, lines of facts and a link.
+- [Lanes](docs/lanes.md): bars on a time axis, a lane per group, running bars growing until now.
+- [Check table](docs/check-table.md): named values checked one by one, each with what it must be, what it is and the verdict.
 
 Every element's properties, events and parts are in `custom-elements.json`,
 generated from the sources with the package.

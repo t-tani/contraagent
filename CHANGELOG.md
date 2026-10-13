@@ -289,6 +289,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`cae-activate`) or selection (`cae-select`), sortable headers (`cae-sort`,
   `sortRows`), and above `windowAt` rows only the rows on screen drawn. Its
   columns are `DataColumn`s; documented in `docs/data-table.md`.
+- `<cae-stat-tiles>` (`@contraagent/elements/tiles`): figures as tiles, each a
+  label, a value that counts up, lines of facts and a link (`cae-action`).
+  `<cae-lanes>` (`@contraagent/elements/lanes`): bars on a time axis, a lane
+  per group, overlapping bars stacked (`stack`), running bars growing until
+  now. `<cae-check-table>` (`@contraagent/elements/check-table`): named values
+  checked one by one, with `verdict()` for a verdict elsewhere. Each has a
+  `define` entry and a page in the package's `docs/`. `@contraagent/ui` builds
+  `ca-kpis`, `ca-timeline` and a checked file's field table on them, from the
+  adapters `kpiTiles`, `lanesFromJournal` and `checkRowsFromContract`.
 
 ### Fixed
 
@@ -409,6 +418,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The pipeline graph's Graph | Table switch and the header's language switch
   are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
   The legends are lists for screen readers.
+- The monitor's tabs are a tab list ("Views"): one tab stop, the arrow keys,
+  Home and End move between the tabs, Enter opens one, and the view below is
+  its tab panel. The selected tab is bold as well as underlined.
+- The run picker is a dialog: its search field (a combobox) takes the focus
+  when it opens and keeps it, the arrow keys name the active run, and Escape or
+  a pick returns the focus to the run button.
+- Every element that opens something on a click opens it from the keyboard too:
+  the task names in Problems and Processes, the rows of Outputs in the
+  overview, the definitions, the running tasks, a tool call in a transcript and
+  a definition file are buttons. Notices are read by screen readers (failures
+  at once). `pnpm e2e` checks every tab with axe (`e2e/a11y.spec.ts`; serious
+  and critical violations fail it).
 - The monitor writes a list of names (tasks, passes, models, identities) as the
   page's language writes a list: "a, b, and c" in English, "a、b、c" in
   Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).

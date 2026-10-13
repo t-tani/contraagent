@@ -208,12 +208,12 @@ export class CaOverview extends LitElement {
           : html`<span class="meta">${msg('No checked files')}</span>`}
       </div>
       ${shown.map(
-        ([c, o]) => html`<div class="fl" @click=${() => this.go('outputs')}>
+        ([c, o]) => html`<button type="button" class="fl" @click=${() => this.go('outputs')}>
           ${statusWord({ text: o.status ? contractStatusLabel(o.status) : '—', tone: contractTone(o.status), title: o.status ? contractStatusWhy(o.status) : null })}
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
-          <div class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</div>
-        </div>`,
+          <span class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</span>
+        </button>`,
       )}
       ${bad.length > shown.length
         ? html`<div class="more"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => this.go('outputs'))}>${bad.length - shown.length === 1
@@ -302,6 +302,16 @@ export class CaOverview extends LitElement {
     </div>`;
   }
 
+  /** A task's name as the button that opens it: the keyboard's way into a problem row. */
+  private nameButton(t: TaskOutcome) {
+    return html`<button type="button" class="fl-name jmono" title=${t.key} @click=${() => this.open(t)}>${this.name(t)}</button>`;
+  }
+
+  /** A click on a problem row opens its task, except on a button in it (its name, a later task's chip), which acts on its own. */
+  private openRow(e: MouseEvent, t: TaskOutcome): void {
+    if (!(e.target as Element).closest('button')) this.open(t);
+  }
+
   /** One task by name: kind · unit, or kind alone for a task of the whole run. */
   private name(t: TaskOutcome): string {
     return kindUnit(t);
@@ -326,9 +336,9 @@ export class CaOverview extends LitElement {
         (p) => p.task.key,
         (p) => {
           const last = p.task.attempts[p.task.attempts.length - 1];
-          return html`<div class="fl" @click=${() => this.open(p.task)}>
+          return html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, p.task)}>
             ${statusWord({ text: outcomeLabel('failed'), tone: 'failed' })}
-            <b class="jmono" title=${p.task.key}>${this.name(p.task)}</b><span class="meta">${localTime(last?.ts, true)}</span>
+            ${this.nameButton(p.task)}<span class="meta">${localTime(last?.ts, true)}</span>
             <div class="meta">${stopLabel(last?.stop)}: ${reason(p.task)}</div>
             ${stoppedLine(p.stopped)}
           </div>`;
@@ -337,9 +347,9 @@ export class CaOverview extends LitElement {
       ${repeat(
         notStarted,
         (t) => t.key,
-        (t) => html`<div class="fl" @click=${() => this.open(t)}>
+        (t) => html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, t)}>
           ${statusWord({ text: outcomeLabel('not_started'), tone: 'attention' })}
-          <b class="jmono" title=${t.key}>${this.name(t)}</b><span></span>
+          ${this.nameButton(t)}<span></span>
           <div class="meta">${notStartedCause(t, outcomes, this.run) ? sentence(notStartedCause(t, outcomes, this.run)) : reason(t)}</div>
         </div>`,
       )}
@@ -349,10 +359,9 @@ export class CaOverview extends LitElement {
         (t) => {
           const fails = t.tries.filter((a) => !a.ok).length;
           const n = t.tries.length;
-          const name = this.name(t);
-          return html`<div class="fl muted" @click=${() => this.open(t)}>
+          return html`<div class="fl muted" @click=${(e: MouseEvent) => this.openRow(e, t)}>
             ${statusWord({ text: outcomeLabel('recovered'), tone: outcomeTone('recovered') })}
-            <b class="jmono" title=${t.key}>${name}</b><span></span>
+            ${this.nameButton(t)}<span></span>
             <div class="meta">${fails === 1
               ? msg(str`Done on attempt ${n} after 1 failed attempt`)
               : msg(str`Done on attempt ${n} after ${fails} failed attempts`)}</div>

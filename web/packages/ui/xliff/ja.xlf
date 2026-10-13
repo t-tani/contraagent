@@ -55,7 +55,7 @@
   <target>スキップ</target>
 </trans-unit>
 <trans-unit id="sc87df95c02f9306d">
-  <source>ended <x id="0" equiv-text="${hhmmss(b.end)}"/></source>
+  <source>ended <x id="0" equiv-text="${hhmmss(end)}"/></source>
   <target>終了 <x id="0" equiv-text="${hhmmss(b.end)}"/></target>
 </trans-unit>
 <trans-unit id="sa358ec1ff0c833b9">
@@ -71,7 +71,7 @@
   <target>要素 1 個</target>
 </trans-unit>
 <trans-unit id="s125a86b2f45bbb25">
-  <source><x id="0" equiv-text="${v.length}"/> items</source>
+  <source><x id="0" equiv-text="${n}"/> items</source>
   <target>要素 <x id="0" equiv-text="${v.length}"/> 個</target>
 </trans-unit>
 <trans-unit id="s8dfeaf9950df0ffa">
@@ -947,7 +947,7 @@
   <target>古い試行 1 件は非表示</target>
 </trans-unit>
 <trans-unit id="s03fb84d070eb4d43">
-  <source><x id="0" equiv-text="${tl.hidden}"/> older attempts not shown</source>
+  <source><x id="0" equiv-text="${n}"/> older attempts not shown</source>
   <target>古い試行 <x id="0" equiv-text="${tl.hidden}"/> 件は非表示</target>
 </trans-unit>
 <trans-unit id="sc92905d14a9421f3">
@@ -2254,6 +2254,11 @@
 <trans-unit id="s34e46e4e30ae57bd">
   <source>Sort descending</source>
   <target>降順に並べ替え</target>
+</trans-unit>
+<trans-unit id="s900aa761e7ae5c71">
+  <source>Views</source>
+  <target>ビュー</target>
+  <note from="lit-localize">The label of the list of tabs: Overview, Tasks, History, ...</note>
 </trans-unit>
 </body>
 </file>

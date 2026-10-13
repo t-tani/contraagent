@@ -28,6 +28,12 @@ export interface ViewDetail {
   view: 'graph' | 'table';
 }
 
+/** A named action of an item (a tile's link): the item's id and the action's id. */
+export interface ActionDetail {
+  id: string;
+  action: string;
+}
+
 /** Every `cae-*` event and its detail. */
 export interface CaeEventMap {
   'cae-change': ChangeDetail;
@@ -35,6 +41,7 @@ export interface CaeEventMap {
   'cae-activate': ItemDetail;
   'cae-select': SelectDetail;
   'cae-sort': SortDetail;
+  'cae-action': ActionDetail;
   /** Enter an item's inner view (a cluster, a node or a mark that has one). */
   'cae-drill': ItemDetail;
   /** The reader chose another view. */
@@ -47,6 +54,7 @@ declare global {
     'cae-activate': CustomEvent<ItemDetail>;
     'cae-select': CustomEvent<SelectDetail>;
     'cae-sort': CustomEvent<SortDetail>;
+    'cae-action': CustomEvent<ActionDetail>;
     'cae-drill': CustomEvent<ItemDetail>;
     'cae-view-change': CustomEvent<ViewDetail>;
   }
