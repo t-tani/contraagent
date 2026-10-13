@@ -10,7 +10,12 @@ export type Tab = BuiltinTab | `panel:${string}`;
 export const TASK_VIEWS = ['transcript', 'input', 'output', 'definition'] as const;
 export type TaskView = (typeof TASK_VIEWS)[number];
 
+/** A page that is not one run's: `hosts`, the hosts behind a hub's runs. */
+export type Page = '' | 'hosts';
+
 export interface Route {
+  /** '' for a run's views; `hosts` for the hosts (on a hub), with no run. */
+  page: Page;
   /** The run; '' until one is picked. */
   run: string;
   tab: Tab;
@@ -39,6 +44,7 @@ export interface Route {
 export type RoutePatch = Partial<Route>;
 
 export const DEFAULT_ROUTE: Route = {
+  page: '',
   run: '',
   tab: 'overview',
   key: null,
@@ -61,8 +67,11 @@ export function parseRoute(search: string): Route {
   const tab = p.get('tab') ?? '';
   const view = p.get('view') ?? '';
   const round = Number(p.get('round'));
+  const hosts = p.get('page') === 'hosts';
   return {
-    run: p.get('run') ?? '',
+    page: hosts ? 'hosts' : '',
+    // The hosts page belongs to no run.
+    run: hosts ? '' : (p.get('run') ?? ''),
     tab: isTab(tab) ? tab : 'overview',
     key: p.get('key') || null,
     view: isTaskView(view) ? view : 'transcript',
@@ -79,6 +88,7 @@ export function parseRoute(search: string): Route {
 
 /** The query string for a route: only what differs from the defaults, and only what its tab uses. */
 export function formatRoute(r: Route): string {
+  if (r.page === 'hosts') return '?page=hosts';
   const p = new URLSearchParams();
   if (r.run) p.set('run', r.run);
   if (r.tab !== 'overview') p.set('tab', r.tab);
