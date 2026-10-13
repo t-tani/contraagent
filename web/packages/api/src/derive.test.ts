@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { deriveRun, elapsedS, progress, result, tryCounts } from './derive.js';
 import { emptyRunState, reduceRun } from './run-state.js';
-import type { JournalRow, Plan, PlanGroup, PlanNode } from './types.js';
+import type { JournalRow, Plan, PlanGroup, PlanNode, Stop } from './types.js';
 
-const row = (key: string, stop: string, attempt = 0): JournalRow => ({
+const row = (key: string, stop: Stop, attempt = 0): JournalRow => ({
   ts: `2026-10-11T00:00:0${attempt}`, key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', attempt,
 });
 const node = (key: string, state: PlanNode['state'], after: string[] = []): PlanNode => ({

@@ -6,6 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, localTime, tokenCount, usd } from '../../lib/format.js';
 import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../lib/labels.js';
+import { outcomePill } from '../../lib/status.js';
 import { base } from '../../styles/base.js';
 import { filterTasks, sortTasks } from './filters.js';
 
@@ -117,7 +118,7 @@ export class CaTaskTable extends LitElement {
               : html`<span class="jdim">${msg('none')}</span><span class="jdur" style="visibility:hidden"></span>`}</span>
             ${this.spendCells(ran, spend.get(t.key))}
             <span class="num meta">${ran ? localTime(t.tries[t.tries.length - 1]?.ts, true) : msg('none')}</span>
-            <span class="st"><span class="pill o-${t.outcome}" title=${t.last_stop}>${taskStatusLabel(t.outcome, this.live)}</span>${cause
+            <span class="st">${outcomePill(t.outcome, taskStatusLabel(t.outcome, this.live), t.last_stop)}${cause
               ? html`<span class="cause">${cause}</span>`
               : nothing}</span>
           </div>`;

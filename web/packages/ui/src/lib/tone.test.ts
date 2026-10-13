@@ -1,5 +1,7 @@
+import type { Stop } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { problemTone, runTone, stopTone } from './tone.js';
+import { stopLabel } from './labels.js';
+import { ALL_STOPS, contractTone, isStop, outcomeTone, problemTone, runTone, stopTone, type Tone } from './tone.js';
 
 describe('problemTone', () => {
   it('colours a problem count only above 0', () => {
@@ -23,11 +25,56 @@ describe('runTone', () => {
 });
 
 describe('stopTone', () => {
-  it('names a failure for every stop but four', () => {
-    expect(stopTone('completed')).toBe('done');
-    expect(stopTone('invalid_input')).toBe('attention');
-    expect(stopTone('skipped')).toBe('muted');
-    expect(stopTone('running')).toBe('running');
-    for (const s of ['error', 'timeout', 'rate_limited', 'invalid_output', 'something_new']) expect(stopTone(s)).toBe('failed');
+  // The Python `Stop` values plus `skipped`: the keys are checked against the generated schema type.
+  const expected: Record<Stop, Tone> = {
+    completed: 'done',
+    invalid_input: 'attention',
+    skipped: 'muted',
+    timeout: 'failed',
+    max_turns: 'failed',
+    budget: 'failed',
+    context_budget: 'failed',
+    stalled: 'failed',
+    auth_failed: 'failed',
+    api_error: 'failed',
+    rate_limited: 'failed',
+    refused: 'failed',
+    aborted: 'failed',
+    denied: 'failed',
+    error: 'failed',
+    no_output: 'failed',
+    launch_failed: 'failed',
+    invalid_output: 'failed',
+    credential_mismatch: 'failed',
+  };
+
+  it('lists every stop contraagent writes', () => {
+    expect([...ALL_STOPS].sort()).toEqual(Object.keys(expected).sort());
+    expect(ALL_STOPS).toHaveLength(19);
+  });
+
+  it('gives every stop its tone and its words', () => {
+    for (const s of ALL_STOPS) {
+      expect(stopTone(s), s).toBe(expected[s]);
+      expect(stopLabel(s), s).not.toMatch(/^unknown|^—$/);
+    }
+  });
+
+  it('shows a stop it does not know as a failure, by its own name', () => {
+    expect(isStop('something_new')).toBe(false);
+    expect(isStop('toString')).toBe(false);
+    expect(stopTone('something_new')).toBe('failed');
+    expect(stopLabel('something_new')).toBe('unknown (something_new)');
+    expect(stopLabel('')).toBe('—');
+  });
+});
+
+describe('outcomeTone and contractTone', () => {
+  it('colour a task and a checked file by their status', () => {
+    const outcomes = ['done', 'recovered', 'failed', 'not_started', 'running', 'waiting', 'skipped'] as const;
+    expect(outcomes.map(outcomeTone)).toEqual(['done', 'done', 'failed', 'attention', 'running', 'muted', 'muted']);
+    const statuses = ['valid', 'invalid', 'failed', 'refused', 'running', 'pending'] as const;
+    expect(statuses.map(contractTone)).toEqual(['done', 'failed', 'failed', 'attention', 'running', 'muted']);
+    expect(contractTone(undefined)).toBe('');
   });
 });

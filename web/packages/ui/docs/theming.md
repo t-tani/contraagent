@@ -71,6 +71,10 @@ A colour means one thing, on every screen and in every theme:
   coloured by its worst part.
 - **A status also has a shape and a word**, so it reads without colour: ✓ done,
   ✕ failed, ◌ not started, a round mark for done and a square one for failed.
+- **One rule set draws every status.** An element that shows a status carries
+  `data-tone` (`failed`, `attention`, `done`, `running`, `muted`; none for
+  neutral), which picks its `--ca-status-*` colour and tint, and `data-mark`
+  for its mark.
 - **One accent** for links and the selected tab or item; the focus ring has
   its own colour and width.
 - **Identity colours are small cues** (an agent task's icon and edge, the token

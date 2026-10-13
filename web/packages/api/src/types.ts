@@ -14,6 +14,8 @@ export type PanelInfo = S['PanelInfo'];
 export type RunSummary = S['RunSummary'];
 
 export type JournalRow = S['JournalRow'];
+/** How one attempt ended (`JournalRow.stop`): a `Stop` of the Python package, or `skipped`. */
+export type Stop = JournalRow['stop'];
 export type Hop = S['Hop'];
 export type TokenUsage = S['TokenUsage'];
 export type QuotaReading = S['QuotaReading'];

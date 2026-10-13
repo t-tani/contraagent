@@ -256,6 +256,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Failures that stopped for a limit, a rate limit, an API or authentication
+  error, a refusal, a permission denial or a wrong identity are shown in the
+  failure colour, with ✕, in the history, the problems list and the outputs.
+  One rule set draws every status: a status element carries `data-tone`
+  (and `data-mark` for ✓ ✕ ◌) in place of a class per stop, outcome or
+  contract status (`.o-*`, `.p-*`, `.j-*`, `.t-*`, `.mk-*`, `.ct-chip.<status>`).
 - Task counts agree everywhere: done counts tasks done and done after retrying;
   skipped tasks are counted on their own. The pipeline graph's nodes, the
   overview's progress line and the run's result counted skipped tasks as done;
@@ -348,6 +354,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The monitor API's `JournalRow.stop` is an enum in `openapi.json`: every
+  `Stop`, and `skipped` (a row a domain wrote with its own value still
+  validates). `@contraagent/api` exports it as `Stop`; a stop the schema adds
+  fails type-checking in `@contraagent/ui` until it has a tone and words.
 - `@contraagent/ui` exports one name per meaning:
   - `tokenCount()` (was `tokens()`) formats a token count;
   - `tokenStyles` (was `tokens`) is the stylesheet with the design tokens;
