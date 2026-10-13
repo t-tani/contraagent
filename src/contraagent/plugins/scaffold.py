@@ -43,6 +43,8 @@ description: How to write a task's output file so it passes its checks. Use when
 
 - `output.format` "json": the file is a single JSON document matching `output.json_schema`.
   No markdown, no code fences, no comments, no trailing commas.
+- `output.from` "message": the output is your final message, not a file. End with the
+  document as your whole message, by the same rules, and write no file.
 - Field names and types are exactly those in the schema. Do not add fields; do not rename them.
 - A list field is always a list, even with one element or none.
 - Copy identifiers (`unit`) from the call file, never from memory.

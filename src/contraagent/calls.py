@@ -6,7 +6,7 @@ skills, hooks); what changes per task is data. The runner writes that data to
 
     {"key": "summarize-alpha", "kind": "summarize", "unit": "alpha",
      "params": {"path": "in/alpha.md"},
-     "output": {"path": ".../out/summarize/alpha.json", "format": "json",
+     "output": {"path": ".../out/summarize/alpha.json", "format": "json", "from": "file",
                 "json_schema": {...}, "schema_ref": {...}, "commands": [...]}}
 
 The same file is what the plugin's Stop hook reads (`contraagent call validate`,
@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from contraagent import envvars, rundir
 from contraagent.contracts import Check, OutputContract, check_file, correction_prompt
@@ -39,10 +39,13 @@ class SchemaRef(BaseModel):
 
 
 class CallOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
 
     path: str
     format: Literal["json", "text"] = "json"
+    #: `file`: the agent writes the output to `path`. `message`: its final message is the
+    #: output, which the runner writes to `path` and checks there (`agent_task(output_from=)`).
+    from_: Literal["file", "message"] = Field("file", validation_alias=AliasChoices("from", "from_"), serialization_alias="from")
     json_schema: dict[str, Any] = Field(default_factory=dict)
     schema_ref: SchemaRef | None = None
     #: Command validators (`validators.CommandValidator.to_dict()`); Python validators run in the runner only.
@@ -127,11 +130,19 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
             if call.output.format == "json"
             else "the document the task asks for"
         )
-        lines += [
-            "",
-            f"Write {what} to `{call.output.path}`. It is checked when you stop; if the "
-            "check fails you will be sent the errors, so fix the file and stop again.",
-        ]
+        if call.output.from_ == "message":
+            lines += [
+                "",
+                f"Your final message is the output: end with {what}, as your whole message, "
+                "and write no file. It is checked after you stop; if the check fails you will "
+                "be sent the errors, so reply again with the corrected output.",
+            ]
+        else:
+            lines += [
+                "",
+                f"Write {what} to `{call.output.path}`. It is checked when you stop; if the "
+                "check fails you will be sent the errors, so fix the file and stop again.",
+            ]
     if instructions:
         lines = [instructions.rstrip(), "", *lines]
     return "\n".join(lines)
@@ -156,8 +167,8 @@ def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env
     if not path:
         return 0, f"no call file ({envvars.CALL} is unset): nothing to check"
     call = CallFile.read(Path(path))
-    if call.output is None:
-        return 0, ""
+    if call.output is None or call.output.from_ == "message":
+        return 0, ""  # an output in the final message exists only after the turn: the runner checks it
     out = call.output
     schema = None
     if out.format == "json" and out.schema_ref is not None:

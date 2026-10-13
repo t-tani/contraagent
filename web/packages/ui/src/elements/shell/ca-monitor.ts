@@ -12,6 +12,7 @@ import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
+import { stubLabel } from '../../words/run-line.js';
 import { apiErrorLine } from '../../words/api-error.js';
 import { accountsTip } from '../../words/quota.js';
 import { hostFact, hostsLine, lastReport, noReportLabel } from '../../words/hosts.js';
@@ -416,6 +417,7 @@ export class CaMonitor extends LitElement {
       <span class="rn" title=${host ? route.run : nothing}>${summary && host ? runIdOf(summary) : route.run || '—'}</span>
       ${host ? html`<span class="hostchip" title=${hostFact(host)}><span class="sr">${hostFact(host)}</span><span aria-hidden="true">${host}</span></span>` : nothing}
       ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
+      ${summary?.stub ? pill({ text: stubLabel(), tone: 'muted' }) : nothing}
       <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>`;
   }
 

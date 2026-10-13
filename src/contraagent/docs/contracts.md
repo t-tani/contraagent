@@ -28,6 +28,19 @@ Each resume is a **round**. The journal records how many rounds a task took
 (`rounds`) and the errors each resume was sent (`round_errors`), and the monitor
 shows each round of its transcript.
 
+## An output in the final message
+
+A task that needs no tool (a verdict, a classification) may give its output as
+its final message: `agent_task(..., output_from="message")`. The call file says so
+(`output.from`), the agent ends with the output as its whole message and writes
+no file, and the runner writes that message to the output file and checks it
+there, by the same schema and validators. A message that fails its checks goes
+back to the same session as the next round, asking for the corrected output as
+the reply. The stop hook leaves it to the runner: the message exists only after
+the turn. It saves the turn a `Write` takes, and the permission to write.
+
+::code{file="examples/review/flow.py" from="# A verdict needs no tool" to="revise = agent_task("}
+
 ## Validators
 
 A validator is any callable `(path, value) -> errors`. `value` is the checked

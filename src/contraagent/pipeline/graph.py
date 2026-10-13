@@ -180,7 +180,12 @@ class Node:
         """Its output contract; `params` and `call` reach the validators that take them."""
         if self.output_path is None:
             return []
-        return [OutputContract(self.output_path, self.output_schema, validators=self.spec.validators, params=params, call=call)]
+        from_message = getattr(self.spec, "output_from", "file") == "message"
+        return [
+            OutputContract(
+                self.output_path, self.output_schema, validators=self.spec.validators, params=params, call=call, from_message=from_message
+            )
+        ]
 
 
 class Graph:
@@ -193,6 +198,9 @@ class Graph:
     what it raises, the task call raises.
     `tail(task)`: each task's `tail_s`, the expected wall time of the work its
     flow creates after it (`JournalEstimates.tail`); None leaves it unset.
+    `stub`: in a stub run, the stub agent that plays its Python tasks (`StubAgent.play_python`)
+    but the kinds it executes (`StubAgent.plays`); None runs every function.
+    `run_id`: the run's id, for the stub's record of what it played.
     """
 
     def __init__(self, out_dir: Path, *, max_passes: int = MAX_PASSES) -> None:
@@ -203,6 +211,8 @@ class Graph:
         self.driver: FlowDriver | None = None
         self.new_kind: Callable[[Any], None] | None = None
         self.tail: Callable[[Task], float | None] | None = None
+        self.stub: Any = None
+        self.run_id = ""
         self._by_key: dict[str, Node] = {}
         self._bases: dict[str, tuple[str, int]] = {}  # key before numbering -> (flow call id, tasks so far)
         #: The passes of the loops of flow code while the flow runs (`loops.py`).
@@ -456,8 +466,15 @@ class Graph:
             return task
 
         def call(node: Node = node) -> None:
-            value = node.spec.invoke(node.unit, node.resolved_params())
             schema = node.output_schema
+            if self.stub is not None and self.stub.plays(node.spec.kind):
+                params = node.resolved_params()
+                json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
+                has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
+                if not has_output:
+                    return
+            else:
+                value = node.spec.invoke(node.unit, node.resolved_params())
             # A Python task is given an output path only when it declares an output schema.
             if node.output_path is None or schema is None:
                 return

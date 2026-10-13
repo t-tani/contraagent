@@ -19,7 +19,10 @@ it is.
 A function becomes a task with the same contract machinery: its return
 annotation is its output contract, a function with a `unit` parameter is given
 the unit, and a raised exception fails the task. It runs in this process and
-has no budget: budgets cap coding-agent launches.
+has no budget: budgets cap coding-agent launches. A step with a side effect (a
+fetch, a write outside the run directory, a push) belongs in a Python task, not
+in the flow's own body: a stub run plays Python tasks and runs flow code as it is
+(see `testing`).
 
 ::code{file="examples/demo/tasks.py" from="@python_task" to="def docs_one_review("}
 

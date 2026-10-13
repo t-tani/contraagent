@@ -40,6 +40,7 @@ documentation. No other word is used for the same thing.
 | **hook** | a hook inside the coding agent, declared by a plugin; nothing else | `hooks.toml`, `plugins/hooks.py` |
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
 | **changes** | the files one attempt created, modified or deleted under the patterns its task declares, beside its output; the files a failed attempt created are removed | `agent_task(changes=)`, `TaskAdapter.changes`, `TaskResult.changes`, journal `changes` |
+| **final message** | the agent's last message of a launch; an agent task whose output is its final message has it written to its output file and checked there | `LaunchResult.result_text`; `agent_task(output_from="message")`, call file `output.from`, `OutputContract.from_message` |
 
 ## Checking
 
@@ -51,6 +52,7 @@ documentation. No other word is used for the same thing.
 | **check** | what can be found wrong with a flow without a launch | `Pipeline.check`, `CheckReport`, `contraagent check` |
 | **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch. A candidate, not a use: of two declarations of one kind, the one whose tasks are created is the kind's | `pipeline/reach.py`, `CheckReport.later_kinds` |
 | **stub agent** | a coding agent that plays scripted replies instead of an LLM, for tests | `contraagent.testing.StubAgent` |
+| **stub run** | a run whose tasks the stub agent plays: agent tasks, and Python tasks but the kinds it executes; flow code runs as in any run | `Pipeline(stub=)`, `StubAgent(default=, execute=)`, `writes_smallest`, `contraagent run --stub`; `run.json` `stub` |
 
 ## Routing
 

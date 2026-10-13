@@ -207,6 +207,7 @@ class Monitor:
                     "host_id": info.get("host_id", ""),
                     "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
+                    "stub": info.get("stub") is True,
                 }
             )
         out.sort(key=lambda r: r["last_ts"], reverse=True)

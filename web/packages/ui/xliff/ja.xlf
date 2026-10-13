@@ -2406,6 +2406,16 @@
   <source>Also locks</source>
   <target>併せてロックするユニット</target>
 </trans-unit>
+<trans-unit id="s73418db933aba694">
+  <source>stub agent</source>
+  <target>スタブエージェント</target>
+  <note from="lit-localize">A run whose tasks a coding agent with scripted replies played</note>
+</trans-unit>
+<trans-unit id="s27af4c4bc810a90d">
+  <source>from the final message</source>
+  <target>最後のメッセージから</target>
+  <note from="lit-localize">The task's output is the agent's last message of a session</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

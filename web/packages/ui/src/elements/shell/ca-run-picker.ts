@@ -254,8 +254,7 @@ export class CaRunPicker extends LitElement {
               title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}</span>
             ${this.when(r)}
             <span class="sub">
-              ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}
-              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
+              ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
             </span>`
         : html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`}
     </div>`;

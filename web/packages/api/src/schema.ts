@@ -1409,6 +1409,12 @@ export type components = {
             run_uid?: string;
             /** Started At */
             started_at: string;
+            /**
+             * Stub
+             * @description a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)
+             * @default false
+             */
+            stub?: boolean;
         };
         /** StageEntry */
         StageEntry: {
@@ -1496,6 +1502,11 @@ export type components = {
             requires?: string[];
             /** Output */
             output?: string | null;
+            /**
+             * Output From
+             * @description agent task: `file`, the agent writes its output; `message`, its final message is the output
+             */
+            output_from?: ("file" | "message") | null;
             /** Validators */
             validators?: string[];
             /** Executor */
