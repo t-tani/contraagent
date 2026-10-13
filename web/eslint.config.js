@@ -12,11 +12,8 @@ const UI_FOLDERS = readdirSync(new URL(`./${UI}/elements`, import.meta.url), { w
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
 /** `elements/<a>` may import only itself and `shared/`; these imports wait for a later phase. */
-const CROSS_FOLDER_GAPS = {
-  // P1 moves elapsedS and tryCounts to @contraagent/api; P5 splits logic.ts.
-  [`${UI}/elements/shell/ca-monitor.ts`]: ['overview/logic'],
-  [`${UI}/elements/shell/ca-run-picker.ts`]: ['overview/logic'],
-};
+/** @type {Record<string, string[]>} */
+const CROSS_FOLDER_GAPS = {};
 
 /** A relative import into `elements/` from a file outside it. */
 const intoElements = { regex: '^\\.{1,2}/(\\.\\./)*elements/', message: 'A lower layer must not import an element.' };

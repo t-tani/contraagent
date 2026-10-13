@@ -8,7 +8,7 @@ import { getLocale } from '../../core/i18n.js';
 import { facts, fmtDur, kindUnit } from '../../words/format.js';
 import { modelSwitch, notStartedCause, stopLabel } from '../../words/index.js';
 import { base } from '../../styles/base.js';
-import { barBox, timeline, type TimelineBar } from './logic.js';
+import { barBox, timeline, type TimelineBar } from './timeline-model.js';
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const hhmmss = (t: number) =>

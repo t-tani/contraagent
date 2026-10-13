@@ -9,7 +9,7 @@ import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
 import { factLine } from '../shared/fact-line.js';
 import { problemTone, type Tone } from '../../lib/tone.js';
-import { kpis } from './logic.js';
+import { kpis } from './kpis-model.js';
 
 interface Tile {
   id: string;

@@ -8,46 +8,18 @@ import { emit } from '../../core/events.js';
 import { facts, fmtDur, kindUnit, listText, usd } from '../../words/format.js';
 import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../words/index.js';
 import { base } from '../../styles/base.js';
-import { PAD, placeCard, type Box } from './place-card.js';
-import {
-  LOOP_SEGMENT,
-  alongEdge,
-  asBar,
-  autoLayer,
-  barParts,
-  edgePath,
-  fitView,
-  gridStep,
-  isPoint,
-  layerGraph,
-  layoutGraph,
-  markGrid,
-  markSel,
-  parentLayer,
-  passMatrix,
-  resolveLayer,
-  returnPath,
-  selected,
-  shortName,
-  sortRows,
-  splitLayer,
-  zoomView,
-  type GraphLayout,
-  type GraphMark,
-  type GraphNode,
-  type LayerGraph,
-  type NodeCounts,
-  type LayerOrder,
-  type LoopBox,
-  type MatrixHead,
-  type MatrixRow,
-  type MatrixSort,
-  type PassMatrix,
-  type Rect,
-  type Selected,
-  type Size,
-  type View,
-} from './logic.js';
+import { isPoint } from './graph/arrange.js';
+import { shortName } from './graph/flow-index.js';
+import { autoLayer, layerGraph, parentLayer, resolveLayer, splitLayer } from './graph/layer.js';
+import { layoutGraph, type GraphLayout, type Rect, type Size } from './graph/layout.js';
+import { asBar, barParts, markGrid } from './graph/marks.js';
+import { passMatrix, sortRows, type MatrixHead, type MatrixRow, type MatrixSort, type PassMatrix } from './graph/matrix.js';
+import { alongEdge, gridStep } from './graph/nav.js';
+import { edgePath, returnPath } from './graph/paths.js';
+import { PAD, placeCard, type Box } from './graph/place-card.js';
+import { markSel, selected, type Selected } from './graph/selection.js';
+import { LOOP_SEGMENT, type GraphMark, type GraphNode, type LayerGraph, type LayerOrder, type LoopBox, type NodeCounts } from './graph/types.js';
+import { fitView, zoomView, type View } from './graph/view.js';
 
 /** The states the legend can show, in this order; it shows the ones the view has. */
 const LEGEND: readonly TaskState[] = ['done', 'running', 'pending', 'failed', 'blocked', 'skipped'];

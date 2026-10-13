@@ -83,11 +83,7 @@ const FORBIDDEN: Record<string, (spec: string) => boolean> = {
 };
 
 /** Imports of names across folders of ui's elements/ that wait for a later phase (the file and the module it imports). */
-const CROSS_FOLDER_GAPS = new Set([
-  // P1 moves elapsedS and tryCounts to @contraagent/api; P5 splits logic.ts.
-  `${UI}/elements/shell/ca-monitor.ts -> ${UI}/elements/overview/logic`,
-  `${UI}/elements/shell/ca-run-picker.ts -> ${UI}/elements/overview/logic`,
-]);
+const CROSS_FOLDER_GAPS = new Set<string>([]);
 
 describe('package layers', () => {
   it.each(packages)('%s imports only what its layer allows', (dir) => {
