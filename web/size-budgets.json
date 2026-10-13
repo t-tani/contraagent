@@ -1,0 +1,44 @@
+{
+  "$comment": "Gzip budgets in kB (1000 bytes), checked by scripts/size.mjs in `pnpm check:dist`. A package entry is its `exports` subpath, built minified with lit, @lit/* and @contraagent/* external; `files` are measured as built. A new entry's budget is its measured size plus 10 %. `baseline` records the tree before the frontend refactor (2026-10-13).",
+  "budgets": {
+    "@contraagent/api": 8,
+    "@contraagent/ui": 117.5,
+    "@contraagent/ui/themes": 4.4,
+    "@contraagent/ui/bundle": 125,
+    "src/contraagent/monitor/static/app.js": 115
+  },
+  "files": ["src/contraagent/monitor/static/app.js"],
+  "baseline": {
+    "gzipBytes": {
+      "src/contraagent/monitor/static/app.js": 113478,
+      "packages/ui/dist/contraagent-ui.js": 122786,
+      "@contraagent/api": 7251,
+      "@contraagent/ui": 106835,
+      "@contraagent/ui/themes": 4041
+    },
+    "rawBytes": {
+      "src/contraagent/monitor/static/app.js": 365924,
+      "packages/ui/dist/contraagent-ui.js": 426684
+    },
+    "largestFiles": {
+      "packages/ui/src/elements/overview/logic.ts": 1828,
+      "packages/ui/src/elements/overview/ca-pipeline-graph.ts": 1819,
+      "packages/ui/src/elements/overview/logic.test.ts": 947,
+      "packages/ui/src/elements/task/ca-task-view.ts": 719,
+      "packages/ui/src/elements/task/ca-transcript.ts": 697,
+      "packages/ui/src/elements/shell/ca-monitor.ts": 547,
+      "packages/ui/src/styles/themes.ts": 492,
+      "packages/ui/src/elements/task/transcript-model.ts": 378,
+      "packages/ui/src/elements/overview/ca-overview.ts": 374,
+      "packages/ui/src/elements/shared/contract-parts.ts": 354
+    },
+    "largestFilesNote": "lines; hand-written .ts under packages/*/src, without the generated api/src/schema.ts (2091) and ui/src/locales",
+    "tests": {
+      "vitest": 190,
+      "vitestFiles": 20,
+      "playwright": 36,
+      "pytest": 317,
+      "pytestLiveDeselected": 21
+    }
+  }
+}

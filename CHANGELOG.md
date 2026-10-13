@@ -336,6 +336,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `@contraagent/ui` takes `lit` and `@lit/localize` as peer dependencies: a
+  page that imports it installs them, and its bundle holds one copy of Lit.
 - The monitor's colours mean a status, and only where it applies: totals, cost,
   tokens, time and the tabs' counts are in the text colour (the Tasks total is
   no longer red when a task failed), a count of a problem (failed attempts, not

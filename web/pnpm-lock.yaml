@@ -241,19 +241,19 @@ importers:
       '@contraagent/api':
         specifier: workspace:*
         version: link:../api
-      '@lit/localize':
-        specifier: ^0.12.2
-        version: 0.12.2
-      lit:
-        specifier: ^3.3.3
-        version: 3.3.3
     devDependencies:
       '@custom-elements-manifest/analyzer':
         specifier: ^0.11.0
         version: 0.11.0
+      '@lit/localize':
+        specifier: ^0.12.2
+        version: 0.12.2
       '@lit/localize-tools':
         specifier: ^0.8.2
         version: 0.8.2
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
       vite:
         specifier: ^8.3.1
         version: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1)
