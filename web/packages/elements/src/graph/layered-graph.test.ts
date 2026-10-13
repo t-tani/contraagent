@@ -112,12 +112,9 @@ describe('cae-layered-graph', () => {
     expect(sent.at(-1)?.detail).toEqual({ id: null });
   });
 
-  it('keeps the room of the key hints, or draws none', async () => {
-    const { el, root } = await drawn();
-    expect(root.querySelector('[part~="keys"]')).not.toBeNull();
-    el.showKeys = false;
-    await el.updateComplete;
-    expect(root.querySelector('[part~="keys"]')).toBeNull();
+  it('draws the key hints as the part keys', async () => {
+    const { root } = await drawn();
+    expect(root.querySelector('[part~="keys"]')?.textContent).toContain('Tab: next node');
   });
 
   it('counts a node’s marks by state when it has no counts or progress', async () => {

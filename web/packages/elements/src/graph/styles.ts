@@ -5,12 +5,12 @@ import { css } from 'lit';
 export const graphStyles = css`
   :host { display: block; }
   /* A column: the crumbs, the frame, the row under it. A height set on the host is the frame's to fill or give up. */
-  .col { display: flex; flex-direction: column; height: 100%; }
-  .main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  .foot { flex: none; }
+  .col, .main { display: flex; flex-direction: column; }
+  .col { height: 100%; }
+  .main { flex: auto; min-height: 0; }
 
   /* One frame for every view: the drawing, the node table and a mark matrix. */
-  .frame { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
+  .frame { flex: auto; position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
   .gframe { cursor: grab; touch-action: none; }
   .gframe.drag { cursor: grabbing; }
   .stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }

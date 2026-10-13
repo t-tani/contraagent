@@ -9,21 +9,13 @@ import type { GraphMark, GraphNode, GraphNodeInput } from './types.js';
  * of `words` (none without marks).
  */
 export function fillNode(n: GraphNodeInput, states: StateStyles, words: (done: number, total: number) => string): GraphNode {
-  const marks = n.marks ?? [];
-  const loose = n.loose ?? [];
-  const all = [...marks, ...loose].filter((m): m is GraphMark => m !== null);
-  let counts = n.counts;
-  if (!counts) {
-    const c: Record<string, number> = {};
-    for (const m of all) c[m.state] = (c[m.state] ?? 0) + 1;
-    counts = c;
-  }
-  let progress = n.progress ?? null;
-  if (!progress && all.length) {
-    const done = all.filter((m) => states[m.state]?.tone === 'done').length;
-    progress = { done, total: all.length, label: words(done, all.length) };
-  }
-  return { ...n, marks, loose, counts, progress };
+  const { marks = [], loose = [] } = n;
+  const all = [...marks, ...loose].filter((m): m is GraphMark => !!m);
+  const counts: Record<string, number> = {};
+  for (const m of all) counts[m.state] = (counts[m.state] ?? 0) + 1;
+  const done = all.filter((m) => states[m.state]?.tone === 'done').length;
+  const total = all.length;
+  return { ...n, marks, loose, counts: n.counts ?? counts, progress: n.progress ?? (total ? { done, total, label: words(done, total) } : null) };
 }
 
 /** How a node lays out its series marks: as many columns as series up to 12, then 10, then 20; smaller marks as they grow. */

@@ -16,7 +16,7 @@ export function foot(h: GraphHost, matrix: MarkMatrixInput | null) {
   return html`<div class="foot">
     ${legend(h, matrix)}
     <div class="tools">${table ? nothing : zoomTools(h)}${viewSwitch(h, table)}</div>
-    ${h.showKeys ? html`<div class="keys" part="keys">${keyHints(h, matrix).map((k, i) => html`${i ? ' | ' : ''}<span>${k}</span>`)}</div>` : nothing}
+    <div class="keys" part="keys">${keyHints(h, matrix).map((k, i) => html`${i ? ' | ' : ''}<span>${k}</span>`)}</div>
   </div>`;
 }
 

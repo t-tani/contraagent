@@ -119,8 +119,6 @@ export class CaeLayeredGraph extends LitElement {
   @property({ attribute: false }) renderIcon: (name: string) => unknown = (name) => icon(name);
   /** Styles for what `renderIcon` draws, added to the element's own. */
   @property({ attribute: false }) iconStyles: readonly CSSResult[] = [];
-  /** The line of key hints under the legend (the part `keys`): its room is kept, its words shown while the graph has the focus. */
-  @property({ type: Boolean }) showKeys = true;
   /** The card of the selected item (the part `inspector`); there is no card while nothing is in the `inspector` slot. */
   @property({ type: Boolean }) showInspector = true;
 
@@ -204,7 +202,7 @@ export class CaeLayeredGraph extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     this.addEventListener('keydown', this.onEscape);
-    this.slotted.observe(this, { childList: true, attributes: true, attributeFilter: ['slot'], subtree: true });
+    this.slotted.observe(this, { childList: true });
   }
 
   override disconnectedCallback(): void {
@@ -213,19 +211,8 @@ export class CaeLayeredGraph extends LitElement {
     this.slotted.disconnect();
   }
 
-  /** The host's content changed: whether the `inspector` slot holds anything may have. */
-  private readonly slotted = new MutationObserver(() => {
-    if (this.showInspector && this.hasCard() !== this.carded) this.requestUpdate();
-  });
-
-  /** At the last render: the card was on (`showInspector`) and something was in the `inspector` slot. */
-  private carded = false;
-
-  /** Something is in the `inspector` slot. */
-  private hasCard(): boolean {
-    for (const c of this.children) if (c.slot === 'inspector') return true;
-    return false;
-  }
+  /** A child came or went: the `inspector` slot may hold something now, or nothing. */
+  private readonly slotted = new MutationObserver(() => this.requestUpdate());
 
   protected override updated(changed: PropertyValues<this>): void {
     if (changed.has('iconStyles') && this.renderRoot instanceof ShadowRoot)
@@ -344,9 +331,8 @@ export class CaeLayeredGraph extends LitElement {
     const mx = this.matrix;
     const body = mx ? this.matrixView(mx) : this.view === 'table' ? nodeTable(h) : dag(h);
     const sel = this.selected;
-    this.carded = this.showInspector && this.hasCard();
     const card =
-      sel && this.carded && this.known(sel)
+      sel && this.showInspector && this.querySelector(':scope > [slot=inspector]') && this.known(sel)
         ? keyed(
             sel,
             html`<section id="insp" class="insp ${this.down ? 'sheet' : ''}" part="inspector" aria-label=${h.strings.inspector} @keydown=${this.card.onCardKey}>
@@ -379,7 +365,6 @@ export class CaeLayeredGraph extends LitElement {
       el,
       get root() { return el.renderRoot; },
       get graph() { return el.drawn; },
-      get showKeys() { return el.showKeys; },
       get arr() { return el.arr; },
       get states() { return el.states; },
       get strings() { return el.words; },

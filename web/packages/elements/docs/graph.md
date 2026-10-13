@@ -70,8 +70,9 @@ Hovering, focusing or selecting a mark highlights its series; `related` names mo
 marks to light (a mark's id, or a series id, to the ids of the marks it lights).
 
 The line under the legend holds the key hints. It keeps its height at all times,
-and shows its words while the graph has the focus; with `showKeys` off, or on a
-screen with touch alone (no fine pointer), there is no line.
+and shows its words while the graph has the focus. On a screen with touch alone
+(no fine pointer) there is no line; `::part(keys) { display: none; }` removes it
+everywhere.
 
 ## Look
 

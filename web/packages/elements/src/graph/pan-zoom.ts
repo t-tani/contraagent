@@ -106,8 +106,8 @@ export class PanZoomController implements ReactiveController {
     // A height set on the host: the frame is not as tall as it was drawn, and the drawing fits the frame as it is.
     const drawnH = frame ? parseFloat(frame.style.height) : NaN;
     const held = frame && drawnH > 0 && Math.abs(frame.clientHeight - drawnH) > 0.5 ? frame.clientHeight : 0;
-    const fitted = held ? fitView(d.w, d.h, width, held) : own;
-    const whole = held ? { ...fitted, y: (held - d.h * fitted.k) / 2 } : fitted;
+    const whole = held ? fitView(d.w, d.h, width, held) : own;
+    if (held) whole.y = (held - d.h * whole.k) / 2;
     if (whole.k !== this.fitK) {
       this.fitK = whole.k;
       this.host.requestUpdate();

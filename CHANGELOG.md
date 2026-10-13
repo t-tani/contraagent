@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `<cae-layered-graph>`: `showKeys` and `showInspector` turn off the line of key hints
-  and the selection's card; the part `keys`. A node's `marks`, `loose`, `counts` and
+- `<cae-layered-graph>`: `showInspector` turns off the selection's card, and the part `keys`
+  is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,
   series and `key`.
@@ -356,7 +356,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header there was lost); on a touch screen there is no such line. There is no card
   while the `inspector` slot is empty. A height set on the element is the frame's: the
   frame fills it, the drawing fitted in it.
-
+- Below 760 px wide, the open run picker spans the header 16 px from each side; it ran
+  off the right edge and scrolled the page sideways.
 - The monitor's transcript feed no longer skips the lines after a page that stopped at
   its event or byte limit, no longer sends a transcript's last page again on reconnect,
   and holds a half-written last line until it is complete.

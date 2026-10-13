@@ -51,14 +51,6 @@ export const DEFAULT_DATA_TABLE_STRINGS: Readonly<DataTableStrings> = {
 /** Whether a column's header sorts. */
 export const isSortable = <R>(c: DataColumn<R>): boolean => c.sortable ?? !!c.compare;
 
-/** Two cells' values in order: numbers by value, the rest as text (numbers in it by value); a template after both. */
-function compareValues(a: unknown, b: unknown): number {
-  const plain = (v: unknown) => typeof v === 'string' || typeof v === 'number';
-  if (!plain(a) || !plain(b)) return Number(!plain(a)) - Number(!plain(b));
-  if (typeof a === 'number' && typeof b === 'number') return a - b;
-  return String(a).localeCompare(String(b), undefined, { numeric: true });
-}
-
 /**
  * `rows` ordered by the column `sort` names: by its `compare`, else its `text`, else
  * its cell when that is a string or a number; equal rows keep their order. The rows
@@ -69,7 +61,13 @@ export function sortRows<R>(rows: readonly R[], columns: readonly DataColumn<R>[
   if (!sort || !c) return [...rows];
   const sign = sort.direction === 'desc' ? -1 : 1;
   const { compare, text } = c;
-  const keyed = rows.map((r, i) => ({ r, i, v: compare ? null : text ? text(r) : c.cell(r, i) }));
-  const cmp = (a: (typeof keyed)[number], b: (typeof keyed)[number]) => (compare ? compare(a.r, b.r) : compareValues(a.v, b.v));
+  // A cell that is neither a string nor a number (a template) keeps its place.
+  const value = (r: R, i: number) => {
+    const v = text ? text(r) : c.cell(r, i);
+    return typeof v === 'number' || typeof v === 'string' ? v : '';
+  };
+  const keyed = rows.map((r, i) => ({ r, i, v: compare ? 0 : value(r, i) }));
+  const cmp = (a: (typeof keyed)[number], b: (typeof keyed)[number]) =>
+    compare ? compare(a.r, b.r) : typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true });
   return keyed.sort((a, b) => sign * cmp(a, b) || a.i - b.i).map((x) => x.r);
 }

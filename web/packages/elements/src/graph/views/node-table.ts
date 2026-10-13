@@ -85,7 +85,7 @@ export function nodeTable(h: GraphHost) {
 export function statusLine(n: GraphNode) {
   const sep = html`<span class="sep" aria-hidden="true"> | </span>`;
   const p = n.progress;
-  const facts = notes(n);
-  if (!p) return facts.map((x, i) => html`${i ? sep : nothing}${x}`);
-  return html`<span class="n" aria-hidden="true" title=${p.label}>${p.done}/${p.total}</span><span class="sr">${p.label}</span>${facts.map((x) => html`${sep}${x}`)}`;
+  return html`${p ? html`<span class="n" aria-hidden="true" title=${p.label}>${p.done}/${p.total}</span><span class="sr">${p.label}</span>` : nothing}${notes(n).map(
+    (x, i) => html`${p || i ? sep : nothing}${x}`,
+  )}`;
 }

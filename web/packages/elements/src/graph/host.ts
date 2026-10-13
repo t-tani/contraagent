@@ -35,8 +35,6 @@ export interface GraphHost {
   /** Top to bottom. */
   readonly down: boolean;
   readonly barAt: number;
-  /** The line of key hints is drawn. */
-  readonly showKeys: boolean;
   /** The node table is shown. */
   asTable: boolean;
   /** The series (or a mark's id, for a mark outside any series) under the pointer or focus. */
