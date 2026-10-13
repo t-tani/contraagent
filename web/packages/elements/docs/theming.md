@@ -37,8 +37,8 @@ status colours stay apart under protanopia, deuteranopia and tritanopia.
 Set `data-ca-theme` on any ancestor. The rules that apply it are a stylesheet
 that a document (or a shadow root) adopts once: add it to the page's document,
 and to a shadow root of your own that holds the elements and sets
-`data-ca-theme` inside it. Importing `@contraagent/ui` adopts it for the page's
-document.
+`data-ca-theme` inside it. No import adopts it; `<ca-monitor>` of
+`@contraagent/ui` adopts it for its document when it connects.
 
 ```ts
 import { adoptThemes } from '@contraagent/elements/themes';

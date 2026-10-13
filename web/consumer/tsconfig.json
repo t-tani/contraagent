@@ -1,0 +1,7 @@
+{
+  // For the editor and the lint, against the sources; consumer.test.mjs checks
+  // the page against the built packages with tsconfig.dist.json.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "types": ["vite/client"] },
+  "include": ["src", "vite.config.ts"]
+}

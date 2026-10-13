@@ -1,7 +1,7 @@
 // A run's journal, live, with the store doing the data work: the store folds
 // the run feed into one typed state, the element draws it.
 import { MonitorStore, isBad } from '@contraagent/api';
-import '@contraagent/ui';
+import '@contraagent/ui/journal-table';
 
 export function showJournal(host: HTMLElement, run: string, openTask: (key: string) => void): () => void {
   const store = new MonitorStore({ baseUrl: 'http://127.0.0.1:8787' });

@@ -24,6 +24,8 @@ const intoElements = { regex: '^\\.{1,2}/(\\.\\./)*elements/', message: 'A lower
 const intoWordsOrLib = { regex: '^\\.\\./(words|lib|adapters|controllers)/', message: 'core/ is the lowest layer: it must not import words/, lib/, adapters/ or controllers/.' };
 /** `adapters/` comes after the words and `lib/`: they do not import it. */
 const intoAdapters = { regex: '^\\.\\./adapters/', message: 'words/ and lib/ come before adapters/: they must not import it.' };
+/** `define/` is the last layer: the subpaths' entries, imported only by `index.ts`. */
+const intoDefine = { regex: '^\\.{1,2}/(\\.\\./)*define/', message: 'define/ is the last layer: only index.ts imports it.' };
 /** `controllers/` comes after `adapters/`: the layers before it do not import it. */
 const intoControllers = { regex: '^\\.\\./controllers/', message: 'words/, lib/ and adapters/ come before controllers/: they must not import it.' };
 /**
@@ -43,16 +45,16 @@ const LAYERS = [
     files: ['packages/api/src/**/*.ts'],
     patterns: [{ group: ['lit', 'lit/*', '@lit/*', '@contraagent/ui', '@contraagent/ui/*', '@contraagent/elements', '@contraagent/elements/*'], message: '@contraagent/api has no UI.' }],
   },
-  { files: [`${UI}/core/**/*.ts`], patterns: [intoElements, intoWordsOrLib] },
-  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`], patterns: [intoElements, intoAdapters, intoControllers] },
-  { files: [`${UI}/adapters/**/*.ts`], patterns: [intoElements, intoControllers] },
-  { files: [`${UI}/controllers/**/*.ts`], patterns: [intoElements] },
+  { files: [`${UI}/core/**/*.ts`], patterns: [intoElements, intoWordsOrLib, intoDefine] },
+  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`], patterns: [intoElements, intoAdapters, intoControllers, intoDefine] },
+  { files: [`${UI}/adapters/**/*.ts`], patterns: [intoElements, intoControllers, intoDefine] },
+  { files: [`${UI}/controllers/**/*.ts`], patterns: [intoElements, intoDefine] },
   ...UI_FOLDERS.flatMap((a) => {
     const others = UI_FOLDERS.filter((b) => b !== a && b !== 'shared');
     const gaps = Object.entries(CROSS_FOLDER_GAPS).filter(([f]) => f.startsWith(`${UI}/elements/${a}/`));
     return [
-      { files: [`${UI}/elements/${a}/**/*.ts`], ignores: gaps.map(([f]) => f), patterns: others.map((b) => intoFolder(b)) },
-      ...gaps.map(([f, allowed]) => ({ files: [f], patterns: others.map((b) => intoFolder(b, allowed.filter((x) => x.startsWith(`${b}/`)))) })),
+      { files: [`${UI}/elements/${a}/**/*.ts`], ignores: gaps.map(([f]) => f), patterns: [...others.map((b) => intoFolder(b)), intoDefine] },
+      ...gaps.map(([f, allowed]) => ({ files: [f], patterns: [...others.map((b) => intoFolder(b, allowed.filter((x) => x.startsWith(`${b}/`)))), intoDefine] })),
     ];
   }),
   // The generic package: no contraagent code, no localization; and inside it, a

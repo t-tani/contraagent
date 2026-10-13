@@ -7,6 +7,7 @@ import { emit } from '../../core/events.js';
 import { factList } from '../../words/format.js';
 import { factLine } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
+import '../shared/ca-definition.js';
 
 /** How long to wait before asking again for definitions that have not been recorded yet. */
 const REFETCH_MS = 3000;

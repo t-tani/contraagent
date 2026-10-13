@@ -18,6 +18,8 @@ export interface LocaleOptions {
 export class LocaleController implements ReactiveController {
   /** The `locale` the last update saw; undefined before the first. */
   private seen: Locale | '' | undefined;
+  /** Settles when the language chosen at connect is loaded (a locale's module loads when first chosen). */
+  ready: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly host: ReactiveControllerHost & HTMLElement,
@@ -28,7 +30,7 @@ export class LocaleController implements ReactiveController {
 
   hostConnected(): void {
     const l = this.opts.locale();
-    void setLocale(isLocale(l) ? l : preferredLocale());
+    this.ready = setLocale(isLocale(l) ? l : preferredLocale()).catch(() => {});
   }
 
   hostUpdated(): void {

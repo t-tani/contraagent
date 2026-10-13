@@ -494,6 +494,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "tasks retried" filter.
 - `@contraagent/ui` takes `lit` and `@lit/localize` as peer dependencies: a
   page that imports it installs them, and its bundle holds one copy of Lit.
+- One view of `@contraagent/ui` can be imported alone: `@contraagent/ui/monitor`,
+  `/overview`, `/pipeline-graph`, `/task-view`, `/transcript`, `/task-table`,
+  `/journal-table`, `/contracts`, `/definitions`, `/kpis`, `/timeline` and
+  `/procs` each register their `ca-*` elements and the `cae-*` elements they
+  render; `/adapters`, `/words`, `/core` and `/localize` register nothing.
+- Importing `@contraagent/ui` no longer configures Lit Localize or adds the
+  themes' rules to the document. `configureLocales()` (`@contraagent/ui/localize`)
+  sets up the languages and `adoptThemes(document)` (`@contraagent/elements/themes`)
+  the themes; `<ca-monitor>` calls both when it connects. On a page that
+  configured Lit Localize itself, the elements stay in English and the
+  monitor shows no language switch.
+- The Japanese text loads when a reader first chooses Japanese: the monitor
+  serves it as `ja.js` beside `app.js` (114 kB gzip, from 126 kB), and
+  `<ca-monitor>` draws its first view once it is loaded.
+- `@contraagent/ui/bundle` is minified: 128 kB gzip, from 139 kB. It keeps
+  Lit and the Japanese text in one file.
+- `custom-elements.json` of `@contraagent/elements` lists the elements' modules
+  and their `define` entries only, not the layout and model modules.
 - The monitor's colours mean a status, and only where it applies: totals, cost,
   tokens, time and the tabs' counts are in the text colour (the Tasks total is
   no longer red when a task failed), a count of a problem (failed attempts, not

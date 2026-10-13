@@ -3,7 +3,7 @@
 // The element renders; the page decides what a reader's request means. Here a
 // round picked in the transcript is simply shown.
 import { createMonitorClient } from '@contraagent/api';
-import '@contraagent/ui';
+import '@contraagent/ui/transcript';
 
 /** Where `contraagent-monitor` runs (start it with `--cors-origin <this page's origin>`). */
 const MONITOR = 'http://127.0.0.1:8787';

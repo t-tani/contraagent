@@ -149,7 +149,10 @@ parts: tokens, themes, primitives; no contraagent data) come before
 `@contraagent/ui` (the contraagent elements), which comes before `apps/monitor`
 (the page). `api` and `elements` never import each other. Within `ui`, an
 element renders what its properties give it and sends `ca-*` events
-(`core/events.ts`); only `ca-monitor` holds the store and the router. A `cae-*`
+(`core/events.ts`); only `ca-monitor` holds the store and the router. No
+module changes the page at import: the languages (`configureLocales()`) and the
+themes (`adoptThemes()`) are set up by the page or by `ca-monitor` when it
+connects. A `cae-*`
 element of `elements` takes plain data and its words (`strings`), and sends
 `cae-*` events (`core/events.ts` there).
 
@@ -163,6 +166,7 @@ element of `elements` takes plain data and its words (`strings`), and sends
 | `ui`: `adapters/` (run data → what a generic element takes: a table's columns, the lists' filters) | the above and each other; never `controllers/` or `elements/` |
 | `ui`: `controllers/` (Lit reactive controllers: a task's detail, the theme, the language, the shortcuts) | the above and each other; never `elements/` |
 | `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
+| `ui`: `define/` (one entry per subpath of a view, `define/all.ts` for `index.ts`) | the above; only `index.ts` imports it |
 | `apps/*` | the packages, through the subpaths in their `exports` |
 
 `eslint.config.js` (`no-restricted-imports`, generated from one table) and
@@ -202,7 +206,7 @@ published at least 14 days ago), in `web/`:
 pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest (every package)
 pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
-pnpm check:dist         # the built packages type-check as an npm consumer sees them, and stay within the gzip budgets in size-budgets.json
+pnpm check:dist         # the built packages type-check as an npm consumer sees them, stay within the gzip budgets in size-budgets.json, and web/consumer builds one component alone (consumer/consumer.test.mjs)
 pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload

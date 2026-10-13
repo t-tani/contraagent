@@ -16,6 +16,7 @@
 //   controllers/            never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
+//   define/                 the subpaths' entries; only index.ts imports it
 //
 //   inside @contraagent/elements   a folder imports only from itself and the ranks before it
 //   (ELEMENTS_LAYERS): core, themes, styles, primitives, the components, define
@@ -99,8 +100,8 @@ describe('package layers', () => {
       if (i.spec.startsWith('.')) return !target(i).startsWith(`packages/${dir}/`); // a relative path into another package
       if (i.spec.startsWith('node:') || i.spec.startsWith('vitest')) return false;
       if (deny?.(i.spec)) return true;
-      // Another workspace package only when this package depends on it.
-      return i.spec.startsWith('@contraagent/') && !declared.has(packageOf(i.spec));
+      // Another workspace package only when this package depends on it (a test may import its own package by name).
+      return i.spec.startsWith('@contraagent/') && packageOf(i.spec) !== m.name && !declared.has(packageOf(i.spec));
     });
     expect(bad.map(where)).toEqual([]);
   });
@@ -135,6 +136,11 @@ describe('@contraagent/ui folders', () => {
   it('core/, words/, lib/, adapters/ and controllers/ never import elements/', () => {
     const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|adapters|controllers)\//.test(f);
     const bad = imports.filter((i) => lower(i.file) && target(i).startsWith(`${UI}/elements/`));
+    expect(bad.map(where)).toEqual([]);
+  });
+
+  it('only index.ts and define/ import define/: it is the last layer', () => {
+    const bad = imports.filter((i) => target(i).startsWith(`${UI}/define/`) && i.file !== `${UI}/index.ts` && !i.file.startsWith(`${UI}/define/`));
     expect(bad.map(where)).toEqual([]);
   });
 

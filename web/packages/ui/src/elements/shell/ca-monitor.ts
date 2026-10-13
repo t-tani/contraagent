@@ -3,7 +3,7 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
-import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, type Locale } from '../../core/i18n.js';
+import { LOCALE_NAMES, allLocales, chooseLocale, configureLocales, getLocale, isLocale, type Locale } from '../../core/i18n.js';
 import { LocalMemory, flushMemory, keepMemory, memoryOf } from '../../core/memory.js';
 import { ScrollMemory } from '../../core/scroll.js';
 import type { Route, RoutePatch, Tab } from '../../core/route.js';
@@ -17,7 +17,7 @@ import { runTone, type Tone } from '../../lib/tone.js';
 import { RovingFocusController, toneAttr } from '@contraagent/elements';
 import '@contraagent/elements/segmented/define';
 import { base } from '@contraagent/elements/styles';
-import { hostThemeStyles, rememberTheme, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
+import { adoptThemes, hostThemeStyles, rememberTheme, type ThemeChoice, type ThemeName } from '@contraagent/elements/themes';
 import { rowToast, type CaToasts } from './ca-toasts.js';
 import { monitorStyles } from './styles.js';
 import { monitorTabs, moveTabIndicator, tabBar, tabId, tabStyles } from './tabs.js';
@@ -110,14 +110,26 @@ export class CaMonitor extends LitElement {
   private outsideClickOn = false;
   private navObserver: ResizeObserver | null = null;
   private navObserved: Element | null = null;
+  private readonly language: LocaleController;
+  /** Whether the elements can switch language: false when the page configured Lit Localize itself. */
+  private locales = false;
 
   constructor() {
     super();
-    new LocaleController(this, { locale: () => this.locale, pageWide: () => this.history === 'url' });
+    this.language = new LocaleController(this, { locale: () => this.locale, pageWide: () => this.history === 'url' });
     new ShortcutsController(this, (e) => this.onKey(e), () => this.shortcutScope);
   }
 
+  /** The first paint waits for the reader's language: its module loads when first chosen. */
+  protected override async scheduleUpdate(): Promise<unknown> {
+    await this.language.ready;
+    return super.scheduleUpdate();
+  }
+
   override connectedCallback(): void {
+    // Set up here, not at import: a page that only imports the package keeps its own setup.
+    this.locales = configureLocales();
+    adoptThemes(this.ownerDocument);
     super.connectedCallback();
     keepMemory(this, this.history === 'memory' ? this.localMemory : null);
     this.store = new MonitorStore({ baseUrl: this.baseUrl });
@@ -295,9 +307,11 @@ export class CaMonitor extends LitElement {
         <div class="hdr-right">
           ${nowLine(this, acts)}
           <ca-theme-switch .value=${this.themes.choice} .system=${this.themes.system}></ca-theme-switch>
-          <cae-segmented class="langs" label=${msg('Language')} .value=${getLocale()}
-            .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
-            @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>
+          ${this.locales
+            ? html`<cae-segmented class="langs" label=${msg('Language')} .value=${getLocale()}
+                .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
+                @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>`
+            : nothing}
           ${connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
