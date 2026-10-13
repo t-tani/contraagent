@@ -41,6 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Postgres), and serves the monitor over them. Ingest takes per-host tokens; the monitor
   takes a read token (`/login`). The wire is `contraagent/hub/openapi.json`; see the
   documentation topic "Many hosts: the hub".
+- Hub retention: `contraagent hub --retain-days N` (or `CONTRAAGENT_RETENTION_DAYS`)
+  removes runs with no activity for N days, with their records, transcripts and file
+  references, on a schedule (`--prune-every`); live runs, runs whose host stopped
+  reporting and runs with no activity time are kept. Blobs no run references go after a
+  grace period. `contraagent hub prune [--dry-run]` prunes once.
+- `GET /healthz` on the hub: 200 when its record, blob and transcript stores answer, 503
+  naming the ones that do not.
+- A deployable hub in `docs/examples/hub/`: a `Dockerfile`, a `compose.yaml` with
+  Postgres and MinIO, `make-tokens`, and a systemd unit for the relay; the documentation
+  topic "Operating a hub" covers setup, tokens, retention, backups, upgrades and
+  troubleshooting.
 - The monitor's transcript feed wakes when a transcript grows instead of every second,
   sends each message with its line number as the event id, and resumes from
   `Last-Event-ID` or `?from=` with no gap and no duplicate.

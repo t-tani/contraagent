@@ -60,19 +60,33 @@ once and retries every minute: the token or `--host-id` is wrong.
 
 ## Retention
 
-`contraagent hub --retain-days N` (in compose, `CONTRAAGENT_RETENTION_DAYS` in `.env`)
-removes runs whose last activity is older than N days, with everything the hub holds of
-them: records, transcripts (open segments, sealed segments, their index) and file
-references. It never removes a run that is live, a run whose host stopped reporting
-while it ran (the record of what happened), or a run with no activity time. File
-contents (blobs) no run references are removed a day after they were stored. Hosts not
-seen for N days lose their heartbeat. Without `--retain-days` the hub keeps everything.
+`contraagent hub --retain-days N` (default: `CONTRAAGENT_RETENTION_DAYS`; in compose,
+that variable in `.env`, 30 when unset, every run kept when empty) removes runs whose
+last activity is older than N days, with everything the hub holds of them: records,
+transcripts (open segments, sealed segments, their index) and file references. It never
+removes a run that is live, a run whose host stopped reporting while it ran (the record
+of what happened), or a run with no activity time. File contents (blobs) no run
+references are removed a day after they were stored. Hosts not seen for N days lose
+their heartbeat. Without a retention the hub keeps everything.
 
-The hub prunes on a schedule of its own (`--prune-every`). To see what a prune would
-remove, or to prune by hand while no hub prunes the same storage:
+The hub prunes five minutes after it starts and then every `--prune-every` hours (24, or
+1 for a retention under 7 days), and logs one line per round:
 
 ```
-docker compose run --rm hub prune --retain-days 30 --dry-run
+prune cutoff=<time> | removed runs=N transcripts=N segments=N blobs=N blob_bytes=N heartbeats=N | kept runs: live=N unresponsive=N no-activity=N | kept heartbeats=N | swept segments=N
+```
+
+`contraagent hub prune` prunes once, with the same storage options as the hub.
+`--dry-run` lists what it would remove and removes nothing, so it is safe beside a
+running hub; without it, run it only while no hub with a retention uses the same
+storage. In compose, give it the hub's storage options:
+
+```
+docker compose run --rm hub prune --retain-days 30 --dry-run \
+  --store=postgresql://contraagent@postgres:5432/contraagent \
+  --blobs='s3://contraagent/blobs?endpoint=http://minio:9000&region=us-east-1' \
+  --streams-dir=/data/streams \
+  --segments='s3://contraagent/segments?endpoint=http://minio:9000&region=us-east-1'
 ```
 
 ## Back up and restore
