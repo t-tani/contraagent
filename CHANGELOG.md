@@ -256,6 +256,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Task counts agree everywhere: done counts tasks done and done after retrying;
+  skipped tasks are counted on their own. The pipeline graph's nodes, the
+  overview's progress line and the run's result counted skipped tasks as done;
+  the run list and the tasks figure now show the skipped count too.
+- A task that did not start for an input and then ran is done, not done after
+  retrying: a refusal is not a failed attempt.
+- History and the timeline name why a task did not start as the tasks list
+  does (`<ca-journal-table>` and `<ca-timeline>` take the run's `plan`).
+  `@contraagent/api` derives the tasks, their counts and their problems once
+  per state, in `deriveRun(journal, plan)`; `outcomeOf`, `planOutcome`,
+  `isFinished`, `progress`, `result`, `tryCounts` and `elapsedS` are exported
+  from it.
 - The pipeline's table and a loop's passes are drawn in the graph's frame, which
   keeps its height; a "Graph | Table" switch stays at one place in every view; a
   table row shows its node's status in one column and is selected as a node is;
@@ -307,7 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same count as the header and the overview: a task that never ran (waiting,
   not started, not run) is a row with its status and cause, and the passes of a
   loop over one unit are a row each, with their pass. It listed one row per kind
-  and unit, from the journal only. `@contraagent/api` adds `taskRows` and
+  and unit, from the journal only. `@contraagent/api` adds `deriveRun` and
   `loopPass`; `<ca-task-table>` and `<ca-definitions>` take the run's `journal`
   and `plan` in place of `tasks`.
 - A refused task's reason names the task whose output it was missing.
@@ -531,7 +543,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/api/runs/<run>/tasks`, `TaskRollup`, the feed's `tasks` event and
   `RunState.tasks`. It made two passes of one task (`review-gamma`,
   `review-gamma~2`) one row and left out tasks with no journal row. A task is one
-  task key everywhere: `taskRows(journal, plan)` in `@contraagent/api`, and
+  task key everywhere: `deriveRun(journal, plan).rows` in `@contraagent/api`, and
   `latestTask(rows)` picks the task the monitor opens by default (in place of
   `latestSlot`). `/api/runs/<run>/task/<key>` and `Monitor.task_detail(run, key)`
   take a task key only, not a `<kind>-<unit>` slot; the `task_detail` callback is

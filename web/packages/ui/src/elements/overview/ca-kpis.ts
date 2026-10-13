@@ -1,4 +1,4 @@
-import { outcomeCounts, spendByKind, spendOf, taskOutcomes, totalTokens, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, spendByKind, spendOf, totalTokens, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -120,12 +120,11 @@ export class CaKpis extends LitElement {
 
   private tiles(): Tile[] {
     const k = kpis(this.journal);
-    const outcomes = taskOutcomes(this.journal, this.plan);
-    const c = outcomeCounts(outcomes);
-    const done = c.done + c.recovered;
+    const { outcomes, counts: c } = deriveRun(this.journal, this.plan);
     // The total is neutral; the parts that are problems carry their own status.
     const parts: Fact[] = [
-      { text: stateCount('done', done), tone: '' },
+      { text: stateCount('done', c.doneTotal), tone: '' },
+      { text: c.skipped ? stateCount('skipped', c.skipped) : '', tone: '' },
       { text: c.failed ? stateCount('failed', c.failed) : '', tone: problemTone(c.failed, 'failed') },
       { text: c.not_started ? stateCount('not_started', c.not_started) : '', tone: problemTone(c.not_started, 'attention') },
     ];

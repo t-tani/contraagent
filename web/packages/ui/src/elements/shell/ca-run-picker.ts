@@ -1,4 +1,4 @@
-import type { RunSummary } from '@contraagent/api';
+import { elapsedS, type RunSummary } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -8,7 +8,6 @@ import { stateCount } from '../../lib/labels.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
 import { runTone } from '../../lib/tone.js';
 import { base } from '../../styles/base.js';
-import { elapsedS } from '../overview/logic.js';
 
 const took = (r: RunSummary) => elapsedS(r);
 
@@ -134,6 +133,7 @@ export class CaRunPicker extends LitElement {
     const parts = [msg(str`${t.done} of ${t.total} tasks done`)];
     if (t.failed) parts.push(stateCount('failed', t.failed));
     if (t.not_started) parts.push(stateCount('not_started', t.not_started));
+    if (t.skipped) parts.push(stateCount('skipped', t.skipped));
     if (t.running) parts.push(stateCount('running', t.running));
     if (t.waiting) parts.push(stateCount('waiting', t.waiting));
     const s = took(r);

@@ -1,4 +1,4 @@
-import { isBad, isLaunched, isPython, rowId, taskOutcomes, type JournalRow, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, isBad, isLaunched, isPython, rowId, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -74,6 +74,8 @@ export class CaJournalTable extends LitElement {
   ];
 
   @property({ attribute: false }) rows: JournalRow[] = [];
+  /** The run's plan: with the rows, why a task did not start, as the tasks list says it. Optional. */
+  @property({ attribute: false }) plan: Plan | null = null;
   /** Rows (by `rowId`) that just arrived: they flash once. */
   @property({ attribute: false }) fresh: ReadonlySet<string> = new Set();
   @property() kind = '';
@@ -83,11 +85,11 @@ export class CaJournalTable extends LitElement {
   /** The run id: paths inside the run directory are shown relative to it. */
   @property() run = '';
 
-  /** What happened to each task, from the journal alone: a refused row names its cause in words. */
-  private outcomes = new Map<string, TaskOutcome>();
+  /** What happened to each task (`deriveRun`): a refused row names its cause in words. */
+  private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
 
   override render() {
-    this.outcomes = taskOutcomes(this.rows, { nodes: [], groups: [] });
+    this.outcomes = deriveRun(this.rows, this.plan).outcomes;
     const rows = filterJournal(this.rows, this.kind, this.stop, this.q).reverse();
     const maxWall = Math.max(1, ...rows.map((e) => e.wall_s || 0));
     const facts = attemptFacts(this.rows);

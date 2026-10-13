@@ -2,8 +2,8 @@ import type { JournalRow, Plan, PlanNode } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import type { FlowCallNode, FlowFrame, FlowPlanNode } from './flow-types.js';
 import {
-  alongEdge, asBar, autoLayer, barBox, barParts, edgePath, elapsedS, fitView, gridStep, isPoint, kpis, layerGraph, layoutGraph, markGrid, parentLayer, passMatrix,
-  progress, result, sortRows, splitLayer, timeline, tryCounts, worstState, zoomView,
+  alongEdge, asBar, autoLayer, barBox, barParts, edgePath, fitView, gridStep, isPoint, kpis, layerGraph, layoutGraph, markGrid, parentLayer, passMatrix,
+  sortRows, splitLayer, timeline, worstState, zoomView,
   RETURN_BAND, layerCounts, markSel, resolveLayer, returnPath, selected,
   type GraphLayout, type LayerGraph, type LoopReturn, type Size,
 } from './logic.js';
@@ -16,15 +16,6 @@ const group = (id: string, counts: Partial<Plan['groups'][number]> = {}): Plan['
 });
 const row = (key: string, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '2026-10-11T10:00:00Z', key, kind: 'k', stop: 'completed', ok: true, ...extra,
-});
-
-describe('progress', () => {
-  it('counts done and skipped as finished', () => {
-    expect(progress({ nodes: [], groups: [group('a', { total: 4, done: 1, skipped: 1 }), group('b', { total: 4 })] })).toEqual({
-      total: 8, done: 2, pct: 25,
-    });
-    expect(progress({ nodes: [], groups: [] }).pct).toBe(0);
-  });
 });
 
 describe('kpis', () => {
@@ -41,22 +32,6 @@ describe('kpis', () => {
       retries: 1, retriedTasks: 1, fixups: 2, fixupTasks: 1, switches: 1, switchTasks: 1,
       retriedKeys: ['c'], fixupKeys: ['c'],
     });
-  });
-
-  it('counts tries and tasks that never started the one way the UI shows them', () => {
-    expect(tryCounts([row('a'), row('b', { stop: 'invalid_input', ok: false }), row('c', { stop: 'error', ok: false })])).toEqual({ tries: 2, notStarted: 1 });
-  });
-});
-
-describe('run result', () => {
-  it('counts how the scheduled tasks ended', () => {
-    const plan = { nodes: [node('a', 'u', 'g', 'done'), node('b', 'u', 'h', 'failed'), node('c', 'u', 'i', 'blocked'), node('d', 'v', 'g', 'pending')], groups: [] };
-    expect(result(plan)).toEqual({ done: 1, failed: 1, notStarted: 1, left: 1 });
-  });
-
-  it('measures a run from its start to its last activity', () => {
-    expect(elapsedS({ started_at: '2026-10-11T10:00:00Z', last_ts: '2026-10-11T10:00:07Z' })).toBe(7);
-    expect(elapsedS({ started_at: '', last_ts: '2026-10-11T10:00:07Z' })).toBeNull();
   });
 });
 

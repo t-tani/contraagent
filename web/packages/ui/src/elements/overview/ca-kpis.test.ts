@@ -37,6 +37,19 @@ describe('ca-kpis colours', () => {
     expect(tone(t.get('notstarted'))).toEqual([]);
   });
 
+  it('counts done and done after retrying as done; skipped apart; a refusal then done is done', async () => {
+    const t = await tiles([
+      row('prepare-a', 'completed'),
+      row('prepare-b', 'error'),
+      row('prepare-b', 'completed', { attempt: 1 }),
+      row('prepare-c', 'invalid_input'),
+      row('prepare-c', 'completed', { attempt: 1 }),
+      row('prepare-d', 'skipped'),
+    ]);
+    expect(t.get('tasks')!.textContent).toContain('3 done');
+    expect(t.get('tasks')!.textContent).toContain('1 skipped');
+  });
+
   it('marks tasks not started as attention', async () => {
     const t = await tiles([row('prepare-a', 'completed'), row('summarize-a', 'invalid_input', { reason: 'input x.json is missing' })]);
     expect(tone(t.get('notstarted'))).toEqual(['attention']);

@@ -1,4 +1,4 @@
-import { taskOutcomes, type JournalRow, type Plan, type PlanNode } from '@contraagent/api';
+import { deriveRun, type JournalRow, type Plan, type PlanNode } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import {
   attemptLabel,
@@ -13,7 +13,6 @@ import {
   planStateLabel,
   runRelative,
   stopLabel,
-  taskState,
 } from './labels.js';
 
 const row = (over: Partial<JournalRow>): JournalRow =>
@@ -65,18 +64,7 @@ describe('labels', () => {
   it('tells a waiting task from one that did not start', () => {
     expect(planStateLabel('pending')).toBe('waiting');
     expect(planStateLabel('blocked')).toBe('not started');
-    // From the run: no attempt, waiting in the plan or behind a failed task.
-    const plan: Plan = {
-      nodes: [node({ key: 'a', state: 'failed' }), node({ key: 'b', state: 'blocked', after: ['a'] }), node({ key: 'c', state: 'pending' })],
-      groups: [],
-    };
-    const outcomes = taskOutcomes([row({ key: 'a', ok: false, stop: 'error' })], plan);
-    expect(taskState([], outcomes.get('b'))).toBe('not_started');
-    expect(taskState([], outcomes.get('c'))).toBe('waiting');
-    // From its own rows when the plan does not list it.
-    expect(taskState([])).toBe('waiting');
-    expect(taskState([row({ stop: 'invalid_input', ok: false })])).toBe('not_started');
-    expect(taskState([row({ stop: 'error', ok: false }), row({ attempt: 1 })])).toBe('recovered');
+    expect(planStateLabel('done')).toBe('done');
   });
 });
 
@@ -145,7 +133,7 @@ describe('input causes', () => {
       ],
       groups: [],
     };
-    const o = taskOutcomes(journal, plan);
+    const o = deriveRun(journal, plan).outcomes;
     expect(notStartedCause(o.get('python:report')!, o, 'docs')).toBe('input out/review/zeta.json is missing because review · zeta failed');
     expect(notStartedCause(o.get('summary')!, o, 'docs')).toBe('earlier task review · zeta failed');
   });

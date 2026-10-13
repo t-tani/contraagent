@@ -1,4 +1,4 @@
-import { isLaunched, liveActivities, taskOutcomes, type JournalRow, type Procs } from '@contraagent/api';
+import { deriveRun, isLaunched, liveActivities, type JournalRow, type Plan, type Procs } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -58,6 +58,8 @@ export class CaTimeline extends LitElement {
   ];
 
   @property({ attribute: false }) journal: JournalRow[] = [];
+  /** The run's plan: with the journal, why a task did not start, as the tasks list says it. Optional. */
+  @property({ attribute: false }) plan: Plan | null = null;
   @property({ attribute: false }) procs: Procs | null = null;
   /** The run is live: its running tasks are drawn, growing every second. */
   @property({ type: Boolean }) live = false;
@@ -102,7 +104,7 @@ export class CaTimeline extends LitElement {
         : msg('No finished attempts')}</div>`;
     const animate = this.drawnRun !== this.run;
     this.drawnRun = this.run;
-    const outcomes = taskOutcomes(this.journal, { nodes: [], groups: [] });
+    const { outcomes } = deriveRun(this.journal, this.plan);
     const tip = (lane: string, b: TimelineBar) => {
       const e = b.row;
       if (!e) return `${lane}\n${msg('running')}`;

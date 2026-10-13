@@ -2,11 +2,11 @@
 // fail, never start, or fail and then recover; and for a problem, which task
 // caused it. Folded from the journal (finished attempts) and the plan (every
 // queued task and what it waits for). Pure.
-import type { JournalRow, Plan, PlanNode } from './types.js';
+import type { JournalRow, Plan, PlanNode, TaskState } from './types.js';
 
 /**
  * - `done`: its last attempt completed, first time.
- * - `recovered`: it failed at least once, then its last attempt completed.
+ * - `recovered`: a try that ran failed at least once, then its last attempt completed.
  * - `failed`: it ran and its last attempt failed.
  * - `not_started`: it never ran: an input was missing or off-contract, or it waits behind a task that failed.
  * - `running`, `waiting` (queued, not started yet), `skipped`.
@@ -36,15 +36,38 @@ const isOk = (r: JournalRow) => r.ok;
  */
 export const isLaunched = (r: JournalRow): boolean => r.stop !== 'invalid_input' && r.stop !== 'skipped';
 
-function outcomeOf(node: PlanNode | undefined, attempts: JournalRow[]): Outcome {
+/**
+ * A task's outcome from its plan node (if any) and its journal rows, oldest
+ * first. `recovered` needs a try that ran and failed: a refusal before launch
+ * (`invalid_input`) is not a failed attempt, so "not started, then done" is `done`.
+ */
+export function outcomeOf(node: Pick<PlanNode, 'state'> | undefined, attempts: readonly JournalRow[]): Outcome {
   if (node?.state === 'running') return 'running';
   const last = attempts[attempts.length - 1];
   if (!last) return node?.state === 'blocked' ? 'not_started' : 'waiting';
   if (last.stop === 'skipped') return 'skipped';
   if (last.stop === 'invalid_input') return 'not_started';
-  if (isOk(last)) return attempts.some((a) => !isOk(a)) ? 'recovered' : 'done';
+  if (isOk(last)) return attempts.some((a) => isLaunched(a) && !isOk(a)) ? 'recovered' : 'done';
   return 'failed';
 }
+
+/**
+ * A plan node's state as an outcome: `blocked` is `not_started` and `pending`
+ * is `waiting`. Plan state `done` covers both `done` and `recovered`.
+ */
+export function planOutcome(state: TaskState): Outcome {
+  switch (state) {
+    case 'blocked':
+      return 'not_started';
+    case 'pending':
+      return 'waiting';
+    default:
+      return state;
+  }
+}
+
+/** Nothing is left to do for the task: done, done after retrying, or skipped. */
+export const isFinished = (o: Outcome): boolean => o === 'done' || o === 'recovered' || o === 'skipped';
 
 /** Every task of the run (from the plan, and from the journal for tasks the plan does not list), by key. */
 export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<string, TaskOutcome> {
@@ -97,12 +120,22 @@ export interface Problem {
   stopped: TaskOutcome[];
 }
 
+export interface Problems {
+  /** Failed tasks, the latest first, each with the tasks it stopped. */
+  failed: Problem[];
+  /** Tasks that did not start for a reason of their own. */
+  notStarted: TaskOutcome[];
+  /** Tasks done after retrying. */
+  recovered: TaskOutcome[];
+}
+
 /**
  * What is wrong with the run, causes first: each failed task with the tasks
  * it stopped, then tasks that did not start for a reason of their own (an
- * input that was never produced by a task). Tasks that recovered are not problems.
+ * input that was never produced by a task). Tasks that recovered are not
+ * problems: they are listed apart, after them.
  */
-export function problems(outcomes: ReadonlyMap<string, TaskOutcome>): { failed: Problem[]; notStarted: TaskOutcome[] } {
+export function problems(outcomes: ReadonlyMap<string, TaskOutcome>): Problems {
   const failed = new Map<string, Problem>();
   for (const t of outcomes.values()) if (t.outcome === 'failed') failed.set(t.key, { task: t, stopped: [] });
   const notStarted: TaskOutcome[] = [];
@@ -116,6 +149,7 @@ export function problems(outcomes: ReadonlyMap<string, TaskOutcome>): { failed: 
   return {
     failed: [...failed.values()].sort((a, b) => lastTs(b.task).localeCompare(lastTs(a.task))),
     notStarted,
+    recovered: [...outcomes.values()].filter((t) => t.outcome === 'recovered'),
   };
 }
 
@@ -158,16 +192,12 @@ export function loopPass(node: Pick<PlanNode, 'flow'> | undefined): number | nul
   return null;
 }
 
-const FINISHED: ReadonlySet<Outcome> = new Set(['done', 'recovered', 'skipped']);
-
 /**
- * Every task of the run, one row each: the plan joined with the journal
- * (`taskOutcomes`), so a task that never ran (waiting, not started) is a row
- * too. The count of rows is `outcomeCounts(...).total`, the number every view
- * shows. In plan order.
+ * Every task of the run, one row each, from its outcomes (`taskOutcomes`): the
+ * plan joined with the journal, so a task that never ran (waiting, not started)
+ * is a row too. In plan order. Views read them from `deriveRun(...).rows`.
  */
-export function taskRows(journal: readonly JournalRow[], plan: Plan): TaskRow[] {
-  const outcomes = taskOutcomes(journal, plan);
+export function taskRows(outcomes: ReadonlyMap<string, TaskOutcome>, plan: Plan): TaskRow[] {
   const nodes = new Map(plan.nodes.map((n) => [n.key, n]));
   return [...outcomes.values()].map((t) => {
     const last = t.attempts[t.attempts.length - 1];
@@ -179,7 +209,7 @@ export function taskRows(journal: readonly JournalRow[], plan: Plan): TaskRow[] 
       last_ts: last?.ts ?? '',
       last_stop: last?.stop ?? '',
       waits_for:
-        t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !FINISHED.has(outcomes.get(d)?.outcome ?? 'waiting')) : [],
+        t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !isFinished(outcomes.get(d)?.outcome ?? 'waiting')) : [],
     };
   });
 }

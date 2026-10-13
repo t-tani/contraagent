@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { latestTask, loopPass, outcomeCounts, problems, taskOutcomes, taskRows } from './outcomes.js';
+import { isFinished, latestTask, loopPass, outcomeCounts, outcomeOf, planOutcome, problems, taskOutcomes, taskRows } from './outcomes.js';
 import type { JournalRow, Plan, PlanNode } from './types.js';
 
 const row = (key: string, stop: string, attempt = 0): JournalRow => ({
@@ -32,6 +32,39 @@ const journal = [
   row('note-x', 'invalid_input'),
 ];
 
+describe('outcomeOf', () => {
+  it('a refusal is not a failed attempt: not started, then done, is done', () => {
+    expect(outcomeOf({ state: 'done' }, [row('a', 'invalid_input', 0), row('a', 'completed', 1)])).toBe('done');
+  });
+
+  it('a try that ran and failed, then done, is done after retrying', () => {
+    expect(outcomeOf({ state: 'done' }, [row('a', 'error', 0), row('a', 'completed', 1)])).toBe('recovered');
+    expect(outcomeOf({ state: 'done' }, [row('a', 'invalid_input', 0), row('a', 'timeout', 1), row('a', 'completed', 2)])).toBe('recovered');
+  });
+
+  it('without rows, the plan state decides', () => {
+    expect(outcomeOf(undefined, [])).toBe('waiting');
+    expect(outcomeOf({ state: 'blocked' }, [])).toBe('not_started');
+    expect(outcomeOf({ state: 'running' }, [row('a', 'error')])).toBe('running');
+    expect(outcomeOf(undefined, [row('a', 'skipped')])).toBe('skipped');
+  });
+});
+
+describe('planOutcome', () => {
+  it('names a plan state as an outcome', () => {
+    expect(planOutcome('blocked')).toBe('not_started');
+    expect(planOutcome('pending')).toBe('waiting');
+    expect(planOutcome('done')).toBe('done');
+    expect(planOutcome('skipped')).toBe('skipped');
+  });
+
+  it('finished: done, done after retrying, skipped', () => {
+    expect((['done', 'recovered', 'skipped', 'failed', 'not_started', 'running', 'waiting'] as const).filter(isFinished)).toEqual([
+      'done', 'recovered', 'skipped',
+    ]);
+  });
+});
+
 describe('taskOutcomes', () => {
   const o = taskOutcomes(journal, plan);
 
@@ -56,6 +89,7 @@ describe('taskOutcomes', () => {
     const p = problems(o);
     expect(p.failed.map((x) => [x.task.key, x.stopped.map((s) => s.key)])).toEqual([['prepare-z', ['summarize-z', 'review-z']]]);
     expect(p.notStarted.map((t) => t.key)).toEqual(['note-x']);
+    expect(p.recovered.map((t) => t.key)).toEqual(['review-g']);
   });
 
   it('counts tasks, not attempts', () => {
@@ -65,7 +99,7 @@ describe('taskOutcomes', () => {
 
 describe('taskRows', () => {
   it('one row per task of the plan, a task that never ran included: as many as outcomeCounts counts', () => {
-    const rows = taskRows(journal, plan);
+    const rows = taskRows(taskOutcomes(journal, plan), plan);
     expect(rows.map((t) => t.key)).toEqual(plan.nodes.map((n) => n.key));
     expect(rows).toHaveLength(outcomeCounts(taskOutcomes(journal, plan)).total);
     const w = rows.find((t) => t.key === 'write-a');
@@ -86,7 +120,7 @@ describe('taskRows', () => {
       groups: [],
     };
     const j = [{ ...row('review-g', 'completed'), unit: 'g', wall_s: 2 }, { ...row('fix-g', 'completed'), wall_s: 1.5 }];
-    const rows = taskRows(j, p);
+    const rows = taskRows(taskOutcomes(j, p), p);
     expect(rows.map((t) => [t.key, t.unit, t.pass, t.outcome])).toEqual([
       ['review-g', 'g', 1, 'done'],
       ['fix-g', 'g', 1, 'done'],
@@ -113,9 +147,9 @@ describe('taskRows', () => {
       groups: [],
     };
     const j = [at('review-g', '1'), at('review-g~2', '3'), at('prep-g', '9', 'python')];
-    expect(latestTask(taskRows(j, p))).toBe('review-g~2');
+    expect(latestTask(taskRows(taskOutcomes(j, p), p))).toBe('review-g~2');
     const live: Plan = { ...p, nodes: p.nodes.map((n) => (n.key === 'review-g' ? { ...n, state: 'running' as const } : n)) };
-    expect(latestTask(taskRows(j, live))).toBe('review-g');
-    expect(latestTask(taskRows([], p))).toBeNull();
+    expect(latestTask(taskRows(taskOutcomes(j, live), live))).toBe('review-g');
+    expect(latestTask(taskRows(taskOutcomes([], p), p))).toBeNull();
   });
 });

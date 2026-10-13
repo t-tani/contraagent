@@ -1,4 +1,4 @@
-import { isLaunched, taskOutcomes, type JournalRow, type Plan, type PlanNode, type TaskState } from '@contraagent/api';
+import { deriveRun, isLaunched, planOutcome, type JournalRow, type Plan, type PlanNode, type TaskState } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
@@ -6,7 +6,7 @@ import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
-import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, planStateLabel, stateCount } from '../../lib/labels.js';
+import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, statusLabel } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import { PAD, placeCard, type Box } from './place-card.js';
 import {
@@ -1029,7 +1029,7 @@ export class CaPipelineGraph extends LitElement {
     if (!this.plan.nodes.length) {
       return html`<div class="blank" style="padding:24px">${this.live ? msg('No tasks scheduled yet') : msg('No tasks scheduled')}</div>`;
     }
-    const outcomes = taskOutcomes(this.journal, this.plan);
+    const { outcomes } = deriveRun(this.journal, this.plan);
     const causeOf = (key: string) => {
       const t = outcomes.get(key);
       return t ? notStartedCause(t, outcomes, this.run) : '';
@@ -1172,8 +1172,8 @@ export class CaPipelineGraph extends LitElement {
 
   private node(n: GraphNode, parent: Rect | null, causeOf: (key: string) => string, on: Set<string> | null) {
     const c = n.counts;
-    const fin = c.done + c.skipped;
-    const look = c.failed || n.errors ? 'fail' : c.running ? 'cur' : fin === c.total ? 'done' : '';
+    // Finished (done and skipped) only sets the frame's look; the count is of the tasks done.
+    const look = c.failed || n.errors ? 'fail' : c.running ? 'cur' : c.done + c.skipped === c.total ? 'done' : '';
     const bar = asBar(n);
     const group: MarkGroup = bar
       ? { id: n.id, label: n.label, slots: slotsOf(n).filter((m): m is GraphMark => m?.state === 'failed'), grid: { cols: BAR_LIST, size: 12, gap: 4 } }
@@ -1190,7 +1190,7 @@ export class CaPipelineGraph extends LitElement {
       <div class="hd">
         <span class="nm">${icons}<button type="button" class="name" title=${tip} aria-pressed=${on_}
           @focus=${() => this.focusSelect(n.id)} @keydown=${(e: KeyboardEvent) => this.onNameKey(e, n.id)}>${n.label}</button></span>
-        <span class="right"><span class="count" aria-hidden="true" title=${this.doneOf(c)}>${fin}/${c.total}</span>${n.type === 'flow'
+        <span class="right"><span class="count" aria-hidden="true" title=${this.doneOf(c)}>${c.done}/${c.total}</span>${n.type === 'flow'
           ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
           : nothing}</span>
       </div>
@@ -1460,19 +1460,19 @@ export class CaPipelineGraph extends LitElement {
     return facts(...LEGEND.filter((s) => c[s]).map((s) => this.countOf(s, c[s])));
   }
 
-  /** How many tasks finished: "5 of 6 tasks done". */
+  /** How many tasks are done (plan state done: done, and done after retrying): "5 of 6 tasks done". Skipped tasks are counted apart. */
   private doneOf(c: NodeCounts): string {
-    return msg(str`${c.done + c.skipped} of ${c.total} tasks done`);
+    return msg(str`${c.done} of ${c.total} tasks done`);
   }
 
   /** The tasks that are not done, by state, most severe first: "1 failed", "1 not started". */
   private notDone(c: NodeCounts): string[] {
-    return (['failed', 'blocked', 'running', 'pending'] as const).filter((s) => c[s]).map((s) => this.countOf(s, c[s]));
+    return (['failed', 'blocked', 'running', 'pending', 'skipped'] as const).filter((s) => c[s]).map((s) => this.countOf(s, c[s]));
   }
 
   /** A pending task waits while the run runs; once the run is over, it did not run. */
   private stateWord(s: TaskState): string {
-    return s === 'pending' && !this.live ? msg('not run') : planStateLabel(s);
+    return statusLabel(planOutcome(s), this.live);
   }
 
   /** Where a loop is: `flow.py:130` (the file's name and the loop's first line), or `line 130` when the file is not known. */
@@ -1483,14 +1483,8 @@ export class CaPipelineGraph extends LitElement {
 
   /** How many marks are in a state, number first: "3 failed". */
   private countOf(s: TaskState, n: number): string {
-    switch (s) {
-      case 'blocked':
-        return stateCount('not_started', n);
-      case 'pending':
-        return stateCount(this.live ? 'waiting' : 'not_run', n);
-      default:
-        return stateCount(s, n);
-    }
+    const o = planOutcome(s);
+    return stateCount(o === 'waiting' && !this.live ? 'not_run' : o, n);
   }
 
   /** What a node needs a word for: its tasks that are not done, by state, and its flow calls that stopped with an error. */
@@ -1502,6 +1496,7 @@ export class CaPipelineGraph extends LitElement {
     if (c.blocked) out.push(['warn', this.countOf('blocked', c.blocked)]);
     if (c.running) out.push(['live', this.countOf('running', c.running)]);
     if (c.pending) out.push(['mut', this.countOf('pending', c.pending)]);
+    if (c.skipped) out.push(['mut', this.countOf('skipped', c.skipped)]);
     return out;
   }
 
@@ -1789,7 +1784,7 @@ export class CaPipelineGraph extends LitElement {
   private statusLine(n: GraphNode) {
     const c = n.counts;
     const sep = html`<span class="sep" aria-hidden="true"> | </span>`;
-    return html`<span class="n" aria-hidden="true" title=${this.doneOf(c)}>${c.done + c.skipped}/${c.total}</span><span class="sr">${this.doneOf(c)}</span>${this.exceptions(
+    return html`<span class="n" aria-hidden="true" title=${this.doneOf(c)}>${c.done}/${c.total}</span><span class="sr">${this.doneOf(c)}</span>${this.exceptions(
       n,
     ).map(([cls, t]) => html`${sep}<span class=${cls}>${t}</span>`)}`;
   }

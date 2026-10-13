@@ -1,4 +1,4 @@
-import { addRow, emptySpend, isPython, taskRows, type JournalRow, type Plan, type Spend, type TaskOutcome, type TaskRow } from '@contraagent/api';
+import { addRow, deriveRun, emptySpend, isPython, type JournalRow, type Plan, type Spend, type TaskOutcome, type TaskRow } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -10,7 +10,7 @@ import { base } from '../../styles/base.js';
 import { filterTasks, sortTasks } from './filters.js';
 
 /**
- * Every task of the run, one row each (`taskRows`: the plan joined with the
+ * Every task of the run, one row each (`deriveRun(...).rows`: the plan joined with the
  * journal, so a task that never ran is a row too): what happened to it, its
  * attempts, time, tokens and cost. A row opens the task's detail (`ca-open-task`).
  *
@@ -72,11 +72,12 @@ export class CaTaskTable extends LitElement {
   }
 
   override render() {
-    const all = this.plan ? taskRows(this.journal, this.plan) : [];
+    const d = this.plan ? deriveRun(this.journal, this.plan) : null;
+    const all = d?.rows ?? [];
     const rows = sortTasks(filterTasks(all, this.kind, this.q));
     if (!rows.length)
       return html`<div class="blank"><span class="ic" aria-hidden="true">≡</span>${all.length ? msg('No tasks match the filter') : msg('No tasks')}</div>`;
-    const outcomes = new Map<string, TaskOutcome>(all.map((t) => [t.key, t]));
+    const outcomes: ReadonlyMap<string, TaskOutcome> = d?.outcomes ?? new Map();
     // A kind and unit with more than one task (a loop's passes): each row names its pass.
     const per = new Map<string, number>();
     for (const t of all) per.set(`${t.kind}|${t.unit}`, (per.get(`${t.kind}|${t.unit}`) ?? 0) + 1);

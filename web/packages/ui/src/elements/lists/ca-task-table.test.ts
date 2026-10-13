@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // The tasks list: one row per task of the plan, a task that never ran included.
 import type { JournalRow, Plan, PlanNode } from '@contraagent/api';
-import { outcomeCounts, taskOutcomes } from '@contraagent/api';
+import { deriveRun } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import './ca-task-table.js';
 import type { CaTaskTable } from './ca-task-table.js';
@@ -41,7 +41,7 @@ const text = (e: Element | null | undefined) => (e?.textContent ?? '').replace(/
 describe('ca-task-table', () => {
   it('lists every task of the plan, as many as the run counts', async () => {
     const { rows, el } = await table({});
-    expect(rows).toHaveLength(outcomeCounts(taskOutcomes(journal, plan)).total);
+    expect(rows).toHaveLength(deriveRun(journal, plan).counts.total);
     expect(rows).toHaveLength(5);
     el.remove();
   });
