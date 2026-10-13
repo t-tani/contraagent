@@ -102,6 +102,27 @@ describe('ca-monitor', () => {
     el.remove();
   });
 
+  it('marks its tabs as a tab list: one selected, one tab stop, the arrow keys move between them', async () => {
+    const el = await monitor();
+    const list = root(el).querySelector('[role="tablist"]')!;
+    expect(list.getAttribute('aria-label')).toBe('Views');
+    const tabs = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
+    expect(tabs.map((t) => t.getAttribute('aria-selected'))).toEqual(tabs.map((_, i) => String(i === 0)));
+    expect(tabs.map((t) => t.tabIndex)).toEqual(tabs.map((_, i) => (i === 0 ? 0 : -1)));
+    const main = root(el).querySelector('main')!;
+    expect(main.getAttribute('role')).toBe('tabpanel');
+    expect(main.getAttribute('aria-labelledby')).toBe(tabs[0]!.id);
+    expect(tabs[0]!.getAttribute('aria-controls')).toBe(main.id);
+    // ArrowLeft from the first tab wraps to the last (the custom view).
+    tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, composed: true }));
+    expect(tabs.at(-1)!.tabIndex).toBe(0);
+    tabs.at(-1)!.click();
+    await el.updateComplete;
+    expect(tabs.at(-1)!.getAttribute('aria-selected')).toBe('true');
+    expect(main.getAttribute('aria-labelledby')).toBe(tabs.at(-1)!.id);
+    el.remove();
+  });
+
   it('shows its theme and its language on itself', async () => {
     const el = await monitor();
     expect(el.getAttribute('data-ca-theme')).toBe(el.shownTheme);

@@ -57,7 +57,8 @@ unit names, stop values such as `completed`, model and role names).
 | items (length of a list) | 要素 N 個 |
 
 Tabs: overview 概要, tasks タスク, journal 実行履歴, outputs 出力, definitions
-定義, processes プロセス, stream タスク詳細.
+定義, processes プロセス, stream タスク詳細. The tab list as a whole (its
+label for a screen reader, "Views"): ビュー.
 
 ## Words the UI shows for run data
 

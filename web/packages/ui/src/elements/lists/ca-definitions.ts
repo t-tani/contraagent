@@ -1,6 +1,6 @@
 import { deriveRun, isPython, type JournalRow, type MonitorClient, type Plan, type TaskDefinition, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
-import { LitElement, css, html, type PropertyValues } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
@@ -28,7 +28,7 @@ export class CaDefinitions extends LitElement {
       :host { display: block; }
       .defs { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
       .deflist { display: flex; flex-direction: column; gap: 6px; }
-      .defitem { padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer;
+      .defitem { padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; color: inherit; text-align: start;
         display: flex; flex-direction: column; gap: 2px; }
       .defitem:hover { border-color: var(--line2); }
       .defitem.sel { border-color: var(--accent); background: var(--accent-bg); }
@@ -127,18 +127,20 @@ export class CaDefinitions extends LitElement {
         ${repeat(
           defs,
           (d) => d.kind,
-          (d) => html`<div class="defitem ${d.kind === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
+          (d) => html`<button type="button" class="defitem ${d.kind === selKind ? 'sel' : ''}" aria-current=${d.kind === selKind ? 'true' : nothing}
+            @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
             <b class="jmono">${d.kind}</b>
             <span class="meta words">${factLine([d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), ...counts(d.kind)])}</span>
-          </div>`,
+          </button>`,
         )}
         ${repeat(
           pyKinds,
           (k) => k,
-          (k) => html`<div class="defitem ${k === selKind ? 'sel' : ''}" @click=${() => emit(this, 'ca-navigate', { def: k })}>
+          (k) => html`<button type="button" class="defitem ${k === selKind ? 'sel' : ''}" aria-current=${k === selKind ? 'true' : nothing}
+            @click=${() => emit(this, 'ca-navigate', { def: k })}>
             <b class="jmono">${k}</b>
             <span class="meta words">${factLine(['Python', ...counts(k)])}</span>
-          </div>`,
+          </button>`,
         )}
       </div>
       <section class="panel">

@@ -29,6 +29,11 @@ export class CaProcsView extends LitElement {
 
   @property({ attribute: false }) procs: Procs | null = null;
 
+  /** Open a launch's task. A launch's row opens it on a click; its name is the button for the keyboard. */
+  private open(key: string): void {
+    emit(this, 'ca-open-task', { key });
+  }
+
 
   override render() {
     const p = this.procs;
@@ -43,8 +48,8 @@ export class CaProcsView extends LitElement {
           ? repeat(
               p.launches,
               (c) => c.key,
-              (c) => html`<div class="fl" @click=${() => emit(this, 'ca-open-task', { key: c.key })}>
-                <b class="jmono">${kindUnit(c)}</b>
+              (c) => html`<div class="fl" @click=${(e: MouseEvent) => !(e.target as Element).closest('button') && this.open(c.key)}>
+                <button type="button" class="fl-name jmono" @click=${() => this.open(c.key)}>${kindUnit(c)}</button>
                 <span class="meta">${facts(msg(str`PID ${c.pid}`), msg(str`Model ${c.model || '—'}`), c.role ? msg(str`Role ${c.role}`) : '')} |
                   <cae-elapsed .since=${starts.at(`c:${c.key}`, c.age_s)}></cae-elapsed></span>
                 <div class="meta mono cmd">${(c.full_cmd || msg('In the pipeline process')).slice(0, 400)}</div>

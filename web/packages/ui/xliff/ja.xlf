@@ -2255,6 +2255,11 @@
   <source>Sort descending</source>
   <target>降順に並べ替え</target>
 </trans-unit>
+<trans-unit id="s900aa761e7ae5c71">
+  <source>Views</source>
+  <target>ビュー</target>
+  <note from="lit-localize">The label of the list of tabs: Overview, Tasks, History, ...</note>
+</trans-unit>
 </body>
 </file>
 </xliff>
