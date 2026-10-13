@@ -32,6 +32,25 @@ The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
 `tiles/define`, `lanes/define`, `check-table/define`, `transcript/define`,
 `json-tree/define`, `markdown/define`, `count/define`).
 
+The package is not in the npm registry; install it from a checkout of the
+repository.
+
+## Use it from a checkout
+
+In the repository's `web/` (Node 22, pnpm through `corepack enable`):
+
+```
+pnpm install && pnpm tarballs
+```
+
+`pnpm tarballs` builds the packages and writes one `.tgz` file for each to
+`web/tarballs/`. Then, in your project, with npm or pnpm:
+
+```
+npm install <checkout>/web/tarballs/contraagent-elements-*.tgz
+pnpm add <checkout>/web/tarballs/contraagent-elements-*.tgz
+```
+
 ## Documentation
 
 - [Primitives](docs/primitives.md): tones, status pills, legends, rows of facts, icons, the segmented control, roving focus and windowing.
@@ -44,6 +63,9 @@ The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
 - [Lanes](docs/lanes.md): bars on a time axis, a lane per group, running bars growing until now.
 - [Check table](docs/check-table.md): named values checked one by one, each with what it must be, what it is and the verdict.
 - [Transcript](docs/transcript.md): a conversation with an agent in sessions: bubbles, reasoning, tool cards and web searches, following the end as it grows.
+- [Building a page](docs/page.md): a CI pipeline's page from several elements: a theme switch, stat tiles, a sortable table, a graph with shards and a retry loop, and a detail panel.
 
 Every element's properties, events and parts are in `custom-elements.json`,
 generated from the sources with the package.
+
+A `::code` line quotes a file of the package; the documentation site (`pnpm docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.

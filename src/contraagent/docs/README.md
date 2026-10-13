@@ -33,6 +33,8 @@ The documentation is installed with the package and matches its version:
 `contraagent docs --path` where they are. `contraagent docs --pointer` prints a
 block that points a coding agent at them, for the instruction file it reads
 (`contraagent docs --pointer >> AGENTS.md`; Claude Code reads `CLAUDE.md`).
+A `::code` line in these files quotes a file of the package; `contraagent docs`
+and the documentation site print the quoted lines in place.
 
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls. Start here.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.

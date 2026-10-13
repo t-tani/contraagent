@@ -149,9 +149,12 @@ describe('theme data', () => {
     for (const n of THEME_NAMES) expect(Object.keys(THEMES[n].tokens).sort(), n).toEqual(set);
   });
 
-  it('writes a rule per theme with its colour scheme', () => {
-    const css = themeRules((n: ThemeName) => `[data-ca-theme="${n}"]`);
-    for (const n of THEME_NAMES) expect(css).toContain(`[data-ca-theme="${n}"] { color-scheme: ${THEMES[n].scheme};`);
-    expect(css).toContain('--ca-theme-bg: #060a11;');
+  it('writes a rule per theme with its colour scheme and its --ca-* properties', () => {
+    const css = themeRules();
+    for (const n of THEME_NAMES) expect(css).toContain(`:where([data-ca-theme="${n}"]) { color-scheme: ${THEMES[n].scheme}; --ca-color-scheme: ${THEMES[n].scheme};`);
+    expect(css).toContain('--ca-bg: #060a11;');
+    expect(css).toContain(`--ca-text-secondary: ${THEMES['contraagent-dark'].tokens['text-2']};`);
+    for (const t of TOKENS) expect(css.includes(`${t.prop}:`), t.prop).toBe(!t.derive);
+    expect(themeRules((n: ThemeName) => `:host([data-ca-theme="${n}"])`)).toContain(':host([data-ca-theme="nord"]) {');
   });
 });

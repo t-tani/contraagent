@@ -1,0 +1,34 @@
+/* A page of your own in its elements' theme. With <html data-ca-theme="nord">
+   and the themes' rules in the document (adoptThemes(document)), the page's own
+   CSS reads the same --ca-* properties as the elements. */
+body {
+  margin: 0;
+  color-scheme: var(--ca-color-scheme);
+  background: var(--ca-bg);
+  color: var(--ca-text);
+  font: 13px/1.5 system-ui, sans-serif;
+}
+.card {
+  background: var(--ca-card);
+  border: 1px solid var(--ca-line);
+  border-radius: 8px;
+  padding: 16px;
+}
+.caption {
+  color: var(--ca-text-secondary);
+}
+.unit {
+  color: var(--ca-text-muted);
+}
+a {
+  color: var(--ca-accent);
+}
+:focus-visible {
+  outline: var(--ca-focus-width) solid var(--ca-focus);
+}
+/* A property with one default for every theme (a tint, a type size) has its
+   value only inside the elements: compute it the way the elements do. */
+.failed-badge {
+  color: var(--ca-status-failed);
+  background: color-mix(in srgb, var(--ca-status-failed) var(--ca-tint), transparent);
+}

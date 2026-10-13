@@ -423,7 +423,7 @@ def serve(
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(prog="contraagent-monitor", description="Live monitor for contraagent pipeline runs")
+    ap = argparse.ArgumentParser(prog="contraagent monitor", description="Live monitor for contraagent pipeline runs")
     ap.add_argument("--runs-dir", default="runs", help="directory holding runs/<run-id>/ (default: ./runs)")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--host", default="127.0.0.1")
@@ -461,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         require_extra()
     except ModuleNotFoundError as exc:
-        sys.stderr.write(f"contraagent-monitor: {exc}\n")
+        sys.stderr.write(f"contraagent monitor: {exc}\n")
         return 2
     if args.openapi:
         doc = openapi_document()

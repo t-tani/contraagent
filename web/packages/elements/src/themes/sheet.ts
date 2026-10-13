@@ -3,8 +3,11 @@
 import { unsafeCSS, type CSSResult } from 'lit';
 import { themeRules } from './data.js';
 
-/** Applies the theme named by `data-ca-theme` on any element (`<html data-ca-theme="nord">`). */
-export const themeStyles: CSSResult = unsafeCSS(themeRules((n) => `[data-ca-theme="${n}"]`));
+/**
+ * Applies the theme named by `data-ca-theme` on any element (`<html data-ca-theme="nord">`):
+ * it sets the `--ca-*` properties on that element, for the elements and the page's own CSS.
+ */
+export const themeStyles: CSSResult = unsafeCSS(themeRules());
 
 /** The same rules for a host element: `:host([data-ca-theme="nord"])`. */
 export const hostThemeStyles: CSSResult = unsafeCSS(themeRules((n) => `:host([data-ca-theme="${n}"])`));

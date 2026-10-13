@@ -214,6 +214,7 @@ pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest (every package)
 pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
 pnpm check:dist         # the built packages type-check as an npm consumer sees them, stay within the gzip budgets in size-budgets.json, and web/consumer builds one component alone (consumer/consumer.test.mjs)
+pnpm tarballs           # builds the three packages into tarballs/*.tgz that npm and pnpm install from this checkout
 pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
