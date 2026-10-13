@@ -221,6 +221,36 @@ def test_seals_run_in_the_background(tmp_path):
     assert logs.held(NAME, UID, LOG) == (200, 200)
 
 
+def test_a_seal_that_finishes_during_a_read_keeps_the_file_until_the_read_ends(tmp_path):
+    """A read holds the files of the segments in its snapshot: a seal that finishes
+    meanwhile leaves the file for the read, which deletes it when it ends."""
+    logs = SegmentedStreamLogs(tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), background=False)
+    every = lines_of(50)
+    logs.append(NAME, UID, LOG, 0, every, "t")
+    (path,) = hot_files(tmp_path)
+    reading, sealed = threading.Event(), threading.Event()
+    real = logs._read_hot
+
+    def slow_read_hot(*args, **kwargs):
+        reading.set()
+        assert sealed.wait(5)
+        return real(*args, **kwargs)
+
+    logs._read_hot = slow_read_hot  # type: ignore[method-assign]
+    got: list = []
+    reader = threading.Thread(target=lambda: got.append(logs.read(NAME, UID, LOG, 0)))
+    reader.start()
+    assert reading.wait(5)
+    logs.close(NAME, UID, LOG)  # seals inline, while the read holds the file
+    assert logs.held(NAME, UID, LOG) == (50, 50)
+    assert path.exists()
+    sealed.set()
+    reader.join(5)
+    assert got == [(every, 50)]
+    assert not path.exists()
+    logs.shutdown()
+
+
 def test_appends_reads_and_background_seals_from_many_threads(tmp_path):
     logs = SegmentedStreamLogs(
         tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=500, segment_bytes=5000, cache_bytes=20_000

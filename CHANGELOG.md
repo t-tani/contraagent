@@ -361,6 +361,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A read of a transcript on a hub no longer fails when several segments are sealed while
+  it runs: a sealed segment's file stays until the reads that hold it end.
 - `<cae-layered-graph>`: the line of key hints keeps its height when the graph has no
   focus, so a click into the graph no longer moves what is under it (a click on a sort
   header there was lost); on a touch screen there is no such line. There is no card

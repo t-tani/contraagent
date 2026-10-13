@@ -425,6 +425,11 @@ class _Hot:
         self.cutter = fmt.BlockCutter(first_line, block_bytes)
         self.opened_at = opened_at
         self.fd: int | None = None
+        #: Reads that took this segment in their snapshot and have not finished; its file is
+        #: deleted only when none is left, so a read never finds it gone.
+        self.readers = 0
+        #: Sealed (its lines are in an object), so its file goes once no read holds it.
+        self.retired = False
 
     @property
     def lines(self) -> int:
@@ -800,7 +805,10 @@ class SegmentedStreamLogs:
             st.sealing.remove(hot)
             st.sealed.append(sealed)
             st.durable = sealed.end
-        hot.path.unlink(missing_ok=True)
+            hot.retired = True
+            unread = hot.readers == 0
+        if unread:  # else the last read that holds it deletes it
+            hot.path.unlink(missing_ok=True)
 
     def sweep(self) -> list[str]:
         """Delete every object that no index row references and no seal is writing; the keys deleted."""
@@ -946,14 +954,29 @@ class SegmentedStreamLogs:
             with st.lock:
                 total = st.count
                 sealed = list(st.sealed)
-                hot = [h.view() for h in st.sealing]
-                if st.hot is not None:
-                    hot.append(st.hot.view())
+                pinned = [*st.sealing, *([st.hot] if st.hot is not None else [])]
+                for h in pinned:
+                    h.readers += 1
+                hot = [h.view() for h in pinned]
             try:
                 return self._read(sealed, hot, since, limit, max_bytes), total
             except FileNotFoundError:
-                continue  # a segment on disk was sealed and deleted meanwhile: read it from its object
-        raise RuntimeError(f"{name}/{uid}/{log}: segments kept changing during a read")
+                continue  # the run was dropped meanwhile: the next look finds nothing
+            finally:
+                self._unpin(st, pinned)
+        raise RuntimeError(f"{name}/{uid}/{log}: its files kept disappearing during a read")
+
+    @staticmethod
+    def _unpin(st: _Log, pinned: list[_Hot]) -> None:
+        """End a read's hold on segments on disk; delete the files of sealed ones it held last."""
+        gone = []
+        with st.lock:
+            for h in pinned:
+                h.readers -= 1
+                if h.retired and h.readers == 0:
+                    gone.append(h.path)
+        for path in gone:
+            path.unlink(missing_ok=True)
 
     def _read(self, sealed: list[_Sealed], hot: list[_HotView], pos: int, limit: int | None, max_bytes: int | None) -> list[str]:
         pager = _Pager(limit, max_bytes)
