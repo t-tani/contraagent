@@ -4,9 +4,9 @@ import { LitElement, css, html, nothing, svg, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
-import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../lib/labels.js';
+import { emit } from '../../core/events.js';
+import { facts, fmtDur, kindUnit, listText, usd } from '../../words/format.js';
+import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../words/index.js';
 import { base, executorIconStyles, legendStyles } from '../../styles/index.js';
 import { isPoint } from './graph/arrange.js';
 import { shortName } from './graph/flow-index.js';
@@ -1027,8 +1027,8 @@ export class CaPipelineGraph extends LitElement {
    */
   private viewSwitch(table: boolean) {
     return html`<div class="views" role="group" aria-label=${msg('View')}>
-      <button type="button" aria-pressed=${!table} @click=${() => this.showGraph()}>${msg('Graph')}</button>
-      <button type="button" aria-pressed=${table} @click=${() => this.showTable()}>${msg('Table')}</button>
+      <button type="button" aria-pressed=${!table} @click=${() => this.showGraph()}>${msg('Graph', { id: 'view-graph', desc: 'Button: show the pipeline as a graph' })}</button>
+      <button type="button" aria-pressed=${table} @click=${() => this.showTable()}>${msg('Table', { id: 'view-table', desc: 'Button: show the pipeline as a table' })}</button>
     </div>`;
   }
 
@@ -1322,7 +1322,7 @@ export class CaPipelineGraph extends LitElement {
           <select @change=${(e: Event) => (this.sort = (e.target as HTMLSelectElement).value as MatrixSort)}>
             <option value="order" ?selected=${this.sort === 'order'}>${msg('Scheduled order')}</option>
             <option value="passes" ?selected=${this.sort === 'passes'}>${msg('Number of passes')}</option>
-            <option value="state" ?selected=${this.sort === 'state'}>${msg('Status')}</option>
+            <option value="state" ?selected=${this.sort === 'state'}>${msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' })}</option>
           </select>
         </label>
         <span class="sum">${summary.map((t, i) => html`${i ? html`<span class="sep"> | </span>` : nothing}<span class="f">${t}</span>`)}</span>
@@ -1370,7 +1370,7 @@ export class CaPipelineGraph extends LitElement {
   }
 
   private cellMark(r: MatrixRow, m: GraphMark, ri: number, ci: number, node: GraphNode, passes: number[], tabStop: boolean, causeOf: (key: string) => string) {
-    const { name, parts } = this.markText(node.label, m, causeOf, passes.map(passLabel).join(', '));
+    const { name, parts } = this.markText(node.label, m, causeOf, listText(passes.map(passLabel)));
     const hlKey = m.unit || m.key;
     const id = markSel(node.id, m, passes);
     const sel = this.sel === id;
@@ -1495,9 +1495,9 @@ export class CaPipelineGraph extends LitElement {
     return [
       n.type === 'flow' ? facts(msg(str`Function ${n.label}`), this.doneOf(c)) : facts(n.label, this.executorWord(n), this.doneOf(c)),
       ...this.exceptions(n).map(([, t]) => t),
-      waits.length ? msg(str`Waits for ${waits.join(', ')}`) : '',
-      after.length ? msg(str`Created after ${after.join(', ')}`) : '',
-      feeds.length ? msg(str`Later tasks: ${feeds.join(', ')}`) : '',
+      waits.length ? msg(str`Waits for ${listText(waits)}`) : '',
+      after.length ? msg(str`Created after ${listText(after)}`) : '',
+      feeds.length ? msg(str`Later tasks: ${listText(feeds)}`) : '',
     ]
       .filter(Boolean)
       .join('. ');
@@ -1621,7 +1621,7 @@ export class CaPipelineGraph extends LitElement {
     const link = (text: string, go: () => void, primary = false) =>
       html`<button type="button" class="go ${primary ? 'primary' : ''}" @click=${go}>${text}</button>`;
     const clear = html`<button type="button" class="switch" @click=${() => this.select('')}>${msg('Clear selection')}</button>`;
-    const list = (xs: string[]) => (xs.length ? xs.join(', ') : msg('none'));
+    const list = (xs: string[]) => (xs.length ? listText(xs) : msg('none', { id: 'none', desc: 'An empty value' }));
     if (s.type === 'box') {
       const b = s.box;
       const where = this.where(b.loop, b.file);
@@ -1642,7 +1642,7 @@ export class CaPipelineGraph extends LitElement {
           <div class="sub">${msg('Function')}</div>
           <dl>
             ${row(msg('Flow calls'), n.calls)}
-            ${row(msg('Tasks'), html`${this.doneOf(c)}${states}`)}
+            ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${this.doneOf(c)}${states}`)}
             ${row(msg('Waits for'), list(waits))}
             ${after.length ? row(msg('Created after'), list(after)) : nothing}
             ${row(msg('Later tasks'), list(feeds))}
@@ -1652,7 +1652,7 @@ export class CaPipelineGraph extends LitElement {
       return html`<h4>${n.executor && n.executor !== 'mixed' ? exIcon(n.executor === 'python') : nothing}${n.label}</h4>
         <div class="sub">${this.executorWord(n)}</div>
         <dl>
-          ${row(msg('Tasks'), html`${this.doneOf(c)}${states}`)}
+          ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${this.doneOf(c)}${states}`)}
           ${row(msg('Waits for'), list(waits))}
           ${after.length ? row(msg('Created after'), list(after)) : nothing}
           ${row(msg('Later tasks'), list(feeds))}
@@ -1664,14 +1664,14 @@ export class CaPipelineGraph extends LitElement {
     const cause = !m.flow && m.state === 'blocked' ? causeOf(m.key) : '';
     const status = html`<span data-status class=${m.state === 'failed' ? 'err' : m.state === 'blocked' ? 'warn' : ''}>${this.stateWord(m.state)}</span>`;
     const head = html`<h4 title=${m.flow ? msg(str`Flow call ${m.key}`) : m.key}><i class="mark ${m.state}" aria-hidden="true"></i>${name}</h4>`;
-    const pass = passes.length ? passes.map(passLabel).join(', ') : m.passes ? passesRan(m.passes) : '';
+    const pass = passes.length ? listText(passes.map(passLabel)) : m.passes ? passesRan(m.passes) : '';
     if (m.flow) {
       const c = m.counts;
       return html`${head}
         <dl>
-          ${row(msg('Status'), status)}
+          ${row(msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }), status)}
           ${pass ? row(msg('Pass'), pass) : nothing}
-          ${c ? row(msg('Tasks'), html`${this.doneOf(c)}${this.notDone(c).map((t) => html`<div>${t}</div>`)}`) : nothing}
+          ${c ? row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${this.doneOf(c)}${this.notDone(c).map((t) => html`<div>${t}</div>`)}`) : nothing}
           ${m.error !== undefined ? row(msg('Error'), html`<span class="err">${m.error || msg('Flow call stopped with an error')}</span>`) : nothing}
         </dl>
         <div class="acts">${link(msg(str`Inside ${shortName(m.flow)}`), () => this.primary(s), true)}${clear}</div>`;
@@ -1682,11 +1682,11 @@ export class CaPipelineGraph extends LitElement {
     const wall = ran.reduce((a, r) => a + (r.wall_s ?? 0), 0);
     return html`${head}
       <dl>
-        ${row(msg('Status'), cause ? html`${status}<div>${cause}</div>` : status)}
+        ${row(msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }), cause ? html`${status}<div>${cause}</div>` : status)}
         ${pass ? row(msg('Pass'), pass) : nothing}
-        ${m.count > 1 ? row(msg('Tasks'), msg(str`${m.count} tasks`)) : nothing}
-        ${row(msg('Attempts'), ran.length || msg('none'))}
-        ${row(msg('Time'), ran.length ? fmtDur(wall) : msg('none'))}
+        ${m.count > 1 ? row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), msg(str`${m.count} tasks`)) : nothing}
+        ${row(msg('Attempts'), ran.length || msg('none', { id: 'none', desc: 'An empty value' }))}
+        ${row(msg('Time'), ran.length ? fmtDur(wall) : msg('none', { id: 'none', desc: 'An empty value' }))}
         ${row(msg('Cost'), costs.length ? usd(costs.reduce((a, x) => a + x, 0)) : '—')}
       </dl>
       <div class="acts">${link(msg('Task detail'), () => this.primary(s), true)}${node.kinds.length === 1
@@ -1704,7 +1704,7 @@ export class CaPipelineGraph extends LitElement {
     const flows = nodes.some((n) => n.type === 'flow');
     const created = [...this.graph.edges, ...this.graph.stubs].some((e) => e.type === 'created');
     const boxes = new Map(this.graph.boxes.map((b) => [b.id, b]));
-    const list = (xs: string[]) => xs.join(', ') || msg('none');
+    const list = (xs: string[]) => listText(xs) || msg('none', { id: 'none', desc: 'An empty value' });
     // The frame keeps the graph's height when the graph of this layer was drawn (left to right); else the table's own, up to the frame's limit.
     const height =
       !this.down && this.layPath === this.graph.path.join('/') && this.frameH > 0
@@ -1716,7 +1716,7 @@ export class CaPipelineGraph extends LitElement {
         <thead>
           <tr>
             <th scope="col" class="fit">${flows ? msg('Kind or function') : msg('Kind')}</th>
-            <th scope="col" class="fit">${msg('Status')}</th>
+            <th scope="col" class="fit">${msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' })}</th>
             <th scope="col">${msg('Waits for')}</th>
             ${created ? html`<th scope="col">${msg('Created after')}</th>` : nothing}
             <th scope="col">${msg('Later tasks')}</th>

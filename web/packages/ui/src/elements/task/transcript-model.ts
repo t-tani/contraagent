@@ -2,8 +2,8 @@
 // items (chat bubbles, tool cards, notices). Pure: no DOM. The model is
 // mutated in place as pages of events arrive; the element re-renders it.
 import { knownEvent, type LaunchEvent, type TranscriptEvent } from '@contraagent/api';
-import type { RoundInfo, TryResult } from '../../events.js';
-import { firstLine } from '../../lib/format.js';
+import type { RoundInfo, TryResult } from '../../core/events.js';
+import { firstLine } from '../../words/format.js';
 
 /** Who ran a round: the coding agent (the CLI), the model and the role. */
 export interface Who {

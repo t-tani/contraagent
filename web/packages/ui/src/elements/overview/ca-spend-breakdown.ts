@@ -3,8 +3,8 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts, kindUnit, tokenCount, usd } from '../../lib/format.js';
+import { emit } from '../../core/events.js';
+import { facts, kindUnit, tokenCount, usd } from '../../words/format.js';
 import { base, legendStyles } from '../../styles/index.js';
 
 type Part = 'input' | 'cache_read' | 'cache_creation' | 'output';

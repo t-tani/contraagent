@@ -1,7 +1,7 @@
 import { LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { ClockController } from '../../lib/clock.js';
-import { fmtDur } from '../../lib/format.js';
+import { ClockController } from '../../core/clock.js';
+import { fmtDur } from '../../words/format.js';
 
 /** Time since `since` (epoch ms), ticking every second: `42s`, `3m 05s`, `1h 02m`. */
 @customElement('ca-elapsed')

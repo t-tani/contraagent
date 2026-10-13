@@ -4,8 +4,8 @@
 //
 // Every element is `@localized()`, so `setLocale` re-renders them in place.
 import { configureLocalization } from '@lit/localize';
-import { allLocales, sourceLocale, targetLocales } from './locales/codes.js';
-import * as ja from './locales/ja.js';
+import { allLocales, sourceLocale, targetLocales } from '../locales/codes.js';
+import * as ja from '../locales/ja.js';
 
 export type Locale = (typeof allLocales)[number];
 export { allLocales };

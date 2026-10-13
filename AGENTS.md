@@ -16,7 +16,7 @@ that glossary first.
 The monitor's UI is read by engineers who use coding agents but do not know
 this code, so it shows run data in their terms. The glossary's terms stay in
 the API, the files, and the UI's tooltips (as the secondary detail); the visible
-words come from `web/packages/ui/src/lib/labels.ts`, and the same rule applies
+words come from `web/packages/ui/src/words/`, and the same rule applies
 there: one word, one meaning, on every screen. Japanese follows
 `web/packages/ui/xliff/GLOSSARY.md`.
 
@@ -146,13 +146,14 @@ layer from an earlier one; pass a callback or a protocol instead.
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
 feeds, store; no UI) comes before `@contraagent/ui` (the elements), which comes
 before `apps/monitor` (the page). Within `ui`, an element renders what its
-properties give it and sends `ca-*` events (`events.ts`); only `ca-monitor`
+properties give it and sends `ca-*` events (`core/events.ts`); only `ca-monitor`
 holds the store and the router.
 
 | Where | Imports only |
 |---|---|
 | `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
-| `ui`: `route`, `router`, `events`, `i18n`, `lib/`, `styles/`, `themes/` | `@contraagent/api`, `lit`, `@lit/localize` and each other; never `elements/` |
+| `ui`: `core/` (route, router, events, i18n, memory, scroll, clock) | `@contraagent/api`, `lit`, `@lit/localize`, `styles/`, `themes/` and each other; never `words/`, `lib/` or `elements/` |
+| `ui`: `words/` (the words the UI shows), `lib/`, `styles/`, `themes/` | the above and each other; never `elements/` |
 | `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
 | `apps/*` | the packages, through the subpaths in their `exports` |
 

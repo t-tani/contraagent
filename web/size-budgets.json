@@ -1,7 +1,7 @@
 {
   "$comment": "Gzip budgets in kB (1000 bytes), checked by scripts/size.mjs in `pnpm check:dist`. A package entry is its `exports` subpath, built minified with lit, @lit/* and @contraagent/* external; `files` are measured as built. A new entry's budget is its measured size plus 10 %. `baseline` records the tree before the frontend refactor (2026-10-13).",
   "budgets": {
-    "@contraagent/api": 8,
+    "@contraagent/api": 8.9,
     "@contraagent/ui": 117.5,
     "@contraagent/ui/themes": 4.4,
     "@contraagent/ui/bundle": 125,

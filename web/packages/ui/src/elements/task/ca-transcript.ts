@@ -2,6 +2,7 @@ import {
   createMonitorClient,
   isLaunched,
   openStreamFeed,
+  runRelative,
   type JournalRow,
   type LaunchEvent,
   type MonitorClient,
@@ -14,10 +15,10 @@ import { LitElement, css, html, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { emit, type RoundInfo, type RoundsChangedDetail } from '../../events.js';
-import { attemptNames, runRelative, stopLabel } from '../../lib/labels.js';
+import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
+import { attemptNames, stopLabel } from '../../words/index.js';
 import { md } from '../../lib/markdown.js';
-import { SessionSet, recall, remember } from '../../lib/memory.js';
+import { SessionSet, recall, remember } from '../../core/memory.js';
 import { base, prose } from '../../styles/index.js';
 import '../shared/ca-markdown.js';
 import { roundLabel, roundMark, switchText } from './rounds.js';
@@ -581,7 +582,7 @@ export class CaTranscript extends LitElement {
     const results = c.webQuery ? webResults(c.out) : [];
     const status =
       c.status === 'ok'
-        ? html`<span class="st-ok"><span aria-hidden="true">✓</span> ${msg('done')}</span>`
+        ? html`<span class="st-ok"><span aria-hidden="true">✓</span> ${msg('done', { id: 'tool-done', desc: 'A tool call that finished' })}</span>`
         : c.status === 'err'
           ? html`<span class="st-err"><span aria-hidden="true">✕</span> ${msg('failed')}</span>`
           : this.live

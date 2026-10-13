@@ -2,11 +2,11 @@
 // registers every element; `ca-monitor` is the whole monitor.
 import { adoptThemes } from './themes/sheet.js';
 
-export * from './events.js';
-export * from './route.js';
-export { Router, type RouteCause, type RouterMode } from './router.js';
-export { LOCALE_NAMES, allLocales, chooseLocale, getLocale, preferredLocale, setLocale, type Locale } from './i18n.js';
-export * from './lib/format.js';
+export * from './core/events.js';
+export * from './core/route.js';
+export { Router, type RouteCause, type RouterMode } from './core/router.js';
+export { LOCALE_NAMES, allLocales, chooseLocale, getLocale, preferredLocale, setLocale, type Locale } from './core/i18n.js';
+export * from './words/format.js';
 export { md, mdFile } from './lib/markdown.js';
 export { highlight } from './lib/highlight.js';
 export * from './styles/index.js';

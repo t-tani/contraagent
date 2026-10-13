@@ -2,10 +2,10 @@ import { elapsedS, type RunSummary } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, localTime, relAgo, usd } from '../../lib/format.js';
-import { stateCount } from '../../lib/labels.js';
-import { accountsLine, accountsTip } from '../../lib/quota-format.js';
+import { emit } from '../../core/events.js';
+import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
+import { stateCount } from '../../words/index.js';
+import { accountsLine, accountsTip } from '../../words/quota.js';
 import { runTone } from '../../lib/tone.js';
 import { base } from '../../styles/index.js';
 

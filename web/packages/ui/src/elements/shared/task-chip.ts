@@ -2,7 +2,7 @@
 // form without a separator between names, and a click opens the task.
 import { isPython } from '@contraagent/api';
 import { html, type TemplateResult } from 'lit';
-import { emit } from '../../events.js';
+import { emit } from '../../core/events.js';
 
 /**
  * `name` as a chip that sends `ca-open-task` for `task` (a Python task opens on its

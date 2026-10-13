@@ -1,31 +1,33 @@
 import {
-  MonitorStore,
   deriveRun,
   elapsedS,
   isBad,
-  spendOf,
   isRunLive,
   latestTask,
   liveActivities,
+  MonitorStore,
+  runAccounts,
+  runRelative,
   runRow,
+  spendOf,
   type JournalRow,
   type MonitorSnapshot,
   type RunSummary,
-  runAccounts,
 } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../events.js';
-import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, preferredLocale, setLocale, type Locale } from '../../i18n.js';
-import { ClockController } from '../../lib/clock.js';
-import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
-import { modelSwitch, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
-import { ScrollMemory } from '../../lib/scroll.js';
+import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
+import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, preferredLocale, setLocale, type Locale } from '../../core/i18n.js';
+import { ClockController } from '../../core/clock.js';
+import { flushMemory } from '../../core/memory.js';
+import { facts, fmtDur, kindUnit, usd } from '../../words/format.js';
+import { modelSwitch, stateCount, stopLabel } from '../../words/index.js';
+import { ScrollMemory } from '../../core/scroll.js';
 import { runTone, type Tone } from '../../lib/tone.js';
-import type { Route, RoutePatch, Tab } from '../../route.js';
-import { Router, type RouteCause, type RouterMode } from '../../router.js';
-import { accountsLine, accountsTip } from '../../lib/quota-format.js';
+import type { Route, RoutePatch, Tab } from '../../core/route.js';
+import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
+import { accountsLine, accountsTip } from '../../words/quota.js';
 import { base } from '../../styles/index.js';
 import { hostThemeStyles } from '../../themes/sheet.js';
 import { isThemeChoice, preferredTheme, prefersLight, rememberTheme, resolveTheme, type ThemeChoice, type ThemeName } from '../../themes/index.js';
@@ -54,7 +56,7 @@ interface TabInfo {
 /** The built-in tabs, in the current locale (call at render time). */
 const builtinTabs = (): Omit<TabInfo, 'panel'>[] => [
   { id: 'overview', label: msg('Overview'), icon: '◎' },
-  { id: 'tasks', label: msg('Tasks'), icon: '≡' },
+  { id: 'tasks', label: msg('Tasks', { id: 'tab-tasks', desc: 'Tab: the list of tasks' }), icon: '≡' },
   { id: 'journal', label: msg('History'), icon: '▤', tip: 'journal.jsonl' },
   { id: 'outputs', label: msg('Outputs'), icon: '▣' },
   { id: 'definitions', label: msg('Definitions'), icon: '⌘' },
@@ -213,7 +215,7 @@ export class CaMonitor extends LitElement {
       }),
       this.store.onNewRow((row) => this.announce(row)),
     );
-    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), this.run ? { run: this.run } : {});
+    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), this.run ? { run: this.run } : {}, flushMemory);
     this.router.start();
     void this.store.start();
     const onKey = (e: KeyboardEvent) => this.onKey(e);
@@ -423,9 +425,7 @@ export class CaMonitor extends LitElement {
         </button>
         <div class="hdr-right">
           <span class="nowline">${acts.length
-            ? html`${msg('Running')} ${acts
-                .slice(0, 3)
-                .map((a) => taskChip(this, kindUnit(a), { key: a.key }))}${acts.length > 3 ? html` <span>+${acts.length - 3}</span>` : nothing}`
+            ? msg(html`Running ${acts.slice(0, 3).map((a) => taskChip(this, kindUnit(a), { key: a.key }))}${acts.length > 3 ? html` <span>+${acts.length - 3}</span>` : nothing}`)
             : nothing}</span>
           <ca-theme-switch .value=${this.themeChoice()} .system=${resolveTheme('system', this.light)}></ca-theme-switch>
           <span class="langs" role="group" aria-label=${msg('Language')}>

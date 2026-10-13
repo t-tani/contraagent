@@ -33,4 +33,4 @@ live in one XLIFF file per language (`xliff/<locale>.xlf`), and a typed module i
 generated from each. A new language is one more code in `targetLocales` of
 `lit-localize.json`, its name in `LOCALE_NAMES`, and its generated module:
 
-::code{file="../src/i18n.ts" from="/** Each locale's name" to="const STORE_KEY"}
+::code{file="../src/core/i18n.ts" from="/** Each locale's name" to="const STORE_KEY"}

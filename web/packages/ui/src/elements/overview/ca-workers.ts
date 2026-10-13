@@ -3,8 +3,8 @@ import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { starts } from '../../lib/clock.js';
+import { emit } from '../../core/events.js';
+import { starts } from '../../core/clock.js';
 import { base } from '../../styles/index.js';
 import '../shared/ca-elapsed.js';
 

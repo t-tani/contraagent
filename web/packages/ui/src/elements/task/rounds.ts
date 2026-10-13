@@ -1,8 +1,9 @@
+import { runRelative } from '@contraagent/api';
 // How a round is named and explained to the reader (render time: msg()).
 import { msg, str } from '@lit/localize';
-import { facts } from '../../lib/format.js';
-import { attemptLabel, runRelative, stopLabel } from '../../lib/labels.js';
-import type { RoundInfo } from '../../events.js';
+import { facts } from '../../words/format.js';
+import { attemptLabel, stopLabel } from '../../words/index.js';
+import type { RoundInfo } from '../../core/events.js';
 
 /**
  * "Attempt 1", "Correction 1", "Model switch"; with more than one attempt,

@@ -1,0 +1,1 @@
+{"root":["./playwright.config.ts","./vitest.config.ts","./packages/ui/vite.config.ts","./e2e/global-setup.ts","./e2e/history.spec.ts","./e2e/overview.spec.ts","./e2e/tasks.spec.ts","./e2e/theme.spec.ts"],"version":"5.9.3"}
