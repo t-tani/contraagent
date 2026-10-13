@@ -27,6 +27,8 @@ the row as the selection and send `cae-select`; the selected row has the part
 A column with `compare` (or `sortable`) has a header button that sends
 `cae-sort` with the column and the direction. The table does not reorder the
 rows: the host sets `sort` and the rows, ordered by `sortRows` or its own way.
+`sortRows` orders by the column's `compare`, else its `text`, else its cell when
+the cell is a string or a number: a column of plain values needs only `sortable`.
 
 ## Long lists
 

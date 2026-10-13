@@ -1,5 +1,6 @@
 // What the graph's views read from `cae-layered-graph` and call on it. Each view is
-// a function of the element (`GraphHost`) that renders into its shadow root.
+// a function of the element (`GraphHost`, its private members included) that renders
+// into its shadow root.
 import type { ReactiveControllerHost } from 'lit';
 import type { StateStyles } from '../primitives/states.js';
 import type { CardController } from './card.js';
@@ -7,7 +8,7 @@ import type { GraphLayout } from './layout.js';
 import { markGrid } from './marks.js';
 import type { PanZoomController } from './pan-zoom.js';
 import type { LayeredGraphStrings } from './strings.js';
-import type { Arrangement, GraphClusterInput, GraphInput, GraphMark, GraphNodeInput } from './types.js';
+import type { Arrangement, DrawnGraph, GraphClusterInput, GraphMark, GraphNode } from './types.js';
 
 /** The failed marks a node drawn as a bar lists by name. */
 export const BAR_LIST = 8;
@@ -16,17 +17,15 @@ export const BAR_LIST = 8;
  * The element as its views see it: what it shows, the state the views change
  * (each change renders the element again), its controllers and what it sends.
  */
-export interface GraphHost {
-  readonly el: ReactiveControllerHost & HTMLElement;
-  readonly root: ParentNode;
-  readonly graph: GraphInput;
+export interface GraphHost extends ReactiveControllerHost, HTMLElement {
+  readonly renderRoot: ParentNode;
+  /** The graph, its nodes with their defaults. */
+  readonly drawn: DrawnGraph;
   readonly arr: Arrangement;
   readonly states: StateStyles;
-  readonly strings: LayeredGraphStrings;
+  readonly words: LayeredGraphStrings;
   readonly selected: string | null;
-  /** A mark matrix is shown in the frame. */
-  readonly matrixShown: boolean;
-  readonly nodes: ReadonlyMap<string, GraphNodeInput>;
+  readonly nodes: ReadonlyMap<string, GraphNode>;
   readonly clusters: ReadonlyMap<string, GraphClusterInput>;
   /** Where everything is drawn, and whether it was drawn for this graph (`key`). */
   readonly lay: GraphLayout | null;
@@ -35,7 +34,7 @@ export interface GraphHost {
   readonly down: boolean;
   readonly barAt: number;
   /** The node table is shown. */
-  asTable: boolean;
+  readonly asTable: boolean;
   /** The series (or a mark's id, for a mark outside any series) under the pointer or focus. */
   hover: string | null;
   /** Each group's focused mark (roving tabindex): one tab stop per group. */
@@ -78,13 +77,13 @@ export interface MarkGroup {
 }
 
 /** A node's marks in slot order: one per series (null where the series has none here), then those outside any series. */
-export const slotsOf = (n: Pick<GraphNodeInput, 'marks' | 'loose'>, series: readonly string[]): (Slot | null)[] => [
+export const slotsOf = (n: Pick<GraphNode, 'marks' | 'loose'>, series: readonly string[]): (Slot | null)[] => [
   ...n.marks.map((m, i) => (m ? { m, series: series[i] ?? '' } : null)),
   ...n.loose.map((m) => ({ m, series: '' })),
 ];
 
 /** A group's grid: the graph's, so a series sits at one place in every node; a group without series lays out its own few marks. */
-export function gridOf(n: Pick<GraphNodeInput, 'marks' | 'loose'>, series: number): Grid {
+export function gridOf(n: Pick<GraphNode, 'marks' | 'loose'>, series: number): Grid {
   const slots = n.marks.length + n.loose.length;
   const g = markGrid(n.marks.length ? series : slots);
   return { cols: Math.min(g.cols, Math.max(1, slots)), size: g.size, gap: g.size >= 10 ? 4 : 2 };

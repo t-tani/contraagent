@@ -24,6 +24,8 @@ export interface LayeredGraphStrings {
   stubTip: string;
   /** The marks a node drawn as a bar does not list: "+3". */
   more: (n: number) => string;
+  /** A node's count without `progress`: its marks of the tone `done`, of all its marks ("2 of 3 done"). */
+  progress: (done: number, total: number) => string;
   /** Legend words: a badge in a mark, the two edge styles, a cluster's return, an inner view. */
   badge: string;
   solidEdge: string;
@@ -61,6 +63,7 @@ export const DEFAULT_LAYERED_GRAPH_STRINGS: Readonly<LayeredGraphStrings> = {
   inspector: 'Selected item',
   stubTip: 'Outside this graph',
   more: (n) => `+${n}`,
+  progress: (done, total) => `${done} of ${total} done`,
   badge: 'count',
   solidEdge: 'link',
   dashedEdge: 'other link',

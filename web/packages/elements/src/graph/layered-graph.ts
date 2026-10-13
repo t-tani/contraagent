@@ -1,25 +1,24 @@
 // A layered graph: nodes in layers, joined by edges, in clusters; each node a
 // group of marks, one per series. The views are in `views/`.
 import { LitElement, adoptStyles, html, nothing, type CSSResult, type PropertyValueMap, type PropertyValues } from 'lit';
-import { property, state } from 'lit/decorators.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { emit } from '../core/events.js';
 import { withDefaults } from '../core/strings.js';
 import type { CaeMarkMatrix } from '../matrix/mark-matrix.js';
-import { DEFAULT_MARK_MATRIX_STRINGS, type MarkMatrixInput, type MarkMatrixStrings } from '../matrix/types.js';
+import type { MarkMatrixInput, MarkMatrixStrings } from '../matrix/types.js';
 import { legendStyles } from '../primitives/legend.js';
 import { icon } from '../primitives/icon.js';
 import type { StateStyles } from '../primitives/states.js';
 import { base, markStyles } from '../styles/index.js';
 import { arrange } from './arrange.js';
 import { CardController } from './card.js';
-import type { GraphHost } from './host.js';
+import { slotsOf, type GraphHost } from './host.js';
 import { layoutGraph, type GraphLayout, type Size } from './layout.js';
-import { BAR_MARKS } from './marks.js';
+import { BAR_MARKS, fillNode } from './marks.js';
 import { PanZoomController } from './pan-zoom.js';
 import { DEFAULT_LAYERED_GRAPH_STRINGS, type LayeredGraphStrings } from './strings.js';
 import { graphStyles } from './styles.js';
-import type { Arrangement, GraphClusterInput, GraphInput, GraphNodeInput, GraphOrder } from './types.js';
+import type { Arrangement, DrawnGraph, GraphClusterInput, GraphInput, GraphNode, GraphOrder } from './types.js';
 import { dag } from './views/dag.js';
 import { foot } from './views/foot.js';
 import { nodeTable } from './views/node-table.js';
@@ -54,6 +53,13 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * per node, with its status and the nodes it is joined to. With `matrix`, the frame
  * shows that `<cae-mark-matrix>` as the table instead.
  *
+ * Size: the element is as wide as its container. Without a height set on it, the
+ * frame is as tall as the whole drawing at that width (never scaled up), up to 70% of
+ * the window's height or 360 px, whichever is more, and taller when the card needs
+ * it; top to bottom, as tall as the drawing. A height set on the element
+ * (or given it by a flex or grid container) is shared: the `crumbs` slot and the row
+ * under the frame keep theirs, and the frame takes the rest, the drawing fitted in it.
+ *
  * Keyboard: Tab moves between nodes; the arrow keys, Home and End move between a
  * node's marks, and a mark out of the frame is brought into it; Shift and an arrow
  * key move along an edge to an earlier or a later node, on the same series; what has
@@ -78,52 +84,76 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * @csspart edge - each edge
  * @csspart stub - each stub
  * @csspart legend - the legend
+ * @csspart keys - the line of key hints under the legend
  * @csspart inspector - the selected item's card
  * @csspart table - the node table
  * @csspart row - each row of the node table
  */
 export class CaeLayeredGraph extends LitElement {
   static override styles = [base, markStyles, legendStyles, graphStyles];
+  static override properties = {
+    graph: { attribute: false },
+    states: { attribute: false },
+    selected: { attribute: false },
+    highlight: { attribute: false },
+    order: { attribute: false },
+    key: {},
+    direction: {},
+    view: {},
+    matrix: { attribute: false },
+    barAt: { type: Number },
+    related: { attribute: false },
+    strings: { attribute: false },
+    matrixStrings: { attribute: false },
+    renderIcon: { attribute: false },
+    iconStyles: { attribute: false },
+    hover: { state: true },
+    down: { state: true },
+    lay: { state: true },
+    announced: { state: true },
+  };
 
-  @property({ attribute: false }) graph: GraphInput = EMPTY;
-  @property({ attribute: false }) states: StateStyles = {};
+  graph: GraphInput = EMPTY;
+  states: StateStyles = {};
   /** The selected item's id (a mark's, a node's or a cluster's), or null. */
-  @property({ attribute: false }) selected: string | null = null;
+  selected: string | null = null;
   /** The series highlighted while no mark is hovered, focused or selected. */
-  @property({ attribute: false }) highlight: string | null = null;
+  highlight: string | null = null;
   /** The order of an earlier drawing of this graph (`arrange(...).order`): its items stay where they are. */
-  @property({ attribute: false }) order: GraphOrder | undefined = undefined;
-  /** The graph's identity: a new key is a new graph (the view shows all of it again). */
-  @property() key = '';
+  order: GraphOrder | undefined = undefined;
+  /** The graph's identity: a new key is a new graph (the frame shows all of it again); the same key while the graph changes keeps the zoom and pan. */
+  key = '';
   /** Left to right, top to bottom, or by the width (`auto`: top to bottom below `NARROW` px). */
-  @property() direction: 'auto' | 'across' | 'down' = 'auto';
+  direction: 'auto' | 'across' | 'down' = 'auto';
   /** The node table instead of the drawing. */
-  @property() view: 'graph' | 'table' = 'graph';
+  view: 'graph' | 'table' = 'graph';
   /** A mark matrix shown in the frame as the table, or null. */
-  @property({ attribute: false }) matrix: MarkMatrixInput | null = null;
+  matrix: MarkMatrixInput | null = null;
   /** Above this many marks, a node shows a bar of its counts. */
-  @property({ type: Number }) barAt = BAR_MARKS;
+  barAt = BAR_MARKS;
   /** The marks a hovered or selected series (or a mark's id, outside any series) lights; default: its own. */
-  @property({ attribute: false }) related: ((key: string) => ReadonlySet<string>) | undefined = undefined;
-  @property({ attribute: false }) strings: Partial<LayeredGraphStrings> = {};
-  @property({ attribute: false }) matrixStrings: Partial<MarkMatrixStrings> = {};
+  related: ((key: string) => ReadonlySet<string>) | undefined = undefined;
+  strings: Partial<LayeredGraphStrings> = {};
+  matrixStrings: Partial<MarkMatrixStrings> = {};
   /** Draws an icon of a node, a matrix header and the legend; default: `icon(name)`. */
-  @property({ attribute: false }) renderIcon: (name: string) => unknown = (name) => icon(name);
+  renderIcon: (name: string) => unknown = (name) => icon(name);
   /** Styles for what `renderIcon` draws, added to the element's own. */
-  @property({ attribute: false }) iconStyles: readonly CSSResult[] = [];
+  iconStyles: readonly CSSResult[] = [];
 
   /** The series (or a mark's id) under the pointer or focus. */
-  @state() private hover: string | null = null;
+  private hover: string | null = null;
   /** Top to bottom. */
-  @state() private down = false;
+  private down = false;
   /** Where everything is drawn, from the sizes measured after the last render. */
-  @state() private lay: GraphLayout | null = null;
+  private lay: GraphLayout | null = null;
   /** What the live region says: the item just selected, and its status. */
-  @state() private announced = '';
+  private announced = '';
 
   private arr: Arrangement = arrange(EMPTY);
   private words: LayeredGraphStrings = DEFAULT_LAYERED_GRAPH_STRINGS;
-  private nodes = new Map<string, GraphNodeInput>();
+  /** The graph, its nodes with their defaults. */
+  private drawn: DrawnGraph = { ...EMPTY, nodes: [] };
+  private nodes = new Map<string, GraphNode>();
   private clusters = new Map<string, GraphClusterInput>();
   /** Each mark's series ('' outside any series), by its id. */
   private markSeries = new Map<string, string>();
@@ -158,7 +188,8 @@ export class CaeLayeredGraph extends LitElement {
     inner: () => this.matrixEl()?.renderRoot ?? null,
   });
 
-  private readonly h: GraphHost = this.viewHost();
+  /** This element as its views see it (`host.ts`), its private members included. */
+  private readonly h = this as unknown as GraphHost;
 
   private matrixEl(): CaeMarkMatrix | null {
     return this.renderRoot.querySelector<CaeMarkMatrix>('cae-mark-matrix');
@@ -173,9 +204,13 @@ export class CaeLayeredGraph extends LitElement {
     if (changed.has('direction') && this.direction !== 'auto') this.down = this.direction === 'down';
     if (changed.has('graph') || changed.has('order') || changed.has('down') || changed.has('direction')) {
       this.arr = arrange(this.graph, this.order, this.down);
-      this.nodes = new Map(this.graph.nodes.map((n) => [n.id, n]));
       this.clusters = new Map(this.graph.clusters.map((c) => [c.id, c]));
-      this.markSeries = new Map(this.graph.nodes.flatMap((n) => [...n.marks.map((m, i) => (m ? [m.id, this.graph.series[i] ?? ''] : null)), ...n.loose.map((m) => [m.id, ''])].filter((x): x is [string, string] => x !== null)));
+    }
+    if (changed.has('graph') || changed.has('states') || changed.has('strings')) {
+      const g = this.graph;
+      this.drawn = { ...g, nodes: g.nodes.map((n) => fillNode(n, this.states, this.words.progress)) };
+      this.nodes = new Map(this.drawn.nodes.map((n) => [n.id, n]));
+      this.markSeries = new Map(this.drawn.nodes.flatMap((n) => slotsOf(n, g.series).flatMap((s) => (s ? [[s.m.id, s.series] as const] : []))));
     }
   }
 
@@ -188,6 +223,7 @@ export class CaeLayeredGraph extends LitElement {
     super.disconnectedCallback();
     this.removeEventListener('keydown', this.onEscape);
   }
+
 
   protected override updated(changed: PropertyValues<this>): void {
     if (changed.has('iconStyles') && this.renderRoot instanceof ShadowRoot)
@@ -270,23 +306,20 @@ export class CaeLayeredGraph extends LitElement {
   }
 
   /** An item's action: its inner view when it has one. */
-  private act(id: string): void {
-    const n = this.nodes.get(id);
-    const c = this.clusters.get(id);
-    const m = n || c ? null : this.findMark(id);
-    if (!n && !c && !m) return;
-    if ((n ?? c ?? m)?.drill) emit(this, 'cae-drill', { id });
-    else emit(this, 'cae-activate', { id });
+  protected act(id: string): void {
+    const x = this.nodes.get(id) ?? this.clusters.get(id) ?? this.findMark(id);
+    if (x?.drill) this.drill(id);
+    else if (x) emit(this, 'cae-activate', { id });
   }
 
   private findMark(id: string): { drill?: boolean } | null {
-    for (const n of this.graph.nodes) for (const m of [...n.marks, ...n.loose]) if (m?.id === id) return m;
+    for (const n of this.drawn.nodes) for (const m of [...n.marks, ...n.loose]) if (m?.id === id) return m;
     for (const r of this.matrix?.rows ?? []) for (const m of r.cells) if (m?.id === id) return m;
     return null;
   }
 
   /** The series (or mark id) highlighted: the one hovered or focused, else the selected mark's, else `highlight`; and the marks it lights. */
-  private lit(): { key: string | null; on: ReadonlySet<string> | null } {
+  protected lit(): { key: string | null; on: ReadonlySet<string> | null } {
     const sel = this.selected;
     const mine = this.hover === null && sel !== null && this.markSeries.has(sel) ? this.markSeries.get(sel) || sel : null;
     const key = this.hover ?? mine ?? this.highlight ?? null;
@@ -298,7 +331,7 @@ export class CaeLayeredGraph extends LitElement {
   }
 
   private known(id: string): boolean {
-    return this.nodes.has(id) || this.clusters.has(id) || this.markSeries.has(id) || !!this.matrix?.rows.some((r) => r.cells.some((m) => m?.id === id));
+    return this.nodes.has(id) || this.clusters.has(id) || !!this.findMark(id);
   }
 
   override render() {
@@ -307,18 +340,20 @@ export class CaeLayeredGraph extends LitElement {
     const body = mx ? this.matrixView(mx) : this.view === 'table' ? nodeTable(h) : dag(h);
     const sel = this.selected;
     const card =
-      sel && this.known(sel)
+      sel && this.querySelector('[slot=inspector]') && this.known(sel)
         ? keyed(
             sel,
-            html`<section id="insp" class="insp ${this.down ? 'sheet' : ''}" part="inspector" aria-label=${h.strings.inspector} @keydown=${this.card.onCardKey}>
+            html`<section id="insp" class="insp ${this.down ? 'sheet' : ''}" part="inspector" aria-label=${this.words.inspector} @keydown=${this.card.onCardKey}>
               <span class="ptr" aria-hidden="true"></span>
               <div class="scroll"><slot name="inspector"></slot></div>
             </section>`,
           )
         : nothing;
-    return html`<slot name="crumbs"></slot>
+    return html`<div class="col">
+      <slot name="crumbs"></slot>
       <div class="main">${body}${card}<div class="sr" role="status">${this.announced}</div></div>
-      ${foot(h, mx)}`;
+      ${foot(h, mx)}
+    </div>`;
   }
 
   /** A mark matrix in the frame, at least as tall as the drawing was (and as the card needs), centred in it. */
@@ -326,52 +361,34 @@ export class CaeLayeredGraph extends LitElement {
     const least = this.down ? 0 : Math.round(Math.max(this.pz.frameH, this.card.room));
     return html`<div class="frame mxframe" part="frame" style=${least ? `min-height:${least}px` : ''}>
       <cae-mark-matrix .matrix=${mx} .states=${this.states} .selected=${this.selected} .highlight=${this.highlight} .key=${this.key}
-        .strings=${withDefaults(DEFAULT_MARK_MATRIX_STRINGS, this.matrixStrings)} .renderIcon=${this.renderIcon} .iconStyles=${this.iconStyles}></cae-mark-matrix>
+        .strings=${this.matrixStrings} .renderIcon=${this.renderIcon} .iconStyles=${this.iconStyles}></cae-mark-matrix>
     </div>`;
   }
 
-  /** This element as its views see it (`host.ts`), its private members included. */
-  private viewHost(): GraphHost {
-    // eslint-disable-next-line @typescript-eslint/no-this-alias -- the getters below read the element, not the object they are on
-    const el = this;
-    return {
-      el,
-      get root() { return el.renderRoot; },
-      get graph() { return el.graph; },
-      get arr() { return el.arr; },
-      get states() { return el.states; },
-      get strings() { return el.words; },
-      get selected() { return el.selected; },
-      get matrixShown() { return !!el.matrix; },
-      get nodes() { return el.nodes; },
-      get clusters() { return el.clusters; },
-      get lay() { return el.lay; },
-      get laidOut() { return el.layFor === el.key; },
-      get down() { return el.down; },
-      get barAt() { return el.barAt; },
-      get asTable() { return el.view === 'table'; },
-      set asTable(v) { el.view = v ? 'table' : 'graph'; },
-      get hover() { return el.hover; },
-      set hover(v) { el.hover = v; },
-      active: el.active,
-      pz: el.pz,
-      card: el.card,
-      renderIcon: (name) => el.renderIcon(name),
-      lit: () => el.lit(),
-      select: (id) => el.select(id),
-      focusSelect: (id) => {
-        if (!el.card.quiet) el.select(id);
-      },
-      act: (id) => el.act(id),
-      drill: (id) => emit(el, 'cae-drill', { id }),
-      showView: (v) => {
-        // A mark matrix is the table: only "Graph" leaves it, and the host decides where to.
-        if (el.matrix && v === 'table') return;
-        if (!el.matrix) el.view = v;
-        emit(el, 'cae-view-change', { view: v });
-      },
-    };
+  // What the views read and call besides the members above (`host.ts`).
+  protected get laidOut(): boolean {
+    return this.layFor === this.key;
   }
+
+  protected get asTable(): boolean {
+    return this.view === 'table';
+  }
+
+  protected focusSelect(id: string): void {
+    if (!this.card.quiet) this.select(id);
+  }
+
+  protected drill(id: string): void {
+    emit(this, 'cae-drill', { id });
+  }
+
+  protected showView(v: 'graph' | 'table'): void {
+    // A mark matrix is the table: only "Graph" leaves it, and the host decides where to.
+    if (this.matrix && v === 'table') return;
+    if (!this.matrix) this.view = v;
+    emit(this, 'cae-view-change', { view: v });
+  }
+
 }
 
 declare global {

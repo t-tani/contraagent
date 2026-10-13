@@ -103,6 +103,17 @@ describe('cae-data-table', () => {
     expect(sortRows(FRUIT, COLUMNS, null).map((f) => f.id)).toEqual(['a', 'b', 'c']);
   });
 
+  it('sortRows orders a sortable column without compare or text by its cell, a string or a number', () => {
+    const cols: DataColumn<Fruit>[] = [
+      { id: 'name', header: 'Name', cell: (f) => f.name, sortable: true },
+      { id: 'kg', header: 'kg', cell: (f) => f.kg, sortable: true },
+      { id: 'tpl', header: 'Template', cell: (f) => ({ f }), sortable: true },
+    ];
+    expect(sortRows(FRUIT, cols, { id: 'name', direction: 'desc' }).map((f) => f.id)).toEqual(['c', 'b', 'a']);
+    expect(sortRows(FRUIT, cols, { id: 'kg', direction: 'asc' }).map((f) => f.id)).toEqual(['c', 'a', 'b']);
+    expect(sortRows(FRUIT, cols, { id: 'tpl', direction: 'desc' }).map((f) => f.id)).toEqual(['a', 'b', 'c']);
+  });
+
   it('with no rows: the empty words, or the empty slot', async () => {
     const { el, root } = await mount({ rows: [], strings: { empty: 'No fruit' } });
     expect(root.querySelector('[part=empty]')?.textContent?.trim()).toBe('No fruit');

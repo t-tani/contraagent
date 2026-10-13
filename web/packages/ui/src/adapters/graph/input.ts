@@ -1,6 +1,6 @@
 // A layer of the run's flow as `<cae-layered-graph>` takes it, and a loop's passes
 // as `<cae-mark-matrix>` takes them: the pipeline graph's words on the generic model.
-import { deriveRun, type JournalRow, type Plan, type TaskState } from '@contraagent/api';
+import { deriveRun, type JournalRow, type Plan } from '@contraagent/api';
 import type { GraphClusterInput, GraphInput, GraphMark, GraphNodeInput, GraphOrder } from '@contraagent/elements/graph';
 import type { MarkMatrixInput, MatrixHeadCell, MatrixMark } from '@contraagent/elements/matrix';
 import type { Fact } from '@contraagent/elements/primitives';
@@ -27,8 +27,6 @@ export interface GraphWordsContext {
 /** A note's tone by the class of a node's fact. */
 const NOTE_TONE: Record<ExceptionClass, Fact['tone']> = { err: 'failed', warn: 'attention', live: 'running', mut: 'muted' };
 
-/** The task states a node counts. */
-const STATES: readonly TaskState[] = ['done', 'running', 'pending', 'failed', 'blocked', 'skipped'];
 
 /** Why a task did not start, in words ('' when it is not known). */
 export function causeOf(x: Pick<GraphWordsContext, 'plan' | 'journal' | 'run'>): (key: string) => string {
@@ -84,7 +82,7 @@ export function graphInput(m: LayerModel, x: GraphWordsContext): GraphInput {
       drill: n.type === 'flow',
       marks: n.units.map((mk) => mk && mark(n, mk)),
       loose: n.single.map((mk) => mark(n, mk)),
-      counts: Object.fromEntries(STATES.map((s) => [s, c[s]])),
+      counts: c,
       progress: { done: c.done, total: c.total, label: doneOf(c) },
       notes: exceptions(n, x.live).map(([cls, text]) => ({ text, tone: NOTE_TONE[cls] })),
       // Finished (done and skipped) only sets the frame's look; the count is of the tasks done.

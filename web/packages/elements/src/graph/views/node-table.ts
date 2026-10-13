@@ -4,14 +4,14 @@ import { repeat } from 'lit/directives/repeat.js';
 import { FRAME_MIN, FRAME_SHARE } from '../../core/frame.js';
 import type { GraphHost } from '../host.js';
 import { cycleIcon, innerIcon } from '../icons.js';
-import type { EdgeStyle, GraphInput, GraphNodeInput } from '../types.js';
+import type { EdgeStyle, GraphInput, GraphNode } from '../types.js';
 import { notes } from './dag.js';
 
 /** The names of the nodes `n` is joined to: by a solid edge, by a dashed one, and the later ones. */
 export function neighbours(
-  n: GraphNodeInput,
+  n: GraphNode,
   g: Pick<GraphInput, 'edges' | 'stubs'>,
-  nodes: ReadonlyMap<string, GraphNodeInput>,
+  nodes: ReadonlyMap<string, GraphNode>,
   inCluster: (label: string) => string,
 ): { solid: string[]; dashed: string[]; later: string[] } {
   const label = (id: string) => {
@@ -31,13 +31,13 @@ export function neighbours(
  * with the same card.
  */
 export function nodeTable(h: GraphHost) {
-  const g = h.graph;
-  const w = h.strings;
+  const g = h.drawn;
+  const w = h.words;
   const dashed = [...g.edges, ...g.stubs].some((e) => e.style === 'dashed');
   const list = (xs: string[]) => w.list(xs) || w.none;
   // The frame keeps the drawing's height when the drawing of this graph was laid out (left to right); else the table's own, up to the frame's limit.
   const height = !h.down && h.laidOut && h.pz.frameH > 0 ? `height:${Math.round(h.pz.frameH)}px` : `max-height:max(${FRAME_MIN}px, ${FRAME_SHARE * 100}vh)`;
-  const rows = h.arr.drawn.map((id) => h.nodes.get(id)).filter((n): n is GraphNodeInput => !!n);
+  const rows = h.arr.drawn.map((id) => h.nodes.get(id)).filter((n): n is GraphNode => !!n);
   return html`<div class="frame tframe" part="frame" style=${height} @scroll=${() => h.card.place()}
       @click=${(e: MouseEvent) => !(e.target as Element).closest('tbody tr') && h.select(null)}>
     <table class="list view" part="table">
@@ -82,7 +82,7 @@ export function nodeTable(h: GraphHost) {
 }
 
 /** A node's status in one row, as its node in the graph says it: "28/30 | 1 failed | 1 not started". */
-export function statusLine(n: GraphNodeInput) {
+export function statusLine(n: GraphNode) {
   const sep = html`<span class="sep" aria-hidden="true"> | </span>`;
   return html`<span class="n" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span><span class="sr">${n.progress.label}</span>${notes(n).map(
     (x) => html`${sep}${x}`,

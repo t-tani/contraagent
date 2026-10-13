@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
+  `progress` are optional: `counts` and `progress` default to what its marks say
+  (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,
+  series and `key`.
+- `sortRows` orders a `sortable` column without `compare` or `text` by its cell when the
+  cell is a string or a number.
 - `pnpm tarballs` in `web/` packs `@contraagent/api`, `@contraagent/elements` and
   `@contraagent/ui` into `web/tarballs/`, naming each other by path, so npm and pnpm
   install them from a checkout. The packed `package.json` has no `source` export
@@ -344,6 +350,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `<cae-layered-graph>`: the line of key hints keeps its height when the graph has no
+  focus, so a click into the graph no longer moves what is under it (a click on a sort
+  header there was lost); on a touch screen there is no such line. There is no card
+  while the `inspector` slot is empty. A height set on the element is the frame's: the
+  frame fills it, the drawing fitted in it.
 - `<ca-monitor>` takes `base-url`, `history` and `run` whenever they change, also
   after it connects; a new `base-url` closes the old server's feeds. A request to the
   API that gets no JSON answer (an HTML page, a 404, a network error) is shown with its

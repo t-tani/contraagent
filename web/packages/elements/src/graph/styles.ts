@@ -4,9 +4,13 @@ import { css } from 'lit';
 
 export const graphStyles = css`
   :host { display: block; }
+  /* A column: the crumbs, the frame, the row under it. A height set on the host is the frame's to fill or give up. */
+  .col, .main { display: flex; flex-direction: column; }
+  .col { height: 100%; }
+  .main { flex: auto; min-height: 0; }
 
   /* One frame for every view: the drawing, the node table and a mark matrix. */
-  .frame { position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
+  .frame { flex: auto; position: relative; overflow: hidden; border-radius: 8px; background: var(--well); box-sizing: border-box; }
   .gframe { cursor: grab; touch-action: none; }
   .gframe.drag { cursor: grabbing; }
   .stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -19,7 +23,7 @@ export const graphStyles = css`
   .tools button { all: unset; cursor: pointer; min-width: 22px; height: 22px; padding: 0 7px; box-sizing: border-box; text-align: center;
     font-size: 11.5px; line-height: 22px; color: var(--text-2); border-radius: 6px; border: 1px solid var(--line); }
   .tools button:hover:not(:disabled) { color: var(--text); border-color: var(--line2); }
-  .tools button:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
+  .tools button:focus-visible, .loopchip:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
   .tools button:disabled { cursor: default; opacity: 0.4; }
   /* Graph | Table: the chosen one is raised. */
   .views { margin-left: 6px; }
@@ -46,10 +50,9 @@ export const graphStyles = css`
   .cluster > .in > * { pointer-events: auto; }
   /* Room on the right for the mark of an inner view: the cluster is as wide as its label. */
   .cluster > .hd { position: absolute; left: 11px; top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
-    white-space: nowrap; justify-content: flex-start; padding-right: 22px; }
+    white-space: nowrap; padding-right: 22px; cursor: pointer; }
   .cluster > .hd .line { display: flex; align-items: center; gap: 8px; }
   .cluster > .hd .name { display: inline-flex; align-items: center; gap: 5px; }
-  .cluster > .hd { cursor: pointer; }
   .cluster.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 2px; }
   .cluster > .hd .spread { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
@@ -79,10 +82,10 @@ export const graphStyles = css`
   .count { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ex { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 11px; line-height: 1.5;
     max-width: max(98px, calc(var(--cols) * var(--m) + (var(--cols) - 1) * var(--g))); }
-  .ex .err { color: var(--status-failed); }
-  .ex .warn { color: var(--status-attention); }
-  .ex .live { color: var(--status-running); }
-  .ex .mut { color: var(--text-muted); }
+  :is(.ex, .st) .err { color: var(--status-failed); }
+  :is(.ex, .st) .warn { color: var(--status-attention); }
+  :is(.ex, .st) .live { color: var(--status-running); }
+  :is(.ex, .st) .mut { color: var(--text-muted); }
 
   .marks { display: grid; grid-template-columns: repeat(var(--cols), var(--m)); gap: var(--g); }
   .slot { width: var(--m); height: var(--m); }
@@ -110,7 +113,6 @@ export const graphStyles = css`
   /* The legend on the left, the tools at the right end of the first line, in every view. */
   .foot { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px 14px; margin-top: 6px; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--text-muted); }
-  .legend > span { white-space: nowrap; }
   .legend span { display: inline-flex; align-items: center; gap: 6px; }
   .legend .mark { --m: 12px; cursor: default; animation: none; }
   .legend .mark:hover { transform: none; outline: none; }
@@ -141,9 +143,12 @@ export const graphStyles = css`
   .insp.sheet { position: sticky; bottom: 8px; width: auto; max-width: none; margin-top: 8px; visibility: visible; }
   .insp.sheet .ptr { display: none; }
   @keyframes insp-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
-  .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); display: none; }
+  /* The key hints keep their room: the focus moves nothing. */
+  .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); visibility: hidden; }
   .keys span { white-space: nowrap; }
-  :host(:focus-within) .keys { display: block; }
+  :host(:focus-within) .keys { visibility: visible; }
+  /* Touch alone: no keys, no line. */
+  @media not (any-pointer: fine) { .keys { display: none; } }
 
   /* The node table: across the frame's content box, the name and status as wide as their content, the relations sharing the rest. */
   /* A shadow at an edge the table scrolls past: a lid over it at the end, a shadow fixed to the frame. */
@@ -170,11 +175,6 @@ export const graphStyles = css`
   .list .name { max-width: 32ch; }
   .loopchip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--sans); font-weight: 400; }
   .loopchip .ic { color: var(--text-muted); }
-  .loopchip:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
   .list .st .n { color: var(--text); }
-  .list .st .err { color: var(--status-failed); }
-  .list .st .warn { color: var(--status-attention); }
-  .list .st .live { color: var(--status-running); }
-  .list .st .mut { color: var(--text-muted); }
 `;
 

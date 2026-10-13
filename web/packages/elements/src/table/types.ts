@@ -18,7 +18,10 @@ export interface DataColumn<R> {
   text?: (row: R) => string;
   /** The order of two rows by this column, ascending. */
   compare?: (a: R, b: R) => number;
-  /** The header is a button that sends `cae-sort` (true when the column has `compare`). */
+  /**
+   * The header is a button that sends `cae-sort` (true when the column has `compare`).
+   * Without `compare` and `text`, `sortRows` orders by the cell when it is a string or a number.
+   */
   sortable?: boolean;
   /** The cell names its row (`<th scope="row">`): the first such column does. */
   rowHeader?: boolean;
@@ -49,18 +52,22 @@ export const DEFAULT_DATA_TABLE_STRINGS: Readonly<DataTableStrings> = {
 export const isSortable = <R>(c: DataColumn<R>): boolean => c.sortable ?? !!c.compare;
 
 /**
- * `rows` ordered by the column `sort` names, by its `compare` or else its `text`;
- * equal rows keep their order. The rows as they are when no column matches.
+ * `rows` ordered by the column `sort` names: by its `compare`, else its `text`, else
+ * its cell when that is a string or a number; equal rows keep their order. The rows
+ * as they are when no column matches.
  */
 export function sortRows<R>(rows: readonly R[], columns: readonly DataColumn<R>[], sort: SortState | null): R[] {
   const c = sort && columns.find((x) => x.id === sort.id);
   if (!sort || !c) return [...rows];
-  const text = c.text;
-  const cmp = c.compare ?? (text ? (a: R, b: R) => text(a).localeCompare(text(b), undefined, { numeric: true }) : null);
-  if (!cmp) return [...rows];
   const sign = sort.direction === 'desc' ? -1 : 1;
-  return rows
-    .map((r, i) => ({ r, i }))
-    .sort((a, b) => sign * cmp(a.r, b.r) || a.i - b.i)
-    .map((x) => x.r);
+  const { compare, text } = c;
+  // A cell that is neither a string nor a number (a template) keeps its place.
+  const value = (r: R, i: number) => {
+    const v = text ? text(r) : c.cell(r, i);
+    return typeof v === 'number' || typeof v === 'string' ? v : '';
+  };
+  const keyed = rows.map((r, i) => ({ r, i, v: compare ? 0 : value(r, i) }));
+  const cmp = (a: (typeof keyed)[number], b: (typeof keyed)[number]) =>
+    compare ? compare(a.r, b.r) : typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true });
+  return keyed.sort((a, b) => sign * cmp(a, b) || a.i - b.i).map((x) => x.r);
 }

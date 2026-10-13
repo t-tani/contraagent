@@ -6,9 +6,10 @@ import { listText } from '../../../words/format.js';
 
 /**
  * Every word of the graph (`up`: Escape's hint without a selection, '' at the top;
- * `functions`: the layer has function nodes, so a row names a kind or a function).
+ * `functions`: the layer has function nodes, so a row names a kind or a function); a
+ * node always has its `progress`, so the words of a node's default count are not needed.
  */
-export function graphStrings(up: boolean, functions: boolean): LayeredGraphStrings {
+export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraphStrings, 'progress'> {
   const enter = msg('Enter: open');
   return {
     graph: msg('Graph', { id: 'view-graph', desc: 'Button: show the pipeline as a graph' }),

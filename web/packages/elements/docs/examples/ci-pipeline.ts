@@ -92,10 +92,7 @@ function node(step: (typeof steps)[number]): GraphNodeInput {
   const sharded = own.some((j) => j.shard);
   const marks = sharded ? shards.map((s) => (runsOf(s).length ? mark(runsOf(s)) : null)) : [];
   const loose = sharded ? [] : [mark(runsOf(null))];
-  // `counts` and `progress` follow from the marks.
-  const shown = [...marks, ...loose].filter((m): m is GraphMark => !!m);
-  const counts = Object.fromEntries(Object.keys(states).map((s) => [s, shown.filter((m) => m.state === s).length]));
-  const done = counts['done'] ?? 0;
+  // `counts` and `progress` ("2/3") default to what the marks say.
   // A job that failed in an earlier pass is not in the marks: the line under them names it.
   const failed = own.filter((j) => j.state === 'failed').length;
   return {
@@ -104,8 +101,6 @@ function node(step: (typeof steps)[number]): GraphNodeInput {
     cluster: step.loop ? 'retry' : null,
     marks,
     loose,
-    counts,
-    progress: { done, total: shown.length, label: `${done} of ${shown.length} done` },
     notes: failed ? [{ text: `${failed} failed ${failed === 1 ? 'job' : 'jobs'}`, tone: 'failed' }] : [],
   };
 }
@@ -126,14 +121,14 @@ const graph: GraphInput = {
   stubs: [{ id: 'push', label: 'push to main', to: 'lint', style: 'solid', weight: 1 }],
 };
 
-// ---- The table: a row per job; every column but the runner sorts.
+// ---- The table: a row per job; every column sorts.
 
 const columns: DataColumn<Job>[] = [
-  { id: 'job', header: 'Job', rowHeader: true, cell: jobName, text: jobName, sortable: true },
+  { id: 'job', header: 'Job', rowHeader: true, cell: jobName, sortable: true },
   { id: 'pass', header: 'Pass', align: 'end', width: '72px', cell: (j) => j.pass, compare: (a, b) => a.pass - b.pass },
   { id: 'state', header: 'State', width: '120px', cell: (j) => pill({ text: j.state, tone: toneOf(j.state) }), compare: (a, b) => states[a.state]!.rank - states[b.state]!.rank },
   { id: 'time', header: 'Time', align: 'end', width: '96px', cell: (j) => fmtDur(j.seconds), compare: (a, b) => a.seconds - b.seconds },
-  { id: 'runner', header: 'Runner', width: '120px', cell: (j) => j.runner },
+  { id: 'runner', header: 'Runner', width: '120px', cell: (j) => j.runner, sortable: true },
 ];
 
 // ---- The tiles.
@@ -152,14 +147,8 @@ const tiles: StatTile[] = [
 
 const css = `
 .ci-page {
-  --page-bg: var(--ca-bg, var(--ca-theme-bg));
-  --page-card: var(--ca-card, var(--ca-theme-card));
-  --page-line: var(--ca-line, var(--ca-theme-line));
-  --page-text: var(--ca-text, var(--ca-theme-text));
-  --page-text-2: var(--ca-text-secondary, var(--ca-theme-text-2));
-  --page-muted: var(--ca-text-muted, var(--ca-theme-text-muted));
-  background: var(--page-bg);
-  color: var(--page-text);
+  background: var(--ca-bg);
+  color: var(--ca-text);
   font: 14px/1.45 system-ui, sans-serif;
   padding: 16px;
   display: grid;
@@ -167,16 +156,14 @@ const css = `
   container-type: inline-size;
 }
 .ci-page header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.ci-page h2 { font-size: 18px; margin: 0; flex: 1; color: var(--page-text); }
-.ci-page h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--page-text-2); }
+.ci-page h2 { font-size: 18px; margin: 0; flex: 1; color: var(--ca-text); }
+.ci-page h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ca-text-secondary); }
 .ci-page .body { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 260px; align-items: start; }
 .ci-page .main { display: grid; gap: 16px; min-width: 0; }
-.ci-page aside { background: var(--page-card); border: 1px solid var(--page-line); border-radius: 8px; padding: 12px; position: sticky; top: 0; }
+.ci-page aside { background: var(--ca-card); border: 1px solid var(--ca-line); border-radius: 8px; padding: 12px; position: sticky; top: 0; }
 .ci-page dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
-.ci-page dt { color: var(--page-muted); }
+.ci-page dt { color: var(--ca-text-muted); }
 .ci-page dd { margin: 0; }
-/* The details are in the panel: no card beside the selection. */
-.ci-page cae-layered-graph::part(inspector) { display: none; }
 @container (max-width: 760px) { .ci-page .body { grid-template-columns: minmax(0, 1fr); } }
 `;
 
@@ -192,12 +179,12 @@ export function mount(host: HTMLElement): void {
     <header><h2>web-app | pipeline 482 | main</h2></header>
     <div class="body">
       <div class="main">
-        <section></section>
         <section><h3>Pipeline</h3></section>
+        <section></section>
       </div>
       <aside aria-live="polite"><h3>Selected</h3><div class="detail">No selection</div></aside>
     </div>`;
-  const [tableBox, graphBox] = page.querySelectorAll('section');
+  const [graphBox, tableBox] = page.querySelectorAll('section');
   const detail = page.querySelector<HTMLElement>('.detail')!;
 
   // The theme: `data-ca-theme` on the box that holds the page.

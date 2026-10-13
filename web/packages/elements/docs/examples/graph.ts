@@ -2,7 +2,7 @@
 // cluster that repeats (a retry loop), one mark per service in each step. The host
 // keeps the selection and the order, and answers the events.
 import '@contraagent/elements/graph/define';
-import type { GraphInput, GraphMark } from '@contraagent/elements/graph';
+import type { GraphInput, GraphMark, GraphNodeInput } from '@contraagent/elements/graph';
 import type { StateStyles } from '@contraagent/elements/primitives';
 
 const states: StateStyles = {
@@ -18,11 +18,8 @@ const services = ['api', 'web', 'worker'];
 const marks = (step: string, looks: string[]): GraphMark[] =>
   services.map((s, i) => ({ id: `${step}#${s}`, state: looks[i] ?? 'queued', label: `${step} · ${s} | ${looks[i] ?? 'queued'}`, tip: `${step} · ${s}` }));
 
-const node = (id: string, label: string, looks: string[], cluster: string | null) => {
-  const ms = marks(id, looks);
-  const counts = Object.fromEntries(Object.keys(states).map((k) => [k, ms.filter((m) => m.state === k).length]));
-  return { id, label, cluster, marks: ms, loose: [], counts, progress: { done: counts['ok'] ?? 0, total: ms.length, label: `${counts['ok'] ?? 0} of ${ms.length} ok` } };
-};
+/** A step: its counts and its header's count ("2/3") come from its marks. */
+const node = (id: string, label: string, looks: string[], cluster: string | null): GraphNodeInput => ({ id, label, cluster, marks: marks(id, looks) });
 
 const graph: GraphInput = {
   series: services,
