@@ -2112,6 +2112,14 @@
             "title": "Unit",
             "default": ""
           },
+          "extra_units": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Extra Units",
+            "description": "further units it locks while it runs, besides `unit`"
+          },
           "after": {
             "items": {
               "type": "string"

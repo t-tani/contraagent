@@ -117,6 +117,11 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
         <div style="min-width:0">
           <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}</div>
           <div class="verdict" data-tone=${toneAttr(tone)}>${verdictText}</div>
+          ${node?.extra_units?.length
+            ? html`<div class="meta" title="extra_units">
+                ${msg('Also locks')} ${node.extra_units.map((text) => pill({ text }))}
+              </div>`
+            : nothing}
           ${session
             ? html`<div class="whos">
                 ${tagChips([...whoTags(who), ...identityTags(tries)])}

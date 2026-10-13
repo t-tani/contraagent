@@ -195,6 +195,8 @@ export interface TaskRow extends TaskOutcome {
   last_stop: string;
   /** A waiting task: the keys of the earlier tasks it waits for that have not finished, in plan order. */
   waits_for: string[];
+  /** The units it locks besides its own (`extra_units`); empty for none. */
+  extra_units: string[];
 }
 
 /** The innermost loop pass of a plan node's flow path; null outside a loop (a pass not counted reads as the first). */
@@ -226,6 +228,7 @@ export function taskRows(outcomes: ReadonlyMap<string, TaskOutcome>, plan: Plan)
       last_stop: last?.stop ?? '',
       waits_for:
         t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !isFinished(outcomes.get(d)?.outcome ?? 'waiting')) : [],
+      extra_units: node?.extra_units ?? [],
     };
   });
 }

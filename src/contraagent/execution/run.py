@@ -8,8 +8,8 @@ A `Run` owns `runs/<run-id>/`:
     journal.jsonl           one `JournalRow` per finished task
     launches.jsonl          the full `LaunchResult` of each agent launch
     streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
-    plan.jsonl              every task a queue accepted, with its `after` and its origin
-                            (`flow`, `created_from`, `flow_call`)
+    plan.jsonl              every task a queue accepted, with its `after`, its `extra_units`
+                            and its origin (`flow`, `created_from`, `flow_call`)
     flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
                             (`state`, `error`)
     inflight/<key>.json     one marker per running task
@@ -365,6 +365,7 @@ class Run:
             "key": task.key,
             "kind": kind_name(task.kind),
             "unit": self._unit_of(task),
+            "extra_units": list(task.extra_units),
             "after": list(task.after),
             "executor": task.executor,
             "flow": frames_row(origin.flow) if origin is not None else [],
@@ -422,6 +423,7 @@ class Run:
                     "key": task.key,
                     "kind": kind_name(task.kind),
                     "unit": self._unit_of(task),
+                    "extra_units": list(task.extra_units),
                     "executor": task.executor,
                     "started_at": utcnow_iso(),
                     "pid": os.getpid(),

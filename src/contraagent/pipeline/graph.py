@@ -155,6 +155,7 @@ class Node:
     params: dict[str, Any]
     after: tuple[str, ...]
     output_path: Path | None
+    extra_units: tuple[str, ...] = ()
     upstream: list[Pending] = field(default_factory=list)
     origin: Origin | None = None
     fingerprint: str = ""
@@ -219,7 +220,17 @@ class Graph:
         finally:
             _current.reset(token)
 
-    def add(self, spec: Any, *, unit: str, key: str | None, after: Sequence[Pending | str], params: dict[str, Any]) -> Pending:
+    def add(
+        self,
+        spec: Any,
+        *,
+        unit: str,
+        key: str | None,
+        after: Sequence[Pending | str],
+        params: dict[str, Any],
+        extra_units: Sequence[str] = (),
+    ) -> Pending:
+        extras = _extra_units(spec.kind, unit, extra_units)
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
         stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
@@ -256,6 +267,7 @@ class Graph:
             params=params,
             after=tuple(dict.fromkeys(deps)),
             output_path=out,
+            extra_units=extras,
             upstream=upstream,
             origin=origin,
         )
@@ -424,6 +436,7 @@ class Graph:
         task = Task(
             kind=node.spec.kind,
             unit=node.unit or node.key,
+            extra_units=node.extra_units,
             key=node.key,
             after=node.after,
             params={k: v for k, v in node.params.items() if isinstance(v, (str, int, float, bool))},
@@ -456,6 +469,23 @@ class Graph:
                 definition=node.spec.definition(),
             ),
         )
+
+
+def _extra_units(kind: str, unit: str, extra_units: Sequence[str]) -> tuple[str, ...]:
+    """`extra_units` as a task call gave them, checked: each a non-empty `str`, none twice,
+    none the task's own `unit`."""
+    if isinstance(extra_units, str):
+        raise TypeError(f"{kind}(): extra_units must be a list of units, not the string {extra_units!r}")
+    extras = tuple(extra_units)
+    for u in extras:
+        if not isinstance(u, str) or not u:
+            raise ValueError(f"{kind}(): extra_units holds {u!r}; each extra unit is a non-empty string")
+    if unit and unit in extras:
+        raise ValueError(f"{kind}(): extra_units holds the task's own unit {unit!r}")
+    twice = sorted({u for u in extras if extras.count(u) > 1})
+    if twice:
+        raise ValueError(f"{kind}(): extra_units holds {', '.join(map(repr, twice))} more than once")
+    return extras
 
 
 def _file_digest(path: Path) -> str:

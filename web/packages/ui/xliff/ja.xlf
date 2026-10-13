@@ -2374,6 +2374,10 @@
   <source>the response is not JSON</source>
   <target>応答が JSON ではない</target>
 </trans-unit>
+<trans-unit id="s4d1a0186da48bbf6">
+  <source>Also locks</source>
+  <target>併せてロックするユニット</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

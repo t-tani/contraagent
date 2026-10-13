@@ -204,6 +204,22 @@ The parsers carry `tags=["heavy"]`; `Pipeline(tag_capacity={"heavy": 1})` runs
 one at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
 
+## Units and locks
+
+A task's unit is also its lock: tasks of different kinds on one unit never run at
+the same time, and tasks of one kind on one unit may. A task that reads or changes
+more than its own unit names the others at its call, `extra_units=[...]`. It locks
+them as it locks its unit; its key, its output file and its place in the monitor
+stay its own unit's.
+
+::code{file="examples/units/flow.py" from="def topics("}
+
+A `compare` of `alpha` and `beta` waits while a `write` of either runs, and no
+`write` of them starts while it runs. Two `compare` tasks may share a topic: they are
+one kind. `extra_units` is not part of the fingerprint, since it changes when a task
+runs, not what it does. An extra unit that is the task's own unit, or one named
+twice, raises at the task call.
+
 ## How a task ends
 
 A result's `stop` says why: `completed`, `invalid_output` (still off-contract
@@ -223,7 +239,7 @@ and receive `TaskResult`s.
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential, launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, env) |
-| `WorkQueue` | per-unit locks, caps, tags, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | per-unit locks (a task's unit and its extra units), caps, tags, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router` | per-kind routing and budgets, and the failover chain |
 | `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |

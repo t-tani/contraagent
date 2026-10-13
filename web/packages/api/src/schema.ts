@@ -1091,6 +1091,11 @@ export type components = {
              */
             unit?: string;
             /**
+             * Extra Units
+             * @description further units it locks while it runs, besides `unit`
+             */
+            extra_units?: string[];
+            /**
              * After
              * @description task keys it waits for
              */
