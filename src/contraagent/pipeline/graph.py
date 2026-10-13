@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import glob
 import hashlib
 import inspect
 import json
@@ -156,6 +157,8 @@ class Node:
     after: tuple[str, ...]
     output_path: Path | None
     upstream: list[Pending] = field(default_factory=list)
+    #: Its `changes` patterns, with `{unit}`, `{key}` and `{kind}` filled in.
+    changes: tuple[str, ...] = ()
     origin: Origin | None = None
     fingerprint: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -249,6 +252,7 @@ class Graph:
                 file = file.with_name(f"{file.stem}~{n}{file.suffix}")
             out = self.out_dir / spec.kind / file
         origin = Origin(flow=frames, created_from=call.frontier if call is not None else (), flow_call=call_id)
+        filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
         node = Node(
             spec=spec,
             key=key,
@@ -258,6 +262,7 @@ class Graph:
             output_path=out,
             upstream=upstream,
             origin=origin,
+            changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
         )
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)

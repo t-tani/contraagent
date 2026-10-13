@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(changes=["topics/{unit}/**"])`: the files a task may change beside its
+  output. Each attempt's journal row records what it created, modified and deleted under
+  them (`changes`), and the files a failed attempt created are removed. The monitor's task
+  detail lists them per attempt ("Changed files").
+- `Pipeline(scopes=, enrichers=, row_extras=)`: a `TaskScope` around each attempt of an
+  agent task, `ResultEnricher`s that see its result (after its changes are recorded),
+  and a domain's own journal columns, as `AgentRunner` and `Run` take them.
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

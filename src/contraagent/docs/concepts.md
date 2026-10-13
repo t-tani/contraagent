@@ -37,6 +37,7 @@ documentation. No other word is used for the same thing.
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
 | **hook** | a hook inside the coding agent, declared by a plugin; nothing else | `hooks.toml`, `plugins/hooks.py` |
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
+| **changes** | the files one attempt created, modified or deleted under the patterns its task declares, beside its output; the files a failed attempt created are removed | `agent_task(changes=)`, `TaskAdapter.changes`, `TaskResult.changes`, journal `changes` |
 
 ## Checking
 
@@ -94,7 +95,8 @@ documentation. No other word is used for the same thing.
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
-| **`TaskScope`** | the context manager around a task's dispatch | `AgentRunner(scopes=)` |
+| **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
+| **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |
 
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.

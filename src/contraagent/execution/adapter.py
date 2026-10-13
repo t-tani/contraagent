@@ -56,6 +56,12 @@ class TaskAdapter:
         """Files the task reads, checked before launch."""
         return ()
 
+    def changes(self, task: Task) -> Sequence[str]:
+        """Patterns, relative to the working directory, of the files the task may change:
+        each attempt's changes under them are recorded, and a failed attempt's new files
+        removed (`execution/changes.py`). Default: none."""
+        return ()
+
     def env(self, task: Task) -> dict[str, str]:
         """Extra environment for this task's launch (the runner's own `CONTRAAGENT_*` win)."""
         return {}

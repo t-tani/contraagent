@@ -81,6 +81,19 @@ class TokenUsage(BaseModel):
     calls: int = 0
 
 
+class Changes(BaseModel):
+    """The files one attempt changed under its task's `changes` patterns, relative to
+    the working directory (`dispatch.Changes`)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    created: list[str] = Field(default_factory=list)
+    modified: list[str] = Field(default_factory=list)
+    deleted: list[str] = Field(default_factory=list)
+    #: The created files removed because the attempt failed.
+    removed: list[str] = Field(default_factory=list)
+
+
 class JournalRow(BaseModel):
     """One finished attempt. `key` is the stable `Task.key`, one task; `kind`
     and `unit` are its kind and unit; `executor` says who ran it; `stop` is
@@ -129,6 +142,8 @@ class JournalRow(BaseModel):
     #: Event types the coding agent sent that this contraagent does not read, with their
     #: counts (rounds and hops summed): a newer coding agent than its reader.
     unread_events: dict[str, int] = Field(default_factory=dict)
+    #: The files the attempt changed under its task's `changes` patterns; None when it declares none.
+    changes: Changes | None = None
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.

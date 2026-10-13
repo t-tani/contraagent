@@ -100,6 +100,9 @@ class SpecAdapter(TaskAdapter):
     def env(self, task: Task) -> dict[str, str]:
         return {envvars.CALL: str(self.call_path(task))}
 
+    def changes(self, task: Task) -> tuple[str, ...]:
+        return self._node(task).changes
+
     def output_contracts(self, task: Task) -> list[OutputContract]:
         return self._node(task).output_contracts(params=lambda: self.call(task).params, call=self.call_path(task))
 
@@ -119,6 +122,7 @@ class SpecAdapter(TaskAdapter):
             **base,
             "params": spec.params.__name__ if spec.params is not None else None,
             "requires": list(spec.requires),
+            "changes": list(spec.changes),
             "output": (
                 spec.output_schema.__name__ if spec.output_schema is not None else ("text" if spec.output_format == "text" else None)
             ),

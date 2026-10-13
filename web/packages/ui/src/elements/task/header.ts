@@ -6,7 +6,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { attemptNames, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel } from '../../words/index.js';
+import { attemptNames, changedFiles, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
@@ -136,6 +136,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
       </div>
       ${tries.length ? html`<div class="runchips">${attemptNames(tries).map((name, i) => runChip(c, tries[i] as JournalRow, name, session))}</div>` : nothing}
       ${searchFold(tries, onSearch)}
+      ${changesFold(tries)}
       ${unreadEvents(tries)
         ? html`<div class="meta unread" title=${msg('Event types from the coding agent that this contraagent version does not recognize')}>
             <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
@@ -180,6 +181,26 @@ function searchFold(tries: JournalRow[], onSearch: (query: string, nth: number) 
         </ol>
       </details>`
     : nothing;
+}
+
+/** The files each attempt changed under the task's `changes` patterns (the attempt named when more than one has them); nothing for a task that declares none. */
+function changesFold(tries: JournalRow[]) {
+  const names = attemptNames(tries);
+  const withChanges = tries.filter((r) => r.changes).length;
+  const files = tries.flatMap((r, i) => {
+    const c = r.changes;
+    if (!c) return [];
+    const at = withChanges > 1 ? (names[i] ?? '') : '';
+    const gone = new Set(c.removed);
+    const of = (paths: string[] | undefined, kind: ChangeKind) => (paths ?? []).map((p) => facts(at, p, changeLabel(gone.has(p) ? 'removed' : kind)));
+    return [...of(c.created, 'created'), ...of(c.modified, 'modified'), ...of(c.deleted, 'deleted')];
+  });
+  if (!withChanges) return nothing;
+  if (!files.length) return html`<div class="meta">${msg('No changed files')}</div>`;
+  return html`<details class="io-fold">
+    <summary>${changedFiles(files.length)}</summary>
+    <ul class="meta searches jmono">${files.map((f) => html`<li>${f}</li>`)}</ul>
+  </details>`;
 }
 
 /** The task's spend over all its attempts: cost, then tokens. Nothing when none was reported. */

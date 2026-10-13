@@ -34,6 +34,7 @@ from contraagent.contracts import check_input, fold_spend, record_contracts, run
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.task import Task, TaskResult, kind_name
 from contraagent.execution.adapter import TaskAdapter
+from contraagent.execution.changes import ChangesEnricher
 from contraagent.routing.kind_config import KindConfig
 from contraagent.routing.pool import pools_of
 from contraagent.routing.router import Route, Router
@@ -111,6 +112,9 @@ class AgentRunner:
         (`RoutingPlan.credentials`); `ambient` is always there.
         `model`, `model_failover`, `env`: run-wide launch defaults a kind's own
         config outranks.
+        `scopes` / `enrichers`: wrap each dispatch (`TaskScope`, `ResultEnricher`). The
+        task's changes (`TaskAdapter.changes`) are recorded by a built-in enricher that
+        runs before them, so theirs see `TaskResult.changes`.
         """
         if isinstance(backends, Backend):
             backends = {backends.name: backends}
@@ -135,6 +139,7 @@ class AgentRunner:
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
+        self._changes = ChangesEnricher(self.adapter.changes, self.cwd)
         self._defined: set[str] = set()
 
     # --- configuration -----------------------------------------------------
@@ -237,9 +242,10 @@ class AgentRunner:
 
         Brackets the whole dispatch (every failover hop) with every
         `TaskScope`, entered in order and exited in reverse; each
-        `ResultEnricher` snapshots once before and enriches once after.
+        `ResultEnricher` snapshots once before and enriches once after, the
+        built-in one that records the task's changes first.
         """
-        snapshots = [(e, e.snapshot(task)) for e in self.enrichers]
+        snapshots = [(e, e.snapshot(task)) for e in (self._changes, *self.enrichers)]
         with contextlib.ExitStack() as stack:
             for scope in self.scopes:
                 stack.enter_context(scope(task))

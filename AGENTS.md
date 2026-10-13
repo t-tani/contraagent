@@ -51,6 +51,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | `usage` (input, output, cache_read, cache_creation, calls) | tokens: input, output, cache read, cache write, API calls | トークン: 入力, 出力, キャッシュ読み込み, キャッシュ書き込み, API 呼び出し |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
+| `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
 | a layer of the flow path (the pipeline graph's level) | Pipeline › `function` › loop (breadcrumb) | パイプライン › `function` › ループ |
