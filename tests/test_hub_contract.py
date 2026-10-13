@@ -141,6 +141,46 @@ def test_the_latest_heartbeat_of_each_host_is_kept(store):
     assert hb.sent_at == "s2" and at == "t2"
 
 
+def test_delete_run_removes_everything_held_of_the_run(store):
+    ref = FileRef(path="/w/out/a.json", sha256="a" * 64, size=3, mtime="m")
+    docs = [DocumentPut(name=rundir.RUN_INFO, text="{}")]
+    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a"]), documents=docs, files=[ref]), "t1")
+    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["k"]), run=RunRef(host_id="h2", run_id="r1", run_uid="u2")), "t1")
+    assert not store.delete_run("r1@h1", run_uid="other")  # another run under the name
+    assert store.delete_run("r1@h1", run_uid="u1")
+    assert store.entry("r1@h1") is None and [e.name for e in store.runs()] == ["r1@h2"]
+    assert store.lines("r1@h1", rundir.JOURNAL) == ([], 0) and store.count("r1@h1", rundir.JOURNAL) == -1
+    assert store.document("r1@h1", rundir.RUN_INFO) is None and store.file("r1@h1", ref.path) is None
+    assert store.activity("r1@h1") is None and not store.exists("r1@h1", rundir.JOURNAL)
+    assert not store.delete_run("r1@h1")  # again: nothing to remove
+    assert store.lines("r1@h2", rundir.JOURNAL) == (["k"], 1)
+    # a batch after the removal starts the run anew: a log that leaves a gap is refused
+    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=1, lines=["b"])), "t2").logs == {rundir.JOURNAL: 0}
+    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t3").logs == {rundir.JOURNAL: 2}
+
+
+def test_delete_heartbeat_removes_the_hosts_heartbeat(store):
+    store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s1", interval_s=3), "t1")
+    store.put_heartbeat(Heartbeat(host_id="h2", sent_at="s1", interval_s=3), "t1")
+    assert store.delete_heartbeat("h1") and not store.delete_heartbeat("h1")
+    assert set(store.heartbeats()) == {"h2"}
+
+
+def test_referenced_blobs_are_every_file_refs_sha256(store):
+    a, b, c = "a" * 64, "b" * 64, "c" * 64
+    store.put_batch(batch(files=[FileRef(path="/x", sha256=a, size=1, mtime="m"), FileRef(path="/gone", sha256=None)]), "t1")
+    other = RunRef(host_id="h2", run_id="r2", run_uid="u2")
+    store.put_batch(
+        batch(files=[FileRef(path="/x", sha256=a, size=1, mtime="m"), FileRef(path="/y", sha256=b, size=1, mtime="m")], run=other), "t1"
+    )
+    assert store.referenced_blobs() == {a, b}
+    assert store.referenced_blobs(excluding=["r2@h2"]) == {a}
+    assert store.referenced_blobs(excluding=["r1@h1", "r2@h2"]) == set()
+    # a file ref replaced by another content no longer references the old one
+    store.put_batch(batch(files=[FileRef(path="/x", sha256=c, size=1, mtime="m2")]), "t2")
+    assert store.referenced_blobs(excluding=["r2@h2"]) == {c}
+
+
 # --- BlobStore -------------------------------------------------------------------------
 
 
@@ -155,6 +195,34 @@ def test_a_blob_is_stored_by_its_hash_and_refused_otherwise(blobs):
         blobs.put("0" * 64, data)
     with pytest.raises(ValueError):
         blobs.put("../etc", data)
+
+
+def test_blobs_are_listed_with_their_size_and_age_and_deleted(blobs):
+    from datetime import UTC, datetime, timedelta
+
+    before = datetime.now(UTC) - timedelta(minutes=5)  # clock skew between the test and S3
+    held = {hashlib.sha256(d).hexdigest(): d for d in (b"one", b"two two")}
+    for sha, data in held.items():
+        blobs.put(sha, data)
+    listed = {item.sha256: item for item in blobs.items()}
+    assert set(listed) == set(held)
+    for sha, item in listed.items():
+        assert item.size == len(held[sha])
+        assert item.modified.tzinfo is not None and before < item.modified < datetime.now(UTC) + timedelta(minutes=5)
+    first, second = sorted(held)
+    blobs.delete(first)
+    blobs.delete(first)  # again: nothing happens
+    assert not blobs.has(first) and blobs.get(first) is None and blobs.has(second)
+    assert [item.sha256 for item in blobs.items()] == [second]
+
+
+def test_storing_a_held_blob_again_keeps_its_age(tmp_path):
+    clock = iter([100.0, 200.0])
+    blobs = MemoryBlobs(clock=lambda: next(clock))
+    sha = hashlib.sha256(b"x").hexdigest()
+    blobs.put(sha, b"x")
+    blobs.put(sha, b"x")
+    assert [item.modified.timestamp() for item in blobs.items()] == [100.0]
 
 
 # --- liveness --------------------------------------------------------------------------

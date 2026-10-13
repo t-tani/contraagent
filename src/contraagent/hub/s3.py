@@ -2,19 +2,21 @@
 
 Each blob is the object `<prefix>/<sha[:2]>/<sha>`. The credentials are the standard AWS
 ones (environment, shared config and credentials files, instance roles). A blob's content
-never changes, so small blobs that were read are kept in memory (`CACHE_BYTES` in all).
+never changes, so small blobs that were read are kept in memory (`CACHE_BYTES` in all) and
+served from there by `get`.
 """
 
 from __future__ import annotations
 
 import threading
 from collections import OrderedDict
+from collections.abc import Iterator
 from urllib.parse import parse_qs, urlparse
 
 import boto3
 from botocore.exceptions import ClientError
 
-from contraagent.hub.store import _check
+from contraagent.hub.store import BlobItem, _check
 
 #: How many bytes of read blobs an `S3Blobs` keeps in memory, and the largest blob it keeps.
 CACHE_BYTES = 64 * 1024 * 1024
@@ -74,9 +76,8 @@ class S3Blobs:
         return f"{self.prefix}/{key}" if self.prefix else key
 
     def has(self, sha256: str) -> bool:
+        """Asks the bucket, never the cache: another hub process may have deleted the blob."""
         key = self._key(sha256)
-        if self._recall(sha256) is not None:
-            return True
         try:
             self._client.head_object(Bucket=self.bucket, Key=key)
         except ClientError as e:
@@ -105,3 +106,21 @@ class S3Blobs:
         data = got["Body"].read()
         self._remember(sha256, data)
         return data
+
+    def items(self) -> Iterator[BlobItem]:
+        """Every blob object under the prefix, dated by its `LastModified`."""
+        base = f"{self.prefix}/" if self.prefix else ""
+        for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=base):
+            for obj in page.get("Contents", []):
+                rel = obj["Key"][len(base) :]
+                sub, _, sha = rel.partition("/")
+                if _is_hex_sha(sha) and sub == sha[:2]:
+                    yield BlobItem(sha, int(obj["Size"]), obj["LastModified"])
+
+    def delete(self, sha256: str) -> None:
+        key = self._key(sha256)
+        with self._lock:
+            data = self._cache.pop(sha256, None)
+            if data is not None:
+                self._cached -= len(data)
+        self._client.delete_object(Bucket=self.bucket, Key=key)

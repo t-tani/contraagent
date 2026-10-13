@@ -13,6 +13,8 @@ both live and by page.
   viewer keeps only its own line offset and reads what is new.
 * `close`: the task ended, so the log will not grow; its open segment may be sealed.
 * `activity`: when an append last added lines to any of the run's transcripts.
+* `runs`: every run (name and `run_uid`) the hub holds transcripts or activity of.
+* `drop`: remove everything held of a run's transcripts (retention, `core.Hub.prune`).
 
 A log is named by its run's hub name, the run's `run_uid` (a new run under the same name
 starts new logs) and its layout name. `MemoryStreamLogs` is the reference implementation
@@ -80,6 +82,17 @@ class StreamLogs(Protocol):
 
     def activity(self, name: str, uid: str) -> str | None:
         """When an append last added lines to one of the run's transcripts, or None."""
+        ...
+
+    def runs(self) -> set[tuple[str, str]]:
+        """(name, uid) of every run the hub holds a transcript or an activity of."""
+        ...
+
+    def drop(self, name: str, uid: str, *, dry_run: bool = False) -> list[str]:
+        """Remove the run's transcripts and activity; the keys of the sealed segments'
+        objects removed, sorted (none where there are no objects). With `dry_run`, remove
+        nothing and return the keys that would be removed. Dropping again, or dropping a
+        run that holds nothing, is harmless; an append after the drop starts the log anew."""
         ...
 
 
@@ -164,3 +177,17 @@ class MemoryStreamLogs:
     def activity(self, name: str, uid: str) -> str | None:
         with self._lock:
             return self._activity.get((name, uid))
+
+    def runs(self) -> set[tuple[str, str]]:
+        with self._lock:
+            return {(n, u) for (n, u, _) in self._logs} | set(self._activity)
+
+    def drop(self, name: str, uid: str, *, dry_run: bool = False) -> list[str]:
+        if dry_run:
+            return []
+        with self._lock:
+            for key in [k for k in self._logs if k[:2] == (name, uid)]:
+                del self._logs[key]
+                self._closed.discard(key)
+            self._activity.pop((name, uid), None)
+        return []

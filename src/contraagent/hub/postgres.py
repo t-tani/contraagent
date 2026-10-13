@@ -20,12 +20,15 @@ name keeps the row (and its lock) and removes the old run's logs, documents and 
 After each committed batch that changed what the hub holds of the run (the rule in
 `store`, which also decides `received_at`) the store sends `NOTIFY contraagent_hub` with the
 run's name as the payload, and after each heartbeat with `host:<host_id>` (`NOTIFY_CHANNEL`).
+
+`delete_run` deletes the run's row, and with it (`ON DELETE CASCADE`) its logs, lines,
+documents and files, in one transaction.
 """
 
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from typing import LiteralString
 
@@ -299,3 +302,26 @@ class PostgresHubStore:
         with self._conn() as conn:
             rows = conn.execute("SELECT host_id, heartbeat, received_at FROM heartbeats").fetchall()
         return {host: (Heartbeat.model_validate(hb), at) for host, hb, at in rows}
+
+    # --- retention ---------------------------------------------------------------------
+
+    def delete_run(self, name: str, run_uid: str | None = None) -> bool:
+        with self._conn() as conn:
+            if run_uid is None:
+                cur = conn.execute("DELETE FROM runs WHERE name = %s", (name,))
+            else:
+                cur = conn.execute("DELETE FROM runs WHERE name = %s AND run_uid = %s", (name, run_uid))
+        return cur.rowcount > 0
+
+    def delete_heartbeat(self, host_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM heartbeats WHERE host_id = %s", (host_id,))
+        return cur.rowcount > 0
+
+    def referenced_blobs(self, excluding: Collection[str] = ()) -> set[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT f.sha256 FROM files f JOIN runs ON runs.id = f.run WHERE f.sha256 IS NOT NULL AND runs.name <> ALL(%s)",
+                (list(excluding),),
+            ).fetchall()
+        return {r[0] for r in rows}
