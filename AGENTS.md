@@ -149,6 +149,19 @@ before `apps/monitor` (the page). Within `ui`, an element renders what its
 properties give it and sends `ca-*` events (`events.ts`); only `ca-monitor`
 holds the store and the router.
 
+| Where | Imports only |
+|---|---|
+| `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
+| `ui`: `route`, `router`, `events`, `i18n`, `lib/`, `styles/` | `@contraagent/api`, `lit`, `@lit/localize` and each other; never `elements/` |
+| `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
+| `apps/*` | the packages, through the subpaths in their `exports` |
+
+`eslint.config.js` (`no-restricted-imports`, generated from one table) and
+`packages/ui/src/layers.test.ts` check this table; the test also checks that a
+package imports another workspace package only when it depends on it.
+`packages/ui/src/fires.test.ts` checks that each element's `@fires` tags name
+exactly the events it sends, and that every event is in `CaEventMap`.
+
 Every visible string in an element is wrapped in `msg()` (`@lit/localize`) and
 every element class is `@localized()`. Translations live in
 `web/packages/ui/xliff/<locale>.xlf`; Japanese follows the terms in
@@ -179,7 +192,7 @@ published at least 14 days ago), in `web/`:
 pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest
 pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
-pnpm check:dist         # the built packages type-check as an npm consumer sees them
+pnpm check:dist         # the built packages type-check as an npm consumer sees them, and stay within the gzip budgets in size-budgets.json
 pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
