@@ -18,7 +18,7 @@ import { emit, type RoundInfo, type RoundsChangedDetail } from '../../events.js'
 import { attemptNames, runRelative, stopLabel } from '../../lib/labels.js';
 import { md } from '../../lib/markdown.js';
 import { SessionSet, recall, remember } from '../../lib/memory.js';
-import { base, prose } from '../../styles/base.js';
+import { base, prose } from '../../styles/index.js';
 import '../shared/ca-markdown.js';
 import { roundLabel, roundMark, switchText } from './rounds.js';
 import {
@@ -101,8 +101,9 @@ export class CaTranscript extends LitElement {
       .stab .mk.ok { color: var(--status-done); }
       .stab .mk.bad { color: var(--status-failed); }
       .verdict { margin: 6px 10px 4px 41px; padding: 7px 11px; border-radius: 10px; border: 1px solid; font-size: 12px; }
-      .verdict.rejected { border-color: color-mix(in srgb, var(--status-attention) 40%, transparent); background: var(--status-attention-bg); color: var(--text); }
-      .verdict.failed { border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); background: var(--status-failed-bg); color: var(--text); }
+      .verdict[data-tone] { background: var(--tone-bg); color: var(--text); }
+      .verdict[data-tone='attention'] { border-color: color-mix(in srgb, var(--tone) 40%, transparent); }
+      .verdict[data-tone='failed'] { border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
       .verdict b { display: block; margin-bottom: 2px; }
       .verdict ul { margin: 2px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 11.5px; }
 
@@ -478,7 +479,7 @@ export class CaTranscript extends LitElement {
           @click=${() => this.pickRound(i)}>
           ${mark ? html`<span class="mk ${mark === '✓' ? 'ok' : 'bad'}" aria-hidden="true">${mark}</span><span class="sr">${word}</span>` : nothing}${info ? roundLabel(info, tries, names[info.tryNo - 1]) : String(i + 1)}
           ${r.who?.model ? html` <span class="stab-m">${r.who.model.replace(/^claude-/, '')}</span>` : nothing}
-          ${i === last && this.live && this.close ? html`<span class="dot running"></span>` : nothing}
+          ${i === last && this.live && this.close ? html`<span class="dot" data-tone="running"></span>` : nothing}
         </button>`;
       })}
     </div>`;
@@ -496,7 +497,7 @@ export class CaTranscript extends LitElement {
   /** How the round ended, after its transcript: its output was sent back, or its try failed. */
   private renderVerdict(info: RoundInfo) {
     if (info.result === 'rejected') {
-      return html`<div class="verdict rejected">
+      return html`<div class="verdict" data-tone="attention">
         <b>${msg('Output failed checks')}</b>
         ${info.rejectedWith.length
           ? html`<ul>${info.rejectedWith.map((e) => html`<li>${runRelative(e, this.run)}</li>`)}</ul>`
@@ -504,13 +505,13 @@ export class CaTranscript extends LitElement {
       </div>`;
     }
     if (info.result === 'switched') {
-      return html`<div class="verdict failed">
+      return html`<div class="verdict" data-tone="failed">
         <b>${switchText(info)}</b>
       </div>`;
     }
     if (info.result === 'failed' && info.row) {
       const why = runRelative(info.row.reason, this.run) || stopLabel(info.row.stop);
-      return html`<div class="verdict failed"><b>${msg(str`Attempt ${info.tryNo} failed: ${why}`)}</b></div>`;
+      return html`<div class="verdict" data-tone="failed"><b>${msg(str`Attempt ${info.tryNo} failed: ${why}`)}</b></div>`;
     }
     return nothing;
   }

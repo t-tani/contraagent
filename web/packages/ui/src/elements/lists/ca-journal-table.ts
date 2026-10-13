@@ -9,7 +9,7 @@ import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwi
 import { stopTone, type Tone } from '../../lib/tone.js';
 import { markOf, statusWord } from '../../lib/status.js';
 import { accountReading, readingShort } from '../../lib/quota-format.js';
-import { base } from '../../styles/base.js';
+import { base, meterStyles } from '../../styles/index.js';
 import { attemptFacts, filterJournal, hadFixup, journalTally, retriedKeys } from './filters.js';
 
 // Each row is its own grid, so every track is fixed or a share of the width, never content-sized:
@@ -29,6 +29,7 @@ const COLS = 'grid-template-columns:64px minmax(130px,0.8fr) minmax(150px,0.7fr)
 export class CaJournalTable extends LitElement {
   static override styles = [
     base,
+    meterStyles,
     css`
       :host { display: block; }
       .jtally { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 12px; }

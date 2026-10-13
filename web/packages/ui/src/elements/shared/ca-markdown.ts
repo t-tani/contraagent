@@ -3,7 +3,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { markInstructions, mdFile, splitTelemetry } from '../../lib/markdown.js';
-import { base, prose } from '../../styles/base.js';
+import { base, prose } from '../../styles/index.js';
 
 /**
  * A markdown text with a rendered/source switch. A prompt's leading TELEMETRY

@@ -34,7 +34,7 @@ const LAYERS = [
     files: ['packages/api/src/**/*.ts'],
     patterns: [{ group: ['lit', 'lit/*', '@lit/*', '@contraagent/ui', '@contraagent/ui/*', '@contraagent/elements', '@contraagent/elements/*'], message: '@contraagent/api has no UI.' }],
   },
-  { files: [`${UI}/{route,router,events,i18n}.ts`, `${UI}/lib/**/*.ts`, `${UI}/styles/**/*.ts`], patterns: [intoElements] },
+  { files: [`${UI}/{route,router,events,i18n}.ts`, `${UI}/lib/**/*.ts`, `${UI}/styles/**/*.ts`, `${UI}/themes/**/*.ts`], patterns: [intoElements] },
   ...UI_FOLDERS.flatMap((a) => {
     const others = UI_FOLDERS.filter((b) => b !== a && b !== 'shared');
     const gaps = Object.entries(CROSS_FOLDER_GAPS).filter(([f]) => f.startsWith(`${UI}/elements/${a}/`));

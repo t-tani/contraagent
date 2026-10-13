@@ -7,7 +7,7 @@ import { starts } from '../../lib/clock.js';
 import { getLocale } from '../../i18n.js';
 import { facts, fmtDur, kindUnit } from '../../lib/format.js';
 import { modelSwitch, notStartedCause, runRelative, stopLabel } from '../../lib/labels.js';
-import { base } from '../../styles/base.js';
+import { base, legendStyles } from '../../styles/index.js';
 import { barBox, timeline, type TimelineBar } from './timeline-model.js';
 
 const hhmm = (t: number) => new Date(t).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -25,6 +25,7 @@ const SECONDS_BELOW_MS = 10 * 60e3;
 export class CaTimeline extends LitElement {
   static override styles = [
     base,
+    legendStyles,
     css`
       :host { display: block; }
       .tl { position: relative; }

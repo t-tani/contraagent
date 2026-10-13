@@ -28,7 +28,7 @@ colours, its accent from the palette's accent, the statuses from its red,
 yellow, green and cyan, and the code colours from its syntax colours. Where a
 palette colour reads under 4.5:1 on the theme's surfaces and tints, its lightness
 is raised (or lowered, on a light theme) as little as needed and its hue kept;
-`src/styles/themes.ts` lists every value. High contrast keeps text at 7:1 or
+`src/themes/data.ts` lists every value. High contrast keeps text at 7:1 or
 more on every surface, has stronger borders and a wider focus ring, and its
 status colours stay apart under protanopia, deuteranopia and tritanopia.
 
@@ -99,9 +99,20 @@ A colour means one thing, on every screen and in every theme:
 | `--ca-code-*` | syntax colours in code, prompts and JSON |
 | `--ca-color-scheme` | `light` or `dark`: native controls and scrollbars |
 | `--ca-sans`, `--ca-mono` | the fonts |
+| `--ca-font-size-xs` to `--ca-font-size-2xl` | the type scale |
+| `--ca-radius-sm`, `--ca-radius-md`, `--ca-radius-lg`, `--ca-radius-pill` | the corners |
 
 Every property, its meaning and its value in each built-in theme are in the
-site's theme reference, generated from `src/styles/themes.ts` (`TOKENS`, `THEMES`).
+site's theme reference, generated from `src/themes/tokens-list.ts` (`TOKENS`)
+and `src/themes/data.ts` (`THEMES`).
+
+## Type and corners
+
+The type and radius scale is the same in every theme: no theme sets it, and
+each step has a default. A `--ca-*` property on an ancestor changes a step for
+every element under it.
+
+::code{file="../src/themes/tokens-list.ts" from="{ name: 'font-size-xs'" to="];"}
 
 ## A theme of your own
 

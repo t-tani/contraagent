@@ -6,7 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { RememberedSet } from '../../lib/memory.js';
 import type { TaskView } from '../../route.js';
-import { base } from '../../styles/base.js';
+import { base, executorIconStyles } from '../../styles/index.js';
 import { kindUnit } from '../../lib/format.js';
 import { runRelative } from '../../lib/labels.js';
 import {
@@ -54,6 +54,7 @@ export class CaContracts extends LitElement {
   static override styles = [
     base,
     contractStyles,
+    executorIconStyles,
     css`
       :host { display: block; }
       .ct-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }

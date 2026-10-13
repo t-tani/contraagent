@@ -13,7 +13,7 @@ import {
   themeBootScript,
   themeRules,
   type ThemeName,
-} from './themes.js';
+} from './index.js';
 
 /** A storage that holds what it is given; `blocked` throws, as a browser with storage turned off does. */
 const store = (init: Record<string, string> = {}, blocked = false) => {

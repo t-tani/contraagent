@@ -4,7 +4,7 @@
 // monitor changes its route; another page may open its own view).
 import type { LaunchEvent } from '@contraagent/api';
 import type { RoutePatch, TaskView } from './route.js';
-import type { ThemeChoice } from './styles/themes.js';
+import type { ThemeChoice } from './themes/index.js';
 
 export interface OpenTaskDetail {
   /** A task key. */

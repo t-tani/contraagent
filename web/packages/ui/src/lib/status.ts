@@ -1,6 +1,6 @@
 // A status shown as a pill or as a word: the word, its tone (`data-tone`) and,
 // where a mark belongs, its mark (`data-mark`: ✓ done, ✕ failed, ◌ pending).
-// The look of each is in `styles/base.ts`; the mark is drawn by CSS and hidden
+// The look of each is in `styles/status.ts`; the mark is drawn by CSS and hidden
 // from screen readers, which read the word.
 import type { Outcome } from '@contraagent/api';
 import { html, nothing, type TemplateResult } from 'lit';

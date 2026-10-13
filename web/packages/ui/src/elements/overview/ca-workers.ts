@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { starts } from '../../lib/clock.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import '../shared/ca-elapsed.js';
 
 /**

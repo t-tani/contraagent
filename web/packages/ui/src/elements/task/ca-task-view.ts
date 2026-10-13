@@ -39,9 +39,9 @@ import {
 } from '../../lib/labels.js';
 import { accountReading, readingShort, readingTip } from '../../lib/quota-format.js';
 import { outcomePill, statusPill } from '../../lib/status.js';
-import { stopTone } from '../../lib/tone.js';
+import { stopTone, type Tone } from '../../lib/tone.js';
 import { TASK_VIEWS, type TaskView } from '../../route.js';
-import { base } from '../../styles/base.js';
+import { base, executorIconStyles } from '../../styles/index.js';
 import '../shared/ca-definition.js';
 import '../shared/ca-json-tree.js';
 import '../shared/ca-markdown.js';
@@ -108,6 +108,7 @@ export class CaTaskView extends LitElement {
     base,
     contractStyles,
     whoStyles,
+    executorIconStyles,
     css`
       :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
       .taskmeta { flex: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
@@ -118,9 +119,8 @@ export class CaTaskView extends LitElement {
       .tm-av.py { background: var(--raise); color: var(--text-muted); box-shadow: none; }
       .tm-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; gap: 8px; align-items: center; }
       .verdict { font-size: 12.5px; color: var(--text); margin-top: 2px; }
-      .verdict.failed { color: var(--status-failed); }
-      .verdict.attention { color: var(--status-attention); }
-      .verdict.mut { color: var(--text-muted); }
+      .verdict[data-tone='failed'], .verdict[data-tone='attention'] { color: var(--tone); }
+      .verdict[data-tone='muted'] { color: var(--text-muted); }
       .whos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
       .runchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
       .who.ident { color: var(--text-2); font-family: var(--mono); font-weight: 500; }
@@ -322,8 +322,8 @@ export class CaTaskView extends LitElement {
     return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${facts(msg('No transcript'), outcomeLabel(state))}</b></div>`;
   }
 
-  /** One line under the title: what happened to the task, in words, and its look (`failed`, `attention`, `mut`). */
-  private verdict(d: TaskDetail, live: boolean): [text: string, look: string] {
+  /** One line under the title: what happened to the task, in words, and its tone (`failed`, `attention`, `muted`, or none). */
+  private verdict(d: TaskDetail, live: boolean): [text: string, tone: Tone] {
     const rows = d.rows;
     const tries = rows.filter(isLaunched);
     const last = rows[rows.length - 1];
@@ -332,9 +332,9 @@ export class CaTaskView extends LitElement {
       case 'running':
         return [msg('Running'), ''];
       case 'waiting':
-        return [msg('Waiting'), 'mut'];
+        return [msg('Waiting'), 'muted'];
       case 'skipped':
-        return [msg('Skipped'), 'mut'];
+        return [msg('Skipped'), 'muted'];
       case 'not_started': {
         const cause = this.notStartedCause(d);
         return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
@@ -401,7 +401,7 @@ export class CaTaskView extends LitElement {
     const first = rows[0];
     const tries = rows.filter(isLaunched);
     const extras = Object.entries(d).filter(([k]) => !SHOWN_KEYS.has(k));
-    const [verdict, look] = this.verdict(d, live);
+    const [verdict, tone] = this.verdict(d, live);
     const kindName = py ? msg('Python task') : msg('Agent task');
     const node = this.plan?.nodes.find((n) => n.key === d.key);
     return html`<div class="taskmeta">
@@ -409,7 +409,7 @@ export class CaTaskView extends LitElement {
         <span class="tm-av ${py ? 'py' : ''}" title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
         <div style="min-width:0">
           <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? statusPill(msg('running'), 'running') : nothing}</div>
-          <div class="verdict ${look}">${verdict}</div>
+          <div class="verdict" data-tone=${tone || nothing}>${verdict}</div>
           ${session
             ? html`<div class="whos">
                 ${whoChips(who)}${this.identityChip(tries)}

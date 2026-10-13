@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import './index.js';
-import { tokenStyles } from './styles/base.js';
+import { tokenStyles } from './styles/index.js';
 
 // Vitest runs from web/ (under happy-dom, import.meta.url is not a file URL).
 const DIR = join(process.cwd(), 'packages', 'ui', 'docs', 'examples');

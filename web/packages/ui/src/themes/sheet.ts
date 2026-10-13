@@ -1,7 +1,7 @@
 // The built-in themes as stylesheets: for a document (or any shadow root that
 // holds the elements), and for an element that applies a theme to itself.
 import { unsafeCSS, type CSSResult } from 'lit';
-import { themeRules } from './themes.js';
+import { themeRules } from './data.js';
 
 /** Applies the theme named by `data-ca-theme` on any element (`<html data-ca-theme="nord">`). */
 export const themeStyles: CSSResult = unsafeCSS(themeRules((n) => `[data-ca-theme="${n}"]`));

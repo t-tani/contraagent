@@ -22,7 +22,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, kindUnit, localTime, sentence } from '../../lib/format.js';
 import { notStartedCause, outcomeLabel, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import { statusPill, statusWord } from '../../lib/status.js';
 import { contractTone, outcomeTone } from '../../lib/tone.js';
 import { contractChip, contractStatusLabel, contractStatusWhy, formatOf } from '../shared/contract-parts.js';
@@ -262,8 +262,8 @@ export class CaOverview extends LitElement {
     const done = c.completed_stages ?? [];
     return html`<div class="chips" style="margin-bottom:10px">
         ${done.length || c.stage
-          ? html`${done.map((n) => html`<span class="chip done"><span aria-hidden="true">✓</span><span class="sr">${msg('done')}</span> ${n}</span>`)}${c.stage
-              ? html`<span class="chip cur"><span class="sr">${msg('current')}</span>${c.stage}</span>`
+          ? html`${done.map((n) => html`<span class="chip" data-tone="done"><span aria-hidden="true">✓</span><span class="sr">${msg('done')}</span> ${n}</span>`)}${c.stage
+              ? html`<span class="chip" data-tone="running"><span class="sr">${msg('current')}</span>${c.stage}</span>`
               : nothing}`
           : html`<span class="meta">${msg('No stage')}</span>`}
       </div>

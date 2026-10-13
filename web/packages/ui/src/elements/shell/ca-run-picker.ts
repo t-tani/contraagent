@@ -7,7 +7,7 @@ import { facts, fmtDur, localTime, relAgo, usd } from '../../lib/format.js';
 import { stateCount } from '../../lib/labels.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
 import { runTone } from '../../lib/tone.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 
 const took = (r: RunSummary) => elapsedS(r);
 

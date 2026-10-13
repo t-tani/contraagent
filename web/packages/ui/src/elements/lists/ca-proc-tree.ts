@@ -4,7 +4,7 @@ import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { starts } from '../../lib/clock.js';
 import { kindUnit } from '../../lib/format.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 import '../shared/ca-elapsed.js';
 
 /** The run's live process tree (its first root): pid, command, and how long each has run. */

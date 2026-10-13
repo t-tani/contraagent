@@ -1,11 +1,13 @@
-// The built-in themes: one value for every colour token, per theme. Plain data
-// and plain functions (no Lit, no DOM at import), so a page, a build script and
-// the documentation site can read them too (`@contraagent/ui/themes`).
+// The built-in themes: one value for every colour token, per theme, and the
+// rules that apply them. Plain data and plain functions (no Lit, no DOM at
+// import), so a page, a build script and the documentation site can read them
+// too (`@contraagent/ui/themes`).
 //
 // Two layers of custom properties reach an element:
 //   1. `data-ca-theme="<name>"` on any ancestor sets `--ca-theme-*` (the rules below);
 //   2. a `--ca-*` property set on any ancestor overrides its token, whatever the theme.
-// With neither, an element shows the contraagent theme (the fallbacks in `tokens`).
+// With neither, an element shows the contraagent theme (the fallbacks in
+// `tokenStyles`, styles/tokens.ts).
 
 /**
  * The built-in themes, in the order of the monitor's theme control. Each is a
@@ -29,66 +31,6 @@ export const DEFAULT_THEME: ThemeName = 'contraagent-dark';
 /** What `system` shows, by the system's colour scheme. */
 export const SYSTEM_THEMES = { dark: 'contraagent-dark', light: 'contraagent-light' } as const satisfies Record<string, ThemeName>;
 
-/**
- * A token: the short name the elements' styles use (`--<name>`), the `--ca-*`
- * property that sets it, and its meaning (the site's theme reference shows it).
- * A token with `derive` is computed from the others unless its property is set;
- * the themes do not list it.
- */
-export interface TokenInfo {
-  name: string;
-  prop: string;
-  meaning: string;
-  derive?: string;
-}
-
-export const TOKENS: readonly TokenInfo[] = [
-  { name: 'backdrop', prop: '--ca-backdrop', meaning: "the monitor's page, behind the panels (a colour or a gradient)" },
-  { name: 'bg', prop: '--ca-bg', meaning: 'the page' },
-  { name: 'card', prop: '--ca-card', meaning: 'a card or a graph node' },
-  { name: 'panel', prop: '--ca-panel', meaning: 'a panel (bottom of its gradient)' },
-  { name: 'panel2', prop: '--ca-panel2', meaning: 'a panel (top of its gradient), a sticky header' },
-  { name: 'raise', prop: '--ca-raise', meaning: 'a raised surface: a neutral chip, a hovered row' },
-  { name: 'well', prop: '--ca-well', meaning: "a sunken surface: code, a graph's frame" },
-  { name: 'track', prop: '--ca-track', meaning: 'the empty part of a bar' },
-  { name: 'line', prop: '--ca-line', meaning: 'a border' },
-  { name: 'line2', prop: '--ca-line2', meaning: "a stronger border, a graph's edge" },
-  { name: 'shadow', prop: '--ca-shadow', meaning: 'the colour of a shadow under a panel, a menu or a notice' },
-  { name: 'text', prop: '--ca-text', meaning: 'text, and every number that is not a problem count' },
-  { name: 'text-2', prop: '--ca-text-secondary', meaning: 'secondary text' },
-  { name: 'text-muted', prop: '--ca-text-muted', meaning: 'labels, captions, units' },
-  { name: 'accent', prop: '--ca-accent', meaning: 'links, the selected tab or item' },
-  { name: 'accent-bg', prop: '--ca-accent-bg', meaning: 'a selected row or item', derive: 'color-mix(in srgb, var(--accent) calc(var(--tint) + 1%), transparent)' },
-  { name: 'focus', prop: '--ca-focus', meaning: 'the focus ring' },
-  { name: 'focus-width', prop: '--ca-focus-width', meaning: 'the width of the focus ring' },
-  { name: 'selection', prop: '--ca-selection', meaning: 'selected text' },
-  { name: 'status-failed', prop: '--ca-status-failed', meaning: 'failed: a task, an attempt, a check (with ✕)' },
-  { name: 'status-failed-bg', prop: '--ca-status-failed-bg', meaning: 'the tint behind a failed pill or chip', derive: 'color-mix(in srgb, var(--status-failed) var(--tint), transparent)' },
-  { name: 'status-attention', prop: '--ca-status-attention', meaning: 'not failed, needs a look: not started (with ◌), a limit near' },
-  { name: 'status-attention-bg', prop: '--ca-status-attention-bg', meaning: 'the tint behind an attention pill or chip', derive: 'color-mix(in srgb, var(--status-attention) var(--tint), transparent)' },
-  { name: 'status-done', prop: '--ca-status-done', meaning: 'done or passed: marks (✓) and small chips only' },
-  { name: 'status-done-bg', prop: '--ca-status-done-bg', meaning: 'the tint behind a done pill or chip', derive: 'color-mix(in srgb, var(--status-done) var(--tint), transparent)' },
-  { name: 'status-running', prop: '--ca-status-running', meaning: 'running, live' },
-  { name: 'status-running-bg', prop: '--ca-status-running-bg', meaning: 'the tint behind a running pill or chip', derive: 'color-mix(in srgb, var(--status-running) var(--tint), transparent)' },
-  { name: 'status-muted', prop: '--ca-status-muted', meaning: 'skipped, waiting, not run' },
-  { name: 'status-muted-bg', prop: '--ca-status-muted-bg', meaning: 'the tint behind a muted pill or chip', derive: 'color-mix(in srgb, var(--status-muted) calc(var(--tint) - 1%), transparent)' },
-  { name: 'tint', prop: '--ca-tint', meaning: 'how strong a tint is: the share of its colour in a status, agent or selected background' },
-  { name: 'agent', prop: '--ca-agent', meaning: "identity: an agent task's icon and edge" },
-  { name: 'agent-bg', prop: '--ca-agent-bg', meaning: "the tint behind an agent task's icon", derive: 'color-mix(in srgb, var(--agent) calc(var(--tint) + 2%), transparent)' },
-  { name: 'meter', prop: '--ca-meter', meaning: 'a bar that measures, not judges: time, usage, progress' },
-  { name: 'tok-input', prop: '--ca-tok-input', meaning: 'tokens: input' },
-  { name: 'tok-cache-read', prop: '--ca-tok-cache-read', meaning: 'tokens: cache read' },
-  { name: 'tok-cache-write', prop: '--ca-tok-cache-write', meaning: 'tokens: cache write' },
-  { name: 'tok-output', prop: '--ca-tok-output', meaning: 'tokens: output' },
-  { name: 'code-keyword', prop: '--ca-code-keyword', meaning: 'code: keywords' },
-  { name: 'code-string', prop: '--ca-code-string', meaning: 'code and JSON: strings' },
-  { name: 'code-number', prop: '--ca-code-number', meaning: 'code and JSON: numbers' },
-  { name: 'code-constant', prop: '--ca-code-constant', meaning: 'code: constants, template placeholders' },
-  { name: 'code-comment', prop: '--ca-code-comment', meaning: 'code: comments' },
-  { name: 'code-function', prop: '--ca-code-function', meaning: 'code: functions, decorators' },
-  { name: 'code-type', prop: '--ca-code-type', meaning: 'code: classes and types' },
-  { name: 'code-name', prop: '--ca-code-name', meaning: 'code: built-ins; JSON: keys' },
-];
 
 /** The name of every token a theme sets (every token without `derive`). */
 export type ThemeToken =
@@ -435,58 +377,3 @@ export function themeRules(selector: (name: ThemeName) => string): string {
     return `${selector(n)} { color-scheme: ${t.scheme}; ${themeProp('color-scheme')}: ${t.scheme}; ${decls.join(' ')} }`;
   }).join('\n');
 }
-
-export const isThemeName = (x: unknown): x is ThemeName => (THEME_NAMES as readonly unknown[]).includes(x);
-export const isThemeChoice = (x: unknown): x is ThemeChoice => (THEME_CHOICES as readonly unknown[]).includes(x);
-
-/** The theme a choice shows: `system` by the system's colour scheme; anything else not a theme, the default. */
-export function resolveTheme(choice: unknown, prefersLight: boolean): ThemeName {
-  if (choice === 'system') return prefersLight ? SYSTEM_THEMES.light : SYSTEM_THEMES.dark;
-  return isThemeName(choice) ? choice : DEFAULT_THEME;
-}
-
-/** Where the reader's choice is kept (this browser only). */
-export const THEME_STORE_KEY = 'contraagent:theme';
-
-type Store = Pick<Storage, 'getItem' | 'setItem'>;
-const storage = (): Store | undefined => {
-  try {
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
-};
-
-/** The reader's choice from an earlier visit, else the default theme. */
-export function preferredTheme(store: Store | undefined = storage()): ThemeChoice {
-  try {
-    const saved = store?.getItem(THEME_STORE_KEY);
-    if (isThemeChoice(saved)) return saved;
-  } catch {
-    /* storage blocked: the default */
-  }
-  return DEFAULT_THEME;
-}
-
-/** Remember the reader's choice for the next visit. */
-export function rememberTheme(choice: ThemeChoice, store: Store | undefined = storage()): void {
-  try {
-    store?.setItem(THEME_STORE_KEY, choice);
-  } catch {
-    /* storage blocked: the choice lasts for this page */
-  }
-}
-
-/** Whether the system asks for a light colour scheme. */
-export const prefersLight = (): boolean => globalThis.matchMedia?.('(prefers-color-scheme: light)').matches ?? false;
-
-/**
- * A script for a page's `<head>`: it sets `data-ca-theme` on `<html>` from the
- * reader's choice before the first paint, as `resolveTheme(preferredTheme(), prefersLight())`
- * does. With `themeRules` in a `<style>` beside it, the page opens in its theme.
- */
-export const themeBootScript = `(function(){var c=null;try{c=localStorage.getItem(${JSON.stringify(THEME_STORE_KEY)})}catch(e){}
-var names=${JSON.stringify(THEME_NAMES)},choices=${JSON.stringify(THEME_CHOICES)};
-if(choices.indexOf(c)<0)c=${JSON.stringify(DEFAULT_THEME)};
-if(c==="system")c=window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?${JSON.stringify(SYSTEM_THEMES.light)}:${JSON.stringify(SYSTEM_THEMES.dark)};
-if(names.indexOf(c)>=0)document.documentElement.setAttribute("data-ca-theme",c);})();`;

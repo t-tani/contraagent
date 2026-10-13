@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, kindUnit, tokenCount, usd } from '../../lib/format.js';
-import { base } from '../../styles/base.js';
+import { base, legendStyles } from '../../styles/index.js';
 
 type Part = 'input' | 'cache_read' | 'cache_creation' | 'output';
 const PARTS: readonly Part[] = ['input', 'cache_read', 'cache_creation', 'output'];
@@ -22,6 +22,7 @@ const PARTS: readonly Part[] = ['input', 'cache_read', 'cache_creation', 'output
 export class CaSpendBreakdown extends LitElement {
   static override styles = [
     base,
+    legendStyles,
     css`
       :host { display: block; }
       .kinds { display: grid; grid-template-columns: minmax(90px, max-content) minmax(0, 1fr) max-content max-content; gap: 8px 14px; align-items: center; }

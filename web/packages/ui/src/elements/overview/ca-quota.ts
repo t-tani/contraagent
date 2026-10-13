@@ -7,7 +7,7 @@ import { localTime } from '../../lib/format.js';
 import { credentialLabel } from '../../lib/labels.js';
 import { pct, quotaStatusLabel, resetsIn } from '../../lib/quota-format.js';
 import { statusPill } from '../../lib/status.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 
 type Window = 'five_hour' | 'seven_day';
 

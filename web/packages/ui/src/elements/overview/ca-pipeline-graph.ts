@@ -7,7 +7,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
 import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../lib/labels.js';
-import { base } from '../../styles/base.js';
+import { base, executorIconStyles, legendStyles } from '../../styles/index.js';
 import { isPoint } from './graph/arrange.js';
 import { shortName } from './graph/flow-index.js';
 import { autoLayer, layerGraph, parentLayer, resolveLayer, splitLayer } from './graph/layer.js';
@@ -155,6 +155,8 @@ function gridOf(n: Pick<GraphNode, 'units' | 'single'>, units: number): Grid {
 export class CaPipelineGraph extends LitElement {
   static override styles = [
     base,
+    executorIconStyles,
+    legendStyles,
     css`
       :host { display: block; }
 

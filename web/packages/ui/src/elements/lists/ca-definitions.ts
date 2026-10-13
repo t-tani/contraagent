@@ -6,7 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts } from '../../lib/format.js';
 import { factLine } from '../shared/fact-line.js';
-import { base } from '../../styles/base.js';
+import { base } from '../../styles/index.js';
 
 /** How long to wait before asking again for definitions that have not been recorded yet. */
 const REFETCH_MS = 3000;

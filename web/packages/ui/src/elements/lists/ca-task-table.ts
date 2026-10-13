@@ -7,7 +7,7 @@ import { emit } from '../../events.js';
 import { facts, fmtDur, localTime, tokenCount, usd } from '../../lib/format.js';
 import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../lib/labels.js';
 import { outcomePill } from '../../lib/status.js';
-import { base } from '../../styles/base.js';
+import { base, executorIconStyles, meterStyles } from '../../styles/index.js';
 import { filterTasks, sortTasks } from './filters.js';
 
 /**
@@ -22,6 +22,8 @@ import { filterTasks, sortTasks } from './filters.js';
 export class CaTaskTable extends LitElement {
   static override styles = [
     base,
+    executorIconStyles,
+    meterStyles,
     css`
       :host { display: block; margin-top: 4px; }
       /* the numbers sit tight together, right-aligned; the outcome comes last and takes the spare width, so no gap opens inside the row */
