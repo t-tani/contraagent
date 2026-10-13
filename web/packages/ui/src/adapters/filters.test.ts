@@ -18,6 +18,10 @@ describe('filterTasks', () => {
     expect(filterTasks(ts, '', 'y').map((t) => t.key)).toEqual(['b-y']);
     expect(filterTasks(ts, '', '')).toHaveLength(2);
   });
+  it('by an extra unit too', () => {
+    const both = [task('compare-alpha', 'compare'), { ...task('compare-gamma', 'compare'), extra_units: ['beta'] }];
+    expect(filterTasks(both, '', 'beta').map((t) => t.key)).toEqual(['compare-gamma']);
+  });
 });
 
 describe('sortTasks', () => {

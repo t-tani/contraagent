@@ -6,7 +6,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { attemptNames, changedFiles, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
+import { alsoLocksLabel, alsoLocksTip, attemptNames, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
@@ -118,8 +118,8 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
           <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}</div>
           <div class="verdict" data-tone=${toneAttr(tone)}>${verdictText}</div>
           ${node?.extra_units?.length
-            ? html`<div class="meta" title="extra_units">
-                ${msg('Also locks')} ${node.extra_units.map((text) => pill({ text }))}
+            ? html`<div class="meta" title=${alsoLocksTip()}>
+                ${alsoLocksLabel()} ${node.extra_units.map((text) => pill({ text }))}
               </div>`
             : nothing}
           ${session
@@ -203,7 +203,7 @@ function changesFold(tries: JournalRow[]) {
   if (!withChanges) return nothing;
   if (!files.length) return html`<div class="meta">${msg('No changed files')}</div>`;
   return html`<details class="io-fold">
-    <summary>${changedFiles(files.length)}</summary>
+    <summary title=${changedFilesTip()}>${changedFiles(files.length)}</summary>
     <ul class="meta searches jmono">${files.map((f) => html`<li>${f}</li>`)}</ul>
   </details>`;
 }
