@@ -344,6 +344,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Below 760 px wide, the open run picker spans the header 16 px from each side; it ran
+  off the right edge and scrolled the page sideways.
 - The monitor's transcript feed no longer skips the lines after a page that stopped at
   its event or byte limit, no longer sends a transcript's last page again on reconnect,
   and holds a half-written last line until it is complete.

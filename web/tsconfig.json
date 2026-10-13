@@ -10,6 +10,7 @@
     "*.ts",
     "packages/*/vite.config.ts",
     "e2e/**/*.ts",
-    "scripts/**/*.test.ts"
+    "scripts/**/*.test.ts",
+    "packages/*/scripts/**/*.test.ts"
   ]
 }
