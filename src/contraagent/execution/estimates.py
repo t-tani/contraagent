@@ -41,6 +41,7 @@ import threading
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
+from contraagent import rundir
 from contraagent.dispatch.task import Task, kind_name
 
 #: What a tail is estimated for: (the flow path's function names, the kind, the passes of
@@ -84,16 +85,16 @@ class JournalEstimates:
         self.loop_cap = loop_cap
         samples: dict[str, list[float]] = {}
         tails: dict[TailKey, list[float]] = {}
-        journals = sorted(Path(runs_dir).glob("*/journal.jsonl"), key=_mtime)[-recent:] if recent > 0 else []
+        journals = sorted(Path(runs_dir).glob(f"*/{rundir.JOURNAL}"), key=_mtime)[-recent:] if recent > 0 else []
         for run_dir in (p.parent for p in journals):
-            journal = list(_rows(run_dir / "journal.jsonl"))
+            journal = list(_rows(run_dir / rundir.JOURNAL))
             for e in journal:
                 wall = float(e.get("wall_s") or 0)
                 key = e.get("kind") or ""
                 if key and wall > 0 and e.get("stop") == "completed":
                     samples.setdefault(key, []).append(wall)
-            plan = list(_rows(run_dir / "plan.jsonl"))
-            calls = list(_rows(run_dir / "flow_calls.jsonl"))
+            plan = list(_rows(run_dir / rundir.PLAN))
+            calls = list(_rows(run_dir / rundir.FLOW_CALLS))
             for key, tail in run_tails(plan, journal, calls, loop_cap=loop_cap):
                 tails.setdefault(key, []).append(tail)
         self._median = {k: statistics.median(v) for k, v in samples.items()}

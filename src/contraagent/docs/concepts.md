@@ -73,6 +73,8 @@ documentation. No other word is used for the same thing.
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |
+| **run uid** / **host id** | the id no other run has, on any host, kept when the run is resumed / the host that drives the run | `run.json` `run_uid` / `host_id` (`CONTRAAGENT_HOST_ID`, else the host name) |
+| **run source** / **liveness** | where the monitor reads runs' records / which runs are live and their processes | `RunSource` (`DirectorySource`, `MemorySource`) / `Liveness` (`ProcLiveness`, `StaticLiveness`), `contraagent/monitor/source.py` |
 | **journal** / **plan** | the finished attempts / the queued tasks | `journal.jsonl` / `plan.jsonl` |
 | **unread event** | an event type a coding agent sent that its reader in this contraagent does not know: a newer coding agent | `LaunchResult.unread_events`, `JournalRow.unread_events` |
 | **web fetch** | the coding agent reading a web page by its URL (Claude Code `WebFetch`, omp `read` of a URL) | a transcript's tool call `web_fetch` |

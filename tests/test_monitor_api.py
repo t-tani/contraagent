@@ -259,7 +259,8 @@ def test_traversal_is_refused_by_the_python_api(secret_layout):
         lambda: mon.procs("../secret"),
         lambda: mon.task_detail("../secret", "leak"),
         lambda: mon.task_detail("r1", "../x"),
-        lambda: mon.stream_path("r1", ".x"),
+        lambda: mon.stream_size("r1", ".x"),
+        lambda: mon.stream("r1", ".x", 0),
     ):
         with pytest.raises(ValueError):
             call()

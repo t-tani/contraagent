@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic_core import to_jsonable_python
 
-from contraagent import envvars
+from contraagent import envvars, rundir
 from contraagent.backends.base import Backend
 from contraagent.calls import CallFile, CallOutput, call_prompt, schema_ref_of
 from contraagent.contracts import InputContract, OutputContract
@@ -27,7 +27,7 @@ from contraagent.validators import CommandValidator
 class SpecAdapter(TaskAdapter):
     def __init__(self, run_id: str, run_dir: Path, cwd: Path | None = None) -> None:
         self.run_id = run_id
-        self.calls_dir = Path(run_dir) / "calls"
+        self.calls_dir = Path(run_dir) / rundir.CALLS
         self.cwd = Path(cwd) if cwd is not None else Path.cwd()
 
     @staticmethod

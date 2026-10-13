@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `run.json` names the run across hosts: `run_uid`, an id no other run has (kept when
+  the run is resumed), and `host_id` (`CONTRAAGENT_HOST_ID`, else the host name).
+- `Monitor(source=..., liveness=...)`: the monitor reads runs through a `RunSource` and a
+  `Liveness` (`contraagent.monitor.source`). `DirectorySource` and `ProcLiveness`, the
+  defaults, read the runs directory and `/proc`; `MemorySource` and `StaticLiveness`
+  hold records in memory. The layout of a run's records is `contraagent.rundir`.
+
 - `Pipeline.check(flow, ...)` and `contraagent check tasks.py:flow`: the task
   graph is built and checked with nothing launched, and every problem is reported
   at once:

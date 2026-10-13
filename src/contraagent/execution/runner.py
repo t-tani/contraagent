@@ -25,7 +25,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from contraagent import envvars
+from contraagent import envvars, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.credentials import AMBIENT, CredentialBase, Pool
 from contraagent.backends.launch import Launch, LaunchResult, Stop
@@ -202,7 +202,7 @@ class AgentRunner:
             preamble=task.params.get("preamble"),
             context_files=self.adapter.context_files(task, be),
             plugin_dirs=plugin_dirs,
-            stream_path=self.run_dir / "streams" / f"{task.key}.stream.jsonl" if self.keep_transcripts else None,
+            stream_path=self.run_dir / rundir.stream(task.key) if self.keep_transcripts else None,
         )
 
     def credential_for(self, task: Task, route: Route | None) -> CredentialBase:
@@ -261,7 +261,7 @@ class AgentRunner:
         self._defined.add(kind)
         try:
             body = {"kind": kind, **(self.adapter.definition(task) or {})}
-            d = self.run_dir / "definitions"
+            d = self.run_dir / rundir.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
             (d / f"{kind}.json").write_text(json.dumps(body, default=str))
         except Exception:  # a definition the monitor cannot show must not fail a launch

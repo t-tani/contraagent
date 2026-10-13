@@ -35,6 +35,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from contraagent import rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.dispatch.task import kind_name
@@ -292,7 +293,7 @@ def record_contracts(
         "inputs": [spec(c, "input") for c in input_contracts],
     }
     try:
-        d = Path(run_dir) / "contracts"
+        d = Path(run_dir) / rundir.CONTRACTS
         d.mkdir(parents=True, exist_ok=True)
         safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in task.key)
         (d / f"{safe}.json").write_text(json.dumps(record, default=str))

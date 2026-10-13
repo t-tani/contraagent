@@ -46,6 +46,14 @@ def _names(vocab: Iterable | None) -> frozenset[str] | None:
     return frozenset(str(getattr(v, "value", v)) for v in vocab)
 
 
+def parse_cursor(text: str) -> Cursor | None:
+    """A cursor file's text as a `Cursor`, or None when it is empty or does not parse (a torn write)."""
+    try:
+        return Cursor.model_validate_json(text) if text.strip() else None
+    except ValueError:
+        return None
+
+
 class CursorStore:
     """The run's resume cursor in one flock-guarded JSON file (see the module docstring)."""
 
@@ -94,9 +102,8 @@ class CursorStore:
         try:
             if not self.path.is_file():
                 return None
-            text = self.path.read_text().strip()
-            return Cursor.model_validate_json(text) if text else None
-        except (OSError, ValueError):
+            return parse_cursor(self.path.read_text())
+        except OSError:
             return None
 
     def load(self) -> Cursor:

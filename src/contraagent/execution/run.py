@@ -2,7 +2,8 @@
 
 A `Run` owns `runs/<run-id>/`:
 
-    run.json                who is running it (pid, start time, working directory) — how a
+    run.json                who is running it (pid, start time, working directory) and
+                            which run it is across hosts (`run_uid`, `host_id`) — how a
                             monitor knows it is live
     journal.jsonl           one `JournalRow` per finished task
     launches.jsonl          the full `LaunchResult` of each agent launch
@@ -32,10 +33,11 @@ import logging
 import os
 import sys
 import threading
+import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from contraagent import procfs
+from contraagent import procfs, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Stop
 from contraagent.dispatch.python_task import make_python_task
@@ -109,13 +111,13 @@ class Run:
         self.runs_dir = Path(runs_dir)
         self.dir = self.runs_dir / run_id
         self.dir.mkdir(parents=True, exist_ok=True)
-        (self.dir / "streams").mkdir(exist_ok=True)
+        (self.dir / rundir.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
         # no unit; the journal row then carries an empty unit.
         self._unit_of = unit_of or (lambda t: t.declared_unit)
         self.journal = Journal(
-            self.dir / "journal.jsonl",
-            self.dir / "launches.jsonl",
+            self.dir / rundir.JOURNAL,
+            self.dir / rundir.LAUNCHES,
             run_id=run_id,
             run_group=self.run_group,
             unit_of=self._unit_of,
@@ -130,10 +132,12 @@ class Run:
         self._teardown_callbacks: list[Callable[[], None]] = []
         if lock:
             self._acquire()
-        (self.dir / "run.json").write_text(
+        (self.dir / rundir.RUN_INFO).write_text(
             json.dumps(
                 {
                     "run_id": run_id,
+                    "run_uid": self._previous_uid() or uuid.uuid4().hex,
+                    "host_id": rundir.host_id(),
                     "run_group": self.run_group,
                     "pid": os.getpid(),
                     "start_ticks": procfs.pid_start_ticks(os.getpid()),
@@ -143,6 +147,14 @@ class Run:
                 }
             )
         )
+
+    def _previous_uid(self) -> str | None:
+        """The `run_uid` of an earlier attempt of this run id: a resumed run keeps it."""
+        try:
+            uid = json.loads((self.dir / rundir.RUN_INFO).read_text()).get("run_uid")
+        except (OSError, ValueError, AttributeError):
+            return None
+        return uid if isinstance(uid, str) and uid else None
 
     # --- lock and lifecycle ------------------------------------------------
 
@@ -175,7 +187,7 @@ class Run:
     def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
         """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor
         looks for it. `stages` / `steps` are the legal vocabulary (see `CursorStore`)."""
-        return CursorStore(self.dir / "cursor.json", self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
+        return CursorStore(self.dir / rundir.CURSOR, self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
 
     def finish(self) -> None:
         """Mark the run finished in run.json. The monitor then shows it as no
@@ -184,7 +196,7 @@ class Run:
 
     def update_info(self, **fields) -> None:
         """Merge `fields` into run.json (what the monitor shows about this run)."""
-        path = self.dir / "run.json"
+        path = self.dir / rundir.RUN_INFO
         try:
             info = json.loads(path.read_text())
         except (OSError, ValueError):
@@ -360,7 +372,7 @@ class Run:
             "created_from": list(origin.created_from) if origin is not None else [],
             "flow_call": origin.flow_call if origin is not None else None,
         }
-        self._append("plan.jsonl", row)
+        self._append(rundir.PLAN, row)
         if self._estimates is not None:
             self._estimates.observe_plan(row)
 
@@ -385,7 +397,7 @@ class Run:
             row |= {"parent": parent, "function": function, "flow": frames_row(flow)}
         else:
             row |= {"state": state, "error": f"{type(error).__name__}: {error}" if error is not None else None}
-        self._append("flow_calls.jsonl", row)
+        self._append(rundir.FLOW_CALLS, row)
         if event == "end" and self._estimates is not None:
             self._estimates.flow_call_ended(call_id, state)
 
@@ -398,7 +410,7 @@ class Run:
         nothing is a child process (a Python task, a backend that is a
         library call). A marker whose process is gone is ignored by the monitor,
         so a crash leaves nothing that looks live."""
-        d = self.dir / "inflight"
+        d = self.dir / rundir.INFLIGHT
         d.mkdir(exist_ok=True)
         path = d / (task.key.replace(":", "_").replace("/", "_") + ".json")
         if not running:
