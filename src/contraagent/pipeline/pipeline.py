@@ -96,6 +96,7 @@ class Pipeline:
         env: Mapping[str, str] | None = None,
         log: Callable[[str], None] | None = None,
         max_passes: int | None = None,
+        stub: Any = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -116,6 +117,11 @@ class Pipeline:
         `max_passes`: how many passes a `while` loop of flow code may make: a task call, or a
         `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
         `[defaults] max_passes`, else 10.
+        `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
+        plays every agent task, under every coding agent's name, and every Python task but
+        the kinds it executes (`StubAgent(execute=)`), so no model is called and no
+        function runs that was not named. The run id defaults to `<flow>-stub`, and
+        `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `tag_capacity`, ...); its docstring has the scheduling rules."""
         if config is None:
@@ -124,6 +130,11 @@ class Pipeline:
             config = PipelineConfig.load(config)
         self.config = config
         self.runs_dir = Path(runs_dir)
+        if stub is not None and backends is not None:
+            raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
+        self.stub = stub
+        if stub is not None:
+            backends = stub.backends()
         self.backends = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
         self.overrides = overrides
         self.cwd = Path(cwd) if cwd else Path.cwd()
@@ -152,13 +163,15 @@ class Pipeline:
         in `RunReport.flow_errors` (and `flow_calls.jsonl`) and the run goes on with
         the tasks already queued.
 
-        `run_id` defaults to the flow's name. A run id that already holds a run is
+        `run_id` defaults to the flow's name (`<flow>-stub` in a stub run). A run id that already holds a run is
         refused (`RunExists`) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory.
         """
-        run_id = run_id or flow.__name__
+        run_id = run_id or (f"{flow.__name__}-stub" if self.stub is not None else flow.__name__)
         with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd) as run:
+            if self.stub is not None:
+                run.update_info(stub=True)
             if not resume and run.rows():
                 raise RunExists(
                     f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
@@ -167,6 +180,7 @@ class Pipeline:
             run_dir = run.dir.resolve()  # call files and outputs are read from the agent's cwd
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
+            graph.stub, graph.run_id = self.stub, run.run_id
 
             def on_flow_call(event: str, call: FlowCall) -> None:
                 if event == "start":

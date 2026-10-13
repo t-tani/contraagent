@@ -9,11 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A stub run: `contraagent run --stub` (`Pipeline(stub=StubAgent(...))`) plays every task
+  with the smallest output its schema accepts (`contraagent.contracts.smallest`,
+  `testing.writes_smallest()`), Python tasks included (their functions do not run, but the
+  kinds named with `--execute` / `StubAgent(execute=)`), runs the flow to its end, and
+  lists the tasks it created. `StubAgent(default=)` is the reply of a task with none
+  scripted; a Python task's reply is its return value. The run id is `<flow>-stub`,
+  `run.json` says `stub: true`, and the monitor marks the run "stub agent".
 - `agent_task(output_from="message")`: the agent's final message is the task's output.
   The runner writes it to the output file and checks it there, and a message that fails
   its checks goes back to the same session; the call file says so (`output.from`), the
   stop hook leaves it to the runner, and a passing message is never taken for a hollow
-  launch. The monitor's definition shows "Output from: final message". The review
+  launch. The monitor's definition shows the output "from the final message". The review
   example's `review` gives its verdict this way.
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say

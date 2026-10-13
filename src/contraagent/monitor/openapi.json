@@ -2677,6 +2677,12 @@
           "started_at": {
             "type": "string",
             "title": "Started At"
+          },
+          "stub": {
+            "type": "boolean",
+            "title": "Stub",
+            "description": "a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
+            "default": false
           }
         },
         "additionalProperties": false,

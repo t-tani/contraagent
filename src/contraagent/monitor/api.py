@@ -128,6 +128,7 @@ class RunSummary(Closed):
     host_id: str = Field("", description="the host that drives it; empty when its run.json does not say")
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
+    stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
 
 
 class HostSummary(Closed):

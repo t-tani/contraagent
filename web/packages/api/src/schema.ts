@@ -1380,6 +1380,12 @@ export type components = {
             run_uid?: string;
             /** Started At */
             started_at: string;
+            /**
+             * Stub
+             * @description a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)
+             * @default false
+             */
+            stub?: boolean;
         };
         /** StageEntry */
         StageEntry: {

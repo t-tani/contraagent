@@ -17,6 +17,8 @@ A reply is one of:
 * a value: the output to write (a pydantic model or a dict as JSON, a `str` as is), or for
   a task whose output is its final message (`output_from="message"`), the final message;
 * `writes(value)`: the same, explicitly (a JSON list output needs it);
+* `writes_smallest()`: the smallest value the output's schema accepts (`contracts.smallest`);
+  a schema rule it cannot build (`pattern`) fails the launch and names the rule;
 * `writes_nothing()`: the launch completes and leaves no file;
 * `fails(stop, reason)`: the launch ends on `stop` (default `error`);
 * `rate_limited(retry_after_s)`: a 429, which moves the task to its next hop;
@@ -24,7 +26,14 @@ A reply is one of:
 * a list or tuple of replies: one per reply of that task in a run, the last one repeating.
 
 Script keys are a task key (`summarize-beta`) or a kind (`summarize`); the key
-wins. A launch with no reply scripted ends `error` and says so.
+wins. A task with no reply scripted gets `default` (`StubAgent(default=...)`); with
+none, its launch ends `error` and says so.
+
+A **stub run** (`Pipeline(stub=StubAgent(...))`, `contraagent run --stub`) plays the
+Python tasks too: a Python task's function does not run, and its reply is its
+return value (`writes_nothing()`: no output; `fails()`: it raises), from the same
+script; a callable reply is given a `StubTask`. The kinds in `execute` run their
+functions as in any run. Flow code runs in a stub run as in any run.
 
 Under a name whose coding agent continues its turn when a stop hook objects
 (Claude Code), the stub does what that agent does: once it has written its
@@ -57,6 +66,7 @@ from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
 from contraagent.backends.process import write_launch_marker
 from contraagent.backends.streams import resolve_format
 from contraagent.calls import CallFile
+from contraagent.contracts import smallest
 
 _UNSET: Any = object()
 #: How many times a stop hook may send the output back within one launch.
@@ -77,6 +87,17 @@ class Reply:
 def writes(value: Any, *, cost_usd: float | None = None) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is."""
     return Reply(output=value, cost_usd=cost_usd)
+
+
+#: The output of `writes_smallest()`: built from the output's schema when it is played.
+_SMALLEST: Any = object()
+
+
+def writes_smallest() -> Reply:
+    """Write the smallest value the output's schema accepts (`contraagent.contracts.smallest`):
+    required fields only, the shortest lists and strings, numbers nearest zero. A text
+    output is `stub`. A schema rule it cannot build (`pattern`) fails the reply and names it."""
+    return Reply(output=_SMALLEST)
 
 
 def writes_nothing() -> Reply:
@@ -119,25 +140,46 @@ class StubLaunch:
     in_turn: bool = False
 
 
+@dataclass(frozen=True)
+class StubTask:
+    """One Python task a stub run played: what a reply callable is given, and what
+    `StubAgent.played` records."""
+
+    run: str
+    key: str
+    kind: str
+    unit: str
+    #: The function's arguments, upstream outputs resolved.
+    params: dict[str, Any] = field(repr=False)
+    #: 1-based count of this task's replies in this run.
+    n: int
+
+
 Script = Mapping[str, Any]
 
 
 class StubAgent(Backend):
     """A coding agent that reads its call file and plays the reply scripted for the task.
 
-    `script`: task key or kind -> reply (see the module docstring). `delay_s`:
-    a pause per launch, for watching a stub run in the monitor.
+    `script`: task key or kind -> reply (see the module docstring). `default`: the
+    reply of a task with none scripted (`writes_smallest()` in `contraagent run --stub`).
+    `execute`: in a stub run, the Python task kinds whose functions run instead of
+    being played. `delay_s`: a pause per launch, for watching a stub run in the monitor.
     """
 
     name = "stub"
     binary = ""
 
-    def __init__(self, script: Script | None = None, *, delay_s: float = 0.0) -> None:
+    def __init__(self, script: Script | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
+        self.default = default
+        self.execute: frozenset[str] = frozenset(execute)
         self.delay_s = delay_s
         #: Every launch, in the order they arrived.
         self.launches: list[StubLaunch] = []
+        #: Every Python task a stub run played, in the order they ran.
+        self.played: list[StubTask] = []
         self._counts: dict[tuple[str, str], int] = {}
         self._lock = threading.Lock()
 
@@ -228,7 +270,14 @@ class StubAgent(Backend):
             time.sleep(self.delay_s)
         if reply.stop is Stop.COMPLETED and reply.output is not _UNSET:
             if call.output is None:
+                if reply.output is _SMALLEST:
+                    return writes_nothing()  # the smallest output of a task with none
                 return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
+            if reply.output is _SMALLEST:
+                value, problems = smallest(call.output.json_schema) if call.output.format == "json" else ("stub", [])
+                if problems:
+                    return fails(reason=f"stub: no smallest output for {call.key}: {'; '.join(problems)}")
+                reply = writes(value, cost_usd=reply.cost_usd)
             text = _text_of(reply.output)
             if call.output.from_ == "message":
                 message.append(text)
@@ -263,10 +312,38 @@ class StubAgent(Backend):
                     return proc.stderr.strip() or "the stop hook objected"
         return None
 
+    # --- a stub run's Python tasks --------------------------------------------
+
+    def plays(self, kind: str) -> bool:
+        """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
+        return kind not in self.execute
+
+    def play_python(self, run: str, key: str, kind: str, unit: str, params: dict[str, Any], json_schema: dict | None) -> tuple[bool, Any]:
+        """A stub run's Python task: (whether it returns an output, the output). `json_schema`
+        is its output's schema, None for a task with no output. A failure raises, as the
+        function would."""
+        with self._lock:
+            n = self._counts[run, key] = self._counts.get((run, key), 0) + 1
+            task = StubTask(run=run, key=key, kind=kind, unit=unit, params=params, n=n)
+            self.played.append(task)
+        reply = self._reply(task)
+        if reply.stop is not Stop.COMPLETED:
+            raise RuntimeError(reply.reason or f"stub: {reply.stop.value}")
+        if reply.output is _UNSET:
+            return False, None
+        if reply.output is _SMALLEST:
+            if json_schema is None:
+                return False, None
+            value, problems = smallest(json_schema)
+            if problems:
+                raise RuntimeError(f"stub: no smallest output for {key}: {'; '.join(problems)}")
+            return True, value
+        return True, reply.output
+
     # --- internals ---------------------------------------------------------
 
-    def _reply(self, launch: StubLaunch) -> Reply:
-        entry = self.script.get(launch.key, self.script.get(launch.kind, _UNSET))
+    def _reply(self, launch: StubLaunch | StubTask) -> Reply:
+        entry = self.script.get(launch.key, self.script.get(launch.kind, self.default))
         if entry is _UNSET:
             scripted = ", ".join(sorted(self.script)) or "nothing"
             return fails(reason=f"stub: no reply scripted for {launch.key} (kind {launch.kind}); scripted: {scripted}")
@@ -342,8 +419,10 @@ __all__ = [
     "Reply",
     "StubAgent",
     "StubLaunch",
+    "StubTask",
     "fails",
     "rate_limited",
     "writes",
     "writes_nothing",
+    "writes_smallest",
 ]

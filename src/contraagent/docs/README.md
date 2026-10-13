@@ -42,7 +42,7 @@ and the documentation site print the quoted lines in place.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity.
-- [Checking and testing](testing.md): `contraagent check`, and flows tested on a stub agent.
+- [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
