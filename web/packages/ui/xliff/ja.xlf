@@ -7,7 +7,7 @@
   <target>完了 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s7671567ef7075153">
-  <source><x id="0" equiv-text="${this.snap.info.title}"/> monitor</source>
+  <source><x id="0" equiv-text="${snap.info.title}"/> monitor</source>
   <target><x id="0" equiv-text="${this.snap.info.title}"/> モニター</target>
 </trans-unit>
 <trans-unit id="s60147fb4fa4a8e0c">
@@ -207,7 +207,7 @@
   <target>エージェントの起動に失敗</target>
 </trans-unit>
 <trans-unit id="s6d739294ba8eba32">
-  <source><x id="0" equiv-text="${t.done}"/> of <x id="1" equiv-text="${t.total}"/> tasks done</source>
+  <source><x id="0" equiv-text="${c.doneTotal}"/> of <x id="1" equiv-text="${c.total}"/> tasks done</source>
   <target><x id="1" equiv-text="${t.total}"/> タスク中 <x id="0" equiv-text="${t.done}"/> 件完了</target>
 </trans-unit>
 <trans-unit id="sfa04f4ef1995407e">
@@ -215,7 +215,7 @@
   <target>テキスト</target>
 </trans-unit>
 <trans-unit id="s36eb49cc97df66bc">
-  <source>took <x id="0" equiv-text="${fmtDur(s)}"/></source>
+  <source>took <x id="0" equiv-text="${fmtDur(took)}"/></source>
   <target>所要時間 <x id="0" equiv-text="${fmtDur(s)}"/></target>
 </trans-unit>
 <trans-unit id="s9f7452dd75d54d31">
@@ -811,7 +811,7 @@
   <target>試行 1 回</target>
 </trans-unit>
 <trans-unit id="s1dc338639fe7aae9">
-  <source><x id="0" equiv-text="${attempts}"/> attempts</source>
+  <source><x id="0" equiv-text="${tries}"/> attempts</source>
   <target>試行 <x id="0" equiv-text="${attempts}"/> 回</target>
 </trans-unit>
 <trans-unit id="sfc7ed987d0fe9679">
@@ -1355,7 +1355,7 @@
   <target>タスク終了後の利用率: <x id="0" equiv-text="${readingShort(next)}"/></target>
 </trans-unit>
 <trans-unit id="hf139a496c0f9b763">
-  <source>From <x id="0" equiv-text="${this.link(from)}"/></source>
+  <source>From <x id="0" equiv-text="${taskLink(c, from)}"/></source>
   <target><x id="0" equiv-text="${this.link(from)}"/> の出力から</target>
 </trans-unit>
 <trans-unit id="s89ece7813063852e">
@@ -2099,7 +2099,7 @@
   <target>依存先タスク</target>
 </trans-unit>
 <trans-unit id="h5665d16ae525ca0b">
-  <source>Output of <x id="0" equiv-text="${this.link(u)}"/></source>
+  <source>Output of <x id="0" equiv-text="${taskLink(c, u)}"/></source>
   <target><x id="0" equiv-text="${this.link(u)}"/> の出力</target>
 </trans-unit>
 <trans-unit id="s0b7f9dcca2fb294a">
@@ -2175,11 +2175,11 @@
   <target>失敗した回のあとにリトライしたタスク</target>
 </trans-unit>
 <trans-unit id="hca6c01d40814d5b0">
-  <source>Running <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(this, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></source>
+  <source>Running <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(host, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></source>
   <target>実行中 <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(this, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></target>
 </trans-unit>
 <trans-unit id="h876bf17c2237f30a">
-  <source>Earlier task <x id="0" equiv-text="${taskChip(this, kindUnit(up), up)}"/></source>
+  <source>Earlier task <x id="0" equiv-text="${taskChip(c.host, kindUnit(up), up)}"/></source>
   <target>依存先タスク <x id="0" equiv-text="${taskChip(this, kindUnit(up), up)}"/></target>
 </trans-unit>
 <trans-unit id="tasks">

@@ -17,7 +17,7 @@
     "@contraagent/elements/data-table": 12.6,
     "@contraagent/elements/data-table/define": 12.4,
     "@contraagent/ui": 106.7,
-    "@contraagent/ui/bundle": 130.5,
+    "@contraagent/ui/bundle": 131,
     "src/contraagent/monitor/static/app.js": 120.3
   },
   "files": ["src/contraagent/monitor/static/app.js"],

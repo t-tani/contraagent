@@ -1,0 +1,153 @@
+// @vitest-environment happy-dom
+// One task's detail: fetched for the task shown, then its header and the pane
+// of the view chosen.
+import type { ContractSpec, JournalRow, MonitorClient, TaskDetail } from '@contraagent/api';
+import { describe, expect, it } from 'vitest';
+import { emptyDetail } from '../../controllers/task-detail.js';
+import './ca-task-view.js';
+import type { CaTaskView } from './ca-task-view.js';
+
+const row = (key: string, extra: Partial<JournalRow> = {}): JournalRow => ({
+  ts: '2026-10-11T00:00:01', key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop: 'completed', ok: true, wall_s: 1.5, ...extra,
+});
+const spec = (path: string, extra: Partial<ContractSpec> = {}): ContractSpec =>
+  ({
+    path, schema_name: 'Review', schema_ref: '', fields: [], required: true, fresh: true, status: 'valid',
+    file: { exists: true, content: { ok: true }, size: 10, mtime: null, truncated: false }, ...extra,
+  }) as unknown as ContractSpec;
+
+/** review · a: failed once, then done; reads one file and writes one. */
+const review: TaskDetail = {
+  ...emptyDetail('review-a'),
+  rows: [row('review-a', { stop: 'error', ok: false, attempt: 0, reason: 'tool crashed' }), row('review-a', { attempt: 1 })],
+  io: {
+    params: { depth: 2 },
+    inputs: [spec('/r/in/a.md', { schema_name: 'text' })],
+    outputs: [spec('/r/out/review/a.json')],
+    executor: 'agent',
+    upstream: [],
+    downstream: [{ key: 'write-a', kind: 'write', unit: 'a', executor: 'agent' }],
+  } as unknown as TaskDetail['io'],
+};
+const python: TaskDetail = {
+  ...emptyDetail('python:score-a'),
+  rows: [row('python:score-a', { kind: 'score', unit: 'a', executor: 'python' })],
+  io: { ...emptyDetail('x').io, executor: 'python' },
+};
+
+/** A client whose `task` answers from `details` after `delay` ms; the keys asked for, in order. */
+function fakeClient(details: Record<string, TaskDetail>, delay: Record<string, number> = {}) {
+  const asked: string[] = [];
+  const client = {
+    baseUrl: '',
+    task: (_run: string, key: string) => {
+      asked.push(key);
+      const d = details[key];
+      return new Promise<TaskDetail>((ok, fail) => setTimeout(() => (d ? ok(d) : fail(new Error('404'))), delay[key] ?? 0));
+    },
+  } as unknown as MonitorClient;
+  return { client, asked };
+}
+
+const settle = (ms = 10) => new Promise((r) => setTimeout(r, ms));
+const text = (e: Element | null | undefined) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
+
+async function view(props: Partial<CaTaskView>): Promise<CaTaskView> {
+  const el = document.createElement('ca-task-view');
+  Object.assign(el, { run: 'r', ...props });
+  document.body.append(el);
+  await el.updateComplete;
+  await settle();
+  await el.updateComplete;
+  return el;
+}
+
+const root = (el: CaTaskView) => el.shadowRoot!;
+
+describe('ca-task-view', () => {
+  it('loads the task and shows its header: name, verdict, a chip per attempt', async () => {
+    const { client, asked } = fakeClient({ 'review-a': review });
+    const el = await view({ client, taskKey: 'review-a' });
+    expect(asked).toEqual(['review-a']);
+    expect(text(root(el).querySelector('.tm-name'))).toBe('review · a');
+    expect(text(root(el).querySelector('.verdict'))).toBe('Done on attempt 2 after 1 failed attempt. First failure: tool crashed');
+    expect([...root(el).querySelectorAll('.runchip')].map((c) => c.className.replace(/\s+/g, ' ').trim())).toEqual(['runchip bad', 'runchip ok']);
+    el.remove();
+  });
+
+  it('switches its pane with the view: transcript, input, output, definition', async () => {
+    const { client } = fakeClient({ 'review-a': review });
+    const el = await view({ client, taskKey: 'review-a' });
+    // The label, then the count badge.
+    const tabs = () => [...root(el).querySelectorAll('.tview')].map((t) => [text(t), t.getAttribute('aria-selected')]);
+    expect(tabs()).toEqual([['Transcript', 'true'], ['Input2', 'false'], ['Output1', 'false'], ['Definition', 'false']]);
+    // No stream: the reason there is no transcript, in place of it.
+    expect(text(root(el).querySelector('.notrans b'))).toBe('No transcript');
+    expect(root(el).querySelector('.pane')).toBeNull();
+
+    el.view = 'input';
+    await el.updateComplete;
+    const headings = () => [...root(el).querySelectorAll('.pane h4.sect-h')].map(text);
+    expect(headings()).toEqual(['Parameters', 'Input files', 'Earlier tasks', 'Prompt']);
+    expect(root(el).querySelectorAll('.pane .io-card')).toHaveLength(1);
+
+    el.view = 'output';
+    await el.updateComplete;
+    expect(headings()).toEqual(['Output files', 'Outcome', 'Later tasks']);
+    expect(text(root(el).querySelector('.pane .down'))).toBe('write · a');
+
+    el.view = 'definition';
+    await el.updateComplete;
+    expect(root(el).querySelector('.pane ca-definition')).not.toBeNull();
+    el.remove();
+  });
+
+  it('sends ca-navigate for a view tab and ca-open-task for a later task', async () => {
+    const { client } = fakeClient({ 'review-a': review });
+    const el = await view({ client, taskKey: 'review-a', view: 'output' });
+    const sent: [string, unknown][] = [];
+    for (const name of ['ca-navigate', 'ca-open-task']) el.addEventListener(name, (e) => sent.push([name, (e as CustomEvent).detail]));
+    root(el).querySelectorAll<HTMLButtonElement>('.tview')[1]!.click();
+    root(el).querySelector<HTMLButtonElement>('.down .taskchip')!.click();
+    expect(sent).toEqual([
+      ['ca-navigate', { view: 'input' }],
+      ['ca-open-task', { key: 'write-a' }],
+    ]);
+    el.remove();
+  });
+
+  it('opens a Python task on its output, with no transcript tab', async () => {
+    const { client } = fakeClient({ 'python:score-a': python });
+    const el = await view({ client, taskKey: 'python:score-a' });
+    expect([...root(el).querySelectorAll('.tview')].map(text)).toEqual(['Input', 'Output', 'Definition']);
+    expect(root(el).querySelector('.tview.sel')?.textContent?.trim()).toBe('Output');
+    expect(text(root(el).querySelector('.tm-name'))).toBe('score · a');
+    el.remove();
+  });
+
+  it('shows only the task asked for last, and an empty detail when the request fails', async () => {
+    const { client, asked } = fakeClient({ 'review-a': review, 'python:score-a': python }, { 'review-a': 30 });
+    const el = await view({ client, taskKey: 'review-a' });
+    el.taskKey = 'python:score-a';
+    await el.updateComplete;
+    await settle(50);
+    await el.updateComplete;
+    expect(asked).toEqual(['review-a', 'python:score-a']);
+    expect(text(root(el).querySelector('.tm-name'))).toBe('score · a');
+
+    el.taskKey = 'gone-x';
+    await el.updateComplete;
+    expect(text(root(el).querySelector('.taskmeta'))).toBe('gone-x Loading…');
+    await settle();
+    await el.updateComplete;
+    expect(text(root(el).querySelector('.tm-name'))).toBe('gone-x');
+    expect(text(root(el).querySelector('.verdict'))).toBe('Waiting');
+    el.remove();
+  });
+
+  it('shows a blank page with no task', async () => {
+    const el = await view({ taskKey: null });
+    expect(text(root(el).querySelector('.blank b'))).toBe('No task selected');
+    el.remove();
+  });
+});

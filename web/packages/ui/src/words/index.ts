@@ -13,4 +13,5 @@ export * from './credential.js';
 export * from './hops.js';
 export * from './quota.js';
 export * from './contract.js';
+export * from './run-line.js';
 export * from './table.js';

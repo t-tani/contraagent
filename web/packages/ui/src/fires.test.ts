@@ -3,7 +3,7 @@
 // the event map: `CaEventMap` (ui/src/core/events.ts), and from P8 `CaeEventMap`
 // (elements/src/core/events.ts) for `cae-*`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Vitest runs from web/.
@@ -39,6 +39,23 @@ function sent(text: string): Set<string> {
   return new Set(names);
 }
 
+/**
+ * The parts of element file `f`: the modules in its folder (or below) that it
+ * imports, directly or through another part, and that define no element. An
+ * element renders its parts' templates, so it sends the events they send.
+ */
+function partsOf(f: string, seen = new Set<string>()): Set<string> {
+  const folder = posix.dirname(f);
+  for (const m of read(f).matchAll(/^\s*import\s+(?!type\b)(?:[^'";]*?\bfrom\s*)?'(\.[^']+)'/gm)) {
+    const dep = posix.normalize(posix.join(posix.dirname(f), m[1]!)).replace(/\.js$/, '.ts');
+    if (seen.has(dep) || !dep.startsWith(`${folder}/`) || !files.includes(dep) || elementFiles.includes(dep)) continue;
+    seen.add(dep);
+    partsOf(dep, seen);
+  }
+  return seen;
+}
+
+
 /** The event names in the JSDoc `@fires` tags of `text`. */
 const declared = (text: string): Set<string> => new Set([...text.matchAll(/@fires\s+([\w-]+)/g)].map((m) => m[1]!));
 
@@ -52,8 +69,9 @@ const viewFiles = (element: string): string[] => {
   return dir ? sources(`${dir[1]}/${dir[2]}`) : [];
 };
 
-/** The events an element sends: its own, and its view modules'. */
-const sentBy = (element: string): Set<string> => new Set([element, ...viewFiles(element)].flatMap((f) => [...sent(read(f))]));
+/** The events an element sends: its own, its parts' and its view modules'. */
+const sentBy = (element: string): Set<string> =>
+  new Set([element, ...partsOf(element), ...viewFiles(element)].flatMap((f) => [...sent(read(f))]));
 
 /** The names an element handles on itself (`this.addEventListener('x'`): it is their host, not their source. */
 const handled = (text: string): Set<string> => new Set([...text.matchAll(/\bthis\.addEventListener\(\s*'([^']+)'/g)].map((m) => m[1]!));
