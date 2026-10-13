@@ -1,19 +1,19 @@
 // The line above the frame: where the layer is, the pinned unit, and a layer the run does not have.
 import { msg, str } from '@lit/localize';
 import { html, nothing } from 'lit';
+import { shortName } from '../../../adapters/graph/flow-index.js';
+import { splitLayer } from '../../../adapters/graph/layer.js';
+import { LOOP_SEGMENT } from '../../../adapters/graph/types.js';
+import { where } from '../../../adapters/graph/words.js';
 import { emit } from '../../../core/events.js';
-import { shortName } from '../graph/flow-index.js';
-import { splitLayer } from '../graph/layer.js';
-import { LOOP_SEGMENT } from '../graph/types.js';
 import { go } from './actions.js';
-import type { GraphHost } from './host.js';
-import { where } from './words.js';
+import type { PipelineHost } from './host.js';
 
 /**
  * Where the layer is: "Pipeline", then every level down to the one shown, auto-descended
  * levels included; a nested loop's box is a level below the box it is in.
  */
-export function crumbs(h: GraphHost) {
+export function crumbs(h: PipelineHost) {
   const segs = h.segments;
   const pinned = h.unit;
   if (!segs.length && !pinned) return nothing;

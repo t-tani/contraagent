@@ -13,6 +13,7 @@ export { chipStyles, layoutStyles, motionStyles, resetStyles, statusStyles, text
 export { prose } from './prose.js';
 export { meterStyles } from './meter.js';
 export { factStyles } from './facts.js';
+export { markStyles } from './marks.js';
 
 /** Every element's styles, in cascade order: the tokens, then the shared rules. */
 export const base: CSSResult[] = [tokenStyles, resetStyles, textStyles, statusStyles, chipStyles, layoutStyles, motionStyles];
