@@ -5,8 +5,12 @@
 import type { Plan } from '@contraagent/api';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { autoLayer, edgePath, layerGraph, layoutGraph, passMatrix, returnPath, type LayerGraph, type LayerOrder, type Size } from '../logic.js';
+import { autoLayer, layerGraph } from './layer.js';
+import { layoutGraph, type Size } from './layout.js';
+import { passMatrix } from './matrix.js';
+import { edgePath, returnPath } from './paths.js';
 import { node, planOf, reviewRun, RUN, LOOP, shapes } from './plans.fixture.js';
+import type { LayerGraph, LayerOrder } from './types.js';
 
 const demoRun = JSON.parse(readFileSync(new URL('../../../../../../apps/docs/src/fixtures/demo-run.json', import.meta.url), 'utf8')) as { plan: Plan };
 
