@@ -19,7 +19,7 @@ import typing
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar, overload
+from typing import Any, Literal, TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
@@ -46,6 +46,8 @@ class AgentTask[Out]:
     output_name: str
     requires: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    #: Where the output arrives: `file` (the agent writes it) or `message` (its final message is it).
+    output_from: str = "file"
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -92,6 +94,7 @@ class AgentTask[Out]:
             "output": _schema(self.output_schema) if self.output_schema is not None else self.output_format,
             "validators": [_validator_identity(v) for v in self.validators],
             "params": _schema(self.params) if self.params is not None else None,
+            "output_from": self.output_from,
         }
 
     def __call__(self, unit: str = "", *, key: str | None = None, after: Sequence[Pending | str] = (), **params: Any) -> Pending[Out]:
@@ -111,6 +114,7 @@ def agent_task[Out](
     instructions: str | None = None,
     validators: Sequence[Validator] = (),
     output_name: str | None = None,
+    output_from: Literal["file", "message"] = "file",
     requires: Sequence[str] = (),
     tags: Sequence[str] = (),
     **config: Any,
@@ -136,6 +140,10 @@ def agent_task[Out](
     `output_name`: the output file's name under `<run>/out/<kind>/`, a template:
     `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
     `{key}` and `{kind}`. Default `{unit}.json` (`{unit}.md` for a text output).
+    `output_from`: `"file"` (default), the agent writes the output file; `"message"`, its
+    final message is the output: the runner writes it to the output file and checks it
+    there, and a message that fails its checks goes back to the same session. For a task
+    that needs no tool (a classification in one turn), it saves the turn the `Write` takes.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
@@ -147,6 +155,10 @@ def agent_task[Out](
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model or str, not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
+    if output_from not in ("file", "message"):
+        raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
+    if output_from == "message" and output is None:
+        raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
     if config:
         # The same checks a [tasks.<kind>] table gets, so a typo is an error here too.
         try:
@@ -167,6 +179,7 @@ def agent_task[Out](
         requires=tuple(requires),
         tags=tuple(tags),
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
+        output_from=output_from,
     )
 
 

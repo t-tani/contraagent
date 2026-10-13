@@ -1467,6 +1467,11 @@ export type components = {
             requires?: string[];
             /** Output */
             output?: string | null;
+            /**
+             * Output From
+             * @description agent task: `file`, the agent writes its output; `message`, its final message is the output
+             */
+            output_from?: ("file" | "message") | null;
             /** Validators */
             validators?: string[];
             /** Executor */

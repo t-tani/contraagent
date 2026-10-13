@@ -37,6 +37,7 @@ documentation. No other word is used for the same thing.
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
 | **hook** | a hook inside the coding agent, declared by a plugin; nothing else | `hooks.toml`, `plugins/hooks.py` |
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
+| **final message** | the agent's last message of a launch; an agent task whose output is its final message has it written to its output file and checked there | `LaunchResult.result_text`; `agent_task(output_from="message")`, call file `output.from`, `OutputContract.from_message` |
 
 ## Checking
 

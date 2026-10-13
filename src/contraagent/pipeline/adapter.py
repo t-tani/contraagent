@@ -52,6 +52,7 @@ class SpecAdapter(TaskAdapter):
             output = CallOutput(
                 path=str(node.output_path),
                 format=spec.output_format,
+                from_=spec.output_from,
                 json_schema=schema.model_json_schema() if schema is not None else {},
                 schema_ref=schema_ref_of(schema) if schema is not None else None,
                 commands=[v.to_dict() for v in spec.validators if isinstance(v, CommandValidator)],
@@ -123,4 +124,5 @@ class SpecAdapter(TaskAdapter):
                 spec.output_schema.__name__ if spec.output_schema is not None else ("text" if spec.output_format == "text" else None)
             ),
             "validators": [getattr(v, "name", "") or getattr(v, "__name__", "") for v in spec.validators],
+            "output_from": spec.output_from,
         }

@@ -176,7 +176,12 @@ class Node:
         """Its output contract; `params` and `call` reach the validators that take them."""
         if self.output_path is None:
             return []
-        return [OutputContract(self.output_path, self.output_schema, validators=self.spec.validators, params=params, call=call)]
+        from_message = getattr(self.spec, "output_from", "file") == "message"
+        return [
+            OutputContract(
+                self.output_path, self.output_schema, validators=self.spec.validators, params=params, call=call, from_message=from_message
+            )
+        ]
 
 
 class Graph:

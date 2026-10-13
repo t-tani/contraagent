@@ -86,6 +86,9 @@ export class CaDefinition extends LitElement {
       ],
       [msg('Parameters'), def.params || msg('none', { id: 'none', desc: 'An empty value' })],
       [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output || msg('none', { id: 'none', desc: 'An empty value' })],
+      ...(def.output_from === 'message'
+        ? [[msg('Output from'), msg('final message', { desc: "The agent's last message of a session, which is the task's output" })] as [string, string]]
+        : []),
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
     ];
     const declared = Array.isArray(def['declared']) ? (def['declared'] as DeclaredContract[]) : [];

@@ -85,6 +85,9 @@ class OutputContract(_FileContract):
     params: Callable[[], Mapping[str, Any]] | None = None
     #: The task's call file (agent tasks), for validators that take `call`.
     call: Path | None = None
+    #: The output is the agent's final message, not a file it writes: `run_until_valid`
+    #: writes each round's final message to `path`, then checks it there.
+    from_message: bool = False
 
     def check(self, cwd: Path, before: tuple[int, int] | None = None) -> Check:
         """This contract's verdict on its file now (`before`: its stamp ahead of the launch)."""
@@ -220,21 +223,28 @@ def check_all(contracts: Sequence[OutputContract], cwd: Path, before: dict[Path,
 
 
 def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Check]) -> str:
-    """The next turn: what is wrong, and the schema of each file that does not meet it."""
+    """The next turn: what is wrong, and the schema of each file that does not meet it.
+    An output taken from the final message (`from_message`) is asked for again as the reply."""
     failing_json = any(c.schema is not None and not chk.schema_ok for c, chk in zip(contracts, checks, strict=True) if not chk.ok)
-    parts = [
-        "The output file(s) you wrote do not pass their checks. Fix them and "
-        "write them again at the same path(s). Do not redo the analysis; correct "
-        "the file contents only."
-        + (" A JSON output must contain only the JSON document, with no prose or code fences around it." if failing_json else "")
-        + "\n"
-    ]
+    only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing_json else ""
+    if any(c.from_message for c, chk in zip(contracts, checks, strict=True) if not chk.ok):
+        parts = [
+            "Your final message is the output, and it does not pass its checks. Reply again "
+            "with the corrected output as your whole message, and nothing else. Do not redo "
+            "the analysis; correct the output only." + only_json + "\n"
+        ]
+    else:
+        parts = [
+            "The output file(s) you wrote do not pass their checks. Fix them and "
+            "write them again at the same path(s). Do not redo the analysis; correct "
+            "the file contents only." + only_json + "\n"
+        ]
     for c, chk in zip(contracts, checks, strict=True):
         if chk.ok:
             continue
         errors = chk.errors[:_MAX_ERRORS]
         more = len(chk.errors) - len(errors)
-        parts.append(f"## {chk.path}\nErrors:")
+        parts.append("## Your final message\nErrors:" if c.from_message else f"## {chk.path}\nErrors:")
         parts += [f"- {e}" for e in errors]
         if more > 0:
             parts.append(f"- … and {more} more")
@@ -360,12 +370,23 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
     while True:
         rounds += 1
         total = fold_spend(total, backend.run(launch))
+        if total.stop is Stop.COMPLETED:
+            _write_messages(contracts, launch.cwd, total.result_text)
         checks = check_all(contracts, launch.cwd, before)
+        if total.stop is Stop.COMPLETED and not total.result_text.strip():
+            for c, chk in zip(contracts, checks, strict=True):
+                if c.from_message:
+                    chk.ok, chk.errors = False, ["the final message is empty"]
         errors = [e for chk in checks for e in chk.errors]
         found += [errors] if errors else []
         total.rounds = rounds
         total.round_errors = list(found)
         if not errors:
+            if total.hollow and any(c.from_message for c in contracts):
+                # The final message is the output, and it passed its checks: text that reads
+                # like a tool call is part of the answer, not a sign of a hollow launch.
+                total.hollow = False
+                total.ok = total.stop is Stop.COMPLETED
             return total
         if total.stop is not Stop.COMPLETED:
             return total
@@ -378,3 +399,15 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
             total.ok = False
             return total
         launch = nxt
+
+
+def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str) -> None:
+    """Write the final message to the file of each contract that takes its output from it,
+    in one replace: the check then reads it as it reads a file the agent wrote."""
+    if not message.strip():
+        return
+    for c in contracts:
+        if c.from_message:
+            path = c.resolve(cwd)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rundir.write_document(path, message)

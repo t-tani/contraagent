@@ -51,6 +51,7 @@ unit names, stop values such as `completed`, model and role names).
 | snapshot | スナップショット |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
+| final message (the agent's last message of a session; an output taken from it) | 最後のメッセージ |
 | worker (a WorkQueue place for one concurrent task) | 枠 (idle worker: 空き) |
 | launch time (summed wall time of launches; the tile "Agent session time") | エージェントの所要時間 |
 | last (time of the last attempt) | 最終試行 |

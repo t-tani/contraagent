@@ -2374,6 +2374,15 @@
   <source>the response is not JSON</source>
   <target>応答が JSON ではない</target>
 </trans-unit>
+<trans-unit id="s128680a606637b74">
+  <source>Output from</source>
+  <target>出力元</target>
+</trans-unit>
+<trans-unit id="s4f5f3a3b8c6931f4">
+  <source>final message</source>
+  <target>最後のメッセージ</target>
+  <note from="lit-localize">The agent's last message of a session, which is the task's output</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

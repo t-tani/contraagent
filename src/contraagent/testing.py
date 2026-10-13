@@ -14,7 +14,8 @@ they do in production, so a flow's wiring is tested without spending tokens:
 
 A reply is one of:
 
-* a value: the output to write (a pydantic model or a dict as JSON, a `str` as is);
+* a value: the output to write (a pydantic model or a dict as JSON, a `str` as is), or for
+  a task whose output is its final message (`output_from="message"`), the final message;
 * `writes(value)`: the same, explicitly (a JSON list output needs it);
 * `writes_nothing()`: the launch completes and leaves no file;
 * `fails(stop, reason)`: the launch ends on `stop` (default `error`);
@@ -182,7 +183,8 @@ class StubAgent(Backend):
         write_launch_marker(self.argv(launch), launch)
         self._tool(launch, f"{call.key}-read", "Read", call_path, json.dumps(call.params, ensure_ascii=False)[:2000])
         record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
-        reply = self._play(launch, call, record)
+        message: list[str] = []  # the final message, for an output taken from it
+        reply = self._play(launch, call, record, message)
         objections: list[list[str]] = []
         while reply.stop is Stop.COMPLETED and self._continues_on_stop_hook():
             said = self._stop_hooks(launch, active=bool(objections))
@@ -190,10 +192,11 @@ class StubAgent(Backend):
                 break
             objections.append(feedback_errors(said))
             self._text(launch, f"stop hook: {said}")
-            reply = self._play(launch, call, self._record(launch, call, prompt=said, in_turn=True))
-        self._text(launch, f"stub: {_describe(reply)}")
+            reply = self._play(launch, call, self._record(launch, call, prompt=said, in_turn=True), message)
+        self._text(launch, message[-1] if message else f"stub: {_describe(reply)}")
         result = self._result(launch, started, reply)
         result.hook_errors = objections
+        result.result_text = message[-1] if message else ""
         return result
 
     def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_turn: bool) -> StubLaunch:
@@ -217,17 +220,23 @@ class StubAgent(Backend):
             self.launches.append(record)
         return record
 
-    def _play(self, launch: Launch, call: CallFile, record: StubLaunch) -> Reply:
-        """The scripted reply to `record`, its output written."""
+    def _play(self, launch: Launch, call: CallFile, record: StubLaunch, message: list[str]) -> Reply:
+        """The scripted reply to `record`, its output written: to the output file, or, for an
+        output taken from the final message, to `message`."""
         reply = self._reply(record)
         if self.delay_s:
             time.sleep(self.delay_s)
         if reply.stop is Stop.COMPLETED and reply.output is not _UNSET:
-            error = self._write(call, reply.output)
-            if error:
-                return fails(reason=error)
-            if call.output is not None:
-                self._tool(launch, f"{call.key}-{record.n}-write", "Write", call.output.path, "ok")
+            if call.output is None:
+                return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
+            text = _text_of(reply.output)
+            if call.output.from_ == "message":
+                message.append(text)
+                return reply
+            path = Path(call.output.path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            self._tool(launch, f"{call.key}-{record.n}-write", "Write", call.output.path, "ok")
         return reply
 
     def _continues_on_stop_hook(self) -> bool:
@@ -268,20 +277,6 @@ class StubAgent(Backend):
         if callable(entry) and not isinstance(entry, type):
             entry = entry(launch)
         return entry if isinstance(entry, Reply) else writes(entry)
-
-    def _write(self, call: CallFile, value: Any) -> str:
-        if call.output is None:
-            return f"stub: {call.key} declares no output, but its reply writes one"
-        if isinstance(value, BaseModel):
-            text = value.model_dump_json(indent=2)
-        elif isinstance(value, str):
-            text = value
-        else:
-            text = json.dumps(value, ensure_ascii=False, indent=2)
-        path = Path(call.output.path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        return ""
 
     # The transcript, in the stream format the monitor reads for this name (`claude`'s or `omp`'s).
 
@@ -326,6 +321,15 @@ class StubAgent(Backend):
             rate_limit=reply.rate_limit,
             stderr_tail=reply.reason,
         )
+
+
+def _text_of(value: Any) -> str:
+    """An output as its file holds it: a model or a JSON value as JSON, a `str` as is."""
+    if isinstance(value, BaseModel):
+        return value.model_dump_json(indent=2)
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, indent=2)
 
 
 def _describe(reply: Reply) -> str:

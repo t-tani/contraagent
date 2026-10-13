@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(output_from="message")`: the agent's final message is the task's output.
+  The runner writes it to the output file and checks it there, and a message that fails
+  its checks goes back to the same session; the call file says so (`output.from`), the
+  stop hook leaves it to the runner, and a passing message is never taken for a hollow
+  launch. The monitor's definition shows "Output from: final message". The review
+  example's `review` gives its verdict this way.
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

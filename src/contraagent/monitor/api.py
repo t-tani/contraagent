@@ -353,6 +353,9 @@ class TaskDefinition(Open):
     params: str | None = None
     requires: list[str] = Field(default_factory=list)
     output: str | None = None
+    output_from: Literal["file", "message"] | None = Field(
+        None, description="agent task: `file`, the agent writes its output; `message`, its final message is the output"
+    )
     validators: list[str] = Field(default_factory=list)
     executor: Executor | None = None
     function: str | None = Field(None, description="Python task: `module.qualname` of its function")

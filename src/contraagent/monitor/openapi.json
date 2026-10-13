@@ -2934,6 +2934,22 @@
             ],
             "title": "Output"
           },
+          "output_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "message"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output From",
+            "description": "agent task: `file`, the agent writes its output; `message`, its final message is the output"
+          },
           "validators": {
             "items": {
               "type": "string"
