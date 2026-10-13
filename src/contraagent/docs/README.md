@@ -45,6 +45,7 @@ and the documentation site print the quoted lines in place.
 - [Checking and testing](testing.md): `contraagent check`, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
+- [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
 
 `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
