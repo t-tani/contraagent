@@ -1,16 +1,9 @@
 import type { TranscriptEvent } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import {
-  applyEvents,
-  checkMessage,
-  checkName,
-  classifyRounds,
-  emptyTranscript,
-  fixupErrors,
-  launchWho,
-  webResults,
-  type ToolItem,
-} from './transcript-model.js';
+import { applyEvents, emptyTranscript, type ToolItem } from './model.js';
+import { checkMessage, checkName, classifyRounds, fixupErrors } from './rounds.js';
+import { webResults } from './web.js';
+import { launchWho } from './who.js';
 
 const launch = (model: string, role = 'writer'): TranscriptEvent => ({
   type: 'launch',

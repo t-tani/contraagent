@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { roundLabel, roundMark, switchText } from './rounds.js';
-import { classifyRounds } from './transcript-model.js';
+import { roundLabel, roundMark, switchText } from '../../words/rounds.js';
+import { classifyRounds } from './rounds.js';
 
 const launch = (prompt = 'go') => ({ prompt });
 const FIXUP = 'The output file(s) you wrote do not pass their checks.\nErrors:\n- out/a.json: [three_points] points: exactly 3';

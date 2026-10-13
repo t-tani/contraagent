@@ -10,7 +10,7 @@ import { executorIconStyles } from '../../words/executor.js';
 import { contractStyles } from '../shared/contract-parts.js';
 import './ca-transcript.js';
 import type { CaTranscript } from './ca-transcript.js';
-import { whoStyles } from './who.js';
+import { tagStyles } from '@contraagent/elements/transcript';
 import { isPy, type TaskContext } from './context.js';
 import { taskHeader } from './header.js';
 import { noTranscript } from './panes/transcript.js';
@@ -39,7 +39,7 @@ const viewLabel = (): Record<TaskView, string> => ({
 @customElement('ca-task-view')
 @localized()
 export class CaTaskView extends LitElement {
-  static override styles = [base, contractStyles, whoStyles, executorIconStyles, taskViewStyles];
+  static override styles = [base, contractStyles, tagStyles, executorIconStyles, taskViewStyles];
 
   @property({ attribute: false }) client!: MonitorClient;
   @property({ attribute: 'base-url' }) baseUrl = '';

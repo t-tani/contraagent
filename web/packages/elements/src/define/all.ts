@@ -4,3 +4,4 @@ import './markdown.js';
 import './count.js';
 import './segmented.js';
 import './data-table.js';
+import './transcript.js';
