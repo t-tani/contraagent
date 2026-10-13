@@ -1923,11 +1923,11 @@
   <target><x id="1" equiv-text="${c.total}"/> タスク中 <x id="0" equiv-text="${again}"/> 件が未完了</target>
 </trans-unit>
 <trans-unit id="s491765412b82838e">
-  <source>Loop at <x id="0" equiv-text="${this.where(line, file)}"/></source>
+  <source>Loop at <x id="0" equiv-text="${where(line, file)}"/></source>
   <target><x id="0" equiv-text="${this.where(line, this.matrix?.box.file || this.graph.boxes[0]?.file)}"/> のループ</target>
 </trans-unit>
 <trans-unit id="sa8865b3bf47ba11f">
-  <source>Nested loop at <x id="0" equiv-text="${this.where(h.box.loop, h.box.file)}"/></source>
+  <source>Nested loop at <x id="0" equiv-text="${where(hd.box.loop, hd.box.file)}"/></source>
   <target><x id="0" equiv-text="${this.where(h.box.loop, h.box.file)}"/> の入れ子のループ</target>
 </trans-unit>
 <trans-unit id="s56838581fa8422a5">
@@ -2167,7 +2167,7 @@
   <target>Tab: 次の行</target>
 </trans-unit>
 <trans-unit id="s454c0dcbb0dffc2f">
-  <source>Passes of the loop at <x id="0" equiv-text="${where}"/></source>
+  <source>Passes of the loop at <x id="0" equiv-text="${at}"/></source>
   <target><x id="0" equiv-text="${where}"/> のループの各周</target>
 </trans-unit>
 <trans-unit id="sda7d6c86fb627ba9">

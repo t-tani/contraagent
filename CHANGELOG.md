@@ -307,6 +307,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the run list and the tasks figure now show the skipped count too.
 - A task that did not start for an input and then ran is done, not done after
   retrying: a refusal is not a failed attempt.
+- Panning and zooming the pipeline graph is smooth on large runs: the view
+  moves the drawing without drawing it again, and the nodes are measured only
+  when the graph changes.
 - History and the timeline name why a task did not start as the tasks list
   does (`<ca-journal-table>` and `<ca-timeline>` take the run's `plan`).
   `@contraagent/api` derives the tasks, their counts and their problems once
