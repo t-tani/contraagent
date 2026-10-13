@@ -27,7 +27,7 @@ contraagent hub --host 0.0.0.0 --allow-host hub.lan \
 | runs' records (run info, journal, plan, flow calls, contracts, definitions, call files) | Postgres | `--store` |
 | contents of the files contracts name | object storage, by SHA-256 | `--blobs` |
 | transcripts being written | the hub's local disk | `--streams-dir` |
-| sealed transcript segments | object storage | `--segments` |
+| sealed transcript segments | object storage, or a directory (default: `<streams-dir>/segments`) | `--segments` |
 
 `--store memory`, `--blobs memory` and no `--streams-dir` keep everything in memory:
 for a try-out, lost when the hub stops.
@@ -68,7 +68,8 @@ A transcript is an append-only log that grows while its task runs and never chan
 after. The hub appends it to a file in `--streams-dir` (its open segment) and, when the
 task ends, when the file reaches 64 MiB, or after an hour or ten idle minutes, seals it:
 the lines go to one object in `--segments` as zstd frames of about 256 KiB with an index
-of their first lines, and the index is recorded in the `--store` database. A page of an
+of their first lines, and the index is recorded in the `--store` database (with
+`--store memory`, it is rebuilt from the sealed objects when the hub starts). A page of an
 earlier part of a transcript is one ranged read of one object. The hub answers each
 batch with how many lines it holds and how many are sealed (`Accepted.logs`,
 `Accepted.durable`).
