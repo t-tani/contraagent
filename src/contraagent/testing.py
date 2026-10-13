@@ -274,6 +274,9 @@ class StubAgent(Backend):
                     return writes_nothing()  # the smallest output of a task with none
                 return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
             if reply.output is _SMALLEST:
+                if record.resumed or record.in_turn:
+                    # The same value again cannot pass: the checks that refused it are not the schema's.
+                    return fails(reason=f"stub: the smallest output of {call.key} fails its checks; script a reply for it")
                 value, problems = smallest(call.output.json_schema) if call.output.format == "json" else ("stub", [])
                 if problems:
                     return fails(reason=f"stub: no smallest output for {call.key}: {'; '.join(problems)}")

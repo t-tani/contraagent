@@ -232,7 +232,8 @@ def _print_created(result) -> None:
         where = " > ".join(f["function"].rsplit(".", 1)[-1] for f in frames)
         if frames:
             where += f" (line {frames[-1]['line']})"
-        print(f"  {row['kind']} · {row['unit'] or row['key']} | {ended}" + (f" | {where}" if where else ""))
+        name = f"{row['kind']} · {row['unit']}" if row["unit"] else row["kind"]  # as the monitor names it
+        print(f"  {name} | {ended}" + (f" | {where}" if where else ""))
 
 
 def _plugin(args) -> int:

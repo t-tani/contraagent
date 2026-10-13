@@ -1,0 +1,411 @@
+"""The task features against real coding agents: Claude Code on Haiku and omp on Haiku.
+It spends tokens, so, as `test_live_agents.py`, it needs the `live` marker and CONTRAAGENT_LIVE=1:
+
+    CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_features.py
+
+Each test runs a small flow once per coding agent:
+
+* `skills_from`: a task loads a skill from a skill plugin beside its own plugin;
+* `changes`, with `Pipeline(scopes=, enrichers=, row_extras=)`: an attempt's changed files
+  are journaled, and the files a timed-out attempt created are removed;
+* `extra_units`: a task on two units does not overlap a task of another kind on either;
+* `output_from="message"`: the final message is the output, after a tool call, and a
+  message that fails its checks is corrected in the same session;
+* quota caps and `quota_rule`: a credential past one rests, its tasks take the next hop,
+  and a task with no hop left is deferred (`deferred.jsonl`).
+"""
+
+import json
+import os
+import shutil
+from contextlib import contextmanager
+from pathlib import Path
+
+import pytest
+
+pytestmark = [
+    pytest.mark.live,
+    pytest.mark.skipif(
+        os.environ.get("CONTRAAGENT_LIVE") != "1", reason="live test: also set CONTRAAGENT_LIVE=1 (it calls real coding agents)"
+    ),
+]
+
+from pydantic import BaseModel  # noqa: E402
+
+from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent_task  # noqa: E402
+from contraagent.plugins import new_plugin  # noqa: E402
+
+ROUTES = {"claude": ("claude", "claude-haiku-5-5"), "omp": ("omp", "anthropic/claude-haiku-5-5")}
+AGENTS = list(ROUTES)
+
+#: Where the runs are kept, so the monitor can be pointed at them. Wiped at the start.
+LIVE_DIR = Path(os.environ.get("CONTRAAGENT_LIVE_DIR") or Path(__file__).resolve().parents[2] / "live-demo") / "features"
+
+
+@pytest.fixture(scope="module")
+def ws():
+    if LIVE_DIR.exists():
+        shutil.rmtree(LIVE_DIR)
+    LIVE_DIR.mkdir(parents=True)
+    (LIVE_DIR / ".gitignore").write_text("*\n!.gitignore\n")
+    return LIVE_DIR
+
+
+def route(agent: str) -> dict:
+    name, model = ROUTES[agent]
+    return {"agent": name, "model": model, "effort": "low"}
+
+
+def pipeline(ws: Path, config: str | None = None, **options) -> Pipeline:
+    path = None
+    if config is not None:
+        path = ws / f"pipeline-{len(list(ws.glob('pipeline-*.toml')))}.toml"
+        path.write_text(config)
+    return Pipeline(
+        path,
+        runs_dir=ws / "runs",
+        cwd=ws,
+        backends={"claude": ClaudeBackend(), "omp": OmpBackend()},
+        **{"log": print, **options},
+    )
+
+
+def rows(report) -> list[dict]:
+    return [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+
+
+def show(report) -> None:
+    for r in rows(report):
+        print(
+            f"  {r['key']}: {r['stop']} ok={r['ok']} agent={r['agent']} model={r['model']} credential={r['credential']} "
+            f"rounds={r.get('rounds')} wall={r['wall_s']}s reason={r['reason'][:200]!r}"
+        )
+
+
+# --- skills_from -------------------------------------------------------------
+
+
+class CodeWord(BaseModel):
+    codeword: str
+
+
+ROLE = """---
+name: worker
+description: Looks up the code word with a skill and writes it to the call's output.
+tools: Read, Write, Edit, Grep, Glob, Skill
+---
+
+1. Read the call file the prompt names.
+2. Find the code word: it is in your skill named `codeword` (it may be listed as `common:codeword`).
+   Load that skill and read the code word from it. Do not guess it.
+3. Write the output file the call names: `{"codeword": "<the code word>"}` (skill `write-output`).
+4. Stop.
+"""
+
+SKILL = """---
+name: codeword
+description: The code word a task asks for.
+---
+
+The code word is PERIWINKLE-42.
+"""
+
+
+def skill_plugins(ws: Path) -> tuple[Path, Path]:
+    own, common = ws / "plugins" / "own", ws / "plugins" / "common"
+    if not own.exists():
+        new_plugin(own)
+        (own / "agents" / "worker.md").write_text(ROLE)
+        (common / ".claude-plugin").mkdir(parents=True)
+        (common / ".claude-plugin" / "plugin.json").write_text('{"name": "common"}\n')
+        (common / "skills" / "codeword").mkdir(parents=True)
+        (common / "skills" / "codeword" / "SKILL.md").write_text(SKILL)
+    return own, common
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_skills_from_a_skill_plugin(ws, agent):
+    own, common = skill_plugins(ws)
+    lookup = agent_task(f"lookup_{agent}", plugin=own, skills_from=[common], output=CodeWord, max_turns=12, timeout_s=300, **route(agent))
+    got = {}
+
+    def flow():
+        got["p"] = lookup("x")
+
+    report = pipeline(ws).run(flow, run_id=f"skills-{agent}")
+    show(report)
+    assert report.ok, report.failed
+    assert got["p"].output.codeword == "PERIWINKLE-42"
+
+
+# --- changes, scopes, enrichers, row_extras -----------------------------------
+
+
+class Written(BaseModel):
+    topic: str
+
+
+class Effect:
+    def snapshot(self, task):
+        return None
+
+    def enrich(self, task, before, result):
+        c = result.changes
+        if result.ok and c is not None:
+            result.payload = {"effect": "new" if c.created else "updated" if c.modified else "unchanged"}
+
+
+STALL_ROLE = """---
+name: worker
+description: Creates a partial file, then waits.
+tools: Read, Write, Bash
+---
+
+1. Create the file `topics/<unit>/partial.md` (the unit is in the call file the prompt names)
+   with the single line `draft`.
+2. Then run the shell command `sleep 600` and wait for it to finish. Do nothing else.
+"""
+
+
+def never(path, value) -> list[str]:
+    """The attempt fails however it ends: a timeout, or its checks."""
+    return ["this task never passes"]
+
+
+def stall_plugin(ws: Path) -> Path:
+    root = ws / "plugins" / "stall"
+    if not root.exists():
+        new_plugin(root)
+        (root / "agents" / "worker.md").write_text(STALL_ROLE)
+        settings = json.loads((root / "settings.json").read_text())
+        settings["permissions"]["allow"].append("Bash(sleep:*)")
+        (root / "settings.json").write_text(json.dumps(settings, indent=2))
+    return root
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_changes_are_journaled_and_a_failed_attempt_leaves_none(ws, agent):
+    entered: list[str] = []
+
+    @contextmanager
+    def scope(task):
+        entered.append(f"enter {task.key}")
+        yield
+        entered.append(f"exit {task.key}")
+
+    write = agent_task(
+        f"write_{agent}",
+        instructions="Create the file topics/${unit}/note.md with one sentence about ${subject}. "
+        "Then write the output: the path of that file as `topic`.",
+        output=Written,
+        changes=["topics/{unit}/**"],
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
+    )
+    stall = agent_task(
+        f"stall_{agent}",
+        plugin=stall_plugin(ws),
+        output=Written,
+        changes=["topics/{unit}/**"],
+        validators=[never],
+        max_turns=10,
+        timeout_s=60,
+        retries=1,
+        **route(agent),
+    )
+
+    def flow():
+        write(f"w-{agent}", subject="tea")
+        stall(f"s-{agent}")
+
+    report = pipeline(ws, scopes=[scope], enrichers=[Effect()], row_extras=lambda r: r.payload if isinstance(r.payload, dict) else {}).run(
+        flow, run_id=f"changes-{agent}"
+    )
+    show(report)
+    by_key = {r["key"]: r for r in rows(report)}
+    w, s = by_key[f"write_{agent}-w-{agent}"], by_key[f"stall_{agent}-s-{agent}"]
+    print(f"  write changes: {w['changes']}\n  stall changes: {s['changes']}\n  scope: {entered}")
+    assert w["ok"] and any(p.endswith(f"topics/w-{agent}/note.md") for p in w["changes"]["created"])
+    assert w.get("effect") == "new"
+    assert (ws / "topics" / f"w-{agent}" / "note.md").exists()
+    assert not s["ok"] and s["stop"] in ("timeout", "invalid_output")
+    assert s["changes"]["created"], "the agent created no file: nothing to remove"
+    assert any(p.endswith(f"topics/s-{agent}/partial.md") for p in s["changes"]["removed"]), s["changes"]
+    assert not (ws / "topics" / f"s-{agent}" / "partial.md").exists()
+    keys = [f"write_{agent}-w-{agent}", f"stall_{agent}-s-{agent}"]
+    assert sorted(entered) == sorted(f"{e} {k}" for k in keys for e in ("enter", "exit"))
+
+
+# --- extra_units --------------------------------------------------------------
+
+
+class Overlap(BaseModel):
+    same_subject: bool
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_extra_units_lock_both_units(ws, agent):
+    write = agent_task(
+        f"rewrite_{agent}",
+        instructions="Write the file ${path} with two sentences about ${topic}. Then write the output: that path as `topic`.",
+        output=Written,
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
+    )
+    compare = agent_task(
+        f"compare_{agent}",
+        instructions="Read the files ${first} and ${second}. Do they cover one subject? Write the output.",
+        output=Overlap,
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
+    )
+
+    def flow():
+        compare("alpha", key=f"cmp-{agent}", extra_units=["beta"], first=f"t-{agent}/alpha.md", second=f"t-{agent}/beta.md")
+        write("beta", topic="green tea", path=f"t-{agent}/beta.md")
+
+    (ws / f"t-{agent}").mkdir(exist_ok=True)
+    for name in ("alpha", "beta"):
+        (ws / f"t-{agent}" / f"{name}.md").write_text(f"Notes on {name}.\n")
+    lines: list[str] = []
+
+    def log(line: str) -> None:
+        print(line)
+        lines.append(line)
+
+    report = pipeline(ws, max_concurrent=4, log=log).run(flow, run_id=f"units-{agent}")
+    show(report)
+    assert report.ok, report.failed
+    # The progress lines are in the order the queue started and ended the tasks.
+    order = [line.split(":")[0] for line in lines if line.startswith(("[start]", "[end]"))]
+    print(f"  order: {order}")
+    cmp, rewrite = f"cmp-{agent}", f"rewrite_{agent}-beta"
+    first, second = (cmp, rewrite) if order.index(f"[start] {cmp}") < order.index(f"[start] {rewrite}") else (rewrite, cmp)
+    assert order.index(f"[end] {first}") < order.index(f"[start] {second}"), order
+    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    assert next(p for p in plan if p["key"] == f"cmp-{agent}")["extra_units"] == ["beta"]
+
+
+# --- output_from="message" ----------------------------------------------------
+
+
+class Answer(BaseModel):
+    lines: int
+    word: str
+
+
+def upper_word(path, value: Answer) -> list[str]:
+    return [] if value.word.isupper() else [f"word: {value.word!r} must be written in upper case"]
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_output_from_the_final_message(ws, agent):
+    ask = agent_task(
+        f"ask_{agent}",
+        instructions="Read the file data/${unit}.txt with your file reading tool. Count its lines and take its first word.",
+        output=Answer,
+        output_from="message",
+        validators=[upper_word],
+        max_turns=6,
+        timeout_s=300,
+        **route(agent),
+    )
+    (ws / "data").mkdir(exist_ok=True)
+    (ws / "data" / f"fruit-{agent}.txt").write_text("apple pie\nbanana\ncherry\n")
+    got = {}
+
+    def flow():
+        got["p"] = ask(f"fruit-{agent}")
+
+    report = pipeline(ws).run(flow, run_id=f"message-{agent}")
+    show(report)
+    row = rows(report)[-1]
+    out = got["p"].path.read_text()
+    print(f"  output file: {out!r}\n  round errors: {row['round_errors']}")
+    assert report.ok, report.failed
+    assert got["p"].output == Answer(lines=3, word="APPLE")
+    json.loads(out)  # only the document: no prose around it
+    assert row["rounds"] >= 1
+
+
+# --- quota caps and quota_rule ------------------------------------------------
+
+
+class Note(BaseModel):
+    note: str
+
+
+QUOTA = """
+[credentials.capped_{a}]
+type = "subscription"
+max_five_hour_pct = 0.01
+max_seven_day_pct = 0.01
+
+[credentials.ruled_{a}]
+type = "subscription"
+
+[tasks.q_capped]
+credential = "capped_{a}"
+[[tasks.q_capped.fallbacks]]
+agent = "{fallback_agent}"
+model = "{fallback_model}"
+effort = "low"
+credential = "ambient"
+
+[tasks.q_ruled]
+credential = "ruled_{a}"
+[[tasks.q_ruled.fallbacks]]
+agent = "{fallback_agent}"
+model = "{fallback_model}"
+effort = "low"
+credential = "ambient"
+
+[tasks.q_nohop]
+credential = "capped_{a}"
+"""
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_credential_past_its_quota_rests_and_its_tasks_fall_over(ws, agent):
+    other = "omp" if agent == "claude" else "claude"
+    config = QUOTA.format(a=agent, fallback_agent=ROUTES[other][0], fallback_model=ROUTES[other][1])
+    say = "Write the output: one short sentence about ${unit} as `note`."
+    kinds = {
+        name: agent_task(name, instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
+        for name in ("q_capped", "q_ruled", "q_nohop")
+    }
+    deferred = []
+
+    def flow():
+        yield kinds["q_capped"]("first")  # no reading yet: runs on the capped credential, which reports one
+        yield kinds["q_ruled"]("first")
+        yield kinds["q_capped"]("second")  # past its cap now: the fallback hop
+        yield kinds["q_ruled"]("second")  # the rule rests it: the fallback hop
+        try:
+            yield kinds["q_nohop"]("third")  # no hop left: deferred
+        except TaskDeferred as exc:
+            deferred.append(str(exc))
+
+    def rule(credential, reading):
+        return "ruled by the test" if credential == f"ruled_{agent}" else None
+
+    report = pipeline(ws, config, quota_rule=rule).run(flow, run_id=f"quota-{agent}")
+    show(report)
+    by_key = {r["key"]: r for r in rows(report)}
+    first = by_key["q_capped-first"]
+    print(f"  readings of the first task: {first['quota']}")
+    if not any(q.get("five_hour_pct") is not None or q.get("seven_day_pct") is not None for q in first["quota"]):
+        pytest.skip(f"{agent} reported no utilization reading for a subscription: nothing can rest on a cap")
+    assert first["ok"] and first["agent"] == agent and first["credential"] == f"capped_{agent}"
+    second = by_key["q_capped-second"]
+    assert second["ok"] and second["agent"] == other and f"capped_{agent} rests" in second["reason"], second
+    assert [h["route"] for h in second["hops"]] and len(second["hops"]) == 1  # the resting hop never launched
+    ruled = by_key["q_ruled-second"]
+    assert ruled["ok"] and ruled["agent"] == other and "ruled by the test" in ruled["reason"], ruled
+    assert "q_nohop-third" not in by_key and deferred, deferred
+    lines = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
+    print(f"  deferred.jsonl: {lines}")
+    assert any(d["key"] == "q_nohop-third" and f"capped_{agent} rests" in d["reason"] for d in lines)

@@ -121,3 +121,18 @@ def test_the_cli_lists_the_tasks_a_stub_run_created(tmp_path, monkeypatch, capsy
     assert "  find · a | completed | flow (line " in out
     assert (tmp_path / "flow-stub" / "run.json").exists()
     assert main(["run", f"{__file__}:flow", "--execute", "fetch"]) == 2
+
+
+def two_items(path, value: Found) -> list[str]:
+    return [] if len(value.items) == 2 else [f"items: two expected, got {len(value.items)}"]
+
+
+def test_a_smallest_output_its_validators_refuse_fails_at_once(tmp_path):
+    strict = agent_task(
+        "strict", instructions="Find two items.", output=Found, validators=[two_items], max_turns=5, timeout_s=60, retries=0
+    )
+    stub = StubAgent(default=writes_smallest())
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(lambda: strict("a"), run_id="s")
+    [failed] = report.failed
+    assert "fails its checks; script a reply for it" in failed.reason
+    assert [launch.resumed for launch in stub.launches] == [False, True]  # one correction, not one per resume

@@ -56,7 +56,7 @@ instead (a read-only step whose real output the flow needs). The run id is
 
 The outputs are the smallest, so the flow takes the path they lead to: a branch
 on a value it never sees is not taken, a validator that wants more than the
-schema fails its task, and a rule the stub cannot build (`pattern`) fails the
+schema fails its task at once (the stub does not send the same value back), and a rule the stub cannot build (`pattern`) fails the
 task and names the rule. Flow code itself runs as in any run: a side effect in
 the flow's own body happens in a stub run too. Put side effects in Python tasks.
 In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
