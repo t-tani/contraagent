@@ -18,7 +18,7 @@ const declaration = (t: (typeof TOKENS)[number]): string =>
  * (only where it applies), the accent marks what can be clicked or is
  * selected, and identity colours are small cues (an icon, a thin edge, a legend).
  */
-export const tokens = css`
+export const tokenStyles = css`
   :host {
     ${unsafeCSS(TOKENS.map(declaration).join('\n    '))}
     --sans: var(--ca-sans, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
@@ -33,7 +33,7 @@ export const tokens = css`
 `;
 
 export const base = css`
-  ${tokens}
+  ${tokenStyles}
   *, *::before, *::after { box-sizing: border-box; }
   * { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
   *:hover { scrollbar-color: var(--text-muted) transparent; }

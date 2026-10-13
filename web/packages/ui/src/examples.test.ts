@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import './index.js';
-import { tokens } from './styles/base.js';
+import { tokenStyles } from './styles/base.js';
 
 // Vitest runs from web/ (under happy-dom, import.meta.url is not a file URL).
 const DIR = join(process.cwd(), 'packages', 'ui', 'docs', 'examples');
@@ -21,7 +21,7 @@ describe('docs/examples', () => {
   });
 
   it('themes only with --ca-* properties the elements read', () => {
-    const read_ = new Set([...tokens.cssText.matchAll(/var\((--ca-[a-z0-9-]+)/g)].map((m) => m[1]));
+    const read_ = new Set([...tokenStyles.cssText.matchAll(/var\((--ca-[a-z0-9-]+)/g)].map((m) => m[1]));
     const set = [...read('theme.css').matchAll(/(--ca-[a-z0-9-]+)\s*:/g)].map((m) => m[1]);
     expect(set.length).toBeGreaterThan(0);
     for (const p of set) expect(read_.has(p), p).toBe(true);

@@ -4,8 +4,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
-import { facts, fmtDur, localTime, tokens, usd } from '../../lib/format.js';
-import { notStartedCause, passLabel, statusLabel, waitCause } from '../../lib/labels.js';
+import { facts, fmtDur, localTime, tokenCount, usd } from '../../lib/format.js';
+import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import { filterTasks, sortTasks } from './filters.js';
 
@@ -67,8 +67,8 @@ export class CaTaskTable extends LitElement {
   private spendCells(ran: boolean, s: Spend | undefined) {
     if (!ran) return html`<span class="num jdim">${msg('none')}</span><span class="num jdim">${msg('none')}</span>`;
     if (!s?.reported) return html`<span class="num jdim">—</span><span class="num jdim">—</span>`;
-    const cache = facts(msg(str`Cache read ${tokens(s.cache_read)}`), msg(str`Cache write ${tokens(s.cache_creation)}`));
-    return html`<span class="num" title=${cache}>${tokens(s.input + s.output)}</span><span class="num">${usd(s.cost)}</span>`;
+    const cache = facts(msg(str`Cache read ${tokenCount(s.cache_read)}`), msg(str`Cache write ${tokenCount(s.cache_creation)}`));
+    return html`<span class="num" title=${cache}>${tokenCount(s.input + s.output)}</span><span class="num">${usd(s.cost)}</span>`;
   }
 
   override render() {
@@ -117,7 +117,7 @@ export class CaTaskTable extends LitElement {
               : html`<span class="jdim">${msg('none')}</span><span class="jdur" style="visibility:hidden"></span>`}</span>
             ${this.spendCells(ran, spend.get(t.key))}
             <span class="num meta">${ran ? localTime(t.tries[t.tries.length - 1]?.ts, true) : msg('none')}</span>
-            <span class="st"><span class="pill o-${t.outcome}" title=${t.last_stop}>${statusLabel(t.outcome, this.live)}</span>${cause
+            <span class="st"><span class="pill o-${t.outcome}" title=${t.last_stop}>${taskStatusLabel(t.outcome, this.live)}</span>${cause
               ? html`<span class="cause">${cause}</span>`
               : nothing}</span>
           </div>`;

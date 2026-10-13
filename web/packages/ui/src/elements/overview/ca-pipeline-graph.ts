@@ -6,7 +6,7 @@ import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
-import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, statusLabel } from '../../lib/labels.js';
+import { loopLabel, notStartedCause, passCount, passLabel, passSpread, passesRan, stateCount, taskStatusLabel } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import { PAD, placeCard, type Box } from './place-card.js';
 import {
@@ -1472,7 +1472,7 @@ export class CaPipelineGraph extends LitElement {
 
   /** A pending task waits while the run runs; once the run is over, it did not run. */
   private stateWord(s: TaskState): string {
-    return statusLabel(planOutcome(s), this.live);
+    return taskStatusLabel(planOutcome(s), this.live);
   }
 
   /** Where a loop is: `flow.py:130` (the file's name and the loop's first line), or `line 130` when the file is not known. */

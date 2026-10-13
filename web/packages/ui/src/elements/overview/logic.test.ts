@@ -1,6 +1,5 @@
-import type { JournalRow, Plan, PlanNode } from '@contraagent/api';
+import type { FlowCallNode, FlowFrame, JournalRow, Plan, PlanNode } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import type { FlowCallNode, FlowFrame, FlowPlanNode } from './flow-types.js';
 import {
   alongEdge, asBar, autoLayer, barBox, barParts, edgePath, fitView, gridStep, isPoint, kpis, layerGraph, layoutGraph, markGrid, parentLayer, passMatrix,
   sortRows, splitLayer, timeline, worstState, zoomView,
@@ -32,6 +31,11 @@ describe('kpis', () => {
       retries: 1, retriedTasks: 1, fixups: 2, fixupTasks: 1, switches: 1, switchTasks: 1,
       retriedKeys: ['c'], fixupKeys: ['c'],
     });
+  });
+
+  it('counts a retry only after a try that ran and failed: refused, then done, is no retry', () => {
+    const k = kpis([row('a', { stop: 'invalid_input', ok: false }), row('a', { attempt: 1 })]);
+    expect(k).toMatchObject({ attempts: 1, bad: 0, retries: 0, retriedTasks: 0, retriedKeys: [] });
   });
 });
 
@@ -100,7 +104,7 @@ const ft = (
   kind: string,
   state: PlanNode['state'],
   flow: FlowFrame[],
-  { pass = 1, passes, ...extra }: Partial<FlowPlanNode> & { pass?: number; passes?: number[] } = {},
+  { pass = 1, passes, ...extra }: Partial<PlanNode> & { pass?: number; passes?: number[] } = {},
 ): PlanNode => {
   const last = flow[flow.length - 1];
   const loops = last?.loops ?? [];

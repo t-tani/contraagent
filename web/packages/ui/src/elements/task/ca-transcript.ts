@@ -14,7 +14,7 @@ import { LitElement, css, html, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { emit } from '../../events.js';
+import { emit, type RoundInfo, type RoundsChangedDetail } from '../../events.js';
 import { attemptNames, runRelative, stopLabel } from '../../lib/labels.js';
 import { md } from '../../lib/markdown.js';
 import { SessionSet, recall, remember } from '../../lib/memory.js';
@@ -27,7 +27,6 @@ import {
   emptyTranscript,
   type Item,
   type Round,
-  type RoundInfo,
   type ToolItem,
   webResults,
   type WebResult,
@@ -45,14 +44,6 @@ const SHOW_MAX = 4000;
 const EARLIER_LINES = 3000;
 const RESTORE_GIVE_UP_MS = 4000;
 
-export interface RoundsChangedDetail {
-  /** Each round's launch event (null for events before any launch). */
-  launches: (LaunchEvent | null)[];
-  /** The round shown, 0-based; -1 while there is none. */
-  shown: number;
-  /** Each round as a try or a fix-up, with its result when known. */
-  rounds: RoundInfo[];
-}
 
 /** The host of a URL, for the line under a result; '' when it does not parse. */
 function hostOf(url: string): string {
@@ -79,11 +70,11 @@ interface SavedScroll {
  *
  * Give it `.events` to show a saved transcript, or `run` + `stream` (and
  * `base-url`) to tail one from the monitor. Sends `ca-navigate` with `round`
- * when the reader picks a round, and a non-bubbling `rounds-changed`
+ * when the reader picks a round, and a non-bubbling `ca-rounds`
  * (`RoundsChangedDetail`) whenever its rounds or the shown round change.
  *
  * @fires ca-navigate - `{round}`: the reader picked a round (null for the latest)
- * @fires rounds-changed - `{launches, shown, rounds}`, not bubbling: the rounds' launch events and what each was, for a host that shows a round's prompt
+ * @fires ca-rounds - `{launches, shown, rounds}`, not bubbling: the rounds' launch events and what each was, for a host that shows a round's prompt
  */
 @customElement('ca-transcript')
 @localized()
@@ -396,7 +387,7 @@ export class CaTranscript extends LitElement {
     if (sig !== this.lastSent) {
       this.lastSent = sig;
       const detail: RoundsChangedDetail = { launches: this.model.rounds.map((r) => r.launch), shown, rounds: this.infos() };
-      this.dispatchEvent(new CustomEvent('rounds-changed', { detail }));
+      emit(this, 'ca-rounds', detail, { bubbles: false });
     }
     if (this.revealPending) {
       const card = this.renderRoot.querySelector<HTMLElement>(`[data-card="${CSS.escape(this.revealed)}"]`);
@@ -690,8 +681,5 @@ export class CaTranscript extends LitElement {
 declare global {
   interface HTMLElementTagNameMap {
     'ca-transcript': CaTranscript;
-  }
-  interface HTMLElementEventMap {
-    'rounds-changed': CustomEvent<RoundsChangedDetail>;
   }
 }

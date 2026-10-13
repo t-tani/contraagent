@@ -443,7 +443,7 @@ export class CaMonitor extends LitElement {
           <ca-clock class="clock"></ca-clock>
         </div>
         <ca-run-picker style="left:110px" .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen}
-          @close=${() => (this.pickerOpen = false)}></ca-run-picker>
+          @ca-close=${() => (this.pickerOpen = false)}></ca-run-picker>
       </header>
       ${this.renderTabs(acts.length)} ${this.renderBar()}
       <main class=${route.tab === 'stream' ? 'stream' : ''}>${this.renderView()}</main>

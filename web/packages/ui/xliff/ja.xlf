@@ -430,10 +430,6 @@
   <source>tasks retried</source>
   <target>リトライしたタスク</target>
 </trans-unit>
-<trans-unit id="s7ae3a2df31f642c2">
-  <source>Tasks with more than one attempt</source>
-  <target>試行が 2 回以上のタスク</target>
-</trans-unit>
 <trans-unit id="sf113fa256db9617b">
   <source>Ended</source>
   <target>終了時刻</target>
@@ -527,11 +523,11 @@
   <target>実行中の Python タスク</target>
 </trans-unit>
 <trans-unit id="s326385425f7ff3c5">
-  <source>Cache read <x id="0" equiv-text="${tokens(s.cache_read)}"/></source>
+  <source>Cache read <x id="0" equiv-text="${tokenCount(s.cache_read)}"/></source>
   <target>キャッシュ読み込み <x id="0" equiv-text="${tokens(s.cache_read)}"/></target>
 </trans-unit>
 <trans-unit id="s0d7aa7237dcb1b28">
-  <source>Cache write <x id="0" equiv-text="${tokens(s.cache_creation)}"/></source>
+  <source>Cache write <x id="0" equiv-text="${tokenCount(s.cache_creation)}"/></source>
   <target>キャッシュ書き込み <x id="0" equiv-text="${tokens(s.cache_creation)}"/></target>
 </trans-unit>
 <trans-unit id="sfa6a5b4597c720bc">
@@ -683,23 +679,23 @@
   <target>トークン</target>
 </trans-unit>
 <trans-unit id="s9f0023dbc7b35c31">
-  <source><x id="0" equiv-text="${tokens(s.input)}"/> input</source>
+  <source><x id="0" equiv-text="${tokenCount(s.input)}"/> input</source>
   <target>入力 <x id="0" equiv-text="${tokens(s.input)}"/></target>
 </trans-unit>
 <trans-unit id="s96cd46414e7cb3ee">
-  <source><x id="0" equiv-text="${tokens(s.output)}"/> output</source>
+  <source><x id="0" equiv-text="${tokenCount(s.output)}"/> output</source>
   <target>出力 <x id="0" equiv-text="${tokens(s.output)}"/></target>
 </trans-unit>
 <trans-unit id="s0799e2b0ce300ca7">
-  <source><x id="0" equiv-text="${tokens(s.cache_read + s.cache_creation)}"/> cache</source>
+  <source><x id="0" equiv-text="${tokenCount(s.cache_read + s.cache_creation)}"/> cache</source>
   <target>キャッシュ <x id="0" equiv-text="${tokens(s.cache_read + s.cache_creation)}"/></target>
 </trans-unit>
 <trans-unit id="s8dd1924ee42c1f45">
-  <source><x id="0" equiv-text="${tokens(s.cache_read)}"/> cache read</source>
+  <source><x id="0" equiv-text="${tokenCount(s.cache_read)}"/> cache read</source>
   <target>キャッシュ読み込み <x id="0" equiv-text="${tokens(s.cache_read)}"/></target>
 </trans-unit>
 <trans-unit id="s57402fcb8174003c">
-  <source><x id="0" equiv-text="${tokens(s.cache_creation)}"/> cache write</source>
+  <source><x id="0" equiv-text="${tokenCount(s.cache_creation)}"/> cache write</source>
   <target>キャッシュ書き込み <x id="0" equiv-text="${tokens(s.cache_creation)}"/></target>
 </trans-unit>
 <trans-unit id="s26012de2ae38a284">
@@ -1371,7 +1367,7 @@
   <target>Web 検索 <x id="0" equiv-text="${queries.length}"/> 回</target>
 </trans-unit>
 <trans-unit id="sd5da7ee4a43a6b2d">
-  <source>Tokens: <x id="0" equiv-text="${tokens(s.input)}"/> input, <x id="1" equiv-text="${tokens(s.output)}"/> output, <x id="2" equiv-text="${tokens(s.cache_read)}"/> cache read, <x id="3" equiv-text="${tokens(s.cache_creation)}"/> cache write</source>
+  <source>Tokens: <x id="0" equiv-text="${tokenCount(s.input)}"/> input, <x id="1" equiv-text="${tokenCount(s.output)}"/> output, <x id="2" equiv-text="${tokenCount(s.cache_read)}"/> cache read, <x id="3" equiv-text="${tokenCount(s.cache_creation)}"/> cache write</source>
   <target>トークン: 入力 <x id="0" equiv-text="${tokens(s.input)}"/>、出力 <x id="1" equiv-text="${tokens(s.output)}"/>、キャッシュ読み込み <x id="2" equiv-text="${tokens(s.cache_read)}"/>、キャッシュ書き込み <x id="3" equiv-text="${tokens(s.cache_creation)}"/></target>
 </trans-unit>
 <trans-unit id="sda249baca3c52d27">
@@ -2205,6 +2201,10 @@
 <trans-unit id="s454c0dcbb0dffc2f">
   <source>Passes of the loop at <x id="0" equiv-text="${where}"/></source>
   <target><x id="0" equiv-text="${where}"/> のループの各周</target>
+</trans-unit>
+<trans-unit id="sda7d6c86fb627ba9">
+  <source>Tasks retried after a failed attempt</source>
+  <target>失敗した回のあとにリトライしたタスク</target>
 </trans-unit>
 </body>
 </file>

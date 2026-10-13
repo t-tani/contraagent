@@ -84,7 +84,7 @@ export const esc = (s: string | number | null | undefined): string =>
     .replace(/"/g, '&quot;');
 
 /** A token count, compact: `950`, `1.2k`, `34k`, `1.3M`. */
-export function tokens(n: number | null | undefined): string {
+export function tokenCount(n: number | null | undefined): string {
   const v = n ?? 0;
   if (v < 1000) return String(Math.round(v));
   if (v < 10_000) return `${(v / 1000).toFixed(1).replace(/\.0$/, '')}k`;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isFinished, latestTask, loopPass, outcomeCounts, outcomeOf, planOutcome, problems, taskOutcomes, taskRows } from './outcomes.js';
+import { isFinished, latestTask, loopPass, outcomeCounts, outcomeOf, planOutcome, problems, retries, taskOutcomes, taskRows } from './outcomes.js';
 import type { JournalRow, Plan, PlanNode } from './types.js';
 
 const row = (key: string, stop: string, attempt = 0): JournalRow => ({
@@ -47,6 +47,20 @@ describe('outcomeOf', () => {
     expect(outcomeOf({ state: 'blocked' }, [])).toBe('not_started');
     expect(outcomeOf({ state: 'running' }, [row('a', 'error')])).toBe('running');
     expect(outcomeOf(undefined, [row('a', 'skipped')])).toBe('skipped');
+  });
+});
+
+describe('retries', () => {
+  it('a retry is a try that ran after a try of the same task ran and failed', () => {
+    expect(retries(journal).map((r) => [r.key, r.attempt])).toEqual([
+      ['review-g', 1],
+      ['review-g', 2],
+    ]);
+  });
+
+  it('a try after a refusal is no retry, as in outcomeOf', () => {
+    expect(retries([row('a', 'invalid_input', 0), row('a', 'completed', 1)])).toEqual([]);
+    expect(retries([row('a', 'invalid_input', 0), row('a', 'timeout', 1), row('a', 'completed', 2)]).map((r) => r.attempt)).toEqual([2]);
   });
 });
 

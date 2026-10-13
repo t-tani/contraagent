@@ -28,7 +28,7 @@ export function outcomeLabel(o: Outcome): string {
 }
 
 /** What happened to a task, in a run that is `live` or over: a task still waiting when the run ended is "not run". */
-export const statusLabel = (o: Outcome, live: boolean): string => (o === 'waiting' && !live ? msg('not run') : outcomeLabel(o));
+export const taskStatusLabel = (o: Outcome, live: boolean): string => (o === 'waiting' && !live ? msg('not run') : outcomeLabel(o));
 
 /**
  * Why a waiting task has not run, as a phrase that starts in lower case: the

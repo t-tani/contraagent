@@ -17,8 +17,8 @@ import {
   fileConditions,
   inputChip,
   notRunText,
-  statusLabel,
-  statusWhy,
+  contractStatusLabel,
+  contractStatusWhy,
   type Producer,
 } from '../shared/contract-parts.js';
 
@@ -29,7 +29,7 @@ export function ctChips(outputs: Outputs | null) {
   const t = outputs?.tally;
   const chips = t ? CT_ORDER.filter((k) => t[k]) : [];
   return chips.length
-    ? chips.map((k) => html`<span class="ct-chip ${k}" title=${statusWhy(k)}>${statusLabel(k)} <b>${t?.[k]}</b></span>`)
+    ? chips.map((k) => html`<span class="ct-chip ${k}" title=${contractStatusWhy(k)}>${contractStatusLabel(k)} <b>${t?.[k]}</b></span>`)
     : html`<span class="meta">${msg('No checked files')}</span>`;
 }
 
@@ -158,7 +158,7 @@ export class CaContracts extends LitElement {
     // A task that never ran: one line saying why, nothing to open.
     if (o.status === 'refused') {
       return html`<div class="one">
-        <span class="ct-chip refused" title=${statusWhy('refused')}>${statusLabel('refused')}</span>${this.who(c)}
+        <span class="ct-chip refused" title=${contractStatusWhy('refused')}>${contractStatusLabel('refused')}</span>${this.who(c)}
         <span class="why">${notRunText(o, this.run, this.producerOf)}</span>
       </div>`;
     }
@@ -170,7 +170,7 @@ export class CaContracts extends LitElement {
     // The chip says why there is no file; the size column shows a size only when there is one.
     return this.details(
       `out|${c.key}|${o.path}`,
-      html`<span class="ct-chip ${status ?? ''}" title=${status ? statusWhy(status) : ''}>${status ? statusLabel(status) : '—'}</span>
+      html`<span class="ct-chip ${status ?? ''}" title=${status ? contractStatusWhy(status) : ''}>${status ? contractStatusLabel(status) : '—'}</span>
         ${rounds > 1 ? html`<span class="meta" title=${correctionTip()}>${correctionsLabel(rounds, status === 'valid')}</span>` : nothing}
         ${this.who(c)}
         <span class="jmono jdim ct-path" title=${o.path}>${shortPath(o.path)}</span>

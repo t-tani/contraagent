@@ -4,7 +4,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, localTime, sentence, tokens, unreadEvents, usd } from '../../lib/format.js';
+import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../../lib/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, runRelative, stopLabel } from '../../lib/labels.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
 import { accountReading, readingShort } from '../../lib/quota-format.js';
@@ -79,7 +79,7 @@ export class CaJournalTable extends LitElement {
   /** Rows (by `rowId`) that just arrived: they flash once. */
   @property({ attribute: false }) fresh: ReadonlySet<string> = new Set();
   @property() kind = '';
-  /** A stop; 'bad' (every attempt that did not complete), 'fixup' (output sent back) or 'retried' (tasks that ran more than once). */
+  /** A stop; 'bad' (every attempt that did not complete), 'fixup' (output sent back) or 'retried' (tasks retried after a failed try). */
   @property() stop = '';
   @property() q = '';
   /** The run id: paths inside the run directory are shown relative to it. */
@@ -102,7 +102,7 @@ export class CaJournalTable extends LitElement {
     return html`<div class="jtally">
         ${journalTally(this.rows).map(([k, c]) => chip(k, this.shortStop(k), c, k, stopTone(k)))}
         ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, msg('Attempts with at least one correction')) : nothing}
-        ${retried ? chip('retried', msg('tasks retried'), retried, msg('Tasks with more than one attempt')) : nothing}
+        ${retried ? chip('retried', msg('tasks retried'), retried, msg('Tasks retried after a failed attempt')) : nothing}
       </div>
       <div class="table">
       <div class="jrow hd" style=${COLS}>
@@ -167,7 +167,7 @@ export class CaJournalTable extends LitElement {
         ? hops.map((h) => facts(h.model || h.route || '—', credentialLabel(h.credential) || '—', usd(h.cost_usd), stopLabel(h.stop))).join('\n')
         : '';
     return html`<span class="num two">${u
-        ? html`<span>${tokens(u.input)} / ${tokens(u.output)}</span><span class="sub">${tokens(u.cache_read)} / ${tokens(u.cache_creation)}</span>`
+        ? html`<span>${tokenCount(u.input)} / ${tokenCount(u.output)}</span><span class="sub">${tokenCount(u.cache_read)} / ${tokenCount(u.cache_creation)}</span>`
         : html`<span class="jdim">—</span>`}</span>
       <span class="cost" title=${perHop || msg('Reported by the coding agent')}>${usd(e.cost_usd)}</span>`;
   }

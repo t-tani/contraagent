@@ -73,8 +73,10 @@ describe('fix-up and retry filters', () => {
     row('g', 'review', 'completed', { attempt: 1 }),
     row('z', 'review', 'invalid_input'),
     row('z', 'review', 'invalid_input'),
+    row('r', 'review', 'invalid_input', { attempt: 0 }),
+    row('r', 'review', 'completed', { attempt: 1 }),
   ];
-  it("'fixup' keeps attempts whose output was sent back; 'retried' every row of a task that ran twice", () => {
+  it("'fixup' keeps attempts whose output was sent back; 'retried' every row of a task retried after a failed try", () => {
     expect(filterJournal(rs, '', 'fixup', '').map((e) => e.key)).toEqual(['d']);
     expect(filterJournal(rs, '', 'retried', '').map((e) => e.key)).toEqual(['g', 'g']);
   });

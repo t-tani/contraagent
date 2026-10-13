@@ -13,6 +13,8 @@
 //   route, router, events, i18n, lib/, styles/   never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
+//
+//   taskOutcomes, outcomeCounts, taskRows   called only in @contraagent/api (deriveRun)
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -142,6 +144,27 @@ describe('@contraagent/ui folders', () => {
       return a && b && b !== a && b !== 'shared' && i.names && !CROSS_FOLDER_GAPS.has(`${i.file} -> ${target(i)}`);
     });
     expect(bad.map(where)).toEqual([]);
+  });
+});
+
+// A run's tasks are derived once, by `deriveRun` in @contraagent/api: no other
+// package calls the folds it is built from.
+const DERIVATIONS = ['taskOutcomes', 'outcomeCounts', 'taskRows'];
+
+describe('single derivation', () => {
+  it('only @contraagent/api calls the folds behind deriveRun', () => {
+    const call = new RegExp(`\\b(${DERIVATIONS.join('|')})\\(`);
+    const files = [
+      ...packages.filter((d) => d !== 'api').flatMap((d) => sources(`packages/${d}/src`)),
+      ...readdirSync(join(WEB, 'apps')).flatMap((a) => sources(`apps/${a}/src`, /\.(ts|astro)$/)),
+    ];
+    expect(files.length).toBeGreaterThan(50);
+    const bad = files.flatMap((f) =>
+      read(f)
+        .split('\n')
+        .flatMap((l, i) => (call.test(l) ? [`${f}:${i + 1}: ${l.trim()}`] : [])),
+    );
+    expect(bad).toEqual([]);
   });
 });
 

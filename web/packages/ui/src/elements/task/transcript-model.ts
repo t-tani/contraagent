@@ -2,6 +2,7 @@
 // items (chat bubbles, tool cards, notices). Pure: no DOM. The model is
 // mutated in place as pages of events arrive; the element re-renders it.
 import { knownEvent, type LaunchEvent, type TranscriptEvent } from '@contraagent/api';
+import type { RoundInfo, TryResult } from '../../events.js';
 import { firstLine } from '../../lib/format.js';
 
 /** Who ran a round: the coding agent (the CLI), the model and the role. */
@@ -241,43 +242,6 @@ export function fixupErrors(prompt: string | null | undefined): string[] {
 export const isFixup = (launch: Pick<LaunchEvent, 'prompt'> | null | undefined): boolean =>
   !!launch && (launch.prompt || '').startsWith(FIXUP_PROMPT);
 
-/** What a journal row says about a try (the fields this needs). */
-export interface TryResult {
-  attempt?: number | null;
-  ok: boolean;
-  stop: string;
-  reason?: string | null;
-  /** The models this try went through, one per hop of the failover chain. */
-  hops?: readonly { model?: string | null; route?: string | null; stop?: string | null }[] | null;
-}
-
-export interface RoundInfo {
-  kind: 'try' | 'fixup' | 'switch';
-  /** 1-based try number. */
-  tryNo: number;
-  /** 0 for a try's first answer, else the fix-up's number within its try. */
-  fixupNo: number;
-  /** 0 for the try's first model, else the model switch's number within the try. */
-  hopNo: number;
-  /** The model of this round's hop, when the journal names it. */
-  model: string;
-  /**
-   * `ok`: this round's output passed (the try's last round, the try succeeded);
-   * `rejected`: a later fix-up in the same try followed it (its output failed its checks);
-   * `failed`: the try's last round, and the try failed;
-   * `switched`: a model switch followed it (its model stopped, e.g. rate limited);
-   * null: not known yet (running).
-   */
-  result: 'ok' | 'rejected' | 'failed' | 'switched' | null;
-  /** For a switched round: how its model's session ended (a stop value). */
-  switchedStop: string;
-  /** For a switched round: the model the next session ran on ('' when the journal names none). */
-  switchedTo: string;
-  /** For a rejected round: the errors the next round was sent back with. */
-  rejectedWith: string[];
-  /** For a failed round: the journal row of its try. */
-  row: TryResult | null;
-}
 
 /**
  * Classify each round (by its launch) as a try or a fix-up, and attach what is known of
