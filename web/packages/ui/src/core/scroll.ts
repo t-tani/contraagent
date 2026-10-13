@@ -1,7 +1,8 @@
 // A scroller that comes back where the reader left it. The position is
-// remembered in the history entry (`memory.ts`); restoring waits until the
-// content, which arrives over the network, is tall enough to scroll there.
-import { recall, remember } from './memory.js';
+// remembered in a memory (`memory.ts`: the history entry, or an embedded
+// monitor's own); restoring waits until the content, which arrives over the
+// network, is tall enough to scroll there.
+import { pageMemory, type Memory } from './memory.js';
 
 const GIVE_UP_MS = 6000;
 const INPUT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
@@ -11,7 +12,11 @@ export class ScrollMemory {
   private frame = 0;
   private restoring = false;
 
-  constructor(private readonly id: string) {}
+  constructor(
+    private readonly id: string,
+    /** Where the position is remembered: read at each use. */
+    private readonly memory: () => Memory = () => pageMemory,
+  ) {}
 
   attach(el: HTMLElement): void {
     if (this.el === el) return;
@@ -31,7 +36,7 @@ export class ScrollMemory {
     const el = this.el;
     if (!el) return;
     this.cancel();
-    const target = recall<number>(this.id) ?? 0;
+    const target = this.memory().recall<number>(this.id) ?? 0;
     if (target <= 0) {
       el.scrollTop = 0;
       return;
@@ -63,6 +68,6 @@ export class ScrollMemory {
   };
 
   private readonly onScroll = (): void => {
-    if (!this.restoring && this.el) remember(this.id, Math.round(this.el.scrollTop));
+    if (!this.restoring && this.el) this.memory().remember(this.id, Math.round(this.el.scrollTop));
   };
 }

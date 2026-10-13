@@ -108,6 +108,7 @@ export class CaeDataTable<R = unknown> extends LitElement {
   /** The row that holds the tab stop. */
   private focusKey: string | null = null;
   private scroller: HTMLElement | Window | null = null;
+  private resized: ResizeObserver | null = null;
   private frame = 0;
   /** The next update keeps `range` as set (Home and End set it before the scroller reports). */
   private held = false;
@@ -182,7 +183,9 @@ export class CaeDataTable<R = unknown> extends LitElement {
     if (this.scroller) return;
     this.scroller = this.findScroller();
     this.scroller.addEventListener('scroll', this.onScroll, { passive: true });
-    window.addEventListener('resize', this.onScroll, { passive: true });
+    // Its height decides how many rows show: the window's when the page scrolls, else the scroller's own.
+    if (!(this.scroller instanceof HTMLElement)) window.addEventListener('resize', this.onScroll, { passive: true });
+    else if (typeof ResizeObserver !== 'undefined') (this.resized ??= new ResizeObserver(this.onScroll)).observe(this.scroller);
   }
 
   private unwatch(): void {
@@ -190,6 +193,7 @@ export class CaeDataTable<R = unknown> extends LitElement {
     this.frame = 0;
     this.scroller?.removeEventListener('scroll', this.onScroll);
     window.removeEventListener('resize', this.onScroll);
+    this.resized?.disconnect();
     this.scroller = null;
   }
 

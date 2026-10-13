@@ -4,12 +4,12 @@ import { LitElement, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
 import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, type Locale } from '../../core/i18n.js';
-import { flushMemory } from '../../core/memory.js';
+import { LocalMemory, flushMemory, keepMemory, memoryOf } from '../../core/memory.js';
 import { ScrollMemory } from '../../core/scroll.js';
 import type { Route, RoutePatch, Tab } from '../../core/route.js';
 import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
 import { LocaleController } from '../../controllers/locale.js';
-import { ShortcutsController } from '../../controllers/shortcuts.js';
+import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
 import { accountsTip } from '../../words/quota.js';
@@ -43,8 +43,21 @@ export class CaMonitor extends LitElement {
 
   /** Where the monitor's API is served; '' is this page's origin. */
   @property({ attribute: 'base-url' }) baseUrl = '';
-  /** `url`: the route lives in the address bar (Back and reload return to it); `memory`: for a monitor embedded in another page. */
+  /**
+   * `url`: the monitor is the page. The route lives in the address bar (Back
+   * and reload return to it), and the monitor sets the page's title, `lang` and
+   * theme. `memory`: for a monitor embedded in another page. The route, the
+   * scroll positions and the open sections live in the element, and the page's
+   * URL, history, title and `<html>` attributes stay the host's.
+   */
   @property() history: RouterMode = 'url';
+  /**
+   * Where the single-key shortcuts (1 to 9 for the tabs, `r` for the runs, `/`
+   * for the filter) work: `page`, anywhere in the page except in a text field;
+   * `element`, only while the focus is inside the monitor; `off`, nowhere.
+   * Unset: `page` with `history="url"`, `element` with `history="memory"`.
+   */
+  @property() shortcuts: ShortcutScope | '' = '';
   /** The run to open first (in `memory` mode, or when the URL names none). */
   @property() run = '';
   /**
@@ -84,19 +97,29 @@ export class CaMonitor extends LitElement {
   });
   private store!: MonitorStore;
   private router!: Router;
-  private readonly mainScroll = new ScrollMemory('main');
+  private readonly mainScroll = new ScrollMemory('main', () => memoryOf(this));
   private pendingScroll: RouteCause | null = null;
   private qTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly cleanups: (() => void)[] = [];
+  /** The scroll positions and open sections, with `history="memory"`. */
+  private readonly localMemory = new LocalMemory();
+  /** Closes the run picker on a click outside it; listened for on the document only while the picker is open. */
+  private readonly onOutsideClick = (e: MouseEvent): void => {
+    if (!e.composedPath().some((n) => n instanceof HTMLElement && (n.localName === 'ca-run-picker' || n.classList.contains('runbtn')))) this.pickerOpen = false;
+  };
+  private outsideClickOn = false;
+  private navObserver: ResizeObserver | null = null;
+  private navObserved: Element | null = null;
 
   constructor() {
     super();
     new LocaleController(this, { locale: () => this.locale, pageWide: () => this.history === 'url' });
-    new ShortcutsController(this, (e) => this.onKey(e));
+    new ShortcutsController(this, (e) => this.onKey(e), () => this.shortcutScope);
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
+    keepMemory(this, this.history === 'memory' ? this.localMemory : null);
     this.store = new MonitorStore({ baseUrl: this.baseUrl });
     this.show(this.store.snapshot);
     this.cleanups.push(
@@ -109,17 +132,12 @@ export class CaMonitor extends LitElement {
     this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), this.run ? { run: this.run } : {}, flushMemory);
     this.router.start();
     void this.store.start();
-    const onClick = (e: MouseEvent) => {
-      if (this.pickerOpen && !e.composedPath().some((n) => n instanceof HTMLElement && (n.localName === 'ca-run-picker' || n.classList.contains('runbtn'))))
-        this.pickerOpen = false;
-    };
-    const onResize = () => moveTabIndicator(this.renderRoot);
-    document.addEventListener('click', onClick);
-    addEventListener('resize', onResize);
-    this.cleanups.push(
-      () => document.removeEventListener('click', onClick),
-      () => removeEventListener('resize', onResize),
-    );
+    this.cleanups.push(() => {
+      this.listenOutside(false);
+      this.navObserver?.disconnect();
+      this.navObserver = null;
+      this.navObserved = null;
+    });
     this.addEventListener('ca-open-task', (e: CustomEvent<OpenTaskDetail>) => {
       this.navigate({ tab: 'stream', key: e.detail.key, ...(e.detail.view ? { view: e.detail.view } : {}) });
     });
@@ -135,11 +153,24 @@ export class CaMonitor extends LitElement {
     });
   }
 
-  /** Show a new snapshot of the data: whether the run is live, and the page's title. */
+  /** Show a new snapshot of the data: whether the run is live, and (when the monitor is the page) the page's title. */
   private show(snap: MonitorSnapshot): void {
     this.snap = snap;
     this.live = isRunLive(snap.state, runRow(snap.runs, snap.run));
-    document.title = msg(str`${snap.info.title} monitor`);
+    if (this.history === 'url') document.title = msg(str`${snap.info.title} monitor`);
+  }
+
+  /** Where the single-key shortcuts work now: the `shortcuts` property, else by `history`. */
+  private get shortcutScope(): ShortcutScope {
+    return isShortcutScope(this.shortcuts) ? this.shortcuts : this.history === 'url' ? 'page' : 'element';
+  }
+
+  /** Listen for a click outside the run picker on the document (while it is open), or stop. */
+  private listenOutside(on: boolean): void {
+    if (on === this.outsideClickOn) return;
+    this.outsideClickOn = on;
+    if (on) document.addEventListener('click', this.onOutsideClick);
+    else document.removeEventListener('click', this.onOutsideClick);
   }
 
   /** The theme shown now. */
@@ -150,6 +181,7 @@ export class CaMonitor extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     for (const fn of this.cleanups.splice(0)) fn();
+    keepMemory(this, null);
     this.router.stop();
     this.store.stop();
     this.mainScroll.detach();
@@ -200,6 +232,9 @@ export class CaMonitor extends LitElement {
   }
 
   protected override updated(): void {
+    // The click on the run button that opened the picker reaches the document after this: `onOutsideClick` passes it over.
+    this.listenOutside(this.isConnected && this.pickerOpen);
+    this.observeNav();
     // Tab comes back into the tab list on the selected tab.
     if (this.snap && this.route) this.tabFocus.set(Math.max(0, this.selectedTab()));
     moveTabIndicator(this.renderRoot);
@@ -210,6 +245,17 @@ export class CaMonitor extends LitElement {
       else this.mainScroll.restore();
       this.pendingScroll = null;
     }
+  }
+
+  /** Move the line under the selected tab when the tab bar changes size. */
+  private observeNav(): void {
+    const nav = this.renderRoot.querySelector('nav');
+    if (!nav || typeof ResizeObserver === 'undefined') return;
+    if (this.navObserved === nav) return;
+    if (!this.navObserver) this.navObserver = new ResizeObserver(() => moveTabIndicator(this.renderRoot));
+    else this.navObserver.disconnect();
+    this.navObserver.observe(nav);
+    this.navObserved = nav;
   }
 
   private setQ(q: string): void {
@@ -235,10 +281,11 @@ export class CaMonitor extends LitElement {
     const dot = runTone(!!summary?.running, summary?.tasks);
     const derived = deriveRun(snap.state.journal, snap.state.plan);
     const tab = this.selectedTab();
+    const keys = this.shortcutScope !== 'off';
     return html`
       <header>
         ${brand(snap.info.title)}
-        <button type="button" class="runbtn" title=${msg('Switch run (r)')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
+        <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
           <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
           <span class="rn">${route.run || '—'}</span>
@@ -277,7 +324,7 @@ export class CaMonitor extends LitElement {
           : id === 'procs'
             ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
-    return tabBar(monitorTabs(this.snap.info.panels), this.route.tab, badge, (id) => this.navigate({ tab: id }), 'main');
+    return tabBar(monitorTabs(this.snap.info.panels), this.route.tab, badge, (id) => this.navigate({ tab: id }), 'main', this.shortcutScope !== 'off');
   }
 
   private renderBar(d: RunDerived) {
@@ -290,7 +337,7 @@ export class CaMonitor extends LitElement {
         <option value="" ?selected=${!route.kind}>${msg('All kinds')}</option>
         ${kinds.map((k) => html`<option ?selected=${k === route.kind}>${k}</option>`)}
       </select>
-      <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${msg('Text filter (/)')} .value=${this.qDraft ?? route.q}
+      <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? route.q}
         @input=${(e: Event) => this.setQ((e.target as HTMLInputElement).value)} />
       <span class="meta">${route.tab === 'journal'
         ? triesLine(d.tries)
