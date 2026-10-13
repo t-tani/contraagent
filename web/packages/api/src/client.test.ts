@@ -50,8 +50,29 @@ describe('createMonitorClient', () => {
 
   it('throws ApiError on an error status or an empty answer', async () => {
     const { c } = client((url) => (url.endsWith('/journal?since=0') ? json({ detail: 'no' }, 404) : new Response(null, { status: 204 })));
-    await expect(c.journal('r')).rejects.toEqual(new ApiError(404, '/api/runs/r/journal'));
-    await expect(c.info()).rejects.toBeInstanceOf(ApiError);
+    const e = await c.journal('r').catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ApiError);
+    expect(e).toMatchObject({ url: 'http://monitor.test/api/runs/r/journal?since=0', failure: 'status', status: 404 });
+    expect((e as ApiError).message).toBe('No JSON answer from http://monitor.test/api/runs/r/journal?since=0: status 404 application/json');
+    await expect(c.info()).rejects.toMatchObject({ failure: 'not-json', status: 204 });
+    const { c: broken } = client(() => json({ detail: 'boom' }, 500));
+    await expect(broken.runs()).rejects.toMatchObject({ failure: 'status', status: 500 });
+  });
+
+  it('throws ApiError for an HTML page, as a server without the API answers every path', async () => {
+    const { c } = client(() => new Response('<!doctype html><title>app</title>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } }));
+    await expect(c.runs()).rejects.toMatchObject({ failure: 'not-json', status: 200, type: 'text/html' });
+    await expect(c.runs()).rejects.toThrow('No JSON answer from http://monitor.test/api/runs: not-json 200 text/html');
+  });
+
+  it('throws ApiError for a body that is not valid JSON', async () => {
+    const { c } = client(() => new Response('{"run":', { headers: { 'Content-Type': 'application/json' } }));
+    await expect(c.runs()).rejects.toMatchObject({ failure: 'not-json', type: 'application/json' });
+  });
+
+  it('throws ApiError when no response comes', async () => {
+    const c = createMonitorClient({ baseUrl: 'http://down.test', fetch: () => Promise.reject(new TypeError('Failed to fetch')) });
+    await expect(c.info()).rejects.toMatchObject({ failure: 'network', status: 0, url: 'http://down.test/api/info' });
   });
 
   it('types each call by the generated schema', () => {

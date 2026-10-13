@@ -47,6 +47,8 @@ beforeEach(() => {
   vi.stubGlobal('EventSource', FakeEventSource);
   vi.stubGlobal('fetch', (input: Request | string) => {
     const url = typeof input === 'string' ? input : input.url;
+    // Any other server answers every path with its page, as a development server does.
+    if (!url.startsWith('http://monitor.test/')) return Promise.resolve(new Response('<!doctype html><title>app</title>', { headers: { 'Content-Type': 'text/html' } }));
     const body = answer(url);
     return Promise.resolve(new Response(JSON.stringify(body), { status: body ? 200 : 404, headers: { 'Content-Type': 'application/json' } }));
   });
@@ -196,6 +198,79 @@ describe('ca-monitor', () => {
     const el = await monitor();
     expect(el.getAttribute('data-ca-theme')).toBe(el.shownTheme);
     expect(el.lang).toBe('en');
+    el.theme = 'nord';
+    await el.updateComplete;
+    expect(el.getAttribute('data-ca-theme')).toBe('nord');
     el.remove();
+  });
+
+  describe('connection', () => {
+    const alert = (el: CaMonitor) => text(root(el).querySelector('.api-error'));
+
+    it('shows the URL and the cause when the API answers with an HTML page, not "No runs yet"', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const el = document.createElement('ca-monitor');
+      el.setAttribute('history', 'memory');
+      document.body.append(el);
+      await settle();
+      await el.updateComplete;
+      expect(alert(el)).toBe(`✕ No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`);
+      expect(text(root(el).querySelector('main'))).toBe('');
+      expect(errors.mock.calls).toEqual([[`No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`]]);
+      el.remove();
+      errors.mockRestore();
+    });
+
+    it('takes a base-url set after connecting: the old feeds close, the new server is read', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const el = document.createElement('ca-monitor');
+      el.setAttribute('history', 'memory');
+      document.body.append(el);
+      await settle();
+      expect(feeds).toEqual([]);
+      el.baseUrl = 'http://monitor.test/';
+      await settle();
+      await el.updateComplete;
+      expect(feeds.map((f) => f.url)).toEqual(['http://monitor.test/events?run=r']);
+      expect(alert(el)).toBe('');
+      expect(text(root(el).querySelector('header .rn'))).toBe('r');
+      el.remove();
+      errors.mockRestore();
+    });
+
+    it('closes the feed of the old server when base-url changes, and opens the run named by run', async () => {
+      const closed = vi.spyOn(FakeEventSource.prototype, 'close');
+      const el = await monitor();
+      el.setAttribute('base-url', 'http://monitor.test/other');
+      el.run = 'r';
+      await settle();
+      await el.updateComplete;
+      expect(closed).toHaveBeenCalled();
+      expect(feeds.at(-1)!.url).toBe('http://monitor.test/other/events?run=r');
+      el.remove();
+      closed.mockRestore();
+    });
+
+    it('opens the run set after connecting', async () => {
+      const el = await monitor();
+      el.run = 'other';
+      await settle();
+      await el.updateComplete;
+      expect(text(root(el).querySelector('header .rn'))).toBe('other');
+      expect(feeds.at(-1)!.url).toBe('http://monitor.test/events?run=other');
+      el.remove();
+    });
+
+    it('takes a history set after connecting', async () => {
+      document.title = 'Host page';
+      const el = await monitor();
+      el.history = 'url';
+      el.locale = 'ja';
+      // The Japanese module loads when first chosen.
+      await vi.waitFor(() => expect(document.title).toBe('Pipeline モニター'), { timeout: 3000 });
+      expect(el.lang).toBe('ja');
+      el.remove();
+      history.replaceState(null, '', '/');
+    });
   });
 });

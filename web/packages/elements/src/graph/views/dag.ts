@@ -37,7 +37,7 @@ function at(h: GraphHost, id: string, parent: Rect | null): string {
 
 function graphView(h: GraphHost) {
   const { on } = h.lit();
-  const g = h.graph;
+  const g = h.drawn;
   const lay = h.lay;
   const stubs = new Map(g.stubs.map((s) => [s.id, s]));
   const items = (container: string): string[] => (h.arr.slots[container] ?? []).flat().filter((id) => !isPoint(id));
@@ -45,7 +45,7 @@ function graphView(h: GraphHost) {
     const b = h.clusters.get(id);
     if (b) return cluster(h, b, parent, (x, r) => item(x, r));
     const s = stubs.get(id);
-    if (s) return html`<span class="stub" part="stub" data-id=${s.id} style=${at(h, s.id, parent)} title=${h.strings.stubTip}>${s.label}</span>`;
+    if (s) return html`<span class="stub" part="stub" data-id=${s.id} style=${at(h, s.id, parent)} title=${h.words.stubTip}>${s.label}</span>`;
     const n = h.nodes.get(id);
     return n ? node(h, n, parent) : nothing;
   };
@@ -120,7 +120,7 @@ export const notes = (n: GraphNode, tag: 'span' | 'div' = 'span') =>
   (n.notes ?? []).map((f) => (tag === 'span' ? html`<span class=${NOTE_CLASS[f.tone ?? 'neutral'] ?? ''}>${f.text}</span>` : html`<div class=${NOTE_CLASS[f.tone ?? 'neutral'] ?? ''}>${f.text}</div>`));
 
 function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
-  const series = h.graph.series;
+  const series = h.drawn.series;
   const bar = asBar(n, h.barAt);
   const all = slotsOf(n, series);
   const failed = (s: Slot | null): s is Slot => !!s && h.states[s.m.state]?.tone === 'failed';
@@ -136,9 +136,7 @@ function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
     <div class="hd" part="node-header">
       <span class="nm">${icons}<button type="button" class="name" part="node-name" title=${n.tip ?? nothing} aria-pressed=${sel}
         @focus=${() => h.focusSelect(n.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, n.id)}>${n.label}</button></span>
-      <span class="right">${n.progress
-        ? html`<span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>`
-        : nothing}${n.drill
+      <span class="right"><span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>${n.drill
         ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
         : nothing}</span>
     </div>
@@ -164,7 +162,7 @@ function statusBar(h: GraphHost, n: GraphNode, g: MarkGroup) {
     ${shown.length
       ? html`<div class="fails" @keydown=${(e: KeyboardEvent) => onKey(h, e, { ...g, slots: shown, grid: { ...g.grid, cols: shown.length } })}>
           ${shown.map((s, i) => (s ? mark(h, g, s, i, i === active, true) : nothing))}
-          ${more > 0 ? html`<span>${h.strings.more(more)}</span>` : nothing}
+          ${more > 0 ? html`<span>${h.words.more(more)}</span>` : nothing}
         </div>`
       : nothing}`;
 }
@@ -232,9 +230,9 @@ function onKey(h: GraphHost, e: KeyboardEvent, g: MarkGroup): void {
   } else return;
   e.preventDefault();
   h.active.set(g.id, next);
-  h.el.requestUpdate();
+  h.requestUpdate();
   const group = e.currentTarget as HTMLElement;
-  void h.el.updateComplete.then(() => group.querySelector<HTMLElement>(`[data-i="${next}"]`)?.focus());
+  void h.updateComplete.then(() => group.querySelector<HTMLElement>(`[data-i="${next}"]`)?.focus());
 }
 
 /** To the node an edge joins: a later one (Shift and → or ↓) or an earlier one (Shift and ← or ↑), on the same series when it has a mark there. */
@@ -245,20 +243,20 @@ function toEdge(h: GraphHost, e: KeyboardEvent, g: MarkGroup): void {
     const r = lay?.at[id];
     return !r ? 0 : lay?.down ? r.x + r.w / 2 : r.y + r.h / 2;
   };
-  const to = alongEdge({ drawn: h.arr.drawn, edges: h.graph.edges, back: h.arr.back }, g.id, dir, across);
+  const to = alongEdge({ drawn: h.arr.drawn, edges: h.drawn.edges, back: h.arr.back }, g.id, dir, across);
   e.preventDefault();
   if (!to) return;
   const n = h.nodes.get(to);
   if (!n) return;
   const series = g.slots[h.active.get(g.id) ?? firstMark(g.slots)]?.series ?? '';
-  const all = slotsOf(n, h.graph.series);
+  const all = slotsOf(n, h.drawn.series);
   const slots = asBar(n, h.barAt) ? all.filter((s) => !!s && h.states[s.m.state]?.tone === 'failed') : all;
   const same = series ? slots.findIndex((s) => s?.series === series) : -1;
   const i = same >= 0 ? same : (h.active.get(n.id) ?? firstMark(slots));
   h.active.set(n.id, i);
-  h.el.requestUpdate();
-  void h.el.updateComplete.then(() => {
-    const el = h.root.querySelector<HTMLElement>(`.node[data-id="${CSS.escape(to)}"]`);
+  h.requestUpdate();
+  void h.updateComplete.then(() => {
+    const el = h.renderRoot.querySelector<HTMLElement>(`.node[data-id="${CSS.escape(to)}"]`);
     (el?.querySelector<HTMLElement>(`[data-i="${i}"]`) ?? el?.querySelector<HTMLElement>('.name'))?.focus();
   });
 }

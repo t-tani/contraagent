@@ -223,7 +223,6 @@ export function mount(host: HTMLElement): void {
   view.graph = graph;
   view.states = states;
   view.strings = { cycle: 'next pass', badge: 'number of passes' };
-  view.showInspector = false; // the panel beside the graph describes the selection
   graphBox!.append(view);
 
   /** The selection: the graph shows it, the panel describes it. */

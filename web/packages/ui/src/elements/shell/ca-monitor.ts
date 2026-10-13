@@ -1,6 +1,6 @@
 import { deriveRun, isRunLive, liveActivities, MonitorStore, hostOf, runActivity, runIdOf, runRow, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
-import { LitElement, html, nothing } from 'lit';
+import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../core/events.js';
 import { LOCALE_NAMES, allLocales, chooseLocale, configureLocales, getLocale, isLocale, type Locale } from '../../core/i18n.js';
@@ -12,6 +12,7 @@ import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
+import { apiErrorLine } from '../../words/api-error.js';
 import { accountsTip } from '../../words/quota.js';
 import { hostFact, hostsLine, lastReport, noReportLabel } from '../../words/hosts.js';
 import { pill } from '@contraagent/elements/primitives';
@@ -44,14 +45,25 @@ const Q_DEBOUNCE_MS = 250;
 export class CaMonitor extends LitElement {
   static override styles = [hostThemeStyles, base, tabStyles, monitorStyles];
 
-  /** Where the monitor's API is served; '' is this page's origin. */
+  /**
+   * Where the monitor's API is served, such as `http://127.0.0.1:8787`; '' is
+   * this page's origin. A server on another origin must allow this page's
+   * (`contraagent monitor --cors-origin`). It takes effect whenever it is set,
+   * before or after the element connects: a change closes the old server's
+   * feeds and opens the run named by `run`, else the new server's newest run.
+   * A request that gets no JSON answer (a network error, a status outside 2xx,
+   * or an HTML page from a server without the API) is shown above the view,
+   * with its URL and cause, and written to the console.
+   */
   @property({ attribute: 'base-url' }) baseUrl = '';
   /**
    * `url`: the monitor is the page. The route lives in the address bar (Back
    * and reload return to it), and the monitor sets the page's title, `lang` and
    * theme. `memory`: for a monitor embedded in another page. The route, the
    * scroll positions and the open sections live in the element, and the page's
-   * URL, history, title and `<html>` attributes stay the host's.
+   * URL, history, title and `<html>` attributes stay the host's. A change after
+   * connecting takes effect at once: `memory` keeps the route shown, `url`
+   * reads the address bar's.
    */
   @property() history: RouterMode = 'url';
   /**
@@ -61,7 +73,10 @@ export class CaMonitor extends LitElement {
    * Unset: `page` with `history="url"`, `element` with `history="memory"`.
    */
   @property() shortcuts: ShortcutScope | '' = '';
-  /** The run to open first (in `memory` mode, or when the URL names none). */
+  /**
+   * The run to open first (in `memory` mode, or when the URL names none). A
+   * change after connecting opens that run.
+   */
   @property() run = '';
   /**
    * The language to show (`en`, `ja`). Unset: the reader's earlier choice, else
@@ -100,6 +115,11 @@ export class CaMonitor extends LitElement {
   });
   private store!: MonitorStore;
   private router!: Router;
+  /** The `baseUrl` the store was made for, and the `history` the router was. */
+  private storeBase = '';
+  private routerMode: RouterMode = 'url';
+  /** Stop listening to the store. */
+  private readonly storeCleanups: (() => void)[] = [];
   private readonly mainScroll = new ScrollMemory('main', () => memoryOf(this));
   private pendingScroll: RouteCause | null = null;
   private qTimer: ReturnType<typeof setTimeout> | null = null;
@@ -134,18 +154,8 @@ export class CaMonitor extends LitElement {
     this.locales = configureLocales();
     adoptThemes(this.ownerDocument);
     super.connectedCallback();
-    keepMemory(this, this.history === 'memory' ? this.localMemory : null);
-    this.store = new MonitorStore({ baseUrl: this.baseUrl });
-    this.show(this.store.snapshot);
-    this.cleanups.push(
-      this.store.subscribe((s) => {
-        this.show(s);
-        this.pickDefaultRun();
-      }),
-      this.store.onNewRow((row) => this.toasts?.show(...rowToast(row, this.snap.run))),
-    );
-    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), this.run ? { run: this.run } : {}, flushMemory);
-    this.router.start();
+    this.openStore();
+    this.openRouter();
     void this.store.start();
     this.cleanups.push(() => {
       this.listenOutside(false);
@@ -168,11 +178,64 @@ export class CaMonitor extends LitElement {
     });
   }
 
-  /** Show a new snapshot of the data: whether the run is live, and (when the monitor is the page) the page's title. */
+  /** A store for `baseUrl`, shown and listened to; not started. */
+  private openStore(): void {
+    this.storeBase = this.baseUrl;
+    this.store = new MonitorStore({ baseUrl: this.baseUrl });
+    this.show(this.store.snapshot);
+    this.storeCleanups.push(
+      this.store.subscribe((s) => {
+        this.show(s);
+        this.pickDefaultRun();
+      }),
+      this.store.onNewRow((row) => this.toasts?.show(...rowToast(row, this.snap.run))),
+    );
+  }
+
+  private closeStore(): void {
+    for (const fn of this.storeCleanups.splice(0)) fn();
+    this.store.stop();
+  }
+
+  /**
+   * A router for `history`, started at the `run` property's run; when it replaces
+   * another router, `memory` starts at the route shown and `url` at the address bar's.
+   */
+  private openRouter(): void {
+    this.routerMode = this.history;
+    keepMemory(this, this.history === 'memory' ? this.localMemory : null);
+    const at = !this.route ? (this.run ? { run: this.run } : {}) : this.history === 'memory' ? this.route : {};
+    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), at, flushMemory);
+    this.router.start();
+  }
+
+  /**
+   * A connection property changed while connected: a new `base-url` gets a new
+   * store (the feeds of the old one close) and the run named by `run`, else the
+   * newest of the new server's; a new `history` gets a new router; a new `run` opens it.
+   */
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    if (!this.isConnected || !this.store) return;
+    if (this.baseUrl !== this.storeBase) {
+      this.closeStore();
+      this.openStore();
+      this.navigate({ run: this.run }, { replace: true });
+      this.store.selectRun(this.route.run);
+      void this.store.start();
+    }
+    if (this.history !== this.routerMode) {
+      this.router.stop();
+      this.openRouter();
+    }
+    if (changed.has('run') && changed.get('run') !== undefined && this.run) this.navigate({ run: this.run });
+  }
+
+  /** Show a new snapshot of the data, and whether the run is live; write a new API failure to the console. */
   private show(snap: MonitorSnapshot): void {
+    // A new failure of the API goes to the console too, as the view says it.
+    if (snap.error && snap.error !== this.snap?.error) console.error(apiErrorLine(snap.error));
     this.snap = snap;
     this.live = isRunLive(snap.state, runRow(snap.runs, snap.run));
-    if (this.history === 'url') document.title = msg(str`${snap.info.title} monitor`);
   }
 
   /** Where the single-key shortcuts work now: the `shortcuts` property, else by `history`. */
@@ -198,7 +261,7 @@ export class CaMonitor extends LitElement {
     for (const fn of this.cleanups.splice(0)) fn();
     keepMemory(this, null);
     this.router.stop();
-    this.store.stop();
+    this.closeStore();
     this.mainScroll.detach();
   }
 
@@ -255,6 +318,8 @@ export class CaMonitor extends LitElement {
   }
 
   protected override updated(): void {
+    // A monitor that is the page names it, in its language.
+    if (this.history === 'url' && this.snap) document.title = msg(str`${this.snap.info.title} monitor`);
     // The click on the run button that opened the picker reaches the document after this: `onOutsideClick` passes it over.
     this.listenOutside(this.isConnected && this.pickerOpen);
     this.observeNav();
@@ -328,10 +393,10 @@ export class CaMonitor extends LitElement {
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${hostsPage
-        ? html`<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
-        : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)}
+        ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
+        : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
             <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
-              >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.baseUrl })}</main>`}
+              >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
       <ca-toasts></ca-toasts>
     `;
   }
@@ -359,6 +424,12 @@ export class CaMonitor extends LitElement {
     const hosts = this.snap.hosts?.hosts ?? [];
     return html`<span class="dot" data-tone=${toneAttr(hosts.some((h) => !h.up) ? 'attention' : 'neutral')} aria-hidden="true"></span>
       <span class="rn">${msg('Hosts')}</span><span class="rs">${hostsLine(hosts)}</span>`;
+  }
+
+  /** A request to the API that got no JSON answer: its URL and cause. */
+  private renderApiError() {
+    const { error } = this.snap;
+    return html`<p class="api-error" role="alert">${error ? html`<span class="ic" aria-hidden="true">✕</span> ${apiErrorLine(error)}` : nothing}</p>`;
   }
 
   private renderTabs(d: RunDerived, busy: number) {

@@ -1,5 +1,6 @@
 // What the graph's views read from `cae-layered-graph` and call on it. Each view is
-// a function of the element (`GraphHost`) that renders into its shadow root.
+// a function of the element (`GraphHost`, its private members included) that renders
+// into its shadow root.
 import type { ReactiveControllerHost } from 'lit';
 import type { StateStyles } from '../primitives/states.js';
 import type { CardController } from './card.js';
@@ -16,17 +17,14 @@ export const BAR_LIST = 8;
  * The element as its views see it: what it shows, the state the views change
  * (each change renders the element again), its controllers and what it sends.
  */
-export interface GraphHost {
-  readonly el: ReactiveControllerHost & HTMLElement;
-  readonly root: ParentNode;
+export interface GraphHost extends ReactiveControllerHost, HTMLElement {
+  readonly renderRoot: ParentNode;
   /** The graph, its nodes with their defaults. */
-  readonly graph: DrawnGraph;
+  readonly drawn: DrawnGraph;
   readonly arr: Arrangement;
   readonly states: StateStyles;
-  readonly strings: LayeredGraphStrings;
+  readonly words: LayeredGraphStrings;
   readonly selected: string | null;
-  /** A mark matrix is shown in the frame. */
-  readonly matrixShown: boolean;
   readonly nodes: ReadonlyMap<string, GraphNode>;
   readonly clusters: ReadonlyMap<string, GraphClusterInput>;
   /** Where everything is drawn, and whether it was drawn for this graph (`key`). */
@@ -36,7 +34,7 @@ export interface GraphHost {
   readonly down: boolean;
   readonly barAt: number;
   /** The node table is shown. */
-  asTable: boolean;
+  readonly asTable: boolean;
   /** The series (or a mark's id, for a mark outside any series) under the pointer or focus. */
   hover: string | null;
   /** Each group's focused mark (roving tabindex): one tab stop per group. */

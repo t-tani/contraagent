@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `<cae-layered-graph>`: `showInspector` turns off the selection's card, and the part `keys`
-  is the line of key hints. A node's `marks`, `loose`, `counts` and
+- `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,
   series and `key`.
@@ -356,6 +355,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header there was lost); on a touch screen there is no such line. There is no card
   while the `inspector` slot is empty. A height set on the element is the frame's: the
   frame fills it, the drawing fitted in it.
+- `<ca-monitor>` takes `base-url`, `history` and `run` whenever they change, also
+  after it connects; a new `base-url` closes the old server's feeds. A request to the
+  API that gets no JSON answer (an HTML page, a 404, a network error) is shown with its
+  URL and cause, and written to the console, in place of "No runs yet". `ApiError`
+  has the `url`, a `failure`, the `status` and the media `type`; `MonitorSnapshot` has
+  `error` and `runsLoaded`.
 - Below 760 px wide, the open run picker spans the header 16 px from each side; it ran
   off the right edge and scrolled the page sideways.
 - The monitor's transcript feed no longer skips the lines after a page that stopped at

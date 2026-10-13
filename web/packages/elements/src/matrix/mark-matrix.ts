@@ -1,7 +1,6 @@
 // A mark matrix: a row per series, a column per item, nested groups of columns
 // above them; only the rows in view above `windowAt` rows.
 import { LitElement, adoptStyles, html, nothing, type CSSResult, type PropertyValues } from 'lit';
-import { property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../core/events.js';
 import { withDefaults } from '../core/strings.js';
@@ -42,27 +41,40 @@ const EMPTY: MarkMatrixInput = { caption: '', label: '', head: [], columns: [], 
  */
 export class CaeMarkMatrix extends LitElement {
   static override styles = [base, markStyles, matrixStyles];
+  static override properties = {
+    matrix: { attribute: false },
+    states: { attribute: false },
+    selected: { attribute: false },
+    highlight: { attribute: false },
+    key: {},
+    windowAt: { type: Number },
+    strings: { attribute: false },
+    renderIcon: { attribute: false },
+    iconStyles: { attribute: false },
+    hover: { state: true },
+    scrollRow: { state: true },
+  };
 
-  @property({ attribute: false }) matrix: MarkMatrixInput = EMPTY;
-  @property({ attribute: false }) states: StateStyles = {};
+  matrix: MarkMatrixInput = EMPTY;
+  states: StateStyles = {};
   /** The selected mark's id, or null. */
-  @property({ attribute: false }) selected: string | null = null;
+  selected: string | null = null;
   /** The row highlighted while no mark is hovered, focused or selected. */
-  @property({ attribute: false }) highlight: string | null = null;
+  highlight: string | null = null;
   /** The matrix's identity: a new key is a new matrix (the scroll and the focused mark start over). */
-  @property() key = '';
+  key = '';
   /** Above this many rows, only the rows in view are drawn. */
-  @property({ type: Number }) windowAt = 150;
-  @property({ attribute: false }) strings: Partial<MarkMatrixStrings> = {};
+  windowAt = 150;
+  strings: Partial<MarkMatrixStrings> = {};
   /** Draws an icon of a header cell; default: `icon(name)`. */
-  @property({ attribute: false }) renderIcon: (name: string) => unknown = (name) => icon(name);
+  renderIcon: (name: string) => unknown = (name) => icon(name);
   /** Styles for what `renderIcon` draws, added to the element's own. */
-  @property({ attribute: false }) iconStyles: readonly CSSResult[] = [];
+  iconStyles: readonly CSSResult[] = [];
 
   /** The row (or a mark without one) under the pointer or focus. */
-  @state() private hover: string | null = null;
+  private hover: string | null = null;
   /** The first row in view, and the focused cell (row, column). */
-  @state() private scrollRow = 0;
+  private scrollRow = 0;
   private cell: [number, number] | null = null;
 
   protected override willUpdate(changed: PropertyValues<this>): void {

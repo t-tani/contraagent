@@ -9,12 +9,13 @@ export interface View {
 
 /**
  * The frame's height and the view that shows the whole graph: scaled down to fit the
- * frame's width and at most `maxH` of height, never scaled up, and centred.
+ * frame's width and at most `maxH` of height, never scaled up, and centred in a frame
+ * at least `minH` tall.
  */
-export function fitView(graphW: number, graphH: number, frameW: number, maxH: number): View & { h: number } {
+export function fitView(graphW: number, graphH: number, frameW: number, maxH: number, minH = 0): View & { h: number } {
   if (graphW <= 0 || graphH <= 0 || frameW <= 0) return { k: 1, x: 0, y: 0, h: Math.max(0, graphH) };
   const byWidth = Math.min(1, frameW / graphW);
-  const h = Math.min(graphH * byWidth, maxH);
+  const h = Math.max(minH, Math.min(graphH * byWidth, maxH));
   const k = Math.min(byWidth, h / graphH);
   return { k, x: (frameW - graphW * k) / 2, y: (h - graphH * k) / 2, h };
 }

@@ -7,7 +7,7 @@
   <target>完了 <x id="0" equiv-text="${n}"/> 件</target>
 </trans-unit>
 <trans-unit id="s7671567ef7075153">
-  <source><x id="0" equiv-text="${snap.info.title}"/> monitor</source>
+  <source><x id="0" equiv-text="${this.snap.info.title}"/> monitor</source>
   <target><x id="0" equiv-text="${this.snap.info.title}"/> モニター</target>
 </trans-unit>
 <trans-unit id="s60147fb4fa4a8e0c">
@@ -2353,6 +2353,26 @@
   <source>up</source>
   <target>稼働中</target>
   <note from="lit-localize">A host whose reports keep arriving</note>
+</trans-unit>
+<trans-unit id="s3dd137f6b70ab45f">
+  <source>network error, no response</source>
+  <target>ネットワークエラーで応答なし</target>
+</trans-unit>
+<trans-unit id="s00cfc1e282ce46d7">
+  <source>the response status is <x id="0" equiv-text="${status}"/></source>
+  <target>HTTP ステータス <x id="0" equiv-text="${e.status}"/></target>
+</trans-unit>
+<trans-unit id="s647582a62a567663">
+  <source>the response is HTML, not JSON</source>
+  <target>応答が JSON ではなく HTML</target>
+</trans-unit>
+<trans-unit id="s3b9cab5f0aaad29d">
+  <source>No monitor API at <x id="0" equiv-text="${url}"/>: <x id="1" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${url}"/> にモニター API がありません: <x id="1" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s7cf320e6c1c2f676">
+  <source>the response is not JSON</source>
+  <target>応答が JSON ではない</target>
 </trans-unit>
 </body>
 </file>

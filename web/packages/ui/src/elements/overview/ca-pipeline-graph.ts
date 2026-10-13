@@ -5,7 +5,7 @@ import type { MarkMatrixInput } from '@contraagent/elements/matrix';
 import type { StateStyles } from '@contraagent/elements/primitives';
 import { localized, msg } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValueMap, type PropertyValues } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement } from 'lit/decorators.js';
 import { related, taskLinks, type TaskLinks } from '../../adapters/graph/highlight.js';
 import { graphInput, matrixFromPlan } from '../../adapters/graph/input.js';
 import { autoLayer, parentLayer, resolveLayer, splitLayer } from '../../adapters/graph/layer.js';
@@ -83,27 +83,39 @@ const EMPTY_LAYER: LayerGraph = {
 @localized()
 export class CaPipelineGraph extends LitElement {
   static override styles = graphStyles;
+  static override properties = {
+    plan: { attribute: false },
+    journal: { attribute: false },
+    run: {},
+    live: { type: Boolean },
+    layer: {},
+    unit: {},
+    sel: {},
+    down: { state: true },
+    sort: { state: true },
+    missing: { state: true },
+  };
 
-  @property({ attribute: false }) plan: Plan = { nodes: [], groups: [] };
+  plan: Plan = { nodes: [], groups: [] };
   /** The finished attempts: they tell why a task did not start. */
-  @property({ attribute: false }) journal: JournalRow[] = [];
+  journal: JournalRow[] = [];
   /** The run id: paths in a cause are shown relative to it. */
-  @property() run = '';
+  run = '';
   /** The run is running: tasks still pending are waiting; once it is over, they did not run. */
-  @property({ type: Boolean }) live = false;
+  live = false;
   /** The layer shown: its segments (function names, then `loop:<line>` for a loop's passes) joined by `/`; '' for the layer the graph opens on. */
-  @property() layer = '';
+  layer = '';
   /** The unit highlighted while nothing is hovered or focused. */
-  @property() unit = '';
+  unit = '';
   /** What is selected in the layer: a node or a loop box by its id, a mark by `markSel`; '' for nothing. */
-  @property() sel = '';
+  sel = '';
 
   /** Top to bottom: the graph does not fit left to right. */
-  @state() private down = false;
+  private down = false;
   /** A loop's passes: how its units are sorted. */
-  @state() private sort: MatrixSort = 'order';
+  private sort: MatrixSort = 'order';
   /** The layer the route named that this run does not have (shown once the graph fell back to its opening layer). */
-  @state() private missing = '';
+  private missing = '';
   /** The route's layer to set right after this update, and that change, which is not the reader's. */
   private fixLayer: string | null = null;
   private replacing = false;

@@ -31,8 +31,8 @@ export function neighbours(
  * with the same card.
  */
 export function nodeTable(h: GraphHost) {
-  const g = h.graph;
-  const w = h.strings;
+  const g = h.drawn;
+  const w = h.words;
   const dashed = [...g.edges, ...g.stubs].some((e) => e.style === 'dashed');
   const list = (xs: string[]) => w.list(xs) || w.none;
   // The frame keeps the drawing's height when the drawing of this graph was laid out (left to right); else the table's own, up to the frame's limit.
@@ -84,8 +84,7 @@ export function nodeTable(h: GraphHost) {
 /** A node's status in one row, as its node in the graph says it: "28/30 | 1 failed | 1 not started". */
 export function statusLine(n: GraphNode) {
   const sep = html`<span class="sep" aria-hidden="true"> | </span>`;
-  const p = n.progress;
-  return html`${p ? html`<span class="n" aria-hidden="true" title=${p.label}>${p.done}/${p.total}</span><span class="sr">${p.label}</span>` : nothing}${notes(n).map(
-    (x, i) => html`${p || i ? sep : nothing}${x}`,
+  return html`<span class="n" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span><span class="sr">${n.progress.label}</span>${notes(n).map(
+    (x) => html`${sep}${x}`,
   )}`;
 }

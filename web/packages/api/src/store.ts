@@ -1,7 +1,7 @@
 // The monitor's data, live: the run list, the selected run's feed folded into a
 // `RunState`, and a change notification. No UI framework: a Lit controller, a
 // React hook or plain code can subscribe alike.
-import { createMonitorClient, type MonitorClient } from './client.js';
+import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
 import type { Hosts, Info, JournalRow, RunSummary } from './types.js';
@@ -18,6 +18,10 @@ export interface MonitorSnapshot {
   connected: boolean;
   /** Journal rows (by `rowId`) that arrived in the last few seconds, after the replay. */
   fresh: ReadonlySet<string>;
+  /** The run list has been answered: `runs` is the server's, not the empty start. */
+  runsLoaded: boolean;
+  /** Why the last request for `info`, `runs` or (on a hub) `hosts` got no answer; null while all are answered. */
+  error: ApiError | null;
 }
 
 export interface StoreOptions {
@@ -34,6 +38,9 @@ export interface StoreOptions {
 
 const DEFAULT_INFO: Info = { title: 'contraagent', panels: [], api_version: '' };
 
+/** A client given in the options may throw something else: it counts as no response from `url`. */
+const asApiError = (e: unknown, url: string): ApiError => (e instanceof ApiError ? e : new ApiError(url, 'network'));
+
 export class MonitorStore {
   readonly client: MonitorClient;
   private snap: MonitorSnapshot = {
@@ -44,7 +51,15 @@ export class MonitorStore {
     state: emptyRunState(),
     connected: false,
     fresh: new Set(),
+    runsLoaded: false,
+    error: null,
   };
+  /** Why the last request for `info`, for `runs`, and for `hosts` got no answer. */
+  private infoError: ApiError | null = null;
+  private runsError: ApiError | null = null;
+  private hostsError: ApiError | null = null;
+  private infoLoaded = false;
+  private stopped = false;
   private readonly listeners = new Set<(s: MonitorSnapshot) => void>();
   private readonly rowListeners = new Set<(row: JournalRow) => void>();
   private closeFeed: Unsubscribe | null = null;
@@ -74,27 +89,55 @@ export class MonitorStore {
     return () => this.rowListeners.delete(fn);
   }
 
-  /** Load the title, panels and run list, and keep the run list fresh. */
+  /**
+   * Load the title, panels and run list, and keep the run list fresh. A request
+   * that gets no answer sets `error`; the title and panels are asked for again
+   * with each refresh until they arrive.
+   */
   async start(): Promise<void> {
+    this.stopped = false;
+    await this.refresh();
+    if (!this.stopped) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
+  }
+
+  private async refresh(): Promise<void> {
+    if (!this.infoLoaded) await this.loadInfo();
+    await this.refreshRuns();
+  }
+
+  private async loadInfo(): Promise<void> {
     try {
       const before = this.panelNames();
-      this.set({ info: await this.client.info() });
+      const info = await this.client.info();
+      if (this.stopped) return;
+      this.infoLoaded = true;
+      this.infoError = null;
+      this.set({ info });
       // A run opened before the panel list arrived listens for no panel: open it again.
       if (this.snap.run && this.panelNames() !== before) this.reopen();
-    } catch {
-      /* an older or unreachable server: keep the defaults */
+    } catch (e) {
+      this.infoError = asApiError(e, `${this.client.baseUrl}/api/info`);
     }
-    await this.refreshRuns();
-    this.pollTimer ??= setInterval(() => void this.refreshRuns(), this.opts.runsEveryMs);
   }
 
   /** Fetch the run list, and on a hub the host list beside it: both refresh together, so a run's host reads the same in both. */
   async refreshRuns(): Promise<void> {
     const [runs, hosts] = await Promise.allSettled([this.client.runs(), this.snap.info.hosts ? this.client.hosts() : Promise.resolve(null)]);
+    if (this.stopped) return;
     // A failed request keeps the last list.
     const patch: Partial<MonitorSnapshot> = {};
-    if (runs.status === 'fulfilled') patch.runs = runs.value;
-    if (hosts.status === 'fulfilled') patch.hosts = hosts.value;
+    if (runs.status === 'fulfilled') {
+      patch.runs = runs.value;
+      patch.runsLoaded = true;
+      this.runsError = null;
+    } else this.runsError = asApiError(runs.reason, `${this.client.baseUrl}/api/runs`);
+    if (hosts.status === 'fulfilled') {
+      patch.hosts = hosts.value;
+      this.hostsError = null;
+    } else this.hostsError = asApiError(hosts.reason, `${this.client.baseUrl}/api/hosts`);
+    const error = this.infoError ?? this.runsError ?? this.hostsError;
+    // The same failure again keeps the same `error`.
+    if (error?.message !== this.snap.error?.message) patch.error = error;
     if (Object.keys(patch).length) this.set(patch);
   }
 
@@ -133,7 +176,9 @@ export class MonitorStore {
     );
   }
 
+  /** Close the feed and stop refreshing; an answer that arrives later is dropped. */
   stop(): void {
+    this.stopped = true;
     this.closeFeed?.();
     this.closeFeed = null;
     if (this.pollTimer) clearInterval(this.pollTimer);

@@ -48,9 +48,9 @@ The shards are the graph's `series`, so shard 2 is at the same place in every
 node that has shards; a step that runs once has one mark in `loose`. Each mark
 shows the last pass of its job, and the number of passes as its `badge`. The
 loop is a cluster that `cycle`s, closed by an edge with `ranks: false`. A
-node's `counts` and `progress` follow from its marks. With `showInspector` off,
-the graph draws no card beside the selection: the panel beside the graph
-describes it.
+node's `counts` and `progress` follow from its marks. The page puts nothing in
+the graph's `inspector` slot, so the graph draws no card beside the selection:
+the panel beside the graph describes it.
 
 ::code{file="examples/ci-pipeline.ts" from="// ---- The graph" to="// ---- The table"}
 

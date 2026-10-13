@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MonitorClient } from './client.js';
+import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { MonitorStore } from './store.js';
 import type { Info } from './types.js';
 
@@ -30,6 +30,49 @@ describe('MonitorStore', () => {
     store.stop();
     expect(opened.at(-1)).toContain('panel:notes');
     expect(store.snapshot.run).toBe('docs');
+  });
+
+  it('sets error when the API answers with an HTML page, and clears it on an answer', async () => {
+    let answer = (): Response => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } });
+    const fetch = () => Promise.resolve(answer());
+    const store = new MonitorStore({ client: createMonitorClient({ baseUrl: 'http://app.test', fetch }), runsEveryMs: 60_000 });
+    expect(store.snapshot).toMatchObject({ runsLoaded: false, error: null });
+    await store.start();
+    expect(store.snapshot.runsLoaded).toBe(false);
+    expect(store.snapshot.error).toMatchObject({ url: 'http://app.test/api/info', failure: 'not-json', type: 'text/html' });
+    await store.refreshRuns();
+    answer = () => new Response('[]', { headers: { 'Content-Type': 'application/json' } });
+    await store.refreshRuns();
+    // /api/info is asked for again on the next refresh: until then its error stays.
+    expect(store.snapshot).toMatchObject({ runsLoaded: true, runs: [] });
+    expect(store.snapshot.error?.url).toBe('http://app.test/api/info');
+    store.stop();
+  });
+
+  it('sets error for a 404 of the run list', async () => {
+    const info: Info = { title: 't', panels: [], api_version: '1' };
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.reject(new ApiError('http://x.test/api/runs', 'status', 404, 'application/json')),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 60_000 });
+    await store.start();
+    store.stop();
+    expect(store.snapshot.error).toMatchObject({ failure: 'status', status: 404 });
+  });
+
+  it('on a hub, sets error when the host list gets no answer', async () => {
+    const client = {
+      baseUrl: 'http://hub.test',
+      info: () => Promise.resolve({ title: 't', panels: [], api_version: '3', hosts: true }),
+      runs: () => Promise.resolve([]),
+      hosts: () => Promise.reject(new ApiError('http://hub.test/api/hosts', 'not-json', 200, 'text/html')),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 60_000 });
+    await store.start();
+    store.stop();
+    expect(store.snapshot).toMatchObject({ runsLoaded: true, error: { url: 'http://hub.test/api/hosts', failure: 'not-json' } });
   });
 
   it('on a hub, fetches the host list with the run list', async () => {

@@ -63,8 +63,9 @@ joined to. With `matrix`, the frame shows a [mark matrix](matrix.md) as the tabl
 
 The card of the selected item is the host's content in the `inspector` slot,
 beside the item in the frame; its first heading and its `[data-status]` element
-name the item to a screen reader. There is no card while the slot is empty, and
-none with `showInspector` off (the host shows the selection elsewhere).
+name the item to a screen reader. With nothing in the slot when the element
+draws (a new `selected` draws it), there is no card: a page that shows the
+selection elsewhere leaves the slot empty.
 
 Hovering, focusing or selecting a mark highlights its series; `related` names more
 marks to light (a mark's id, or a series id, to the ids of the marks it lights).

@@ -11,13 +11,31 @@ import type {
   paths,
 } from './types.js';
 
-/** A request the monitor answered with an error status. */
+/**
+ * Why a request got no JSON answer: `network`, no response (a network error, a
+ * refused connection, or a cross-origin response the browser blocked);
+ * `status`, a status outside 2xx; `not-json`, a body that is not JSON (empty,
+ * or the HTML page a development server answers every path with).
+ */
+export type ApiFailure = 'network' | 'status' | 'not-json';
+
+/**
+ * A request to the monitor's API that got no JSON answer. Its message states
+ * the URL, the failure, the status and the media type
+ * ("No JSON answer from http://host/api/runs: not-json 200 text/html");
+ * `@contraagent/ui` words it for the reader.
+ */
 export class ApiError extends Error {
   constructor(
-    readonly status: number,
-    readonly path: string,
+    /** The URL requested. */
+    readonly url: string,
+    readonly failure: ApiFailure,
+    /** The response's status; 0 with no response. */
+    readonly status = 0,
+    /** The response's media type, such as `text/html`; '' when it states none. */
+    readonly type = '',
   ) {
-    super(`${status} ${path}`);
+    super(`No JSON answer from ${url}: ${failure} ${status} ${type}`.trim());
     this.name = 'ApiError';
   }
 }
@@ -28,7 +46,7 @@ export interface ClientOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Typed calls for every JSON route of the monitor. Each throws `ApiError` on a non-2xx answer. */
+/** Typed calls for every JSON route of the monitor. Each throws `ApiError` when it gets no JSON answer. */
 export interface MonitorClient {
   readonly baseUrl: string;
   info(): Promise<Info>;
@@ -55,7 +73,7 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
   const baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
   const origin = (baseUrl || globalThis.location?.origin || '').replace(/\/$/, '');
   const fetch = options.fetch ?? globalThis.fetch;
-  /** The JSON answer of GET `route`; `ApiError` on a non-2xx status or an empty answer. */
+  /** The JSON answer of GET `route`; `ApiError` when there is none. */
   async function get<P extends Route>(route: P, params?: Params<P>): Promise<Answer<P>> {
     const { path = {}, query = {} } = (params ?? {}) as { path?: Record<string, string>; query?: Record<string, number> };
     const url = origin + route.replace(/\{(\w+)\}/g, (part, name: string) => (name in path ? encodeURIComponent(path[name]!) : part));
@@ -63,10 +81,21 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
       .filter(([, v]) => v !== undefined && v !== null)
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join('&');
-    const response = await fetch(new Request(search ? `${url}?${search}` : url));
-    if (!response.ok || response.status === 204 || response.headers.get('Content-Length') === '0')
-      throw new ApiError(response.status, new URL(response.url, 'http://x').pathname);
-    return (await response.json()) as Answer<P>;
+    const target = search ? `${url}?${search}` : url;
+    let response: Response;
+    try {
+      response = await fetch(new Request(target));
+    } catch {
+      throw new ApiError(target, 'network');
+    }
+    const { status, ok } = response;
+    const type = (response.headers.get('Content-Type') ?? '').split(';')[0]!.trim().toLowerCase();
+    try {
+      if (ok) return (await response.json()) as Answer<P>;
+    } catch {
+      // An empty body, an HTML page, or text that is not JSON.
+    }
+    throw new ApiError(target, ok ? 'not-json' : 'status', status, type);
   }
   return {
     baseUrl,

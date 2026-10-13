@@ -1,21 +1,25 @@
 // How a node draws its marks: a grid, or a bar of counts when it has many; and
 // what a node without `counts` or `progress` shows.
 import type { StateStyles } from '../primitives/states.js';
-import type { GraphMark, GraphNode, GraphNodeInput } from './types.js';
+import type { GraphNode, GraphNodeInput } from './types.js';
 
 /**
  * A node with its defaults: no marks, its marks by state as its counts, and as its
  * progress its marks whose state has the tone `done`, of all its marks, in the words
- * of `words` (none without marks).
+ * of `words`.
  */
 export function fillNode(n: GraphNodeInput, states: StateStyles, words: (done: number, total: number) => string): GraphNode {
   const { marks = [], loose = [] } = n;
-  const all = [...marks, ...loose].filter((m): m is GraphMark => !!m);
   const counts: Record<string, number> = {};
-  for (const m of all) counts[m.state] = (counts[m.state] ?? 0) + 1;
-  const done = all.filter((m) => states[m.state]?.tone === 'done').length;
-  const total = all.length;
-  return { ...n, marks, loose, counts: n.counts ?? counts, progress: n.progress ?? (total ? { done, total, label: words(done, total) } : null) };
+  let done = 0;
+  let total = 0;
+  for (const m of [...marks, ...loose]) {
+    if (!m) continue;
+    counts[m.state] = (counts[m.state] ?? 0) + 1;
+    total++;
+    if (states[m.state]?.tone === 'done') done++;
+  }
+  return { ...n, marks, loose, counts: n.counts ?? counts, progress: n.progress ?? { done, total, label: words(done, total) } };
 }
 
 /** How a node lays out its series marks: as many columns as series up to 12, then 10, then 20; smaller marks as they grow. */
@@ -33,6 +37,6 @@ export const asBar = (n: Pick<GraphNode, 'marks' | 'loose'>, at = BAR_MARKS): bo
 
 /** A node's bar: each state's share of its items, in `order`, the states it has only. */
 export function barParts(counts: Readonly<Record<string, number>>, order: readonly string[]): { state: string; n: number; pct: number }[] {
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const total = order.reduce((a, s) => a + (counts[s] ?? 0), 0);
   return order.filter((s) => (counts[s] ?? 0) > 0).map((s) => ({ state: s, n: counts[s] ?? 0, pct: (100 * (counts[s] ?? 0)) / Math.max(1, total) }));
 }

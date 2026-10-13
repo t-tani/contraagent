@@ -48,12 +48,6 @@ async function drawn(props: Partial<CaeLayeredGraph> = {}) {
   return { el, root: el.shadowRoot!, sent };
 }
 
-/** After the host's content changed: the element has seen it and drawn again. */
-async function settled(el: CaeLayeredGraph) {
-  await new Promise((r) => setTimeout(r));
-  await el.updateComplete;
-}
-
 defineElement('cae-layered-graph', CaeLayeredGraph);
 defineElement('cae-mark-matrix', CaeMarkMatrix);
 defineElement('cae-segmented', CaeSegmented);
@@ -96,18 +90,16 @@ describe('cae-layered-graph', () => {
     ]);
   });
 
-  it('shows the host’s card for the selection, and Escape clears it', async () => {
+  it('shows the host’s card for the selection, none with an empty slot, and Escape clears it', async () => {
     const { el, root, sent } = await drawn({ selected: 'b' });
     expect(root.querySelector('[part~="inspector"]')).toBeNull();
     const card = document.createElement('h4');
     card.slot = 'inspector';
     card.textContent = 'node b';
     el.append(card);
-    await settled(el);
-    expect(root.querySelector('[part~="inspector"] slot[name="inspector"]')).not.toBeNull();
-    el.showInspector = false;
+    el.selected = 'a';
     await el.updateComplete;
-    expect(root.querySelector('[part~="inspector"]')).toBeNull();
+    expect(root.querySelector('[part~="inspector"] slot[name="inspector"]')).not.toBeNull();
     el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(sent.at(-1)?.detail).toEqual({ id: null });
   });
@@ -132,7 +124,7 @@ describe('cae-layered-graph', () => {
     const count = root.querySelector('.node[data-id="p"] .count')!;
     expect(count.textContent).toBe('1/2');
     expect(count.getAttribute('title')).toBe('1 of 2 done');
-    expect(root.querySelector('.node[data-id="q"] .count')).toBeNull();
+    expect(root.querySelector('.node[data-id="q"] .count')?.textContent).toBe('0/0');
   });
 
   it('switches to the node table', async () => {

@@ -25,6 +25,7 @@ export interface FeedHandlers<M> {
 }
 
 export interface FeedOptions {
+  /** Where the monitor is served, as for the client; '' (the default) is the page's own origin. */
   baseUrl?: string;
   /** For tests and non-browser hosts. */
   EventSource?: typeof globalThis.EventSource;
@@ -47,6 +48,7 @@ function connect(url: string, names: readonly string[], on: FeedHandlers<{ event
 }
 
 const q = encodeURIComponent;
+const base = (opts: FeedOptions): string => (opts.baseUrl ?? '').replace(/\/$/, '');
 
 /**
  * `/events?run=`: the run, live. The server replays the whole journal on every
@@ -60,7 +62,7 @@ export function openRunFeed(
   opts: FeedOptions = {},
 ): Unsubscribe {
   const names = [...RUN_EVENT_NAMES, ...panels.map((p) => `panel:${p}`)];
-  return connect(`${opts.baseUrl ?? ''}/events?run=${q(run)}`, names, on, opts);
+  return connect(`${base(opts)}/events?run=${q(run)}`, names, on, opts);
 }
 
 /** `/events/stream`: one transcript, tailed. The first page is the tail; each later one only what is new. */
@@ -71,7 +73,7 @@ export function openStreamFeed(
   opts: FeedOptions = {},
 ): Unsubscribe {
   return connect(
-    `${opts.baseUrl ?? ''}/events/stream?run=${q(run)}&key=${q(key)}`,
+    `${base(opts)}/events/stream?run=${q(run)}&key=${q(key)}`,
     ['stream'],
     { ...on, message: (m) => on.message(m.data as StreamPage) },
     opts,

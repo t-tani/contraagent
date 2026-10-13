@@ -59,8 +59,7 @@ export interface GraphNodeInput {
   counts?: Readonly<Record<string, number>>;
   /**
    * Its header's count ("28/30") and its words; default: its marks whose state has
-   * the tone `done`, of all its marks, in the words of `strings.progress` (no count
-   * without marks).
+   * the tone `done`, of all its marks, in the words of `strings.progress`.
    */
   progress?: NodeProgress;
   /** The line under its marks ("1 failed | 1 not started"). */
@@ -70,12 +69,11 @@ export interface GraphNodeInput {
 }
 
 /** A node as the graph draws it: its input with the defaults filled in (`fillNode`). */
-export interface GraphNode extends Omit<GraphNodeInput, 'marks' | 'loose' | 'counts' | 'progress'> {
+export interface GraphNode extends GraphNodeInput {
   marks: readonly (GraphMark | null)[];
   loose: readonly GraphMark[];
   counts: Readonly<Record<string, number>>;
-  /** Null: no count in its header. */
-  progress: NodeProgress | null;
+  progress: NodeProgress;
 }
 
 /** A box of nodes (and of other clusters) in a layered graph. */

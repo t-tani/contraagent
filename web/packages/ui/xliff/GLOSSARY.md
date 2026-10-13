@@ -140,6 +140,7 @@ wherever the UI shows a state or a count to the reader.
 | N tasks retried / N tasks with corrections / N tasks with model switches (a tile's sub-line) | リトライしたタスク N 件 / 修正依頼のあったタスク N 件 / モデル切り替えのあったタスク N 件 |
 | Must be written during the task: yes / no; Check time: when the task starts (a checked file's conditions) | タスク実行中の書き込みが必須: はい / いいえ; 検証のタイミング: タスクの開始時 |
 | monitor / filter | モニター / フィルター |
+| No monitor API at URL: the response is HTML, not JSON / the response status is 404 / network error, no response (a request to the API with no JSON answer) | URL にモニター API がありません: 応答が JSON ではなく HTML / HTTP ステータス 404 / ネットワークエラーで応答なし |
 | host / Hosts (the hosts page, on a hub) / Host h1 / All hosts (the host filter) | ホスト / ホスト一覧 / ホスト h1 / すべてのホスト |
 | up / no report / no report since 10:41:03 (a host's state: its reports keep arriving, or stopped) | 稼働中 / 報告なし / 10:41:03 以降報告なし |
 | last report / report interval (when a host last reported; seconds between its reports) | 最終報告 / 報告間隔 |
