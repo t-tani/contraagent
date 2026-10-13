@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { minifyCssTemplates, minifyCssText } from '../../../scripts/minify-css.mjs';
+import { minifyCssTemplates, minifyCssText } from './minify-css.mjs';
 
 describe('minifyCssText', () => {
   it('drops comments and runs of whitespace', () => {
