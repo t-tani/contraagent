@@ -1,13 +1,15 @@
 # Theming
 
 Each element keeps its styles in its own shadow root, so your page's CSS cannot
-break it and its CSS cannot leak into your page. What reaches it are custom
-properties, in two layers:
+break it and its CSS cannot leak into your page. What reaches it are the
+`--ca-*` custom properties:
 
 1. **A built-in theme**, picked by `data-ca-theme="<name>"` on any ancestor
-   (or on the element). It sets every colour token.
-2. **A `--ca-*` property** set on any ancestor overrides one token, whatever the
-   theme. A theme of your own is a set of them.
+   (or on the element), sets every colour property on that element. The
+   elements inside it read them, and so does your page's own CSS.
+2. **A `--ca-*` property of your own** wins over the theme when it is set on
+   the element that carries `data-ca-theme` or on an element inside it. A theme
+   of your own is a set of them.
 
 With neither, an element shows contraagent Dark.
 
@@ -54,6 +56,24 @@ reader's theme before the first paint, as the monitor's page does.
 `preferredTheme` and `rememberTheme` keep the reader's choice in this browser;
 `system` follows the system's colour scheme (contraagent Dark or contraagent
 Light).
+
+## Use the theme in your own page
+
+The theme's properties have the same names in your page as in the elements, so
+your page and the elements show one theme. Here `<html data-ca-theme="nord">`
+picks it, and the page's CSS reads it:
+
+::code{file="examples/page.css"}
+
+A theme sets each property that has a value per theme: the colours,
+`--ca-tint`, `--ca-focus-width` and `--ca-color-scheme`. Its selector has no specificity,
+so any rule of your page that sets a `--ca-*` property wins over it:
+
+::code{file="../src/themes/data.ts" from="/** A theme's selector on a page" to="/**"}
+
+The tints (`--ca-accent-bg`, `--ca-status-*-bg`, `--ca-agent-bg`), the type
+scale and the corners have one default for every theme; that default exists only
+inside the elements, unless your page sets the property.
 
 ## What a colour means
 
@@ -115,7 +135,9 @@ every element under it.
 
 ## A theme of your own
 
-Set the `--ca-*` properties on an ancestor, here a class on `<body>`. Build it
+Set the `--ca-*` properties on an element, here with a class: on the element
+that carries `data-ca-theme`, or on one inside it (on `<body>` under
+`<html data-ca-theme>`). Build it
 the way the built-in themes are built: each text colour keeps a contrast of at
 least 4.5:1 (WCAG AA) on every surface and on every status tint.
 

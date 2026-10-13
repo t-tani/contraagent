@@ -16,4 +16,6 @@ or contraagent Light). With no choice made, the monitor shows contraagent Dark.
 
 `<ca-monitor theme="nord">` fixes the theme of an embedded monitor; it also
 takes `system`. The theme it shows is reflected as `data-ca-theme` on the
-element (and on `<html>`, with `history="url"`).
+element (and on `<html>`, with `history="url"`). A theme of your own (a set of
+`--ca-*` properties) goes on `<ca-monitor>` itself, which carries that
+attribute: `<ca-monitor class="solarized-light">`.

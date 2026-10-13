@@ -1,5 +1,6 @@
 ---
-// Every --ca-* property the elements read, its meaning and its value in each built-in theme:
+// Every --ca-* property the elements read, its meaning and its value in each built-in theme
+// (which `data-ca-theme` sets on its element, for the elements and the page), or its one default:
 // from @contraagent/elements' own data (src/themes/), which the elements' stylesheet is built from.
 import { THEMES, THEME_NAMES, TOKENS, TOKEN_MEANINGS } from '@contraagent/elements/themes';
 
@@ -23,7 +24,7 @@ const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[t
           <td>{TOKEN_MEANINGS[t.name]}</td>
           {t.derive ? (
             <td colspan={THEME_NAMES.length}>
-              <code>{t.derive}</code>
+              Every theme, inside the elements: <code>{t.derive}</code>
             </td>
           ) : (
             THEME_NAMES.map((n) => {

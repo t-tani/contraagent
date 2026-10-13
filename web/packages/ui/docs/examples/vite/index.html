@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- The application's page (index.html), with the monitor in #monitor; main.ts names its server. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Release dashboard</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
+      header h1 { flex: 1; margin: 0; font-size: 20px; }
+      /* The monitor fills the box it is in, and scrolls inside it: the box has a height. */
+      #monitor { height: calc(100vh - 80px); margin: 0 16px; border: 1px solid #8884; border-radius: 8px; overflow: hidden; }
+    </style>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Release dashboard</h1>
+      <label>Language
+        <select id="language">
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+        </select>
+      </label>
+    </header>
+    <!-- `memory`: the route stays in the element; the page's URL, title and <html> stay the application's. -->
+    <div id="monitor"><ca-monitor history="memory" locale="en"></ca-monitor></div>
+  </body>
+</html>

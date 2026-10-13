@@ -7,6 +7,30 @@ folds a run's feed into one typed state. No UI: `@contraagent/ui` draws it.
 The types are generated from the monitor's pydantic models via OpenAPI, so a
 field the server removes fails your type check, not your page.
 
+A `::code` line quotes a file of the package; the documentation site (`pnpm docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.
+
+## Getting it
+
+The package is not in the npm registry; install it from a checkout of the
+repository. Every monitor also serves the client, the feeds and the store as
+exports of its `/app.js` (`@contraagent/ui`'s documentation).
+
+## Use it from a checkout
+
+In the repository's `web/` (Node 22, pnpm through `corepack enable`):
+
+```
+pnpm install && pnpm tarballs
+```
+
+`pnpm tarballs` builds the packages and writes one `.tgz` file for each to
+`web/tarballs/`. Then, in your project, with npm or pnpm:
+
+```
+npm install <checkout>/web/tarballs/contraagent-api-*.tgz
+pnpm add <checkout>/web/tarballs/contraagent-api-*.tgz
+```
+
 ## Types
 
 Every response and feed message has a type, with readable aliases:

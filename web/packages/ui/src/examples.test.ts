@@ -8,7 +8,8 @@ import './index.js';
 // Vitest runs from web/ (under happy-dom, import.meta.url is not a file URL).
 const DIR = join(process.cwd(), 'packages', 'ui', 'docs', 'examples');
 const read = (f: string) => readFileSync(join(DIR, f), 'utf8');
-const files = readdirSync(DIR);
+/** Every file, in subdirectories too (an application's files: examples/vite/). */
+const files = readdirSync(DIR, { recursive: true, encoding: 'utf8' });
 
 describe('docs/examples', () => {
   it('uses only elements this package defines', () => {

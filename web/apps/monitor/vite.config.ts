@@ -6,7 +6,7 @@ import { compactLocales } from '../../scripts/compact-locale.mjs';
 import { minifyCss } from '../../scripts/minify-css.mjs';
 import { minifyHtml } from '../../scripts/minify-html.mjs';
 
-/** Where `contraagent-monitor` runs during `pnpm dev` (override with CONTRAAGENT_MONITOR). */
+/** Where `contraagent monitor` runs during `pnpm dev` (override with CONTRAAGENT_MONITOR). */
 const API = process.env['CONTRAAGENT_MONITOR'] ?? 'http://127.0.0.1:8787';
 
 /** The page opens in the reader's theme: `data-ca-theme` on <html> and the themes' rules, before the first paint. */
@@ -14,7 +14,7 @@ const theme = (): Plugin => ({
   name: 'contraagent-theme',
   transformIndexHtml: () => [
     { tag: 'script', children: themeBootScript, injectTo: 'head-prepend' },
-    { tag: 'style', children: themeRules((n) => `[data-ca-theme="${n}"]`), injectTo: 'head' },
+    { tag: 'style', children: themeRules(), injectTo: 'head' },
   ],
 });
 

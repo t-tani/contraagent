@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 // docs/examples is documentation: the elements it uses exist, each example
-// mounts, and the theme sets only properties the elements read.
+// mounts, the theme sets only properties the elements read, and the page reads
+// only properties a theme sets.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import './define/all.js';
 import { tokenStyles } from './styles/index.js';
+import { themeRules } from './themes/data.js';
 
 // Vitest runs from web/ (under happy-dom, import.meta.url is not a file URL).
 const DIR = join(process.cwd(), 'packages', 'elements', 'docs', 'examples');
@@ -37,5 +39,12 @@ describe('docs/examples', () => {
     const set = [...read('theme.css').matchAll(/(--ca-[a-z0-9-]+)\s*:/g)].map((m) => m[1]);
     expect(set.length).toBeGreaterThan(0);
     for (const p of set) expect(read_.has(p), p).toBe(true);
+  });
+
+  it('styles the page only with --ca-* properties a theme sets', () => {
+    const rules = themeRules();
+    const used = [...read('page.css').matchAll(/var\((--ca-[a-z0-9-]+)/g)].map((m) => m[1]!);
+    expect(used.length).toBeGreaterThan(0);
+    for (const p of used) expect(rules, p).toContain(`${p}:`);
   });
 });

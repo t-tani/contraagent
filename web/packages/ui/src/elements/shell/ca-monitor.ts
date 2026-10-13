@@ -48,7 +48,7 @@ export class CaMonitor extends LitElement {
   /**
    * Where the monitor's API is served, such as `http://127.0.0.1:8787`; '' is
    * this page's origin. A server on another origin must allow this page's
-   * (`contraagent-monitor --cors-origin`). It takes effect whenever it is set,
+   * (`contraagent monitor --cors-origin`). It takes effect whenever it is set,
    * before or after the element connects: a change closes the old server's
    * feeds and opens the run named by `run`, else the new server's newest run.
    * A request that gets no JSON answer (a network error, a status outside 2xx,

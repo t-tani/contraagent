@@ -17,6 +17,7 @@
     "e2e": "pnpm build && playwright test",
     "check:dist": "tsc -p apps/monitor/tsconfig.dist.json && node scripts/size.mjs && node consumer/consumer.test.mjs",
     "docs": "pnpm --filter @contraagent/docs dev",
+    "tarballs": "pnpm --filter \"./packages/**\" build && node scripts/tarballs.mjs",
     "i18n": "pnpm --filter @contraagent/ui i18n"
   },
   "devDependencies": {

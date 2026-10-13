@@ -79,9 +79,21 @@ later is read when it answers, and the message goes.
 ::code{file="examples/embed.html"}
 
 A page on another origin can only import `/app.js` and read the API if the
-monitor names that origin: `contraagent-monitor --cors-origin http://localhost:8000`.
+monitor names that origin: `contraagent monitor --cors-origin http://localhost:8000`.
 
 ## In an application
+
+A Vite application: the page holds `<ca-monitor>` in a box, and `src/main.ts`
+imports the package and sets the monitor's `base-url`.
+
+::code{file="examples/vite/index.html"}
+
+::code{file="examples/vite/main.ts"}
+
+A page served by Vite answers an unknown path such as `/api/runs` with its own
+`index.html`: a monitor there without `base-url` shows "No monitor API at
+http://localhost:5173/api/info: the response is HTML, not JSON" (Connection,
+above).
 
 Import the package once; the elements register themselves. When it connects,
 `<ca-monitor>` sets up the languages (`configureLocales()`) and adds the
