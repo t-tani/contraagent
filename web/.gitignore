@@ -1,5 +1,6 @@
 node_modules/
 dist/
+tarballs/
 packages/ui/custom-elements.json
 packages/elements/custom-elements.json
 e2e/.runs/

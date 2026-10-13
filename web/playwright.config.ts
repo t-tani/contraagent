@@ -13,7 +13,7 @@ export default defineConfig({
   timeout: 30_000,
   use: { baseURL: `http://127.0.0.1:${PORT}`, viewport: { width: 1280, height: 800 } },
   webServer: {
-    command: `uv run contraagent-monitor --runs-dir web/e2e/.runs/demo-runs --port ${PORT}`,
+    command: `uv run contraagent monitor --runs-dir web/e2e/.runs/demo-runs --port ${PORT}`,
     cwd: '..',
     url: `http://127.0.0.1:${PORT}/api/info`,
     reuseExistingServer: false,

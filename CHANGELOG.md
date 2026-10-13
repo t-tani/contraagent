@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `pnpm tarballs` in `web/` packs `@contraagent/api`, `@contraagent/elements` and
+  `@contraagent/ui` into `web/tarballs/`, naming each other by path, so npm and pnpm
+  install them from a checkout. The packed `package.json` has no `source` export
+  condition.
 - `run.json` names the run across hosts: `run_uid`, an id no other run has (kept when
   the run is resumed), and `host_id` (`CONTRAAGENT_HOST_ID`, else the host name).
 - `Monitor(source=..., liveness=...)`: the monitor reads runs through a `RunSource` and a
@@ -721,6 +725,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The `contraagent-monitor` command: the monitor is `contraagent monitor`.
 - `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
   project's state-file names and nothing read them.
 - `Stage`, `StageRunner` and `join_stage`: `FlowDriver` replaces them.
