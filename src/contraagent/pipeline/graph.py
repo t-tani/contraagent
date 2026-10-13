@@ -184,8 +184,9 @@ class Graph:
 
     `driver`: the `FlowDriver` running the flow, when it is a generator; its
     current flow call is what creates a node (none: flow call "0", the flow
-    itself). `new_kind(spec)`: called for an agent task's kind seen for the
-    first time, before its node is added; what it raises, the task call raises.
+    itself). `new_kind(spec)`: called to route an agent task's kind, when it is
+    reached (`reached`) or first created (`declare`), before its node is added;
+    what it raises, the task call raises.
     `tail(task)`: each task's `tail_s`, the expected wall time of the work its
     flow creates after it (`JournalEstimates.tail`); None leaves it unset.
     """
@@ -203,7 +204,8 @@ class Graph:
         #: The passes of the loops of flow code while the flow runs (`loops.py`).
         self.loops = LoopCounter(current=lambda: self.driver.current if self.driver is not None else None)
         self._digests: dict[int, str] = {}  # id(spec) -> its definition's digest
-        self._specs: dict[str, Any] = {}  # agent kind -> its declaration
+        self._specs: dict[str, Any] = {}  # agent kind -> the declaration its tasks were created by
+        self._reached: dict[str, Any] = {}  # agent kind with no task yet -> the reachable declaration routed
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
         self._produced: dict[int, tuple[Any, Pending]] = {}  # id(output) -> (output, its Pending)
         self._taken = 0
@@ -263,8 +265,9 @@ class Graph:
         return Pending(node, self)
 
     def agent_specs(self) -> dict[str, Any]:
-        """kind -> AgentTask, for every agent kind added so far. One kind, one declaration."""
-        return dict(self._specs)
+        """kind -> AgentTask, for every agent kind created or reached so far: the declaration
+        its tasks were created by, else the first one reached."""
+        return {**self._specs, **self._reached}
 
     def tasks(self) -> list[Task]:
         return [self.task_of(n) for n in self.nodes]
@@ -346,17 +349,34 @@ class Graph:
             node.task = self._task(node)
         return node.task
 
+    def reached(self, spec: Any) -> None:
+        """Make a reachable agent kind one of the run's (`agent_specs`) before any task of it
+        is created: `new_kind` is called for a kind not seen yet. The flow's code may reach
+        other declarations of a kind too (a default argument the caller replaces); which one
+        it creates is known only when it does (`declare`)."""
+        if spec.executor != "agent" or spec.kind in self._specs or spec.kind in self._reached:
+            return
+        if self.new_kind is not None:
+            self.new_kind(spec)
+        self._reached[spec.kind] = spec
+
     def declare(self, spec: Any) -> None:
-        """Make an agent task's kind one of the run's (`agent_specs`), before or as a task of
-        it is added: `new_kind` is called the first time. One kind, one declaration."""
+        """Make an agent task's kind one of the run's as a task of it is added. One kind, one
+        declaration: a second declaration of the kind that differs from the first one created
+        (`AgentTask.differences`) raises. `new_kind` is called the first time, unless the
+        kind was reached with the same `config` and `requires` (its routing)."""
         if spec.executor != "agent":
             return
         seen = self._specs.get(spec.kind)
-        if seen is spec:
-            return
         if seen is not None:
-            raise ValueError(f"two agent_task declarations share kind {spec.kind!r}")
-        if self.new_kind is not None:
+            if seen is not spec and (parts := seen.differences(spec)):
+                raise ValueError(
+                    f"kind {spec.kind!r} is declared by two agent_task calls with different {', '.join(parts)}: "
+                    f"one kind is one definition and one [tasks.{spec.kind}] table; give one of them another kind"
+                )
+            return
+        routed = self._reached.pop(spec.kind, None)
+        if self.new_kind is not None and (routed is None or (routed.config, routed.requires) != (spec.config, spec.requires)):
             self.new_kind(spec)
         self._specs[spec.kind] = spec
 

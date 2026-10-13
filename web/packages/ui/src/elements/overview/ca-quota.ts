@@ -23,22 +23,23 @@ export class CaQuota extends LitElement {
     css`
       :host { display: block; }
       .rows { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content max-content; gap: 10px 14px; align-items: center; }
-      .name { font-size: 12px; color: var(--fg2); white-space: nowrap; }
+      .name { font-size: 12px; color: var(--text-2); white-space: nowrap; }
       .bar { position: relative; height: 12px; border-radius: 4px; background: var(--track); overflow: hidden; }
       .bar i { position: absolute; top: 0; bottom: 0; }
-      .bar .before { left: 0; background: var(--muted); opacity: 0.55; }
-      .bar .during { background: var(--live); }
-      .bar.hot .during { background: var(--warn); }
-      .bar.full .during { background: var(--err); }
+      /* usage measures, it does not judge: neutral, attention from 80% (the number says it too) */
+      .bar .before { left: 0; background: var(--meter); opacity: 0.45; }
+      .bar .during { background: var(--meter); }
+      .bar.hot .during, .bar.full .during, .bar.hot .before, .bar.full .before { background: var(--status-attention); }
+      .val.hot b, .val.full b { color: var(--status-attention); }
       .val { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .val b { color: var(--fg); }
-      .reset { font-size: 11.5px; color: var(--mut); white-space: nowrap; }
+      .val b { color: var(--text); }
+      .reset { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
       .status { margin-top: 8px; }
       .acct { padding: 10px 0; border-top: 1px solid var(--line); }
       .acct:first-child { border-top: 0; padding-top: 0; }
       .acct-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-      .acct-h i { font-style: normal; color: var(--mut); font-size: 11px; }
-      .acct-h b { font-family: var(--mono); color: var(--fg); font-weight: 600; }
+      .acct-h i { font-style: normal; color: var(--text-muted); font-size: 11px; }
+      .acct-h b { font-family: var(--mono); color: var(--text); font-weight: 600; }
     `,
   ];
 
@@ -62,7 +63,7 @@ export class CaQuota extends LitElement {
         <i class="before" style="width:${from}%"></i>
         <i class="during" style="left:${from}%;width:${to - from}%"></i>
       </span>
-      <span class="val">${pct(a)} → <b>${pct(b)}</b></span>
+      <span class="val ${cls}">${pct(a)} → <b>${pct(b)}</b></span>
       <span class="reset" title=${resets ? localTime(resets, true) : ''}>${resetsIn(resets)}</span>`;
   }
 
@@ -73,7 +74,7 @@ export class CaQuota extends LitElement {
       const status = quotaStatusLabel(a.last.status);
       return html`<div class="acct">
         <div class="acct-h"><i>${msg('Identity')}</i><b>${credentialLabel(a.credential) || '—'}</b>${status
-            ? html`<span class="pill p-timeout" title=${a.last.status ?? ''}>${status}</span>`
+            ? html`<span class="pill p-near" title=${a.last.status ?? ''}>${status}</span>`
             : nothing}</div>
         <div class="rows">
           ${this.row('seven_day', msg('Weekly usage'), a.first, a.last)} ${this.row('five_hour', msg('5-hour usage'), a.first, a.last)}

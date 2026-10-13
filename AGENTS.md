@@ -60,12 +60,17 @@ there: one word, one meaning, on every screen. Japanese follows
 | a loop's `pass` (`flow[].loops[].pass`) | pass N; up to N passes | N 周目; 最大 N 周 |
 | the passes a unit ran of a loop (`GraphMark.passes`, `MatrixRow.passes`) | N passes (the number in a mark); number of passes (legend); Passes (column) | N 周; 周回数 |
 | `LoopBox.spread` (units by the passes they ran) | 1 pass: 4 \| 2 passes: 1; tooltip: units by number of passes | 1 周: 4 \| 2 周: 1; ユニットごとの周回数 |
-| a loop box's mark of its return to the next pass | next pass (tooltip) | 次の周 |
 | `passMatrix` (a loop's passes: a row per unit, a column per node and pass) | Unit, Passes, Pass N (columns); sort units: scheduled order, number of passes, status | ユニット, 周回数, N 周目; 並び順: 登録順, 周回数, 状態 |
 | a node above 200 marks (`asBar`) | a bar of its counts, its failed units by name, +N for the rest | 件数のバー, 失敗したユニット名, +N |
 | the graph's key hints | Tab: next node \| Arrow keys: marks \| Shift + arrow keys: earlier and later tasks \| Enter: open \| Esc: up a level | Tab: 次のノード \| 矢印キー: マーク \| Shift + 矢印キー: 依存先タスク・後続タスク \| Enter: 開く \| Esc: 1 つ上の階層 |
 | `after` (an edge) | waits for output | 出力を待つ |
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
+| a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
+| a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |
+| `executor` of a kind node | agent task / Python task | エージェントタスク / Python タスク |
+| selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
+| an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |
+| an input file's origin | Output of `kind · unit`; File from before the run | `kind · unit` の出力; 実行前からあるファイル |
 
 The UI states facts about the run; it never narrates what the monitor or
 contraagent does, will do, or lets the reader do. No "checked once", "the agent
@@ -126,7 +131,6 @@ for each kind of text.
 | `ambient` | the built-in credential: the host's own setup |
 | `effort`, `max_turns`, `max_budget_usd` | the coding agents' own flag names |
 | cursor `stage` | a run phase |
-| `slot` | monitor-only row identity |
 | `streams/`, `*.stream.jsonl` | the on-disk layout |
 | `hollow` | defined in the `LaunchResult` docstring |
 | `RoutingPlan` | routing; `plan.jsonl` is the queue |

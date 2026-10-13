@@ -293,6 +293,28 @@ def test_a_reachable_kinds_routing_is_checked_before_any_task_of_it_exists():
     assert any("kind late has no budget" in e for e in report.errors)
 
 
+def review_twice(unit, revise=example.revise):
+    """Revises with `revise`: the example's, unless the caller gives another."""
+    summary = yield example.summarize(unit, path="x")
+    yield example.review(unit, summary=summary)
+    return (yield revise(unit, summary=summary))
+
+
+def test_two_reachable_declarations_of_one_kind_that_differ_are_a_warning():
+    terse = agent_task("revise", instructions="be terse", output=example.Summary, max_turns=5, timeout_s=60)
+
+    def flow():
+        return (yield from review_twice("a", revise=terse))
+
+    report = pipeline().check(flow)
+    assert report.ok, report
+    assert sorted(report.later_kinds) == ["review", "revise"]
+    assert report.warnings == [
+        "flow: kind 'revise' has agent_task declarations with different instructions, config; "
+        "a run raises if it creates tasks of two of them; checked as the first one found"
+    ]
+
+
 def test_the_first_steps_params_and_flow_call_errors_are_reported(plugin_dir):
     named = agent_task("named", plugin=plugin_dir, params=Named, output=Summary, max_turns=5, timeout_s=60)
 

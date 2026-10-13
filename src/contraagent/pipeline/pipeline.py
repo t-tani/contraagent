@@ -9,7 +9,11 @@ flow that is a generator (or returns one) is driven by a `FlowDriver`: each
 further tasks from their outputs. Its reachable kinds (`reach.py`) are routed,
 and probed by the preflight, before the first launch, with the kinds of its
 first step; a kind its code does not reach (declared while the flow runs) is
-routed when it is created, so a config problem raises at that task call.
+routed when it is created, so a config problem raises at that task call. Its
+code may reach two declarations of one kind (a default argument the caller
+replaces): the first one reached is routed, the one whose tasks are created is
+the kind's, and when its `config` or `requires` differ it is routed again as
+its first task is created (`Graph.declare`).
 
 Under it is the engine (`execution`, `routing`, `dispatch`): a `Run` directory
 with its journal and lock, a `RoutingPlan` from the config file and each
@@ -186,7 +190,7 @@ class Pipeline:
                     value, tasks, driven = _start(flow, args, kwargs, graph, driver, run)
                     if driven:  # route every kind its code can reach before the first launch
                         for spec in reachable(flow, *args, *kwargs.values()):
-                            graph.declare(spec)
+                            graph.reached(spec)
                     specs = graph.agent_specs()
                     plan = RoutingPlan.build(
                         self.config,
@@ -236,9 +240,9 @@ class Pipeline:
             )
 
     def _route(self, spec: Any, runner: AgentRunner) -> None:
-        """Route a kind first created while the run runs; a config problem raises at its task call."""
-        if spec.kind in runner.configs:
-            return
+        """Route a kind while the run runs: one first created then, or one created by another
+        declaration than the reachable one routed before the first launch. A config problem
+        raises at its task call."""
         plan = RoutingPlan.build(
             self.config,
             [spec.kind],

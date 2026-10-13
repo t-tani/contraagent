@@ -1,4 +1,4 @@
-"""Live monitoring of a pipeline run: journal, task rollup, process tree, agent transcripts.
+"""Live monitoring of a pipeline run: journal, plan, process tree, agent transcripts.
 
     from contraagent.monitor import Monitor, serve
     serve(Monitor("runs"), port=8787)

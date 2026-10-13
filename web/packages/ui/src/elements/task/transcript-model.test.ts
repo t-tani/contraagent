@@ -131,6 +131,17 @@ describe('rounds as tries and fix-ups', () => {
     expect(rounds[1]?.row?.reason).toBe('tool crashed');
   });
 
+  it('a resumed run numbers attempts from 0 again: each try takes the row in its place', () => {
+    const rounds = classifyRounds([first, first], [
+      { attempt: 0, ok: true, stop: 'completed', reason: 'first start' },
+      { attempt: 0, ok: true, stop: 'completed', reason: 'resumed' },
+    ]);
+    expect(rounds.map((r) => [r.tryNo, r.result, r.row?.reason])).toEqual([
+      [1, 'ok', 'first start'],
+      [2, 'ok', 'resumed'],
+    ]);
+  });
+
   it('a fresh session within a try that has more hops is a model switch, not a new try', () => {
     const rounds = classifyRounds([first, first], [
       {

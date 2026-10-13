@@ -4,15 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>contraagent monitor</title>
+    <!-- vite.config.ts puts the theme here, before the first paint: the reader's choice and the themes' rules. -->
     <style>
       html, body { height: 100%; margin: 0; }
       body {
         overflow: hidden;
-        color: #e7edf5;
-        background:
-          radial-gradient(1100px 520px at 8% -12%, #10203a 0%, transparent 62%),
-          radial-gradient(900px 480px at 108% 4%, #1b1238 0%, transparent 58%),
-          #060a11;
+        color: var(--ca-text, var(--ca-theme-text));
+        background: var(--ca-backdrop, var(--ca-theme-backdrop));
       }
     </style>
     <script type="module" src="/src/main.ts"></script>

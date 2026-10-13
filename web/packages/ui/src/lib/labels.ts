@@ -3,9 +3,9 @@
 // in tooltips; what the reader sees comes from here, so every screen says the
 // same thing for the same state. The mapping is documented in AGENTS.md
 // ("Words the UI shows").
-import { isLaunched, type Hop, type JournalRow, type Outcome, type PlanNode, type TaskOutcome } from '@contraagent/api';
+import { isLaunched, runStarts, type Hop, type JournalRow, type Outcome, type PlanNode, type TaskOutcome } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
-import { fmtDur, kindUnit } from './format.js';
+import { facts, fmtDur, kindUnit, localTime } from './format.js';
 
 /** What happened to a task. */
 export function outcomeLabel(o: Outcome): string {
@@ -159,6 +159,18 @@ export function stopLabel(stop: string | null | undefined, reason?: string | nul
 
 /** The attempt as the reader counts it: "Attempt 1", "Attempt 2" ... (`JournalRow.attempt` is 0-based). */
 export const attemptLabel = (attempt: number | null | undefined): string => msg(str`Attempt ${(attempt ?? 0) + 1}`);
+
+/**
+ * The names of one task's attempts that ran (its journal rows in order): "Attempt 1",
+ * and "Attempt 1 | resumed run" for an attempt of a later start of the run (`runStarts`).
+ * Where two names are still the same (a run resumed more than once), each also gets
+ * the time its attempt ended.
+ */
+export function attemptNames(rows: readonly { attempt?: number | null | undefined; ts: string }[]): string[] {
+  const starts = runStarts(rows);
+  const names = rows.map((r, i) => (starts[i] ? facts(attemptLabel(r.attempt), msg('resumed run')) : attemptLabel(r.attempt)));
+  return names.map((n, i) => (names.indexOf(n) === names.lastIndexOf(n) ? n : facts(n, localTime(rows[i]?.ts))));
+}
 
 /** A loop's pass (`flow[].loops[].pass`), as the reader counts it: "Pass 1", "Pass 2" ... (never an attempt). */
 export const passLabel = (pass: number): string => msg(str`Pass ${pass}`);

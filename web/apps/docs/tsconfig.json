@@ -1,5 +1,7 @@
 {
   "extends": "astro/tsconfigs/strict",
+  // Workspace packages from their TypeScript sources, as Vite reads them (astro.config.mjs).
+  "compilerOptions": { "customConditions": ["source"] },
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist"]
 }

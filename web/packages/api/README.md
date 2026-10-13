@@ -10,7 +10,7 @@ field the server removes fails your type check, not your page.
 ## Types
 
 Every response and feed message has a type, with readable aliases:
-`JournalRow`, `TaskRollup`, `Plan`, `Outputs`, `TaskDetail`, `StreamPage`,
+`JournalRow`, `RunSummary`, `Plan`, `Outputs`, `TaskDetail`, `StreamPage`,
 `TranscriptEvent`, and so on. Fields the server may leave out are optional.
 
 The live feeds are discriminated unions on the SSE event name, so a `switch` on
@@ -39,5 +39,7 @@ Each returns a function that closes it.
 its messages into one `RunState`, and tells subscribers. It knows nothing of
 any UI framework: a Lit controller, a React hook or plain code subscribe alike.
 The reducer behind it, `reduceRun(state, actions)`, is pure: use it with your
-own state management if you prefer. `@contraagent/ui`'s documentation shows
+own state management if you prefer. A task is one task key: `taskRows(journal,
+plan)` gives every task of the run, one row each, the plan joined with the
+journal, and `latestTask(rows)` the one a page opens by default. `@contraagent/ui`'s documentation shows
 the store feeding its elements.

@@ -31,7 +31,7 @@ export class CaDefinitions extends LitElement {
       .defitem { padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer;
         display: flex; flex-direction: column; gap: 2px; }
       .defitem:hover { border-color: var(--line2); }
-      .defitem.sel { border-color: var(--live); background: var(--live-a); }
+      .defitem.sel { border-color: var(--accent); background: var(--accent-bg); }
       @media (max-width: 900px) {
         .defs { grid-template-columns: 1fr; }
       }

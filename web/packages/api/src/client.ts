@@ -35,7 +35,7 @@ export interface MonitorClient {
   runs(): Promise<RunSummary[]>;
   journal(run: string, since?: number): Promise<JournalPage>;
   definitions(run: string): Promise<TaskDefinition[]>;
-  task(run: string, slotOrKey: string): Promise<TaskDetail>;
+  task(run: string, key: string): Promise<TaskDetail>;
   stream(run: string, key: string, since?: number): Promise<StreamPage>;
   panel(run: string, name: string): Promise<JsonObject>;
 }
@@ -60,8 +60,7 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
     runs: () => unwrap(c.GET('/api/runs')),
     journal: (run, since = 0) => unwrap(c.GET('/api/runs/{run}/journal', { params: { path: { run }, query: { since } } })),
     definitions: (run) => unwrap(c.GET('/api/runs/{run}/definitions', { params: { path: { run } } })),
-    task: (run, slotOrKey) =>
-      unwrap(c.GET('/api/runs/{run}/task/{slot_or_key}', { params: { path: { run, slot_or_key: slotOrKey } } })),
+    task: (run, key) => unwrap(c.GET('/api/runs/{run}/task/{key}', { params: { path: { run, key } } })),
     stream: (run, key, since = 0) =>
       unwrap(c.GET('/api/runs/{run}/stream/{key}', { params: { path: { run, key }, query: { since } } })),
     panel: (run, name) => unwrap(c.GET('/api/runs/{run}/panels/{name}', { params: { path: { run, name } } })),

@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "2.5.0"
+    "version": "3.0.0"
   },
   "paths": {
     "/api/info": {
@@ -81,50 +81,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JournalPage"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/runs/{run}/tasks": {
-      "get": {
-        "summary": "Api Tasks",
-        "description": "Per-(kind, unit) rollup of finished attempts plus what is running now.",
-        "operationId": "api_tasks_api_runs__run__tasks_get",
-        "parameters": [
-          {
-            "name": "run",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Run"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TaskRollup"
-                  },
-                  "title": "Response Api Tasks Api Runs  Run  Tasks Get"
                 }
               }
             }
@@ -346,11 +302,11 @@
         }
       }
     },
-    "/api/runs/{run}/task/{slot_or_key}": {
+    "/api/runs/{run}/task/{key}": {
       "get": {
         "summary": "Api Task",
-        "description": "One slot (`<kind>-<unit>`) or exact task key: journal rows, live launches, definition, input/output, transcript name.",
-        "operationId": "api_task_api_runs__run__task__slot_or_key__get",
+        "description": "One task, by its key: journal rows, live launches, definition, input/output, transcript name.",
+        "operationId": "api_task_api_runs__run__task__key__get",
         "parameters": [
           {
             "name": "run",
@@ -362,12 +318,12 @@
             }
           },
           {
-            "name": "slot_or_key",
+            "name": "key",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Slot Or Key"
+              "title": "Key"
             }
           }
         ],
@@ -1600,7 +1556,7 @@
           "ok"
         ],
         "title": "JournalRow",
-        "description": "One finished attempt. `key` is the stable `Task.key`; `kind`/`unit`\ngroup the monitor's rollup; `executor` says who ran it; `stop` is\n`Stop.value` (or a Python task's completed/error)."
+        "description": "One finished attempt. `key` is the stable `Task.key`, one task; `kind`\nand `unit` are its kind and unit; `executor` says who ran it; `stop` is\n`Stop.value` (or a Python task's completed/error)."
       },
       "LaunchEvent": {
         "properties": {
@@ -2485,9 +2441,6 @@
             "$ref": "#/components/schemas/CursorMessage"
           },
           {
-            "$ref": "#/components/schemas/TasksMessage"
-          },
-          {
             "$ref": "#/components/schemas/PanelMessage"
           },
           {
@@ -2929,7 +2882,7 @@
           "key": {
             "type": "string",
             "title": "Key",
-            "description": "the slot or task key asked for"
+            "description": "the task key asked for"
           },
           "rows": {
             "items": {
@@ -2994,7 +2947,7 @@
           "stream"
         ],
         "title": "TaskDetail",
-        "description": "One slot or exact task key. Open: the `task_detail` callback merges its own keys\nin (a failing one leaves `task_detail_error` instead)."
+        "description": "One task, by its key. Open: the `task_detail` callback merges its own keys\nin (a failing one leaves `task_detail_error` instead)."
       },
       "TaskIO": {
         "properties": {
@@ -3164,105 +3117,6 @@
         ],
         "title": "TaskLaunch",
         "description": "A live launch of the task (a child process, or an in-process marker with empty plugin/model/role/cmd)."
-      },
-      "TaskRollup": {
-        "properties": {
-          "slot": {
-            "type": "string",
-            "title": "Slot",
-            "description": "`<kind>-<unit>`, or the bare kind for a run-scope task"
-          },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "unit": {
-            "type": "string",
-            "title": "Unit"
-          },
-          "executor": {
-            "type": "string",
-            "enum": [
-              "agent",
-              "python"
-            ],
-            "title": "Executor"
-          },
-          "attempts": {
-            "type": "integer",
-            "title": "Attempts",
-            "description": "finished attempts (journal rows)"
-          },
-          "ok": {
-            "type": "integer",
-            "title": "Ok"
-          },
-          "last_stop": {
-            "type": "string",
-            "title": "Last Stop"
-          },
-          "last_ts": {
-            "type": "string",
-            "title": "Last Ts"
-          },
-          "wall_s": {
-            "type": "number",
-            "title": "Wall S"
-          },
-          "running": {
-            "type": "boolean",
-            "title": "Running",
-            "description": "present (true) only while one of its launches runs",
-            "default": false
-          },
-          "live_keys": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Live Keys",
-            "description": "present only while running: the exact task keys running"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "slot",
-          "kind",
-          "unit",
-          "executor",
-          "attempts",
-          "ok",
-          "last_stop",
-          "last_ts",
-          "wall_s"
-        ],
-        "title": "TaskRollup",
-        "description": "One (kind, unit) slot: every finished attempt of it folded together, plus what runs now."
-      },
-      "TasksMessage": {
-        "additionalProperties": false,
-        "description": "The task rollup, re-sent whenever anything above changed.",
-        "properties": {
-          "event": {
-            "const": "tasks",
-            "title": "Event",
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/TaskRollup"
-            },
-            "title": "Data",
-            "type": "array"
-          }
-        },
-        "required": [
-          "event",
-          "data"
-        ],
-        "title": "TasksMessage",
-        "type": "object"
       },
       "TokenUsage": {
         "properties": {

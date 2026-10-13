@@ -9,7 +9,10 @@ would otherwise find out one launch at a time:
   reported;
 * the kinds of the run: those of the tasks the flow created, and for a
   generator flow also its reachable kinds, the task declarations its code
-  can reach (`reach.py`), since it creates the rest as it runs;
+  can reach (`reach.py`), since it creates the rest as it runs. Its code may
+  reach two declarations of one kind that differ (a default argument the
+  caller replaces): a warning, since only creating tasks of both is an error,
+  and the kind is checked as the first one found;
 * each task created: its parameters fit its `params` model;
 * each kind: an agent task's output schema has a JSON Schema and can be
   imported by the in-session hook (in a fresh interpreter, as the hook does),
@@ -140,7 +143,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
         report.kinds[node.spec.kind] = report.kinds.get(node.spec.kind, 0) + 1
     specs = {node.spec.kind: node.spec for node in graph.nodes}
     if driven:
-        report.add("tasks", _add_reachable(specs, reachable(flow, *args, *kwargs.values()), report))
+        _add_reachable(specs, reachable(flow, *args, *kwargs.values()), report)
     keys = {n.key for n in graph.nodes}
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
@@ -151,18 +154,25 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     return report
 
 
-def _add_reachable(specs: dict[str, Any], found: list[Any], report: CheckReport) -> list[str]:
+def _add_reachable(specs: dict[str, Any], found: list[Any], report: CheckReport) -> None:
     """Add the reachable kinds to `specs` (and to `report.later_kinds` when no task of
-    theirs was created yet); the errors: two agent task declarations sharing a kind."""
-    errs: list[str] = []
+    theirs was created yet). Two reachable agent task declarations of one kind that differ
+    are a warning, not an error: the code may create only one of them (a default argument
+    the caller replaces), and a run raises only when it creates tasks of both."""
+    differ: dict[str, list[str]] = {}
     for spec in found:
         seen = specs.get(spec.kind)
         if seen is None:
             specs[spec.kind] = spec
             report.later_kinds.append(spec.kind)
-        elif seen is not spec and spec.executor == "agent" and seen.executor == "agent":
-            errs.append(f"flow: two agent_task declarations share kind {spec.kind!r}")
-    return errs
+        elif spec.executor == "agent" and seen.executor == "agent" and (parts := seen.differences(spec)):
+            differ.setdefault(spec.kind, [])
+            differ[spec.kind] += [p for p in parts if p not in differ[spec.kind]]
+    report.warnings += [
+        f"flow: kind {kind!r} has agent_task declarations with different {', '.join(parts)}; "
+        f"a run raises if it creates tasks of two of them; checked as the first one found"
+        for kind, parts in differ.items()
+    ]
 
 
 def where(exc: BaseException) -> str:

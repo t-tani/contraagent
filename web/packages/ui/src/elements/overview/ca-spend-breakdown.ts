@@ -25,17 +25,17 @@ export class CaSpendBreakdown extends LitElement {
     css`
       :host { display: block; }
       .kinds { display: grid; grid-template-columns: minmax(90px, max-content) minmax(0, 1fr) max-content max-content; gap: 8px 14px; align-items: center; }
-      .kind { font-family: var(--mono); font-size: 12px; color: var(--fg2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .kind { font-family: var(--mono); font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .bar { display: flex; height: 12px; border-radius: 4px; overflow: hidden; background: var(--track); }
       .bar i { display: block; height: 100%; }
       .num { font-variant-numeric: tabular-nums; text-align: right; font-size: 12px; white-space: nowrap; }
-      .share { color: var(--mut); min-width: 3.5em; }
+      .share { color: var(--text-muted); min-width: 3.5em; }
       .p-input { background: var(--tok-input); }
       .p-cache_read { background: var(--tok-cache-read); }
       .p-cache_creation { background: var(--tok-cache-write); }
       .p-output { background: var(--tok-output); }
       .legend { margin-top: 10px; }
-      h4 { margin: 16px 0 6px; font-size: 12px; color: var(--fg2); font-weight: 600; }
+      h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
       .top { display: grid; grid-template-columns: minmax(160px, max-content) 64px 64px 40px; column-gap: 24px; row-gap: 4px; align-items: baseline; }
       .top a { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     `,

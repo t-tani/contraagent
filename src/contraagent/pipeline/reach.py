@@ -16,7 +16,10 @@ flow code, or a list, tuple, set or dict (its items). A Python task's own
 function is not followed: it runs as a task and creates none.
 
 A task declared while the flow runs (inside the flow's body) is not reached;
-`Pipeline` routes it when it is created.
+`Pipeline` routes it when it is created. What is reached is what the flow can
+create, not what it creates: a function's default argument and the
+declaration its caller passes instead are both reached (`Graph.reached`,
+`Graph.declare`).
 """
 
 from __future__ import annotations

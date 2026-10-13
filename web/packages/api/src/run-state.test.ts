@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { JOURNAL_CAP, emptyRunState, isBad, latestSlot, liveActivities, reduceRun, type RunAction } from './run-state.js';
-import type { JournalRow, Plan, Procs, TaskRollup } from './types.js';
+import { JOURNAL_CAP, emptyRunState, isBad, liveActivities, reduceRun, runStarts, type RunAction } from './run-state.js';
+import type { JournalRow, Plan, Procs } from './types.js';
 
 const row = (key: string, stop = 'completed'): JournalRow => ({ ts: `2026-10-11T00:00:${key}`, key, kind: 'k', stop, ok: stop === 'completed' });
 
@@ -20,14 +20,14 @@ describe('reduceRun', () => {
   });
 
   it('keeps each panel under its name and replaces the other views', () => {
-    const tasks: TaskRollup[] = [];
+    const outputs = { contracts: [], tally: { valid: 1, invalid: 0, refused: 0, pending: 0, failed: 0, running: 0 } };
     const s = reduceRun(emptyRunState(), [
       { event: 'panel:facts', data: { n: 1 } },
-      { event: 'tasks', data: tasks },
+      { event: 'outputs', data: outputs },
       { event: 'cursor', data: null },
     ]);
     expect(s.panels).toEqual({ facts: { n: 1 } });
-    expect(s.tasks).toBe(tasks);
+    expect(s.outputs).toBe(outputs);
   });
 
   it('takes the plan with its flow calls as the feed sends it', () => {
@@ -56,15 +56,6 @@ describe('selectors', () => {
     expect([isBad(row('1')), isBad(row('2', 'skipped')), isBad(row('3', 'timeout'))]).toEqual([false, false, true]);
   });
 
-  it('latestSlot: a running agent task first, else the most recent; never a Python task', () => {
-    const t = (slot: string, last_ts: string, extra: Partial<TaskRollup> = {}): TaskRollup => ({
-      slot, kind: 'k', unit: slot, executor: 'agent', attempts: 1, ok: 1, last_stop: 'completed', last_ts, wall_s: 1, ...extra,
-    });
-    expect(latestSlot([t('a', '1'), t('b', '3'), t('p', '9', { executor: 'python' })])).toBe('b');
-    expect(latestSlot([t('a', '1', { running: true }), t('b', '3')])).toBe('a');
-    expect(latestSlot([])).toBeNull();
-  });
-
   it('liveActivities: agent launches, then Python tasks', () => {
     const procs = {
       run: 'r', alive: true, pid: 1, argv: [], started_at: '', max_workers: 2, run_group: 'r', tree: [],
@@ -75,5 +66,14 @@ describe('selectors', () => {
       ['llm', 'k', 'u', 'u | m', 'k-u'],
       ['py', 'prep', '', 'Python', ''],
     ]);
+  });
+});
+
+describe('runStarts', () => {
+  it('begins the next start of the run where a task numbers its attempts from 0 again', () => {
+    expect(runStarts([])).toEqual([]);
+    expect(runStarts([{ attempt: 0 }, { attempt: 1 }, { attempt: 2 }])).toEqual([0, 0, 0]);
+    // Resumed twice: attempt 1 after one retry, then attempt 1 again, then again.
+    expect(runStarts([{ attempt: 0 }, { attempt: 1 }, { attempt: 0 }, {}])).toEqual([0, 0, 1, 2]);
   });
 });

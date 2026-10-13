@@ -56,7 +56,7 @@ function peek(v: unknown): string {
  * outputs, the resume cursor, the pipeline's own panels, the process tree
  * (while running) and a timeline. Sends `ca-open-task` and `ca-navigate`.
  *
- * @fires ca-navigate - `{tab, stop?}`: a link to another tab or a panel; `{layer, unit}`: a layer of the pipeline graph
+ * @fires ca-navigate - `{tab, stop?}`: a link to another tab or a panel; `{layer, unit, sel}`: a layer of the pipeline graph, or what is selected in it
  * @fires ca-open-task - `{key, view?}`: a task with a problem was clicked
  */
 @customElement('ca-overview')
@@ -73,20 +73,21 @@ export class CaOverview extends LitElement {
         text-align: left; color: inherit; font: inherit; width: 100%; min-width: 0; }
       .pcard > div { min-width: 0; }
       .pcard .meta { overflow-wrap: anywhere; }
-      .pcard:hover { border-color: var(--llm); transform: translateY(-1px); }
-      .pc-ic { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--llm-a); color: var(--llm); font-size: 16px; }
-      .pc-peek { font-family: var(--mono); font-size: 11.5px; color: var(--fg2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pc-go { grid-column: 2; color: var(--llm); font-size: 12px; opacity: 0.8; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pcard:hover { border-color: var(--accent); transform: translateY(-1px); }
+      .pc-ic { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: var(--well); color: var(--text-2); font-size: 16px; }
+      .pc-peek { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pc-go { grid-column: 2; color: var(--accent); font-size: 12px; opacity: 0.8; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .pcard:hover .pc-go { opacity: 1; }
       .cur-units { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 14px; }
       .cu { display: grid; grid-template-columns: 90px 1fr 70px auto; gap: 8px; align-items: center; }
       .cu-bar { height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
-      .cu-bar i { display: block; height: 100%; background: var(--live); }
+      .cu-bar i { display: block; height: 100%; background: var(--meter); }
       .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
-      .stopped { grid-column: 1 / 4; color: var(--mut); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+      .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
       .fl.muted { opacity: 0.7; }
-      .fl.muted .jstop { color: var(--ok); }
-      .next { margin: 10px 2px 2px; font-size: 12px; color: var(--fg2); }
+      .fl.muted .jstop { color: var(--text-2); font-weight: 500; }
+      .fl.muted .jstop::before { content: '✓'; content: '✓' / ''; color: var(--status-done); margin-right: 0.35em; font-weight: 700; }
+      .next { margin: 10px 2px 2px; font-size: 12px; color: var(--text-2); }
       .next code { font-family: var(--mono); }
       .more { font-size: 12px; margin: 6px 10px 0; }
     `,
@@ -100,6 +101,8 @@ export class CaOverview extends LitElement {
   @property() layer = '';
   /** The unit highlighted in the pipeline graph (`Route.unit`). */
   @property() unit = '';
+  /** What is selected in the pipeline graph (`Route.sel`). */
+  @property() sel = '';
 
   private go(tab: 'outputs' | 'procs' | `panel:${string}`): void {
     emit(this, 'ca-navigate', { tab });
@@ -129,7 +132,7 @@ export class CaOverview extends LitElement {
       <section class="panel c12 enter">
         <h3 title=${msg('Every task the run scheduled, by kind (plan.jsonl)')}>${msg('Pipeline')}
           <span class="r">${this.progressLine(live)}</span></h3>
-        <ca-pipeline-graph .plan=${s.plan} .journal=${s.journal} .run=${this.run} .layer=${this.layer} .unit=${this.unit} ?live=${live}></ca-pipeline-graph>
+        <ca-pipeline-graph .plan=${s.plan} .journal=${s.journal} .run=${this.run} .layer=${this.layer} .unit=${this.unit} .sel=${this.sel} ?live=${live}></ca-pipeline-graph>
       </section>
       <section class="panel c12 enter">
         <h3 title=${msg('Counted from every finished attempt (journal.jsonl)')}>${msg('Totals')}</h3>

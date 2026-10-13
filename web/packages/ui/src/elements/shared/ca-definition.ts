@@ -39,16 +39,16 @@ export class CaDefinition extends LitElement {
       .df { border-top: 1px solid var(--line); }
       .df > summary { cursor: pointer; padding: 6px 2px; display: flex; gap: 10px; align-items: center; list-style: none; }
       .df > summary::-webkit-details-marker { display: none; }
-      .df > summary::before { content: '▸'; color: var(--mut); width: 10px; transition: transform 0.15s; }
+      .df > summary::before { content: '▸'; color: var(--text-muted); width: 10px; transition: transform 0.15s; }
       .df[open] > summary::before { transform: rotate(90deg); }
       .py-sig { font-family: var(--mono); font-size: 14px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line);
         border-radius: 8px; overflow-x: auto; white-space: pre; }
-      .py-where { margin: 6px 2px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--mut); overflow-wrap: anywhere; }
-      .py-doc { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--line2); color: var(--fg2); white-space: pre-wrap; line-height: 1.6; }
+      .py-where { margin: 6px 2px 12px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+      .py-doc { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--line2); color: var(--text-2); white-space: pre-wrap; line-height: 1.6; }
       .src { display: grid; grid-template-columns: auto minmax(0, 1fr); background: var(--well); border: 1px solid var(--line);
         border-radius: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.55; max-height: 520px; overflow: auto; }
       .src pre { margin: 0; padding: 10px 12px; white-space: pre; }
-      .src .ln { color: var(--mut); text-align: right; user-select: none; border-right: 1px solid var(--line); opacity: 0.7; }
+      .src .ln { color: var(--text-muted); text-align: right; user-select: none; border-right: 1px solid var(--line); opacity: 0.7; }
     `,
   ];
 
@@ -92,7 +92,7 @@ export class CaDefinition extends LitElement {
         ? html`<h4 class="sect-h">${msg('Checked files')}</h4>
             ${declared.map(
               (x) => html`<div class="ct-in">
-                <span class="ct-chip ${x.io === 'output' ? 'valid' : 'pending'}">${x.io}</span><span class="jmono">${x.path}</span>
+                <span class="ct-chip">${x.io}</span><span class="jmono">${x.path}</span>
                 <span class="meta" title=${msg('The schema the file is checked against')}>${msg(str`Schema ${x.schema}`)}</span>
               </div>`,
             )}`

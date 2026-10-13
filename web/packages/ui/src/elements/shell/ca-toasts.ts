@@ -3,7 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { base } from '../../styles/base.js';
 
-export type ToastKind = 'ok' | 'err' | 'warn' | 'live' | 'llm';
+/** The notice's status (its mark and the colour of its edge); `agent` is a model switch, which is not a status. */
+export type ToastKind = 'done' | 'failed' | 'attention' | 'running' | 'agent';
 
 interface Toast {
   id: number;
@@ -13,7 +14,7 @@ interface Toast {
   out: boolean;
 }
 
-const ICON: Record<ToastKind, string> = { ok: '✓', err: '✕', warn: '', live: '●', llm: '✦' };
+const ICON: Record<ToastKind, string> = { done: '✓', failed: '✕', attention: '◌', running: '●', agent: '✦' };
 const SHOW_MS = 5200;
 const MAX = 4;
 
@@ -25,16 +26,20 @@ export class CaToasts extends LitElement {
     css`
       :host { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 60; pointer-events: none; }
       .toast { pointer-events: auto; min-width: 240px; max-width: 380px; padding: 10px 14px; border-radius: 11px;
-        background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+        background: var(--panel2); border: 1px solid var(--line2); box-shadow: 0 18px 40px color-mix(in srgb, var(--shadow) 60%, transparent);
         display: flex; gap: 10px; align-items: flex-start; animation: toast-in 0.35s var(--ease) both; }
       .toast.out { animation: toast-out 0.35s var(--ease) both; }
       .ti { font-size: 16px; line-height: 1.2; }
       b { display: block; font-size: 12.5px; }
-      span.sub { font-size: 11.5px; color: var(--mut); }
-      .ok { border-color: rgba(52, 211, 153, 0.45); }
-      .err { border-color: rgba(248, 113, 113, 0.45); }
-      .warn { border-color: rgba(251, 191, 36, 0.45); }
-      .live { border-color: rgba(34, 211, 238, 0.45); }
+      span.sub { font-size: 11.5px; color: var(--text-muted); }
+      .ti { color: var(--text-muted); }
+      .done .ti { color: var(--status-done); }
+      .failed { border-color: color-mix(in srgb, var(--status-failed) 50%, var(--line2)); }
+      .failed .ti { color: var(--status-failed); }
+      .attention { border-color: color-mix(in srgb, var(--status-attention) 50%, var(--line2)); }
+      .attention .ti { color: var(--status-attention); }
+      .running .ti { color: var(--status-running); }
+      .agent .ti { color: var(--agent); }
     `,
   ];
 

@@ -218,9 +218,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   once (the `WorkQueue`'s existing per-tag capacity).
 - The overview's pipeline graph is drawn by layer of the flow: a node per kind
   for the tasks a function created itself, a node per function it called as a
-  flow call (its marks are the flow calls; clicking one opens that function's
-  layer), and the nodes one loop created in a box, a nested loop's box inside
-  it. Each box counts its own loop's passes ("up to 3 passes", and "1 pass: 4 |
+  flow call (its marks are the flow calls), and the nodes one loop created in a
+  box, a nested loop's box inside it, with a dotted edge back to its first layer
+  for its next pass. A kind node shows who runs its tasks (agent or Python). Each box counts its own loop's passes ("up to 3 passes", and "1 pass: 4 |
   2 passes: 1" when its units differ), and a unit's mark shows the passes it
   ran. Opening a box shows its passes: a row per unit, a column per node and
   pass, a nested loop's passes nested in each outer pass, sortable by number of
@@ -231,13 +231,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Shift and an arrow key follow an edge. While a layer holds a single node the
   graph opens it, and stops at a node whose flow call raised. A dashed edge joins
   a task to a result it was created after, where it does not wait for that output.
+  A click selects a mark, a node or a loop box, and a panel beside the graph
+  shows its facts and links to its task detail, its kind's tasks, its function's
+  layer or its loop's passes; a double click or Enter follows the first. The
+  selection is in the URL (`sel`). A link to a layer the run does not have opens
+  the first layer and names it; a function's qualified name alone opens its layer
+  when the run reaches it one way only.
 - `contraagent.docs.examples.analysis`: a nested generator flow (three layers of
   flow calls, nested loops, a fan-out sized at run time, a kind chosen on a
   result, `heavy`-tagged parsers). The demo pipeline's `docs` flow is a generator
   (a review loop per unit, gamma's summary revised once), with `docs_one_review`
   as the static flow; the demo also writes a run of the nested flow (`analyse`).
+- Built-in themes for the monitor and every element: contraagent Dark (the
+  default), contraagent Light, and themes of code editors (GitHub Dark, GitHub
+  Light, One Dark, Nord, and High contrast from GitHub's dark high contrast).
+  Text reads at 4.5:1 on every surface and tint (7:1 in High contrast). The
+  header's theme control changes the theme at once and remembers it; System
+  follows the system's colour scheme. `<ca-monitor theme="...">` fixes it;
+  `data-ca-theme` on any ancestor themes any element; `--ca-*` properties still
+  override one token at a time. `@contraagent/ui/themes` holds the themes as data.
+  New properties: `--ca-backdrop`, `--ca-shadow`, `--ca-focus`,
+  `--ca-focus-width`, `--ca-selection`, `--ca-tint`, `--ca-color-scheme`. The
+  example of a theme of one's own is Solarized Light.
 
 ### Fixed
+
+- The pipeline's table and a loop's passes are drawn in the graph's frame, which
+  keeps its height; a "Graph | Table" switch stays at one place in every view; a
+  table row shows its node's status in one column and is selected as a node is;
+  a loop's passes are centred. The breadcrumb names each loop by where it is
+  ("Loop at flow.py:122"), as the loop's card and its link do.
+- The Tasks and History tabs' filters are in the URL only on those tabs; a kind
+  node's link to its tasks clears a kind filter left from before.
+- A task's attempts in a resumed run no longer read "Attempt 1" twice: an
+  attempt of a later run start reads "Attempt 1 | resumed run", and each agent
+  session button shows the attempt its journal row belongs to.
+- A task's input view lists each file it reads with the earlier task it comes
+  from, in place of an "Also an input" chip on the earlier task.
 
 - An agent task with no plugin (`agent_task(instructions=)`) can write its output
   file in Claude Code: it runs with the plugin template's permissions
@@ -261,6 +291,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its reason (`stderr_tail`); omp writes it to no stderr, and the reason was empty.
 - `omp-rpc` reads its session id from `get_state` even when other frames arrive
   before the response (it read only the next frame).
+- A generator flow whose code reaches two declarations of one kind (a
+  function's default argument and the one its caller passes instead) runs; it
+  failed before the first launch with "two agent_task declarations share kind".
+  A reachable kind is a candidate: the declaration whose tasks are created is the
+  kind's, routed again when its `config` or `requires` differ. Creating tasks of
+  two declarations of one kind that differ raises `ValueError` at the second task
+  call and names what differs (`AgentTask.differences`); two `agent_task` calls
+  that declare one kind the same way are one kind. `Pipeline.check` reports two
+  reachable declarations of one kind that differ as a warning.
 
 - The monitor returns a text output's content (it returned null for anything
   that is not JSON).
@@ -297,6 +336,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The monitor's colours mean a status, and only where it applies: totals, cost,
+  tokens, time and the tabs' counts are in the text colour (the Tasks total is
+  no longer red when a task failed), a count of a problem (failed attempts, not
+  started) takes its status colour only above 0, and done is a green ✓ beside
+  the word rather than a green fill. Failed and not started carry ✕ and ◌ in
+  pills and chips, a run's dot is a square when it failed, and links, focus and
+  selection share one accent, apart from the cyan of running. The tool icons,
+  the coding agent and model chips and the token bars are neutral or identity
+  colours that no status uses.
+- Theme properties are named by meaning: `--ca-text`, `--ca-text-secondary`,
+  `--ca-text-muted`, `--ca-accent`, `--ca-status-failed` (`-attention`, `-done`,
+  `-running`, `-muted`, each with a `-bg`), `--ca-agent`, `--ca-meter`,
+  `--ca-tok-*` and `--ca-code-*` (syntax colours); `--ca-fg`, `--ca-fg2`,
+  `--ca-mut`, `--ca-muted`, `--ca-ok`, `--ca-warn`, `--ca-err`, `--ca-info`,
+  `--ca-live` and `--ca-llm` are gone. No colour is fixed in an element's
+  stylesheet, so the light theme covers the whole monitor, its header included.
+- The pipeline graph's inspector is a card next to the selected mark, node or
+  loop box, inside the frame, joined to it by a pointer: it flips to stay in the
+  frame, follows pans and zooms, and hides while the item is out of view. With no
+  selection the graph has the panel's whole width. On a narrow screen the card is
+  a sheet under the frame. Tab goes on from the selected item to its links.
+- `ca-toasts`: `ToastKind` is `done`, `failed`, `attention`, `running` or `agent`.
 - Python 3.12 or later (`requires-python = ">=3.12"`).
 - `WorkQueue` schedule: a greedy list schedule by bottom level, with no
   reservation. A task startable for longer than `overdue_s` (600 s) is overdue:
@@ -464,6 +525,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
   project's state-file names and nothing read them.
 - `Stage`, `StageRunner` and `join_stage`: `FlowDriver` replaces them.
+- API 3.0.0: the monitor's per-(kind, unit) rollup: `Monitor.tasks`,
+  `/api/runs/<run>/tasks`, `TaskRollup`, the feed's `tasks` event and
+  `RunState.tasks`. It made two passes of one task (`review-gamma`,
+  `review-gamma~2`) one row and left out tasks with no journal row. A task is one
+  task key everywhere: `taskRows(journal, plan)` in `@contraagent/api`, and
+  `latestTask(rows)` picks the task the monitor opens by default (in place of
+  `latestSlot`). `/api/runs/<run>/task/<key>` and `Monitor.task_detail(run, key)`
+  take a task key only, not a `<kind>-<unit>` slot; the `task_detail` callback is
+  `fn(run, key, rows)`.
 
 ## [0.1.0] - 2026-10-10
 

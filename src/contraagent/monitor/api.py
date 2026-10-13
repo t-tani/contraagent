@@ -10,8 +10,8 @@ module.
 Two rules keep the wire stable:
 
 * Responses are serialized with `exclude_unset`: a key the core did not emit
-  is not invented on the wire, so an optional field here (`running`,
-  `live_keys`, a contract spec's `status` ...) is absent rather than `null`
+  is not invented on the wire, so an optional field here (a contract
+  spec's `status`, `fresh` ...) is absent rather than `null`
   when it does not apply. Readers must treat every non-required field as
   possibly missing.
 * Shapes the monitor builds itself forbid unknown keys (`extra="forbid"`),
@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, Validatio
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, TokenUsage  # part of this contract
 
-API_VERSION = "2.5.0"
+API_VERSION = "3.0.0"
 
 
 class Closed(BaseModel):
@@ -134,25 +134,6 @@ class JournalPage(Closed):
 
     entries: list[JournalRow]
     total: int
-
-
-# --- tasks rollup ----------------------------------------------------------
-
-
-class TaskRollup(Closed):
-    """One (kind, unit) slot: every finished attempt of it folded together, plus what runs now."""
-
-    slot: str = Field(description="`<kind>-<unit>`, or the bare kind for a run-scope task")
-    kind: str
-    unit: str
-    executor: Executor
-    attempts: int = Field(description="finished attempts (journal rows)")
-    ok: int
-    last_stop: str
-    last_ts: str
-    wall_s: float
-    running: bool = Field(False, description="present (true) only while one of its launches runs")
-    live_keys: list[str] = Field(default_factory=list, description="present only while running: the exact task keys running")
 
 
 # --- plan ------------------------------------------------------------------
@@ -497,10 +478,10 @@ class TaskIO(Closed):
 
 
 class TaskDetail(Open):
-    """One slot or exact task key. Open: the `task_detail` callback merges its own keys
+    """One task, by its key. Open: the `task_detail` callback merges its own keys
     in (a failing one leaves `task_detail_error` instead)."""
 
-    key: str = Field(description="the slot or task key asked for")
+    key: str = Field(description="the task key asked for")
     rows: list[JournalRow]
     launches: list[TaskLaunch] = Field(description="its launches running now; empty once it has finished (finished attempts are `rows`)")
     definition: TaskDefinition | None
@@ -725,13 +706,6 @@ class CursorMessage(Closed):
     data: CursorView | None
 
 
-class TasksMessage(Closed):
-    """The task rollup, re-sent whenever anything above changed."""
-
-    event: Literal["tasks"]
-    data: list[TaskRollup]
-
-
 class PanelMessage(Closed):
     """A domain panel's body (any JSON object), sent when it changed. `{"error": ...}`
     when the panel raised."""
@@ -762,4 +736,4 @@ class StreamMessage(Closed):
 
 
 #: One message of `/events?run=`.
-RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | TasksMessage | PanelMessage | ReadyMessage
+RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage

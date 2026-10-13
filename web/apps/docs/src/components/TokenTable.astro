@@ -1,28 +1,41 @@
 ---
-// Every --ca-* property the elements read, with its default: parsed from the
-// elements' own stylesheet (packages/ui/src/styles/base.ts).
-import { repoFile } from '../lib/repo';
+// Every --ca-* property the elements read, its meaning and its value in each built-in theme:
+// from @contraagent/ui's own data (src/styles/themes.ts), which the elements' stylesheet is built from.
+import { THEMES, THEME_NAMES, TOKENS } from '@contraagent/ui/themes';
 
-const src = repoFile('web/packages/ui/src/styles/base.ts');
-const rows = [...src.matchAll(/--([a-z0-9-]+):\s*var\((--ca-[a-z0-9-]+),\s*([^;]+)\);/g)].map(([, short, name, fallback]) => ({
-  name: name!,
-  short: short!,
-  fallback: fallback!.replace(/\)$/, '').trim(),
-}));
 const isColour = (v: string) => /^(#|rgba?\()/.test(v);
+const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[theme].tokens as Record<string, string>)[name];
 ---
 
 <table>
-  <thead><tr><th>Property</th><th>Default</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Meaning</th>
+      {THEME_NAMES.map((n) => <th><code>{n}</code></th>)}
+    </tr>
+  </thead>
   <tbody>
     {
-      rows.map((r) => (
+      TOKENS.map((t) => (
         <tr>
-          <td><code>{r.name}</code></td>
-          <td>
-            {isColour(r.fallback) && <span class="swatch" style={`background:${r.fallback}`} />}
-            <code>{r.fallback}</code>
-          </td>
+          <td><code>{t.prop}</code></td>
+          <td>{t.meaning}</td>
+          {t.derive ? (
+            <td colspan={THEME_NAMES.length}>
+              <code>{t.derive}</code>
+            </td>
+          ) : (
+            THEME_NAMES.map((n) => {
+              const v = valueOf(t.name, n) ?? '';
+              return (
+                <td>
+                  {isColour(v) && <span class="swatch" style={`background:${v}`} />}
+                  <code>{isColour(v) || v.length < 12 ? v : 'gradient'}</code>
+                </td>
+              );
+            })
+          )}
         </tr>
       ))
     }

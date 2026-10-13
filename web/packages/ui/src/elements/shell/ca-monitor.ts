@@ -1,12 +1,12 @@
 import {
   MonitorStore,
   isBad,
-  isLaunched,
   outcomeCounts,
   spendOf,
   taskOutcomes,
+  taskRows,
   isRunLive,
-  latestSlot,
+  latestTask,
   liveActivities,
   runRow,
   type JournalRow,
@@ -17,21 +17,25 @@ import {
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import type { FilterDetail, OpenTaskDetail, SelectRunDetail } from '../../events.js';
+import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, SelectRunDetail } from '../../events.js';
 import { LOCALE_NAMES, allLocales, chooseLocale, getLocale, isLocale, preferredLocale, setLocale, type Locale } from '../../i18n.js';
 import { ClockController } from '../../lib/clock.js';
 import { facts, fmtDur, kindUnit, usd } from '../../lib/format.js';
 import { modelSwitch, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
 import { ScrollMemory } from '../../lib/scroll.js';
+import { runTone } from '../../lib/tone.js';
 import { elapsedS, tryCounts } from '../overview/logic.js';
 import type { Route, RoutePatch, Tab } from '../../route.js';
 import { Router, type RouteCause, type RouterMode } from '../../router.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
 import { base } from '../../styles/base.js';
+import { hostThemeStyles } from '../../styles/theme-sheet.js';
+import { isThemeChoice, preferredTheme, prefersLight, rememberTheme, resolveTheme, type ThemeChoice, type ThemeName } from '../../styles/themes.js';
 import { taskChip } from '../shared/task-chip.js';
 import type { CaToasts } from './ca-toasts.js';
 import './ca-run-picker.js';
 import './ca-toasts.js';
+import './ca-theme-switch.js';
 import '../overview/ca-overview.js';
 import '../lists/ca-task-table.js';
 import '../lists/ca-journal-table.js';
@@ -88,57 +92,56 @@ export class CaClock extends LitElement {
 @localized()
 export class CaMonitor extends LitElement {
   static override styles = [
+    hostThemeStyles,
     base,
     css`
-      :host { display: flex; flex-direction: column; height: 100%; min-height: 0; font: 13px/1.5 var(--sans); color: var(--fg); }
+      :host { display: flex; flex-direction: column; height: 100%; min-height: 0; font: 13px/1.5 var(--sans); color: var(--text);
+        background: var(--backdrop); }
       header { flex: none; display: flex; gap: 14px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line);
-        background: rgba(6, 10, 17, 0.75); backdrop-filter: blur(10px); position: relative; z-index: 20; }
+        background: color-mix(in srgb, var(--bg) 75%, transparent); backdrop-filter: blur(10px); position: relative; z-index: 20; }
       .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
       .brand svg { width: 22px; height: 22px; }
-      .logo-core { fill: var(--live); transform-origin: 12px 12px; }
-      .logo-ring { stroke: var(--live); opacity: 0.5; transform-origin: 12px 12px; }
+      .logo-core { fill: var(--accent); transform-origin: 12px 12px; }
+      .logo-ring { stroke: var(--accent); opacity: 0.5; transform-origin: 12px 12px; }
       :host([live]) .logo-core { animation: core-beat 1.8s var(--ease) infinite; }
       :host([live]) .logo-ring { animation: turn 7s linear infinite; }
       .runbtn { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 52vw; cursor: pointer; padding: 6px 13px;
-        border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--fg); transition: border-color 0.2s, background 0.2s; }
+        border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--text); transition: border-color 0.2s, background 0.2s; }
       .runbtn:hover { border-color: var(--line2); background: var(--panel2); }
       .rn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 40%; }
-      .rs { color: var(--mut); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .chev { color: var(--mut); }
+      .rs { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .chev { color: var(--text-muted); }
       .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
-      .nowline { font-size: 12px; color: var(--fg2); white-space: nowrap; overflow: hidden; max-width: 40vw;
+      .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40vw;
         display: inline-flex; align-items: center; gap: 4px; }
-      .clock { font-family: var(--mono); font-size: 11.5px; color: var(--mut); }
+      .clock { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
       .langs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-      .langs button { background: none; border: 0; padding: 2px 9px; font-size: 11px; color: var(--mut); cursor: pointer; }
-      .langs button:hover { color: var(--fg2); }
-      .langs button[aria-pressed='true'] { background: var(--raise); color: var(--fg); }
-      .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); display: inline-block; animation: breathe 1.8s ease-in-out infinite; }
-      .live-dot.off { background: #3b4760; animation: none; box-shadow: none; }
+      .langs button { background: none; border: 0; padding: 2px 9px; font-size: 11px; color: var(--text-muted); cursor: pointer; }
+      .langs button:hover { color: var(--text-2); }
+      .langs button[aria-pressed='true'] { background: var(--raise); color: var(--text); }
+      .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--status-running); display: inline-block; animation: breathe 1.8s ease-in-out infinite; }
+      .live-dot.off { background: var(--line2); animation: none; box-shadow: none; }
 
       nav { flex: none; display: flex; gap: 2px; padding: 6px 18px 0; position: relative; overflow-x: auto; scrollbar-width: none; align-items: center; }
       nav::-webkit-scrollbar { display: none; }
-      .tab { position: relative; background: none; border: none; padding: 8px 14px 11px; color: var(--mut); cursor: pointer;
+      .tab { position: relative; background: none; border: none; padding: 8px 14px 11px; color: var(--text-muted); cursor: pointer;
         font-weight: 500; white-space: nowrap; transition: color 0.2s; }
-      .tab:hover { color: var(--fg2); }
-      .tab.sel { color: var(--fg); }
+      .tab:hover { color: var(--text-2); }
+      .tab.sel { color: var(--text); }
       .tab-ic { opacity: 0.55; margin-right: 6px; font-size: 12px; }
-      .tab.sel .tab-ic { opacity: 1; color: var(--live); }
-      .tab.panel-tab { color: var(--llm); }
-      .tab.panel-tab:hover { color: var(--fg); }
-      .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--fg2); font-variant-numeric: tabular-nums; }
-      .badge.err { background: var(--err-a); color: var(--err); }
-      .badge.live { background: var(--live-a); color: var(--live); }
+      .tab.sel .tab-ic { opacity: 1; color: var(--accent); }
+      .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); font-variant-numeric: tabular-nums; }
+      .badge.running { background: var(--status-running-bg); color: var(--status-running); }
       .tab-sep { width: 1px; height: 18px; background: var(--line2); margin: 0 8px 3px; flex: none; align-self: center; }
       .tab-ind { position: absolute; bottom: 0; left: 0; width: 0; height: 2px; border-radius: 2px;
-        background: linear-gradient(90deg, var(--live), var(--llm)); transition: left 0.3s var(--ease), width 0.3s var(--ease); }
+        background: var(--accent); transition: left 0.3s var(--ease), width 0.3s var(--ease); }
       .tab-ind.init { transition: none; }
       .tabhint { margin-left: auto; padding-left: 12px; white-space: nowrap; }
 
       .bar { flex: none; display: flex; gap: 8px; padding: 8px 18px; border-top: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
-      .bar select, .bar input { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+      .bar select, .bar input { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
         padding: 5px 9px; outline: none; font: inherit; font-size: 12px; }
-      .bar input:focus, .bar select:focus { border-color: var(--live); }
+      .bar input:focus, .bar select:focus { border-color: var(--focus); box-shadow: 0 0 0 calc(var(--focus-width) - 2px) var(--focus); }
 
       main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
       main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
@@ -164,6 +167,14 @@ export class CaMonitor extends LitElement {
    * the browser's language. The header's switch changes it and remembers it.
    */
   @property() locale: Locale | '' = '';
+  /**
+   * The theme: `contraagent-dark`, `contraagent-light`, `system` (one of the two,
+   * as the system's colour scheme), `github-dark`, `github-light`, `one-dark`,
+   * `nord` or `high-contrast`. Unset: the reader's earlier choice, else
+   * `contraagent-dark`. The header's control changes it and remembers it. The
+   * theme shown is reflected as `data-ca-theme` (on `<html>` too, with `history="url"`).
+   */
+  @property() theme: ThemeChoice | '' = '';
   /** Reflects whether the run is live (the logo moves). */
   @property({ type: Boolean, reflect: true }) live = false;
 
@@ -172,6 +183,8 @@ export class CaMonitor extends LitElement {
   @state() private pickerOpen = false;
   /** The filter text as typed, ahead of the URL. */
   @state() private qDraft: string | null = null;
+  /** Whether the system asks for a light colour scheme (what `system` follows). */
+  @state() private light = prefersLight();
 
   @query('main') private main!: HTMLElement;
   @query('ca-toasts') private toasts!: CaToasts;
@@ -186,6 +199,13 @@ export class CaMonitor extends LitElement {
   override connectedCallback(): void {
     super.connectedCallback();
     void setLocale(isLocale(this.locale) ? this.locale : preferredLocale());
+    this.applyTheme();
+    const scheme = globalThis.matchMedia?.('(prefers-color-scheme: light)');
+    if (scheme) {
+      const onScheme = (e: MediaQueryListEvent) => (this.light = e.matches);
+      scheme.addEventListener('change', onScheme);
+      this.cleanups.push(() => scheme.removeEventListener('change', onScheme));
+    }
     this.store = new MonitorStore({ baseUrl: this.baseUrl });
     this.snap = this.store.snapshot;
     this.cleanups.push(
@@ -215,9 +235,34 @@ export class CaMonitor extends LitElement {
     this.addEventListener('ca-open-task', (e: CustomEvent<OpenTaskDetail>) => {
       this.navigate({ tab: 'stream', key: e.detail.key, ...(e.detail.view ? { view: e.detail.view } : {}) });
     });
-    this.addEventListener('ca-navigate', (e: CustomEvent<RoutePatch>) => this.navigate(e.detail));
+    this.addEventListener('ca-navigate', (e: CustomEvent<NavigateDetail>) => {
+      const { replace, ...patch } = e.detail;
+      this.navigate(patch, { replace: replace === true });
+    });
     this.addEventListener('ca-select-run', (e: CustomEvent<SelectRunDetail>) => this.navigate({ run: e.detail.run }));
     this.addEventListener('ca-filter', (e: CustomEvent<FilterDetail>) => this.navigate(e.detail));
+    this.addEventListener('ca-choose-theme', (e: CustomEvent<ChooseThemeDetail>) => {
+      this.theme = e.detail.theme;
+      rememberTheme(e.detail.theme);
+    });
+  }
+
+  /** The reader's choice: the `theme` property, else the choice remembered from an earlier visit. */
+  private themeChoice(): ThemeChoice {
+    return isThemeChoice(this.theme) ? this.theme : preferredTheme();
+  }
+
+  /** The theme shown now. */
+  get shownTheme(): ThemeName {
+    return resolveTheme(this.themeChoice(), this.light);
+  }
+
+  /** Show the theme: on this element, and on the page when the monitor is the page. */
+  private applyTheme(): void {
+    const name = this.shownTheme;
+    if (this.getAttribute('data-ca-theme') !== name) this.setAttribute('data-ca-theme', name);
+    if (this.history === 'url' && document.documentElement.getAttribute('data-ca-theme') !== name)
+      document.documentElement.setAttribute('data-ca-theme', name);
   }
 
   override disconnectedCallback(): void {
@@ -250,10 +295,10 @@ export class CaMonitor extends LitElement {
   private announce(row: JournalRow): void {
     const name = kindUnit(row);
     const reason = runRelative(row.reason, this.snap.run).slice(0, 110);
-    if (row.stop === 'invalid_input') this.toasts?.show('warn', msg(str`${name}: not started`), reason);
-    else if (isBad(row)) this.toasts?.show('err', msg(str`${name}: ${stopLabel(row.stop)}`), reason);
-    else if ((row.hops || []).length > 1) this.toasts?.show('llm', msg(str`${name}: model switch`), modelSwitch(row.hops, row.wall_s).slice(0, 110));
-    else this.toasts?.show('ok', msg(str`${name}: done`), facts(fmtDur(row.wall_s), row.model));
+    if (row.stop === 'invalid_input') this.toasts?.show('attention', msg(str`${name}: not started`), reason);
+    else if (isBad(row)) this.toasts?.show('failed', msg(str`${name}: ${stopLabel(row.stop)}`), reason);
+    else if ((row.hops || []).length > 1) this.toasts?.show('agent', msg(str`${name}: model switch`), modelSwitch(row.hops, row.wall_s).slice(0, 110));
+    else this.toasts?.show('done', msg(str`${name}: done`), facts(fmtDur(row.wall_s), row.model));
   }
 
   private tabs(): TabInfo[] {
@@ -297,6 +342,7 @@ export class CaMonitor extends LitElement {
     if (this.history === 'url') document.documentElement.lang = getLocale();
     // Its own text is in its language either way (line breaking between Japanese phrases reads it).
     this.lang = getLocale();
+    this.applyTheme();
     this.moveTabIndicator();
     if (this.main) this.mainScroll.attach(this.main);
     if (this.pendingScroll) {
@@ -361,7 +407,7 @@ export class CaMonitor extends LitElement {
     const summary = runRow(snap.runs, snap.run);
     const acts = liveActivities(snap.state.procs);
     const t = summary?.tasks;
-    const dot = summary?.running ? 'live' : !t?.total ? '' : t.failed || t.not_started ? 'warn' : 'ok';
+    const dot = runTone(!!summary?.running, t);
     return html`
       <header>
         <div class="brand">
@@ -383,6 +429,7 @@ export class CaMonitor extends LitElement {
                 .slice(0, 3)
                 .map((a) => taskChip(this, kindUnit(a), { key: a.key }))}${acts.length > 3 ? html` <span>+${acts.length - 3}</span>` : nothing}`
             : nothing}</span>
+          <ca-theme-switch .value=${this.themeChoice()} .system=${resolveTheme('system', this.light)}></ca-theme-switch>
           <span class="langs" role="group" aria-label=${msg('Language')}>
             ${allLocales.map(
               (l) => html`<button type="button" lang=${l} aria-pressed=${l === getLocale()} @click=${() => this.pickLocale(l)}>
@@ -410,14 +457,14 @@ export class CaMonitor extends LitElement {
     const { state } = this.snap;
     const { tries } = tryCounts(state.journal);
     const tasks = outcomeCounts(taskOutcomes(state.journal, state.plan));
-    const failed = state.journal.filter((r) => isLaunched(r) && isBad(r)).length;
+    // A tab's count is a total: neutral, never coloured by its worst part. Only a count of what is running is.
     const badge = (id: Tab): [string | number, string] | null =>
       id === 'tasks'
-        ? [tasks.total || '', tasks.running ? 'live' : '']
+        ? [tasks.total || '', '']
         : id === 'journal'
-          ? [tries || '', failed ? 'err' : '']
+          ? [tries || '', '']
           : id === 'procs'
-            ? [state.procs?.alive ? busy || '' : '', 'live']
+            ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
     const tabs = this.tabs();
     return html`<nav>
@@ -468,7 +515,7 @@ export class CaMonitor extends LitElement {
     const q = this.qDraft ?? route.q;
     switch (route.tab) {
       case 'overview':
-        return html`<ca-overview .state=${state} .summary=${summary} .info=${snap.info} .run=${route.run} .layer=${route.layer} .unit=${route.unit}></ca-overview>`;
+        return html`<ca-overview .state=${state} .summary=${summary} .info=${snap.info} .run=${route.run} .layer=${route.layer} .unit=${route.unit} .sel=${route.sel}></ca-overview>`;
       case 'tasks':
         return html`<ca-task-table .run=${route.run} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q} ?live=${live}></ca-task-table>`;
       case 'journal':
@@ -482,7 +529,7 @@ export class CaMonitor extends LitElement {
         return html`<ca-procs-view .procs=${state.procs}></ca-procs-view>`;
       case 'stream':
         return html`<ca-task-view .client=${this.store.client} .journal=${state.journal} .plan=${state.plan} base-url=${this.baseUrl} .run=${route.run}
-          .taskKey=${route.key ?? latestSlot(state.tasks)} .view=${route.view} .round=${route.round} .live=${live}></ca-task-view>`;
+          .taskKey=${route.key ?? latestTask(taskRows(state.journal, state.plan))} .view=${route.view} .round=${route.round} .live=${live}></ca-task-view>`;
       default: {
         const name = route.tab.slice('panel:'.length);
         const info = snap.info.panels.find((p) => p.name === name);

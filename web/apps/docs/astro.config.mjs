@@ -17,7 +17,7 @@ export default defineConfig({
     starlight({
       title: 'contraagent',
       description: 'Run coding-agent CLIs as typed, supervised, observable tasks.',
-      // The live demos' light theme is @contraagent/ui's own example.
+      // A live demo can show @contraagent/ui's example of a theme of one's own.
       customCss: ['./src/styles/site.css', '../../packages/ui/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [

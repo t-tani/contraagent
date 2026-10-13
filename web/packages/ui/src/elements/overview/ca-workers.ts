@@ -24,21 +24,21 @@ export class CaWorkers extends LitElement {
       :host { display: block; }
       .wks { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px; }
       @media (max-width: 900px) { .wks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-      .wk { border-radius: 11px; padding: 10px 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); min-width: 0;
+      .wk { border-radius: 11px; padding: 10px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2.5%, transparent); min-width: 0;
         position: relative; overflow: hidden; }
-      .wk.py { border-color: rgba(148, 163, 184, 0.35); }
-      .wk.llm { border-color: rgba(167, 139, 250, 0.45); background: var(--llm-a); cursor: pointer; }
+      .wk.py, .wk.llm { border-color: var(--line2); }
+      .wk.llm { box-shadow: inset 3px 0 0 -1px color-mix(in srgb, var(--agent) 60%, transparent); cursor: pointer; }
+      .wk.llm:hover { border-color: var(--accent); }
       .wk.idle { opacity: 0.45; border-style: dashed; }
       .wk-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
       .wk-top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .wk-ic { width: 24px; height: 24px; border-radius: 7px; flex: none; display: grid; place-items: center; background: var(--raise); font-size: 12px; }
-      .wk.llm .wk-ic { color: var(--llm); }
-      .wk.py .wk-ic { color: var(--muted); }
-      .wk-el { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--live); }
+      .wk.llm .wk-ic { color: var(--agent); }
+      .wk.py .wk-ic { color: var(--text-muted); }
+      .wk-el { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--status-running); }
       .wk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden; }
-      .wk-bar i { position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--live), transparent);
+      .wk-bar i { position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, var(--status-running), transparent);
         animation: scan 1.8s linear infinite; }
-      .wk.llm .wk-bar i { background: linear-gradient(90deg, transparent, var(--llm), transparent); }
     `,
   ];
 

@@ -23,8 +23,9 @@ export function whoChips(w: Who | null | undefined): TemplateResult {
 export const whoStyles = css`
   .who { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 9px;
     border-radius: 7px; border: 1px solid var(--line2); white-space: nowrap; }
-  .who-l { font-size: 10px; font-weight: 400; opacity: 0.75; font-family: var(--sans); }
-  .who.agent { color: var(--live); border-color: rgba(34, 211, 238, 0.4); background: var(--live-a); }
-  .who.model { color: var(--llm); border-color: rgba(167, 139, 250, 0.45); background: var(--llm-a); font-family: var(--mono); }
-  .who.role { color: var(--fg2); font-family: var(--mono); font-weight: 500; }
+  /* facts, not statuses: neutral chips, the label muted and the value in the text colour */
+  .who-l { font-size: 10px; font-weight: 400; color: var(--text-muted); font-family: var(--sans); }
+  .who.agent, .who.model { color: var(--text); background: var(--raise); }
+  .who.model { font-family: var(--mono); }
+  .who.role { color: var(--text-2); font-family: var(--mono); font-weight: 500; }
 `;

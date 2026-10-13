@@ -204,7 +204,6 @@ def test_monitor_views(tmp_path):
     mon = Monitor(run.runs_dir, panels={"facts": lambda r: {"run": r}}, task_detail=lambda r, t, rows: {"extra": len(rows)})
     runs = mon.runs()
     assert runs[0]["run"] == "r1" and runs[0]["attempts"] == 1 and runs[0]["running"]  # this process is the run
-    assert mon.tasks("r1")[0]["slot"] == "write-u"
     d = mon.task_detail("r1", "write-u")
     assert d["stream"] == "write-u" and d["extra"] == 1 and len(d["rows"]) == 1
     page, total = mon.stream("r1", "write-u", 0)
@@ -236,7 +235,7 @@ def test_http_endpoints(tmp_path):
     assert [x["name"] for x in client.get("/api/info").json()["panels"]] == ["facts"]
     assert client.get("/api/runs").json()[0]["run"] == "r1"
     assert client.get("/api/runs/r1/journal").json()["total"] == 1
-    assert client.get("/api/runs/r1/tasks").json()[0]["last_stop"] == "completed"
+    assert client.get("/api/runs/r1/task/write-u").json()["rows"][0]["stop"] == "completed"
     assert client.get("/api/runs/r1/stream/write-u").json()["events"]
     assert client.get("/api/runs/r1/panels/facts").json() == {"ok": 1}
     assert client.get("/api/runs/r1/panels/nope").status_code == 404

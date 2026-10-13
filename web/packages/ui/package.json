@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./themes": {
+      "source": "./src/styles/themes.ts",
+      "types": "./dist/styles/themes.d.ts",
+      "default": "./dist/styles/themes.js"
+    },
     "./bundle": "./dist/contraagent-ui.js",
     "./custom-elements.json": "./custom-elements.json"
   },

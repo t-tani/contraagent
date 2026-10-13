@@ -75,8 +75,8 @@ class TokenUsage(BaseModel):
 
 
 class JournalRow(BaseModel):
-    """One finished attempt. `key` is the stable `Task.key`; `kind`/`unit`
-    group the monitor's rollup; `executor` says who ran it; `stop` is
+    """One finished attempt. `key` is the stable `Task.key`, one task; `kind`
+    and `unit` are its kind and unit; `executor` says who ran it; `stop` is
     `Stop.value` (or a Python task's completed/error)."""
 
     model_config = ConfigDict(extra="allow")

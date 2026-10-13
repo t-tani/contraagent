@@ -1,8 +1,8 @@
-/* Live element demos: a dark frame like the monitor's own page. */
+/* Live element demos: a frame like the monitor's own page, in the demo's theme (data-ca-theme, or a theme of one's own). */
 .ca-demo { margin: 1.5rem 0; }
 .ca-demo-frame {
-  background: radial-gradient(900px 400px at 8% -12%, #10203a 0%, transparent 62%), #060a11;
-  border: 1px solid #1d2940;
+  background: var(--ca-backdrop, var(--ca-theme-backdrop));
+  border: 1px solid var(--ca-line, var(--ca-theme-line));
   border-radius: 12px;
   padding: 16px;
   height: var(--h, auto);
@@ -12,8 +12,6 @@
   flex-direction: column;
   font: 13px/1.5 system-ui, sans-serif;
 }
-/* The light theme's colours are @contraagent/ui's example theme (customCss). */
-.ca-demo.light .ca-demo-frame { background: var(--ca-bg); border-color: var(--ca-line); }
 .ca-demo[data-last-event]::after {
   content: 'sent: ' attr(data-last-event);
   display: block;

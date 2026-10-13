@@ -4,9 +4,13 @@ import { LitElement, css, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { starts } from '../../lib/clock.js';
 import { facts, fmtDur, localTime } from '../../lib/format.js';
+import { type Tone } from '../../lib/tone.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-elapsed.js';
 import { elapsedS, result } from './logic.js';
+
+/** The mark of how a run ended (■ for a run with no tasks). */
+const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓', running: '', muted: '■', '': '■' };
 
 /**
  * The run's own process: running (pid, run group, how many tasks at once,
@@ -22,15 +26,20 @@ export class CaRunDriver extends LitElement {
       :host { display: block; }
       .drv { display: flex; gap: 14px; align-items: flex-start; }
       .drv-ic { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 16px;
-        background: var(--raise); color: var(--mut); }
-      .drv.on .drv-ic { background: var(--live-a); box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 22px rgba(34, 211, 238, 0.18); }
+        background: var(--raise); color: var(--text-muted); }
+      .drv.on .drv-ic { background: var(--status-running-bg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--status-running) 35%, transparent), 0 0 22px var(--status-running-bg); }
+      /* how a run ended: the mark's shape and the title's words carry it; the colour only where a status applies */
+      .drv-ic.failed { background: var(--status-failed-bg); color: var(--status-failed); font-weight: 700; }
+      .drv-ic.attention { background: var(--status-attention-bg); color: var(--status-attention); font-weight: 700; }
+      .drv-ic.done { color: var(--status-done); font-weight: 700; }
       .drv.on .drv-ic .spin { width: 18px; height: 18px; }
       .drv-t { font-size: 15px; font-weight: 600; }
-      .drv-up { font-family: var(--mono); font-size: 12px; color: var(--live); margin-left: 6px; font-weight: 400; }
+      .drv-up { font-family: var(--mono); font-size: 12px; color: var(--status-running); margin-left: 6px; font-weight: 400; }
       .drv-cmd { margin-top: 8px; }
-      .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--mut); }
-      .warn { color: var(--warn); }
-      .drv-cmd code { display: block; margin-top: 4px; white-space: pre-wrap; word-break: break-all; color: var(--fg2); max-height: 120px; overflow: auto; }
+      .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
+      .failed { color: var(--status-failed); }
+      .attention { color: var(--status-attention); }
+      .drv-cmd code { display: block; margin-top: 4px; white-space: pre-wrap; word-break: break-all; color: var(--text-2); max-height: 120px; overflow: auto; }
     `,
   ];
 
@@ -42,24 +51,25 @@ export class CaRunDriver extends LitElement {
    * How a run that is not running ended, as its title: everything scheduled ran
    * (finished), with or without errors, or some tasks never got their turn (stopped).
    */
-  private stateTitle(): [text: string, look: string] {
+  private stateTitle(): [text: string, tone: Tone] {
     if (!this.plan.nodes.length) return [msg('Not running'), ''];
     const r = result(this.plan);
-    if (r.left) return [r.left === 1 ? msg('Finished with 1 task not done') : msg(str`Finished with ${r.left} tasks not done`), 'warn'];
-    if (r.failed || r.notStarted) return [msg('Finished with errors'), 'warn'];
-    return [msg('Finished'), ''];
+    if (r.failed) return [msg('Finished with errors'), 'failed'];
+    if (r.left) return [r.left === 1 ? msg('Finished with 1 task not done') : msg(str`Finished with ${r.left} tasks not done`), 'attention'];
+    if (r.notStarted) return [msg('Finished with errors'), 'attention'];
+    return [msg('Finished'), 'done'];
   }
 
   override render() {
     const p = this.procs;
     const r = this.summary;
     if (!p?.alive) {
-      const [title, look] = this.stateTitle();
+      const [title, tone] = this.stateTitle();
       const took = elapsedS(r);
       return html`<div class="drv off">
-        <div class="drv-ic" aria-hidden="true">■</div>
+        <div class="drv-ic ${tone}" aria-hidden="true">${MARK[tone]}</div>
         <div>
-          <div class="drv-t ${look}">${title}</div>
+          <div class="drv-t ${tone === 'done' ? '' : tone}">${title}</div>
           <div class="meta">${facts(
             r?.last_ts ? msg(str`Ended ${localTime(r.last_ts, true)}`) : msg('No activity'),
             took == null ? '' : msg(str`Took ${fmtDur(took)}`),

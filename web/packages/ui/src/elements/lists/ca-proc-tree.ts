@@ -17,14 +17,15 @@ export class CaProcTree extends LitElement {
       :host { display: block; }
       .ptree2 { font-family: var(--mono); font-size: 11.5px; max-height: 220px; overflow: auto; }
       .pt-n { display: flex; gap: 10px; align-items: center; padding: 3px 6px 3px calc(6px + var(--d) * 18px); border-radius: 6px; position: relative; }
-      .pt-n:hover { background: rgba(255, 255, 255, 0.03); }
+      .pt-n:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
       .pt-n::before { content: ''; position: absolute; left: calc(var(--d) * 18px - 8px); top: 0; bottom: 50%; width: 8px;
-        border-left: 1px solid #2a3a54; border-bottom: 1px solid #2a3a54; }
+        border-left: 1px solid var(--line2); border-bottom: 1px solid var(--line2); }
       .pt-n.root::before { display: none; }
-      .pt-pid { color: var(--mut); min-width: 58px; }
-      .pt-cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--fg2); }
-      .pt-n.llm .pt-cmd { color: var(--llm); }
-      .pt-age { color: var(--mut); }
+      .pt-pid { color: var(--text-muted); min-width: 58px; }
+      .pt-cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--text-2); }
+      .pt-n.llm .pt-cmd { color: var(--text); }
+      .pt-n.llm .pt-pid { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--agent) 70%, transparent); padding-left: 6px; }
+      .pt-age { color: var(--text-muted); }
     `,
   ];
 

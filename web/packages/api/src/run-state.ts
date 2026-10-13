@@ -9,7 +9,6 @@ import type {
   Procs,
   RunFeedMessage,
   RunSummary,
-  TaskRollup,
 } from './types.js';
 
 /** The newest rows kept; older ones drop off the front. */
@@ -18,7 +17,6 @@ export const JOURNAL_CAP = 4000;
 export interface RunState {
   /** Finished attempts in arrival order, at most `JOURNAL_CAP`. */
   journal: JournalRow[];
-  tasks: TaskRollup[];
   /** Null until the first `procs` message. */
   procs: Procs | null;
   plan: Plan;
@@ -33,7 +31,6 @@ export interface RunState {
 export function emptyRunState(): RunState {
   return {
     journal: [],
-    tasks: [],
     procs: null,
     plan: { nodes: [], groups: [], flow_calls: [] },
     outputs: { contracts: [], tally: { valid: 0, invalid: 0, refused: 0, pending: 0, failed: 0, running: 0 } },
@@ -72,9 +69,6 @@ export function reduceRun(state: RunState, actions: readonly RunAction[]): RunSt
       case 'procs':
         next = { ...next, procs: a.data };
         break;
-      case 'tasks':
-        next = { ...next, tasks: a.data };
-        break;
       case 'plan':
         next = { ...next, plan: a.data };
         break;
@@ -98,8 +92,23 @@ export function reduceRun(state: RunState, actions: readonly RunAction[]): RunSt
 export const isBad = (row: { stop?: string | undefined }): boolean =>
   !!row.stop && row.stop !== 'completed' && row.stop !== 'skipped';
 
-/** A Python task (the journal, plan, rollup and contracts say who executed it). */
+/** A Python task (the journal, plan and contracts say who executed it). */
 export const isPython = (x: { executor?: string | undefined }): boolean => x.executor === 'python';
+
+/**
+ * Which start of the run each of one task's journal rows (in journal order) belongs
+ * to, 0 for the first start that ran it: a resumed run numbers a task's attempts
+ * from 0 again, so a row whose attempt is not above the one before it begins the
+ * next start that ran the task.
+ */
+export function runStarts(rows: readonly { attempt?: number | null | undefined }[]): number[] {
+  let start = 0;
+  return rows.map((r, i) => {
+    const before = rows[i - 1];
+    if (before && (r.attempt ?? 0) <= (before.attempt ?? 0)) start++;
+    return start;
+  });
+}
 
 /** A stable identity for a journal row. */
 export const rowId = (row: JournalRow): string => `${row.ts}|${row.key}`;
@@ -153,13 +162,4 @@ export function liveActivities(procs: Procs | null): Activity[] {
       }),
     ),
   ];
-}
-
-/** The task to open by default: a running one, else the most recent with a transcript. */
-export function latestSlot(tasks: readonly TaskRollup[]): string | null {
-  const llm = tasks.filter((t) => !isPython(t));
-  const running = llm.find((t) => t.running);
-  if (running) return running.slot;
-  const last = llm.filter((t) => t.last_ts).sort((a, b) => b.last_ts.localeCompare(a.last_ts))[0];
-  return last?.slot ?? null;
 }

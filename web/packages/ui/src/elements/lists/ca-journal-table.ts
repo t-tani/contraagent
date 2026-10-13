@@ -6,6 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, localTime, sentence, tokens, unreadEvents, usd } from '../../lib/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, runRelative, stopLabel } from '../../lib/labels.js';
+import { stopTone, type Tone } from '../../lib/tone.js';
 import { accountReading, readingShort } from '../../lib/quota-format.js';
 import { base } from '../../styles/base.js';
 import { attemptFacts, filterJournal, hadFixup, journalTally, retriedKeys } from './filters.js';
@@ -30,40 +31,45 @@ export class CaJournalTable extends LitElement {
     css`
       :host { display: block; }
       .jtally { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 12px; }
-      .jchip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: var(--mut);
+      .jchip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: var(--text-muted);
         cursor: pointer; transition: all 0.15s; background: none; }
-      .jchip b { color: var(--fg); }
-      .jchip:hover { border-color: var(--line2); color: var(--fg); }
-      .jchip.on { background: var(--raise); color: var(--fg); }
-      .jchip.j-completed { color: var(--ok); border-color: rgba(52, 211, 153, 0.35); }
-      .jchip.j-max_turns, .jchip.j-timeout, .jchip.j-stalled { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); }
-      .jchip.j-error, .jchip.j-launch_failed, .jchip.j-no_output { border-color: #6b2b2b; color: #e5534b; }
+      .jchip b { color: var(--text); }
+      .jchip:hover { border-color: var(--line2); color: var(--text); }
+      .jchip.on { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
+      /* a stop's chip: marked by its status (done quiet with a ✓, a failure red with a ✕, not started ◌) */
+      .jchip.done::before { content: '✓'; content: '✓' / ''; color: var(--status-done); margin-right: 0.35em; font-weight: 700; }
+      .jchip.failed { color: var(--status-failed); border-color: color-mix(in srgb, var(--status-failed) 40%, transparent); }
+      .jchip.failed::before { content: '✕'; content: '✕' / ''; margin-right: 0.35em; font-weight: 700; }
+      .jchip.attention { color: var(--status-attention); border-color: color-mix(in srgb, var(--status-attention) 40%, transparent); }
+      .jchip.attention::before { content: '◌'; content: '◌' / ''; margin-right: 0.35em; font-weight: 700; }
       .table { overflow-x: auto; }
       .jrow { display: grid; column-gap: 12px; row-gap: 2px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 12px; align-items: center; min-width: 980px; }
       .jrow > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
       .jrow > span.jstop { white-space: normal; }
       .jrow:hover { background: var(--card); }
-      .jrow.hd { color: var(--mut); font-size: 11px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
-      .jrow.bad { background: rgba(248, 113, 113, 0.07); box-shadow: inset 3px 0 0 var(--err); }
+      .jrow.hd { color: var(--text-muted); font-size: 11px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+      .jrow.bad { background: color-mix(in srgb, var(--status-failed) 6%, transparent); box-shadow: inset 3px 0 0 var(--status-failed); }
       .jrow.py { opacity: 0.85; }
       .jrow.py:hover, .jrow.py.bad { opacity: 1; }
       .jrow.fresh { animation: rowin 1.6s var(--ease); }
       .jrow.agent { cursor: pointer; }
       .num { text-align: right; font-variant-numeric: tabular-nums; }
-      .jwhy { color: var(--fg2); white-space: normal !important; overflow-wrap: anywhere; }
-      .later { color: var(--ok); }
+      .jwhy { color: var(--text-2); white-space: normal !important; overflow-wrap: anywhere; }
+      .later { color: var(--status-done); }
       .nw { white-space: nowrap; }
       .jrow.notrun { opacity: 0.8; }
-      .jstop.j-invalid_input, .jchip.j-invalid_input { color: var(--warn); }
-      .unread { color: var(--warn); }
-      .jchip.j-fixup, .jchip.j-retried { color: var(--warn); border-color: rgba(251, 191, 36, 0.35); }
+      .unread { color: var(--status-attention); }
       .two { display: flex; flex-direction: column; line-height: 1.35; }
-      .two .sub { color: var(--mut); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+      /* the status mark stays beside its word, the lines under it align with the word */
+      .jstop.two { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: center; }
+      .jstop.two > * { grid-column: 2; }
+      .jstop.two::before { grid-row: 1; }
+      .two .sub { color: var(--text-muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
       .num.two > span { white-space: nowrap; }
       .jrow > span.two { white-space: normal; }
-      .sub .q { color: var(--live); font-family: var(--mono); white-space: nowrap; }
+      .sub .q { color: var(--text-2); font-family: var(--mono); white-space: nowrap; }
       .jstop .sub { font-weight: 400; }
-      .cost { font-variant-numeric: tabular-nums; text-align: right; color: var(--fg2); }
+      .cost { font-variant-numeric: tabular-nums; text-align: right; color: var(--text-2); }
     `,
   ];
 
@@ -88,11 +94,11 @@ export class CaJournalTable extends LitElement {
     const index = new Map(this.rows.map((r, i) => [r, i]));
     const fixups = this.rows.filter(hadFixup).length;
     const retried = retriedKeys(this.rows).size;
-    const chip = (k: string, label: string, n: number, tip: string) =>
-      html`<button type="button" class="jchip j-${k} ${this.stop === k ? 'on' : ''}" title=${tip}
+    const chip = (k: string, label: string, n: number, tip: string, tone: Tone = '') =>
+      html`<button type="button" class="jchip j-${k} ${tone} ${this.stop === k ? 'on' : ''}" aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
     return html`<div class="jtally">
-        ${journalTally(this.rows).map(([k, c]) => chip(k, this.shortStop(k), c, k))}
+        ${journalTally(this.rows).map(([k, c]) => chip(k, this.shortStop(k), c, k, stopTone(k)))}
         ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, msg('Attempts with at least one correction')) : nothing}
         ${retried ? chip('retried', msg('tasks retried'), retried, msg('Tasks with more than one attempt')) : nothing}
       </div>

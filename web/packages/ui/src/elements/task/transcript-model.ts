@@ -279,9 +279,14 @@ export interface RoundInfo {
   row: TryResult | null;
 }
 
-/** Classify each round (by its launch) as a try or a fix-up, and attach what is known of its result. */
+/**
+ * Classify each round (by its launch) as a try or a fix-up, and attach what is known of
+ * its result. `rows` are the task's journal rows in order; the n-th that ran is the n-th try's.
+ */
 export function classifyRounds(launches: readonly (Pick<LaunchEvent, 'prompt'> | null)[], rows: readonly TryResult[]): RoundInfo[] {
-  const byTry = new Map(rows.map((r) => [(r.attempt ?? 0) + 1, r]));
+  // The tries that ran, in order: a resumed run numbers a task's attempts from 0 again,
+  // so a try's row is found by its place, not by its attempt number.
+  const byTry = new Map(rows.filter((r) => r.stop !== 'invalid_input' && r.stop !== 'skipped').map((r, i) => [i + 1, r]));
   const out: RoundInfo[] = [];
   let tryNo = 0;
   let fixupNo = 0;

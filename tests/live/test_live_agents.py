@@ -153,7 +153,7 @@ def test_monitor_sees_both_runs_as_valid_outputs(run_all):
     mon, tally = run_all["monitor"], run_all["monitor"].outputs("live")["tally"]
     print("\n  outputs tally:", {k: v for k, v in tally.items() if v})
     assert tally["valid"] == 2 and tally["invalid"] == tally["refused"] == tally["failed"] == 0
-    assert {t["slot"] for t in mon.tasks("live")} == {"summarize-c1", "summarize_omp-o1"}
+    assert {e["key"] for e in mon.journal("live")[0]} == {"summarize-c1", "summarize_omp-o1"}
     assert not mon.procs("live")["alive"]  # run.finish() marked it done
 
 

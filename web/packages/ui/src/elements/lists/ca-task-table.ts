@@ -28,15 +28,15 @@ export class CaTaskTable extends LitElement {
         column-gap: 20px; padding: 6px 12px; align-items: center; border-radius: 8px; transition: background 0.15s; cursor: pointer; }
       .trow.hd { cursor: default; }
       .trow:not(.hd):hover { background: var(--raise); }
-      .trow.running { background: var(--live-a); }
-      .trow.hd { align-items: end; white-space: nowrap; padding: 4px 12px 8px; color: var(--mut); font-size: 11px; border-bottom: 1px solid var(--line); border-radius: 0; margin-bottom: 4px; }
+      .trow.running { background: var(--status-running-bg); }
+      .trow.hd { align-items: end; white-space: nowrap; padding: 4px 12px 8px; color: var(--text-muted); font-size: 11px; border-bottom: 1px solid var(--line); border-radius: 0; margin-bottom: 4px; }
       .num { text-align: right; font-variant-numeric: tabular-nums; }
       .wall { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
       .wall .jdur { width: 56px; margin: 0; flex: none; }
       .grow { display: flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .grow .jdim { margin-left: 8px; }
-      .pass { margin-left: 8px; font-size: 11px; color: var(--mut); }
-      .cause { display: block; font-size: 11px; color: var(--mut); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
+      .pass { margin-left: 8px; font-size: 11px; color: var(--text-muted); }
+      .cause { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
       @media (max-width: 760px) {
         .trow { grid-template-columns: minmax(0, 1fr) 128px 90px; }
         .trow > span:nth-child(2), .trow > span:nth-child(4), .trow > span:nth-child(5), .trow > span:nth-child(6) { display: none; }

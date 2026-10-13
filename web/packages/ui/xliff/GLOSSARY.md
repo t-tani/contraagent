@@ -15,7 +15,6 @@ unit names, stop values such as `completed`, model and role names).
 | kind | 種別 |
 | unit | ユニット |
 | key | キー |
-| slot | スロット |
 | params | パラメータ |
 | run / run group | 実行 / 実行グループ (a run that is not live: 停止中) |
 | running (a task, a run) | 実行中 |
@@ -111,9 +110,17 @@ wherever the UI shows a state or a count to the reader.
 | pass N / up to N passes (`flow[].loops[].pass`: one iteration of one loop; never an attempt) | N 周目 / 最大 N 周（「回目」は試行だけ） |
 | N passes / number of passes / Passes (how many passes a unit ran of a loop) | N 周 / 周回数 / 周回数 |
 | 1 pass: 4 \| 2 passes: 1 (how many units ran each number of passes; tooltip: units by number of passes) | 1 周: 4 \| 2 周: 1（ツールチップ: ユニットごとの周回数） |
-| next pass (the mark on a loop box for its return to the next pass) | 次の周 |
+| next pass (a loop box's dotted return from its last layer to its first) | 次の周 |
+| has an inner view (a function node's layer, a loop box's passes; the legend of their two-card mark) | 内部の表示あり |
+| Selected item / Clear selection (the inspector beside the pipeline graph) | 選択中の項目 / 選択を解除 |
+| Task detail / Tasks of review / Inside review_loop / Passes of the loop at flow.py:130 (the inspector's links: where each goes) | タスク詳細 / review のタスク / review_loop の内部 / flow.py:130 のループの各周 |
+| No layer X in this run (a link to a layer the run does not have) | この実行には階層 X がありません |
+| attempt N \| resumed run (an attempt of a later start of the run, after a resume) | N 回目 \| 再開後 |
+| Output of prepare · zeta / File from before the run (where an input file comes from) | prepare · zeta の出力 / 実行前からあるファイル |
+| 2 output files \| 1 read by this task (an earlier task's files, and those this task reads) | 出力ファイル 2 件 \| このタスクの入力 1 件 |
 | Sort units / scheduled order / status (a loop's passes) | 並び順 / 登録順 / 状態 |
-| key hints: next node / marks / earlier and later tasks / open / up a level | 次のノード / マーク / 依存先タスク・後続タスク / 開く / 1 つ上の階層 |
+| key hints: next node / next row / marks / earlier and later tasks / open / up a level | 次のノード / 次の行 / マーク / 依存先タスク・後続タスク / 開く / 1 つ上の階層 |
+| View: Graph \| Table (the pipeline's two views of a layer, a loop's passes being its table) | 表示形式: グラフ \| 表 |
 | Nested loop (a loop box inside another) | 入れ子のループ |
 | waits for output (a solid edge: `after`) | 出力を待つ |
 | created after result (a dashed edge: `created_from`) | 結果を受けて作成 |
@@ -123,7 +130,7 @@ wherever the UI shows a state or a count to the reader.
 | N attempts / N tasks (a count) | 試行 N 回 / N タスク |
 | 29 of 31 tasks done / 5 of 31 tasks not done; review: 1 of 1 done | 31 タスク中 29 件完了 / 31 タスク中 5 件が未完了; review: 1 件中 1 件完了 |
 | Waits for / Created after / Later tasks (the graph's table and a node's label) | 依存先 / 作成元 / 後続タスク |
-| Loop at flow.py:130 / Nested loop at flow.py:130 (where a loop is in the flow's code: file and first line; `line N` when the file is not known) | flow.py:130 のループ / flow.py:130 の入れ子のループ（`line N` は「N 行目」） |
+| Loop at flow.py:130 / Nested loop at flow.py:130 (a loop named by where it is in the flow's code: file and first line; `line N` when the file is not known; also each loop's level in the breadcrumb) | flow.py:130 のループ / flow.py:130 の入れ子のループ（`line N` は「N 行目」） |
 | input X is missing because Y failed (why an input stopped a task) | 入力 X がありません（Y が失敗） |
 | input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルの不足または検証エラー）; 未実行（入力ファイルなし） |
 | earlier task Y failed (why a task did not start: the failed task it waited for) | 依存先タスク Y が失敗 |
@@ -174,3 +181,16 @@ review comment or a commit message.
   the English ends with a full stop.
 - Keep `code` spans, identifiers, file names and `<x .../>` placeholders exactly
   as they are; put Japanese particles around them naturally.
+
+## Themes
+
+The theme control in the header. A theme's own name stays as it is, in every
+language: contraagent Dark, contraagent Light, GitHub Dark, GitHub Light, One
+Dark, Nord.
+
+| English (UI) | 日本語 |
+|---|---|
+| Theme (the header's control; its tooltip: Theme: GitHub Dark) | テーマ（ツールチップ: テーマ: GitHub Dark） |
+| System (the theme follows the system's colour scheme) | システム設定に合わせる |
+| High contrast | ハイコントラスト |
+| Editor themes (the group of themes from code editors) | エディタのテーマ |

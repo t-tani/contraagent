@@ -22,3 +22,31 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   await z.click();
   await expect(page).toHaveURL(/tab=stream/);
 });
+
+test('a task that did not start reads its input file by file, from the earlier task that failed', async ({ page }) => {
+  await page.goto('/?run=docs&tab=stream&key=summarize-zeta&view=input');
+  const view = page.locator('ca-task-view');
+  const card = view.locator('.io-card').first();
+  await expect(card.locator('.ct-path')).toHaveText('out/prepare/zeta.json');
+  await expect(card.locator('.io-from')).toContainText('Output of prepare · zeta');
+  await expect(card.locator('.io-from .pill')).toHaveText('failed');
+  await expect(card.locator('.io-hd .ct-chip')).toHaveText('not written (task failed)');
+  const earlier = view.locator('.upstream');
+  await expect(earlier).toHaveCount(1);
+  await expect(earlier.locator('.meta').first()).toHaveText('1 output file | 1 read by this task');
+  // The file it reads is not shown again under the earlier task.
+  await expect(earlier.locator('.io-card')).toHaveCount(0);
+  await expect(view).not.toContainText('Also an input');
+  await card.locator('.io-from a').click();
+  await expect(page).toHaveURL(/key=python%3Aprepare-zeta|key=python:prepare-zeta/);
+});
+
+test('an agent task that reads two earlier outputs, and a Python task', async ({ page }) => {
+  await page.goto('/?run=docs&tab=stream&key=review-gamma&view=input');
+  const view = page.locator('ca-task-view');
+  await expect(view.locator('.io-card .io-from')).toHaveText([/Output of summarize · gamma/, /Output of score · gamma/]);
+  await expect(view.locator('.upstream .meta')).toHaveText(['1 output file | 1 read by this task', '1 output file | 1 read by this task']);
+  await page.goto('/?run=docs&tab=stream&key=python:score-gamma&view=input');
+  await expect(view.locator('.io-card .io-from')).toHaveText([/Output of summarize · gamma/]);
+});
+

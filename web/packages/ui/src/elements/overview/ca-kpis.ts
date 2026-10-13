@@ -8,16 +8,20 @@ import { inputProblems, stateCount } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
 import { factLine } from '../shared/fact-line.js';
+import { problemTone, type Tone } from '../../lib/tone.js';
 import { kpis } from './logic.js';
 
 interface Tile {
   id: string;
-  cls: string;
+  /** The status the tile's subject is in: only a problem count above 0 has one (`problemTone`); totals and measures are neutral. */
+  tone: Tone;
   label: string;
   /** A count (counts up and bumps the tile when it changes), or a text. */
   value: number | string;
   /** The line under the value, or several lines. */
   sub: string | string[];
+  /** Instead of `sub`: one line of facts, each with the tone of its status ("29 done | 1 failed"). */
+  parts?: Fact[];
   /** The code's term for what is counted: the tooltip. */
   tip?: string;
   /** A link under the sub line. */
@@ -43,6 +47,20 @@ function notStartedCauses(outcomes: Iterable<TaskOutcome>): string {
   return facts(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
 }
 
+/** A fact that is a status ("1 failed"): shown in that status's colour. */
+interface Fact {
+  text: string;
+  tone: Tone;
+}
+
+/** The mark before a problem tile's label: the shape keeps the status without colour. */
+const MARK: Partial<Record<Tone, string>> = { failed: 'mk-failed', attention: 'mk-pending' };
+
+/** One line of facts, each kept whole (as `factLine`), a status fact in its colour. */
+function tonedFacts(fs: readonly Fact[]): TemplateResult {
+  return html`${fs.filter((f) => f.text).map((f, i) => html`${i ? ' | ' : ''}<span class="f ${f.tone ? `t-${f.tone}` : ''}">${f.text}</span>`)}`;
+}
+
 const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
@@ -63,15 +81,19 @@ export class CaKpis extends LitElement {
       .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
       @media (max-width: 1150px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
       @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-      .kpi { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
-      .k { font-size: 12px; font-weight: 600; color: var(--mut); }
-      .v { font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; }
-      .s { font-size: 11.5px; color: var(--mut); margin-top: 2px; }
+      /* Neutral by default: the number is emphasised by size and weight. A tile whose subject is a problem
+         (above 0) takes its status: the number, the mark before the label and a thin edge. */
+      .kpi { position: relative; background: color-mix(in srgb, var(--text) 2.5%, transparent); border: 1px solid var(--line);
+        border-radius: 11px; padding: 12px 14px; overflow: hidden; }
+      .kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--edge, transparent); }
+      .k { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+      .v { font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; color: var(--text); }
+      .s { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
       .a { font-size: 11.5px; margin-top: 4px; }
-      .kpi.ok .v { color: var(--ok); }
-      .kpi.warn .v { color: var(--warn); }
-      .kpi.err .v { color: var(--err); }
-      .kpi.llm .v { color: var(--llm); }
+      .kpi.failed { --edge: var(--status-failed); }
+      .kpi.failed .v, .kpi.failed .k::before { color: var(--status-failed); }
+      .kpi.attention { --edge: var(--status-attention); }
+      .kpi.attention .v, .kpi.attention .k::before { color: var(--status-attention); }
     `,
   ];
 
@@ -101,16 +123,17 @@ export class CaKpis extends LitElement {
     const outcomes = taskOutcomes(this.journal, this.plan);
     const c = outcomeCounts(outcomes);
     const done = c.done + c.recovered;
-    const tasksSub = facts(
-      stateCount('done', done),
-      c.failed ? stateCount('failed', c.failed) : '',
-      c.not_started ? stateCount('not_started', c.not_started) : '',
-    );
+    // The total is neutral; the parts that are problems carry their own status.
+    const parts: Fact[] = [
+      { text: stateCount('done', done), tone: '' },
+      { text: c.failed ? stateCount('failed', c.failed) : '', tone: problemTone(c.failed, 'failed') },
+      { text: c.not_started ? stateCount('not_started', c.not_started) : '', tone: problemTone(c.not_started, 'attention') },
+    ];
     return [
-      { id: 'tasks', cls: c.failed ? 'err' : '', label: msg('Tasks'), value: c.total, sub: tasksSub },
+      { id: 'tasks', tone: '', label: msg('Tasks'), value: c.total, sub: '', parts },
       {
         id: 'attempts',
-        cls: '',
+        tone: '',
         label: msg('Attempts'),
         value: k.attempts,
         sub: facts(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), k.python === 1 ? msg('1 Python task attempt') : msg(str`${k.python} Python task attempts`)),
@@ -119,7 +142,7 @@ export class CaKpis extends LitElement {
       ...this.spendTiles(),
       {
         id: 'bad',
-        cls: k.bad ? 'err' : 'ok',
+        tone: problemTone(k.bad, 'failed'),
         label: msg('Failed attempts'),
         value: k.bad,
         sub: k.bad ? '' : msg('All attempts passed'),
@@ -127,7 +150,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'notstarted',
-        cls: c.not_started ? 'warn' : '',
+        tone: problemTone(c.not_started, 'attention'),
         label: msg('Not started'),
         value: c.not_started,
         sub: c.not_started ? notStartedCauses(outcomes.values()) : msg('All tasks started'),
@@ -135,7 +158,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'wall',
-        cls: 'llm',
+        tone: '',
         label: msg('Agent session time'),
         value: fmtDur(k.launchWall),
         sub: msg(str`Python tasks: ${fmtDur(k.pythonWall)}`),
@@ -143,7 +166,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'retry',
-        cls: k.retries ? 'warn' : '',
+        tone: '',
         label: msg('Retries'),
         value: k.retries,
         sub: !k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`),
@@ -152,7 +175,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'ct',
-        cls: k.fixups ? 'warn' : '',
+        tone: '',
         label: msg('Corrections'),
         value: k.fixups,
         sub: !k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`),
@@ -161,7 +184,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'fo',
-        cls: k.switches ? 'warn' : '',
+        tone: '',
         label: msg('Model switches'),
         value: k.switches,
         sub: !k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`),
@@ -178,7 +201,7 @@ export class CaKpis extends LitElement {
     return [
       {
         id: 'cost',
-        cls: 'llm',
+        tone: '',
         label: msg('Cost'),
         value: usd(s.cost),
         sub: top && top.share !== null ? [msg(str`Highest cost: ${top.kind}`), facts(usd(top.spend.cost), msg(str`${Math.round(top.share * 100)}% of the total`))] : '',
@@ -186,7 +209,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'tokens',
-        cls: '',
+        tone: '',
         label: msg('Tokens'),
         value: tokens(totalTokens(s)),
         sub: facts(msg(str`${tokens(s.input)} input`), msg(str`${tokens(s.output)} output`), msg(str`${tokens(s.cache_read + s.cache_creation)} cache`)),
@@ -211,12 +234,12 @@ export class CaKpis extends LitElement {
   }
 
   private tile(t: Tile): TemplateResult {
-    return html`<div class="kpi ${t.cls}" data-id=${t.id} title=${t.tip ?? nothing}>
-      <div class="k words">${t.label}</div>
+    return html`<div class="kpi ${t.tone}" data-id=${t.id} title=${t.tip ?? nothing}>
+      <div class="k words ${MARK[t.tone] ?? ''}">${t.label}</div>
       <div class="v">${typeof t.value === 'number' ? html`<ca-count .value=${t.value}></ca-count>` : t.value}</div>
-      ${(typeof t.sub === 'string' ? [t.sub] : t.sub).map(
-        (line) => html`<div class="s words">${factLine(line)}</div>`,
-      )}
+      ${t.parts
+        ? html`<div class="s words">${tonedFacts(t.parts)}</div>`
+        : (typeof t.sub === 'string' ? [t.sub] : t.sub).map((line) => html`<div class="s words">${factLine(line)}</div>`)}
       ${t.action
         ? html`<div class="a words"><a class="lnk" href="#" @click=${(e: Event) => {
             e.preventDefault();
@@ -230,7 +253,7 @@ export class CaKpis extends LitElement {
     if (reducedMotion()) return;
     for (const id of this.changed) {
       this.renderRoot.querySelector(`.kpi[data-id="${id}"]`)?.animate(
-        [{ transform: 'scale(1)' }, { transform: 'scale(1.04)', boxShadow: '0 0 0 1px var(--live)', offset: 0.35 }, { transform: 'scale(1)' }],
+        [{ transform: 'scale(1)' }, { transform: 'scale(1.04)', boxShadow: '0 0 0 1px var(--line2)', offset: 0.35 }, { transform: 'scale(1)' }],
         { duration: 700, easing: 'cubic-bezier(.2,.8,.2,1)' },
       );
     }

@@ -25,9 +25,13 @@ events are in the [reference](/reference/elements/).
 
 <Demo tag="ca-kpis" props={{ journal: 'journal' }} describe />
 
-The same element with `@contraagent/ui`'s example light theme:
+The same element in the built-in GitHub Light theme (`data-ca-theme="github-light"`):
 
-<Demo tag="ca-kpis" props={{ journal: 'journal' }} light />
+<Demo tag="ca-kpis" props={{ journal: 'journal' }} theme="github-light" />
+
+And in a theme of one's own, `@contraagent/ui`'s example (Solarized Light, `docs/examples/theme.css`):
+
+<Demo tag="ca-kpis" props={{ journal: 'journal' }} theme="contraagent-light" custom="solarized-light" />
 
 ## `<ca-journal-table>`
 

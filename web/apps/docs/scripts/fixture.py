@@ -39,7 +39,6 @@ def main() -> None:
         data = {
             "run": run,
             "journal": mon.journal(run)[0],
-            "tasks": mon.tasks(run),
             "plan": mon.plan(run),
             "outputs": mon.outputs(run),
             "transcript": mon.stream(run, TRANSCRIPT, 0)[0]["events"],

@@ -57,7 +57,6 @@ def test_every_endpoint_carries_what_the_core_computed(demo_runs):
         entries, total = mon.journal(run, 0)
         assert c.get(f"/api/runs/{run}/journal").json() == raw({"entries": entries, "total": total})
         for ep, want in (
-            ("tasks", mon.tasks(run)),
             ("plan", mon.plan(run)),
             ("outputs", mon.outputs(run)),
             ("definitions", mon.definitions(run)),
@@ -66,8 +65,8 @@ def test_every_endpoint_carries_what_the_core_computed(demo_runs):
             ("panels/notes", mon.panel("notes", run)),
         ):
             assert c.get(f"/api/runs/{run}/{ep}").json() == raw(want), ep
-        for t in mon.tasks(run):
-            assert c.get(f"/api/runs/{run}/task/{t['slot']}").json() == raw(mon.task_detail(run, t["slot"]))
+        for key in {n["key"] for n in mon.plan(run)["nodes"]}:
+            assert c.get(f"/api/runs/{run}/task/{key}").json() == raw(mon.task_detail(run, key))
         for f in sorted((demo_runs / run / "streams").glob("*.stream.jsonl")):
             key = f.name.removesuffix(".stream.jsonl")
             page, total = mon.stream(run, key, 0)
@@ -166,7 +165,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
     names = [m["event"] for m in msgs]
     assert names.count("journal") == json.loads(msgs[-1]["data"])["journal"] == mon.journal(run)[1] > 0
     assert names.count("ready") == 1
-    assert {"procs", "plan", "outputs", "cursor", "tasks"} <= set(names)
+    assert {"procs", "plan", "outputs", "cursor"} <= set(names)
 
 
 def test_the_committed_openapi_document_is_current():
@@ -190,7 +189,6 @@ def test_the_contract_is_served_and_describes_the_live_feeds(tmp_path):
         "PlanMessage",
         "OutputsMessage",
         "CursorMessage",
-        "TasksMessage",
         "PanelMessage",
         "ReadyMessage",
     }
@@ -254,7 +252,6 @@ def test_traversal_is_refused_by_the_python_api(secret_layout):
         lambda: mon.stream("../secret", "leak", 0),
         lambda: mon.stream("r1", "../../secret/streams/leak", 0),
         lambda: mon.journal("../secret"),
-        lambda: mon.tasks(".."),
         lambda: mon.plan("../secret"),
         lambda: mon.outputs(".."),
         lambda: mon.definitions(".."),
@@ -273,7 +270,7 @@ def test_traversal_is_refused_by_the_python_api(secret_layout):
 @pytest.mark.parametrize("bad", BAD_RUNS)
 def test_traversal_is_refused_on_every_endpoint(secret_layout, bad):
     c = client_for(Monitor(secret_layout, panels={"p": lambda r: {"r": r}}))
-    for ep in ("journal", "tasks", "plan", "outputs", "definitions", "cursor", "procs", "task/leak", "stream/leak", "panels/p"):
+    for ep in ("journal", "plan", "outputs", "definitions", "cursor", "procs", "task/leak", "stream/leak", "panels/p"):
         r = c.get(f"/api/runs/{bad}/{ep}")
         assert r.status_code == 404, (bad, ep, r.status_code)
         assert "SECRET" not in r.text and "leak" not in r.json().get("entries", [])
@@ -495,3 +492,12 @@ def test_the_live_feed_sends_the_plan_when_a_flow_call_ends(review_run, tmp_path
         raise AssertionError("the feed ended")
 
     assert asyncio.run(feed()) == ["running", "raised"]
+
+
+def test_a_task_detail_is_one_task_key(demo_runs):
+    """Two passes of one task are two tasks: review-gamma's detail holds none of review-gamma~2's rows."""
+    mon = Monitor(demo_runs)
+    first, second = mon.task_detail("docs", "review-gamma"), mon.task_detail("docs", "review-gamma~2")
+    assert first["rows"] and {r["key"] for r in first["rows"]} == {"review-gamma"}
+    assert second["rows"] and {r["key"] for r in second["rows"]} == {"review-gamma~2"}
+    assert first["definition"]["kind"] == second["definition"]["kind"] == "review"

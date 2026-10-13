@@ -1,7 +1,8 @@
 ---
 // A live element fed with the demo pipeline's run (src/fixtures/demo-run.json,
 // written by scripts/fixture.py). `props` maps element properties to fixture
-// keys; `light` shows it with the light theme of @contraagent/ui's docs/examples/theme.css;
+// keys; `theme` is a built-in theme (`data-ca-theme`), `custom` a class of @contraagent/ui's
+// docs/examples/theme.css (a theme of one's own) on top of it;
 // `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it.
 import { inlineMd, repoJson } from '../lib/repo';
 
@@ -11,11 +12,12 @@ interface Props {
   props: Record<string, string>;
   attrs?: Record<string, string>;
   height?: string;
-  light?: boolean;
+  theme?: string;
+  custom?: string;
   caption?: string;
   describe?: boolean;
 }
-const { tag: Tag, props, attrs = {}, height, light = false, caption, describe = false } = Astro.props;
+const { tag: Tag, props, attrs = {}, height, theme = 'contraagent-dark', custom, caption, describe = false } = Astro.props;
 const description = describe
   ? repoJson<Manifest>('web/packages/ui/custom-elements.json')
       .modules.flatMap((m) => m.declarations ?? [])
@@ -25,7 +27,7 @@ const description = describe
 
 {description && <p set:html={inlineMd(description)} />}
 
-<figure class:list={['ca-demo', { light }]} style={height ? `--h:${height}` : undefined}>
+<figure class:list={['ca-demo', custom]} data-ca-theme={theme} style={height ? `--h:${height}` : undefined}>
   <div class="ca-demo-frame">
     <Tag data-ca-demo={JSON.stringify(props)} {...attrs} />
   </div>

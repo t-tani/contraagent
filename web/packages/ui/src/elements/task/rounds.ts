@@ -1,27 +1,30 @@
 // How a round is named and explained to the reader (render time: msg()).
 import { msg, str } from '@lit/localize';
+import { facts } from '../../lib/format.js';
 import { attemptLabel, runRelative, stopLabel } from '../../lib/labels.js';
 import type { RoundInfo } from './transcript-model.js';
 
 /**
  * "Attempt 1", "Correction 1", "Model switch"; with more than one attempt,
- * "Attempt 2 | correction 1" and "Attempt 2 | model switch". The model is shown beside it.
+ * "Attempt 2 | correction 1" and "Attempt 2 | model switch". `name` is the name of
+ * the round's attempt (`attemptNames`: "Attempt 1 | resumed run" in a resumed run).
  */
-export function roundLabel(r: RoundInfo, tries: number): string {
+export function roundLabel(r: RoundInfo, tries: number, name = attemptLabel(r.tryNo - 1)): string {
   if (tries > 1) {
-    if (r.fixupNo) return msg(str`Attempt ${r.tryNo} | correction ${r.fixupNo}`);
-    if (r.hopNo) return msg(str`Attempt ${r.tryNo} | model switch`);
-    return attemptLabel(r.tryNo - 1);
+    if (r.fixupNo) return facts(name, msg(str`correction ${r.fixupNo}`));
+    if (r.hopNo) return facts(name, msg('model switch'));
+    return name;
   }
   if (r.fixupNo) return msg(str`Correction ${r.fixupNo}`);
   if (r.hopNo) return msg('Model switch');
   return attemptLabel(0);
 }
 
-/** One phrase on what this round was, for its prompt's heading. */
-export function roundWhy(r: RoundInfo): string {
+/** One phrase on what this round was, for its prompt's heading; `resumed`: its attempt is the first of a resumed run. */
+export function roundWhy(r: RoundInfo, resumed = false): string {
   if (r.fixupNo) return msg('same agent session, after failed checks');
   if (r.hopNo) return msg('new agent session on the next model');
+  if (r.tryNo > 1 && resumed) return msg('new agent session in the resumed run');
   if (r.tryNo > 1) return msg(str`new agent session after attempt ${r.tryNo - 1} failed`);
   return msg('first agent session');
 }

@@ -136,9 +136,23 @@ export function fieldCheckTable(o: ContractSpec): TemplateResult {
         </details>`
       : html``;
   }
-  const obj = f.exists && c !== null && typeof c === 'object' && !Array.isArray(c) ? (c as Record<string, unknown>) : null;
+  // No file: the fields it must have, and nothing to check them against; its status chip says it is not there.
+  if (!f.exists) {
+    return o.fields.length
+      ? html`<table class="ct-check">
+          <tr><th>${msg('Field')}</th><th>${msg('Expected')}</th></tr>
+          ${o.fields.map(
+            (x) => html`<tr>
+              <td class="jmono">${x.name}</td>
+              <td class="jmono jdim">${x.type}${x.required ? nothing : html` <i>${msg('optional')}</i>`}</td>
+            </tr>`,
+          )}
+        </table>`
+      : html``;
+  }
+  const obj = c !== null && typeof c === 'object' && !Array.isArray(c) ? (c as Record<string, unknown>) : null;
   const rows = o.fields.map((x) => {
-    let mark = html`<span class="fk none">${msg('no file')}</span>`;
+    let mark: TemplateResult = html``;
     let val: unknown;
     if (obj) {
       const has = x.name in obj;
@@ -168,19 +182,11 @@ export function fieldCheckTable(o: ContractSpec): TemplateResult {
         </tr>`,
       )}
     </table>
-    ${!f.exists
-      ? html`<div class="meta note">${o.status === 'running' || o.status === 'pending' || !o.status
-          ? msg('Not written yet')
-          : msg('Not written')}</div>`
-      : !obj
-        ? html`<div class="meta note">${msg('Not a JSON object')}</div>`
-        : nothing}
-    ${f.exists
-      ? html`<details class="ct-raw">
-          <summary>${wholeFile(f)}</summary>
-          ${fileContent(f)}
-        </details>`
-      : nothing}`;
+    ${!obj ? html`<div class="meta note">${msg('Not a JSON object')}</div>` : nothing}
+    <details class="ct-raw">
+      <summary>${wholeFile(f)}</summary>
+      ${fileContent(f)}
+    </details>`;
 }
 
 /** The fold over a file's content: `Whole file | 1204 B | written Oct 12, 10:38:40`. */
@@ -276,7 +282,13 @@ export function ioFileCard(
   o: ContractSpec,
   role: 'input' | 'output',
   run = '',
-  opts: { producerOf?: (path: string) => Producer | undefined } = {},
+  opts: {
+    producerOf?: (path: string) => Producer | undefined;
+    /** Where the file comes from, as a line under its path ("Output of prepare · zeta"). */
+    origin?: unknown;
+    /** In place of the status chip: an input written by an earlier task shows that task's check of it. */
+    chip?: TemplateResult;
+  } = {},
 ): TemplateResult {
   const stat =
     role === 'output'
@@ -284,7 +296,9 @@ export function ioFileCard(
             ? html` <span class="meta" title=${correctionTip()}>${correctionsLabel(o.rounds, o.status === 'valid')}</span>`
             : nothing}`
       : inputChip(o);
-  const head = html`<div class="io-hd">${stat}<span class="jmono ct-path" title=${o.path}>${runRelative(o.path, run)}</span></div>`;
+  const head = html`<div class="io-hd">${opts.chip ?? stat}<span class="jmono ct-path" title=${o.path}>${runRelative(o.path, run)}</span></div>${opts.origin
+    ? html`<div class="meta io-from">${opts.origin}</div>`
+    : nothing}`;
   if (role === 'output' && o.status === 'refused') {
     return html`<div class="io-card one">${head}<div class="meta">${notRunText(o, run, opts.producerOf)}</div></div>`;
   }
@@ -303,11 +317,11 @@ export function ioFileCard(
 export const contractStyles = css`
   .ct-lead { margin: 2px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
   .conds { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 2px 0 10px; font-size: 12px; }
-  .conds dt { color: var(--mut); }
-  .conds dd { margin: 0; color: var(--fg2); }
+  .conds dt { color: var(--text-muted); }
+  .conds dd { margin: 0; color: var(--text-2); }
   /* sized to its content, so the check mark sits next to the value it judges; a long value wraps */
   .ct-check { width: auto; max-width: 100%; border-collapse: collapse; }
-  .ct-check th { text-align: left; font-size: 11.5px; color: var(--mut);
+  .ct-check th { text-align: left; font-size: 11.5px; color: var(--text-muted);
     font-weight: 600; padding: 4px 20px 4px 0; border-bottom: 1px solid var(--line); }
   .ct-check td { padding: 5px 20px 5px 0; border: 0; border-bottom: 1px solid var(--line); vertical-align: baseline; font-size: 12.5px; }
   .ct-check th:last-child, .ct-check td:last-child { padding-right: 0; }
@@ -315,24 +329,26 @@ export const contractStyles = css`
   .ct-check tr:last-child td { border-bottom: 0; }
   .ct-check td:first-child { white-space: nowrap; font-weight: 600; }
   .ct-check td:last-child { white-space: nowrap; }
-  .ct-check i { font-style: normal; color: var(--mut); font-size: 11px; margin-left: 4px; }
+  .ct-check i { font-style: normal; color: var(--text-muted); font-size: 11px; margin-left: 4px; }
   .fk { font-size: 12px; }
-  .fk.ok { color: var(--ok); }
-  .fk.bad { color: var(--err); font-weight: 600; }
-  .fk.warn { color: var(--warn); }
-  .fk.none { color: var(--mut); }
-  .js { color: var(--ok); }
-  .jn { color: var(--warn); }
+  .fk.ok { color: var(--text-2); }
+  .fk.ok > [aria-hidden] { color: var(--status-done); font-weight: 700; }
+  .fk.bad { color: var(--status-failed); font-weight: 600; }
+  .fk.warn { color: var(--status-attention); }
+  .fk.none { color: var(--text-muted); }
+  .js { color: var(--code-string); }
+  .jn { color: var(--code-number); }
   .note { margin-top: 6px; }
   .ct-raw { margin-top: 8px; }
-  .ct-raw > summary { cursor: pointer; color: var(--mut); font-size: 12px; }
-  .ct-err { color: var(--err); white-space: pre-wrap; }
+  .ct-raw > summary { cursor: pointer; color: var(--text-muted); font-size: 12px; }
+  .ct-err { color: var(--status-failed); white-space: pre-wrap; }
   .ct-fields { border-collapse: collapse; width: 100%; }
   .ct-fields td { padding: 2px 10px 2px 0; border: 0; font-size: 12px; }
   .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }
-  h4 { margin: 8px 0 6px; font-size: 12px; color: var(--fg2); font-weight: 600; }
+  h4 { margin: 8px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
   .io-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; background: var(--raise); }
   .io-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .io-from { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: -2px 0 8px; }
   .io-hd .ct-path { flex: 1; }
   .io-card.one .io-hd { margin-bottom: 2px; }
 `;

@@ -101,6 +101,8 @@ export interface GraphNode {
   label: string;
   /** The kinds of its tasks. */
   kinds: string[];
+  /** A kind node: who runs its tasks (`mixed` when its kinds differ); null for a function node. */
+  executor: 'agent' | 'python' | 'mixed' | null;
   /** The loop box it is drawn in (its innermost), or null. */
   box: string | null;
   /** One slot per unit of the layer, in the layer's unit order: null where the unit has no mark here. Empty for a node without units. */
@@ -282,6 +284,12 @@ function indexOf(plan: Plan): FlowIndex {
 }
 
 const startsWith = (path: readonly string[], prefix: readonly string[]) => prefix.every((p, i) => path[i] === p);
+
+/** Who runs a kind node's tasks: a coding agent, Python, or both (`mixed`). */
+function executorOf(ns: readonly PlanNode[]): 'agent' | 'python' | 'mixed' {
+  const py = ns.filter(isPython).length;
+  return py === 0 ? 'agent' : py === ns.length ? 'python' : 'mixed';
+}
 
 /** A function's name without its module. */
 export const shortName = (fn: string): string => fn.slice(fn.lastIndexOf('.') + 1) || fn;
@@ -898,6 +906,7 @@ function project(plan: Plan, path: readonly string[], prev?: LayerOrder, down = 
       name: x.name,
       label: x.type === 'kind' ? (ix.labels.get(x.name) ?? x.name) : shortName(x.name),
       kinds: [...new Set(x.tasks.map((t) => t.n.kind))],
+      executor: x.type === 'flow' ? null : executorOf(x.tasks.map((t) => t.n)),
       box: boxOf.get(x.id) ?? null,
       units: hasUnits ? units.map((u) => m.byUnit.get(u) ?? null) : [],
       single: m.single,
@@ -978,6 +987,31 @@ export function autoLayer(plan: Plan): string[] {
 export function splitLayer(segments: readonly string[]): { path: string[]; loop: string | null } {
   const last = segments[segments.length - 1];
   return last?.startsWith(LOOP_SEGMENT) ? { path: segments.slice(0, -1), loop: last } : { path: [...segments], loop: null };
+}
+
+/**
+ * The layer `segments` names, as the plan has it: the segments themselves when the
+ * plan has that layer (a prefix of a task's flow path, and the loop box after it);
+ * else, when the last function is named by its `module.qualname` (or, failing that,
+ * its name) and the plan reaches it by one flow path only, that flow path, with the
+ * loop box when the layer there has it. Null when the plan has no such layer.
+ */
+export function resolveLayer(plan: Plan, segments: readonly string[]): string[] | null {
+  const { path, loop } = splitLayer(segments);
+  const ix = indexOf(plan);
+  const hasLoop = (p: readonly string[]) => !loop || layerGraph(plan, p).boxes.some((b) => b.id === loop);
+  if (ix.tasks.some((t) => startsWith(t.path, path))) return hasLoop(path) ? [...segments] : null;
+  const name = path[path.length - 1];
+  if (name === undefined) return null;
+  const found = (match: (fn: string) => boolean): string[][] => {
+    const by = new Map<string, string[]>();
+    for (const t of ix.tasks) t.path.forEach((fn, i) => match(fn) && by.set(t.path.slice(0, i + 1).join('/'), t.path.slice(0, i + 1)));
+    return [...by.values()];
+  };
+  const exact = found((fn) => fn === name);
+  const named = exact.length ? exact : found((fn) => shortName(fn) === name);
+  const only = named.length === 1 ? (named[0] as string[]) : null;
+  return only && hasLoop(only) ? (loop ? [...only, loop] : only) : null;
 }
 
 /** One level up from `segments`: null at the top (the layer the graph opens on, `auto`), [] for that layer. */
@@ -1169,6 +1203,56 @@ export function gridStep(has: readonly (readonly boolean[])[], r: number, c: num
   }
 }
 
+// ---- what is selected ----
+
+/**
+ * A mark's selection id: its node, the passes of its column in a loop's passes
+ * (`|1.2`), and its unit, or its key for a mark without one (`kind:review@7#gamma`).
+ */
+export const markSel = (node: string, m: Pick<GraphMark, 'unit' | 'key'>, passes: readonly number[] = []): string =>
+  `${node}${passes.length ? `|${passes.join('.')}` : ''}#${m.unit || m.key}`;
+
+/** What a selection id names: a mark (with its node, and its column's passes in a loop's passes), a node or a loop box. */
+export type Selected =
+  | { type: 'mark'; id: string; node: GraphNode; mark: GraphMark; passes: number[] }
+  | { type: 'node'; id: string; node: GraphNode }
+  | { type: 'box'; id: string; box: LoopBox };
+
+/**
+ * What `sel` names in a layer's graph, or, with `matrix`, in a loop's passes (a mark
+ * there names its column's passes); null when it names nothing there.
+ */
+export function selected(g: LayerGraph, matrix: PassMatrix | null, sel: string): Selected | null {
+  if (!sel) return null;
+  const hash = sel.indexOf('#');
+  if (hash < 0) {
+    const node = g.nodes.find((n) => n.id === sel);
+    if (node) return { type: 'node', id: sel, node };
+    const box = g.boxes.find((b) => b.id === sel);
+    return box ? { type: 'box', id: sel, box } : null;
+  }
+  const [nodeId = '', pass] = sel.slice(0, hash).split('|');
+  const who = sel.slice(hash + 1);
+  const is = (m: GraphMark | null | undefined): m is GraphMark => !!m && (m.unit ? m.unit === who : m.key === who);
+  if (pass !== undefined) {
+    if (!matrix) return null;
+    const ci = matrix.columns.findIndex((c) => c.node.id === nodeId && c.passes.join('.') === pass);
+    const col = matrix.columns[ci];
+    const mark = matrix.rows.map((r) => r.cells[ci]).find(is);
+    return col && mark ? { type: 'mark', id: sel, node: col.node, mark, passes: col.passes } : null;
+  }
+  const node = g.nodes.find((n) => n.id === nodeId);
+  const mark = node ? [...node.units, ...node.single].find(is) : undefined;
+  return node && mark ? { type: 'mark', id: sel, node, mark, passes: [] } : null;
+}
+
+/** The tasks of a layer's nodes by state, added up. */
+export function layerCounts(nodes: readonly Pick<GraphNode, 'counts'>[]): NodeCounts {
+  const c: NodeCounts = { total: 0, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
+  for (const n of nodes) for (const k of Object.keys(c) as (keyof NodeCounts)[]) c[k] += n.counts[k];
+  return c;
+}
+
 // ---- marks ----
 
 /** How a node lays out its unit marks: as many columns as units up to 12, then 10, then 20; smaller marks as they grow. */
@@ -1232,7 +1316,25 @@ export interface GraphLayout {
   at: Record<string, Rect>;
   /** Every route, with its runs. */
   edges: { from: string; to: string; type: 'after' | 'created'; runs: Run[] }[];
+  /** Each loop box's return to its next pass. */
+  returns: LoopReturn[];
   down: boolean;
+}
+
+/**
+ * A loop box's return to its next pass, along the flow (`u`) and across it (`v`): from
+ * the far side of its last layer's outermost item (`from`, at `v0`) out to a band
+ * past its content (`band`), back along the band, and in to its first layer's
+ * outermost item (`to`, at `v1`). Left to right the band is under the nodes; top to
+ * bottom, on their right.
+ */
+export interface LoopReturn {
+  box: string;
+  from: number;
+  v0: number;
+  to: number;
+  v1: number;
+  band: number;
 }
 
 /** The spaces of a drawing; left to right unless `down`. */
@@ -1245,14 +1347,18 @@ export interface LayoutSpace {
   pointSep: number;
   /** A loop box's padding, and the space under its label. */
   pad: number;
-  /** The space after a box's content, across the flow (where its next-pass marker sits). */
+  /** The space after a box's content, across the flow: the band its return to the next pass runs in. */
   padEnd: number;
   margin: number;
 }
 
+/** The band past a loop box's content that its return to the next pass runs in, and the return's corner radius. */
+export const RETURN_BAND = 24;
+const RETURN_R = 6;
+
 export const SPACE: Record<'across' | 'down', LayoutSpace> = {
-  across: { gap: 56, boxGap: 40, sep: 16, pointSep: 12, pad: 12, padEnd: 16, margin: 16 },
-  down: { gap: 40, boxGap: 32, sep: 16, pointSep: 12, pad: 10, padEnd: 16, margin: 16 },
+  across: { gap: 56, boxGap: 40, sep: 16, pointSep: 12, pad: 12, padEnd: RETURN_BAND, margin: 16 },
+  down: { gap: 40, boxGap: 32, sep: 16, pointSep: 12, pad: 10, padEnd: RETURN_BAND, margin: 16 },
 };
 
 /** Tops (across the flow) nearest to `want` that keep the order and each gap: weighted isotonic regression (pool adjacent violators). */
@@ -1472,7 +1578,57 @@ export function layoutGraph(g: LayerGraph, sizes: ReadonlyMap<string, Size>, dow
     });
     return { from: r.from, to: r.to, type: r.type, runs };
   });
-  return { w: down ? V : U, h: down ? U : V, at, edges, down };
+  // Each box's return to its next pass: from its last layer's item that reaches furthest
+  // across the flow, along the band past the content, to its first layer's.
+  const returns = g.boxes.flatMap((b): LoopReturn[] => {
+    const l = local.get(b.id);
+    const o = origin.get(b.id);
+    if (!l || !o) return [];
+    const outer = (row: readonly string[] | undefined) => {
+      const ids = (row ?? []).filter((id) => !isPoint(id));
+      let best: { u: number; v: number } | null = null;
+      for (const id of ids) {
+        const s = slotSize(id);
+        const v = (l.top.get(id) ?? 0) + s.v;
+        if (!best || v > best.v) best = { u: s.u, v };
+      }
+      return best;
+    };
+    const real = l.rows.map((r, i) => (r.some((id) => !isPoint(id)) ? i : -1)).filter((i) => i >= 0);
+    const fi = real[0] ?? 0;
+    const li = real[real.length - 1] ?? 0;
+    const last = outer(l.rows[li]);
+    const first = outer(l.rows[fi]);
+    if (!last || !first) return [];
+    // An item's middle along the flow, as wide as its layer; one layer: either side of its middle.
+    let from = o.u + (l.start[li] ?? 0) + (l.width[li] ?? 0) / 2;
+    let to = o.u + (l.start[fi] ?? 0) + (l.width[fi] ?? 0) / 2;
+    if (from - to < 4 * RETURN_R) {
+      const d = Math.max(2 * RETURN_R, Math.min(28, Math.min(last.u, first.u) / 4));
+      from = (from + to) / 2 + d;
+      to = from - 2 * d;
+    }
+    return [{ box: b.id, from, v0: o.v + last.v, to, v1: o.v + first.v, band: o.v + l.v + RETURN_BAND / 2 }];
+  });
+  return { w: down ? V : U, h: down ? U : V, at, edges, returns, down };
+}
+
+/**
+ * A loop box's return as an SVG path: out from its last layer to the band, back along
+ * it with rounded corners, and in to its first layer, stopping `gap` short of each item.
+ */
+export function returnPath(r: LoopReturn, down = false, gap = 3): string {
+  const r2 = (n: number) => Math.round(n * 2) / 2;
+  const pt = (u: number, v: number) => (down ? `${r2(v)},${r2(u)}` : `${r2(u)},${r2(v)}`);
+  const k = Math.max(0, Math.min(RETURN_R, (r.from - r.to) / 2, r.band - r.v0 - gap, r.band - r.v1 - gap));
+  return [
+    `M${pt(r.from, r.v0 + gap)}`,
+    `L${pt(r.from, r.band - k)}`,
+    `Q${pt(r.from, r.band)} ${pt(r.from - k, r.band)}`,
+    `L${pt(r.to + k, r.band)}`,
+    `Q${pt(r.to, r.band)} ${pt(r.to, r.band - k)}`,
+    `L${pt(r.to, r.v1 + gap)}`,
+  ].join(' ');
 }
 
 /** An edge's line as an SVG path: its runs, joined by a curve in each gap where it bends. */

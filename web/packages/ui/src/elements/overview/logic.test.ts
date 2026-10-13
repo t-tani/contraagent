@@ -4,7 +4,8 @@ import type { FlowCallNode, FlowFrame, FlowPlanNode } from './flow-types.js';
 import {
   alongEdge, asBar, autoLayer, barBox, barParts, edgePath, elapsedS, fitView, gridStep, isPoint, kpis, layerGraph, layoutGraph, markGrid, parentLayer, passMatrix,
   progress, result, sortRows, splitLayer, timeline, tryCounts, worstState, zoomView,
-  type GraphLayout, type LayerGraph, type Size,
+  RETURN_BAND, layerCounts, markSel, resolveLayer, returnPath, selected,
+  type GraphLayout, type LayerGraph, type LoopReturn, type Size,
 } from './logic.js';
 
 const node = (key: string, unit: string, group: string, state: PlanNode['state'], extra: Partial<PlanNode> = {}): PlanNode => ({
@@ -633,6 +634,22 @@ describe('layoutGraph', () => {
         });
       }
     }
+    // Each loop box's return to its next pass runs inside it, past its content: over no node, label or nested box.
+    expect(l.returns.map((r) => r.box).sort()).toEqual(g.boxes.map((b) => b.id).sort());
+    for (const r of l.returns) {
+      const box = l.at[r.box] as { x: number; y: number; w: number; h: number };
+      const seg = (u0: number, u1: number, v0: number, v1: number) => {
+        const [a, b] = [Math.min(u0, u1), Math.max(u0, u1)];
+        const [c, d] = [Math.min(v0, v1), Math.max(v0, v1)];
+        return l.down ? { x: c - 0.5, y: a, w: d - c + 1, h: b - a } : { x: a, y: c - 0.5, w: b - a, h: d - c + 1 };
+      };
+      expect(r.from > r.to, `${r.box} returns back along the flow`).toBe(true);
+      for (const sg of [seg(r.from, r.from, r.v0 + 3, r.band), seg(r.to, r.from, r.band, r.band), seg(r.to, r.to, r.v1 + 3, r.band)]) {
+        expect(inside(sg, box), `${r.box} return inside its box`).toBe(true);
+        for (const [id, o] of obs) expect(overlap(sg, o), `${r.box} return over ${id}`).toBe(false);
+        for (const b of g.boxes) if (b.id.startsWith(`${r.box}.`)) expect(overlap(sg, l.at[b.id] as typeof box), `${r.box} return over ${b.id}`).toBe(false);
+      }
+    }
   };
 
   it('puts a point on every layer a long edge crosses, and routes it around what is between', () => {
@@ -737,6 +754,38 @@ describe('layoutGraph', () => {
     expect(edgePath([{ a: 10, b: 20, at: 5 }, { a: 40, b: 40, at: 25 }], true)).toBe('M5,10 L5,20 C5,30 25,30 25,40');
     expect(edgePath([])).toBe('');
   });
+
+  it("draws a loop's return from its last layer, along the band past its content, back to its first", () => {
+    const g = layerGraph(reviewRun({ a: 1, b: 2 }), [RUN, LOOP]);
+    const sizes = sizesOf(g);
+    const l = layoutGraph(g, sizes);
+    const box = l.at[`loop:${AT}`] as { x: number; y: number; w: number; h: number };
+    const r = l.returns[0] as LoopReturn;
+    const first = l.at[`kind:fix@${AT}`] as typeof box;
+    const last = l.at[`kind:check@${AT}`] as typeof box;
+    expect(r.to).toBe(first.x + first.w / 2);
+    expect(r.from).toBe(last.x + last.w / 2);
+    expect(r.band).toBe(box.y + box.h - RETURN_BAND / 2);
+    // Up from the band into the first layer, with rounded corners; top to bottom, the same along x.
+    expect(returnPath({ box: 'b', from: 100, v0: 40, to: 20, v1: 40, band: 60 })).toBe('M100,43 L100,54 Q100,60 94,60 L26,60 Q20,60 20,54 L20,43');
+    expect(returnPath({ box: 'b', from: 100, v0: 40, to: 20, v1: 40, band: 60 }, true)).toBe('M43,100 L54,100 Q60,100 60,94 L60,26 Q60,20 54,20 L43,20');
+  });
+
+  it('draws the return of a loop of one layer under its node, either side of its middle', () => {
+    const L = [F(RUN), F(LOOP, AT)];
+    const plan = planOf([ft('a-u', 'u', 'a', 'done', L), ft('a-u~2', 'u', 'a', 'done', L, { pass: 2 })]);
+    for (const down of [false, true]) {
+      const g = layerGraph(plan, [RUN, LOOP], undefined, down);
+      const sizes = sizesOf(g);
+      const l = layoutGraph(g, sizes, down);
+      check(g, l, sizes);
+      const n = l.at[`kind:a@${AT}`] as { x: number; y: number; w: number; h: number };
+      const r = l.returns[0] as LoopReturn;
+      const mid = down ? n.y + n.h / 2 : n.x + n.w / 2;
+      expect(r.from - mid).toBeCloseTo(mid - r.to);
+      expect(r.from - r.to).toBeGreaterThan(20);
+    }
+  });
 });
 
 describe('keyboard', () => {
@@ -837,5 +886,62 @@ describe('zoomView', () => {
     const v = zoomView({ k: 1, x: 0, y: 0 }, 2, 100, 50, 0.1, 4);
     expect(v).toEqual({ k: 2, x: -100, y: -50 });
     expect(zoomView({ k: 1, x: 0, y: 0 }, 10, 0, 0, 0.1, 4).k).toBe(4);
+  });
+});
+
+describe('resolveLayer', () => {
+  const plan = reviewRun({ a: 1, b: 2 });
+  it('keeps a layer the plan has, with its loop box', () => {
+    expect(resolveLayer(plan, [RUN, LOOP])).toEqual([RUN, LOOP]);
+    expect(resolveLayer(plan, [RUN, LOOP, `loop:${AT}`])).toEqual([RUN, LOOP, `loop:${AT}`]);
+  });
+  it("finds a function named by its qualified name, or by its name, when the plan reaches it by one flow path", () => {
+    expect(resolveLayer(plan, [LOOP])).toEqual([RUN, LOOP]);
+    expect(resolveLayer(plan, ['review_loop'])).toEqual([RUN, LOOP]);
+    expect(resolveLayer(plan, ['review_loop', `loop:${AT}`])).toEqual([RUN, LOOP, `loop:${AT}`]);
+  });
+  it('names nothing for a layer the plan does not have', () => {
+    expect(resolveLayer(plan, ['flows.gone'])).toBeNull();
+    expect(resolveLayer(plan, [RUN, LOOP, 'loop:99'])).toBeNull();
+    // A function the plan reaches by two flow paths names no one layer.
+    const SUB = 'flows.sub';
+    const two = planOf([ft('x-u', 'u', 'x', 'done', [F(RUN), F(SUB)]), ft('y-u', 'u', 'y', 'done', [F(RUN), F(LOOP), F(SUB)])]);
+    expect(resolveLayer(two, [SUB])).toBeNull();
+    expect(resolveLayer(two, [RUN, LOOP, SUB])).toEqual([RUN, LOOP, SUB]);
+  });
+});
+
+describe('what is selected', () => {
+  const plan = reviewRun({ a: 1, b: 2 });
+  const g = layerGraph(plan, [RUN, LOOP]);
+  it('names a node, a loop box or a mark of the layer', () => {
+    expect(selected(g, null, 'kind:summarize')).toMatchObject({ type: 'node', node: { id: 'kind:summarize' } });
+    expect(selected(g, null, `loop:${AT}`)).toMatchObject({ type: 'box', box: { id: `loop:${AT}` } });
+    const fix = g.nodes.find((n) => n.id === `kind:fix@${AT}`);
+    const mark = fix?.units.find((m) => m?.unit === 'b');
+    expect(markSel(`kind:fix@${AT}`, mark ?? { unit: 'b', key: '' })).toBe(`kind:fix@${AT}#b`);
+    expect(selected(g, null, `kind:fix@${AT}#b`)).toMatchObject({ type: 'mark', mark: { unit: 'b', key: 'fix-b~2', passes: 2 }, passes: [] });
+    expect(selected(g, null, 'kind:gone')).toBeNull();
+    expect(selected(g, null, `kind:fix@${AT}#zz`)).toBeNull();
+    expect(selected(g, null, '')).toBeNull();
+  });
+  it("names a mark of a loop's passes by its column", () => {
+    const m = passMatrix(plan, [RUN, LOOP], `loop:${AT}`);
+    expect(selected(g, m, `kind:fix@${AT}|2#b`)).toMatchObject({ type: 'mark', mark: { key: 'fix-b~2' }, passes: [2] });
+    expect(selected(g, m, `kind:fix@${AT}|1#b`)).toMatchObject({ mark: { key: 'fix-b' }, passes: [1] });
+    expect(selected(g, m, `kind:fix@${AT}|2#a`)).toBeNull();
+    expect(selected(g, null, `kind:fix@${AT}|2#b`)).toBeNull();
+  });
+  it("adds up the layer's tasks by state", () => {
+    expect(layerCounts(g.nodes)).toMatchObject({ total: g.nodes.reduce((a, n) => a + n.counts.total, 0) });
+    expect(layerCounts([])).toMatchObject({ total: 0, done: 0 });
+  });
+  it('tells who runs a kind node: an agent, Python or both; a function node, neither', () => {
+    const top = layerGraph(plan, [RUN]);
+    expect(byId(top).get('kind:prepare')?.executor).toBe('python');
+    expect(byId(top).get(`flow:${LOOP}`)?.executor).toBeNull();
+    expect(byId(g).get('kind:summarize')?.executor).toBe('agent');
+    const mixed = planOf([node('a-1', '1', 'g', 'done', { executor: 'python' }), node('b-1', '1', 'g', 'done')]);
+    expect(layerGraph(mixed).nodes[0]?.executor).toBe('mixed');
   });
 });

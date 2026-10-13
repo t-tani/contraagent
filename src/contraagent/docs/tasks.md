@@ -112,6 +112,13 @@ be made (`zeta`) ends its loop there.
   routed, and probed by `preflight=True`, before the first launch: a config
   problem refuses the run. A kind declared inside the flow's body is routed when
   its first task is created: a config problem raises at that task call.
+- A kind is one definition and one `[tasks.<kind>]` table. The flow's code may
+  reach two declarations of one kind (a function's default argument, replaced by
+  its caller): only the one whose tasks are created is the kind's, and it is
+  routed again as its first task is created when its `config` or `requires`
+  differ from the one routed. Creating tasks of two declarations of one kind
+  that differ (`AgentTask.differences`) raises `ValueError` at the second task
+  call; two `agent_task` calls that declare it the same way are one kind.
 - An exception in a flow before its first task is queued is raised by
   `Pipeline.run`. After it, the tasks already queued still run, and the
   exception is in `RunReport.flow_errors`: `ok` is False and `contraagent run`

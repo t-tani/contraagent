@@ -420,6 +420,48 @@ def test_a_kind_declared_while_the_flow_runs_is_routed_when_created(tmp_path):
     assert rep.ok and agent.launches_of("late-u")[0].model == "m-late"
 
 
+revise_v2 = agent_task("revise", instructions="v2", output=Summary, **budget(model="m-v2"))  # revise, declared otherwise
+
+
+def revise_loop(unit, revise=revise):  # the default: a declaration the caller may replace
+    summary = yield summarize(unit, path="x")
+    while not (yield review(unit, summary=summary)).approved:
+        summary = yield revise(unit, summary=summary)
+    return summary
+
+
+def test_a_default_argument_the_caller_replaces_is_a_candidate_not_a_conflict(tmp_path):
+    def flow():
+        return (yield revise_loop("u", revise=revise_v2))
+
+    agent = stub({"u": 2})
+    rep = pipeline(tmp_path, agent).run(flow)
+    assert rep.ok, rep.flow_errors
+    # revise was routed as first reached (the default), and again as revise_v2 created it
+    assert agent.launches_of("revise-u")[0].model == "m-v2"
+    definition = json.loads((rep.run_dir / "definitions/revise.json").read_text())
+    assert definition["files"][0]["text"] == "v2"
+
+
+def test_two_different_declarations_of_one_kind_both_created_raise_at_the_second(tmp_path):
+    again = agent_task("revise", instructions="v", output=Summary, **budget())  # declared the same way: one kind
+
+    def flow():
+        s = yield summarize("u", path="x")
+        s = yield [revise("u", summary=s), again("w", summary=s)]
+        return (yield revise_v2("z", summary=s[0]))
+
+    rep = pipeline(tmp_path, stub()).run(flow)
+    [call] = rep.flow_errors
+    assert isinstance(call.error, ValueError)
+    assert str(call.error) == (
+        "kind 'revise' is declared by two agent_task calls with different instructions, config: "
+        "one kind is one definition and one [tasks.revise] table; give one of them another kind"
+    )
+    assert f'{__file__}", line' in "".join(__import__("traceback").format_exception(call.error))  # the author's call line
+    assert sorted(rep.results) == ["revise-u", "revise-w", "summarize-u"]
+
+
 def test_a_slow_step_is_logged(tmp_path, caplog):
     def flow():
         yield summarize("u", path="x")

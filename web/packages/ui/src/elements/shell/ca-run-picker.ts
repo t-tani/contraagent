@@ -6,6 +6,7 @@ import { emit } from '../../events.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../lib/format.js';
 import { stateCount } from '../../lib/labels.js';
 import { accountsLine, accountsTip } from '../../lib/quota-format.js';
+import { runTone } from '../../lib/tone.js';
 import { base } from '../../styles/base.js';
 import { elapsedS } from '../overview/logic.js';
 
@@ -31,24 +32,24 @@ export class CaRunPicker extends LitElement {
     css`
       :host { position: absolute; top: 50px; width: min(580px, calc(100vw - 24px)); max-height: min(72vh, 660px);
         display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px;
-        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65); opacity: 0; transform: translateY(-6px) scale(0.985);
+        box-shadow: 0 24px 70px color-mix(in srgb, var(--shadow) 70%, transparent); opacity: 0; transform: translateY(-6px) scale(0.985);
         pointer-events: none; z-index: 40; transition: opacity 0.16s var(--ease), transform 0.16s var(--ease); }
       :host([open]) { opacity: 1; transform: none; pointer-events: auto; }
       .search { padding: 10px; border-bottom: 1px solid var(--line); }
-      input { width: 100%; background: var(--well); border: 1px solid var(--line); color: var(--fg); border-radius: 9px;
+      input { width: 100%; background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px;
         padding: 8px 11px; font: inherit; outline: none; }
-      input:focus { border-color: var(--live); }
+      input:focus { border-color: var(--accent); }
       .list { overflow: auto; padding: 6px; }
-      .group { font-size: 11.5px; font-weight: 600; color: var(--mut); padding: 10px 9px 4px; }
+      .group { font-size: 11.5px; font-weight: 600; color: var(--text-muted); padding: 10px 9px 4px; }
       .group .n { font-weight: 400; margin-left: 4px; }
       .keys { margin-top: 6px; display: flex; gap: 4px; align-items: center; }
       .item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 3px 10px; align-items: center;
         padding: 7px 9px; border-radius: 9px; cursor: pointer; }
       .item:hover, .item.kb { background: var(--raise); }
-      .item.cur { box-shadow: inset 2px 0 0 var(--live); background: var(--live-a); }
+      .item.cur { box-shadow: inset 2px 0 0 var(--accent); background: var(--accent-bg); }
       .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .when { font-size: 11px; color: var(--mut); white-space: nowrap; }
-      .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--mut); }
+      .when { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+      .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
     `,
   ];
 
@@ -144,7 +145,7 @@ export class CaRunPicker extends LitElement {
   }
 
   private item(r: RunSummary, i: number) {
-    const dot = r.running ? 'live' : r.tasks.failed || r.tasks.not_started ? 'warn' : 'ok';
+    const dot = runTone(r.running, r.tasks);
     const cls = `item${r.run === this.current ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
     return html`<div class=${cls} role="option" aria-selected=${r.run === this.current} @click=${() => this.pick(r.run)}>
       <span class="dot ${dot}" aria-hidden="true"></span><span class="nm">${r.run}</span>

@@ -61,7 +61,7 @@ export class CaContracts extends LitElement {
       details.ct { border-top: 1px solid var(--line); }
       details.ct > summary { list-style: none; cursor: pointer; padding: 7px 4px; display: flex; align-items: center; gap: 10px; }
       details.ct > summary::-webkit-details-marker { display: none; }
-      details.ct > summary::before { content: '▸'; color: var(--mut); width: 10px; transition: transform 0.15s; }
+      details.ct > summary::before { content: '▸'; color: var(--text-muted); width: 10px; transition: transform 0.15s; }
       details.ct[open] > summary::before { transform: rotate(90deg); }
       details.ct > summary:hover { background: var(--raise); border-radius: 8px; }
       .k-ic { margin-right: 0; }
@@ -70,7 +70,7 @@ export class CaContracts extends LitElement {
       .ct-links { margin-top: 10px; font-size: 12px; }
       .lead { margin: -4px 0 10px; }
       .one { display: flex; align-items: center; gap: 10px; padding: 7px 4px 7px 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-      .why { color: var(--fg2); font-size: 12px; }
+      .why { color: var(--text-2); font-size: 12px; }
     `,
   ];
 

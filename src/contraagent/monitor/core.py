@@ -1,4 +1,4 @@
-"""What the monitor reads: runs, journal rows, task rollups, agent transcripts.
+"""What the monitor reads: runs, journal rows, the plan, task details, agent transcripts.
 
 `Monitor` is the framework-neutral core (no web dependency): the HTTP
 layer in `server.py` is a thin shell over its methods, so a CLI, a TUI or
@@ -10,7 +10,7 @@ A domain extends it two ways, neither touching the framework:
   tab in the web UI (rendered as a JSON tree) and is pushed over the live
   feed whenever its value changes. A security-scan pipeline would register
   "findings" or "targets"; a data pipeline would register "datasets".
-* `task_detail` — `fn(run, slot_or_key, rows) -> dict` (`TaskDetailFn`), merged into the
+* `task_detail` — `fn(run, key, rows) -> dict` (`TaskDetailFn`), merged into the
   per-task view (a task's declared inputs/outputs, the state it wrote).
 """
 
@@ -46,14 +46,8 @@ class Panel:
         return self.fn(run)
 
 
-#: The `task_detail` callback: `fn(run, slot_or_key, rows) -> dict`, merged into `Monitor.task_detail`.
+#: The `task_detail` callback: `fn(run, key, rows) -> dict`, merged into `Monitor.task_detail`.
 TaskDetailFn = Callable[[str, str, list], dict]
-
-
-def slot_of(kind: str, unit: str) -> str:
-    """Rollup key: one kind x unit row across re-dispatches (`<kind>-<unit>`), or
-    the bare kind for a run-scope task."""
-    return f"{kind}-{unit}" if unit else kind
 
 
 def _running_keys(snap: dict) -> set:
@@ -236,47 +230,6 @@ class Monitor:
                 continue
         return out, len(lines)
 
-    def tasks(self, run: str, live: dict | None = None) -> list[dict]:
-        """Per-(kind, unit) rollup: latest stop, totals, and what is running now.
-
-        Grouped by slot, not the journal's `key`: a kind dispatched
-        repeatedly over one unit mints a fresh content-addressed key per
-        dispatch, and the slot restores "this unit's ongoing work" as one row.
-        """
-        roll: dict[str, dict] = {}
-
-        def slot_row(kind: str, unit: str, executor: str) -> dict:
-            slot = slot_of(kind, unit)
-            return roll.setdefault(
-                slot,
-                {
-                    "slot": slot,
-                    "kind": kind,
-                    "unit": unit,
-                    "executor": executor,
-                    "attempts": 0,
-                    "last_stop": "",
-                    "last_ts": "",
-                    "wall_s": 0,
-                    "ok": 0,
-                },
-            )
-
-        for e in self._read_journal(run):
-            t = slot_row(e.get("kind") or "?", e.get("unit") or "", e.get("executor") or "agent")
-            t["attempts"] += 1
-            t["ok"] += bool(e.get("ok"))
-            t["last_stop"] = e.get("stop", "")
-            t["last_ts"] = e.get("ts", "")
-            t["wall_s"] += float(e.get("wall_s") or 0)
-        snap = live if live is not None else procs.snapshot(self.runs_dir, run)
-        live_tasks = [(lc, "agent") for lc in snap.get("launches", [])] + [(pt, "python") for pt in snap.get("python_tasks", [])]
-        for lt, executor in live_tasks:
-            t = slot_row(lt.get("kind", ""), lt.get("unit", ""), executor)
-            t["running"] = True
-            t.setdefault("live_keys", []).append(lt.get("key"))
-        return sorted(roll.values(), key=lambda t: (t.get("running", False), t["last_ts"]), reverse=True)
-
     # --- plan (the pipeline, including work that has not started) ---------
 
     def _read_plan(self, run: str) -> list[dict]:
@@ -442,37 +395,31 @@ class Monitor:
     def procs(self, run: str) -> dict:
         return procs.snapshot(self.runs_dir, run)
 
-    def task_detail(self, run: str, slot_or_key: str) -> dict:
-        """Journal rows, live launches and the stream file for one slot or exact task key."""
-        paths.check_name(slot_or_key, "task key")
-        rows = [
-            e
-            for e in self._read_journal(run)
-            if e.get("key") == slot_or_key or slot_of(e.get("kind") or "", e.get("unit") or "") == slot_or_key
-        ]
+    def task_detail(self, run: str, key: str) -> dict:
+        """Journal rows, live launches and the stream file for one task, by its key."""
+        paths.check_name(key, "task key")
+        rows = [e for e in self._read_journal(run) if e.get("key") == key]
         snap = procs.snapshot(self.runs_dir, run)
         launches = [
             {k: c.get(k) for k in ("key", "kind", "unit", "pid", "age_s", "plugin", "model", "role")}
             | {"cmd": (c.get("full_cmd") or "")[:600]}
             for c in snap.get("launches", [])
-            if c.get("key") == slot_or_key or slot_of(c.get("kind", ""), c.get("unit", "")) == slot_or_key
+            if c.get("key") == key
         ]
-        # The stream file's own name is the exact Task.key: the live launch's
-        # when one is running, else the newest finished row's.
-        key = launches[0]["key"] if launches else (rows[-1]["key"] if rows else slot_or_key)
-        kind = (rows[-1].get("kind") if rows else None) or (launches[0].get("kind") if launches else None) or slot_or_key.split("-")[0]
+        planned = next((n for n in self._read_plan(run) if n.get("key") == key), {})
+        kind = (rows[-1].get("kind") if rows else None) or (launches[0].get("kind") if launches else None) or planned.get("kind")
         defs = {d.get("kind"): d for d in self.definitions(run)}
         detail = {
-            "key": slot_or_key,
+            "key": key,
             "rows": rows,
             "launches": launches,
             "definition": defs.get(kind),
-            "io": self.task_io(run, rows[-1]["key"] if rows else slot_or_key),
+            "io": self.task_io(run, key),
             "stream": key if _plain(key) and self.stream_path(run, key).is_file() else None,
         }
         if self.task_detail_fn is not None:
             try:
-                detail.update(self.task_detail_fn(run, slot_or_key, rows) or {})
+                detail.update(self.task_detail_fn(run, key, rows) or {})
             except Exception as exc:  # a domain's callback must not break the view
                 detail["task_detail_error"] = f"{type(exc).__name__}: {exc}"
         return detail

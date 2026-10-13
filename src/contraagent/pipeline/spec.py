@@ -65,22 +65,34 @@ class AgentTask[Out]:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
         instructions, its role file's content, its output schema, its validators and its
         params schema."""
+        return _digest(self._defined())
+
+    def differences(self, other: AgentTask) -> list[str]:
+        """What `other`, a declaration of the same kind, declares otherwise: the parts of the
+        digest, the plugin, `config`, `requires`, `tags` and `output_name`. None: one kind,
+        declared twice the same way."""
+        if other is self:
+            return []
+        mine, theirs = self._defined(), other._defined()
+        parts = [name for name in mine if mine[name] != theirs[name]]
+        if (self.plugin and self.plugin.root) != (other.plugin and other.plugin.root):
+            parts.append("plugin")
+        return parts + [name for name in ("config", "requires", "tags", "output_name") if getattr(self, name) != getattr(other, name)]
+
+    def _defined(self) -> dict[str, Any]:
         role = ""
         if self.plugin is not None and self.role is not None:
             try:
                 role = self.plugin.role_file(self.role).read_text()
             except OSError:
                 pass
-        params = _schema(self.params) if self.params is not None else None
-        return _digest(
-            {
-                "instructions": self.instructions,
-                "role": role,
-                "output": _schema(self.output_schema) if self.output_schema is not None else self.output_format,
-                "validators": [_validator_identity(v) for v in self.validators],
-                "params": params,
-            }
-        )
+        return {
+            "instructions": self.instructions,
+            "role": role,
+            "output": _schema(self.output_schema) if self.output_schema is not None else self.output_format,
+            "validators": [_validator_identity(v) for v in self.validators],
+            "params": _schema(self.params) if self.params is not None else None,
+        }
 
     def __call__(self, unit: str = "", *, key: str | None = None, after: Sequence[Pending | str] = (), **params: Any) -> Pending[Out]:
         """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks."""

@@ -5,17 +5,16 @@ Endpoints (all GET; response models in `api.py`):
   /api/info                          Info: title, the panel names the UI should offer, the contract version
   /api/runs                          list[RunSummary]
   /api/runs/<run>/journal?since=N    JournalPage: journal rows after line offset N
-  /api/runs/<run>/tasks              list[TaskRollup]: per-(kind, unit) rollup
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
   /api/runs/<run>/outputs            Outputs: the contracts tasks must satisfy: file, model, status, content
   /api/runs/<run>/cursor             CursorView: stage, completed stages, each unit's step
   /api/runs/<run>/procs              Procs: live process tree
-  /api/runs/<run>/task/<slot_or_key> TaskDetail: one slot or task: rows, live launches, stream name
+  /api/runs/<run>/task/<key>         TaskDetail: one task: its journal rows, live launches, stream name
   /api/runs/<run>/stream/<key>       StreamPage: one page of a transcript at an offset ("load earlier")
   /api/runs/<run>/panels/<name>      one registered panel (any JSON object)
   /api/openapi.json                  this contract as OpenAPI (also `contraagent/monitor/openapi.json`)
-  /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / tasks / panel:<name>,
+  /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / panel:<name>,
                                      and `ready` once the first round (the journal replay) is out
   /events/stream?run=&key=<key>      SSE, StreamMessage: one transcript, tailed live
 
@@ -94,7 +93,6 @@ _OUTPUTS = TypeAdapter(api.Outputs)
 # `Optional`, not `X | None`: outside an annotation that is a `UnionType`
 # value, which type checkers do not accept as a TypeAdapter's type.
 _CURSOR = TypeAdapter(Optional[api.CursorView])  # noqa: UP045
-_TASKS = TypeAdapter(list[api.TaskRollup])
 _PANEL = TypeAdapter(api.JsonObject)
 _STREAM = TypeAdapter(api.StreamPage)
 _READY = TypeAdapter(api.FeedReady)
@@ -126,24 +124,23 @@ def _host_names(host: str) -> list[str]:
 
 
 async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awaitable[bool]]) -> AsyncIterator[dict[str, str]]:
-    """One client's live feed. `tasks` and each panel are recomputed every
-    tick but only sent when their value changed. The first tick sends
-    everything (the whole journal included) and ends with `ready`."""
+    """One client's live feed. Each view is recomputed every tick but only sent
+    when its value changed. The first tick sends everything (the whole journal
+    included) and ends with `ready`."""
     jpos, replayed = 0, False
     sigs: dict[str, str] = {}
     while True:
         if await is_disconnected():
             return
-        changed = False
         entries, total = monitor.journal(run, jpos)
         if entries:
-            jpos, changed = total, True
+            jpos = total
             for e in entries:
                 yield {"event": "journal", "data": _json(_JOURNAL, e)}
         procs = monitor.procs(run)
         sig = _procs_sig(procs)
         if sig != sigs.get("procs"):
-            sigs["procs"], changed = sig, True
+            sigs["procs"] = sig
             yield {"event": "procs", "data": _json(_PROCS, procs)}
         for name in monitor.panels:
             try:
@@ -155,18 +152,16 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
                 yield {"event": f"panel:{name}", "data": body}
         plan = _json(_PLAN, monitor.plan(run, procs))
         if plan != sigs.get("plan"):
-            sigs["plan"], changed = plan, True
+            sigs["plan"] = plan
             yield {"event": "plan", "data": plan}
         outs = _json(_OUTPUTS, monitor.outputs(run))
         if outs != sigs.get("outputs"):
-            sigs["outputs"], changed = outs, True
+            sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
         cur = _json(_CURSOR, monitor.cursor(run))
         if cur != sigs.get("cursor"):
-            sigs["cursor"], changed = cur, True
+            sigs["cursor"] = cur
             yield {"event": "cursor", "data": cur}
-        if changed:
-            yield {"event": "tasks", "data": _json(_TASKS, monitor.tasks(run, procs))}
         if not replayed:
             replayed = True
             yield {"event": "ready", "data": _json(_READY, {"journal": jpos})}
@@ -220,11 +215,6 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         entries, total = monitor.journal(run, since)
         return {"entries": entries, "total": total}
 
-    @route("/api/runs/{run}/tasks", list[api.TaskRollup])
-    def api_tasks(run: str) -> list[dict]:
-        """Per-(kind, unit) rollup of finished attempts plus what is running now."""
-        return monitor.tasks(run)
-
     @route("/api/runs/{run}/plan", api.Plan)
     def api_plan(run: str) -> dict:
         """Every queued task with its dependencies and state, and the groups the UI draws as columns."""
@@ -250,10 +240,10 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         """The run's live agent launches, process tree and Python tasks."""
         return monitor.procs(run)
 
-    @route("/api/runs/{run}/task/{slot_or_key}", api.TaskDetail)
-    def api_task(run: str, slot_or_key: str) -> dict:
-        """One slot (`<kind>-<unit>`) or exact task key: journal rows, live launches, definition, input/output, transcript name."""
-        return monitor.task_detail(run, slot_or_key)
+    @route("/api/runs/{run}/task/{key}", api.TaskDetail)
+    def api_task(run: str, key: str) -> dict:
+        """One task, by its key: journal rows, live launches, definition, input/output, transcript name."""
+        return monitor.task_detail(run, key)
 
     @route("/api/runs/{run}/stream/{key}", api.StreamPage)
     def api_stream(run: str, key: str, since: int = 0) -> dict:

@@ -8,7 +8,6 @@ export const RUN_EVENT_NAMES = [
   'plan',
   'outputs',
   'cursor',
-  'tasks',
   'ready',
 ] as const satisfies readonly RunEventName[];
 

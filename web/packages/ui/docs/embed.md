@@ -2,7 +2,7 @@
 
 `<ca-monitor>` is the complete monitor: header, run switcher, tabs, filters,
 views and notifications. It holds the data (a `MonitorStore`) and the route.
-Its attributes (`base-url`, `history`, `run`, `locale`) are described in
+Its attributes (`base-url`, `history`, `run`, `locale`, `theme`) are described in
 `custom-elements.json`. `history="url"` suits a page that is the monitor;
 inside an application with its own router, use `history="memory"`.
 

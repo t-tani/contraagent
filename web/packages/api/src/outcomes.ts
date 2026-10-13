@@ -183,3 +183,13 @@ export function taskRows(journal: readonly JournalRow[], plan: Plan): TaskRow[] 
     };
   });
 }
+
+/** The task to open by default: a running agent task, else the agent task that ran last (it has a transcript); never a Python task. Its key, or null. */
+export function latestTask(rows: readonly TaskRow[]): string | null {
+  const agent = rows.filter((t) => t.executor !== 'python');
+  const running = agent.find((t) => t.outcome === 'running');
+  if (running) return running.key;
+  const ran = (t: TaskRow) => t.tries[t.tries.length - 1]?.ts ?? '';
+  const last = agent.filter(ran).sort((a, b) => ran(b).localeCompare(ran(a)))[0];
+  return last?.key ?? null;
+}

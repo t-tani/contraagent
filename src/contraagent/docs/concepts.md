@@ -46,7 +46,7 @@ documentation. No other word is used for the same thing.
 | **validator** | a check a file must pass beyond its schema | `agent_task(validators=)`, `CommandValidator`, any `(path, value) -> errors` |
 | **contract** | a file plus its schema and validators | `OutputContract`, `InputContract` |
 | **check** | what can be found wrong with a flow without a launch | `Pipeline.check`, `CheckReport`, `contraagent check` |
-| **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch | `pipeline/reach.py`, `CheckReport.later_kinds` |
+| **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch. A candidate, not a use: of two declarations of one kind, the one whose tasks are created is the kind's | `pipeline/reach.py`, `CheckReport.later_kinds` |
 | **stub agent** | a coding agent that plays scripted replies instead of an LLM, for tests | `contraagent.testing.StubAgent` |
 
 ## Routing
@@ -99,12 +99,14 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 
 | Word | Means | In code |
 |---|---|---|
-| **slot** | one kind × unit row, across re-dispatches | `slot` |
 | **group** | a column of the plan | `Monitor(groups=)` |
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |
 | **element** | a web component of `@contraagent/ui` (`ca-*`) | `CaMonitor`, `CaTranscript`, ... |
+| **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | route `sel`, `markSel`, `selected` |
+| **inspector** | the card beside the selection in the pipeline graph's frame (a sheet under the frame on a narrow screen) that shows its facts and where it leads | `ca-pipeline-graph` |
+| **run start** | one start of a run over its directory: the first, or a resume; a task numbers its attempts from 0 in each | `run.json` `started_at` (the latest), `runStarts` |
 
 The monitor's screens show some of these in the words of engineers who use
 coding agents (a round after contract errors is a "correction", a task's

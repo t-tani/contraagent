@@ -2,10 +2,10 @@ import {
   isLaunched,
   isPython,
   runReadings,
+  runStarts,
   spendOf,
   taskOutcomes,
   tryQuota,
-  type ContractSpec,
   type JournalRow,
   type LaunchEvent,
   type MonitorClient,
@@ -24,6 +24,7 @@ import { emit } from '../../events.js';
 import { facts, fmtDur, kindUnit, localTime, tokens, unreadEvents, usd } from '../../lib/format.js';
 import {
   attemptLabel,
+  attemptNames,
   correctionsText,
   credentialLabel,
   credentialTip,
@@ -37,12 +38,14 @@ import {
   taskState,
 } from '../../lib/labels.js';
 import { accountReading, readingShort, readingTip } from '../../lib/quota-format.js';
+import { stopTone, type Tone } from '../../lib/tone.js';
 import { TASK_VIEWS, type TaskView } from '../../route.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-definition.js';
 import '../shared/ca-json-tree.js';
 import '../shared/ca-markdown.js';
-import { contractStyles, ioFileCard, type Producer } from '../shared/contract-parts.js';
+import { contractStyles, ioFileCard, statusLabel, statusWhy, type Producer } from '../shared/contract-parts.js';
+import { inputView, notPassed, type EarlierTask, type InputFile } from './inputs.js';
 import { taskChip } from '../shared/task-chip.js';
 import './ca-transcript.js';
 import type { CaTranscript, RoundsChangedDetail } from './ca-transcript.js';
@@ -74,9 +77,8 @@ const emptyDetail = (key: string): TaskDetail => ({
 });
 
 const pill = (s: string, label = s) => html`<span class="pill p-${s}">${label}</span>`;
-/** The pill class of a stop: its own for the ones with a colour, else `error` (every other stop is a failure). */
-const STOP_TONES = new Set(['completed', 'invalid_input', 'invalid_output', 'timeout', 'max_turns', 'stalled', 'skipped', 'running']);
-const stopTone = (stop: string): string => (STOP_TONES.has(stop) ? stop : 'error');
+/** The pill class of a stop's tone (`stopTone`). */
+const STOP_PILL: Partial<Record<Tone, string>> = { done: 'completed', attention: 'invalid_input', muted: 'skipped', running: 'running', failed: 'error' };
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
 const sameJson = (a: unknown, b: unknown): boolean => {
   try {
@@ -85,8 +87,6 @@ const sameJson = (a: unknown, b: unknown): boolean => {
     return false;
   }
 };
-/** An upstream output that did not pass, or is missing: it goes first and stays open. */
-const notPassed = (o: ContractSpec): boolean => !o.file.exists || (o.status != null && o.status !== 'valid');
 
 /** The status mark and the word a screen reader says for it. */
 const mark = (ok: boolean) =>
@@ -113,26 +113,26 @@ export class CaTaskView extends LitElement {
     css`
       :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
       .taskmeta { flex: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
-        border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; color: var(--fg2); }
+        border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; color: var(--text-2); }
       .tm-head { display: flex; gap: 12px; align-items: center; }
       .tm-av { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; flex: none;
-        background: linear-gradient(135deg, #7c3aed, #22d3ee); color: #fff; box-shadow: 0 6px 18px rgba(124, 58, 237, 0.35); }
-      .tm-av.py { background: var(--raise); color: var(--muted); box-shadow: none; }
-      .tm-name { font-size: 15px; font-weight: 600; color: var(--fg); display: flex; gap: 8px; align-items: center; }
-      .verdict { font-size: 12.5px; color: var(--fg); margin-top: 2px; }
-      .verdict.bad { color: var(--err); }
-      .verdict.warn { color: var(--warn); }
-      .verdict.mut { color: var(--mut); }
+        background: var(--agent-bg); color: var(--agent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent) 35%, transparent); }
+      .tm-av.py { background: var(--raise); color: var(--text-muted); box-shadow: none; }
+      .tm-name { font-size: 15px; font-weight: 600; color: var(--text); display: flex; gap: 8px; align-items: center; }
+      .verdict { font-size: 12.5px; color: var(--text); margin-top: 2px; }
+      .verdict.failed { color: var(--status-failed); }
+      .verdict.attention { color: var(--status-attention); }
+      .verdict.mut { color: var(--text-muted); }
       .whos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
       .runchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-      .who.ident { color: var(--fg2); font-family: var(--mono); font-weight: 500; }
-      .spend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--mut); font-variant-numeric: tabular-nums; }
-      .spend b { color: var(--fg); font-weight: 600; }
+      .who.ident { color: var(--text-2); font-family: var(--mono); font-weight: 500; }
+      .spend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+      .spend b { color: var(--text); font-weight: 600; }
       .spend.quota { flex-direction: column; gap: 0; }
       .usage-wrap { overflow-x: auto; margin: 4px 0 12px; }
       /* sized to its content (a full-width table spreads a few numbers far apart); the wrap scrolls when it is wider */
       .usage { width: auto; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-      .usage th { text-align: right; font-weight: 600; color: var(--mut); font-size: 10.5px; white-space: nowrap;
+      .usage th { text-align: right; font-weight: 600; color: var(--text-muted); font-size: 10.5px; white-space: nowrap;
         padding: 6px 14px; border-bottom: 1px solid var(--line2); vertical-align: bottom; }
       .usage td { text-align: right; padding: 8px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: baseline; }
       .usage th:first-child, .usage td:first-child { padding-left: 4px; }
@@ -140,23 +140,23 @@ export class CaTaskView extends LitElement {
       /* the subscription readings wrap at a narrow width rather than push the table past the edge */
       .usage td.l:not(:first-child):not(.jmono) { white-space: normal; min-width: 12ch; }
       .usage th.l, .usage td.l { text-align: left; }
-      .usage tr.hop td { padding-top: 4px; padding-bottom: 4px; color: var(--mut); }
+      .usage tr.hop td { padding-top: 4px; padding-bottom: 4px; color: var(--text-muted); }
       .usage tr.hop td:first-child { padding-left: 28px; }
-      .runchip { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line2); color: var(--fg2); }
-      .runchip.ok { border-color: rgba(52, 211, 153, 0.35); }
-      .runchip.bad { border-color: rgba(248, 113, 113, 0.4); color: var(--err); }
+      .runchip { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line2); color: var(--text-2); }
+      .runchip.ok > [aria-hidden] { color: var(--status-done); font-weight: 700; }
+      .runchip.bad { border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); color: var(--status-failed); background: var(--status-failed-bg); }
       .io-fold { margin-top: 6px; }
-      .io-fold > summary, .launch > summary { cursor: pointer; color: var(--mut); }
+      .io-fold > summary, .launch > summary { cursor: pointer; color: var(--text-muted); }
       .searches { margin: 4px 0 0; padding-left: 22px; }
-      .unread { color: var(--warn); margin-top: 4px; }
-      .qlink { background: none; border: 0; padding: 0; color: var(--info); cursor: pointer; text-align: left; font: inherit; }
+      .unread { color: var(--status-attention); margin-top: 4px; }
+      .qlink { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-align: left; font: inherit; }
       .qlink:hover { text-decoration: underline; }
 
       .tviews { flex: none; display: flex; gap: 4px; margin: 2px 0 8px; border-bottom: 1px solid var(--line); }
-      .tview { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--mut); padding: 6px 14px; cursor: pointer; }
-      .tview:hover { color: var(--fg2); }
-      .tview.sel { color: var(--fg); border-bottom-color: var(--live); }
-      .tview .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--fg2); }
+      .tview { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 6px 14px; cursor: pointer; }
+      .tview:hover { color: var(--text-2); }
+      .tview.sel { color: var(--text); border-bottom-color: var(--accent); }
+      .tview .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); }
 
       .pane { flex: 1 1 auto; min-height: 0; overflow: auto; }
       .upstream { margin-bottom: 12px; }
@@ -166,7 +166,7 @@ export class CaTaskView extends LitElement {
       details.upstream > summary { cursor: pointer; list-style: none; }
       details.upstream > summary::-webkit-details-marker { display: none; }
       .params td { vertical-align: top; }
-      .from { color: var(--live); white-space: nowrap; }
+      .from { color: var(--text-muted); white-space: nowrap; }
     `,
   ];
 
@@ -174,7 +174,7 @@ export class CaTaskView extends LitElement {
   @property({ attribute: false }) client!: MonitorClient;
   @property({ attribute: 'base-url' }) baseUrl = '';
   @property() run = '';
-  /** A task key or slot; null when there is no task to show. */
+  /** A task key; null when there is no task to show. */
   @property({ attribute: false }) taskKey: string | null = null;
   @property() view: TaskView = 'transcript';
   /** The round shown, 1-based; null follows the latest. */
@@ -324,7 +324,7 @@ export class CaTaskView extends LitElement {
     return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${facts(msg('No transcript'), outcomeLabel(state))}</b></div>`;
   }
 
-  /** One line under the title: what happened to the task, in words, and its look (`bad`, `warn`, `mut`). */
+  /** One line under the title: what happened to the task, in words, and its look (`failed`, `attention`, `mut`). */
   private verdict(d: TaskDetail, live: boolean): [text: string, look: string] {
     const rows = d.rows;
     const tries = rows.filter(isLaunched);
@@ -339,11 +339,11 @@ export class CaTaskView extends LitElement {
         return [msg('Skipped'), 'mut'];
       case 'not_started': {
         const cause = this.notStartedCause(d);
-        return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'warn'];
+        return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
       }
       case 'failed': {
         const why = runRelative(last?.reason, this.run) || stopLabel(last?.stop);
-        return [tries.length > 1 ? msg(str`Failed on all ${tries.length} attempts: ${why}`) : msg(str`Failed: ${why}`), 'bad'];
+        return [tries.length > 1 ? msg(str`Failed on all ${tries.length} attempts: ${why}`) : msg(str`Failed: ${why}`), 'failed'];
       }
       default:
         break;
@@ -429,7 +429,7 @@ export class CaTaskView extends LitElement {
           ${this.quotaLine(tries)}
         </div>
       </div>
-      ${tries.length ? html`<div class="runchips">${tries.map((r) => this.runChip(r, session))}</div>` : nothing}
+      ${tries.length ? html`<div class="runchips">${attemptNames(tries).map((name, i) => this.runChip(tries[i] as JournalRow, name, session))}</div>` : nothing}
       ${this.searchFold(tries)}
       ${unreadEvents(tries)
         ? html`<div class="meta unread" title=${msg('Event types from the coding agent that this contraagent version does not recognize')}>
@@ -512,7 +512,7 @@ export class CaTaskView extends LitElement {
   }
 
   /** One finished attempt: how it ended, how long, its cost; the rest (when, corrections, model, model switch) in its tooltip. */
-  private runChip(r: JournalRow, session: boolean) {
+  private runChip(r: JournalRow, name: string, session: boolean) {
     const ok = r.ok;
     const reason = runRelative(r.reason, this.run);
     const sw = modelSwitch(r.hops);
@@ -528,7 +528,7 @@ export class CaTaskView extends LitElement {
       .join('\n');
     const cost = r.cost_usd !== null && r.cost_usd !== undefined ? usd(r.cost_usd) : '';
     return html`<span class="runchip ${ok ? 'ok' : 'bad'}" title=${tip}>
-      ${mark(ok)} ${facts(attemptLabel(r.attempt), stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost)}
+      ${mark(ok)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost)}
     </span>`;
   }
 
@@ -559,11 +559,7 @@ export class CaTaskView extends LitElement {
   private inputPane(d: TaskDetail, live: boolean) {
     const io = d.io;
     const params = Object.entries(io.params);
-    const declared = new Set(io.inputs.map((o) => o.path));
-    const fromUpstream = (o: ContractSpec) => io.upstream.some((u) => u.outputs.some((x) => x.path === o.path));
-    const others = io.inputs.filter((o) => !fromUpstream(o));
-    // Earlier tasks whose output did not pass (or is missing) first, open; the rest folded.
-    const up = [...io.upstream].sort((a, b) => Number(b.outputs.some(notPassed)) - Number(a.outputs.some(notPassed)));
+    const { files, earlier } = inputView(io);
     const source = (v: unknown) => io.upstream.find((u) => u.outputs.some((o) => o.file.exists && sameJson(o.file.content, v)));
     return html`<h4 class="sect-h">${msg('Parameters')}</h4>
       ${params.length
@@ -578,44 +574,45 @@ export class CaTaskView extends LitElement {
             })}
           </table>`
         : html`<div class="meta">${msg('No parameters')}</div>`}
-      <h4 class="sect-h">${msg('Inputs from earlier tasks')}</h4>
-      ${up.length ? up.map((u) => this.upstreamGroup(u, declared)) : html`<div class="meta">${msg('No earlier tasks')}</div>`}
-      ${others.length
-        ? html`<h4 class="sect-h">${msg('Other input files')} <span class="meta">${msg('Checked when the task starts')}</span></h4>
-            ${others.map((o) => ioFileCard(o, 'input', this.run))}`
-        : !io.inputs.length && !up.length
-          ? html`<h4 class="sect-h">${msg('Input files')}</h4>
-              <div class="meta">${msg('No input files')}</div>`
-          : nothing}
+      <h4 class="sect-h">${msg('Input files')}</h4>
+      ${files.length ? files.map((f) => this.inputCard(f)) : html`<div class="meta">${msg('No input files')}</div>`}
+      <h4 class="sect-h">${msg('Earlier tasks')}</h4>
+      ${earlier.length ? earlier.map((e) => this.earlierTask(e)) : html`<div class="meta">${msg('No earlier tasks')}</div>`}
       ${this.isPy(d) ? nothing : this.promptSection(d, live)}`;
   }
 
-  /** One earlier task's output files: open when one did not pass or is missing, folded when all passed. */
-  private upstreamGroup(u: UpstreamTask, declared: ReadonlySet<string>) {
-    const bad = u.outputs.some(notPassed);
-    const missing = u.outputs.filter((o) => !o.file.exists).length;
-    const failed = u.outputs.filter((o) => o.file.exists && o.status != null && o.status !== 'valid').length;
-    const passed = u.outputs.length - missing - failed;
+  /** One file the task reads: its check, and the earlier task that writes it or that it is from before the run. */
+  private inputCard(f: InputFile) {
+    const u = f.from;
+    const state = u ? this.outcomes.get(u.key)?.outcome : undefined;
+    const origin = u
+      ? html`<span>${msg(html`Output of ${this.link(u)}`)}</span>${state && state !== 'done' ? html`<span class="pill o-${state}">${outcomeLabel(state)}</span>` : nothing}`
+      : msg('File from before the run');
+    // Written by an earlier task: that task's check of it ("passed", "not written (task failed)").
+    const st = f.out?.status;
+    if (!st) return ioFileCard(f.spec, 'input', this.run, { origin });
+    const chip = html`<span class="ct-chip ${st}" title=${statusWhy(st)}>${statusLabel(st)}</span>`;
+    return ioFileCard({ ...f.spec, status: st }, 'input', this.run, { origin, chip });
+  }
+
+  /** One earlier task: its status, how many of its output files this task reads, and the others folded under it (open when one did not pass). */
+  private earlierTask(e: EarlierTask) {
+    const u = e.task;
     const kindName = isPython(u) ? msg('Python task') : msg('Agent task');
     const state = this.outcomes.get(u.key)?.outcome;
-    const summary = !u.outputs.length
+    const n = u.outputs.length;
+    const summary = !n
       ? msg('No output files')
-      : facts(
-          missing ? (missing === 1 ? msg('1 output file is missing') : msg(str`${missing} output files are missing`)) : '',
-          failed ? (failed === 1 ? msg('1 output file failed checks') : msg(str`${failed} output files failed checks`)) : '',
-          !bad ? (passed === 1 ? msg('1 output file passed') : msg(str`${passed} output files passed`)) : '',
-        );
+      : facts(n === 1 ? msg('1 output file') : msg(str`${n} output files`), e.read ? (e.read === 1 ? msg('1 read by this task') : msg(str`${e.read} read by this task`)) : '');
     const head = html`<div class="up-hd">
       <span class="k-ic ${isPython(u) ? '' : 'llm'}" title=${kindName}><span aria-hidden="true">${isPython(u) ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
       ${this.link(u)}
-      ${state && state !== 'done' ? html`<span class="pill o-${state}">${outcomeLabel(state)}</span>` : nothing}
+      ${state ? html`<span class="pill o-${state}">${outcomeLabel(state)}</span>` : nothing}
       <span class="meta">${summary}</span>
-      ${u.outputs.some((o) => declared.has(o.path))
-        ? html`<span class="ct-chip" title=${msg('Also declared as an input of this task')}>${msg('Also an input')}</span>`
-        : nothing}
     </div>`;
-    const cards = u.outputs.map((o) => ioFileCard(o, 'output', this.run, { producerOf: this.producerOf }));
-    return bad || !u.outputs.length
+    if (!e.rest.length) return html`<div class="upstream">${head}</div>`;
+    const cards = e.rest.map((o) => ioFileCard(o, 'output', this.run, { producerOf: this.producerOf }));
+    return e.rest.some(notPassed)
       ? html`<div class="upstream">${head}${cards}</div>`
       : html`<details class="upstream"><summary>${head}</summary>${cards}</details>`;
   }
@@ -626,10 +623,13 @@ export class CaTaskView extends LitElement {
     const shown = this.shownRound;
     const info = this.rounds[shown];
     const tries = this.rounds[this.rounds.length - 1]?.tryNo ?? 1;
+    const ran = d.rows.filter(isLaunched);
+    const names = attemptNames(ran);
+    const starts = runStarts(ran);
     const prompt = this.launches[shown]?.prompt ?? '';
     const state = this.stateOf(d, live);
     return html`<h4 class="sect-h">${msg('Prompt')}${n > 1 && info
-        ? html` <span class="meta">${roundLabel(info, tries)}: ${roundWhy(info)}</span>`
+        ? html` <span class="meta">${roundLabel(info, tries, names[info.tryNo - 1])}: ${roundWhy(info, starts[info.tryNo - 1] !== starts[info.tryNo - 2])}</span>`
         : nothing}</h4>
       ${prompt
         ? html`<ca-markdown .text=${prompt}></ca-markdown>`
@@ -699,7 +699,7 @@ export class CaTaskView extends LitElement {
       ${last
         ? html`<h4 class="sect-h">${msg('Outcome')}</h4>
             <div class="ct-in">
-              ${pill(stopTone(last.stop), stopLabel(last.stop, last.reason))}
+              ${pill(STOP_PILL[stopTone(last.stop)] ?? 'error', stopLabel(last.stop, last.reason))}
               ${isLaunched(last) ? html`<span class="meta">${facts(attemptLabel(last.attempt), fmtDur(last.wall_s), correctionsOf(last))}</span>` : nothing}
 
             </div>`

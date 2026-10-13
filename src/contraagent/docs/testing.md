@@ -29,8 +29,11 @@ yield. The kinds it creates later are found in its code: the task declarations
 the flow refers to, directly or through the functions, modules, closures and
 containers it refers to (the docstring of `contraagent/pipeline/reach.py` says
 exactly what is followed). Their declarations and routing are checked too, and
-the report lists them as later kinds. A task declared inside the flow's body is
-not found until it is created. What the flow does with results is tested on the
+the report lists them as later kinds. Two declarations of one kind that differ
+and are both reachable are a warning, not an error: the flow may create tasks of
+only one of them (a default argument its caller replaces), and the kind is
+checked as the first one found. A task declared inside the flow's body is not
+found until it is created. What the flow does with results is tested on the
 stub agent.
 
 Run it after every change to tasks, plugins or the config.

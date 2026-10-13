@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loopPass, outcomeCounts, problems, taskOutcomes, taskRows } from './outcomes.js';
+import { latestTask, loopPass, outcomeCounts, problems, taskOutcomes, taskRows } from './outcomes.js';
 import type { JournalRow, Plan, PlanNode } from './types.js';
 
 const row = (key: string, stop: string, attempt = 0): JournalRow => ({
@@ -104,5 +104,18 @@ describe('taskRows', () => {
     expect(loopPass({ flow: [] })).toBeNull();
     expect(loopPass({ flow: [{ function: 'f', file: '', line: 1, loops: [{ line: 2, pass: 3 }] }, { function: 'g', file: '', line: 1, loops: [] }] })).toBe(3);
     expect(loopPass({ flow: [{ function: 'f', file: '', line: 1, loops: [{ line: 2, pass: 2 }, { line: 5, pass: null }] }] })).toBe(1);
+  });
+
+  it('latestTask: a running agent task first, else the agent task that ran last; a pass is its own task; never a Python task', () => {
+    const at = (key: string, ts: string, executor: 'agent' | 'python' = 'agent'): JournalRow => ({ ...row(key, 'completed'), ts, executor });
+    const p: Plan = {
+      nodes: [node('review-g', 'done'), node('review-g~2', 'done'), node('prep-g', 'done'), node('write-a', 'pending')],
+      groups: [],
+    };
+    const j = [at('review-g', '1'), at('review-g~2', '3'), at('prep-g', '9', 'python')];
+    expect(latestTask(taskRows(j, p))).toBe('review-g~2');
+    const live: Plan = { ...p, nodes: p.nodes.map((n) => (n.key === 'review-g' ? { ...n, state: 'running' as const } : n)) };
+    expect(latestTask(taskRows(j, live))).toBe('review-g');
+    expect(latestTask(taskRows([], p))).toBeNull();
   });
 });

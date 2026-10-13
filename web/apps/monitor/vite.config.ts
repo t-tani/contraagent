@@ -1,10 +1,21 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { themeBootScript, themeRules } from '../../packages/ui/src/styles/themes.ts';
 
 /** Where `contraagent-monitor` runs during `pnpm dev` (override with CONTRAAGENT_MONITOR). */
 const API = process.env['CONTRAAGENT_MONITOR'] ?? 'http://127.0.0.1:8787';
 
+/** The page opens in the reader's theme: `data-ca-theme` on <html> and the themes' rules, before the first paint. */
+const theme = (): Plugin => ({
+  name: 'contraagent-theme',
+  transformIndexHtml: () => [
+    { tag: 'script', children: themeBootScript, injectTo: 'head-prepend' },
+    { tag: 'style', children: themeRules((n) => `[data-ca-theme="${n}"]`), injectTo: 'head' },
+  ],
+});
+
 export default defineConfig({
+  plugins: [theme()],
   // Relative asset URLs: the monitor may be served under a path prefix.
   base: './',
   resolve: { conditions: ['source'] },

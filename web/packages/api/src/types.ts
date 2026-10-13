@@ -19,8 +19,7 @@ export type TokenUsage = S['TokenUsage'];
 export type QuotaReading = S['QuotaReading'];
 export type JournalPage = S['JournalPage'];
 
-export type TaskRollup = S['TaskRollup'];
-export type Executor = TaskRollup['executor'];
+export type Executor = NonNullable<S['PlanNode']['executor']>;
 
 export type Plan = S['Plan'];
 export type PlanNode = S['PlanNode'];

@@ -3,9 +3,10 @@
 // reader asked for; whoever hosts it decides what happens (the monitor changes
 // its route; another page may open its own view).
 import type { RoutePatch, TaskView } from './route.js';
+import type { ThemeChoice } from './styles/themes.js';
 
 export interface OpenTaskDetail {
-  /** A task key or a slot (`<kind>-<unit>`). */
+  /** A task key. */
   key: string;
   /** What to show of it; the host's choice when absent. */
   view?: TaskView;
@@ -22,6 +23,14 @@ export interface FilterDetail {
   q?: string;
 }
 
+/** Where to go; `replace`: in place of where the reader is (a link that named nothing, set right), not a step back can return to. */
+export type NavigateDetail = RoutePatch & { replace?: boolean };
+
+export interface ChooseThemeDetail {
+  /** The reader's choice: a theme, or `system`. */
+  theme: ThemeChoice;
+}
+
 /** Every event an element sends, by name. */
 export interface CaEventMap {
   /** Open a task: its transcript, or `view` of it. */
@@ -31,7 +40,9 @@ export interface CaEventMap {
   /** Change a list filter. */
   'ca-filter': FilterDetail;
   /** Go elsewhere in the monitor (its own views use this). */
-  'ca-navigate': RoutePatch;
+  'ca-navigate': NavigateDetail;
+  /** Show another theme (the theme control). */
+  'ca-choose-theme': ChooseThemeDetail;
 }
 
 declare global {
@@ -39,7 +50,8 @@ declare global {
     'ca-open-task': CustomEvent<OpenTaskDetail>;
     'ca-select-run': CustomEvent<SelectRunDetail>;
     'ca-filter': CustomEvent<FilterDetail>;
-    'ca-navigate': CustomEvent<RoutePatch>;
+    'ca-navigate': CustomEvent<NavigateDetail>;
+    'ca-choose-theme': CustomEvent<ChooseThemeDetail>;
   }
 }
 

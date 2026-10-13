@@ -61,26 +61,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/runs/{run}/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Api Tasks
-         * @description Per-(kind, unit) rollup of finished attempts plus what is running now.
-         */
-        get: operations["api_tasks_api_runs__run__tasks_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/runs/{run}/plan": {
         parameters: {
             query?: never;
@@ -181,7 +161,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/runs/{run}/task/{slot_or_key}": {
+    "/api/runs/{run}/task/{key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -190,9 +170,9 @@ export type paths = {
         };
         /**
          * Api Task
-         * @description One slot (`<kind>-<unit>`) or exact task key: journal rows, live launches, definition, input/output, transcript name.
+         * @description One task, by its key: journal rows, live launches, definition, input/output, transcript name.
          */
-        get: operations["api_task_api_runs__run__task__slot_or_key__get"];
+        get: operations["api_task_api_runs__run__task__key__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -703,8 +683,8 @@ export type components = {
         };
         /**
          * JournalRow
-         * @description One finished attempt. `key` is the stable `Task.key`; `kind`/`unit`
-         *     group the monitor's rollup; `executor` says who ran it; `stop` is
+         * @description One finished attempt. `key` is the stable `Task.key`, one task; `kind`
+         *     and `unit` are its kind and unit; `executor` says who ran it; `stop` is
          *     `Stop.value` (or a Python task's completed/error).
          */
         JournalRow: {
@@ -1239,7 +1219,7 @@ export type components = {
          * RunEvent
          * @description One message of /events?run=
          */
-        RunEvent: components["schemas"]["JournalMessage"] | components["schemas"]["ProcsMessage"] | components["schemas"]["PlanMessage"] | components["schemas"]["OutputsMessage"] | components["schemas"]["CursorMessage"] | components["schemas"]["TasksMessage"] | components["schemas"]["PanelMessage"] | components["schemas"]["ReadyMessage"];
+        RunEvent: components["schemas"]["JournalMessage"] | components["schemas"]["ProcsMessage"] | components["schemas"]["PlanMessage"] | components["schemas"]["OutputsMessage"] | components["schemas"]["CursorMessage"] | components["schemas"]["PanelMessage"] | components["schemas"]["ReadyMessage"];
         /**
          * RunSummary
          * @description One run directory, as the run picker lists it.
@@ -1423,13 +1403,13 @@ export type components = {
         };
         /**
          * TaskDetail
-         * @description One slot or exact task key. Open: the `task_detail` callback merges its own keys
+         * @description One task, by its key. Open: the `task_detail` callback merges its own keys
          *     in (a failing one leaves `task_detail_error` instead).
          */
         TaskDetail: {
             /**
              * Key
-             * @description the slot or task key asked for
+             * @description the task key asked for
              */
             key: string;
             /** Rows */
@@ -1500,63 +1480,6 @@ export type components = {
              * @description the full command line, cut at 600 characters
              */
             cmd: string;
-        };
-        /**
-         * TaskRollup
-         * @description One (kind, unit) slot: every finished attempt of it folded together, plus what runs now.
-         */
-        TaskRollup: {
-            /**
-             * Slot
-             * @description `<kind>-<unit>`, or the bare kind for a run-scope task
-             */
-            slot: string;
-            /** Kind */
-            kind: string;
-            /** Unit */
-            unit: string;
-            /**
-             * Executor
-             * @enum {string}
-             */
-            executor: "agent" | "python";
-            /**
-             * Attempts
-             * @description finished attempts (journal rows)
-             */
-            attempts: number;
-            /** Ok */
-            ok: number;
-            /** Last Stop */
-            last_stop: string;
-            /** Last Ts */
-            last_ts: string;
-            /** Wall S */
-            wall_s: number;
-            /**
-             * Running
-             * @description present (true) only while one of its launches runs
-             * @default false
-             */
-            running?: boolean;
-            /**
-             * Live Keys
-             * @description present only while running: the exact task keys running
-             */
-            live_keys?: string[];
-        };
-        /**
-         * TasksMessage
-         * @description The task rollup, re-sent whenever anything above changed.
-         */
-        TasksMessage: {
-            /**
-             * Event
-             * @constant
-             */
-            event: "tasks";
-            /** Data */
-            data: components["schemas"]["TaskRollup"][];
         };
         /**
          * TokenUsage
@@ -1826,37 +1749,6 @@ export interface operations {
             };
         };
     };
-    api_tasks_api_runs__run__tasks_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                run: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskRollup"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     api_plan_api_runs__run__plan_get: {
         parameters: {
             query?: never;
@@ -2012,13 +1904,13 @@ export interface operations {
             };
         };
     };
-    api_task_api_runs__run__task__slot_or_key__get: {
+    api_task_api_runs__run__task__key__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 run: string;
-                slot_or_key: string;
+                key: string;
             };
             cookie?: never;
         };
