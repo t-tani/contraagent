@@ -5,7 +5,7 @@
 import { createMonitorClient } from '@contraagent/api';
 import '@contraagent/ui/transcript';
 
-/** Where `contraagent-monitor` runs (start it with `--cors-origin <this page's origin>`). */
+/** Where `contraagent monitor` runs (start it with `--cors-origin <this page's origin>`). */
 const MONITOR = 'http://127.0.0.1:8787';
 
 export function showTranscript(host: HTMLElement, run: string, key: string): void {

@@ -50,7 +50,7 @@ with its own title, text field and single-key shortcuts, and two monitors.
 ::code{file="examples/embed.html"}
 
 A page on another origin can only import `/app.js` and read the API if the
-monitor names that origin: `contraagent-monitor --cors-origin http://localhost:8000`.
+monitor names that origin: `contraagent monitor --cors-origin http://localhost:8000`.
 
 ## In an application
 
