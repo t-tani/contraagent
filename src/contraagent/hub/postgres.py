@@ -220,6 +220,11 @@ class PostgresHubStore:
             rows = conn.execute("SELECT name, run_uid, host_id, run_id FROM runs ORDER BY name").fetchall()
         return [RunEntry(*r) for r in rows]
 
+    def entry(self, name: str) -> RunEntry | None:
+        with self._conn() as conn:
+            row = conn.execute("SELECT name, run_uid, host_id, run_id FROM runs WHERE name = %s", (name,)).fetchone()
+        return RunEntry(*row) if row else None
+
     def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
         with self._conn() as conn:
             row = conn.execute(

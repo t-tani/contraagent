@@ -39,8 +39,9 @@ class RunSource(Protocol):
         """The run's `run.json`, or None."""
         ...
 
-    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
-        """Lines `since`.. (at most `limit`) of an append-only log, and the log's line count.
+    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
+        """Lines `since`.. of an append-only log, bounded as `page` bounds them (at most
+        `limit` lines and `max_bytes` bytes, at least one line), and the log's line count.
         A log that does not exist has no lines and a count of 0."""
         ...
 
@@ -69,6 +70,27 @@ class RunSource(Protocol):
         that drove the run sees it: its text (None when it is not text), its byte size and
         its modification time; None when it does not exist."""
         ...
+
+
+#: A page of a transcript never carries more than this many bytes of lines (at least one
+#: line), whatever its line limit: one line can be megabytes (an image).
+PAGE_BYTES = 4 << 20
+
+
+def page(lines, limit: int | None, max_bytes: int | None) -> list[str]:
+    """The first lines of `lines`, at most `limit` of them and `max_bytes` of text (each
+    line counts its UTF-8 length plus a newline), but always the first line."""
+    out: list[str] = []
+    used = 0
+    for line in lines:
+        if limit is not None and len(out) >= limit:
+            break
+        size = len(line.encode()) + 1
+        if out and max_bytes is not None and used + size > max_bytes:
+            break
+        out.append(line)
+        used += size
+    return out
 
 
 class Liveness(Protocol):
@@ -120,17 +142,17 @@ class DirectorySource:
     def info(self, run: str) -> dict | None:
         return procs.read_run_info(self.root, run)
 
-    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         path = self.path(run, log)
         try:
             # errors="replace": a transcript is an agent's raw output, not guaranteed UTF-8.
             with open(path, errors="replace") as f:
-                if limit is None:
+                if limit is None and max_bytes is None:
                     every = f.read().splitlines()
                     return every[since:], len(every)
-                page = [line.rstrip("\n") for line in islice(f, since, since + limit)]
+                got = page((line.rstrip("\n") for line in islice(f, since, None)), limit, max_bytes)
             with open(path, "rb") as f:
-                return page, sum(1 for _ in f)
+                return got, sum(1 for _ in f)
         except OSError:
             return [], 0
 
@@ -228,12 +250,11 @@ class MemorySource:
         except ValueError:
             return None
 
-    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         every = self._get(run, log)
         if not isinstance(every, list):
             return [], 0
-        page = every[since:] if limit is None else every[since : since + limit]
-        return list(page), len(every)
+        return page(every[since:], limit, max_bytes), len(every)
 
     def size(self, run: str, log: str) -> int:
         every = self._get(run, log)

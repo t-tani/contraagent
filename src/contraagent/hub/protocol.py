@@ -87,9 +87,13 @@ class RecordBatch(BaseModel):
 
 
 class Accepted(BaseModel):
-    """How many lines the hub holds of each log the batch named, after storing it."""
+    """How many lines the hub holds of each log the batch named, after storing it, and how
+    many of those are durable (in object storage or the database, so a hub that loses its
+    own disk still has them). A relay resends from `logs`; lines past `durable` are on the
+    hub's disk only."""
 
     logs: dict[str, int] = {}
+    durable: dict[str, int] = {}
 
 
 class RunLiveness(BaseModel):

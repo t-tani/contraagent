@@ -28,7 +28,7 @@ from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
 from contraagent.execution.cursor import parse_cursor
 from contraagent.monitor import paths
-from contraagent.monitor.source import DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
+from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 
 PanelFn = Callable[[str], dict]
 
@@ -437,7 +437,7 @@ class Monitor:
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
         out: list[dict] = []
         tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
-        for line in self.source.lines(run, log, since, limit * 4)[0]:
+        for line in self.source.lines(run, log, since, limit * 4, max_bytes=PAGE_BYTES)[0]:
             ev = normalize_stream_event(fmt, line)
             if ev is not None:
                 if ev.get("type") == "tool_execution_start" and ev.get("call"):

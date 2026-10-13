@@ -84,9 +84,18 @@ def raw(value) -> object:
 
 def test_a_batch_posts_and_the_gap_and_resend_rules_come_back():
     hub, c = make()
-    assert c.post(INGEST_RECORDS, content=records(["a", "b"]), headers=AUTH).json() == {"logs": {rundir.JOURNAL: 2}}
-    assert c.post(INGEST_RECORDS, content=records(["b", "c"], 1), headers=AUTH).json() == {"logs": {rundir.JOURNAL: 3}}
-    assert c.post(INGEST_RECORDS, content=records(["z"], 9), headers=AUTH).json() == {"logs": {rundir.JOURNAL: 3}}
+    assert c.post(INGEST_RECORDS, content=records(["a", "b"]), headers=AUTH).json() == {
+        "logs": {rundir.JOURNAL: 2},
+        "durable": {rundir.JOURNAL: 2},
+    }
+    assert c.post(INGEST_RECORDS, content=records(["b", "c"], 1), headers=AUTH).json() == {
+        "logs": {rundir.JOURNAL: 3},
+        "durable": {rundir.JOURNAL: 3},
+    }
+    assert c.post(INGEST_RECORDS, content=records(["z"], 9), headers=AUTH).json() == {
+        "logs": {rundir.JOURNAL: 3},
+        "durable": {rundir.JOURNAL: 3},
+    }
     assert hub.store.lines("r1@h1", rundir.JOURNAL) == (["a", "b", "c"], 3)
 
 
@@ -100,7 +109,7 @@ def test_a_gzip_body_is_taken():
     hub, c = make()
     body = gzip.compress(records(["a"]).encode())
     r = c.post(INGEST_RECORDS, content=body, headers={**AUTH, "Content-Encoding": "gzip"})
-    assert r.json() == {"logs": {rundir.JOURNAL: 1}}
+    assert r.json() == {"logs": {rundir.JOURNAL: 1}, "durable": {rundir.JOURNAL: 1}}
     assert c.post(INGEST_RECORDS, content=b"\x1f\x8bnope", headers={**AUTH, "Content-Encoding": "gzip"}).status_code == 400
     assert c.post(INGEST_RECORDS, content=b"{}", headers={**AUTH, "Content-Encoding": "br"}).status_code == 415
 

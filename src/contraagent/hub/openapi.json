@@ -224,11 +224,19 @@
             "type": "object",
             "title": "Logs",
             "default": {}
+          },
+          "durable": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Durable",
+            "default": {}
           }
         },
         "type": "object",
         "title": "Accepted",
-        "description": "How many lines the hub holds of each log the batch named, after storing it."
+        "description": "How many lines the hub holds of each log the batch named, after storing it, and how\nmany of those are durable (in object storage or the database, so a hub that loses its\nown disk still has them). A relay resends from `logs`; lines past `durable` are on the\nhub's disk only."
       },
       "DocumentPut": {
         "properties": {

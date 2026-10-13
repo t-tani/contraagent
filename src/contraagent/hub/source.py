@@ -1,6 +1,7 @@
-"""The monitor's ports over a hub: `HubSource` reads every host's runs from a `HubStore`
-and a `BlobStore`; `HeartbeatLiveness` counts a run live while its host's heartbeats keep
-arriving and report it alive.
+"""The monitor's ports over a hub: `HubSource` reads every host's runs from a `HubStore`,
+its task transcripts from `StreamLogs`, and file contents from a `BlobStore`;
+`HeartbeatLiveness` counts a run live while its host's heartbeats keep arriving and report
+it alive.
 
 A run's name is its hub name, `<run_id>@<host_id>`; everything else the monitor reads is
 the run's own records, as its host wrote them.
@@ -15,8 +16,9 @@ from datetime import datetime
 
 from contraagent import rundir
 from contraagent.hub.store import BlobStore, HubStore
+from contraagent.hub.streams import StreamLogs, is_stream
 from contraagent.monitor import paths, procs
-from contraagent.monitor.source import entry_parts
+from contraagent.monitor.source import entry_parts, page
 
 #: Seconds without a heartbeat after which a host's runs no longer count as live.
 DEFAULT_TTL_S = 15.0
@@ -32,13 +34,18 @@ def _seconds(iso: str) -> float | None:
 class HubSource:
     """A `RunSource` over a hub's stores."""
 
-    def __init__(self, store: HubStore, blobs: BlobStore) -> None:
+    def __init__(self, store: HubStore, blobs: BlobStore, streams: StreamLogs) -> None:
         self.store = store
         self.blobs = blobs
+        self.streams = streams
 
     @staticmethod
     def _name(run: str) -> str:
         return paths.check_name(run, "run id")
+
+    def _uid(self, run: str) -> str:
+        entry = self.store.entry(self._name(run))
+        return entry.run_uid if entry else ""
 
     def runs(self) -> list[str]:
         return [e.name for e in self.store.runs()]
@@ -51,16 +58,24 @@ class HubSource:
             return None
         return info if isinstance(info, dict) else None
 
-    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+    def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         entry_parts(log)
-        return self.store.lines(self._name(run), log, since, limit)
+        if is_stream(log):
+            return self.streams.read(self._name(run), self._uid(run), log, since, limit, max_bytes)
+        got, total = self.store.lines(self._name(run), log, since, limit)
+        return page(got, None, max_bytes), total
 
     def size(self, run: str, log: str) -> int:
         entry_parts(log)
+        if is_stream(log):
+            return self.streams.count(self._name(run), self._uid(run), log)
         return self.store.count(self._name(run), log)
 
     def exists(self, run: str, name: str) -> bool:
         entry_parts(name)
+        if name == rundir.STREAMS or is_stream(name):
+            logs = self.streams.logs(self._name(run), self._uid(run))
+            return name in logs if is_stream(name) else bool(logs)
         return self.store.exists(self._name(run), name)
 
     def document(self, run: str, name: str) -> str | None:
@@ -72,7 +87,8 @@ class HubSource:
         return self.store.folder(self._name(run), folder)
 
     def activity(self, run: str) -> str | None:
-        return self.store.activity(self._name(run))
+        times = [t for t in (self.store.activity(self._name(run)), self.streams.activity(self._name(run), self._uid(run))) if t]
+        return max(times) if times else None
 
     def file(self, run: str, path: str) -> tuple[str | None, int, str] | None:
         ref = self.store.file(self._name(run), path)

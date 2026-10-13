@@ -52,6 +52,10 @@ class HubStore(Protocol):
         """Every run held, by name."""
         ...
 
+    def entry(self, name: str) -> RunEntry | None:
+        """The run held under `name`, or None."""
+        ...
+
     def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
         """Lines `since`.. (at most `limit`) of a run's log, and how many it holds; ([], 0) when none."""
         ...
@@ -167,6 +171,11 @@ class MemoryHubStore:
     def runs(self) -> list[RunEntry]:
         with self._lock:
             return [self._runs[n].entry for n in sorted(self._runs)]
+
+    def entry(self, name: str) -> RunEntry | None:
+        with self._lock:
+            run = self._runs.get(name)
+            return run.entry if run else None
 
     def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
         with self._lock:
