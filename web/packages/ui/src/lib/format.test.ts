@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { facts, fmtDur, localTime, sentence, tokens, unreadEvents, usd } from './format.js';
+import { facts, fmtDur, localTime, sentence, tokenCount, unreadEvents, usd } from './format.js';
 
 describe('format', () => {
   it('writes token counts compactly', () => {
-    expect([950, 1200, 1000, 34_200, 1_340_000, 2_000_000].map(tokens)).toEqual(['950', '1.2k', '1k', '34k', '1.3M', '2M']);
+    expect([950, 1200, 1000, 34_200, 1_340_000, 2_000_000].map(tokenCount)).toEqual(['950', '1.2k', '1k', '34k', '1.3M', '2M']);
   });
 
   it('writes costs in USD, and — when none was reported', () => {

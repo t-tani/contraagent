@@ -18,10 +18,10 @@ const ago = (r: RunSummary) => {
 
 /**
  * The run switcher: runs grouped by recency, searchable, keyboard driven.
- * Sends `ca-select-run` for a pick and `close` when it should be closed.
+ * Sends `ca-select-run` for a pick and `ca-close` when it should be closed.
  *
  * @fires ca-select-run - `{run}`: a run was picked
- * @fires close - the picker should close
+ * @fires ca-close - the picker should close
  */
 @customElement('ca-run-picker')
 @localized()
@@ -85,7 +85,7 @@ export class CaRunPicker extends LitElement {
   }
 
   private close(): void {
-    this.dispatchEvent(new Event('close'));
+    emit(this, 'ca-close', {});
   }
 
   private onKey(e: KeyboardEvent, rows: RunSummary[]): void {

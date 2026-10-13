@@ -4,9 +4,9 @@
 
 An element never changes what is shown on its own. It sends an event saying
 what the reader asked for; its host decides. The monitor changes its route;
-another page might open its own view, or ignore it. Each event bubbles and
-crosses shadow roots, so you can listen on any ancestor, and each is typed in
-`HTMLElementEventMap`:
+another page might open its own view, or ignore it. Each event crosses shadow
+roots and all but `ca-rounds` bubble, so you can listen on any ancestor, and
+each is typed in `HTMLElementEventMap`:
 
 ::code{file="../src/events.ts" from="export interface OpenTaskDetail" to="declare global"}
 

@@ -3,7 +3,7 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, tokens, usd } from '../../lib/format.js';
+import { facts, fmtDur, kindUnit, tokenCount, usd } from '../../lib/format.js';
 import { inputProblems, stateCount } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-count.js';
@@ -210,11 +210,11 @@ export class CaKpis extends LitElement {
         id: 'tokens',
         tone: '',
         label: msg('Tokens'),
-        value: tokens(totalTokens(s)),
-        sub: facts(msg(str`${tokens(s.input)} input`), msg(str`${tokens(s.output)} output`), msg(str`${tokens(s.cache_read + s.cache_creation)} cache`)),
+        value: tokenCount(totalTokens(s)),
+        sub: facts(msg(str`${tokenCount(s.input)} input`), msg(str`${tokenCount(s.output)} output`), msg(str`${tokenCount(s.cache_read + s.cache_creation)} cache`)),
         tip: facts(
-          msg(str`${tokens(s.cache_read)} cache read`),
-          msg(str`${tokens(s.cache_creation)} cache write`),
+          msg(str`${tokenCount(s.cache_read)} cache read`),
+          msg(str`${tokenCount(s.cache_creation)} cache write`),
           s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`),
         ),
       },

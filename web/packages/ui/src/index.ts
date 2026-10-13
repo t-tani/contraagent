@@ -9,7 +9,7 @@ export { LOCALE_NAMES, allLocales, chooseLocale, getLocale, preferredLocale, set
 export * from './lib/format.js';
 export { md, mdFile } from './lib/markdown.js';
 export { highlight } from './lib/highlight.js';
-export { tokens, base, prose } from './styles/base.js';
+export { tokenStyles, base, prose } from './styles/base.js';
 export * from './styles/themes.js';
 export { themeStyles, hostThemeStyles, adoptThemes } from './styles/theme-sheet.js';
 

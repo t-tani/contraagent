@@ -348,6 +348,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `@contraagent/ui` exports one name per meaning:
+  - `tokenCount()` (was `tokens()`) formats a token count;
+  - `tokenStyles` (was `tokens`) is the stylesheet with the design tokens;
+  - `taskStatusLabel` and `contractStatusLabel`/`contractStatusWhy` (were
+    both `statusLabel`, `statusWhy`).
+  The layout engine of the overview (`autoLayer`, `layerGraph`, `kpis`,
+  `timeline` and their types) and the `Flow*` type aliases are no longer
+  exported; the plan's types are `@contraagent/api`'s.
+- Every event an element sends is in `CaEventMap`: the run picker sends
+  `ca-close` (was `close`), and `ca-transcript` sends `ca-rounds` (was
+  `rounds-changed`; it does not bubble). `RoundsChangedDetail`, `RoundInfo`
+  and `TryResult` are with the other event details. `emit()` takes
+  `{bubbles: false}`.
+- A retry is a try that ran after a try of the same task ran and failed
+  (`retries()` in `@contraagent/api`): a task refused for its input and then
+  done is not counted as retried in the overview or in the history's
+  "tasks retried" filter.
 - `@contraagent/ui` takes `lit` and `@lit/localize` as peer dependencies: a
   page that imports it installs them, and its bundle holds one copy of Lit.
 - The monitor's colours mean a status, and only where it applies: totals, cost,

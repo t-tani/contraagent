@@ -4,7 +4,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../events.js';
-import { facts, kindUnit, tokens, usd } from '../../lib/format.js';
+import { facts, kindUnit, tokenCount, usd } from '../../lib/format.js';
 import { base } from '../../styles/base.js';
 
 type Part = 'input' | 'cache_read' | 'cache_creation' | 'output';
@@ -61,7 +61,7 @@ export class CaSpendBreakdown extends LitElement {
   private bar(s: Spend, max: number) {
     const total = totalTokens(s);
     const width = max ? (100 * total) / max : 0;
-    const tip = facts(...PARTS.map((p) => `${this.partLabel(p)} ${tokens(s[p])}`));
+    const tip = facts(...PARTS.map((p) => `${this.partLabel(p)} ${tokenCount(s[p])}`));
     return html`<div class="bar" title=${tip} style="width:${Math.max(width, 0.5).toFixed(2)}%">
       ${PARTS.map((p) => (s[p] && total ? html`<i class="p-${p}" style="width:${((100 * s[p]) / total).toFixed(2)}%"></i>` : nothing))}
     </div>`;
@@ -77,7 +77,7 @@ export class CaSpendBreakdown extends LitElement {
           kinds,
           (k) => k.id,
           (k) => html`<span class="kind" title=${k.id}>${k.id}</span>${this.bar(k.spend, max)}
-            <span class="num">${facts(tokens(totalTokens(k.spend)), usd(k.spend.cost))}</span>
+            <span class="num">${facts(tokenCount(totalTokens(k.spend)), usd(k.spend.cost))}</span>
             <span class="num share">${k.share !== null ? `${Math.round(k.share * 100)}%` : ''}</span>`,
         )}
       </div>
@@ -89,7 +89,7 @@ export class CaSpendBreakdown extends LitElement {
               e.preventDefault();
               emit(this, 'ca-open-task', { key: t.id });
             }}>${kindUnit(t)}</a>
-            <span class="num">${tokens(totalTokens(t.spend))}</span>
+            <span class="num">${tokenCount(totalTokens(t.spend))}</span>
             <span class="num">${usd(t.spend.cost)}</span>
             <span class="num share">${t.share !== null ? msg(str`${Math.round(t.share * 100)}%`) : ''}</span>`,
         )}

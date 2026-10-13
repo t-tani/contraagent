@@ -9,7 +9,7 @@ import { facts, localTime, sentence } from '../../lib/format.js';
 import './ca-json-tree.js';
 
 /** A contract status in words, in the current locale. */
-export function statusLabel(s: ContractStatus): string {
+export function contractStatusLabel(s: ContractStatus): string {
   switch (s) {
     case 'valid':
       return msg('passed');
@@ -27,7 +27,7 @@ export function statusLabel(s: ContractStatus): string {
 }
 
 /** Why a contract has its status, in the current locale. */
-export function statusWhy(s: ContractStatus): string {
+export function contractStatusWhy(s: ContractStatus): string {
   switch (s) {
     case 'refused':
       return msg('The task did not start because an input was missing or failed checks');
@@ -68,16 +68,16 @@ export function inputChip(o: ContractSpec): TemplateResult {
 
 const STATUSES: readonly ContractStatus[] = ['valid', 'invalid', 'refused', 'failed', 'running', 'pending'];
 
-/** `statusLabel` as a record (read at render time: each value is a getter). */
-export const STATUS_LABEL = Object.defineProperties(
+/** `contractStatusLabel` as a record (read at render time: each value is a getter). */
+export const CONTRACT_STATUS_LABEL = Object.defineProperties(
   {},
-  Object.fromEntries(STATUSES.map((k) => [k, { enumerable: true, get: () => statusLabel(k) }])),
+  Object.fromEntries(STATUSES.map((k) => [k, { enumerable: true, get: () => contractStatusLabel(k) }])),
 ) as Readonly<Record<ContractStatus, string>>;
 
-/** `statusWhy` as a record (read at render time: each value is a getter). */
-export const STATUS_WHY = Object.defineProperties(
+/** `contractStatusWhy` as a record (read at render time: each value is a getter). */
+export const CONTRACT_STATUS_WHY = Object.defineProperties(
   {},
-  Object.fromEntries(STATUSES.map((k) => [k, { enumerable: true, get: () => statusWhy(k) }])),
+  Object.fromEntries(STATUSES.map((k) => [k, { enumerable: true, get: () => contractStatusWhy(k) }])),
 ) as Readonly<Record<ContractStatus, string>>;
 
 /** The journal stop a contract status reads as, for colouring. */
@@ -292,7 +292,7 @@ export function ioFileCard(
 ): TemplateResult {
   const stat =
     role === 'output'
-      ? html`<span class="ct-chip ${o.status ?? ''}" title=${o.status ? statusWhy(o.status) : ''}>${o.status ? statusLabel(o.status) : '—'}</span>${(o.rounds ?? 0) > 1
+      ? html`<span class="ct-chip ${o.status ?? ''}" title=${o.status ? contractStatusWhy(o.status) : ''}>${o.status ? contractStatusLabel(o.status) : '—'}</span>${(o.rounds ?? 0) > 1
             ? html` <span class="meta" title=${correctionTip()}>${correctionsLabel(o.rounds, o.status === 'valid')}</span>`
             : nothing}`
       : inputChip(o);

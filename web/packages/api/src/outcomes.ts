@@ -52,6 +52,22 @@ export function outcomeOf(node: Pick<PlanNode, 'state'> | undefined, attempts: r
 }
 
 /**
+ * The retries in `journal`, oldest first: the tries that ran (`isLaunched`)
+ * after an earlier try of the same task ran and failed, as in `recovered`. A
+ * try after a refusal (`invalid_input`) is not a retry.
+ */
+export function retries(journal: readonly JournalRow[]): JournalRow[] {
+  const failed = new Set<string>();
+  const out: JournalRow[] = [];
+  for (const r of journal) {
+    if (!isLaunched(r)) continue;
+    if (failed.has(r.key)) out.push(r);
+    if (!isOk(r)) failed.add(r.key);
+  }
+  return out;
+}
+
+/**
  * A plan node's state as an outcome: `blocked` is `not_started` and `pending`
  * is `waiting`. Plan state `done` covers both `done` and `recovered`.
  */

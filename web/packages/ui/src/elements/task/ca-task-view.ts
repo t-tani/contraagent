@@ -21,8 +21,8 @@ import {
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, localTime, tokens, unreadEvents, usd } from '../../lib/format.js';
+import { emit, type RoundInfo, type RoundsChangedDetail } from '../../events.js';
+import { facts, fmtDur, kindUnit, localTime, tokenCount, unreadEvents, usd } from '../../lib/format.js';
 import {
   attemptLabel,
   attemptNames,
@@ -44,13 +44,13 @@ import { base } from '../../styles/base.js';
 import '../shared/ca-definition.js';
 import '../shared/ca-json-tree.js';
 import '../shared/ca-markdown.js';
-import { contractStyles, ioFileCard, statusLabel, statusWhy, type Producer } from '../shared/contract-parts.js';
+import { contractStyles, ioFileCard, contractStatusLabel, contractStatusWhy, type Producer } from '../shared/contract-parts.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from './inputs.js';
 import { taskChip } from '../shared/task-chip.js';
 import './ca-transcript.js';
-import type { CaTranscript, RoundsChangedDetail } from './ca-transcript.js';
+import type { CaTranscript } from './ca-transcript.js';
 import { roundLabel, roundWhy } from './rounds.js';
-import { agentLabel, checkMessage, launchWho, type RoundInfo, type Who } from './transcript-model.js';
+import { agentLabel, checkMessage, launchWho, type Who } from './transcript-model.js';
 import { whoChips, whoStyles } from './who.js';
 
 /** Each view's tab label, in the current locale (call at render time). */
@@ -297,7 +297,7 @@ export class CaTaskView extends LitElement {
       ${d.stream
         ? html`<ca-transcript .run=${this.run} .stream=${d.stream} base-url=${this.baseUrl} .client=${this.client} .live=${taskLive}
             .rows=${d.rows} .round=${this.round} mode=${view === 'transcript' ? 'full' : view === 'input' ? 'tabs' : 'none'}
-            @rounds-changed=${(e: CustomEvent<RoundsChangedDetail>) => {
+            @ca-rounds=${(e: CustomEvent<RoundsChangedDetail>) => {
               this.launches = e.detail.launches;
               this.shownRound = e.detail.shown;
               this.rounds = e.detail.rounds;
@@ -491,7 +491,7 @@ export class CaTaskView extends LitElement {
     if (!s) return nothing;
     return html`<div class="spend">
       <b title=${msg('Reported by the coding agent')}>${usd(s.cost)}</b>
-      <span>${msg(str`Tokens: ${tokens(s.input)} input, ${tokens(s.output)} output, ${tokens(s.cache_read)} cache read, ${tokens(s.cache_creation)} cache write`)}</span>
+      <span>${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
       <span>${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
     </div>`;
   }
@@ -591,7 +591,7 @@ export class CaTaskView extends LitElement {
     // Written by an earlier task: that task's check of it ("passed", "not written (task failed)").
     const st = f.out?.status;
     if (!st) return ioFileCard(f.spec, 'input', this.run, { origin });
-    const chip = html`<span class="ct-chip ${st}" title=${statusWhy(st)}>${statusLabel(st)}</span>`;
+    const chip = html`<span class="ct-chip ${st}" title=${contractStatusWhy(st)}>${contractStatusLabel(st)}</span>`;
     return ioFileCard({ ...f.spec, status: st }, 'input', this.run, { origin, chip });
   }
 
@@ -667,7 +667,7 @@ export class CaTaskView extends LitElement {
           return html`<tr>
               <td class="l">${attemptLabel(r.attempt)}</td>
               ${u
-                ? html`<td>${tokens(u.input)}</td><td>${tokens(u.output)}</td><td>${tokens(u.cache_read)}</td><td>${tokens(u.cache_creation)}</td><td>${u.calls}</td>`
+                ? html`<td>${tokenCount(u.input)}</td><td>${tokenCount(u.output)}</td><td>${tokenCount(u.cache_read)}</td><td>${tokenCount(u.cache_creation)}</td><td>${u.calls}</td>`
                 : html`${dash}${dash}${dash}${dash}${dash}`}
               <td>${usd(r.cost_usd)}</td><td class="l" title=${credentialTip(r.credential) || nothing}>${credentialLabel(r.credential) || '—'}</td>
               ${quota ? html`${reading(tryQuota(r, readings).start, r.credential)}${reading(tryQuota(r, readings).next, r.credential)}` : nothing}

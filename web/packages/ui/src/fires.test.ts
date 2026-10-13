@@ -27,16 +27,6 @@ const HELPERS: Record<string, { file: string; event: string }> = {
   taskChip: { file: 'packages/ui/src/elements/shared/task-chip.ts', event: 'ca-open-task' },
 };
 
-/**
- * Events sent but not yet in an event map. P3 adds them as `ca-close` and
- * `ca-rounds` and removes them from this list; the test fails while an entry
- * here is in a map or no longer sent.
- */
-const KNOWN_GAPS: Record<string, string> = {
-  close: 'packages/ui/src/elements/shell/ca-run-picker.ts',
-  'rounds-changed': 'packages/ui/src/elements/task/ca-transcript.ts',
-};
-
 /** The event names `text` sends itself. */
 function sent(text: string): Set<string> {
   const names = [
@@ -81,9 +71,7 @@ describe('@fires', () => {
   });
 
   it('every event sent is in an event map', () => {
-    const missing = files.flatMap((f) =>
-      [...sent(read(f))].filter((n) => !inMap(n) && KNOWN_GAPS[n] !== f).map((n) => `${f}: ${n}`),
-    );
+    const missing = files.flatMap((f) => [...sent(read(f))].filter((n) => !inMap(n)).map((n) => `${f}: ${n}`));
     expect(missing).toEqual([]);
   });
 
@@ -94,13 +82,6 @@ describe('@fires', () => {
 
   it('CaEventMap and the HTMLElementEventMap augmentation list the same events', () => {
     expect(sorted(mapKeys(UI_EVENTS, 'HTMLElementEventMap'))).toEqual(sorted(CA));
-  });
-
-  it('the known gaps are still gaps', () => {
-    for (const [name, file] of Object.entries(KNOWN_GAPS)) {
-      expect(inMap(name), `${name} is in the event map: remove it from KNOWN_GAPS`).toBe(false);
-      expect(sent(read(file)).has(name), `${file} no longer sends ${name}: remove it from KNOWN_GAPS`).toBe(true);
-    }
   });
 
   it('each helper sends its event', () => {

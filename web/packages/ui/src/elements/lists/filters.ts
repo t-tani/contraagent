@@ -1,6 +1,6 @@
 // The list filters and row facts, pure: what the tasks and journal tabs show
 // for a kind, a stop and a text.
-import { isBad, isLaunched, type JournalRow, type Outcome, type TaskRow } from '@contraagent/api';
+import { isBad, isLaunched, retries, type JournalRow, type Outcome, type TaskRow } from '@contraagent/api';
 
 /** Tasks of `kind` (all when ''), whose kind, unit, key or last stop contains `q`. */
 export function filterTasks(tasks: readonly TaskRow[], kind: string, q: string): TaskRow[] {
@@ -23,12 +23,8 @@ export function sortTasks(tasks: readonly TaskRow[]): TaskRow[] {
 
 const JOURNAL_TEXT = ['key', 'unit', 'stop', 'kind', 'route', 'reason'] as const;
 
-/** Keys of tasks that ran more than once (a retry in a new session). */
-export function retriedKeys(rows: readonly JournalRow[]): Set<string> {
-  const n = new Map<string, number>();
-  for (const r of rows) if (isLaunched(r)) n.set(r.key, (n.get(r.key) ?? 0) + 1);
-  return new Set([...n].filter(([, c]) => c > 1).map(([k]) => k));
-}
+/** Keys of tasks that were retried: a try ran after one that ran and failed (`retries`). */
+export const retriedKeys = (rows: readonly JournalRow[]): Set<string> => new Set(retries(rows).map((r) => r.key));
 
 /** A row whose output was sent back to the agent at least once (a fix-up in the same session). */
 export const hadFixup = (r: JournalRow): boolean => (r.rounds ?? 1) > 1;
@@ -37,7 +33,7 @@ export const hadFixup = (r: JournalRow): boolean => (r.rounds ?? 1) > 1;
  * Journal rows of `kind` with `stop` that contain `q`. Besides a stop value,
  * `stop` takes 'bad' (every attempt that did not complete), 'fixup' (attempts
  * whose output was sent back for a fix-up) and 'retried' (every row of a task
- * that ran more than once).
+ * retried after a failed try, `retries`).
  */
 export function filterJournal(rows: readonly JournalRow[], kind: string, stop: string, q: string): JournalRow[] {
   const needle = q.toLowerCase();

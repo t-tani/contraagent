@@ -1,7 +1,20 @@
 // The overview's arithmetic, apart from its templates: the pipeline graph by
 // layer, the KPI counts and the timeline layout. Pure.
-import { isLaunched, isPython, type JournalRow, type Plan, type PlanGroup, type PlanNode, type TaskState } from '@contraagent/api';
-import type { FlowCallNode, FlowFrame, FlowLoop } from './flow-types.js';
+// A plan node's origin (`flow`, `created_from`, `flow_call`) is optional on the
+// wire (absent for a task no flow created), so the readers here check it before use.
+import {
+  isLaunched,
+  isPython,
+  retries,
+  type FlowCallNode,
+  type FlowFrame,
+  type FlowLoop,
+  type JournalRow,
+  type Plan,
+  type PlanGroup,
+  type PlanNode,
+  type TaskState,
+} from '@contraagent/api';
 
 // --- the pipeline graph, by layer ---------------------------------------------------
 //
@@ -1684,7 +1697,7 @@ export function kpis(journal: readonly JournalRow[]): Kpis {
   const wall = (xs: readonly JournalRow[]) => xs.reduce((a, e) => a + (e.wall_s || 0), 0);
   const keys = (xs: readonly JournalRow[]) => [...new Set(xs.map((e) => e.key))];
   const tasks = (xs: readonly JournalRow[]) => keys(xs).length;
-  const retried = ran.filter((e) => (e.attempt ?? 0) > 0);
+  const retried = retries(journal);
   const fixed = ran.filter((e) => (e.rounds || 1) > 1);
   const switched = ran.filter((e) => (e.hops || []).length > 1);
   return {

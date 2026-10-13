@@ -23,7 +23,7 @@ import { emit } from '../../events.js';
 import { facts, kindUnit, localTime, sentence } from '../../lib/format.js';
 import { notStartedCause, outcomeLabel, runRelative, stateCount, stopLabel } from '../../lib/labels.js';
 import { base } from '../../styles/base.js';
-import { formatOf, statusLabel, statusStop, statusWhy } from '../shared/contract-parts.js';
+import { formatOf, contractStatusLabel, statusStop, contractStatusWhy } from '../shared/contract-parts.js';
 import { taskChip } from '../shared/task-chip.js';
 import '../lists/ca-proc-tree.js';
 import './ca-kpis.js';
@@ -202,12 +202,12 @@ export class CaOverview extends LitElement {
     const refused = tally.refused;
     return html`<div class="ct-row">
         ${chips.length
-          ? chips.map((k) => html`<span class="ct-chip ${k}" title=${statusWhy(k)}>${statusLabel(k)} <b>${tally[k]}</b></span>`)
+          ? chips.map((k) => html`<span class="ct-chip ${k}" title=${contractStatusWhy(k)}>${contractStatusLabel(k)} <b>${tally[k]}</b></span>`)
           : html`<span class="meta">${msg('No checked files')}</span>`}
       </div>
       ${shown.map(
         ([c, o]) => html`<div class="fl" @click=${() => this.go('outputs')}>
-          <span class="jstop j-${statusStop(o.status)}" title=${o.status ? statusWhy(o.status) : ''}>${o.status ? statusLabel(o.status) : '—'}</span>
+          <span class="jstop j-${statusStop(o.status)}" title=${o.status ? contractStatusWhy(o.status) : ''}>${o.status ? contractStatusLabel(o.status) : '—'}</span>
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
           <div class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</div>
