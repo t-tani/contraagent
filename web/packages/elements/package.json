@@ -1,7 +1,7 @@
 {
   "name": "@contraagent/elements",
   "version": "0.1.0",
-  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a JSON tree, markdown and counters. No contraagent data, no localization library",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -40,6 +40,11 @@
       "types": "./dist/count/index.d.ts",
       "default": "./dist/count/index.js"
     },
+    "./data-table": {
+      "source": "./src/table/index.ts",
+      "types": "./dist/table/index.d.ts",
+      "default": "./dist/table/index.js"
+    },
     "./define": {
       "source": "./src/define/all.ts",
       "types": "./dist/define/all.d.ts",
@@ -64,6 +69,11 @@
       "source": "./src/define/segmented.ts",
       "types": "./dist/define/segmented.d.ts",
       "default": "./dist/define/segmented.js"
+    },
+    "./data-table/define": {
+      "source": "./src/define/data-table.ts",
+      "types": "./dist/define/data-table.d.ts",
+      "default": "./dist/define/data-table.js"
     },
     "./custom-elements.json": "./custom-elements.json"
   },

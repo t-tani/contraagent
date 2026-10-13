@@ -283,6 +283,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every `cae-*` element, and `…/segmented/define`, `…/json-tree/define`,
   `…/markdown/define` and `…/count/define` one each. Its documentation:
   primitives, theming and strings.
+- `<cae-data-table>` (`@contraagent/elements/data-table`, registered by
+  `…/data-table/define`): rows in a real `<table>`, one tab stop for the rows
+  (the arrow keys, Home and End), Enter or a click as a row's action
+  (`cae-activate`) or selection (`cae-select`), sortable headers (`cae-sort`,
+  `sortRows`), and above `windowAt` rows only the rows on screen drawn. Its
+  columns are `DataColumn`s; documented in `docs/data-table.md`.
 
 ### Fixed
 
@@ -395,6 +401,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `@contraagent/elements`. `@contraagent/ui` no longer exports the styles,
   the themes, markdown (`md`, `mdFile`, `highlight`) or these elements, and
   `@contraagent/ui/themes` is `@contraagent/elements/themes`.
+- Rows in Tasks and History are reached with Tab and the arrow keys, and opened
+  with Enter. Both lists are tables (`<cae-data-table>`), and a long list draws
+  only the rows on screen. The lists' filters (`filterTasks`, `filterJournal`,
+  ...) and columns (`taskColumns`, `journalColumns`) are in
+  `@contraagent/ui`'s `adapters/`.
 - The pipeline graph's Graph | Table switch and the header's language switch
   are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
   The legends are lists for screen readers.

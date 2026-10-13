@@ -7,14 +7,37 @@ export interface ChangeDetail {
   value: string;
 }
 
+/** An item, by its id (a row's key). */
+export interface ItemDetail {
+  id: string;
+}
+
+/** The item chosen as the selection; null when the selection was cleared. */
+export interface SelectDetail {
+  id: string | null;
+}
+
+/** A column to order the items by, and the direction. */
+export interface SortDetail {
+  id: string;
+  direction: 'asc' | 'desc';
+}
+
 /** Every `cae-*` event and its detail. */
 export interface CaeEventMap {
   'cae-change': ChangeDetail;
+  /** The item's primary action (a click or Enter on an item that has one). */
+  'cae-activate': ItemDetail;
+  'cae-select': SelectDetail;
+  'cae-sort': SortDetail;
 }
 
 declare global {
   interface HTMLElementEventMap {
     'cae-change': CustomEvent<ChangeDetail>;
+    'cae-activate': CustomEvent<ItemDetail>;
+    'cae-select': CustomEvent<SelectDetail>;
+    'cae-sort': CustomEvent<SortDetail>;
   }
 }
 

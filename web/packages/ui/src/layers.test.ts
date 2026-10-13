@@ -10,8 +10,9 @@
 //   apps/*                  the packages, only through their `exports`
 //
 //   inside @contraagent/ui  a folder imports only from the folders before it
-//   core/                   never words/, lib/ or elements/
-//   words/, lib/            never elements/
+//   core/                   never words/, lib/, adapters/ or elements/
+//   words/, lib/            never adapters/ or elements/
+//   adapters/               never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
 //
@@ -130,14 +131,19 @@ describe('@contraagent/ui folders', () => {
     expect(imports.length).toBeGreaterThan(100);
   });
 
-  it('core/, words/ and lib/ never import elements/', () => {
-    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib)\//.test(f);
+  it('core/, words/, lib/ and adapters/ never import elements/', () => {
+    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|adapters)\//.test(f);
     const bad = imports.filter((i) => lower(i.file) && target(i).startsWith(`${UI}/elements/`));
     expect(bad.map(where)).toEqual([]);
   });
 
-  it('core/ never imports words/ or lib/', () => {
-    const bad = imports.filter((i) => i.file.startsWith(`${UI}/core/`) && /^packages\/ui\/src\/(words|lib)\//.test(target(i)));
+  it('core/ never imports words/, lib/ or adapters/', () => {
+    const bad = imports.filter((i) => i.file.startsWith(`${UI}/core/`) && /^packages\/ui\/src\/(words|lib|adapters)\//.test(target(i)));
+    expect(bad.map(where)).toEqual([]);
+  });
+
+  it('words/ and lib/ never import adapters/', () => {
+    const bad = imports.filter((i) => /^packages\/ui\/src\/(words|lib)\//.test(i.file) && target(i).startsWith(`${UI}/adapters/`));
     expect(bad.map(where)).toEqual([]);
   });
 
