@@ -78,6 +78,9 @@ documentation. No other word is used for the same thing.
 | **hub** / **relay** | the server that holds every host's runs and serves their monitor / the process on a host that ships its runs to a hub (never "agent", which is the coding agent) | `contraagent hub`, `Hub`, `HubStore` / `contraagent relay`, `HubClient`; `contraagent/hub/` |
 | **heartbeat** | a relay's report that its host is up, with its runs' live processes; a host's runs are live while its heartbeats keep arriving | `protocol.Heartbeat`, `HeartbeatLiveness` |
 | **blob** | a file's content on a hub, named by its SHA-256 | `BlobStore` |
+| **segment** / **open segment** | a sealed part of a transcript on a hub: one object of zstd frames with an index of their first lines / the part still being written, a file on the hub's disk | `SegmentedStreamLogs`, `segment_format`, `SegmentIndex`; `--segments` / `--streams-dir` |
+| **held** / **durable** | the lines of a log a hub holds / those of them that survive the loss of the hub's disk (sealed segments, the database) | `Held`, `Accepted.logs` / `Accepted.durable` |
+| **active transcript** | a transcript whose task is running or whose file grew in the last seconds; a relay ships it between its full passes | `Relay.fast_once` |
 | **journal** / **plan** | the finished attempts / the queued tasks | `journal.jsonl` / `plan.jsonl` |
 | **unread event** | an event type a coding agent sent that its reader in this contraagent does not know: a newer coding agent | `LaunchResult.unread_events`, `JournalRow.unread_events` |
 | **web fetch** | the coding agent reading a web page by its URL (Claude Code `WebFetch`, omp `read` of a URL) | a transcript's tool call `web_fetch` |

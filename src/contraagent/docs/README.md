@@ -42,6 +42,7 @@ block that points a coding agent at them, for the instruction file it reads
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity.
 - [Checking and testing](testing.md): `contraagent check`, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs.
+- [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 
 `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
