@@ -184,6 +184,18 @@ STOP_DEFERRED = "deferred"
 STOP_DUPLICATE_KEY = "duplicate_key"
 
 
+@dataclass(frozen=True)
+class Changes:
+    """The files one attempt changed under its task's `changes` patterns, as paths
+    relative to the working directory: those it `created`, `modified` and `deleted`.
+    `removed`: the files it created that were removed because the attempt failed."""
+
+    created: tuple[str, ...] = ()
+    modified: tuple[str, ...] = ()
+    deleted: tuple[str, ...] = ()
+    removed: tuple[str, ...] = ()
+
+
 @dataclass
 class TaskResult:
     """A task's final result. `payload` is opaque domain data (e.g. a state
@@ -212,6 +224,8 @@ class TaskResult:
     # that failed its checks (the last: what stayed wrong).
     rounds: int | None = None
     round_errors: tuple[tuple[str, ...], ...] = ()
+    # The files the attempt changed under its task's `changes` patterns; None when it declares none.
+    changes: Changes | None = None
     payload: Any = None
 
     @classmethod

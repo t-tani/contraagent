@@ -16,3 +16,4 @@ export * from './contract.js';
 export * from './run-line.js';
 export * from './hosts.js';
 export * from './table.js';
+export * from './changes.js';

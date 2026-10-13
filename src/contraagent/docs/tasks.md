@@ -221,6 +221,29 @@ one kind. `extra_units` is not part of the fingerprint, since it changes when a 
 runs, not what it does. An extra unit that is the task's own unit, or one named
 twice, raises at the task call.
 
+## Files a task changes
+
+An agent task whose work is files in the working tree, beside its output,
+declares where with `changes`: `Path.glob` patterns relative to the working
+directory, filled in like `output_name` (`{unit}`, `{key}`, `{kind}`). A pattern
+that matches a directory covers everything under it. Each attempt's journal row
+then holds its changes (`created`, `modified`, `deleted`), and the files a
+failed attempt created (a timeout, a run of failed checks) are removed, with the
+directories it created for them (`removed`). A modified file is not restored.
+
+A file is counted as the change of the attempt that was running when it changed.
+Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
+in the pattern, or keep them from running at once (one unit, a tag).
+
+`Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of an agent task.
+A scope (`TaskScope`) is a context manager around it, every hop included; an
+enricher (`ResultEnricher`) sees the task before and the result after, after the
+changes are recorded, and may add a `payload` or change `ok` and `stop`;
+`row_extras(result)` adds columns to the journal row. Here an enricher names what
+each attempt did to its topic:
+
+::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
+
 ## How a task ends
 
 A result's `stop` says why: `completed`, `invalid_output` (still off-contract
@@ -239,7 +262,7 @@ and receive `TaskResult`s.
 | `Run` | `runs/<id>/`: run lock, `plan.jsonl`, `journal.jsonl`, `flow_calls.jsonl`, `deferred.jsonl`, in-flight markers, resume by key and fingerprint |
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
-| `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, env) |
+| `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
 | `WorkQueue` | per-unit locks (a task's unit and its extra units), caps, tags, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |

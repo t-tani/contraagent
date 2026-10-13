@@ -673,6 +673,42 @@
         "title": "AgentProcess",
         "description": "One live agent launch: the topmost process of a coding-agent CLI, found by its\n`CONTRAAGENT_*` environment; or, for an agent behind a library-call backend (no\nchild process), the run's own process, from its in-flight marker, with empty\n`cmd`, `full_cmd`, `role`, `model` and `plugin`."
       },
+      "Changes": {
+        "properties": {
+          "created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created"
+          },
+          "modified": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Modified"
+          },
+          "deleted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Changes",
+        "description": "The files one attempt changed under its task's `changes` patterns, relative to\nthe working directory (`dispatch.Changes`)."
+      },
       "ContractField": {
         "properties": {
           "name": {
@@ -1658,6 +1694,16 @@
             },
             "type": "object",
             "title": "Unread Events"
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Changes"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "fingerprint": {
             "type": "string",

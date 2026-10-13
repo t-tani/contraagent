@@ -23,7 +23,7 @@ task's declared defaults, an `AgentRunner` with failover and retry, and a
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import GeneratorType
@@ -32,6 +32,7 @@ from typing import Any
 from contraagent.backends import Backend, create_backend, known_agents
 from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.queue import GRACE_S
+from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.task import Task, TaskResult
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
@@ -99,6 +100,9 @@ class Pipeline:
         log: Callable[[str], None] | None = None,
         max_passes: int | None = None,
         quota_rule: QuotaRule | None = None,
+        scopes: Sequence[TaskScope] = (),
+        enrichers: Sequence[ResultEnricher] = (),
+        row_extras: Callable[[TaskResult], dict] | None = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -123,6 +127,11 @@ class Pipeline:
         latest utilization reading (`RateLimit`); beside the config's own caps
         (`max_five_hour_pct`, `max_seven_day_pct`). A resting credential is not launched
         on: its tasks take the next hop of their failover chain, or are deferred.
+        `scopes`: context managers around each agent task's dispatch (`TaskScope`: entered
+        before its first hop, exited after its last, a timeout included); `enrichers`
+        see the task before and its result after (`ResultEnricher`, which may set
+        `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt.
+        `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `tag_capacity`, ...); its docstring has the scheduling rules."""
         if config is None:
@@ -142,6 +151,9 @@ class Pipeline:
         # A malformed [defaults] is reported with every other routing problem, by the routing plan.
         self.max_passes = max_passes if max_passes is not None else int(config.defaults([]).get("max_passes", MAX_PASSES))
         self.quota_rule = quota_rule
+        self.scopes = tuple(scopes)
+        self.enrichers = tuple(enrichers)
+        self.row_extras = row_extras
         self.queue_options = queue_options
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
@@ -166,7 +178,7 @@ class Pipeline:
         fingerprint, reading its output from the run directory.
         """
         run_id = run_id or flow.__name__
-        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd) as run:
+        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras) as run:
             if not resume and run.rows():
                 raise RunExists(
                     f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
@@ -228,6 +240,8 @@ class Pipeline:
                         cwd=self.cwd,
                         env=self.env,
                         rests=rests,
+                        scopes=self.scopes,
+                        enrichers=self.enrichers,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(

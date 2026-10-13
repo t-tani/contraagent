@@ -98,6 +98,8 @@ wherever the UI shows a state or a count to the reader.
 | web searches (the queries of the coding agent's web search tool) | Web 検索 |
 | query (what a web search searched for) | 検索語 |
 | results (the pages a web search returned; not a task's outcome) | 検索結果 |
+| changed files (`changes`: what an attempt did under the task's patterns) | 変更したファイル |
+| created / modified / deleted (a changed file) | 作成 / 変更 / 削除 |
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |

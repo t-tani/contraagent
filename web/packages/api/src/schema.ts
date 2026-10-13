@@ -334,6 +334,23 @@ export type components = {
             plugin: string;
         };
         /**
+         * Changes
+         * @description The files one attempt changed under its task's `changes` patterns, relative to
+         *     the working directory (`dispatch.Changes`).
+         */
+        Changes: {
+            /** Created */
+            created?: string[];
+            /** Modified */
+            modified?: string[];
+            /** Deleted */
+            deleted?: string[];
+            /** Removed */
+            removed?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * ContractField
          * @description One top-level field of the model a contract file must satisfy.
          */
@@ -857,6 +874,7 @@ export type components = {
             unread_events?: {
                 [key: string]: number;
             };
+            changes?: components["schemas"]["Changes"] | null;
             /**
              * Fingerprint
              * @default

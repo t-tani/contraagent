@@ -15,6 +15,7 @@ from pathlib import Path
 
 from contraagent.backends.process import signal_of
 from contraagent.dispatch.task import Task, TaskResult, kind_name
+from contraagent.execution import schemas
 from contraagent.execution.schemas import Hop, JournalRow, QuotaReading, TokenUsage
 
 
@@ -30,6 +31,13 @@ def _usage(o) -> TokenUsage | None:
         cache_creation=u.cache_creation,
         calls=u.n_calls,
     )
+
+
+def _changes(result: TaskResult) -> schemas.Changes | None:
+    c = result.changes
+    if c is None:
+        return None
+    return schemas.Changes(created=list(c.created), modified=list(c.modified), deleted=list(c.deleted), removed=list(c.removed))
 
 
 def utcnow_iso() -> str:
@@ -94,6 +102,7 @@ class Journal:
             ],
             web_queries=list(o.web_queries) if o is not None else [],
             unread_events=dict(o.unread_events) if o is not None else {},
+            changes=_changes(result),
             fingerprint=task.fingerprint,
             flow_call=task.origin.flow_call if task.origin is not None else None,
             **(self._row_extras(result) if self._row_extras else {}),

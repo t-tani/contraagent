@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import string
 import typing
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -48,6 +49,7 @@ class AgentTask[Out]:
     tags: tuple[str, ...] = ()
     #: Plugins whose skills the task loads too, after its own plugin (`agent_task(skills_from=)`).
     skills_from: tuple[Plugin, ...] = ()
+    changes: tuple[str, ...] = ()
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -71,7 +73,7 @@ class AgentTask[Out]:
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
         instructions, its role file's content, the skills of its plugins, its output schema,
-        its validators and its params schema."""
+        its validators, its params schema and its `changes` patterns."""
         return _digest(self._defined())
 
     def differences(self, other: AgentTask) -> list[str]:
@@ -102,6 +104,7 @@ class AgentTask[Out]:
             "output": _schema(self.output_schema) if self.output_schema is not None else self.output_format,
             "validators": [_validator_identity(v) for v in self.validators],
             "params": _schema(self.params) if self.params is not None else None,
+            "changes": list(self.changes),
         }
 
     def __call__(
@@ -135,6 +138,7 @@ def agent_task[Out](
     output_name: str | None = None,
     requires: Sequence[str] = (),
     tags: Sequence[str] = (),
+    changes: Sequence[str] = (),
     **config: Any,
 ) -> AgentTask[Out]:
     """Declare an agent task.
@@ -157,6 +161,12 @@ def agent_task[Out](
     it, failover hops included, is refused before anything launches.
     `tags`: named resources each of its tasks holds while it runs (`["heavy"]`);
     `Pipeline(tag_capacity={"heavy": 1})` caps how many run at once.
+    `changes`: `Path.glob` patterns, relative to the working directory, of the files its
+    tasks may change beside their output (`["topics/{unit}/**"]`; `{unit}`, `{key}` and
+    `{kind}` as in `output_name`; a pattern that matches a directory covers everything
+    under it). Each attempt's changes under them are recorded in its journal row, and
+    the files a failed attempt created are removed. Tasks that run at once under one
+    pattern cannot be told apart: put `{unit}` in it.
     `instructions`: a text put before the call protocol, for a task with no plugin. Such a
     task runs with the permissions of the plugin template's `settings.json` (Claude Code).
     `output_name`: the output file's name under `<run>/out/<kind>/`, a template:
@@ -179,6 +189,9 @@ def agent_task[Out](
             PipelineConfig({"tasks": {kind: dict(config)}}).task_tables()
         except ConfigError as exc:
             raise ConfigError(str(exc).replace("<config>: [tasks.", "agent_task: [", 1)) from None
+    changes = tuple(changes)
+    for pattern in changes:
+        _check_changes_pattern(kind, pattern)
     base = _caller_dir()
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
@@ -198,6 +211,7 @@ def agent_task[Out](
         requires=tuple(requires),
         tags=tuple(tags),
         skills_from=shared,
+        changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
     )
 
@@ -364,6 +378,22 @@ def _type_name(t: type) -> str:
         inner = t.model_fields["root"].annotation
         return getattr(inner, "__name__", None) or str(inner)
     return t.__name__
+
+
+def _check_changes_pattern(kind: str, pattern: str) -> None:
+    """A `changes` pattern: relative, inside the working directory, naming only `{unit}`,
+    `{key}` and `{kind}`."""
+    if not isinstance(pattern, str) or not pattern:
+        raise TypeError(f"agent_task({kind!r}): changes holds {pattern!r}, not a pattern")
+    try:
+        fields = {f for _, f, _, _ in string.Formatter().parse(pattern) if f is not None}
+    except ValueError as exc:
+        raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r}: {exc}") from None
+    unknown = sorted(fields - {"unit", "key", "kind"})
+    if unknown:
+        raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} names {', '.join(unknown)}; it may name unit, key and kind")
+    if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+        raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} is not inside the working directory")
 
 
 def _check_param_names(kind: str, model: type[BaseModel], params: dict) -> None:
