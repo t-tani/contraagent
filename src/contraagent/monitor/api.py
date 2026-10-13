@@ -231,6 +231,10 @@ class PlanNode(Open):
     stop: str = ""
     route: str = ""
     attempts: int = 1
+    deferred: str = Field(
+        "",
+        description="why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not",
+    )
 
 
 class PlanGroup(Closed):

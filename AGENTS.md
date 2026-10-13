@@ -26,6 +26,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
+| a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, its reason as the run recorded it | 実行されず |
 | attempt | attempt N | N 回目 |
 | stop `error` | error | エラー |
 | round after contract errors | correction | 修正依頼 |

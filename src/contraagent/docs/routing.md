@@ -85,6 +85,31 @@ stated retry-after, and the task goes to the next member at once; with every
 member resting, the route's own failover takes over. A pool carries only the
 traits every member carries.
 
+## Quota caps
+
+A subscription's quota (its 5-hour and weekly usage) belongs to the account,
+so its caps are the credential's: `max_five_hour_pct` and `max_seven_day_pct`
+in its `[credentials.<name>]` table (on a pool, the cap of each member that
+sets none). `Pipeline(quota_rule=fn)` adds a test of your own: `fn(credential,
+reading)` returns why the credential rests now, or None, from its latest reading
+(`RateLimit`).
+
+A credential past a cap or the rule **rests** until the window its reading
+names resets. Nothing launches as it meanwhile: a pool passes over the member,
+and a task skips the hop without launching it and takes the next hop of its
+failover chain (a gateway, an API key), the reason in its journal row
+(`personal rests: 5-hour usage 93%, max 90%; ran on hop 2/2 ...`). A task
+with no hop left is deferred at once: it spent nothing and did not fail, and
+`deferred.jsonl` says why, as does the monitor ("not run" and the reason). A
+task of `finishing_kinds` still launches on a resting credential for `grace_s`
+after the rest began, as it does past a deadline.
+
+The readings are those the coding agents report: Claude Code when a session
+starts or resumes, omp at each launch. The run starts from the newest of
+recent runs' journals and takes each launch's as it ends, so tasks that start
+together all start before the first of them reports the cap is reached. A
+credential with no readings (a gateway, an API key) never rests on a quota.
+
 What is guaranteed:
 
 - **Before launch**, every route of every kind (failover hops and pool members

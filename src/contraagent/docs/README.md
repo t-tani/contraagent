@@ -41,7 +41,7 @@ and the documentation site print the quoted lines in place.
 - [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, and the engine underneath.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
-- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity.
+- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
 - [Checking and testing](testing.md): `contraagent check`, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.

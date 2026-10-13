@@ -1154,6 +1154,12 @@ export type components = {
              * @default 1
              */
             attempts?: number;
+            /**
+             * Deferred
+             * @description why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not
+             * @default
+             */
+            deferred?: string;
         } & {
             [key: string]: unknown;
         };

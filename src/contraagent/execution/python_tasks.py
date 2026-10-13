@@ -64,6 +64,11 @@ class PythonTaskRunner:
             return _PythonTaskConfig()
         return self._inner.config(task)
 
+    def deferral(self, task: Task) -> str | None:
+        """Why an agent task cannot launch now (`inner`'s); a Python task always can."""
+        ask = getattr(self._inner, "deferral", None) if task.fn is None else None
+        return ask(task) if ask is not None else None
+
     def contracts(self, task: Task) -> tuple[list, list]:
         """(outputs, inputs) declared for `task`, by the task and by the adapter."""
         payload = task.payload

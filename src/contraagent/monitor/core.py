@@ -303,6 +303,12 @@ class Monitor:
                         "flow_call": e.get("flow_call"),
                     }
                 )
+        # Why a task was deferred, unless a journal row came after (a resumed run ran it).
+        deferred: dict[str, str] = {}
+        for d in _parse(self.source.lines(run, rundir.DEFERRED)[0]):
+            j = last.get(d.get("key", ""))
+            if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
+                deferred[d.get("key", "")] = str(d.get("reason") or "")
         snap = live if live is not None else self.liveness.snapshot(run)
         running = _running_keys(snap)
         nodes = []
@@ -319,6 +325,8 @@ class Monitor:
             else:
                 state = "done" if j.get("ok") else "failed"
             node = {**r, "state": state}
+            if state == "pending" and r["key"] in deferred:
+                node["deferred"] = deferred[r["key"]]
             if j:
                 node.update(
                     {

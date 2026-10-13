@@ -32,10 +32,11 @@ from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.backends.process import signal_of
 from contraagent.contracts import check_input, fold_spend, record_contracts, run_until_valid
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent.dispatch.task import Task, TaskResult, kind_name
+from contraagent.dispatch.task import STOP_DEFERRED, Task, TaskResult, kind_name
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.routing.kind_config import KindConfig
 from contraagent.routing.pool import pools_of
+from contraagent.routing.quota import QuotaRests
 from contraagent.routing.router import Route, Router
 
 _logger = logging.getLogger(__name__)
@@ -97,6 +98,7 @@ class AgentRunner:
         cwd: Path | str | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
+        rests: QuotaRests | None = None,
     ):
         """
         `backends`: every coding agent a kind or a route may name, keyed by
@@ -111,6 +113,9 @@ class AgentRunner:
         (`RoutingPlan.credentials`); `ambient` is always there.
         `model`, `model_failover`, `env`: run-wide launch defaults a kind's own
         config outranks.
+        `rests`: the run's quota rests (`routing.quota`): a hop whose credential rests is
+        skipped without a launch, a pool's resting members too, and a task with no hop
+        left is deferred. Each launch's utilization readings are told to it.
         """
         if isinstance(backends, Backend):
             backends = {backends.name: backends}
@@ -135,6 +140,7 @@ class AgentRunner:
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
+        self.rests = rests
         self._defined: set[str] = set()
 
     # --- configuration -----------------------------------------------------
@@ -208,11 +214,48 @@ class AgentRunner:
     def credential_for(self, task: Task, route: Route | None) -> CredentialBase:
         """The identity this task launches as on `route`: the route's, else the kind's.
         An unknown name raises: launching under a different identity is never a fallback."""
-        name = (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
+        name = self._credential_name(task, route)
         cred = self.credentials.get(name)
         if cred is None:
             raise KeyError(f"no credential {name!r}; known: {', '.join(sorted(self.credentials))}")
         return cred
+
+    def _credential_name(self, task: Task, route: Route | None) -> str:
+        return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
+
+    def _rest(self, task: Task, route: Route | None) -> str:
+        """Why `route`'s credential rests for this task now (`QuotaRests`); '' when it does not."""
+        if self.rests is None:
+            return ""
+        return self.rests.reason(self._credential_name(task, route), kind_name(task.kind))
+
+    def _usable(self, task: Task, route: Route, router: Router, skipped: list[str]) -> Route | None:
+        """`route`, or the first hop after it whose credential does not rest; None when every
+        one rests. Each skipped hop's reason is added to `skipped`. Stateless for the router: a
+        rest is the credential's, not a hop's 429."""
+        here: Route | None = route
+        while here is not None:
+            why = self._rest(task, here)
+            if not why:
+                return here
+            if why not in skipped:
+                skipped.append(why)
+            here = router.next_route_after(here)
+        return None
+
+    def deferral(self, task: Task) -> str | None:
+        """Why this task cannot launch now: every hop it could take, from the one its kind's
+        router picks on, is on a resting credential. None when one is not, or nothing rests."""
+        if self.rests is None:
+            return None
+        router = self.router_for(task)
+        if router is None:
+            return self._rest(task, None) or None
+        route = router.pick()
+        if route is None:  # every hop rate limited: the launch says so
+            return None
+        skipped: list[str] = []
+        return "; ".join(skipped) if self._usable(task, route, router, skipped) is None else None
 
     def _model_chain(self, task: Task, route: Route | None, backend: Backend) -> str | None:
         """The same-agent remainder to hand the agent's own failover flag, when asked.
@@ -292,6 +335,9 @@ class AgentRunner:
             return self._refuse(task, Stop.INVALID_INPUT, f"invalid input: {'; '.join(bad)}")
         router = self.router_for(task)
         if router is None:
+            rest = self._rest(task, None)
+            if rest:
+                return TaskResult.deferred(task, rest)
             result = self._run_once(task, None)
             o = result.launch_result
             if o is not None:
@@ -308,8 +354,23 @@ class AgentRunner:
         pinned = None  # this task's own walk after a failure other than a 429
         trail: list[dict] = []
         spent: LaunchResult | None = None  # the hops so far: their tokens and cost
+        skipped: list[str] = []  # why hops were passed over without a launch (a resting credential)
+        last: TaskResult | None = None
         while True:
             route = pinned if pinned is not None else router.pick()
+            if route is not None and self.rests is not None:
+                seen = len(skipped)
+                usable = self._usable(task, route, router, skipped)
+                notes = skipped[seen:]
+                if usable is None:
+                    if last is None:  # nothing launched: deferred, not failed
+                        return TaskResult.deferred(task, "; ".join(skipped))
+                    last.reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
+                    return last
+                if usable != route:
+                    prior_reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
+                    _logger.info(f"[route] {task.key}: {notes[-1]}; on {router.label_of(usable)}")
+                    route = pinned = usable
             if route is None:
                 # Every hop refused and the chain is spent: a plain error, not
                 # a silent stall.
@@ -321,7 +382,7 @@ class AgentRunner:
             if not trail and pinned is None and route != router.routes[0]:
                 # Not this task's 429: the kind's breaker is still open after another task's.
                 _logger.info(f"[route] {task.key}: starting on {label}; {router.label_of(router.routes[0])} rests after a 429")
-            result = self._run_once(task, route)
+            result = last = self._run_once(task, route)
             trail.append(_hop(label, result))
             # Tokens and cost of the hops before this one belong to the attempt too.
             if result.launch_result is not None:
@@ -393,8 +454,10 @@ class AgentRunner:
         last: TaskResult | None = None
         spent = 0.0  # time on members that were rate limited, counted in the result
         model = (route.model if route is not None and route.model else "") or self.config(task).model or self.model
+        # Members resting on their quota are passed over like those that answered 429.
+        resting = self.rests.resting_members(pool.name, kind_name(task.kind)) if self.rests is not None else set()
         while True:
-            member = pool.pick(model, exclude=tried)
+            member = pool.pick(model, exclude=[*tried, *resting])
             if member is None:
                 if last is None:
                     last = self._refuse(task, Stop.RATE_LIMITED, f"every member of pool {pool.name} is cooling down")
@@ -427,6 +490,8 @@ class AgentRunner:
         launch_result = run_until_valid(backend, launch, contracts) if contracts else backend.run(launch)
         for reading in launch_result.rate_limits:  # whose account each utilization reading is
             reading.credential = reading.credential or launch_result.credential or credential.label
+            if self.rests is not None:
+                self.rests.observe(reading)
         warn = self.config(task).context_warn
         over = bool(warn and launch_result.usage.context_total > warn)
         reason = (launch_result.stderr_tail or "")[-200:].strip()
@@ -484,6 +549,9 @@ class RetryingRunner:
         override = self._overrides.get(task.kind)
         return replace(rc, max_concurrent=override) if override is not None else rc
 
+    def deferral(self, task: Task) -> str | None:
+        return self._runner.deferral(task)
+
     def run(self, task: Task) -> TaskResult:
         rc = self._runner.config(task)
         attempts = max(1, rc.retries)
@@ -491,6 +559,8 @@ class RetryingRunner:
         for attempt in range(attempts):
             task.attempt = attempt
             last = self._runner.run(task)
+            if last.stop == STOP_DEFERRED:  # nothing launched: not an attempt, nothing to journal
+                return last
             if self._on_attempt is not None:
                 try:
                     self._on_attempt(last)

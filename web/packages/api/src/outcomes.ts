@@ -25,6 +25,8 @@ export interface TaskOutcome {
   tries: JournalRow[];
   /** For a task that did not start: the failed task upstream that stopped it, if one is known. */
   cause: string | null;
+  /** For a task the queue deferred (never launched): why, as the run recorded it; '' when it was not. */
+  deferred: string;
 }
 
 const isOk = (r: JournalRow) => r.ok;
@@ -109,6 +111,7 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
       attempts,
       tries: attempts.filter(isLaunched),
       cause: null,
+      deferred: node?.deferred ?? '',
     });
   }
   // A task that did not start: follow what it waits for to the task that actually failed.
