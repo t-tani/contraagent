@@ -75,7 +75,7 @@ export class CaContracts extends LitElement {
   private outcomes: ReadonlyMap<string, TaskOutcome> = new Map();
 
   /** Which contracts the reader opened, kept across Back and reload. */
-  private readonly open = new RememberedSet('contracts:open');
+  private readonly open = new RememberedSet('contracts:open', this);
 
   override render() {
     const cs = this.outputs?.contracts ?? [];

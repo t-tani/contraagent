@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 // The whole monitor over a fake server: the tabs count what `deriveRun` counts,
 // the header's run line says it in words, and the number keys switch tabs.
+// Embedded (`history="memory"`), it leaves the page alone: no listeners on the
+// document or the window, no title, no shortcuts outside it.
 import { deriveRun, type Info, type JournalRow, type Plan, type PlanNode, type RunSummary, type Stop } from '@contraagent/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import './ca-monitor.js';
@@ -54,10 +56,11 @@ afterEach(() => vi.unstubAllGlobals());
 const settle = (ms = 80) => new Promise((r) => setTimeout(r, ms));
 const text = (e: Element | null | undefined) => (e?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
-/** A monitor in memory mode, its run's feed replayed. */
-async function monitor(): Promise<CaMonitor> {
+/** A monitor (in memory mode unless `attrs` says otherwise), its run's feed replayed. */
+async function monitor(attrs: Record<string, string> = {}): Promise<CaMonitor> {
   const el = document.createElement('ca-monitor');
   el.setAttribute('history', 'memory');
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   el.setAttribute('base-url', 'http://monitor.test');
   document.body.append(el);
   await settle();
@@ -86,20 +89,87 @@ describe('ca-monitor', () => {
     expect(text(root(el).querySelector('header .rs'))).toBe(`${d.counts.doneTotal} of ${d.counts.total} tasks done | took 1m 05s`);
     // The custom view comes after the built-in tabs, behind a separator.
     expect(root(el).querySelector('nav .tab-sep + .tab.panel-tab')?.textContent).toContain('Notes');
-    expect(document.title).toBe('Pipeline monitor');
     el.remove();
   });
 
   it('switches tabs with the number keys, and the bar counts what the tab lists', async () => {
     const el = await monitor();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    const key = (key: string) => root(el).querySelector('nav .tab')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true }));
+    key('2');
     await el.updateComplete;
     expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/^≡ ?Tasks/);
     expect(text(root(el).querySelector('.bar .meta'))).toBe('3 tasks');
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    key('3');
     await el.updateComplete;
     expect(text(root(el).querySelector('.bar .meta'))).toBe('3 attempts | 1 not started');
     el.remove();
+  });
+
+  describe('embedded (history="memory")', () => {
+    it('adds no listener to the document or the window, and leaves the title alone', async () => {
+      document.title = 'Host page';
+      const onDoc = vi.spyOn(document, 'addEventListener');
+      const onWin = vi.spyOn(window, 'addEventListener');
+      try {
+        const el = await monitor();
+        expect(text(root(el).querySelector('header .rn'))).toBe('r');
+        expect(onDoc).not.toHaveBeenCalled();
+        // Only @lit/localize's own: each localized element hears the language change on the window.
+        expect(onWin.mock.calls.map(([type]) => type).filter((t) => t !== 'lit-localize-status')).toEqual([]);
+        expect(document.title).toBe('Host page');
+        el.remove();
+      } finally {
+        onDoc.mockRestore();
+        onWin.mockRestore();
+      }
+    });
+
+    it('takes keys pressed inside it only, and none typed in a field', async () => {
+      const el = await monitor();
+      const tab = () => text(root(el).querySelector('nav .tab.sel'));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+      await el.updateComplete;
+      expect(tab()).toMatch(/Overview/);
+      const input = document.createElement('input');
+      el.append(input);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, composed: true }));
+      await el.updateComplete;
+      expect(tab()).toMatch(/Overview/);
+      el.remove();
+    });
+
+    it('takes no keys with shortcuts="off", and its tab bar shows no key hint', async () => {
+      const el = await monitor({ shortcuts: 'off' });
+      root(el).querySelector('nav .tab')!.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, composed: true }));
+      await el.updateComplete;
+      expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/Overview/);
+      expect(root(el).querySelector('.tabhint')).toBeNull();
+      el.remove();
+    });
+
+    it('opens the run picker on a click, and closes it on a click elsewhere in the page', async () => {
+      const el = await monitor();
+      root(el).querySelector<HTMLButtonElement>('.runbtn')!.click();
+      await el.updateComplete;
+      expect(root(el).querySelector('ca-run-picker')!.hasAttribute('open')).toBe(true);
+      await settle(10);
+      document.body.click();
+      await el.updateComplete;
+      expect(root(el).querySelector('ca-run-picker')!.hasAttribute('open')).toBe(false);
+      el.remove();
+    });
+  });
+
+  describe('as the page (history="url")', () => {
+    it('sets the title and takes the number keys pressed anywhere in the page', async () => {
+      const el = await monitor({ history: 'url' });
+      expect(document.title).toBe('Pipeline monitor');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+      await el.updateComplete;
+      expect(text(root(el).querySelector('nav .tab.sel'))).toMatch(/Tasks/);
+      el.remove();
+      history.replaceState(null, '', '/');
+    });
   });
 
   it('marks its tabs as a tab list: one selected, one tab stop, the arrow keys move between them', async () => {

@@ -2260,6 +2260,10 @@
   <target>ビュー</target>
   <note from="lit-localize">The label of the list of tabs: Overview, Tasks, History, ...</note>
 </trans-unit>
+<trans-unit id="sfb33dc608ac218c4">
+  <source>Switch run</source>
+  <target>実行を切り替え</target>
+</trans-unit>
 </body>
 </file>
 </xliff>
