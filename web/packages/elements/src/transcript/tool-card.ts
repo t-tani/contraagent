@@ -45,20 +45,21 @@ function codeBlock(h: CardHost, text: string, id: string): TemplateResult {
   </div>`;
 }
 
-/** The open card's body: a subject and its links, or the command; then the output. */
+/** The open card's body: a web search's query and its links, or a page's URL, or the command; then the output. */
 function cardBody(h: CardHost, c: ToolCard) {
   const out = c.output;
   const links = c.links ?? [];
-  const sub = c.subject;
-  if (!sub) {
+  const subject = c.query || c.page;
+  if (!subject) {
     return out === null
       ? codeBlock(h, c.body ?? '', `${c.id}:cmd`)
       : html`${c.body ? codeBlock(h, c.body, `${c.id}:cmd`) : nothing}${codeBlock(h, out, `${c.id}:out`)}`;
   }
+  const url = !c.query && /^https?:\/\//.test(subject);
   return html`<div class="wq">
-      <span class="wl">${sub.label}</span>${sub.url
-        ? html`<a class="plink" href=${sub.url} target="_blank" rel="noopener noreferrer">${sub.text}</a>`
-        : html`<b>${sub.text}</b>`}
+      <span class="wl">${c.query ? h.s.query : h.s.page}</span>${url
+        ? html`<a class="plink" href=${subject} target="_blank" rel="noopener noreferrer">${subject}</a>`
+        : html`<b>${subject}</b>`}
     </div>
     ${links.length
       ? html`<ol class="links">
@@ -87,7 +88,7 @@ export function toolCard(h: CardHost, c: ToolCard): TemplateResult {
           ? html`<span class="st-run"><i class="pdot"></i>${s.running}</span>`
           : html`<span class="st-int" title=${s.interruptedTip}><span aria-hidden="true">◌</span> ${s.interrupted}</span>`;
   const cls = c.status === 'running' ? 'run' : c.status === 'error' ? 'err' : 'ok';
-  return html`<div class="toolcard ${cls} ${h.revealed === c.id ? 'revealed' : ''}" part="tool" data-tool=${c.icon} data-card=${c.id}>
+  return html`<div class="toolcard ${cls} ${h.revealed === c.id ? 'revealed' : ''}" part="tool" data-tool=${c.query ? 'web-search' : c.page ? 'web-fetch' : c.icon} data-card=${c.id}>
     <div class="th" role="button" tabindex="0" aria-expanded=${open ? 'true' : 'false'} @click=${() => h.toggle(c.id)} @keydown=${(e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();

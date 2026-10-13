@@ -133,7 +133,7 @@ export class CaeTranscript extends LitElement {
       const was = changed.get('sections')?.length ?? 0;
       // A new section while the reader is scrolled up in the latest one: keep showing the one being read.
       if (was && this.sections.length > was && this.shown === null && this.pinned === null && !this.follow.stick && !this.bulk)
-        this.pinned = was;
+        this.pinned = was - 1;
       if (this.reloading) {
         this.reloading = false;
         this.lastShown = -1;

@@ -3,43 +3,31 @@
 // mutated in place as pages of events arrive (`StreamController`);
 // `transcriptSections` turns it into what `<cae-transcript>` shows.
 import { knownEvent, type LaunchEvent, type TranscriptEvent } from '@contraagent/api';
+import type { ToolCard, TranscriptItem } from '@contraagent/elements/transcript';
 import { firstLine } from '../../words/format.js';
+import { webResults } from './web.js';
 import { launchWho, type Who } from './who.js';
 
 /** One tool call: the card that opens on its start and receives its result. */
-export interface ToolItem {
-  kind: 'tool';
-  id: string;
+export interface ToolItem extends ToolCard {
   /** The call id pairing start and end; '' when the agent sent none. */
   call: string;
-  name: string;
-  /** The tool's short name, for its icon (`bash`, `read`, ...). */
+  /** The tool's short name (`bash`, `read`, ...). */
   icon: string;
-  /** One line: the command, pattern, path or URL. */
-  preview: string;
   intent: string;
   /** The command shown in the card's body. */
-  cmd: string;
-  /** The query, when the call is a web search; '' otherwise. */
-  webQuery: string;
-  /** The URL, when the call reads a web page; '' otherwise. */
-  webFetch: string;
-  /** The result; null while the call runs. */
-  out: string | null;
-  status: 'run' | 'ok' | 'err';
+  body: string;
 }
 
-export type Item =
-  /** The prompt the launch assembled, as the agent echoed it. */
-  | { kind: 'prompt'; id: string; text: string }
-  /** Assistant prose, accumulated from its deltas. */
-  | { kind: 'assistant'; id: string; raw: string }
-  /** A turn's closing thinking. */
-  | { kind: 'summary'; id: string; text: string }
-  /** The coding agent sent an API request again (`auto_retry_start`), with the error it got. */
-  | { kind: 'retry'; id: string; err: string }
-  | { kind: 'notice'; id: string; text: string }
-  | ToolItem;
+/**
+ * What a round shows, as `<cae-transcript>` takes it: the prompt the launch
+ * assembled as the agent echoed it, assistant prose accumulated from its deltas
+ * (`message`), a turn's closing thinking (`reasoning`), an API request the
+ * coding agent sent again (`auto_retry_start`, an `event` whose `text` is the
+ * error it got; its title is the reader's word, `transcriptSections`), a
+ * notice, a tool call.
+ */
+export type Item = Exclude<TranscriptItem, ToolCard> | ToolItem;
 
 export interface Round {
   id: string;
@@ -83,20 +71,7 @@ function setToolName(card: ToolItem, name: string | null | undefined): void {
 function cardFor(t: Transcript, round: Round, call: string): ToolItem {
   let c = call ? t.tools.get(call) : undefined;
   if (!c) {
-    c = {
-      kind: 'tool',
-      id: call ? `call:${call}` : newId(t),
-      call,
-      name: '',
-      icon: '',
-      preview: '',
-      intent: '',
-      cmd: '',
-      webQuery: '',
-      webFetch: '',
-      out: null,
-      status: 'run',
-    };
+    c = { type: 'tool', id: call ? `call:${call}` : newId(t), call, name: '', icon: '', summary: '', intent: '', body: '', output: null, status: 'running' };
     if (call) t.tools.set(call, c);
     round.items.push(c);
   }
@@ -122,47 +97,48 @@ export function applyEvents(t: Transcript, events: readonly TranscriptEvent[]): 
       case 'message_start':
       case 'message_end':
         if (e.role !== 'user' || !e.text) continue;
-        r.items.push({ kind: 'prompt', id: newId(t), text: e.text });
+        r.items.push({ type: 'prompt', id: newId(t), text: e.text });
         break;
       case 'turn_end':
         if (!e.thinking) continue;
-        r.items.push({ kind: 'summary', id: newId(t), text: e.thinking });
+        r.items.push({ type: 'reasoning', id: newId(t), text: e.thinking });
         break;
       case 'acall':
       case 'tool_execution_start':
       case 'tool_execution_update': {
         const c = cardFor(t, r, e.call);
-        if (c.out === null) {
+        if (c.output === null) {
           setToolName(c, e.tool);
-          c.preview = firstLine(e.cmd);
+          c.summary = firstLine(e.cmd);
           c.intent = e.intent || '';
-          c.cmd = e.cmd || c.cmd;
-          if (e.web_query) c.webQuery = e.web_query;
-          if (e.web_fetch) c.webFetch = e.web_fetch;
-        } else if (!c.preview && e.cmd) {
-          c.preview = firstLine(e.cmd); // a late duplicate may only add the preview
+          c.body = e.cmd || c.body;
+          if (e.web_query) c.query = e.web_query;
+          if (e.web_fetch) c.page = e.web_fetch;
+        } else if (!c.summary && e.cmd) {
+          c.summary = firstLine(e.cmd); // a late duplicate may only add the summary
         }
         break;
       }
       case 'aresult':
       case 'tool_execution_end': {
         const c = cardFor(t, r, e.call);
-        if (c.out !== null && !e.out) break; // a repeated, empty result must not blank the real one
+        if (c.output !== null && !e.out) break; // a repeated, empty result must not blank the real one
         setToolName(c, e.tool);
-        c.status = e.err ? 'err' : 'ok';
-        if (!c.preview && c.cmd) c.preview = firstLine(c.cmd);
-        c.out = e.out || '(no output)';
+        c.status = e.err ? 'error' : 'ok';
+        if (!c.summary && c.body) c.summary = firstLine(c.body);
+        c.output = e.out || '(no output)';
+        if (c.query) c.links = webResults(c.output);
         break;
       }
       case 'message_update': {
         if (!e.delta) continue;
         const last = r.items[r.items.length - 1];
-        if (last?.kind === 'assistant') last.raw += e.delta;
-        else r.items.push({ kind: 'assistant', id: newId(t), raw: e.delta });
+        if (last?.type === 'message') last.text += e.delta;
+        else r.items.push({ type: 'message', id: newId(t), text: e.delta });
         break;
       }
       case 'auto_retry_start':
-        r.items.push({ kind: 'retry', id: newId(t), err: e.err ?? '' });
+        r.items.push({ type: 'event', id: newId(t), icon: '↻', title: '', text: e.err ?? '' });
         break;
       case 'notice': {
         const model = SESSION_MODEL.exec(e.text || '')?.[1];
@@ -170,7 +146,7 @@ export function applyEvents(t: Transcript, events: readonly TranscriptEvent[]): 
           r.who ??= { agent: '', model: '', role: '' };
           if (!r.who.model) r.who.model = model;
         }
-        r.items.push({ kind: 'notice', id: newId(t), text: (e.text || '').replace(/\s+/g, ' ').trim() });
+        r.items.push({ type: 'notice', id: newId(t), text: (e.text || '').replace(/\s+/g, ' ').trim() });
         break;
       }
     }

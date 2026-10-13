@@ -37,6 +37,8 @@ const strings = (): TranscriptStrings => ({
   running: msg('running'),
   interrupted: msg('interrupted'),
   interruptedTip: msg('The run ended before the tool call returned'),
+  query: msg('query'),
+  page: msg('page'),
   fullText: msg('Full text'),
   showAll: (n) => msg(str`Show all (${n} characters)`),
   showLess: msg('Show less'),
@@ -173,7 +175,7 @@ export class CaTranscript extends LitElement {
    * (1-based; null for the latest), or undefined when the transcript holds no such search.
    */
   revealWebSearch(query: string, nth = 0): { round: number | null } | undefined {
-    const card = this.feed.model.rounds.flatMap((r) => r.items).filter((it) => it.kind === 'tool' && it.webQuery === query)[nth];
+    const card = this.feed.model.rounds.flatMap((r) => r.items).filter((it) => it.type === 'tool' && it.query === query)[nth];
     const i = card && this.view ? this.view.reveal(card.id) : -1;
     if (i < 0) return undefined;
     return { round: i === this.feed.model.rounds.length - 1 ? null : i + 1 };

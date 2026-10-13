@@ -40,14 +40,14 @@ describe('transcript model', () => {
       ['r1', { agent: 'Claude Code', model: 'm2', role: 'writer' }],
     ]);
     const items = t.rounds[0]!.items;
-    expect(items.map((i) => i.kind)).toEqual(['assistant', 'tool', 'assistant']);
-    expect(items[0]).toMatchObject({ raw: 'Hello' });
-    expect(items[1]).toMatchObject({ name: 'Bash', icon: 'bash', preview: 'ls -la', intent: 'look', cmd: 'ls -la\nmore', out: 'a b', status: 'ok' });
+    expect(items.map((i) => i.type)).toEqual(['message', 'tool', 'message']);
+    expect(items[0]).toMatchObject({ text: 'Hello' });
+    expect(items[1]).toMatchObject({ name: 'Bash', icon: 'bash', summary: 'ls -la', intent: 'look', body: 'ls -la\nmore', output: 'a b', status: 'ok' });
     // a result with no start opens its own card, in the round it arrived in
-    expect(t.rounds[1]!.items[0]).toMatchObject({ name: 'tool', status: 'err', out: 'x' });
+    expect(t.rounds[1]!.items[0]).toMatchObject({ name: 'tool', status: 'error', output: 'x' });
   });
 
-  it('omp: duplicate call styles land in one card; a late duplicate only adds the preview; an empty repeat keeps the result', () => {
+  it('omp: duplicate call styles land in one card; a late duplicate only adds the summary; an empty repeat keeps the result', () => {
     const { t } = fold([
       { type: 'acall', tool: 'mcp_read', cmd: '', call: 'c1', intent: '' },
       { type: 'tool_execution_start', tool: 'mcp_read', cmd: 'a.txt', intent: 'read it', call: 'c1' },
@@ -57,15 +57,15 @@ describe('transcript model', () => {
     ]);
     const cards = t.rounds[0]!.items as ToolItem[];
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ id: 'call:c1', icon: 'read', preview: 'a.txt', intent: 'read it', out: 'content', status: 'ok' });
+    expect(cards[0]).toMatchObject({ id: 'call:c1', icon: 'read', summary: 'a.txt', intent: 'read it', output: 'content', status: 'ok' });
   });
 
-  it('a late duplicate fills a preview the card lacks', () => {
+  it('a late duplicate fills a summary the card lacks', () => {
     const { t } = fold([
       { type: 'tool_execution_end', tool: 'grep', out: 'hit', err: false, call: 'c' },
       { type: 'acall', tool: 'grep', cmd: 'needle', call: 'c', intent: '' },
     ]);
-    expect(t.rounds[0]!.items[0]).toMatchObject({ preview: 'needle', out: 'hit' });
+    expect(t.rounds[0]!.items[0]).toMatchObject({ summary: 'needle', output: 'hit' });
   });
 
   it('events before any launch open an implicit round; notices, retries, summaries and echoed prompts', () => {
@@ -84,10 +84,10 @@ describe('transcript model', () => {
     expect(r.launch).toBeNull();
     expect(r.who).toEqual({ agent: '', model: 'claude-x', role: '' });
     expect(r.items).toMatchObject([
-      { kind: 'notice', text: 'session init: cwd=/w model=claude-x tools=3' },
-      { kind: 'prompt', text: 'the prompt' },
-      { kind: 'summary', text: 'summary' },
-      { kind: 'retry', err: '429' },
+      { type: 'notice', text: 'session init: cwd=/w model=claude-x tools=3' },
+      { type: 'prompt', text: 'the prompt' },
+      { type: 'reasoning', text: 'summary' },
+      { type: 'event', icon: '↻', text: '429' },
     ]);
   });
 
@@ -175,8 +175,9 @@ describe('web search', () => {
       { type: 'tool_execution_start', tool: 'bash', cmd: 'ls', intent: '', call: 'b1' },
     ]);
     const [search, bash] = t.rounds[0]?.items as ToolItem[];
-    expect(search?.webQuery).toBe('omp rpc');
-    expect(bash?.webQuery).toBe('');
+    expect(search?.query).toBe('omp rpc');
+    expect(search?.links).toEqual([{ title: 'omp', url: 'https://omp.sh/' }]);
+    expect(bash?.query).toBeUndefined();
   });
 
   it("reads Claude Code's links, omp's numbered results, else bare URLs", () => {
@@ -212,6 +213,6 @@ describe('web search', () => {
       { type: 'tool_execution_start', tool: 'WebFetch', cmd: 'https://omp.sh/', web_fetch: 'https://omp.sh/', intent: 'what is it', call: 'f1' },
     ]);
     const [fetch] = t.rounds[0]?.items as ToolItem[];
-    expect([fetch?.webFetch, fetch?.webQuery, fetch?.intent]).toEqual(['https://omp.sh/', '', 'what is it']);
+    expect([fetch?.page, fetch?.query, fetch?.intent]).toEqual(['https://omp.sh/', undefined, 'what is it']);
   });
 });

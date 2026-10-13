@@ -2,14 +2,13 @@
 // named as the reader counts rounds (attempt, correction, model switch), with
 // how it ended, who ran it, its command line and prompt, and its items.
 import { isLaunched, runRelative, type JournalRow, type LaunchEvent } from '@contraagent/api';
-import type { ToolCard, TranscriptDetail, TranscriptItem, TranscriptSection } from '@contraagent/elements/transcript';
+import type { TranscriptDetail, TranscriptItem, TranscriptSection } from '@contraagent/elements/transcript';
 import { msg, str } from '@lit/localize';
 import type { RoundInfo } from '../../core/events.js';
 import { attemptNames } from '../../words/attempts.js';
 import { roundLabel, roundMark, switchText } from '../../words/rounds.js';
 import { stopLabel } from '../../words/stop.js';
-import type { Item, ToolItem, Transcript } from './model.js';
-import { webResults } from './web.js';
+import type { Transcript } from './model.js';
 import { whoTags } from './who.js';
 
 export interface SectionsContext {
@@ -19,43 +18,6 @@ export interface SectionsContext {
   rows: readonly JournalRow[];
   /** The latest round is still being written (the task runs and its transcript is tailed). */
   active: boolean;
-}
-
-const STATUS = { run: 'running', ok: 'ok', err: 'error' } as const;
-
-function toolCard(c: ToolItem): ToolCard {
-  const url = /^https?:\/\//.test(c.webFetch) ? c.webFetch : undefined;
-  return {
-    type: 'tool',
-    id: c.id,
-    name: c.name,
-    icon: c.webQuery ? 'web-search' : c.webFetch ? 'web-fetch' : c.icon,
-    summary: c.preview,
-    intent: c.intent,
-    body: c.cmd,
-    output: c.out,
-    status: STATUS[c.status],
-    ...(c.webQuery
-      ? { subject: { label: msg('query'), text: c.webQuery }, links: webResults(c.out) }
-      : c.webFetch
-        ? { subject: { label: msg('page'), text: c.webFetch, url } }
-        : {}),
-  };
-}
-
-function item(it: Item): TranscriptItem {
-  switch (it.kind) {
-    case 'assistant':
-      return { type: 'message', id: it.id, text: it.raw };
-    case 'summary':
-      return { type: 'reasoning', id: it.id, text: it.text };
-    case 'retry':
-      return { type: 'event', id: it.id, icon: '↻', title: msg('API request sent again'), text: it.err };
-    case 'tool':
-      return toolCard(it);
-    default:
-      return { type: it.kind, id: it.id, text: it.text };
-  }
 }
 
 /** The command line, and the prompt with what was not saved of it. */
@@ -112,7 +74,8 @@ export function transcriptSections(t: Transcript, rounds: readonly RoundInfo[], 
       active: i === last && ctx.active,
       tags: r.launch ? whoTags(r.who) : [],
       details: r.launch ? launchDetails(r.launch) : [],
-      items: r.items.map(item),
+      // the model leaves an event's title to the reader's words: the only event is an API request sent again
+      items: r.items.map((it): TranscriptItem => (it.type === 'event' ? { ...it, title: msg('API request sent again') } : it)),
       footer: info && footer(info, ctx.run),
     };
   });

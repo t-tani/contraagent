@@ -3,18 +3,22 @@ import { minifyCssTemplates, minifyCssText } from './minify-css.mjs';
 
 describe('minifyCssText', () => {
   it('drops comments and runs of whitespace', () => {
-    expect(minifyCssText('/* a comment, don\'t */\n.b  {\n  color: red ;\n}\n')).toBe(' .b{color: red;}');
+    expect(minifyCssText('/* a comment, don\'t */\n.b  {\n  color: red ;\n}\n')).toBe(' .b{color:red;}');
+  });
+
+  it('drops the space around commas and child combinators, and after colons', () => {
+    expect(minifyCssText('.a > .b, .c :hover { font: 12px a, b; }')).toBe('.a>.b,.c :hover{font:12px a,b;}');
   });
 
   it('keeps quoted strings as written', () => {
-    expect(minifyCssText(".a::before { content: '  x ; y  '; }")).toBe(".a::before{content: '  x ; y  ';}");
-    expect(minifyCssText('.g { grid-template-areas: "a  b" "c  d"; }')).toBe('.g{grid-template-areas: "a  b" "c  d";}');
+    expect(minifyCssText(".a::before { content: '  x ; y  '; }")).toBe(".a::before{content:'  x ; y  ';}");
+    expect(minifyCssText('.g { grid-template-areas: "a  b" "c  d"; }')).toBe('.g{grid-template-areas:"a  b" "c  d";}');
   });
 });
 
 describe('minifyCssTemplates', () => {
   it('minifies the css template text and keeps the ${…} parts', () => {
     const code = 'const s = css`\n  .a {\n    color: ${tone};\n  }\n`;';
-    expect(minifyCssTemplates(code)).toBe('const s = css` .a{color: ${tone};}`;');
+    expect(minifyCssTemplates(code)).toBe('const s = css` .a{color:${tone};}`;');
   });
 });

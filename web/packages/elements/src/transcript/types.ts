@@ -15,21 +15,20 @@ export interface ToolCard {
   id: string;
   name: string;
   /**
-   * The card's glyph: `bash`, `read`, `grep`, `glob`, `edit`, `write`, `task`,
-   * `agent`, `web-search` or `web-fetch`; any other key shows ⚒. Set as
-   * `data-tool` on the card.
+   * The card's glyph: `bash`, `read`, `grep`, `glob`, `edit`, `write`, `task`
+   * or `agent`; any other key shows ⚒. A web search (`query`) and a page read
+   * (`page`) have their own. Set as `data-tool` on the card.
    */
   icon: string;
   /** One line: the command, pattern, path or URL. */
   summary: string;
   /** Why the call was made, beside the summary. */
   intent?: string;
-  /**
-   * The thing the call works on, above its output (a web search's query, a
-   * page's URL); `url` makes it a link. A card with a subject shows no `body`.
-   */
-  subject?: { label: string; text: string; url?: string };
-  /** The command in full, above the output. */
+  /** A web search's query: shown above the pages it returned (`links`). */
+  query?: string;
+  /** A page the call read: its URL, a link when it is http(s). */
+  page?: string;
+  /** The command in full, above the output (not for a `query` or a `page`). */
   body?: string;
   /** The result; null while the call runs. */
   output: string | null;
@@ -131,6 +130,10 @@ export interface TranscriptStrings {
   /** A call with no result in a transcript that is not `live`. */
   interrupted: string;
   interruptedTip: string;
+  /** The label of a web search's query. */
+  query: string;
+  /** The label of a page's URL. */
+  page: string;
   /** The fold of a web search's full output under its links. */
   fullText: string;
   showAll: (n: number) => string;
@@ -156,6 +159,8 @@ export const DEFAULT_TRANSCRIPT_STRINGS: Readonly<TranscriptStrings> = {
   running: 'running',
   interrupted: 'interrupted',
   interruptedTip: 'No result before the end',
+  query: 'query',
+  page: 'page',
   fullText: 'Full text',
   showAll: (n) => `Show all (${n} characters)`,
   showLess: 'Show less',
