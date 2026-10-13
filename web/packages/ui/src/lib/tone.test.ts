@@ -15,12 +15,15 @@ describe('problemTone', () => {
 describe('runTone', () => {
   const t = (failed: number, not_started: number, total = 31) => ({ total, failed, not_started });
   it('is the run’s own status', () => {
-    expect(runTone(true, t(1, 0))).toBe('running');
-    expect(runTone(false, t(1, 1))).toBe('failed');
-    expect(runTone(false, t(0, 1))).toBe('attention');
-    expect(runTone(false, t(0, 0))).toBe('done');
-    expect(runTone(false, t(0, 0, 0))).toBe('neutral');
-    expect(runTone(false, undefined)).toBe('neutral');
+    expect(runTone('running', t(1, 0))).toBe('running');
+    expect(runTone('stopped', t(1, 1))).toBe('failed');
+    expect(runTone('stopped', t(0, 1))).toBe('attention');
+    expect(runTone('stopped', t(0, 0))).toBe('done');
+    expect(runTone('stopped', t(0, 0, 0))).toBe('neutral');
+    expect(runTone('stopped', undefined)).toBe('neutral');
+    // its host stopped reporting: not known to run, not known to have ended
+    expect(runTone('unresponsive', t(0, 0))).toBe('attention');
+    expect(runTone('unresponsive', t(1, 0))).toBe('attention');
   });
 });
 

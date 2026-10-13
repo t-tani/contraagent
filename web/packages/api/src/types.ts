@@ -12,6 +12,9 @@ export type JsonObject = Record<string, unknown>;
 export type Info = S['Info'];
 export type PanelInfo = S['PanelInfo'];
 export type RunSummary = S['RunSummary'];
+export type Hosts = S['Hosts'];
+export type HostSummary = S['HostSummary'];
+export type AccountQuota = S['AccountQuota'];
 
 export type JournalRow = S['JournalRow'];
 /** How one attempt ended (`JournalRow.stop`): a `Stop` of the Python package, or `skipped`. */

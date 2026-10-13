@@ -4,7 +4,7 @@
 // when it is above 0, and a whole is never coloured by its worst part (a run's
 // dot is the exception: it is the run's own status). An element shows its tone
 // as `data-tone` (none for neutral); the rules are in the elements' styles.
-import type { ContractStatus, Outcome, Stop } from '@contraagent/api';
+import type { ContractStatus, Outcome, RunActivity, Stop } from '@contraagent/api';
 import { markOf, type Mark, type Tone } from '@contraagent/elements';
 
 export type { Tone };
@@ -14,9 +14,14 @@ export function problemTone(n: number, tone: Exclude<Tone, 'neutral'>): Tone {
   return n > 0 ? tone : 'neutral';
 }
 
-/** A run's own status: running, failed (a task failed), attention (only tasks not started), done; neutral before it has tasks. */
-export function runTone(running: boolean, tasks: { total: number; failed: number; not_started: number } | undefined): Tone {
-  if (running) return 'running';
+/**
+ * A run's own status: running; attention when its host stopped reporting (a hub);
+ * then how it ended: failed (a task failed), attention (only tasks not started),
+ * done; neutral before it has tasks.
+ */
+export function runTone(activity: RunActivity, tasks: { total: number; failed: number; not_started: number } | undefined): Tone {
+  if (activity === 'running') return 'running';
+  if (activity === 'unresponsive') return 'attention';
   if (!tasks?.total) return 'neutral';
   if (tasks.failed) return 'failed';
   if (tasks.not_started) return 'attention';

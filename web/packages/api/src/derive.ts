@@ -4,7 +4,7 @@
 // the same on every screen. Pure; memoized on the identity of its inputs.
 import { isLaunched, outcomeCounts, problems, taskOutcomes, taskRows } from './outcomes.js';
 import type { Outcome, Problems, TaskOutcome, TaskRow } from './outcomes.js';
-import type { JournalRow, Plan, PlanNode, RunSummary } from './types.js';
+import type { HostSummary, JournalRow, Plan, PlanNode, RunSummary } from './types.js';
 
 export interface RunCounts extends Record<Outcome, number> {
   total: number;
@@ -97,4 +97,60 @@ export function elapsedS(r: Pick<RunSummary, 'started_at' | 'last_ts'> | undefin
   const a = Date.parse(r?.started_at ?? '');
   const b = Date.parse(r?.last_ts ?? '');
   return Number.isNaN(a) || Number.isNaN(b) ? null : Math.max(0, (b - a) / 1000);
+}
+
+// --- a run's process and its host ----------------------------------------------
+
+/**
+ * A run's process, as every view names it: `running`; `unresponsive`, its host
+ * last reported it alive and has stopped reporting (a hub only), so whether it
+ * still runs is not known; or `stopped`.
+ */
+export type RunActivity = 'running' | 'unresponsive' | 'stopped';
+
+/** What a run's process is doing, from the run list and (when its feed is open) the feed's `procs.alive`. */
+export function runActivity(summary: Pick<RunSummary, 'running' | 'unresponsive'> | undefined, alive = false): RunActivity {
+  if (alive || summary?.running) return 'running';
+  return summary?.unresponsive ? 'unresponsive' : 'stopped';
+}
+
+/** The host that drives a run, from the host list. */
+export const hostOf = (hosts: readonly HostSummary[] | undefined, summary: Pick<RunSummary, 'host_id'> | undefined): HostSummary | undefined =>
+  summary?.host_id ? hosts?.find((h) => h.host_id === summary.host_id) : undefined;
+
+/** A run's name without its host: a hub names a run `<run_id>@<host_id>`; any other name as it is. */
+export function runIdOf(r: Pick<RunSummary, 'run' | 'host_id'>): string {
+  const tail = r.host_id ? `@${r.host_id}` : '';
+  return tail && r.run.endsWith(tail) && r.run.length > tail.length ? r.run.slice(0, -tail.length) : r.run;
+}
+
+/** One host's runs. */
+export interface HostGroup {
+  hostId: string;
+  /** The host as the host list has it; undefined for a host the list does not have yet. */
+  host: HostSummary | undefined;
+  runs: RunSummary[];
+}
+
+const ACTIVITY_ORDER: Record<RunActivity, number> = { running: 0, unresponsive: 1, stopped: 2 };
+
+/**
+ * Runs by host, in the host list's order (then the host ids it does not have,
+ * sorted): in each, the running runs, then those whose host stopped reporting,
+ * then the rest, each in the order given (the run list's: most recent first).
+ */
+export function hostGroups(runs: readonly RunSummary[], hosts: readonly HostSummary[] = []): HostGroup[] {
+  const by = new Map<string, RunSummary[]>();
+  for (const r of runs) {
+    const id = r.host_id ?? '';
+    let list = by.get(id);
+    if (!list) by.set(id, (list = []));
+    list.push(r);
+  }
+  const order = [...hosts.map((h) => h.host_id).filter((id) => by.has(id)), ...[...by.keys()].filter((id) => !hosts.some((h) => h.host_id === id)).sort()];
+  return order.map((hostId) => ({
+    hostId,
+    host: hosts.find((h) => h.host_id === hostId),
+    runs: by.get(hostId)!.map((r, i) => [r, i] as const).sort(([a, i], [b, j]) => ACTIVITY_ORDER[runActivity(a)] - ACTIVITY_ORDER[runActivity(b)] || i - j).map(([r]) => r),
+  }));
 }
