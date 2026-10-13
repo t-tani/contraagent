@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The application's page (index.html); main.ts puts the monitor in #monitor. -->
+<!-- The application's page (index.html), with the monitor in #monitor; main.ts names its server. -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -24,6 +24,7 @@
         </select>
       </label>
     </header>
-    <div id="monitor"></div>
+    <!-- `memory`: the route stays in the element; the page's URL, title and <html> stay the application's. -->
+    <div id="monitor"><ca-monitor history="memory" locale="en"></ca-monitor></div>
   </body>
 </html>

@@ -344,6 +344,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `<ca-monitor>` takes `base-url`, `history` and `run` whenever they change, also
+  after it connects; a new `base-url` closes the old server's feeds. A request to the
+  API that gets no JSON answer (an HTML page, a 404, a network error) is shown with its
+  URL and cause, and written to the console, in place of "No runs yet". `ApiError`
+  has the `url`, a `failure`, the `status` and the media `type`; `MonitorSnapshot` has
+  `error` and `runsLoaded`.
 - Below 760 px wide, the open run picker spans the header 16 px from each side; it ran
   off the right edge and scrolled the page sideways.
 - The monitor's transcript feed no longer skips the lines after a page that stopped at
