@@ -1,7 +1,11 @@
+import { isBad, runRelative, type JournalRow } from '@contraagent/api';
+import { msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { base } from '@contraagent/elements/styles';
+import { facts, fmtDur, kindUnit } from '../../words/format.js';
+import { modelSwitch, stopLabel } from '../../words/index.js';
 
 /** The notice's status (its mark and the colour of its edge); `agent` is a model switch, which is not a status. */
 export type ToastKind = 'done' | 'failed' | 'attention' | 'running' | 'agent';
@@ -12,6 +16,16 @@ interface Toast {
   title: string;
   sub: string;
   out: boolean;
+}
+
+/** The notice for a journal row that just arrived: its kind, title and line (`CaToasts.show`'s arguments). */
+export function rowToast(row: JournalRow, run: string): [kind: ToastKind, title: string, sub: string] {
+  const name = kindUnit(row);
+  const reason = runRelative(row.reason, run).slice(0, 110);
+  if (row.stop === 'invalid_input') return ['attention', msg(str`${name}: not started`), reason];
+  if (isBad(row)) return ['failed', msg(str`${name}: ${stopLabel(row.stop)}`), reason];
+  if ((row.hops || []).length > 1) return ['agent', msg(str`${name}: model switch`), modelSwitch(row.hops, row.wall_s).slice(0, 110)];
+  return ['done', msg(str`${name}: done`), facts(fmtDur(row.wall_s), row.model)];
 }
 
 const ICON: Record<ToastKind, string> = { done: '✓', failed: '✕', attention: '◌', running: '●', agent: '✦' };

@@ -3,7 +3,7 @@
 // the event map: `CaEventMap` (ui/src/core/events.ts), and from P8 `CaeEventMap`
 // (elements/src/core/events.ts) for `cae-*`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Vitest runs from web/.
@@ -39,6 +39,25 @@ function sent(text: string): Set<string> {
   return new Set(names);
 }
 
+/**
+ * The parts of element file `f`: the modules in its folder (or below) that it
+ * imports, directly or through another part, and that define no element. An
+ * element renders its parts' templates, so it sends the events they send.
+ */
+function partsOf(f: string, seen = new Set<string>()): Set<string> {
+  const folder = posix.dirname(f);
+  for (const m of read(f).matchAll(/^\s*import\s+(?!type\b)(?:[^'";]*?\bfrom\s*)?'(\.[^']+)'/gm)) {
+    const dep = posix.normalize(posix.join(posix.dirname(f), m[1]!)).replace(/\.js$/, '.ts');
+    if (seen.has(dep) || !dep.startsWith(`${folder}/`) || !files.includes(dep) || elementFiles.includes(dep)) continue;
+    seen.add(dep);
+    partsOf(dep, seen);
+  }
+  return seen;
+}
+
+/** The event names element file `f` sends, itself or through its parts. */
+const sentBy = (f: string): Set<string> => new Set([f, ...partsOf(f)].flatMap((x) => [...sent(read(x))]));
+
 /** The event names in the JSDoc `@fires` tags of `text`. */
 const declared = (text: string): Set<string> => new Set([...text.matchAll(/@fires\s+([\w-]+)/g)].map((m) => m[1]!));
 
@@ -67,7 +86,7 @@ describe('@fires', () => {
   it.each(elementFiles)('%s declares exactly the events it sends', (f) => {
     const text = read(f);
     const own = handled(text);
-    expect(sorted(declared(text))).toEqual(sorted(new Set([...sent(text)].filter((n) => !own.has(n)))));
+    expect(sorted(declared(text))).toEqual(sorted(new Set([...sentBy(f)].filter((n) => !own.has(n)))));
   });
 
   it('every event sent is in an event map', () => {
