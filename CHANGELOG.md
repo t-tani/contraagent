@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Liveness` (`contraagent.monitor.source`). `DirectorySource` and `ProcLiveness`, the
   defaults, read the runs directory and `/proc`; `MemorySource` and `StaticLiveness`
   hold records in memory. The layout of a run's records is `contraagent.rundir`.
+- `contraagent hub` and `contraagent relay` (the `hub` extra): every host's runs in one
+  monitor. A relay on each host ships its runs' records, the files their contracts name
+  and a heartbeat to a hub, at least once and in order; a hub stores records in Postgres,
+  file contents in object storage by SHA-256, and transcripts as segments (an open
+  segment on its disk, sealed segments of zstd frames in object storage, their index in
+  Postgres), and serves the monitor over them. Ingest takes per-host tokens; the monitor
+  takes a read token (`/login`). The wire is `contraagent/hub/openapi.json`; see the
+  documentation topic "Many hosts: the hub".
+- The monitor's transcript feed wakes when a transcript grows instead of every second,
+  sends each message with its line number as the event id, and resumes from
+  `Last-Event-ID` or `?from=` with no gap and no duplicate.
+- A page of a transcript carries at most 1,500 lines and 4 MiB.
+- Every run document (`run.json`, `contracts/`, `definitions/`, `calls/`, `inflight/`) is
+  written atomically (`rundir.write_document`).
 
 - `Pipeline.check(flow, ...)` and `contraagent check tasks.py:flow`: the task
   graph is built and checked with nothing launched, and every problem is reported
@@ -318,6 +332,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The monitor's transcript feed no longer skips the lines after a page that stopped at
+  its event or byte limit, no longer sends a transcript's last page again on reconnect,
+  and holds a half-written last line until it is complete.
 - A new agent session that starts while the reader is scrolled up in a
   transcript keeps the session being read on screen; it showed the new one.
 - Failures that stopped for a limit, a rate limit, an API or authentication
