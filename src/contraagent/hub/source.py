@@ -9,6 +9,7 @@ the run's own records, as its host wrote them.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import Callable
@@ -18,7 +19,7 @@ from contraagent import rundir
 from contraagent.hub.store import BlobStore, HubStore
 from contraagent.hub.streams import StreamLogs, is_stream
 from contraagent.monitor import paths, procs
-from contraagent.monitor.source import entry_parts, page
+from contraagent.monitor.source import entry_parts, page, poll_size
 
 #: Seconds without a heartbeat after which a host's runs no longer count as live.
 DEFAULT_TTL_S = 15.0
@@ -70,6 +71,16 @@ class HubSource:
         if is_stream(log):
             return self.streams.count(self._name(run), self._uid(run), log)
         return self.store.count(self._name(run), log)
+
+    async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int:
+        """A transcript wakes its waiters on append (`StreamLogs.wait`, by line count);
+        another log is polled (`poll_size`)."""
+        entry_parts(log)
+        name = self._name(run)
+        if is_stream(log):
+            uid = await asyncio.to_thread(self._uid, name)
+            return await self.streams.wait(name, uid, log, beyond, timeout)
+        return await poll_size(lambda: self.store.count(name, log), beyond, timeout)
 
     def exists(self, run: str, name: str) -> bool:
         entry_parts(name)

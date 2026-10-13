@@ -84,6 +84,14 @@ def _shown_flow(flow: list, cwd: Path | None) -> list:
     return [{**f, "file": _shown(f.get("file", ""), cwd)} for f in flow if isinstance(f, dict)]
 
 
+def _parses(line: str) -> bool:
+    try:
+        json.loads(line)
+    except ValueError:
+        return False
+    return True
+
+
 def _parse(lines: list[str]) -> list[dict]:
     """The JSON values of log lines or documents; one that does not parse (a torn last write) is skipped."""
     out = []
@@ -418,6 +426,11 @@ class Monitor:
         none. `paths.BadName` for a run id or task key that is not a plain name."""
         return self.source.size(run, rundir.stream(paths.check_name(key, "task key")))
 
+    async def wait_stream(self, run: str, key: str, beyond: int, timeout: float) -> int:
+        """Wait until task `key`'s transcript has grown past `beyond` (a value `stream_size`
+        returned), or `timeout` seconds; return its `stream_size` then."""
+        return await self.source.wait(run, rundir.stream(paths.check_name(key, "task key")), beyond, timeout)
+
     def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict, int]:
         """A page of task `key`'s normalized transcript events.
 
@@ -426,18 +439,33 @@ class Monitor:
         pages backward on demand. Always `{events, total, behind}`, including
         when the file is absent.
         """
+        page, _ = self.stream_from(run, key, since if since > 0 else None, limit)
+        return page, page["total"]
+
+    def stream_from(self, run: str, key: str, since: int | None, limit: int = 1500) -> tuple[dict, int]:
+        """A page of task `key`'s normalized transcript events from line `since` (None:
+        the tail page, the last `limit` lines), as `stream` gives it, and the line offset
+        after the last line the page read: where the next page starts. The page stops at
+        `limit` events or `PAGE_BYTES`, so that offset can be less than `total`. A last
+        line that starts as a JSON object but does not parse is still being written: the
+        page does not read it."""
         log = rundir.stream(paths.check_name(key, "task key"))
+        start = since or 0
         if self.source.size(run, log) < 0:
-            return {"events": [], "total": since, "behind": 0}, since
-        total = self.source.lines(run, log, 0, 0)[1]
+            return {"events": [], "total": start, "behind": 0}, start
         behind = 0
-        if since <= 0:
-            behind = max(0, total - limit)
-            since = behind
+        if since is None:
+            total = self.source.lines(run, log, 0, 0)[1]
+            behind = start = max(0, total - limit)
+        lines, total = self.source.lines(run, log, start, limit * 4, max_bytes=PAGE_BYTES)
+        if lines and start + len(lines) == total and lines[-1].lstrip().startswith("{") and not _parses(lines[-1]):
+            lines = lines[:-1]
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
         out: list[dict] = []
         tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
-        for line in self.source.lines(run, log, since, limit * 4, max_bytes=PAGE_BYTES)[0]:
+        end = start
+        for line in lines:
+            end += 1
             ev = normalize_stream_event(fmt, line)
             if ev is not None:
                 if ev.get("type") == "tool_execution_start" and ev.get("call"):
@@ -447,7 +475,7 @@ class Monitor:
                 out.append(ev)
                 if len(out) >= limit:
                     break
-        return {"events": out, "total": total, "behind": behind}, total
+        return {"events": out, "total": total, "behind": behind}, end
 
     # --- contracts: the files tasks must leave behind ----------------------
 
