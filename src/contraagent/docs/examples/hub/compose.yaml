@@ -1,0 +1,114 @@
+# The contraagent hub over Postgres and MinIO. Before the first `docker compose up -d`:
+#
+#   ./make-tokens build-01 build-02     # tokens in secrets/, passwords in .env
+#
+# and set CONTRAAGENT_HUB_HOSTNAME in .env. The hub is built from this source tree
+# (Dockerfile), or taken from CONTRAAGENT_HUB_IMAGE when that names a built image.
+# Settings: .env.example. Tokens: compose secrets, read from CONTRAAGENT_SECRETS_DIR
+# (default: ./secrets).
+
+name: contraagent-hub
+
+services:
+  hub:
+    image: ${CONTRAAGENT_HUB_IMAGE:-contraagent-hub:local}
+    build:
+      context: ../../../../..
+      dockerfile: src/contraagent/docs/examples/hub/Dockerfile
+    command:
+      - --host=0.0.0.0
+      - --allow-host=${CONTRAAGENT_HUB_HOSTNAME:-localhost}
+      - --store=postgresql://contraagent@postgres:5432/contraagent
+      - --blobs=s3://contraagent/blobs?endpoint=http://minio:9000&region=us-east-1
+      - --streams-dir=/data/streams
+      - --segments=s3://contraagent/segments?endpoint=http://minio:9000&region=us-east-1
+      - --ingest-token-file=/run/secrets/ingest-tokens
+      - --read-token-file=/run/secrets/read-token
+    environment:
+      # libpq and boto3 read these, so no password is on the hub's command line.
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (make-tokens writes it)}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env (make-tokens writes it)}
+      CONTRAAGENT_RETENTION_DAYS: ${CONTRAAGENT_RETENTION_DAYS:-30}
+    secrets:
+      - ingest-tokens
+      - read-token
+    volumes:
+      - hub-data:/data
+    ports:
+      - ${CONTRAAGENT_HUB_BIND:-0.0.0.0}:${CONTRAAGENT_HUB_PORT:-8790}:8790
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8790/healthz', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_USER: contraagent
+      POSTGRES_DB: contraagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (make-tokens writes it)}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "--username=contraagent", "--dbname=contraagent"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-03T14-56-28Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env (make-tokens writes it)}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+      retries: 5
+    restart: unless-stopped
+
+  # Makes the hub's bucket once; it exits when the bucket exists.
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-08T15-39-49Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env (make-tokens writes it)}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mc alias set minio http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing minio/contraagent
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+secrets:
+  ingest-tokens:
+    file: ${CONTRAAGENT_SECRETS_DIR:-./secrets}/ingest-tokens
+  read-token:
+    file: ${CONTRAAGENT_SECRETS_DIR:-./secrets}/read-token
+
+volumes:
+  hub-data:
+  postgres-data:
+  minio-data:

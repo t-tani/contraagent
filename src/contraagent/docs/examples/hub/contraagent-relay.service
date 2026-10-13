@@ -1,0 +1,33 @@
+# `contraagent relay` as a systemd service: ships this host's runs to the hub.
+#
+# The placeholders: User= (the user that owns the runs directory), CONTRAAGENT_HUB_URL,
+# CONTRAAGENT_RUNS_DIR, and the path of `contraagent` in ExecStart= (where the package is
+# installed). /etc/contraagent/relay.env holds the token, CONTRAAGENT_HUB_TOKEN=<token>,
+# and may set the other variables too; `make-tokens` writes it as secrets/relay-<host>.env.
+# Keep it readable by root only (chmod 600): systemd reads it before it changes user.
+#
+#   install -m 644 contraagent-relay.service /etc/systemd/system/
+#   install -m 600 secrets/relay-build-01.env /etc/contraagent/relay.env
+#   systemctl daemon-reload && systemctl enable --now contraagent-relay
+#
+# The relay keeps where it is up to in <runs-dir>.relay.json, beside the runs directory.
+
+[Unit]
+Description=contraagent relay: ship this host's runs to the hub
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=contraagent
+Environment=CONTRAAGENT_HUB_URL=http://hub.example.internal:8790
+Environment=CONTRAAGENT_RUNS_DIR=/srv/pipeline/runs
+EnvironmentFile=/etc/contraagent/relay.env
+ExecStart=/usr/local/bin/contraagent relay --hub ${CONTRAAGENT_HUB_URL} --runs-dir ${CONTRAAGENT_RUNS_DIR}
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
