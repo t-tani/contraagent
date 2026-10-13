@@ -63,6 +63,7 @@ from contraagent.hub.protocol import (
 )
 from contraagent.hub.source import DEFAULT_TTL_S
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
+from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
 from contraagent.monitor.server import LOCAL_HOSTS, _host_names, create_app, require_extra
 
 log = logging.getLogger(__name__)
@@ -418,6 +419,23 @@ def open_store(spec: str) -> HubStore:
     raise ValueError(f"--store: {spec!r} is neither `memory` nor a postgres:// DSN")
 
 
+def open_streams(streams_dir: str | None, segments: str | None, store: str) -> StreamLogs:
+    """Where transcripts are kept: segmented (open segments in `streams_dir`, sealed ones at
+    `segments`, indexed in the `store`'s Postgres database when it is one), or in memory
+    when no `streams_dir` is given."""
+    if streams_dir is None:
+        if segments is not None:
+            raise ValueError("--segments needs --streams-dir")
+        log.warning("no --streams-dir: transcripts are kept in memory and lost when the hub stops")
+        return MemoryStreamLogs()
+    try:
+        from contraagent.hub.segments import from_spec
+    except ImportError as exc:
+        raise ValueError(f"--streams-dir: segmented transcripts are not available ({exc})") from None
+    index = store if store.startswith(("postgres://", "postgresql://")) else None
+    return from_spec(streams_dir, segments or str(Path(streams_dir) / "segments"), index)
+
+
 def open_blobs(spec: str) -> BlobStore:
     """`memory`, `dir:/path`, or `s3://bucket/prefix?endpoint=...`."""
     if spec == "memory":
@@ -459,6 +477,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "--ingest-token-file", metavar="FILE", help="ingest tokens, one per line, or `host_id token` for a token good for that host only"
+    )
+    ap.add_argument(
+        "--streams-dir",
+        metavar="PATH",
+        help="where task transcripts being written are kept on this host's disk; sealed segments go to --segments "
+        "(without it transcripts are kept in memory and lost when the hub stops)",
+    )
+    ap.add_argument(
+        "--segments",
+        metavar="DIR|s3://BUCKET/PREFIX",
+        help="where sealed transcript segments are kept (default: <streams-dir>/segments)",
     )
     ap.add_argument("--read-token-file", metavar="FILE", help="the token that opens the monitor; without it the monitor is open")
     ap.add_argument("--host", default="127.0.0.1")
@@ -507,7 +536,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         tokens = read_ingest_tokens(args.ingest_token_file)
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
-        hub = Hub(open_store(args.store), open_blobs(args.blobs), ttl_s=args.ttl)
+        streams = open_streams(args.streams_dir, args.segments, args.store)
+        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"contraagent hub: {exc}\n")
         return 2
@@ -530,7 +560,12 @@ def main(argv: list[str] | None = None) -> int:
 
     store, blobs = args.store.split("://")[0], args.blobs.split(":")[0]  # a DSN may hold a password
     log.info("%s on http://%s:%s  store=%s blobs=%s ingest tokens=%d", args.title, args.host, args.port, store, blobs, len(tokens))
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    finally:
+        shutdown = getattr(hub.streams, "shutdown", None)
+        if shutdown is not None:
+            shutdown()
     return 0
 
 
