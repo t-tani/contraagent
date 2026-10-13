@@ -102,6 +102,29 @@ def test_close_keeps_every_line_readable(streams):
     assert streams.read("r@h", "u", LOG, 90) == ([f"{i}" for i in range(90, 100)], 100)
 
 
+def test_drop_removes_a_runs_transcripts_and_activity(streams):
+    other = rundir.stream("summarize-b")
+    streams.append("r@h", "u", LOG, 0, [f"{i}" for i in range(100)], "t1")
+    streams.close("r@h", "u", LOG)
+    streams.append("r@h", "u", other, 0, ["x"], "t1")
+    streams.append("r@h", "u2", LOG, 0, ["another run uid"], "t1")
+    streams.append("k@h", "u", LOG, 0, ["keep"], "t2")
+    assert {("r@h", "u"), ("r@h", "u2"), ("k@h", "u")} <= streams.runs()
+    streams.drop("r@h", "u", dry_run=True)
+    assert streams.count("r@h", "u", LOG) == 100 and streams.activity("r@h", "u") == "t1"
+    streams.drop("r@h", "u")
+    assert streams.read("r@h", "u", LOG, 0) == ([], 0) and streams.count("r@h", "u", other) == -1
+    assert streams.logs("r@h", "u") == [] and streams.activity("r@h", "u") is None
+    assert ("r@h", "u") not in streams.runs()
+    assert streams.drop("r@h", "u") == [] and streams.drop("never@h", "u") == []
+    assert streams.read("k@h", "u", LOG, 0) == (["keep"], 1)
+    assert streams.read("r@h", "u2", LOG, 0) == (["another run uid"], 1)
+    # an append after the drop starts the log anew
+    assert streams.append("r@h", "u", LOG, 100, ["late"], "t3").held == 0
+    assert streams.append("r@h", "u", LOG, 0, ["a"], "t3").held == 1
+    assert streams.read("r@h", "u", LOG, 0) == (["a"], 1)
+
+
 def test_page_bounds():
     assert page(["a", "b", "c"], 2, None) == ["a", "b"]
     assert page(["aaaa", "b"], None, 3) == ["aaaa"]

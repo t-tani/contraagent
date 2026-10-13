@@ -12,7 +12,8 @@ every host's runs through `HubSource` and `HeartbeatLiveness`.
 * `segments`  `SegmentedStreamLogs`: open segments on local disk, sealed ones in object storage
               (`segment_format`, `segment_objects`)
 * `source`    `HubSource` and `HeartbeatLiveness`: the monitor's ports over a hub store
-* `core`      `Hub`: what the hub does with each request, and the monitor it serves
+* `core`      `Hub`: what the hub does with each request, the monitor it serves, and
+              its retention (`Hub.prune`)
 * `client`    `HubClient`: how a relay reaches a hub; `DirectClient` calls a `Hub` in-process
 * `relay`     `contraagent relay`: ship one host's runs
 * `server`    `contraagent hub`: receive, store, and serve the monitor

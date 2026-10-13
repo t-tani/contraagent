@@ -12,6 +12,10 @@ it: a new run or a new `run_uid`, a log not held before, new lines, a document w
 differs or one removed that was held, or a file ref that differs. A batch that stores
 nothing new (a relay asking how many lines are held, a resend) leaves it as it was.
 
+Retention (`core.Hub.prune`) removes old runs (`HubStore.delete_run`), heartbeats of hosts
+long gone (`HubStore.delete_heartbeat`), and blobs no file ref references
+(`HubStore.referenced_blobs`, `BlobStore.items`, `BlobStore.delete`).
+
 `MemoryHubStore` and `MemoryBlobs` keep everything in memory (tests, a single-process
 hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs are in
 `postgres` and `s3`.
@@ -20,8 +24,11 @@ hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs
 from __future__ import annotations
 
 import hashlib
+import os
 import threading
+from collections.abc import Callable, Collection, Iterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
@@ -88,6 +95,28 @@ class HubStore(Protocol):
         """Each host's latest heartbeat and when it arrived."""
         ...
 
+    def delete_run(self, name: str, run_uid: str | None = None) -> bool:
+        """Remove everything held of the run under `name` (its logs, documents, file refs
+        and activity); with `run_uid`, only while the run held under `name` has that uid.
+        Whether a run was removed; removing an absent run does nothing."""
+        ...
+
+    def delete_heartbeat(self, host_id: str) -> bool:
+        """Remove the host's latest heartbeat; whether there was one."""
+        ...
+
+    def referenced_blobs(self, excluding: Collection[str] = ()) -> set[str]:
+        """The SHA-256 of every file ref of every run held, except the runs named in `excluding`."""
+        ...
+
+
+class BlobItem(NamedTuple):
+    """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored."""
+
+    sha256: str
+    size: int
+    modified: datetime
+
 
 class BlobStore(Protocol):
     """File contents, named by their SHA-256."""
@@ -95,18 +124,31 @@ class BlobStore(Protocol):
     def has(self, sha256: str) -> bool: ...
 
     def put(self, sha256: str, data: bytes) -> None:
-        """Store `data`; `ValueError` when it does not hash to `sha256`."""
+        """Store `data`; `ValueError` when it does not hash to `sha256`. Storing a blob already
+        held changes nothing, its `modified` included."""
         ...
 
     def get(self, sha256: str) -> bytes | None: ...
+
+    def items(self) -> Iterator[BlobItem]:
+        """Every blob held, in no particular order; `modified` is timezone-aware."""
+        ...
+
+    def delete(self, sha256: str) -> None:
+        """Remove the blob; nothing happens when there is none."""
+        ...
 
 
 def sha256_of(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _is_sha(sha256: str) -> bool:
+    return len(sha256) == 64 and all(c in "0123456789abcdef" for c in sha256)
+
+
 def _check(sha256: str, data: bytes) -> None:
-    if len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+    if not _is_sha(sha256):
         raise ValueError(f"not a SHA-256 in hex: {sha256!r}")
     if sha256_of(data) != sha256:
         raise ValueError(f"content does not hash to {sha256}")
@@ -223,22 +265,56 @@ class MemoryHubStore:
         with self._lock:
             return dict(self._heartbeats)
 
+    def delete_run(self, name: str, run_uid: str | None = None) -> bool:
+        with self._lock:
+            run = self._runs.get(name)
+            if run is None or (run_uid is not None and run.entry.run_uid != run_uid):
+                return False
+            del self._runs[name]
+            return True
+
+    def delete_heartbeat(self, host_id: str) -> bool:
+        with self._lock:
+            return self._heartbeats.pop(host_id, None) is not None
+
+    def referenced_blobs(self, excluding: Collection[str] = ()) -> set[str]:
+        skip = set(excluding)
+        with self._lock:
+            return {f.sha256 for n, run in self._runs.items() if n not in skip for f in run.files.values() if f.sha256}
+
 
 class MemoryBlobs:
-    """A `BlobStore` in memory."""
+    """A `BlobStore` in memory; `clock` (epoch seconds) dates each blob as it is stored. Safe
+    across threads."""
 
-    def __init__(self) -> None:
-        self._blobs: dict[str, bytes] = {}
+    def __init__(self, clock: Callable[[], float] | None = None) -> None:
+        self._blobs: dict[str, tuple[bytes, float]] = {}
+        self._clock = clock or (lambda: datetime.now(UTC).timestamp())
+        self._lock = threading.Lock()
 
     def has(self, sha256: str) -> bool:
-        return sha256 in self._blobs
+        with self._lock:
+            return sha256 in self._blobs
 
     def put(self, sha256: str, data: bytes) -> None:
         _check(sha256, data)
-        self._blobs[sha256] = bytes(data)
+        with self._lock:
+            self._blobs.setdefault(sha256, (bytes(data), self._clock()))
 
     def get(self, sha256: str) -> bytes | None:
-        return self._blobs.get(sha256)
+        with self._lock:
+            got = self._blobs.get(sha256)
+        return got[0] if got else None
+
+    def items(self) -> Iterator[BlobItem]:
+        with self._lock:
+            held = list(self._blobs.items())
+        for sha, (data, at) in held:
+            yield BlobItem(sha, len(data), datetime.fromtimestamp(at, UTC))
+
+    def delete(self, sha256: str) -> None:
+        with self._lock:
+            self._blobs.pop(sha256, None)
 
 
 class DirectoryBlobs:
@@ -248,7 +324,7 @@ class DirectoryBlobs:
         self.root = Path(root)
 
     def _path(self, sha256: str) -> Path:
-        if len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+        if not _is_sha(sha256):
             raise ValueError(f"not a SHA-256 in hex: {sha256!r}")
         return self.root / sha256[:2] / sha256
 
@@ -270,3 +346,22 @@ class DirectoryBlobs:
             return self._path(sha256).read_bytes()
         except OSError:
             return None
+
+    def items(self) -> Iterator[BlobItem]:
+        """Every blob file, dated by its modification time; temporary files are skipped."""
+        if not self.root.is_dir():
+            return
+        for sub in os.scandir(self.root):
+            if not sub.is_dir() or len(sub.name) != 2:
+                continue
+            for entry in os.scandir(sub.path):
+                if not (entry.name.startswith(sub.name) and _is_sha(entry.name)):
+                    continue
+                try:
+                    st = entry.stat()
+                except FileNotFoundError:  # deleted meanwhile
+                    continue
+                yield BlobItem(entry.name, st.st_size, datetime.fromtimestamp(st.st_mtime, UTC))
+
+    def delete(self, sha256: str) -> None:
+        self._path(sha256).unlink(missing_ok=True)

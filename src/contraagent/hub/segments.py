@@ -26,6 +26,12 @@ listed in a `SegmentIndex`; the open one is a file on the hub's local disk.
 * **Activity.** The `received_at` of the last append that added lines to one of a run's
   transcripts, kept in memory and written to the index with each seal, each close and
   each `tick`, so it survives a restart.
+* **Drop.** `drop` removes a run's transcripts (retention): appends to the run wait while
+  it runs, and reads find nothing. It forgets the logs in memory (after any seal of
+  theirs finishes), deletes their open segments' files, then their index rows and the
+  run's activity, then their objects (the index's and any under the run's key prefix). A
+  crash before the objects are deleted leaves orphans, which `sweep` deletes and a
+  second `drop` finds by prefix.
 
 Ingest calls `append` from worker threads while reads run in the event loop's threads: a
 lock per log orders appends and the snapshots reads take. Seals run in a background
@@ -42,6 +48,7 @@ from __future__ import annotations
 import bisect
 import logging
 import os
+import shutil
 import threading
 import time
 import weakref
@@ -137,6 +144,14 @@ class SegmentIndex(Protocol):
         """The run's recorded activity, or None."""
         ...
 
+    def runs(self) -> set[tuple[str, str]]:
+        """(name, uid) of every run with a segment or a recorded activity."""
+        ...
+
+    def drop(self, name: str, uid: str) -> None:
+        """Delete the run's rows and its activity, together."""
+        ...
+
 
 class MemorySegmentIndex:
     """`SegmentIndex` in memory. Safe across threads."""
@@ -172,6 +187,16 @@ class MemorySegmentIndex:
     def activity(self, name: str, uid: str) -> str | None:
         with self._lock:
             return self._activity.get((name, uid))
+
+    def runs(self) -> set[tuple[str, str]]:
+        with self._lock:
+            return {(n, u) for (n, u, _), rows in self._rows.items() if rows} | set(self._activity)
+
+    def drop(self, name: str, uid: str) -> None:
+        with self._lock:
+            for key in [k for k in self._rows if k[:2] == (name, uid)]:
+                del self._rows[key]
+            self._activity.pop((name, uid), None)
 
 
 # An arbitrary 64-bit key for the advisory lock held while the segment tables are created.
@@ -288,6 +313,16 @@ class PostgresSegmentIndex:
         with self._conn() as conn:
             row = conn.execute("SELECT received_at FROM stream_activity WHERE name = %s AND uid = %s", (name, uid)).fetchone()
         return row[0] if row else None
+
+    def runs(self) -> set[tuple[str, str]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT name, uid FROM stream_segments UNION SELECT name, uid FROM stream_activity").fetchall()
+        return {(r[0], r[1]) for r in rows}
+
+    def drop(self, name: str, uid: str) -> None:
+        with self._conn() as conn, conn.transaction():
+            conn.execute("DELETE FROM stream_segments WHERE name = %s AND uid = %s", (name, uid))
+            conn.execute("DELETE FROM stream_activity WHERE name = %s AND uid = %s", (name, uid))
 
 
 def read_segment(objects: SegmentObjects, key: str) -> Segment | None:
@@ -478,6 +513,7 @@ class _Log:
         self.last_append = 0.0
         self.closed = False
         self.scheduled = False
+        self.dropped = False
 
     def rotate(self) -> bool:
         """Stop the open segment and queue it to be sealed; whether there was one."""
@@ -587,6 +623,10 @@ class SegmentedStreamLogs:
         self._activity: dict[tuple[str, str], str] = {}
         self._dirty: set[tuple[str, str]] = set()
         self._lock = threading.Lock()
+        self._undropped = threading.Condition(self._lock)
+        self._dropping: set[tuple[str, str]] = set()
+        self._drops = 0
+        self._flush_lock = threading.Lock()
         self._keys_lock = threading.Lock()
         self._inflight: set[str] = set()
         self._waiters = Waiters()
@@ -603,45 +643,61 @@ class SegmentedStreamLogs:
         name, uid, log = key
         return self.hot_dir / quote(name, safe="") / quote(uid, safe="") / quote(log, safe="") / f"{first_line}.jsonl"
 
+    def _run_dir(self, name: str, uid: str) -> Path:
+        return self.hot_dir / quote(name, safe="") / quote(uid, safe="")
+
     def _get(self, key: _LogKey, create: bool = False) -> _Log | None:
-        with self._lock:
-            st = self._logs.get(key)
-        if st is not None:
-            return st
-        sealed = _contiguous(self.index.segments(*key))
-        if not sealed and not create:
-            return None
-        with self._lock:
-            return self._logs.setdefault(key, _Log(sealed))
+        """The log's state, loaded from the index when not in memory. While its run is being
+        dropped, a read finds nothing and an append waits for the drop to end."""
+        while True:
+            with self._lock:
+                while key[:2] in self._dropping:
+                    if not create:
+                        return None
+                    self._undropped.wait()
+                st = self._logs.get(key)
+                drops = self._drops
+            if st is not None:
+                return st
+            sealed = _contiguous(self.index.segments(*key))
+            if not sealed and not create:
+                return None
+            with self._lock:
+                if self._drops == drops:  # else a drop ran meanwhile: what was read may be gone
+                    return self._logs.setdefault(key, _Log(sealed))
 
     # --- writes ----------------------------------------------------------------------------
 
     def append(self, name: str, uid: str, log: str, offset: int, lines: Sequence[str], received_at: str) -> Held:
         key = (name, uid, log)
-        st = self._get(key, create=True)
-        assert st is not None
         seal = False
-        with st.lock:
-            new = lines[st.count - offset :] if offset <= st.count else []
-            if new:
-                raw = [line.encode() for line in new]
-                if any(b"\n" in r for r in raw):
-                    raise ValueError("a transcript line holds a newline")
-                now = self.clock()
-                st.last_append = now
-                while raw:
-                    if st.hot is None:
-                        st.hot = _Hot.create(self._hot_path(key, st.count), st.count, self.block_bytes, now)
-                    taken = st.hot.append(raw, self.segment_bytes)
-                    st.count += taken
-                    raw = raw[taken:]
-                    if st.hot.size >= self.segment_bytes:
-                        seal = st.rotate() or seal
-            held = Held(st.count, st.durable)
+        while True:
+            st = self._get(key, create=True)
+            assert st is not None
+            with st.lock:
+                if st.dropped:
+                    continue
+                new = lines[st.count - offset :] if offset <= st.count else []
+                if new:
+                    raw = [line.encode() for line in new]
+                    if any(b"\n" in r for r in raw):
+                        raise ValueError("a transcript line holds a newline")
+                    now = self.clock()
+                    st.last_append = now
+                    while raw:
+                        if st.hot is None:
+                            st.hot = _Hot.create(self._hot_path(key, st.count), st.count, self.block_bytes, now)
+                        taken = st.hot.append(raw, self.segment_bytes)
+                        st.count += taken
+                        raw = raw[taken:]
+                        if st.hot.size >= self.segment_bytes:
+                            seal = st.rotate() or seal
+                    with self._lock:  # under the log's lock, so that a drop never misses it
+                        self._activity[(name, uid)] = received_at
+                        self._dirty.add((name, uid))
+                held = Held(st.count, st.durable)
+                break
         if new:
-            with self._lock:
-                self._activity[(name, uid)] = received_at
-                self._dirty.add((name, uid))
             self._waiters.wake(key)
         if seal:
             self._schedule(key, st)
@@ -676,17 +732,18 @@ class SegmentedStreamLogs:
         self._flush_activity(None)
 
     def _flush_activity(self, runs: set[tuple[str, str]] | None) -> None:
-        with self._lock:
-            due = set(self._dirty) if runs is None else self._dirty & runs
-            self._dirty -= due
-            writes = [(run, self._activity[run]) for run in due]
-        for (name, uid), at in writes:
-            try:
-                self.index.set_activity(name, uid, at)
-            except Exception:
-                log_.exception("writing the activity of %s/%s", name, uid)
-                with self._lock:
-                    self._dirty.add((name, uid))
+        with self._flush_lock:
+            with self._lock:
+                due = set(self._dirty) if runs is None else self._dirty & runs
+                self._dirty -= due
+                writes = [(run, self._activity[run]) for run in due if run in self._activity]
+            for (name, uid), at in writes:
+                try:
+                    self.index.set_activity(name, uid, at)
+                except Exception:
+                    log_.exception("writing the activity of %s/%s", name, uid)
+                    with self._lock:
+                        self._dirty.add((name, uid))
 
     # --- seals -----------------------------------------------------------------------------
 
@@ -756,6 +813,61 @@ class SegmentedStreamLogs:
                     self.objects.delete(key)
                     deleted.append(key)
         return deleted
+
+    # --- retention -------------------------------------------------------------------------
+
+    def runs(self) -> set[tuple[str, str]]:
+        with self._lock:
+            mine = {(n, u) for (n, u, _) in self._logs} | set(self._activity)
+        return mine | self.index.runs()
+
+    def _run_keys(self, name: str, uid: str) -> list[str]:
+        """The object keys of the run's segments: the index's, and any under its key prefix."""
+        keys = set(self.objects.keys(f"{name}/{uid}/"))
+        for log in self.index.logs(name, uid):
+            keys.update(s.key for s in self.index.segments(name, uid, log))
+        return sorted(keys)
+
+    def drop(self, name: str, uid: str, *, dry_run: bool = False) -> list[str]:
+        """See `StreamLogs.drop`; the order of its steps is in the module's docstring."""
+        if dry_run:
+            return self._run_keys(name, uid)
+        run = (name, uid)
+        with self._lock:
+            while run in self._dropping:
+                self._undropped.wait()
+            self._dropping.add(run)
+            self._drops += 1
+            logs = [(key, st) for key, st in self._logs.items() if key[:2] == run]
+            for key, _ in logs:
+                del self._logs[key]
+        try:
+            for key, st in logs:
+                with st.seal_lock, st.lock:
+                    st.dropped = True
+                    for hot in [*st.sealing, *([st.hot] if st.hot else [])]:
+                        hot.stop()
+                    st.sealing, st.hot = [], None
+                self._waiters.wake(key)
+            where = self._run_dir(name, uid)
+            shutil.rmtree(where, ignore_errors=True)
+            try:
+                where.parent.rmdir()
+            except OSError:  # another run under the name, or already gone
+                pass
+            keys = self._run_keys(name, uid)
+            with self._flush_lock:
+                with self._lock:
+                    self._activity.pop(run, None)
+                    self._dirty.discard(run)
+                self.index.drop(name, uid)
+            for key in keys:
+                self.objects.delete(key)
+            return keys
+        finally:
+            with self._lock:
+                self._dropping.discard(run)
+                self._undropped.notify_all()
 
     def shutdown(self, wait: bool = True) -> None:
         """Stop the background threads (waiting for running seals with `wait`) and close the
@@ -927,13 +1039,17 @@ class SegmentedStreamLogs:
 
     def activity(self, name: str, uid: str) -> str | None:
         with self._lock:
+            if (name, uid) in self._dropping:
+                return None
             at = self._activity.get((name, uid))
+            drops = self._drops
         if at is not None:
             return at
         at = self.index.activity(name, uid)
         if at is not None:
             with self._lock:
-                self._activity.setdefault((name, uid), at)
+                if self._drops == drops:
+                    self._activity.setdefault((name, uid), at)
         return at
 
 
