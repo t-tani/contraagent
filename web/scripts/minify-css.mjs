@@ -3,12 +3,23 @@
 // comments and its runs of whitespace. The rules stay the same; the minifier
 // leaves template text alone, so this is what keeps the indentation out.
 
-/** CSS text without comments, with each run of whitespace one space, and none around `{`, `}` and `;`. */
+/**
+ * CSS text without comments, with each run of whitespace one space, and none around `{`, `}` and `;`.
+ * Quoted strings (`content: '  '`, `"a  b"`) are kept exactly as written; comments go first,
+ * so a quote inside a comment does not start a string.
+ */
 export function minifyCssText(text) {
   return text
     .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/ ?([{};]) ?/g, '$1');
+    .split(/('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/)
+    .map((part, i) =>
+      i % 2
+        ? part
+        : part
+            .replace(/\s+/g, ' ')
+            .replace(/ ?([{};]) ?/g, '$1'),
+    )
+    .join('');
 }
 
 /** `code` with the literal text of every css`...` template minified; the `${...}` parts are kept as they are. */
