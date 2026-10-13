@@ -12,6 +12,15 @@ describe('route', () => {
     expect(formatRoute(DEFAULT_ROUTE)).toBe('');
   });
 
+  it('names the hosts page alone: it belongs to no run', () => {
+    const r = { ...DEFAULT_ROUTE, page: 'hosts' as const };
+    expect(formatRoute(r)).toBe('?page=hosts');
+    expect(formatRoute({ ...r, run: 'r', tab: 'tasks' })).toBe('?page=hosts');
+    expect(parseRoute('?page=hosts&run=r')).toEqual(r);
+    expect(parseRoute('?page=nope').page).toBe('');
+    expect(isNewPlace({ ...DEFAULT_ROUTE, run: 'r' }, r)).toBe(true);
+  });
+
   it('drops what a tab does not use, and rejects unknown values', () => {
     expect(formatRoute({ ...DEFAULT_ROUTE, run: 'r', tab: 'journal', key: 'k', def: 'd' })).toBe('?run=r&tab=journal');
     expect(parseRoute('?tab=nope&view=nope&round=-1')).toEqual(DEFAULT_ROUTE);
