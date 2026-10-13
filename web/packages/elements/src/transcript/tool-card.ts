@@ -88,7 +88,11 @@ export function toolCard(h: CardHost, c: ToolCard): TemplateResult {
           : html`<span class="st-int" title=${s.interruptedTip}><span aria-hidden="true">◌</span> ${s.interrupted}</span>`;
   const cls = c.status === 'running' ? 'run' : c.status === 'error' ? 'err' : 'ok';
   return html`<div class="toolcard ${cls} ${h.revealed === c.id ? 'revealed' : ''}" part="tool" data-tool=${c.icon} data-card=${c.id}>
-    <div class="th" @click=${() => h.toggle(c.id)}>
+    <div class="th" role="button" tabindex="0" aria-expanded=${open ? 'true' : 'false'} @click=${() => h.toggle(c.id)} @keydown=${(e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      (e.currentTarget as HTMLElement).click();
+    }}>
       <span class="tn">${c.name || s.tool}</span><span class="tp">${c.summary}</span><span class="ti"
         >${n ? s.results(n) : c.intent}</span
       >${status}

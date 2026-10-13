@@ -1,7 +1,7 @@
 {
   "name": "@contraagent/elements",
   "version": "0.1.0",
-  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, stat tiles, time lanes, a check table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -45,6 +45,21 @@
       "types": "./dist/table/index.d.ts",
       "default": "./dist/table/index.js"
     },
+    "./tiles": {
+      "source": "./src/tiles/index.ts",
+      "types": "./dist/tiles/index.d.ts",
+      "default": "./dist/tiles/index.js"
+    },
+    "./lanes": {
+      "source": "./src/lanes/index.ts",
+      "types": "./dist/lanes/index.d.ts",
+      "default": "./dist/lanes/index.js"
+    },
+    "./check-table": {
+      "source": "./src/checks/index.ts",
+      "types": "./dist/checks/index.d.ts",
+      "default": "./dist/checks/index.js"
+    },
     "./transcript": {
       "source": "./src/transcript/index.ts",
       "types": "./dist/transcript/index.d.ts",
@@ -79,6 +94,21 @@
       "source": "./src/define/data-table.ts",
       "types": "./dist/define/data-table.d.ts",
       "default": "./dist/define/data-table.js"
+    },
+    "./tiles/define": {
+      "source": "./src/define/tiles.ts",
+      "types": "./dist/define/tiles.d.ts",
+      "default": "./dist/define/tiles.js"
+    },
+    "./lanes/define": {
+      "source": "./src/define/lanes.ts",
+      "types": "./dist/define/lanes.d.ts",
+      "default": "./dist/define/lanes.js"
+    },
+    "./check-table/define": {
+      "source": "./src/define/check-table.ts",
+      "types": "./dist/define/check-table.d.ts",
+      "default": "./dist/define/check-table.js"
     },
     "./transcript/define": {
       "source": "./src/define/transcript.ts",

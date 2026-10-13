@@ -15,4 +15,7 @@ export * from './json/index.js';
 export * from './markdown/index.js';
 export * from './count/index.js';
 export * from './table/index.js';
+export * from './tiles/index.js';
+export * from './lanes/index.js';
+export * from './checks/index.js';
 export * from './transcript/index.js';

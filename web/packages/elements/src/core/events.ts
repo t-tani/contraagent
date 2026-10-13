@@ -23,6 +23,12 @@ export interface SortDetail {
   direction: 'asc' | 'desc';
 }
 
+/** A named action of an item (a tile's link): the item's id and the action's id. */
+export interface ActionDetail {
+  id: string;
+  action: string;
+}
+
 /** A section of a list of sections (a transcript's), by its 0-based index; null: the latest. */
 export interface SectionDetail {
   index: number | null;
@@ -35,6 +41,7 @@ export interface CaeEventMap {
   'cae-activate': ItemDetail;
   'cae-select': SelectDetail;
   'cae-sort': SortDetail;
+  'cae-action': ActionDetail;
   /** The reader picked a section (null: follow the latest). */
   'cae-section-change': SectionDetail;
   /** The section on screen changed (-1: none). */
@@ -49,6 +56,7 @@ declare global {
     'cae-activate': CustomEvent<ItemDetail>;
     'cae-select': CustomEvent<SelectDetail>;
     'cae-sort': CustomEvent<SortDetail>;
+    'cae-action': CustomEvent<ActionDetail>;
     'cae-section-change': CustomEvent<SectionDetail>;
     'cae-section-shown': CustomEvent<{ index: number }>;
     'cae-load-earlier': CustomEvent<Record<string, never>>;

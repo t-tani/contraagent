@@ -28,6 +28,13 @@ It reads `runs/<id>/` and shows, live, one tab each:
   run numbers a task's attempts from 1 again, so an attempt of a later run start
   reads "Attempt 1 | resumed run".
 
+With the keyboard, the tabs are one tab stop: the arrow keys,
+Home and End move between them and Enter opens one; the keys 1 to 9 open a tab
+from anywhere. `r` opens the run picker, which holds the focus in its search
+field until Escape or a pick returns it, and `/` goes to the filter. A row of
+Problems, Processes and Definitions opens with Tab and Enter, as do the rows of
+Tasks and History.
+
 The graph is drawn from `plan.jsonl` and `flow_calls.jsonl`, so tasks that have
 not started are in it too. A layer holds a node per kind (or per group,
 `Monitor(groups=)`) for the tasks its flow function created itself, and a node

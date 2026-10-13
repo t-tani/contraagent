@@ -32,7 +32,10 @@ const ICON: Record<ToastKind, string> = { done: '✓', failed: '✕', attention:
 const SHOW_MS = 5200;
 const MAX = 4;
 
-/** Short notices in a corner; each leaves on its own after a few seconds. */
+/**
+ * Short notices in a corner; each leaves on its own after a few seconds. A
+ * screen reader hears each one: a failure at once, the others when it is idle.
+ */
 @customElement('ca-toasts')
 export class CaToasts extends LitElement {
   static override styles = [
@@ -66,16 +69,25 @@ export class CaToasts extends LitElement {
   }
 
   override render() {
-    return html`<div aria-live="polite" style="display:contents">
-      ${repeat(
-        this.toasts,
+    // The notices as a screen reader hears them: failures at once (`role="alert"`), the others when it is idle (`role="status"`).
+    const said = (urgent: boolean) =>
+      repeat(
+        this.toasts.filter((t) => !t.out && (t.kind === 'failed') === urgent),
         (t) => t.id,
-        (t) => html`<div class="toast ${t.kind === 'agent' ? 'agent' : ''} ${t.out ? 'out' : ''}" data-tone=${t.kind === 'agent' ? nothing : t.kind}>
-          <span class="ti" aria-hidden="true">${ICON[t.kind]}</span>
-          <div><b>${t.title}</b>${t.sub ? html`<span class="sub">${t.sub}</span>` : nothing}</div>
-        </div>`,
-      )}
-    </div>`;
+        (t) => html`<p>${facts(t.title, t.sub)}</p>`,
+      );
+    return html`<div class="sr" role="status" aria-live="polite">${said(false)}</div>
+      <div class="sr" role="alert" aria-live="assertive">${said(true)}</div>
+      <div aria-hidden="true" style="display:contents">
+        ${repeat(
+          this.toasts,
+          (t) => t.id,
+          (t) => html`<div class="toast ${t.kind === 'agent' ? 'agent' : ''} ${t.out ? 'out' : ''}" data-tone=${t.kind === 'agent' ? nothing : t.kind}>
+            <span class="ti">${ICON[t.kind]}</span>
+            <div><b>${t.title}</b>${t.sub ? html`<span class="sub">${t.sub}</span>` : nothing}</div>
+          </div>`,
+        )}
+      </div>`;
   }
 }
 

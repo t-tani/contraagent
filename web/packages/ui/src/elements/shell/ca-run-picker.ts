@@ -12,14 +12,20 @@ import { base } from '@contraagent/elements/styles';
 
 const took = (r: RunSummary) => elapsedS(r);
 
+/** The id of the option at `i` in the visible list. */
+const optionId = (i: number) => `run-${i}`;
+
 const ago = (r: RunSummary) => {
   const t = Date.parse(r.last_ts || '');
   return Number.isNaN(t) ? Infinity : (Date.now() - t) / 1000;
 };
 
 /**
- * The run switcher: runs grouped by recency, searchable, keyboard driven.
- * Sends `ca-select-run` for a pick and `ca-close` when it should be closed.
+ * The run switcher: runs grouped by recency, searchable, keyboard driven. A
+ * dialog: its search field (a combobox) holds the focus while it is open (Tab
+ * stays in it), and the arrow keys move through the list
+ * (`aria-activedescendant`). Sends `ca-select-run` for a pick and `ca-close`
+ * when it should be closed (Escape, or a pick); the host returns the focus.
  *
  * @fires ca-select-run - `{run}`: a run was picked
  * @fires ca-close - the picker should close
@@ -33,8 +39,10 @@ export class CaRunPicker extends LitElement {
       :host { position: absolute; top: 50px; width: min(580px, calc(100vw - 24px)); max-height: min(72vh, 660px);
         display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px;
         box-shadow: 0 24px 70px color-mix(in srgb, var(--shadow) 70%, transparent); opacity: 0; transform: translateY(-6px) scale(0.985);
-        pointer-events: none; z-index: 40; transition: opacity 0.16s var(--ease), transform 0.16s var(--ease); }
-      :host([open]) { opacity: 1; transform: none; pointer-events: auto; }
+        pointer-events: none; z-index: 40; visibility: hidden;
+        transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0s linear 0.16s; }
+      /* Visible (and focusable) at once when it opens; hidden only after it has faded out. */
+      :host([open]) { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s; }
       .search { padding: 10px; border-bottom: 1px solid var(--line); }
       input { width: 100%; background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px;
         padding: 8px 11px; font: inherit; outline: none; }
@@ -61,6 +69,16 @@ export class CaRunPicker extends LitElement {
   /** The keyboard's place in the visible list; -1 for none. */
   @state() private kb = -1;
   @query('input') private input!: HTMLInputElement;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.setAttribute('role', 'dialog');
+    this.setAttribute('aria-modal', 'true');
+  }
+
+  protected override willUpdate(): void {
+    this.setAttribute('aria-label', msg('Runs'));
+  }
 
   protected override updated(changed: Map<string, unknown>): void {
     if (changed.has('open') && this.open) {
@@ -91,9 +109,13 @@ export class CaRunPicker extends LitElement {
 
   private onKey(e: KeyboardEvent, rows: RunSummary[]): void {
     if (e.key === 'Escape') return this.close();
+    // The search field is the dialog's only stop: Tab stays in it.
+    if (e.key === 'Tab') return e.preventDefault();
     if (e.key === 'ArrowDown') this.kb = Math.min(rows.length - 1, this.kb + 1);
     else if (e.key === 'ArrowUp') this.kb = Math.max(0, this.kb - 1);
     else if (e.key === 'Enter') {
+      // The focus goes back to the button that opened the picker: this Enter must not press it.
+      e.preventDefault();
       const r = rows[Math.max(0, this.kb)];
       if (r) this.pick(r.run);
       return;
@@ -110,20 +132,26 @@ export class CaRunPicker extends LitElement {
       [msg('Older'), rows.filter((r) => !r.running && ago(r) >= 86400)],
     ];
     let i = 0;
+    const active = rows[this.kb] ? optionId(this.kb) : nothing;
     return html`<div class="search">
         <input placeholder=${msg('Search runs')} aria-label=${msg('Search runs')} autocomplete="off" .value=${this.q}
+          role="combobox" aria-expanded=${rows.length ? 'true' : 'false'} aria-controls="runs" aria-autocomplete="list" aria-activedescendant=${active}
           @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.kb = 0; }}
           @keydown=${(e: KeyboardEvent) => this.onKey(e, rows)} />
         <div class="keys meta" aria-hidden="true"><span class="kbd">↑</span><span class="kbd">↓</span> <span class="kbd">Enter</span> <span class="kbd">Esc</span></div>
       </div>
-      <div class="list" role="listbox">
+      <div class="list" @mousedown=${(e: MouseEvent) => e.preventDefault()}>
         ${rows.length
-          ? groups.map(([name, rs]) =>
-              rs.length
-                ? html`<div class="group">${name} <span class="n">${rs.length}</span></div>
-                    ${rs.map((r) => this.item(r, i++))}`
-                : nothing,
-            )
+          ? html`<div id="runs" role="listbox" aria-label=${msg('Runs')}>
+              ${groups.map(([name, rs]) =>
+                rs.length
+                  ? html`<div role="group" aria-label=${name}>
+                      <div class="group" aria-hidden="true">${name} <span class="n">${rs.length}</span></div>
+                      ${rs.map((r) => this.item(r, i++))}
+                    </div>`
+                  : nothing,
+              )}
+            </div>`
           : html`<div class="blank"><span>${msg('No runs match')}</span></div>`}
       </div>`;
   }
@@ -148,7 +176,9 @@ export class CaRunPicker extends LitElement {
   private item(r: RunSummary, i: number) {
     const dot = runTone(r.running, r.tasks);
     const cls = `item${r.run === this.current ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
-    return html`<div class=${cls} role="option" aria-selected=${r.run === this.current} @click=${() => this.pick(r.run)}>
+    // An option of the listbox: the search field keeps the focus and names the active option (`aria-activedescendant`).
+    return html`<div class=${cls} id=${optionId(i)} role="option" aria-selected=${i === this.kb ? 'true' : 'false'}
+      aria-current=${r.run === this.current ? 'true' : nothing} @click=${() => this.pick(r.run)}>
       <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span><span class="nm">${r.run}</span>
       <span class="when" title=${localTime(r.last_ts, true)}>${r.running ? msg('running') : relAgo(r.last_ts)}</span>
       <span class="sub">
