@@ -1,7 +1,7 @@
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { emit } from '../../events.js';
+import { emit } from '../../core/events.js';
 import { base } from '../../styles/base.js';
 import { EDITOR_THEMES, THEMES, THEME_CHOICES, type ThemeChoice, type ThemeName } from '../../styles/themes.js';
 

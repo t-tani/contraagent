@@ -20,6 +20,8 @@ const CROSS_FOLDER_GAPS = {
 
 /** A relative import into `elements/` from a file outside it. */
 const intoElements = { regex: '^\\.{1,2}/(\\.\\./)*elements/', message: 'A lower layer must not import an element.' };
+/** `core/` is the lowest folder of ui: it imports neither the words nor `lib/`. */
+const intoWordsOrLib = { regex: '^\\.\\./(words|lib)/', message: 'core/ is the lowest layer: it must not import words/ or lib/.' };
 /**
  * A name imported from the folder `b` of `elements/`, from inside another folder
  * of it. A bare `import '../b/ca-x.js'` (it registers a tag the element renders)
@@ -37,7 +39,8 @@ const LAYERS = [
     files: ['packages/api/src/**/*.ts'],
     patterns: [{ group: ['lit', 'lit/*', '@lit/*', '@contraagent/ui', '@contraagent/ui/*', '@contraagent/elements', '@contraagent/elements/*'], message: '@contraagent/api has no UI.' }],
   },
-  { files: [`${UI}/{route,router,events,i18n}.ts`, `${UI}/lib/**/*.ts`, `${UI}/styles/**/*.ts`], patterns: [intoElements] },
+  { files: [`${UI}/core/**/*.ts`], patterns: [intoElements, intoWordsOrLib] },
+  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`, `${UI}/styles/**/*.ts`], patterns: [intoElements] },
   ...UI_FOLDERS.flatMap((a) => {
     const others = UI_FOLDERS.filter((b) => b !== a && b !== 'shared');
     const gaps = Object.entries(CROSS_FOLDER_GAPS).filter(([f]) => f.startsWith(`${UI}/elements/${a}/`));

@@ -1,9 +1,11 @@
 import {
   deriveRun,
+  inputProblems,
   isLaunched,
   isPython,
   outcomeOf,
   runReadings,
+  runRelative,
   runStarts,
   spendOf,
   tryQuota,
@@ -21,8 +23,8 @@ import {
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
-import { emit, type RoundInfo, type RoundsChangedDetail } from '../../events.js';
-import { facts, fmtDur, kindUnit, localTime, tokenCount, unreadEvents, usd } from '../../lib/format.js';
+import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
+import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
 import {
   attemptLabel,
   attemptNames,
@@ -30,21 +32,20 @@ import {
   credentialLabel,
   credentialTip,
   inputCause,
-  inputProblems,
   modelSwitch,
   notStartedCause,
   outcomeLabel,
-  runRelative,
   stopLabel,
-} from '../../lib/labels.js';
-import { accountReading, readingShort, readingTip } from '../../lib/quota-format.js';
+} from '../../words/index.js';
+import { accountReading, readingShort, readingTip } from '../../words/quota.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
-import { TASK_VIEWS, type TaskView } from '../../route.js';
+import { TASK_VIEWS, type TaskView } from '../../core/route.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-definition.js';
 import '../shared/ca-json-tree.js';
 import '../shared/ca-markdown.js';
-import { contractStyles, ioFileCard, contractStatusLabel, contractStatusWhy, type Producer } from '../shared/contract-parts.js';
+import { contractStyles, ioFileCard } from '../shared/contract-parts.js';
+import { contractStatusLabel, contractStatusWhy, type Producer } from '../../words/contract.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from './inputs.js';
 import { taskChip } from '../shared/task-chip.js';
 import './ca-transcript.js';
@@ -57,7 +58,7 @@ import { whoChips, whoStyles } from './who.js';
 const viewLabel = (): Record<TaskView, string> => ({
   transcript: msg('Transcript'),
   input: msg('Input'),
-  output: msg('Output'),
+  output: msg('Output', { id: 'view-output', desc: 'Tab: the files a task wrote' }),
   definition: msg('Definition'),
 });
 
@@ -315,7 +316,7 @@ export class CaTaskView extends LitElement {
       // The cause is in the verdict above; here, the state and the earlier task to open.
       const up = this.culprit(d);
       return html`<div class="blank notrans"><span class="ic" aria-hidden="true">⊘</span><b>${facts(msg('No transcript'), outcomeLabel(state))}</b>
-        ${up ? html`<span>${msg('Earlier task')} ${taskChip(this, kindUnit(up), up)}</span>` : nothing}</div>`;
+        ${up ? html`<span>${msg(html`Earlier task ${taskChip(this, kindUnit(up), up)}`)}</span>` : nothing}</div>`;
     }
     if (this.hadSession(d)) {
       return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${msg('No transcript')}</b>
@@ -418,7 +419,7 @@ export class CaTaskView extends LitElement {
                 ${otherModels.length
                   ? html`<span class="meta">${otherModels.length === 1
                       ? msg(str`Earlier attempts used model ${otherModels[0] ?? ''}`)
-                      : msg(str`Earlier attempts used models ${otherModels.join(', ')}`)}</span>`
+                      : msg(str`Earlier attempts used models ${listText(otherModels)}`)}</span>`
                   : nothing}
               </div>`
             : nothing}
@@ -440,7 +441,7 @@ export class CaTaskView extends LitElement {
       ${launches.map(
         (lc) => html`<details class="launch">
           <summary>${facts(msg(str`Process ${lc.pid ?? '—'}`), lc.key || '')}</summary>
-          <div class="meta">${facts(msg(str`Plugin ${lc.plugin || msg('none')}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || msg('none')}`))}</div>
+          <div class="meta">${facts(msg(str`Plugin ${lc.plugin || msg('none', { id: 'none', desc: 'An empty value' })}`), msg(str`Model ${lc.model || '—'}`), msg(str`Role ${lc.role || msg('none', { id: 'none', desc: 'An empty value' })}`))}</div>
         </details>`,
       )}
       ${extras.map(
@@ -456,7 +457,7 @@ export class CaTaskView extends LitElement {
       ? html`<span class="who ident" title=${[msg('What the coding agent authenticated as: an account or an API key (credential)'), ...ids.map(credentialTip)]
             .filter(Boolean)
             .join('\n')}
-          ><span class="who-l">${msg('identity')}</span>${ids.map(credentialLabel).join(', ')}</span
+          ><span class="who-l">${msg('identity')}</span>${listText(ids.map(credentialLabel))}</span
         >`
       : nothing;
   }
@@ -654,7 +655,7 @@ export class CaTaskView extends LitElement {
     return html`<h4 class="sect-h">${msg('Tokens and cost')}</h4>
       <div class="usage-wrap"><table class="usage">
         <tr>
-          <th class="l"></th><th>${msg('Input')}</th><th>${msg('Output')}</th><th>${msg('Cache read')}</th><th>${msg('Cache write')}</th>
+          <th class="l"></th><th>${msg('Input')}</th><th>${msg('Output', { id: 'tokens-output', desc: 'Column: output tokens' })}</th><th>${msg('Cache read')}</th><th>${msg('Cache write')}</th>
           <th>${msg('API calls')}</th><th title=${msg('Reported by the coding agent')}>${msg('Cost')}</th><th class="l">${msg('Identity')}</th>
           ${quota
             ? html`<th class="l" title=${msg('Subscription usage when the agent session started (account-wide)')}>${msg('Usage at start')}</th>

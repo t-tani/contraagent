@@ -348,6 +348,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The monitor writes a list of names (tasks, passes, models, identities) as the
+  page's language writes a list: "a, b, and c" in English, "a、b、c" in
+  Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).
+  `factList()` returns the facts of a row as a list, which `facts()` joins.
+- `@contraagent/api` reads a refusal's reason: `inputProblems(reason)` (the
+  inputs it names, missing or failed checks) and `runRelative(text, run)`
+  (paths cut to the run directory).
+- `Router` takes an `onLeave` callback, called before it pushes a new history
+  entry.
 - `@contraagent/ui` exports one name per meaning:
   - `tokenCount()` (was `tokens()`) formats a token count;
   - `tokenStyles` (was `tokens`) is the stylesheet with the design tokens;

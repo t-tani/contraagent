@@ -1,6 +1,6 @@
 // The events an element documents (`@fires`, which custom-elements.json and the
 // element reference read) are the events it sends, and every event is typed in
-// the event map: `CaEventMap` (ui/src/events.ts), and from P8 `CaeEventMap`
+// the event map: `CaEventMap` (ui/src/core/events.ts), and from P8 `CaeEventMap`
 // (elements/src/core/events.ts) for `cae-*`.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -52,7 +52,7 @@ function mapKeys(file: string, name: string): Set<string> {
   return new Set([...body.matchAll(/^\s*'([^']+)'\??\s*:/gm)].map((m) => m[1]!));
 }
 
-const UI_EVENTS = 'packages/ui/src/events.ts';
+const UI_EVENTS = 'packages/ui/src/core/events.ts';
 const CA = mapKeys(UI_EVENTS, 'CaEventMap');
 const CAE = mapKeys('packages/elements/src/core/events.ts', 'CaeEventMap');
 const inMap = (name: string): boolean => (name.startsWith('cae-') ? CAE : CA).has(name);

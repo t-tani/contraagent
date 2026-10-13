@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight } from '../../lib/highlight.js';
 import { instructionsHtml, markInstructions, mdFile } from '../../lib/markdown.js';
-import { RememberedSet } from '../../lib/memory.js';
+import { RememberedSet } from '../../core/memory.js';
 import { base, prose } from '../../styles/base.js';
 
 const OPEN_FIRST = new Set(['instructions', 'schema', 'agent']);
@@ -74,13 +74,13 @@ export class CaDefinition extends LitElement {
     if (def.executor === 'python') return this.python(def);
     const dirs = def.plugin_dirs || [];
     const facts: [string, string | TemplateResult][] = [
-      [msg('Role'), def.role || msg('none')],
+      [msg('Role'), def.role || msg('none', { id: 'none', desc: 'An empty value' })],
       [
         dirs.length > 1 ? msg('Plugin directories') : msg('Plugin directory'),
-        dirs.length ? html`${dirs.map((d, i) => html`${i ? ', ' : ''}<span class="jmono" title=${d}>${tail(d)}</span>`)}` : msg('none'),
+        dirs.length ? html`${dirs.map((d, i) => html`${i ? ', ' : ''}<span class="jmono" title=${d}>${tail(d)}</span>`)}` : msg('none', { id: 'none', desc: 'An empty value' }),
       ],
-      [msg('Parameters'), def.params || msg('none')],
-      [msg('Output'), def.output || msg('none')],
+      [msg('Parameters'), def.params || msg('none', { id: 'none', desc: 'An empty value' })],
+      [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output || msg('none', { id: 'none', desc: 'An empty value' })],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
     ];
     const declared = Array.isArray(def['declared']) ? (def['declared'] as DeclaredContract[]) : [];
@@ -108,8 +108,8 @@ export class CaDefinition extends LitElement {
     const first = def.line ?? 1;
     const lines = src ? src.text.replace(/\n$/, '').split('\n').length : 0;
     const facts: [string, string][] = [
-      [msg('Parameters'), def.params && def.params !== 'none' ? def.params : msg('none')],
-      [msg('Output'), def.output && def.output !== 'none' ? def.output : msg('none')],
+      [msg('Parameters'), def.params && def.params !== 'none' ? def.params : msg('none', { id: 'none', desc: 'An empty value' })],
+      [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output && def.output !== 'none' ? def.output : msg('none', { id: 'none', desc: 'An empty value' })],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
     ];
     return html`${def.signature

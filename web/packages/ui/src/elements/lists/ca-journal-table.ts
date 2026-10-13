@@ -1,13 +1,13 @@
-import { deriveRun, isBad, isLaunched, isPython, rowId, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, isBad, isLaunched, isPython, rowId, runRelative, type JournalRow, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../../lib/format.js';
-import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, runRelative, stopLabel } from '../../lib/labels.js';
+import { emit } from '../../core/events.js';
+import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../../words/format.js';
+import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../../words/index.js';
 import { stopTone, type Tone } from '../../lib/tone.js';
-import { accountReading, readingShort } from '../../lib/quota-format.js';
+import { accountReading, readingShort } from '../../words/quota.js';
 import { base } from '../../styles/base.js';
 import { attemptFacts, filterJournal, hadFixup, journalTally, retriedKeys } from './filters.js';
 

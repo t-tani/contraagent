@@ -1,26 +1,15 @@
-import { deriveRun, isPython, type ContractRecord, type ContractSpec, type ContractStatus, type JournalRow, type Outputs, type Plan, type TaskOutcome } from '@contraagent/api';
+import { deriveRun, isPython, runRelative, type ContractRecord, type ContractSpec, type ContractStatus, type JournalRow, type Outputs, type Plan, type TaskOutcome } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { emit } from '../../events.js';
-import { RememberedSet } from '../../lib/memory.js';
-import type { TaskView } from '../../route.js';
+import { emit } from '../../core/events.js';
+import { RememberedSet } from '../../core/memory.js';
+import type { TaskView } from '../../core/route.js';
 import { base } from '../../styles/base.js';
-import { kindUnit } from '../../lib/format.js';
-import { runRelative } from '../../lib/labels.js';
-import {
-  contractStyles,
-  correctionTip,
-  correctionsLabel,
-  fieldCheckTable,
-  fileConditions,
-  inputChip,
-  notRunText,
-  contractStatusLabel,
-  contractStatusWhy,
-  type Producer,
-} from '../shared/contract-parts.js';
+import { kindUnit } from '../../words/format.js';
+import { contractStatusLabel, contractStatusWhy, correctionTip, correctionsLabel, notRunText, type Producer } from '../../words/contract.js';
+import { contractStyles, fieldCheckTable, fileConditions, inputChip } from '../shared/contract-parts.js';
 
 const CT_ORDER: readonly ContractStatus[] = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'];
 

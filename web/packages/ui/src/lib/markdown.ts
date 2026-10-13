@@ -1,7 +1,7 @@
 // Markdown: what agents and plugin files actually use. Everything is escaped
 // first, so nothing the model or a file wrote can inject markup; links keep
 // only http(s) targets. Returns HTML for `unsafeHTML`.
-import { esc } from './format.js';
+import { esc } from '../words/format.js';
 import { highlight } from './highlight.js';
 
 function mdInline(t: string): string {

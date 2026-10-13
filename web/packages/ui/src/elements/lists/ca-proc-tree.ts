@@ -2,8 +2,8 @@ import type { ProcNode, Procs } from '@contraagent/api';
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { starts } from '../../lib/clock.js';
-import { kindUnit } from '../../lib/format.js';
+import { starts } from '../../core/clock.js';
+import { kindUnit } from '../../words/format.js';
 import { base } from '../../styles/base.js';
 import '../shared/ca-elapsed.js';
 
