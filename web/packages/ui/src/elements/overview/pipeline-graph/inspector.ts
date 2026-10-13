@@ -1,38 +1,26 @@
-// The selection's card: what is selected, its facts and where it leads.
+// The selection's card: what is selected, its facts and where it leads. The
+// generic graph places it beside the item (its `inspector` slot).
 import { isLaunched } from '@contraagent/api';
+import { cycleIcon, innerIcon } from '@contraagent/elements/graph';
+import { toneAttr } from '@contraagent/elements';
 import { msg, str } from '@lit/localize';
 import { html, nothing } from 'lit';
-import { keyed } from 'lit/directives/keyed.js';
+import { shortName } from '../../../adapters/graph/flow-index.js';
+import { causeOf } from '../../../adapters/graph/input.js';
+import type { Selected } from '../../../adapters/graph/selection.js';
+import { doneOf, exceptions, executorWord, neighbours, notDone, stateWord, taskStateStyles, where } from '../../../adapters/graph/words.js';
 import { executorIcon } from '../../../words/executor.js';
 import { fmtDur, kindUnit, listText, usd } from '../../../words/format.js';
 import { passCount, passLabel, passSpread, passesRan } from '../../../words/index.js';
-import { shortName } from '../graph/flow-index.js';
-import { selected, type Selected } from '../graph/selection.js';
 import { primary, select, tasksOf } from './actions.js';
-import { causeOf, type GraphHost } from './host.js';
-import { innerIcon, loopIcon } from './icons.js';
-import { doneOf, exceptions, executorWord, neighbours, notDone, stateWord, where } from './words.js';
+import type { PipelineHost } from './host.js';
 
-/**
- * The selection's card (none without a selection), placed by the card controller once
- * drawn; a new selection is a new card, so it fades in. A live region names what was
- * selected (`announced`).
- */
-export function inspector(h: GraphHost, announced: string) {
-  const s = selected(h.graph, h.matrix, h.sel);
-  const card = s
-    ? keyed(
-        h.sel,
-        html`<section id="insp" class="insp ${h.down ? 'sheet' : ''}" aria-label=${msg('Selected item')} @keydown=${h.card.onCardKey}>
-          <span class="ptr" aria-hidden="true"></span>
-          <div class="scroll">${inspect(h, s)}</div>
-        </section>`,
-      )
-    : nothing;
-  return html`${card}<div class="sr" role="status">${announced}</div>`;
+/** The selection's card content, for the graph's `inspector` slot: its heading names the item, `[data-status]` its status. */
+export function inspector(h: PipelineHost, s: Selected) {
+  return html`<div slot="inspector" class="card">${inspect(h, s)}</div>`;
 }
 
-function inspect(h: GraphHost, s: Selected) {
+function inspect(h: PipelineHost, s: Selected) {
   const row = (dt: string, dd: unknown) => html`<dt>${dt}</dt><dd>${dd}</dd>`;
   const link = (text: string, go: () => void, primary = false) =>
     html`<button type="button" class="go ${primary ? 'primary' : ''}" @click=${go}>${text}</button>`;
@@ -41,7 +29,7 @@ function inspect(h: GraphHost, s: Selected) {
   if (s.type === 'box') {
     const b = s.box;
     const at = where(b.loop, b.file);
-    return html`<h4 title=${b.file ? `${b.file}:${b.loop}` : nothing}>${loopIcon(16)}${msg(str`Loop at ${at}`)}</h4>
+    return html`<h4 title=${b.file ? `${b.file}:${b.loop}` : nothing}>${cycleIcon(16)}${msg(str`Loop at ${at}`)}</h4>
       <dl>
         ${row(msg('Passes'), passCount(b.passes))}
         ${b.spread.length > 1 ? row(msg('Units by number of passes'), passSpread(b.spread)) : nothing}
@@ -77,9 +65,10 @@ function inspect(h: GraphHost, s: Selected) {
   }
   const { node, mark: m, passes } = s;
   const name = kindUnit({ kind: node.label, unit: m.unit });
-  const cause = !m.flow && m.state === 'blocked' ? causeOf(h, m.key) : '';
+  const cause = !m.flow && m.state === 'blocked' ? causeOf(h)(m.key) : '';
   const status = html`<span data-status class=${m.state === 'failed' ? 'err' : m.state === 'blocked' ? 'warn' : ''}>${stateWord(m.state, h.live)}</span>`;
-  const head = html`<h4 title=${m.flow ? msg(str`Flow call ${m.key}`) : m.key}><i class="mark ${m.state}" aria-hidden="true"></i>${name}</h4>`;
+  const look = taskStateStyles(h.live)[m.state];
+  const head = html`<h4 title=${m.flow ? msg(str`Flow call ${m.key}`) : m.key}><i class="mark" data-tone=${toneAttr(look?.tone)} data-shape=${look?.shape ?? nothing} aria-hidden="true"></i>${name}</h4>`;
   const pass = passes.length ? listText(passes.map(passLabel)) : m.passes ? passesRan(m.passes) : '';
   if (m.flow) {
     const c = m.counts;

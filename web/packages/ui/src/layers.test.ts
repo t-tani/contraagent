@@ -165,14 +165,16 @@ describe('@contraagent/ui folders', () => {
 
 // The folders of @contraagent/elements in layer order (eslint.config.js has the
 // same table): a folder imports only from itself and the ranks before it, so a
-// component never imports another, and only define/ registers. The files at
+// component imports another only from an earlier rank (the graph, which shows a
+// mark matrix), and only define/ registers. The files at
 // the root (index.ts, the tests) may import any folder.
 const ELEMENTS_LAYERS: readonly (readonly string[])[] = [
   ['core'],
   ['themes'],
   ['styles'],
   ['primitives'],
-  ['table', 'graph', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'],
+  ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'],
+  ['graph'],
   ['define'],
 ];
 

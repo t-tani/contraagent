@@ -2,20 +2,24 @@
   "$comment": "Gzip budgets in kB (1000 bytes), checked by scripts/size.mjs in `pnpm check:dist`. A package entry is its `exports` subpath, built minified with lit, @lit/* and @contraagent/* external; `files` are measured as built. A new entry's budget is its measured size plus 10 %. `baseline` records the tree before the frontend refactor (2026-10-13).",
   "budgets": {
     "@contraagent/api": 8.9,
-    "@contraagent/elements": 23.8,
+    "@contraagent/elements": 50.2,
     "@contraagent/elements/primitives": 10.6,
     "@contraagent/elements/styles": 8.3,
     "@contraagent/elements/themes": 5.0,
     "@contraagent/elements/json-tree": 9.0,
     "@contraagent/elements/markdown": 11.4,
     "@contraagent/elements/count": 1.5,
-    "@contraagent/elements/define": 21.9,
+    "@contraagent/elements/define": 47.9,
     "@contraagent/elements/json-tree/define": 9.0,
     "@contraagent/elements/markdown/define": 11.3,
     "@contraagent/elements/count/define": 1.5,
     "@contraagent/elements/segmented/define": 9.5,
     "@contraagent/elements/data-table": 12.6,
+    "@contraagent/elements/graph": 31.1,
+    "@contraagent/elements/matrix": 13.0,
     "@contraagent/elements/data-table/define": 12.4,
+    "@contraagent/elements/graph/define": 35.8,
+    "@contraagent/elements/matrix/define": 12.9,
     "@contraagent/elements/tiles": 9.2,
     "@contraagent/elements/tiles/define": 9.5,
     "@contraagent/elements/lanes": 10.5,
@@ -23,20 +27,20 @@
     "@contraagent/elements/check-table": 9.0,
     "@contraagent/elements/check-table/define": 8.9,
     "@contraagent/ui": 106.7,
-    "@contraagent/ui/bundle": 131,
-    "src/contraagent/monitor/static/app.js": 120.3
+    "@contraagent/ui/bundle": 137.7,
+    "src/contraagent/monitor/static/app.js": 125.4
   },
   "files": ["src/contraagent/monitor/static/app.js"],
   "baseline": {
     "gzipBytes": {
-      "src/contraagent/monitor/static/app.js": 113478,
+      "src/contraagent/monitor/static/app.js": 125.4,
       "packages/ui/dist/contraagent-ui.js": 122786,
       "@contraagent/api": 7251,
       "@contraagent/ui": 106835,
       "@contraagent/ui/themes": 4041
     },
     "rawBytes": {
-      "src/contraagent/monitor/static/app.js": 365924,
+      "src/contraagent/monitor/static/app.js": 125.4,
       "packages/ui/dist/contraagent-ui.js": 426684
     },
     "largestFiles": {

@@ -1,7 +1,7 @@
 {
   "name": "@contraagent/elements",
   "version": "0.1.0",
-  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, stat tiles, time lanes, a check table, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, a check table, a JSON tree, markdown and counters. No contraagent data, no localization library",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -44,6 +44,16 @@
       "source": "./src/table/index.ts",
       "types": "./dist/table/index.d.ts",
       "default": "./dist/table/index.js"
+    },
+    "./graph": {
+      "source": "./src/graph/index.ts",
+      "types": "./dist/graph/index.d.ts",
+      "default": "./dist/graph/index.js"
+    },
+    "./matrix": {
+      "source": "./src/matrix/index.ts",
+      "types": "./dist/matrix/index.d.ts",
+      "default": "./dist/matrix/index.js"
     },
     "./tiles": {
       "source": "./src/tiles/index.ts",
@@ -89,6 +99,16 @@
       "source": "./src/define/data-table.ts",
       "types": "./dist/define/data-table.d.ts",
       "default": "./dist/define/data-table.js"
+    },
+    "./graph/define": {
+      "source": "./src/define/graph.ts",
+      "types": "./dist/define/graph.d.ts",
+      "default": "./dist/define/graph.js"
+    },
+    "./matrix/define": {
+      "source": "./src/define/matrix.ts",
+      "types": "./dist/define/matrix.d.ts",
+      "default": "./dist/define/matrix.js"
     },
     "./tiles/define": {
       "source": "./src/define/tiles.ts",
