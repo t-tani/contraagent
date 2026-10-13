@@ -12,11 +12,13 @@ const DIR = join(process.cwd(), 'packages', 'elements', 'docs', 'examples');
 const read = (f: string) => readFileSync(join(DIR, f), 'utf8');
 const files = readdirSync(DIR);
 const modules = files.filter((f) => f.endsWith('.ts'));
+/** The `cae-*` event names (CaeEventMap): an example names them as it listens. */
+const EVENTS = new Set([...readFileSync(join(process.cwd(), 'packages', 'elements', 'src', 'core', 'events.ts'), 'utf8').matchAll(/'(cae-[a-z-]+)':/g)].map((m) => m[1]));
 
 describe('docs/examples', () => {
   it('uses only elements this package defines', () => {
     const tags = new Set(modules.flatMap((f) => [...read(f).matchAll(/['<](cae-[a-z-]+)/g)].map((m) => m[1]!)));
-    const known = [...tags].filter((t) => t !== 'cae-change');
+    const known = [...tags].filter((t) => !EVENTS.has(t));
     expect(known.length).toBeGreaterThan(0);
     for (const t of known) expect(customElements.get(t), t).toBeDefined();
   });
