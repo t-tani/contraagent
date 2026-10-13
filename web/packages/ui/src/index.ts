@@ -9,6 +9,7 @@ export * from './core/route.js';
 export { Router, type RouteCause, type RouterMode } from './core/router.js';
 export { LOCALE_NAMES, allLocales, chooseLocale, getLocale, preferredLocale, setLocale, type Locale } from './core/i18n.js';
 export * from './words/format.js';
+export * from './adapters/index.js';
 
 // `data-ca-theme` works anywhere in the page: the rules are in its document.
 if (typeof document !== 'undefined') adoptThemes(document);

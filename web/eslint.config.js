@@ -20,8 +20,12 @@ const CROSS_FOLDER_GAPS = {};
 
 /** A relative import into `elements/` from a file outside it. */
 const intoElements = { regex: '^\\.{1,2}/(\\.\\./)*elements/', message: 'A lower layer must not import an element.' };
-/** `core/` is the lowest folder of ui: it imports neither the words, `lib/` nor the controllers. */
-const intoWordsOrLib = { regex: '^\\.\\./(words|lib|controllers)/', message: 'core/ is the lowest layer: it must not import words/, lib/ or controllers/.' };
+/** `core/` is the lowest folder of ui: it imports neither the words, `lib/`, `adapters/` nor `controllers/`. */
+const intoWordsOrLib = { regex: '^\\.\\./(words|lib|adapters|controllers)/', message: 'core/ is the lowest layer: it must not import words/, lib/, adapters/ or controllers/.' };
+/** `adapters/` comes after the words and `lib/`: they do not import it. */
+const intoAdapters = { regex: '^\\.\\./adapters/', message: 'words/ and lib/ come before adapters/: they must not import it.' };
+/** `controllers/` comes after `adapters/`: the layers before it do not import it. */
+const intoControllers = { regex: '^\\.\\./controllers/', message: 'words/, lib/ and adapters/ come before controllers/: they must not import it.' };
 /**
  * A name imported from the folder `b` of `elements/`, from inside another folder
  * of it. A bare `import '../b/ca-x.js'` (it registers a tag the element renders)
@@ -40,7 +44,9 @@ const LAYERS = [
     patterns: [{ group: ['lit', 'lit/*', '@lit/*', '@contraagent/ui', '@contraagent/ui/*', '@contraagent/elements', '@contraagent/elements/*'], message: '@contraagent/api has no UI.' }],
   },
   { files: [`${UI}/core/**/*.ts`], patterns: [intoElements, intoWordsOrLib] },
-  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`, `${UI}/controllers/**/*.ts`], patterns: [intoElements] },
+  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`], patterns: [intoElements, intoAdapters, intoControllers] },
+  { files: [`${UI}/adapters/**/*.ts`], patterns: [intoElements, intoControllers] },
+  { files: [`${UI}/controllers/**/*.ts`], patterns: [intoElements] },
   ...UI_FOLDERS.flatMap((a) => {
     const others = UI_FOLDERS.filter((b) => b !== a && b !== 'shared');
     const gaps = Object.entries(CROSS_FOLDER_GAPS).filter(([f]) => f.startsWith(`${UI}/elements/${a}/`));

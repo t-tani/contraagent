@@ -157,9 +157,11 @@ element of `elements` takes plain data and its words (`strings`), and sends
 |---|---|
 | `@contraagent/api` | its own files and `openapi-fetch`; no `lit`, `@lit/*` or other `@contraagent/*` |
 | `@contraagent/elements` | its own files and `lit`; no `@contraagent/*`, no `@lit/localize`, no `msg()`, and no glossary word in an exported name or in a `types.ts` property |
-| `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`json/`, `markdown/`, `count/`, ...); `define/` | the folders before it and its own; a component never imports another component, and only `define/` registers a tag |
-| `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/` or `elements/` |
-| `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `elements/` |
+| `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`table/`, `json/`, `markdown/`, `count/`, ...); `define/` | the folders before it and its own; a component never imports another component, and only `define/` registers a tag |
+| `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
+| `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `adapters/`, `controllers/` or `elements/` |
+| `ui`: `adapters/` (run data → what a generic element takes: a table's columns, the lists' filters) | the above and each other; never `controllers/` or `elements/` |
+| `ui`: `controllers/` (Lit reactive controllers: a task's detail, the theme, the language, the shortcuts) | the above and each other; never `elements/` |
 | `ui`: `elements/<folder>/` | the above, its own folder and `elements/shared/`; another folder only by a bare `import '../x/ca-y.js'`, which registers a tag it renders |
 | `apps/*` | the packages, through the subpaths in their `exports` |
 

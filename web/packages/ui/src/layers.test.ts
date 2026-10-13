@@ -10,9 +10,10 @@
 //   apps/*                  the packages, only through their `exports`
 //
 //   inside @contraagent/ui  a folder imports only from the folders before it
-//   core/                   never words/, lib/, controllers/ or elements/
-//   words/, lib/,           never elements/
-//     controllers/
+//   core/                   never words/, lib/, adapters/, controllers/ or elements/
+//   words/, lib/            never adapters/, controllers/ or elements/
+//   adapters/               never controllers/ or elements/
+//   controllers/            never elements/
 //   elements/<a>/           names only from elements/<a>/ and elements/shared/;
 //                           a bare `import '../b/ca-x.js'` registers a tag it renders
 //
@@ -131,14 +132,23 @@ describe('@contraagent/ui folders', () => {
     expect(imports.length).toBeGreaterThan(100);
   });
 
-  it('core/, words/, lib/ and controllers/ never import elements/', () => {
-    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|controllers)\//.test(f);
+  it('core/, words/, lib/, adapters/ and controllers/ never import elements/', () => {
+    const lower = (f: string) => /^packages\/ui\/src\/(core|words|lib|adapters|controllers)\//.test(f);
     const bad = imports.filter((i) => lower(i.file) && target(i).startsWith(`${UI}/elements/`));
     expect(bad.map(where)).toEqual([]);
   });
 
-  it('core/ never imports words/, lib/ or controllers/', () => {
-    const bad = imports.filter((i) => i.file.startsWith(`${UI}/core/`) && /^packages\/ui\/src\/(words|lib|controllers)\//.test(target(i)));
+  it('core/ never imports words/, lib/, adapters/ or controllers/', () => {
+    const bad = imports.filter((i) => i.file.startsWith(`${UI}/core/`) && /^packages\/ui\/src\/(words|lib|adapters|controllers)\//.test(target(i)));
+    expect(bad.map(where)).toEqual([]);
+  });
+
+  it('words/ and lib/ never import adapters/ or controllers/; adapters/ never imports controllers/', () => {
+    const bad = imports.filter(
+      (i) =>
+        (/^packages\/ui\/src\/(words|lib)\//.test(i.file) && /^packages\/ui\/src\/(adapters|controllers)\//.test(target(i))) ||
+        (i.file.startsWith(`${UI}/adapters/`) && target(i).startsWith(`${UI}/controllers/`)),
+    );
     expect(bad.map(where)).toEqual([]);
   });
 

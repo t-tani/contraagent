@@ -447,8 +447,8 @@
   <target>理由</target>
 </trans-unit>
 <trans-unit id="s1b5c88ed6d70d50e">
-  <source>The task was done on attempt <x id="0" equiv-text="${laterTry}"/></source>
-  <target>タスクは <x id="0" equiv-text="${laterTry}"/> 回目で完了</target>
+  <source>The task was done on attempt <x id="0" equiv-text="${n}"/></source>
+  <target>タスクは <x id="0" equiv-text="${n}"/> 回目で完了</target>
 </trans-unit>
 <trans-unit id="s9ff6bfdb36b47dd6">
   <source>Model switch</source>
@@ -459,8 +459,8 @@
   <target>セッション開始時の利用率（アカウント全体）: <x id="0" equiv-text="${accountReading(start)}"/></target>
 </trans-unit>
 <trans-unit id="s8eec5711640b68b9">
-  <source>Event types from the coding agent that this contraagent version does not recognize: <x id="0" equiv-text="${unreadEvents([e])}"/></source>
-  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの: <x id="0" equiv-text="${unreadEvents([e])}"/></target>
+  <source>Event types from the coding agent that this contraagent version does not recognize: <x id="0" equiv-text="${unread}"/></source>
+  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの: <x id="0" equiv-text="${unread}"/></target>
 </trans-unit>
 <trans-unit id="s47c42ef44972974f">
   <source>Unrecognized events</source>
@@ -2246,6 +2246,14 @@
   <source>Status</source>
   <target>状態</target>
   <note from="lit-localize">The status of a task: done, failed, not started</note>
+</trans-unit>
+<trans-unit id="s10420672e643d2c7">
+  <source>Sort ascending</source>
+  <target>昇順に並べ替え</target>
+</trans-unit>
+<trans-unit id="s34e46e4e30ae57bd">
+  <source>Sort descending</source>
+  <target>降順に並べ替え</target>
 </trans-unit>
 </body>
 </file>
