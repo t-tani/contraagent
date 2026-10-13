@@ -5,6 +5,9 @@ import asyncio
 import gzip
 import hashlib
 import json
+import os
+import threading
+import time
 from datetime import UTC, datetime
 
 import pytest
@@ -18,6 +21,7 @@ from contraagent import rundir
 from contraagent.hub import server
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import (
+    HEALTHZ,
     INGEST_HEARTBEAT,
     INGEST_RECORDS,
     Accepted,
@@ -322,6 +326,94 @@ def test_the_host_header_check_still_applies():
     assert TestClient(app, base_url="http://localhost:8790").get("/api/runs").status_code == 200
 
 
+# --- /healthz ---------------------------------------------------------------------------
+
+
+class _Broken:
+    def __getattr__(self, name):
+        def fail(*args, **kwargs):
+            raise ConnectionError("the store is down")
+
+        return fail
+
+
+class _Hangs:
+    def __init__(self) -> None:
+        self.release = threading.Event()
+        self.calls = 0
+
+    def get(self, sha256):
+        self.calls += 1
+        self.release.wait(10)
+
+
+def test_healthz_answers_ok_without_a_token_under_any_host_name():
+    _, c = make()
+    for client in (c, TestClient(c.app, base_url="http://hub.internal:8790")):
+        r = client.get(HEALTHZ)
+        assert r.status_code == 200 and r.json() == {"status": "ok", "failed": {}}
+
+
+def test_healthz_answers_ok_over_segmented_transcripts(tmp_path):
+    pytest.importorskip("zstandard")
+    streams = server.open_streams(str(tmp_path / "hot"), None, "memory")
+    try:
+        hub = Hub(MemoryHubStore(), server.open_blobs(f"dir:{tmp_path / 'blobs'}"), streams=streams)
+        c = TestClient(server.create_hub_app(hub, ingest_tokens=[INGEST], read_token=READ), base_url="http://127.0.0.1")
+        assert c.get(HEALTHZ).json() == {"status": "ok", "failed": {}}
+        (tmp_path / "hot").chmod(0o500)
+        try:
+            r = c.get(HEALTHZ)
+        finally:
+            (tmp_path / "hot").chmod(0o700)
+        if os.geteuid() != 0:  # root writes anywhere
+            assert r.status_code == 503 and r.json()["failed"] == {"transcripts": "PermissionError"}
+    finally:
+        streams.shutdown()
+
+
+def test_healthz_names_the_store_that_fails_and_its_error_kind(caplog):
+    hub = Hub(_Broken(), MemoryBlobs())  # type: ignore[arg-type]
+    c = TestClient(server.create_hub_app(hub, ingest_tokens=[INGEST], read_token=None), base_url="http://127.0.0.1")
+    with caplog.at_level("WARNING", logger="contraagent.hub.server"):
+        for _ in range(3):
+            r = c.get(HEALTHZ)
+            assert r.status_code == 503
+            assert r.json() == {"status": "failing", "failed": {"records": "ConnectionError"}}
+    # the error, with its message, is logged once while the state holds
+    logged = [m for m in caplog.messages if "the store is down" in m]
+    assert logged == ["healthz: the records store fails: ConnectionError: the store is down"]
+
+
+def test_healthz_bounds_a_hanging_store_to_one_thread(monkeypatch):
+    blobs = _Hangs()
+    hub = Hub(MemoryHubStore(), blobs)  # type: ignore[arg-type]
+    monkeypatch.setattr(server, "HEALTH_TIMEOUT_S", 0.2)
+    c = TestClient(server.create_hub_app(hub, ingest_tokens=[INGEST], read_token=None), base_url="http://127.0.0.1")
+    try:
+        for _ in range(3):
+            r = c.get(HEALTHZ)
+            assert r.status_code == 503 and r.json()["failed"] == {"blobs": "TimeoutError"}
+        assert blobs.calls == 1
+    finally:
+        blobs.release.set()
+    assert _until_ok(c)
+
+
+def _until_ok(c: TestClient) -> bool:
+    for _ in range(50):
+        if c.get(HEALTHZ).status_code == 200:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def test_healthz_is_in_the_ingest_contract_only():
+    _, c = make(read_token=None)
+    assert HEALTHZ in json.loads(server.openapi_document())["paths"]
+    assert HEALTHZ not in c.get("/api/openapi.json").text
+
+
 # --- the contract and the command ------------------------------------------------------
 
 
@@ -330,7 +422,8 @@ def test_the_committed_openapi_document_is_current():
         "src/contraagent/hub/openapi.json is stale: run `python -m contraagent.hub.server --openapi src/contraagent/hub/openapi.json`"
     )
     doc = json.loads(server.openapi_document())
-    assert set(doc["paths"]) == {INGEST_RECORDS, INGEST_HEARTBEAT, "/ingest/blobs/{sha256}"}
+    assert set(doc["paths"]) == {INGEST_RECORDS, INGEST_HEARTBEAT, "/ingest/blobs/{sha256}", HEALTHZ}
+    assert "security" not in doc["paths"][HEALTHZ]["get"]
     assert set(doc["paths"]["/ingest/blobs/{sha256}"]) == {"head", "put"}
     assert doc["components"]["securitySchemes"]["HTTPBearer"]["scheme"] == "bearer"
 

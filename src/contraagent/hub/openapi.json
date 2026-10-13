@@ -6,6 +6,35 @@
     "version": "1"
   },
   "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Healthz",
+        "description": "Whether the record store, the blob store and the transcripts each answer a trivial\nread; no token. 200 when all do, 503 naming the ones that do not.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "a store did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ingest/records": {
       "post": {
         "summary": "Records",
@@ -316,6 +345,32 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "failing"
+            ],
+            "title": "Status"
+          },
+          "failed": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Failed",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "description": "Whether each of the hub's stores answered a trivial read: `ok` when all did, else\n`failing` with the stores that did not (`records`, `blobs`, `transcripts`) and the\nkind of error each raised."
       },
       "Heartbeat": {
         "properties": {

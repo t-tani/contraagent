@@ -1,0 +1,74 @@
+#!/bin/sh
+# Make the hub's tokens and passwords for compose.yaml.
+#
+#   make-tokens [-d DIR] [HOST_ID ...]
+#
+# Writes, in DIR (default: the directory of this script):
+#
+#   secrets/ingest-tokens      `<host_id> <token>` for each HOST_ID, each token good for
+#                              that host only; with no HOST_ID, one token for any host
+#   secrets/read-token         the token that opens the monitor
+#   secrets/relay-<host>.env   CONTRAAGENT_HUB_TOKEN and CONTRAAGENT_HOST_ID for that
+#                              host's relay (contraagent-relay.service, EnvironmentFile);
+#                              secrets/relay.env with no HOST_ID
+#   .env                       .env.example with a new password for each `change-me`
+#
+# It refuses to replace tokens that exist. secrets/ is readable by its owner only; the
+# files in it are readable by all, because compose mounts them into the hub's container
+# as they are, and the hub runs there as a user of its own (uid 10001).
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+dir=$here
+if [ "${1:-}" = "-d" ]; then
+    [ $# -ge 2 ] || { echo "make-tokens: -d needs a directory" >&2; exit 2; }
+    dir=$2
+    shift 2
+fi
+secrets=$dir/secrets
+
+token() {
+    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+for f in ingest-tokens read-token; do
+    if [ -e "$secrets/$f" ]; then
+        echo "make-tokens: $secrets/$f exists; remove it to make new tokens" >&2
+        exit 1
+    fi
+done
+
+mkdir -p "$secrets"
+chmod 700 "$secrets"
+umask 022
+
+if [ $# -eq 0 ]; then
+    t=$(token)
+    printf '%s\n' "$t" >"$secrets/ingest-tokens"
+    printf 'CONTRAAGENT_HUB_TOKEN=%s\n' "$t" >"$secrets/relay.env"
+    chmod 600 "$secrets/relay.env"
+else
+    : >"$secrets/ingest-tokens"
+    for host in "$@"; do
+        t=$(token)
+        printf '%s %s\n' "$host" "$t" >>"$secrets/ingest-tokens"
+        printf 'CONTRAAGENT_HUB_TOKEN=%s\nCONTRAAGENT_HOST_ID=%s\n' "$t" "$host" >"$secrets/relay-$host.env"
+        chmod 600 "$secrets/relay-$host.env"
+    done
+fi
+token >"$secrets/read-token"
+echo >>"$secrets/read-token"
+chmod 444 "$secrets/ingest-tokens" "$secrets/read-token"
+
+if [ ! -e "$dir/.env" ]; then
+    : >"$dir/.env"
+    chmod 600 "$dir/.env"
+    while IFS= read -r line; do
+        case $line in
+            *=change-me) printf '%s=%s\n' "${line%%=*}" "$(token)" ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done <"$here/.env.example" >>"$dir/.env"
+    echo "make-tokens: wrote $dir/.env; set CONTRAAGENT_HUB_HOSTNAME there"
+fi
+echo "make-tokens: wrote the tokens in $secrets"

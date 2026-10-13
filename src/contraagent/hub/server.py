@@ -6,6 +6,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   POST /ingest/heartbeat       Heartbeat   -> HeartbeatAck
   HEAD /ingest/blobs/<sha256>  200 or 404
   PUT  /ingest/blobs/<sha256>  raw bytes -> 204; 400 when they do not hash to <sha256>
+  GET  /healthz                Health: 200 when every store answers, 503 naming those that do not
   GET  /login?token=<read>     sets the read cookie and redirects to /
   everything else              the monitor (`contraagent.monitor.server.create_app`)
                                over `Hub.monitor()`: API, SSE feeds, the bundled UI
@@ -22,19 +23,24 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   the local monitor's `Host` check (DNS rebinding): only the loopback names, the bound
   address and `--allow-host` names are answered. Ingest is not under the `Host` check:
   a page in a browser has no ingest token.
+* **`/healthz`** needs no token and is under no `Host` check, for a container healthcheck
+  or a load balancer (`HealthCheck`). It is in the ingest contract, not the monitor's.
 """
 
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import hmac
 import ipaddress
 import json
 import logging
+import os
 import signal
 import sys
+import threading
 import zlib
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -44,6 +50,7 @@ try:
     from fastapi import Depends, FastAPI, HTTPException, Request, Response
     from fastapi.concurrency import run_in_threadpool
     from fastapi.middleware.trustedhost import TrustedHostMiddleware
+    from fastapi.responses import JSONResponse
     from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
 except ModuleNotFoundError:
@@ -53,10 +60,12 @@ except ModuleNotFoundError:
 
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import (
+    HEALTHZ,
     INGEST_BLOB,
     INGEST_HEARTBEAT,
     INGEST_RECORDS,
     Accepted,
+    Health,
     Heartbeat,
     HeartbeatAck,
     RecordBatch,
@@ -80,6 +89,8 @@ MAX_RECORDS_BYTES = 16 * 1024 * 1024
 #: The largest blob the hub takes by default (`--max-blob-mb`).
 MAX_BLOB_BYTES = 256 * 1024 * 1024
 DEFAULT_PORT = 8790
+#: Seconds `/healthz` waits for a store's trivial read before it counts the store as failing.
+HEALTH_TIMEOUT_S = 3.0
 
 _UNAUTHORIZED = {"description": "no ingest token, or not one the hub was given"}
 _TOO_LARGE = {"description": "the body is larger than the hub takes"}
@@ -236,6 +247,88 @@ class BodyLimit:
         await self.app(scope, replay, send)
 
 
+# --- /healthz --------------------------------------------------------------------------
+
+#: What the probes read: a blob, a run and an object no hub holds. Their absence is the answer.
+_NO_SHA = "0" * 64
+_NO_NAME = "healthz@healthz"
+_NO_OBJECT = "healthz"
+
+
+def _read_records(store: HubStore) -> None:
+    store.entry(_NO_NAME)
+
+
+def _read_blobs(blobs: BlobStore) -> None:
+    # A read, not `has`: S3 answers a HEAD in a missing bucket with a plain 404.
+    blobs.get(_NO_SHA)
+
+
+def _read_transcripts(streams: StreamLogs) -> None:
+    streams.logs(_NO_NAME, _NO_NAME)
+    objects = getattr(streams, "objects", None)  # SegmentedStreamLogs: the sealed segments
+    if objects is not None:
+        try:
+            objects.get_range(_NO_OBJECT, 0, 1)
+        except FileNotFoundError:
+            pass
+    hot = getattr(streams, "hot_dir", None)  # and the open ones on this host's disk
+    if hot is not None and not os.access(hot, os.W_OK | os.X_OK):
+        raise PermissionError(f"{hot} is not writable")
+
+
+class HealthCheck:
+    """`GET /healthz`: one trivial read of each of the hub's stores, the record store
+    (`records`), the blob store (`blobs`) and the transcripts (`transcripts`: the segment
+    index, the sealed segments' object store and the open segments' directory).
+
+    The reads run in a thread pool of their own, at most one per store at a time, and are
+    waited for `timeout_s` (default `HEALTH_TIMEOUT_S`); a read still running from an earlier request is waited for
+    again rather than started anew, so a store that hangs costs one thread, not one per
+    request. The answer names each failing store with the kind of error it raised; the
+    error itself goes to the log, once each time a store's state changes."""
+
+    def __init__(self, hub: Hub, *, timeout_s: float | None = None) -> None:
+        self.timeout_s = HEALTH_TIMEOUT_S if timeout_s is None else timeout_s
+        self.probes: dict[str, Callable[[], None]] = {
+            "records": lambda: _read_records(hub.store),
+            "blobs": lambda: _read_blobs(hub.blobs),
+            "transcripts": lambda: _read_transcripts(hub.streams),
+        }
+        self._pool = concurrent.futures.ThreadPoolExecutor(len(self.probes), thread_name_prefix="healthz")
+        self._lock = threading.Lock()
+        self._running: dict[str, concurrent.futures.Future[None]] = {}
+        self._failed: dict[str, str] = {}
+
+    def _start(self) -> dict[str, concurrent.futures.Future[None]]:
+        with self._lock:
+            for name, probe in self.probes.items():
+                running = self._running.get(name)
+                if running is None or running.done():
+                    self._running[name] = self._pool.submit(probe)
+            return dict(self._running)
+
+    def check(self) -> Health:
+        """Run the reads and wait for them (blocking; the route calls it in a thread)."""
+        futures = self._start()
+        concurrent.futures.wait(futures.values(), timeout=self.timeout_s)
+        failed: dict[str, str] = {}
+        errors: dict[str, str] = {}
+        for name, future in futures.items():
+            if not future.done():
+                failed[name], errors[name] = "TimeoutError", f"no answer within {self.timeout_s:g}s"
+            elif (exc := future.exception()) is not None:
+                failed[name], errors[name] = type(exc).__name__, f"{type(exc).__name__}: {exc}"
+        with self._lock:
+            before, self._failed = self._failed, failed
+        for name in self.probes:
+            if name in failed and before.get(name) != failed[name]:
+                log.warning("healthz: the %s store fails: %s", name, errors[name])
+            elif name in before and name not in failed:
+                log.info("healthz: the %s store answers again", name)
+        return Health(status="failing" if failed else "ok", failed=failed)
+
+
 def _tokens(ingest_tokens: Mapping[str, str | None] | Iterable[str]) -> dict[str, str | None]:
     if isinstance(ingest_tokens, Mapping):
         return dict(ingest_tokens)
@@ -282,6 +375,14 @@ def create_ingest_app(
             raise HTTPException(403, f"the token was given for host {host!r}, not {host_id!r}")
 
     errors: dict[int | str, dict[str, Any]] = {401: _UNAUTHORIZED, 413: _TOO_LARGE}
+    health = HealthCheck(hub)
+
+    @app.get(HEALTHZ, response_model=Health, responses={503: {"model": Health, "description": "a store did not answer"}})
+    async def healthz() -> JSONResponse:
+        """Whether the record store, the blob store and the transcripts each answer a trivial
+        read; no token. 200 when all do, 503 naming the ones that do not."""
+        got = await run_in_threadpool(health.check)
+        return JSONResponse(got.model_dump(), status_code=200 if got.status == "ok" else 503)
 
     @app.post(INGEST_RECORDS, response_model=Accepted, responses={**errors, 403: _OTHER_HOST})
     def records(batch: RecordBatch, host: str | None = Depends(host_of)) -> Accepted:
@@ -329,14 +430,14 @@ def create_ingest_app(
 
 
 class _Dispatch:
-    """`/ingest/...` to the ingest app, everything else to the guarded monitor."""
+    """`/ingest/...` and `/healthz` to the ingest app, everything else to the guarded monitor."""
 
     def __init__(self, ingest: ASGIApp, monitor: ASGIApp) -> None:
         self.ingest = ingest
         self.monitor = monitor
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["path"].startswith(INGEST_PREFIX):
+        if scope["type"] == "http" and (scope["path"].startswith(INGEST_PREFIX) or scope["path"] == HEALTHZ):
             await self.ingest(scope, receive, send)
         else:
             await self.monitor(scope, receive, send)

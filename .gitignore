@@ -15,3 +15,7 @@ demo-out/
 inputs/
 live-demo/
 .claude/worktrees/
+# what make-tokens writes beside the hub's compose example
+src/contraagent/docs/examples/hub/.env
+src/contraagent/docs/examples/hub/secrets/*
+!src/contraagent/docs/examples/hub/secrets/*.example

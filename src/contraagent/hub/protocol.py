@@ -5,8 +5,9 @@ another language can speak it.
     POST /ingest/heartbeat        Heartbeat   -> HeartbeatAck
     HEAD /ingest/blobs/<sha256>   200 when the hub holds that content, else 404
     PUT  /ingest/blobs/<sha256>   the raw bytes; 204, or 400 when they do not hash to <sha256>
+    GET  /healthz                 Health: 200 when every store answers, else 503 (no token)
 
-Every request carries `Authorization: Bearer <token>`, a token the hub was given for
+Every ingest request carries `Authorization: Bearer <token>`, a token the hub was given for
 ingest; a token bound to one host is refused (403) for another host's runs. A records or
 heartbeat body may be sent with `Content-Encoding: gzip`. The full contract, with limits,
 is `contraagent/hub/openapi.json`.
@@ -28,11 +29,14 @@ another host has.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 INGEST_RECORDS = "/ingest/records"
 INGEST_HEARTBEAT = "/ingest/heartbeat"
 INGEST_BLOB = "/ingest/blobs/{sha256}"
+HEALTHZ = "/healthz"
 
 
 class RunRef(BaseModel):
@@ -117,3 +121,12 @@ class HeartbeatAck(BaseModel):
     """How long the hub counts the host as up without another heartbeat."""
 
     ttl_s: float
+
+
+class Health(BaseModel):
+    """Whether each of the hub's stores answered a trivial read: `ok` when all did, else
+    `failing` with the stores that did not (`records`, `blobs`, `transcripts`) and the
+    kind of error each raised."""
+
+    status: Literal["ok", "failing"]
+    failed: dict[str, str] = {}
