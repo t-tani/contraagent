@@ -13,6 +13,7 @@ import {
   type Info,
   type OutputTally,
   type RunState,
+  type HostSummary,
   type RunSummary,
   type TaskOutcome,
 } from '@contraagent/api';
@@ -96,6 +97,8 @@ export class CaOverview extends LitElement {
 
   @property({ attribute: false }) state!: RunState;
   @property({ attribute: false }) summary: RunSummary | undefined;
+  /** The run's host (a hub). */
+  @property({ attribute: false }) host: HostSummary | undefined;
   @property({ attribute: false }) info!: Info;
   @property() run = '';
   /** The pipeline graph's layer (`Route.layer`). */
@@ -123,7 +126,7 @@ export class CaOverview extends LitElement {
     return html`<div class="g12">
       <section class="panel c5 enter">
         <h3>${msg('Run')}</h3>
-        <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan}></ca-run-driver>
+        <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan} .host=${this.host}></ca-run-driver>
       </section>
       <section class="panel c7 enter">
         <h3 title=${msg('Limit: max_concurrent')}>${msg('Running tasks')}

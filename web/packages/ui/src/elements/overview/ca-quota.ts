@@ -1,4 +1,4 @@
-import { runAccounts, type JournalRow, type QuotaReading } from '@contraagent/api';
+import { runAccounts, type AccountUsage, type JournalRow, type QuotaReading } from '@contraagent/api';
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -14,7 +14,9 @@ type Window = 'five_hour' | 'seven_day';
 /**
  * Subscription usage over the run, per account (credential): for the weekly and
  * the 5-hour window, the account's first reading and its last, and when each
- * window resets. Readings come at session starts and are account-wide.
+ * window resets. Readings come at session starts and are account-wide. The
+ * accounts are the run's (`journal`), or given (`accounts`: a hub's, over every
+ * run of every host, `Hosts.quota`).
  */
 @customElement('ca-quota')
 @localized()
@@ -45,6 +47,8 @@ export class CaQuota extends LitElement {
   ];
 
   @property({ attribute: false }) journal: JournalRow[] = [];
+  /** Each account's first and last reading, highest weekly use first; null: from `journal`. */
+  @property({ attribute: false }) accounts: readonly AccountUsage[] | null = null;
 
   constructor() {
     super();
@@ -69,7 +73,7 @@ export class CaQuota extends LitElement {
   }
 
   override render() {
-    const accounts = runAccounts(this.journal);
+    const accounts = this.accounts ?? runAccounts(this.journal);
     if (!accounts.length) return nothing;
     return html`${accounts.map((a) => {
       const status = quotaStatusLabel(a.last.status);

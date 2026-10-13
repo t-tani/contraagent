@@ -1,9 +1,10 @@
-import { elapsedS, result, type Plan, type Procs, type RunSummary } from '@contraagent/api';
+import { elapsedS, result, runActivity, type HostSummary, type Plan, type Procs, type RunSummary } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { starts } from '@contraagent/elements';
-import { facts, fmtDur, localTime } from '../../words/format.js';
+import { facts, fmtDur, localTime, sentence } from '../../words/format.js';
+import { hostFact, lastReport, noReportLabel } from '../../words/hosts.js';
 import { toneAttr, type Tone } from '@contraagent/elements';
 import { base, factStyles } from '@contraagent/elements/styles';
 import '@contraagent/elements/count/define';
@@ -14,7 +15,8 @@ const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓
 /**
  * The run's own process: running (pid, run group, how many tasks at once,
  * command line), or not running, and then how it finished: with errors, or with
- * tasks not done (from `plan`).
+ * tasks not done (from `plan`). On a hub, a run whose host stopped reporting
+ * (`summary.unresponsive`) is neither: no report from its host, since `host.last_seen`.
  */
 @customElement('ca-run-driver')
 @localized()
@@ -43,6 +45,8 @@ export class CaRunDriver extends LitElement {
   @property({ attribute: false }) procs: Procs | null = null;
   @property({ attribute: false }) summary: RunSummary | undefined;
   @property({ attribute: false }) plan: Plan = { nodes: [], groups: [] };
+  /** The run's host (a hub): when it last reported. */
+  @property({ attribute: false }) host: HostSummary | undefined;
 
   /**
    * How a run that is not running ended, as its title: everything scheduled ran
@@ -61,16 +65,20 @@ export class CaRunDriver extends LitElement {
     const p = this.procs;
     const r = this.summary;
     if (!p?.alive) {
-      const [title, tone] = this.stateTitle();
-      const took = elapsedS(r);
+      // Its host stopped reporting (a hub): not known to run, not known to have ended.
+      const quiet = runActivity(r) === 'unresponsive';
+      const [title, tone]: [string, Tone] = quiet ? [sentence(noReportLabel()), 'attention'] : this.stateTitle();
+      const took = quiet ? null : elapsedS(r);
       return html`<div class="drv off">
         <div class="drv-ic" data-tone=${toneAttr(tone)} aria-hidden="true">${MARK[tone]}</div>
         <div>
           <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : toneAttr(tone)}>${title}</div>
           <div class="meta">${facts(
-            r?.last_ts ? msg(str`Ended ${localTime(r.last_ts, true)}`) : msg('No activity'),
+            quiet ? lastReport(this.host) : '',
+            !r?.last_ts ? msg('No activity') : quiet ? msg(str`Last activity ${localTime(r.last_ts, true)}`) : msg(str`Ended ${localTime(r.last_ts, true)}`),
             took == null ? '' : msg(str`Took ${fmtDur(took)}`),
             r?.run_group ? msg(str`Run group ${r.run_group}`) : '',
+            quiet ? hostFact(r?.host_id ?? '') : '',
           )}</div>
         </div>
       </div>`;

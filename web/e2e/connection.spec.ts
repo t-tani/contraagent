@@ -22,7 +22,7 @@ async function open(page: Page, baseUrl: string): Promise<string[]> {
   return errors;
 }
 
-const alert = (page: Page) => page.locator('#m [role="alert"]');
+const alert = (page: Page) => page.locator('#m .api-error');
 
 test('an HTML page in place of the API: its URL and cause, a console error, and no "No runs yet"', async ({ page, baseURL }) => {
   const errors = await open(page, `${baseURL}/spa`);

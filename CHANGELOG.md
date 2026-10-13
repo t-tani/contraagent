@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor on a hub shows the hosts behind the runs: the run picker groups runs by
+  host (each host's state in its header) and filters them by host, the header names the
+  run's host, a run whose host stopped reporting reads "no report from host" wherever its
+  state shows, and the hosts page (`?page=hosts`) lists the hosts and each account's
+  usage over every run. A monitor of one host looks as before.
 - `run.json` names the run across hosts: `run_uid`, an id no other run has (kept when
   the run is resumed), and `host_id` (`CONTRAAGENT_HOST_ID`, else the host name).
 - `Monitor(source=..., liveness=...)`: the monitor reads runs through a `RunSource` and a

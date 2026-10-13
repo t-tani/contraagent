@@ -1,5 +1,6 @@
 // The REST half of the monitor API, typed by the generated `paths`.
 import type {
+  Hosts,
   Info,
   JournalPage,
   JsonObject,
@@ -30,30 +31,30 @@ export class ApiError extends Error {
     readonly type = '',
   ) {
     // A status other than 404 comes from a server that has the API.
-    const lead = failure === 'status' && status !== 404 ? 'Monitor API error at' : 'No monitor API at';
-    super(`${lead} ${url}: ${failureText(failure, status, type)}`);
+    super(
+      `${failure === 'status' && status !== 404 ? 'Monitor API error' : 'No monitor API'} at ${url}: ${
+        failure === 'network'
+          ? 'network error, no response'
+          : failure === 'status'
+            ? `the response status is ${status}`
+            : failure === 'empty'
+              ? 'the response is empty'
+              : isHtml(type)
+                ? 'the response is HTML, not JSON'
+                : isJson(type) || !type
+                  ? 'the response is not valid JSON'
+                  : `the response is ${type}, not JSON`
+      }`,
+    );
     this.name = 'ApiError';
   }
 }
 
-/** The response is HTML: a page, not the API. */
-export const isHtml = (type: string): boolean => type === 'text/html' || type === 'application/xhtml+xml';
+/** The media type is HTML: a page, not the API. */
+export const isHtml = (type: string): boolean => /^(text\/html|application\/xhtml\+xml)$/.test(type);
 
 /** The media type is JSON. */
-export const isJson = (type: string): boolean => type === 'application/json' || type.endsWith('+json');
-
-function failureText(failure: ApiFailure, status: number, type: string): string {
-  switch (failure) {
-    case 'network':
-      return 'network error, no response';
-    case 'status':
-      return `the response status is ${status}`;
-    case 'empty':
-      return 'the response is empty';
-    case 'not-json':
-      return isHtml(type) ? 'the response is HTML, not JSON' : type && !isJson(type) ? `the response is ${type}, not JSON` : 'the response is not valid JSON';
-  }
-}
+export const isJson = (type: string): boolean => /^application\/(.+\+)?json$/.test(type);
 
 export interface ClientOptions {
   /** Where the monitor is served; '' (the default) is the page's own origin. */
@@ -66,6 +67,8 @@ export interface MonitorClient {
   readonly baseUrl: string;
   info(): Promise<Info>;
   runs(): Promise<RunSummary[]>;
+  /** The hosts behind the runs (a hub: `Info.hosts`). */
+  hosts(): Promise<Hosts>;
   journal(run: string, since?: number): Promise<JournalPage>;
   definitions(run: string): Promise<TaskDefinition[]>;
   task(run: string, key: string): Promise<TaskDetail>;
@@ -116,6 +119,7 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
     baseUrl,
     info: () => get('/api/info'),
     runs: () => get('/api/runs'),
+    hosts: () => get('/api/hosts'),
     journal: (run, since = 0) => get('/api/runs/{run}/journal', { path: { run }, query: { since } }),
     definitions: (run) => get('/api/runs/{run}/definitions', { path: { run } }),
     task: (run, key) => get('/api/runs/{run}/task/{key}', { path: { run, key } }),

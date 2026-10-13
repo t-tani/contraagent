@@ -1,4 +1,4 @@
-import { deriveRun, isRunLive, liveActivities, MonitorStore, runRow, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
+import { deriveRun, isRunLive, liveActivities, MonitorStore, hostOf, runActivity, runIdOf, runRow, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -11,8 +11,11 @@ import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
 import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
-import { apiErrorLine, runLine, runLineAccounts, triesLine } from '../../words/index.js';
+import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
+import { apiErrorLine } from '../../words/api-error.js';
 import { accountsTip } from '../../words/quota.js';
+import { hostFact, hostsLine, lastReport, noReportLabel } from '../../words/hosts.js';
+import { pill } from '@contraagent/elements/primitives';
 import { runTone, type Tone } from '../../lib/tone.js';
 import { RovingFocusController, toneAttr } from '@contraagent/elements';
 import '@contraagent/elements/segmented/define';
@@ -24,6 +27,7 @@ import { monitorTabs, moveTabIndicator, tabBar, tabId, tabStyles } from './tabs.
 import { brand, connection, nowLine } from './header.js';
 import { tabView } from './views.js';
 import './ca-clock.js';
+import './ca-hosts.js';
 import './ca-run-picker.js';
 import './ca-toasts.js';
 import './ca-theme-switch.js';
@@ -166,7 +170,7 @@ export class CaMonitor extends LitElement {
       const { replace, ...patch } = e.detail;
       this.navigate(patch, { replace: replace === true });
     });
-    this.addEventListener('ca-select-run', (e: CustomEvent<SelectRunDetail>) => this.navigate({ run: e.detail.run }));
+    this.addEventListener('ca-select-run', (e: CustomEvent<SelectRunDetail>) => this.navigate({ run: e.detail.run, page: '' }));
     this.addEventListener('ca-filter', (e: CustomEvent<FilterDetail>) => this.navigate(e.detail));
     this.addEventListener('ca-choose-theme', (e: CustomEvent<ChooseThemeDetail>) => {
       this.theme = e.detail.theme;
@@ -193,12 +197,15 @@ export class CaMonitor extends LitElement {
     this.store.stop();
   }
 
-  /** A router for `history`, started: in `memory` mode at the current route (else the `run` property), in `url` mode at the address bar's. */
+  /**
+   * A router for `history`, started at the `run` property's run; when it replaces
+   * another router, `memory` starts at the route shown and `url` at the address bar's.
+   */
   private openRouter(): void {
     this.routerMode = this.history;
     keepMemory(this, this.history === 'memory' ? this.localMemory : null);
-    const at = this.route ?? (this.run ? { run: this.run } : {});
-    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), this.history === 'memory' ? at : {}, flushMemory);
+    const at = !this.route ? (this.run ? { run: this.run } : {}) : this.history === 'memory' ? this.route : {};
+    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), at, flushMemory);
     this.router.start();
   }
 
@@ -269,9 +276,17 @@ export class CaMonitor extends LitElement {
     if (cause !== 'replace') this.pendingScroll = cause;
   }
 
-  /** With no run named, open the most recent one (replacing the entry: it is a default, not a step). */
+  /**
+   * With no run named, open the most recent one (replacing the entry: it is a
+   * default, not a step). The hosts page names none; a monitor of one host has no hosts page.
+   */
   private pickDefaultRun(): void {
-    const first = this.snap.runs[0];
+    const { info, runs } = this.snap;
+    if (this.route.page === 'hosts') {
+      if (!info.api_version || info.hosts) return;
+      this.navigate({ page: '' }, { replace: true });
+    }
+    const first = runs[0];
     if (!this.route.run && first) this.navigate({ run: first.run }, { replace: true });
   }
 
@@ -282,7 +297,7 @@ export class CaMonitor extends LitElement {
     } else if (e.key === '/') {
       e.preventDefault();
       this.renderRoot.querySelector<HTMLInputElement>('.bar input')?.focus();
-    } else if (/^[1-9]$/.test(e.key)) {
+    } else if (/^[1-9]$/.test(e.key) && this.route.page !== 'hosts') {
       const tab = monitorTabs(this.snap.info.panels)[Number(e.key) - 1];
       if (tab) this.navigate({ tab: tab.id });
     }
@@ -347,20 +362,18 @@ export class CaMonitor extends LitElement {
   override render() {
     if (!this.snap || !this.route) return nothing;
     const { snap, route } = this;
-    const summary = runRow(snap.runs, snap.run);
     const acts = liveActivities(snap.state.procs);
-    const dot = runTone(!!summary?.running, summary?.tasks);
     const derived = deriveRun(snap.state.journal, snap.state.plan);
     const tab = this.selectedTab();
     const keys = this.shortcutScope !== 'off';
+    const hub = !!snap.info.hosts;
+    const hostsPage = route.page === 'hosts';
     return html`
       <header>
         ${brand(snap.info.title)}
         <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
-          <span class="rn">${route.run || '—'}</span>
-          <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>
+          ${hostsPage ? this.hostsLabel() : this.runLabel(hub)}
           <span class="chev" aria-hidden="true">▾</span>
         </button>
         <div class="hdr-right">
@@ -374,15 +387,47 @@ export class CaMonitor extends LitElement {
           ${connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
-        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen}
+        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} ?hostsPage=${hostsPage}
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
-      ${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)}
-      <p class="api-error" role="alert">${snap.error ? html`<span class="ic" aria-hidden="true">✕</span> ${apiErrorLine(snap.error)}` : nothing}</p>
-      <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
-        >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>
+      ${hostsPage
+        ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
+        : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
+            <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
+              >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
       <ca-toasts></ca-toasts>
     `;
+  }
+
+  /**
+   * The run button's label for a run: its status dot, its name (on a hub,
+   * without the host, which follows it), no report from its host (a hub; before
+   * the run line, which the button may cut), its run line.
+   */
+  private runLabel(hub: boolean) {
+    const { snap, route } = this;
+    const summary = runRow(snap.runs, snap.run);
+    const activity = runActivity(summary, !!snap.state.procs?.alive);
+    const dot = runTone(activity, summary?.tasks);
+    const host = hub ? (summary?.host_id ?? '') : '';
+    return html`<span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
+      <span class="rn" title=${host ? route.run : nothing}>${summary && host ? runIdOf(summary) : route.run || '—'}</span>
+      ${host ? html`<span class="hostchip" title=${hostFact(host)}><span class="sr">${hostFact(host)}</span><span aria-hidden="true">${host}</span></span>` : nothing}
+      ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
+      <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, deriveRun(snap.state.journal, snap.state.plan)) : ''}</span>`;
+  }
+
+  /** The run button's label on the hosts page: the hosts in one line, attention while a host has no report. */
+  private hostsLabel() {
+    const hosts = this.snap.hosts?.hosts ?? [];
+    return html`<span class="dot" data-tone=${toneAttr(hosts.some((h) => !h.up) ? 'attention' : 'neutral')} aria-hidden="true"></span>
+      <span class="rn">${msg('Hosts')}</span><span class="rs">${hostsLine(hosts)}</span>`;
+  }
+
+  /** A request to the API that got no JSON answer: its URL and cause. */
+  private renderApiError() {
+    const { error } = this.snap;
+    return html`<p class="api-error" role="alert">${error ? html`<span class="ic" aria-hidden="true">✕</span> ${apiErrorLine(error)}` : nothing}</p>`;
   }
 
   private renderTabs(d: RunDerived, busy: number) {

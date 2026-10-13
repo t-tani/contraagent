@@ -2264,6 +2264,96 @@
   <source>Switch run</source>
   <target>実行を切り替え</target>
 </trans-unit>
+<trans-unit id="s94e946a4e4771568">
+  <source>Last activity <x id="0" equiv-text="${localTime(r.last_ts, true)}"/></source>
+  <target>最終更新 <x id="0" equiv-text="${localTime(r.last_ts, true)}"/></target>
+</trans-unit>
+<trans-unit id="sad3e3c8146fc920f">
+  <source>Status</source>
+  <target>状態</target>
+</trans-unit>
+<trans-unit id="s7da3f7966968f065">
+  <source>Last report</source>
+  <target>最終報告</target>
+</trans-unit>
+<trans-unit id="s9b344a4372b6297c">
+  <source>Report interval</source>
+  <target>報告間隔</target>
+</trans-unit>
+<trans-unit id="sfae8c6e1b5f558f4">
+  <source>Hosts</source>
+  <target>ホスト一覧</target>
+</trans-unit>
+<trans-unit id="s6b05f9d8801fc14f">
+  <source>Host</source>
+  <target>ホスト</target>
+</trans-unit>
+<trans-unit id="s20fd629bac8fddd1">
+  <source>No hosts</source>
+  <target>ホストなし</target>
+</trans-unit>
+<trans-unit id="s0efbf5fabc94e557">
+  <source>All hosts</source>
+  <target>すべてのホスト</target>
+</trans-unit>
+<trans-unit id="s7216ea69f7471966">
+  <source>no report from host</source>
+  <target>ホストからの報告なし</target>
+</trans-unit>
+<trans-unit id="sa9dbdda88ddccf5c">
+  <source>no report</source>
+  <target>報告なし</target>
+</trans-unit>
+<trans-unit id="s587a7bb1c5e1f1e4">
+  <source>no report since <x id="0" equiv-text="${localTime(h.last_seen, true)}"/></source>
+  <target><x id="0" equiv-text="${localTime(h.last_seen, true)}"/> 以降報告なし</target>
+</trans-unit>
+<trans-unit id="s13843960cf657713">
+  <source>Last report <x id="0" equiv-text="${localTime(h.last_seen, true)}"/></source>
+  <target>最終報告 <x id="0" equiv-text="${localTime(h.last_seen, true)}"/></target>
+</trans-unit>
+<trans-unit id="s4f901d8830793b99">
+  <source>Host <x id="0" equiv-text="${id}"/></source>
+  <target>ホスト <x id="0" equiv-text="${id}"/></target>
+</trans-unit>
+<trans-unit id="seea18d10f66cb015">
+  <source>No host id</source>
+  <target>ホスト ID なし</target>
+</trans-unit>
+<trans-unit id="s8076e2fb2b749dd1">
+  <source>1 run</source>
+  <target>実行 1 件</target>
+</trans-unit>
+<trans-unit id="sf260150b06ca44e5">
+  <source><x id="0" equiv-text="${n}"/> runs</source>
+  <target>実行 <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s7c07891db8985a1a">
+  <source><x id="0" equiv-text="${n}"/> with no report from host</source>
+  <target>ホストからの報告なし <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s9893de7ee80d2b86">
+  <source>1 host</source>
+  <target>ホスト 1 台</target>
+</trans-unit>
+<trans-unit id="s86cfcbbc3e56f60a">
+  <source><x id="0" equiv-text="${hosts.length}"/> hosts</source>
+  <target>ホスト <x id="0" equiv-text="${hosts.length}"/> 台</target>
+</trans-unit>
+<trans-unit id="sb1454106d9fa9d78">
+  <source><x id="0" equiv-text="${quiet}"/> with no report</source>
+  <target>報告なし <x id="0" equiv-text="${quiet}"/> 台</target>
+</trans-unit>
+<trans-unit id="col-runs">
+  <source>Runs</source>
+  <target>実行</target>
+  <note from="lit-localize">A column: a host's runs, counted</note>
+</trans-unit>
+<trans-unit id="s08c43a07b566d980">
+  <source>up</source>
+  <target>稼働中</target>
+  <note from="lit-localize">A host whose reports keep arriving</note>
+</trans-unit>
 <trans-unit id="s3dd137f6b70ab45f">
   <source>network error, no response</source>
   <target>ネットワークエラーで応答なし</target>

@@ -68,4 +68,49 @@ describe('MonitorStore', () => {
     expect(errors).toHaveBeenCalledTimes(1);
     errors.mockRestore();
   });
+
+  it('on a hub, sets error when the host list gets no answer', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = {
+      baseUrl: 'http://hub.test',
+      info: () => Promise.resolve({ title: 't', panels: [], api_version: '3', hosts: true }),
+      runs: () => Promise.resolve([]),
+      hosts: () => Promise.reject(new ApiError('http://hub.test/api/hosts', 'not-json', 200, 'text/html')),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 60_000 });
+    await store.start();
+    store.stop();
+    expect(store.snapshot).toMatchObject({ runsLoaded: true, error: { url: 'http://hub.test/api/hosts', failure: 'not-json' } });
+    errors.mockRestore();
+  });
+
+  it('on a hub, fetches the host list with the run list', async () => {
+    const info: Info = { title: 't', panels: [], api_version: '3', hosts: true };
+    const hosts = { hosts: [{ host_id: 'h1', up: true, last_seen: '', interval_s: 3, runs: 1, running: 0, unresponsive: 0 }], quota: [] };
+    let asked = 0;
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.resolve([]),
+      hosts: () => (asked++, Promise.resolve(hosts)),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client });
+    await store.start();
+    store.stop();
+    expect(asked).toBe(1);
+    expect(store.snapshot.hosts).toEqual(hosts);
+  });
+
+  it('on one host, asks for no host list', async () => {
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve({ title: 't', panels: [], api_version: '3' }),
+      runs: () => Promise.resolve([]),
+      hosts: () => Promise.reject(new Error('not asked')),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client });
+    await store.start();
+    store.stop();
+    expect(store.snapshot.hosts).toBeNull();
+  });
 });

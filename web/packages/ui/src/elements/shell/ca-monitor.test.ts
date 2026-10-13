@@ -205,7 +205,7 @@ describe('ca-monitor', () => {
   });
 
   describe('connection', () => {
-    const alert = (el: CaMonitor) => text(root(el).querySelector('[role="alert"]'));
+    const alert = (el: CaMonitor) => text(root(el).querySelector('.api-error'));
 
     it('shows the URL and the cause when the API answers with an HTML page, not "No runs yet"', async () => {
       const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -266,9 +266,8 @@ describe('ca-monitor', () => {
       const el = await monitor();
       el.history = 'url';
       el.locale = 'ja';
-      await settle();
-      await el.updateComplete;
-      expect(document.title).toBe('Pipeline モニター');
+      // The Japanese module loads when first chosen.
+      await vi.waitFor(() => expect(document.title).toBe('Pipeline モニター'), { timeout: 3000 });
       expect(el.lang).toBe('ja');
       el.remove();
       history.replaceState(null, '', '/');

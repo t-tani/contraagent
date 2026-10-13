@@ -56,6 +56,15 @@ host name.
 The same views as on one host, for every host's runs. A run is live while its host's
 heartbeats keep arriving (`contraagent hub --ttl`) and report it alive.
 
+On a hub the monitor shows the host behind each run. The run picker groups the runs by
+host, each group headed by the host's state (up, or no report since its last heartbeat),
+and filters them by host; the run's header names its host. A run whose host stopped
+reporting while the run was alive is neither running nor finished: it reads "no report
+from host" in the picker, the header and the run panel, with the host's last report. The
+hosts page (`?page=hosts`, the first entry of the run picker) lists each host with its
+state, its last report, the seconds between its reports and its runs, then each
+account's subscription usage over every run of every host (`/api/hosts`).
+
 A task's transcript reaches the monitor within about a quarter of a second while the
 task runs: the relay ships the transcripts of running tasks between its full passes,
 and the monitor's transcript feed wakes when the hub receives lines. A viewer that

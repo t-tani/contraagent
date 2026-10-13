@@ -1,5 +1,6 @@
 // What the live feed of one run folds into, and the questions the views ask of it.
 // Pure: no I/O, no clock unless passed in.
+import { runActivity } from './derive.js';
 import type {
   CursorView,
   JournalRow,
@@ -116,9 +117,9 @@ export const rowId = (row: JournalRow): string => `${row.ts}|${row.key}`;
 export const runRow = (runs: readonly RunSummary[], run: string): RunSummary | undefined =>
   runs.find((r) => r.run === run);
 
-/** The run's process is alive (by the feed, or by the run list). */
+/** The run's process is alive (by the feed, or by the run list): `runActivity` is `running`. */
 export const isRunLive = (state: RunState, summary: RunSummary | undefined): boolean =>
-  !!state.procs?.alive || !!summary?.running;
+  runActivity(summary, !!state.procs?.alive) === 'running';
 
 /** Something running right now: an agent launch or a Python task. */
 export interface Activity {
