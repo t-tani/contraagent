@@ -419,10 +419,11 @@ def open_store(spec: str) -> HubStore:
     raise ValueError(f"--store: {spec!r} is neither `memory` nor a postgres:// DSN")
 
 
-def open_streams(streams_dir: str | None, segments: str | None, store: str) -> StreamLogs:
+def open_streams(streams_dir: str | None, segments: str | None, store: str, **seal: float) -> StreamLogs:
     """Where transcripts are kept: segmented (open segments in `streams_dir`, sealed ones at
     `segments`, indexed in the `store`'s Postgres database when it is one), or in memory
-    when no `streams_dir` is given."""
+    when no `streams_dir` is given. `seal` passes `SegmentedStreamLogs`' `segment_bytes`,
+    `idle_s`, `age_s` and `tick_s` through."""
     if streams_dir is None:
         if segments is not None:
             raise ValueError("--segments needs --streams-dir")
@@ -433,7 +434,7 @@ def open_streams(streams_dir: str | None, segments: str | None, store: str) -> S
     except ImportError as exc:
         raise ValueError(f"--streams-dir: segmented transcripts are not available ({exc})") from None
     index = store if store.startswith(("postgres://", "postgresql://")) else None
-    return from_spec(streams_dir, segments or str(Path(streams_dir) / "segments"), index)
+    return from_spec(streams_dir, segments or str(Path(streams_dir) / "segments"), index, **seal)
 
 
 def open_blobs(spec: str) -> BlobStore:
@@ -458,6 +459,10 @@ def _loopback(host: str) -> bool:
         return ipaddress.ip_address(host.strip("[]")).is_loopback
     except ValueError:
         return False
+
+
+def _exit_on_sigterm(signum: int, frame: object) -> None:
+    raise SystemExit(0)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -515,6 +520,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="write the ingest OpenAPI document to PATH (default: stdout) and exit",
     )
+    # When an open segment is sealed (`SegmentedStreamLogs`); hidden: for tests that need
+    # seals within seconds, not for operators.
+    ap.add_argument("--seal-bytes", type=int, dest="segment_bytes", help=argparse.SUPPRESS)
+    ap.add_argument("--seal-idle", type=float, dest="idle_s", help=argparse.SUPPRESS)
+    ap.add_argument("--seal-age", type=float, dest="age_s", help=argparse.SUPPRESS)
+    ap.add_argument("--seal-tick", type=float, dest="tick_s", help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     try:
         require_extra()
@@ -536,7 +547,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         tokens = read_ingest_tokens(args.ingest_token_file)
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
-        streams = open_streams(args.streams_dir, args.segments, args.store)
+        seal = {k: v for k in ("segment_bytes", "idle_s", "age_s", "tick_s") if (v := getattr(args, k)) is not None}
+        streams = open_streams(args.streams_dir, args.segments, args.store, **seal)
         hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"contraagent hub: {exc}\n")
@@ -560,6 +572,9 @@ def main(argv: list[str] | None = None) -> int:
 
     store, blobs = args.store.split("://")[0], args.blobs.split(":")[0]  # a DSN may hold a password
     log.info("%s on http://%s:%s  store=%s blobs=%s ingest tokens=%d", args.title, args.host, args.port, store, blobs, len(tokens))
+    # uvicorn stops gracefully on SIGTERM and then raises it again to the handler it found;
+    # the default handler would end the process before the open segments are shut down.
+    signal.signal(signal.SIGTERM, _exit_on_sigterm)
     try:
         uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     finally:

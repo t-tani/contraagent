@@ -189,6 +189,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pyright          # 0 errors; the "yaml" source warning is expected
 uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
+uv run pytest -m e2e    # the hub and relays as processes over Postgres and MinIO (docker)
 ```
 
 After an omp upgrade, record its wire (`uv run python tests/fixtures/omp/record.py`,
