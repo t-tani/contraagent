@@ -58,16 +58,16 @@ export class CaDefinition extends LitElement {
   ];
 
   @property({ attribute: false }) definition: TaskDefinition | null = null;
-  /** Remember open files and the rendered/source choice under this id (in the history entry). */
+  /** Remember open files and the rendered/source choice under this id (in the history entry, or the embedded monitor's memory). */
   @property() memory = 'definition';
 
-  private open = new RememberedSet('definition:open');
-  private source = new RememberedSet('definition:source');
+  private open = new RememberedSet('definition:open', this);
+  private source = new RememberedSet('definition:source', this);
 
   override willUpdate(changed: Map<string, unknown>): void {
     if (changed.has('memory')) {
-      this.open = new RememberedSet(`${this.memory}:open`);
-      this.source = new RememberedSet(`${this.memory}:source`);
+      this.open = new RememberedSet(`${this.memory}:open`, this);
+      this.source = new RememberedSet(`${this.memory}:source`, this);
     }
   }
 

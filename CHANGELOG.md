@@ -430,6 +430,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The monitor's tabs are a tab list ("Views"): one tab stop, the arrow keys,
   Home and End move between the tabs, Enter opens one, and the view below is
   its tab panel. The selected tab is bold as well as underlined.
+- `<ca-monitor history="memory">` leaves the host page alone:
+  - its single-key shortcuts (1 to 9, `r`, `/`) work only while the focus is
+    inside it; the new `shortcuts` attribute (`page`, `element`, `off`) sets
+    where they work, `page` being the default with `history="url"`;
+  - it writes no `document.title`, and adds no listener to the document or the
+    window (the run picker and the theme menu listen for a click outside them
+    only while they are open);
+  - it keeps its scroll position and the open sections of Outputs and
+    definitions in its own memory, not in the page's history entry, so two
+    monitors on one page do not share them.
+  `e2e/embed.spec.ts` checks this with two monitors in a host page that has its
+  own field and shortcuts. A `<cae-data-table>` in a scrolling box follows the
+  box's size (a `ResizeObserver`), not the window's.
 - The run picker is a dialog: its search field (a combobox) takes the focus
   when it opens and keeps it, the arrow keys name the active run, and Escape or
   a pick returns the focus to the run button.
