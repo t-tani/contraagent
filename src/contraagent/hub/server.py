@@ -29,6 +29,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
 
 from __future__ import annotations
 
+import argparse
 import concurrent.futures
 import hashlib
 import hmac
@@ -41,6 +42,7 @@ import sys
 import threading
 import zlib
 from collections.abc import Callable, Iterable, Mapping
+from datetime import timedelta
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -58,7 +60,7 @@ except ModuleNotFoundError:
     if TYPE_CHECKING:
         raise
 
-from contraagent.hub.core import Hub
+from contraagent.hub.core import BLOB_GRACE, Hub
 from contraagent.hub.protocol import (
     HEALTHZ,
     INGEST_BLOB,
@@ -69,6 +71,16 @@ from contraagent.hub.protocol import (
     Heartbeat,
     HeartbeatAck,
     RecordBatch,
+)
+from contraagent.hub.retention import (
+    FIRST_PRUNE_AFTER_S,
+    PRUNE_EVERY_HOURS,
+    SHORT_PRUNE_EVERY_HOURS,
+    SHORT_RETENTION_DAYS,
+    Pruner,
+    default_prune_every,
+    report_json,
+    report_table,
 )
 from contraagent.hub.source import DEFAULT_TTL_S
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
@@ -520,11 +532,14 @@ def open_store(spec: str) -> HubStore:
     raise ValueError(f"--store: {spec!r} is neither `memory` nor a postgres:// DSN")
 
 
-def open_streams(streams_dir: str | None, segments: str | None, store: str, **seal: float) -> StreamLogs:
+def open_streams(
+    streams_dir: str | None, segments: str | None, store: str, *, sweep: bool = True, background: bool = True, **seal: float
+) -> StreamLogs:
     """Where transcripts are kept: segmented (open segments in `streams_dir`, sealed ones at
     `segments`, indexed in the `store`'s Postgres database when it is one), or in memory
-    when no `streams_dir` is given. `seal` passes `SegmentedStreamLogs`' `segment_bytes`,
-    `idle_s`, `age_s` and `tick_s` through."""
+    when no `streams_dir` is given. `sweep` deletes orphan segment objects on opening;
+    `background` and `seal` (`segment_bytes`, `idle_s`, `age_s`, `tick_s`) pass through to
+    `SegmentedStreamLogs`."""
     if streams_dir is None:
         if segments is not None:
             raise ValueError("--segments needs --streams-dir")
@@ -535,7 +550,7 @@ def open_streams(streams_dir: str | None, segments: str | None, store: str, **se
     except ImportError as exc:
         raise ValueError(f"--streams-dir: segmented transcripts are not available ({exc})") from None
     index = store if store.startswith(("postgres://", "postgresql://")) else None
-    return from_spec(streams_dir, segments or str(Path(streams_dir) / "segments"), index, **seal)
+    return from_spec(streams_dir, segments or str(Path(streams_dir) / "segments"), index, sweep=sweep, background=background, **seal)
 
 
 def open_blobs(spec: str) -> BlobStore:
@@ -566,23 +581,52 @@ def _exit_on_sigterm(signum: int, frame: object) -> None:
     raise SystemExit(0)
 
 
-def main(argv: list[str] | None = None) -> int:
-    import argparse
+#: The environment variable `--retain-days` falls back to.
+RETENTION_ENV = "CONTRAAGENT_RETENTION_DAYS"
+#: `--retain-days` not given (an empty value given is None: keep everything).
+_UNSET = object()
 
-    ap = argparse.ArgumentParser(
-        prog="contraagent hub",
-        description=(
-            "Receive every host's runs from `contraagent relay` and serve their monitor. "
-            "Tokens are read from files, never from the command line. "
-            "Without --read-token-file the monitor (every transcript) is open to anyone who reaches the port."
-        ),
-    )
+
+def _days(text: str) -> float | None:
+    """`--retain-days`: a positive number of days; empty means keep everything."""
+    if not text.strip():
+        return None
+    try:
+        days = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number of days") from None
+    if not days > 0:
+        raise argparse.ArgumentTypeError(f"{text!r}: the days must be more than 0")
+    return days
+
+
+def _hours(text: str) -> float:
+    try:
+        hours = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number of hours") from None
+    if not hours > 0:
+        raise argparse.ArgumentTypeError(f"{text!r}: the hours must be more than 0")
+    return hours
+
+
+def retain_days(ap: argparse.ArgumentParser, flag: object, environ: Mapping[str, str] = os.environ) -> float | None:
+    """The days runs are kept: `--retain-days` when given (`flag` is then a number or None for
+    an empty value), else `CONTRAAGENT_RETENTION_DAYS`, else None (keep everything)."""
+    if flag is not _UNSET:
+        assert flag is None or isinstance(flag, float)
+        return flag
+    try:
+        return _days(environ.get(RETENTION_ENV, ""))
+    except argparse.ArgumentTypeError as exc:
+        ap.error(f"{RETENTION_ENV}: {exc}")
+
+
+def _storage_args(ap: argparse.ArgumentParser) -> None:
+    """The options that say where the hub keeps what it holds, shared by serve and prune."""
     ap.add_argument("--store", default="memory", metavar="memory|postgres://...", help="where records are kept (default: memory)")
     ap.add_argument(
         "--blobs", default="memory", metavar="memory|dir:PATH|s3://BUCKET/PREFIX", help="where file contents are kept (default: memory)"
-    )
-    ap.add_argument(
-        "--ingest-token-file", metavar="FILE", help="ingest tokens, one per line, or `host_id token` for a token good for that host only"
     )
     ap.add_argument(
         "--streams-dir",
@@ -595,10 +639,33 @@ def main(argv: list[str] | None = None) -> int:
         metavar="DIR|s3://BUCKET/PREFIX",
         help="where sealed transcript segments are kept (default: <streams-dir>/segments)",
     )
+    ap.add_argument("--ttl", type=float, default=DEFAULT_TTL_S, help="seconds a host counts as up after a heartbeat (default: %(default)g)")
+
+
+def _retain_arg(ap: argparse.ArgumentParser, help: str) -> None:
+    ap.add_argument("--retain-days", type=_days, default=_UNSET, metavar="N", help=help)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["prune"]:
+        return prune_main(argv[1:])
+    ap = argparse.ArgumentParser(
+        prog="contraagent hub",
+        description=(
+            "Receive every host's runs from `contraagent relay` and serve their monitor. "
+            "Tokens are read from files, never from the command line. "
+            "Without --read-token-file the monitor (every transcript) is open to anyone who reaches the port."
+        ),
+        epilog="`contraagent hub prune --help`: remove old runs once, without serving.",
+    )
+    _storage_args(ap)
+    ap.add_argument(
+        "--ingest-token-file", metavar="FILE", help="ingest tokens, one per line, or `host_id token` for a token good for that host only"
+    )
     ap.add_argument("--read-token-file", metavar="FILE", help="the token that opens the monitor; without it the monitor is open")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
-    ap.add_argument("--ttl", type=float, default=DEFAULT_TTL_S, help="seconds a host counts as up after a heartbeat (default: %(default)g)")
     ap.add_argument("--title", default="contraagent hub")
     ap.add_argument(
         "--max-blob-mb",
@@ -614,6 +681,17 @@ def main(argv: list[str] | None = None) -> int:
         help="also answer monitor requests addressed to this host name (default: localhost, 127.0.0.1, [::1] and the --host address)",
     )
     ap.add_argument("--cors-origin", action="append", default=[], metavar="ORIGIN", help="let a page from this origin read the monitor API")
+    _retain_arg(
+        ap,
+        f"remove runs with no activity for N days, while the hub runs (default: ${RETENTION_ENV}; unset or empty: keep every run)",
+    )
+    ap.add_argument(
+        "--prune-every",
+        type=_hours,
+        metavar="HOURS",
+        help=f"hours between prunes; the first is {FIRST_PRUNE_AFTER_S / 60:g} minutes after start "
+        f"(default: {PRUNE_EVERY_HOURS:g}, or {SHORT_PRUNE_EVERY_HOURS:g} when --retain-days is under {SHORT_RETENTION_DAYS:g})",
+    )
     ap.add_argument(
         "--openapi",
         nargs="?",
@@ -627,6 +705,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seal-idle", type=float, dest="idle_s", help=argparse.SUPPRESS)
     ap.add_argument("--seal-age", type=float, dest="age_s", help=argparse.SUPPRESS)
     ap.add_argument("--seal-tick", type=float, dest="tick_s", help=argparse.SUPPRESS)
+    # Seconds before the first prune; hidden: for tests.
+    ap.add_argument("--first-prune-after", type=float, default=FIRST_PRUNE_AFTER_S, help=argparse.SUPPRESS)
     args = ap.parse_args(argv)
     try:
         require_extra()
@@ -645,6 +725,9 @@ def main(argv: list[str] | None = None) -> int:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     if not args.ingest_token_file:
         ap.error("--ingest-token-file is required: relays need a token to send")
+    days = retain_days(ap, args.retain_days)
+    if days is None and args.prune_every is not None:
+        ap.error(f"--prune-every needs --retain-days or ${RETENTION_ENV}")
     try:
         tokens = read_ingest_tokens(args.ingest_token_file)
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
@@ -673,15 +756,77 @@ def main(argv: list[str] | None = None) -> int:
 
     store, blobs = args.store.split("://")[0], args.blobs.split(":")[0]  # a DSN may hold a password
     log.info("%s on http://%s:%s  store=%s blobs=%s ingest tokens=%d", args.title, args.host, args.port, store, blobs, len(tokens))
+    pruner: Pruner | None = None
+    if days is not None:
+        every = args.prune_every if args.prune_every is not None else default_prune_every(days)
+        pruner = Pruner(hub, older_than=timedelta(days=days), every_s=every * 3600, first_after_s=args.first_prune_after)
+        log.info("retention: runs with no activity for %g days are removed, every %gh", days, every)
+    else:
+        log.info("retention: every run is kept (no --retain-days)")
     # uvicorn stops gracefully on SIGTERM and then raises it again to the handler it found;
     # the default handler would end the process before the open segments are shut down.
     signal.signal(signal.SIGTERM, _exit_on_sigterm)
     try:
+        if pruner is not None:
+            pruner.start()
         uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    finally:
+        if pruner is not None:
+            pruner.stop()
+        shutdown = getattr(hub.streams, "shutdown", None)
+        if shutdown is not None:
+            shutdown()
+    return 0
+
+
+def prune_main(argv: list[str]) -> int:
+    """`contraagent hub prune`: `Hub.prune` once over the hub's storage, its report printed."""
+    ap = argparse.ArgumentParser(
+        prog="contraagent hub prune",
+        description=(
+            "Remove the runs with no activity for N days from the hub's storage, once, and print what was removed. "
+            "A run is kept while the heartbeats in the store report it live or unresponsive. "
+            "Do not run it while a hub started with --retain-days uses the same storage: one process prunes at a time."
+        ),
+    )
+    _storage_args(ap)
+    _retain_arg(ap, f"remove runs with no activity for N days (default: ${RETENTION_ENV}; one of the two is required)")
+    ap.add_argument("--dry-run", action="store_true", help="remove nothing; report what would be removed")
+    ap.add_argument(
+        "--blob-grace-hours",
+        type=_hours,
+        default=BLOB_GRACE / timedelta(hours=1),
+        metavar="H",
+        help="hours a blob no run references is kept after it was stored (default: %(default)g)",
+    )
+    ap.add_argument("--json", action="store_true", help="print the report as JSON")
+    args = ap.parse_args(argv)
+    days = retain_days(ap, args.retain_days)
+    if days is None:
+        ap.error(f"--retain-days N (or ${RETENTION_ENV}) is required")
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
+    sys.stderr.write(
+        "contraagent hub prune: run it only while no hub started with --retain-days uses the same storage; one process prunes at a time\n"
+    )
+    try:
+        # No background seals and, for a dry run, no sweep: a dry run deletes nothing.
+        streams = (
+            open_streams(args.streams_dir, args.segments, args.store, sweep=not args.dry_run, background=False)
+            if args.streams_dir is not None or args.segments is not None
+            else MemoryStreamLogs()
+        )
+        hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"contraagent hub prune: {exc}\n")
+        return 2
+    try:
+        report = hub.prune(older_than=timedelta(days=days), blob_grace=timedelta(hours=args.blob_grace_hours), dry_run=args.dry_run)
     finally:
         shutdown = getattr(hub.streams, "shutdown", None)
         if shutdown is not None:
             shutdown()
+    sys.stdout.write(report_json(report) + "\n" if args.json else report_table(report))
     return 0
 
 
