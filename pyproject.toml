@@ -33,7 +33,7 @@ Source = "https://github.com/t-tani"
 
 [project.optional-dependencies]
 monitor = ["fastapi>=0.110", "uvicorn>=0.29", "sse-starlette>=2.0"]
-hub = ["contraagent[monitor]", "httpx>=0.27", "psycopg[binary]>=3.2", "boto3>=1.34"]
+hub = ["contraagent[monitor]", "httpx>=0.27", "psycopg[binary]>=3.2", "boto3>=1.34", "zstandard>=0.25"]
 
 [project.scripts]
 contraagent = "contraagent.cli:main"
