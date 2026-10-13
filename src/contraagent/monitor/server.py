@@ -16,7 +16,8 @@ Endpoints (all GET; response models in `api.py`):
   /api/openapi.json                  this contract as OpenAPI (also `contraagent/monitor/openapi.json`)
   /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / panel:<name>,
                                      and `ready` once the first round (the journal replay) is out
-  /events/stream?run=&key=<key>      SSE, StreamMessage: one transcript, tailed live
+  /events/stream?run=&key=<key>      SSE, StreamMessage: one transcript, tailed live; `id:` is the line
+                                     offset after each message, `Last-Event-ID` or `from=N` resumes there
 
 A run id or task key that is not a plain name answers 404: they become file
 paths (`paths.py`).
@@ -39,6 +40,7 @@ import json
 import logging
 import signal
 import sys
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -68,8 +70,10 @@ log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
 OPENAPI_FILE = Path(__file__).parent / "openapi.json"
 OPENAPI_TITLE = "contraagent monitor"
-#: How fast a change on disk reaches an already-open connection.
+#: Seconds between two looks at a run for the run feed (`run_feed`).
 TICK_S = 1.0
+#: Seconds a transcript feed waits for its log to grow before it looks again.
+STREAM_WAIT_S = 15.0
 #: Host names a local browser uses for this machine. Anything else in `Host` is refused.
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 
@@ -166,6 +170,52 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
             replayed = True
             yield {"event": "ready", "data": _json(_READY, {"journal": jpos})}
         await asyncio.sleep(TICK_S)
+
+
+def _resume_line(value: str | None) -> int | None:
+    """The line a `Last-Event-ID` header or a `from` parameter names; None when it names none."""
+    try:
+        line = int(value) if value is not None else -1
+    except ValueError:
+        return None
+    return line if line >= 0 else None
+
+
+async def stream_feed(
+    monitor: Monitor, run: str, key: str, start: int | None, is_disconnected: Callable[[], Awaitable[bool]]
+) -> AsyncIterator[dict[str, str]]:
+    """One client's feed of task `key`'s transcript.
+
+    With no `start`, the first message is the tail page; with one, the feed resumes at
+    that line. Each message carries the events of the lines after the previous one, and
+    its `id` is the line offset after it, so the pages hand over by offset: nothing is
+    read twice and no line is skipped. A log shorter than the offset (another run under
+    the same name) starts over with its tail page.
+
+    The feed keeps only its line offset: when it has read up to the end it waits on the
+    source (`Monitor.wait_stream`) and then reads the new lines from it, so a slow
+    client only lags and holds no lines in memory. After each read it pauses as long as
+    the read took, so a source whose reads are slow (a long file read from its start)
+    is never read more than half the time. Each feed normalizes its own pages; when
+    many clients watch one log, a cache of encoded pages shared by them is the next step.
+    """
+    since = start
+    while True:
+        if await is_disconnected():
+            return
+        marker = await asyncio.to_thread(monitor.stream_size, run, key)
+        began = time.monotonic()
+        page, end = await asyncio.to_thread(monitor.stream_from, run, key, since)
+        took = time.monotonic() - began
+        if since is not None and page["total"] < since:
+            since = None
+            continue
+        tail, read, since = since is None, since is None or end > since, end
+        if tail or page["events"]:
+            yield {"event": "stream", "id": str(end), "data": _json(_STREAM, page)}
+        await asyncio.sleep(took)
+        if end >= page["total"] or not read:
+            await monitor.wait_stream(run, key, marker, STREAM_WAIT_S)
 
 
 def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_origins: Iterable[str] = (), docs: bool = False) -> FastAPI:
@@ -276,23 +326,6 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         monitor.check_run(run)
         return EventSourceResponse(run_feed(monitor, run, request.is_disconnected), ping=15)
 
-    async def _stream_events(run: str, key: str, request: Request):
-        since, sent_first, last_size = 0, False, -1
-        while True:
-            if await request.is_disconnected():
-                return
-            # The size first turns "nothing new" (almost every tick) into one
-            # syscall instead of a full scan of a transcript that can run past 500MB.
-            size = monitor.stream_size(run, key)
-            if size != last_size:
-                last_size = size
-                page, total = monitor.stream(run, key, since)
-                since = total
-                if not sent_first or page["events"]:
-                    sent_first = True
-                    yield {"event": "stream", "data": _json(_STREAM, page)}
-            await asyncio.sleep(TICK_S)
-
     @app.get(
         "/events/stream",
         response_class=EventSourceResponse,
@@ -306,9 +339,13 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     )
     async def events_stream(run: str, key: str, request: Request) -> EventSourceResponse:
         """Task `key`'s transcript, live: the tail page, then the events after it as they are written."""
+        # `Last-Event-ID` and `from` (see `stream_feed`) are read here rather than declared,
+        # so the committed contract and the UI's generated types stay as they are.
         monitor.check_run(run)
         monitor.stream_size(run, key)
-        return EventSourceResponse(_stream_events(run, key, request), ping=15)
+        start = _resume_line(request.headers.get("last-event-id"))
+        start = start if start is not None else _resume_line(request.query_params.get("from"))
+        return EventSourceResponse(stream_feed(monitor, run, key, start, request.is_disconnected), ping=15)
 
     @app.get("/", include_in_schema=False)
     @app.get("/index.html", include_in_schema=False)

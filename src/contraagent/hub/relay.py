@@ -20,6 +20,15 @@ Each pass (`Relay.pass_once`) reads every run under the runs directory, in the l
 Every `interval_s` seconds a heartbeat (`Relay.heartbeat_once`) reports the runs this
 host's liveness (`ProcLiveness`) counts live, with their process snapshots.
 
+Between passes, every `FAST_S` seconds, the relay ships the new lines of the active
+transcripts only (`Relay.fast_once`), so a transcript being written reaches the hub well
+within a second while everything else waits for the next pass. A transcript is active
+while its run was live at the last heartbeat and its task is running (an in-flight marker
+in the run, or a process of the task in the heartbeat's snapshot), or while its file was
+written in the last `ACTIVE_S` seconds. Each run's fast request is bounded as a pass's
+requests are; what does not fit goes in the next one. `Relay.serve` runs the heartbeat,
+the passes and the fast path until it is stopped.
+
 The relay's progress, where the hub is up to in each run (each log's line and byte
 offset, each document's SHA-256, each file's size, modification time and SHA-256), is a
 JSON file kept next to the runs directory (`<runs-dir>.relay.json`), never inside a run,
@@ -72,6 +81,10 @@ RESYNC_S = 60.0
 BATCH_BYTES = 1 << 20
 #: At most this many log lines in one request.
 BATCH_LINES = 5000
+#: Seconds between two looks at the active transcripts (`Relay.fast_once`).
+FAST_S = 0.25
+#: A transcript written within this many seconds is active.
+ACTIVE_S = 5.0
 #: Seconds between two writes of the progress file during a long pass.
 _SAVE_EVERY_S = 5.0
 _READ_BLOCK = 1 << 20
@@ -240,6 +253,8 @@ class Relay:
         self._lock = threading.Lock()
         self._next_resync = 0.0
         self._reported: set[tuple[str, str]] = set()
+        #: run -> the keys of its running tasks, for each run live at the last heartbeat
+        self._running: dict[str, set[str]] = {}
         self.runs: dict[str, RunProgress] = self._load()
 
     # --- progress file ---
@@ -506,9 +521,9 @@ class Relay:
             keys = []
         return names + [rundir.stream(k) for k in keys if _plain(k)]
 
-    def _logs(self, run: str, prog: RunProgress, pending: _Pending, probe: bool) -> None:
+    def _logs(self, run: str, prog: RunProgress, pending: _Pending, probe: bool, names: list[str] | None = None) -> None:
         budget_bytes, budget_lines = self.batch_bytes, self.batch_lines
-        for log in self._log_names(run):
+        for log in self._log_names(run) if names is None else names:
             path = self.source.path(run, log)
             held = prog.logs.get(log)
             lines_at, byte_at = held if held is not None else (0, 0)
@@ -553,6 +568,99 @@ class Relay:
                 prog.logs.pop(chunk.log, None)
         return lost
 
+    # --- the fast path: active transcripts ---
+
+    def _active(self, run: str, running: set[str]) -> list[str]:
+        """The run's active transcripts (see the module's docstring), by layout name."""
+        keys = set(running)
+        inflight = self.source.path(run, rundir.INFLIGHT)
+        try:
+            markers = [f for f in inflight.iterdir() if f.suffix == ".json"]
+        except OSError:
+            markers = []
+        for marker in markers:
+            try:
+                key = json.loads(marker.read_text()).get("key")
+            except (OSError, ValueError, AttributeError):
+                continue
+            if isinstance(key, str):
+                keys.add(key)
+        recent = self.clock() - ACTIVE_S
+        out = []
+        for log in self._log_names(run):
+            if not log.startswith(rundir.STREAMS + "/"):
+                continue
+            key = log[len(rundir.STREAMS) + 1 : -len(".stream.jsonl")]
+            if key in keys:
+                out.append(log)
+                continue
+            try:
+                if self.source.path(run, log).stat().st_mtime >= recent:
+                    out.append(log)
+            except OSError:
+                continue
+        return out
+
+    def fast_once(self) -> bool:
+        """Send the new lines of every active transcript of the runs the hub already holds,
+        one bounded request per run; True when the hub took every request. A run the
+        relay has not shipped, or whose `run_uid` changed, waits for the next pass. Never
+        raises."""
+        with self._lock:
+            running = {run: set(keys) for run, keys in self._running.items()}
+        for run, keys in sorted(running.items()):
+            prog = self.runs.get(run)
+            if prog is None:
+                continue
+            try:
+                info = self.source.info(run)
+                if not isinstance(info, dict) or str(info.get("run_uid") or run) != prog.run_uid:
+                    continue
+                names = self._active(run, keys)
+                if not names:
+                    continue
+                pending = _Pending()
+                self._logs(run, prog, pending, False, names)
+                if pending.empty():
+                    continue
+                ref = RunRef(host_id=self.host_id, run_id=run, run_uid=prog.run_uid)
+                accepted: Accepted = self._call(self.client.send_records, RecordBatch(run=ref, logs=pending.chunks))
+                if self._accept(run, prog, pending, accepted):
+                    # The hub lost data: the next pass sends the run's documents and files again.
+                    prog.documents.clear()
+                    prog.files.clear()
+            except HubUnavailable as exc:
+                self._failed(exc)
+                return False
+            except Exception as exc:
+                key = (run, repr(exc))
+                if key not in self._reported:
+                    self._reported.add(key)
+                    _logger.exception("run %s: active transcripts not shipped", run)
+        return True
+
+    def serve(self, stop: threading.Event) -> None:
+        """Send heartbeats (in a thread of their own), passes and the fast path until `stop`
+        is set: a pass every `delay()` seconds, the fast path every `FAST_S` seconds in
+        between while the hub takes requests."""
+
+        def beat() -> None:
+            while not stop.is_set():
+                self.heartbeat_once()
+                stop.wait(self.heartbeat_delay())
+
+        beats = threading.Thread(target=beat, name="relay-heartbeat", daemon=True)
+        beats.start()
+        next_pass = 0.0
+        while not stop.is_set():
+            if time.monotonic() >= next_pass:
+                self.pass_once()
+                next_pass = time.monotonic() + self.delay()
+            elif not self.failures:
+                self.fast_once()
+            stop.wait(max(0.0, min(FAST_S, next_pass - time.monotonic())))
+        beats.join(timeout=1.0)
+
     # --- heartbeat ---
 
     def heartbeat_once(self) -> bool:
@@ -560,12 +668,18 @@ class Relay:
         Never raises."""
         try:
             reports = []
+            running: dict[str, set[str]] = {}
             for run in sorted(self.liveness.live()):
                 info = self.source.info(run)
                 if not isinstance(info, dict):
                     continue
                 ref = RunRef(host_id=self.host_id, run_id=run, run_uid=str(info.get("run_uid") or run))
-                reports.append(RunLiveness(run=ref, alive=True, snapshot=self.liveness.snapshot(run)))
+                snapshot = self.liveness.snapshot(run)
+                tasks = [*snapshot.get("launches", []), *snapshot.get("python_tasks", [])]
+                running[run] = {str(t["key"]) for t in tasks if t.get("key")}
+                reports.append(RunLiveness(run=ref, alive=True, snapshot=snapshot))
+            with self._lock:
+                self._running = running
             beat = Heartbeat(host_id=self.host_id, sent_at=_iso(self.clock(), "milliseconds"), interval_s=self.interval_s, runs=reports)
         except Exception:
             _logger.exception("heartbeat not built")
@@ -644,17 +758,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if relay.pass_once() else 1
         stop = threading.Event()
         signal.signal(signal.SIGTERM, lambda *_: stop.set())
-
-        def beat() -> None:
-            while not stop.is_set():
-                relay.heartbeat_once()
-                stop.wait(relay.heartbeat_delay())
-
-        threading.Thread(target=beat, name="relay-heartbeat", daemon=True).start()
         _logger.info("shipping %s to %s as host %s", relay.runs_dir, client.base_url, relay.host_id)
-        while not stop.is_set():
-            relay.pass_once()
-            stop.wait(relay.delay())
+        relay.serve(stop)
         return 0
     except KeyboardInterrupt:
         return 0

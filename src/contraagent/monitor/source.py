@@ -17,8 +17,9 @@ is checked by `paths.check_name` in every implementation, so a bad name is
 
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from itertools import islice
 from pathlib import Path
@@ -47,6 +48,11 @@ class RunSource(Protocol):
 
     def size(self, run: str, log: str) -> int:
         """A number that changes whenever the log grows (its byte size); -1 when it is absent."""
+        ...
+
+    async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int:
+        """The log's `size` as soon as it is more than `beyond`, or after `timeout` seconds
+        (whatever it is then). A live reader passes the `size` it last read up to."""
         ...
 
     def exists(self, run: str, name: str) -> bool:
@@ -91,6 +97,23 @@ def page(lines, limit: int | None, max_bytes: int | None) -> list[str]:
         out.append(line)
         used += size
     return out
+
+
+#: Seconds between two looks at a log's size while a `wait` polls it.
+POLL_S = 0.1
+
+
+async def poll_size(size: Callable[[], int], beyond: int, timeout: float, every: float = POLL_S) -> int:
+    """`RunSource.wait` for a store that cannot notify: look at `size()` every `every`
+    seconds until it is more than `beyond` or `timeout` seconds have passed."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        now = size()
+        left = deadline - loop.time()
+        if now > beyond or left <= 0:
+            return now
+        await asyncio.sleep(min(every, left))
 
 
 class Liveness(Protocol):
@@ -161,6 +184,11 @@ class DirectorySource:
             return self.path(run, log).stat().st_size
         except OSError:
             return -1
+
+    async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int:
+        """Polls the file's size (`poll_size`): the standard library has no file notification."""
+        self.path(run, log)
+        return await poll_size(lambda: self.size(run, log), beyond, timeout)
 
     def exists(self, run: str, name: str) -> bool:
         return self.path(run, name).exists()
@@ -259,6 +287,11 @@ class MemorySource:
     def size(self, run: str, log: str) -> int:
         every = self._get(run, log)
         return sum(len(line) + 1 for line in every) if isinstance(every, list) else -1
+
+    async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int:
+        """Polls `size` (`poll_size`): the records are a plain mapping that anyone may change."""
+        self._get(run, log)
+        return await poll_size(lambda: self.size(run, log), beyond, timeout)
 
     def exists(self, run: str, name: str) -> bool:
         entry_parts(name)
