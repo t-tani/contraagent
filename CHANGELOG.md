@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(skills_from=[...])`: skill plugins whose skills a task loads after its own
+  plugin's, so tasks with different roles share skills. A skill plugin holds skills only;
+  one that holds agents, commands, settings, MCP servers or hooks is refused where the
+  task is declared. `plugin lint` checks a skill plugin's skills only. A task's
+  fingerprint now covers the skills of its plugins, its own plugin's too.
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

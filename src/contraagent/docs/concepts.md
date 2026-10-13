@@ -25,14 +25,15 @@ documentation. No other word is used for the same thing.
 | **loop** | a `for` or `while` statement in a generator of flow code, named by its first line; a call site's loops are those whose pass it is in, outermost first; a comprehension is not a loop | `Loop.line`, `Frame.loops`; `flow[].loops[].line` |
 | **pass** | one iteration of one loop, numbered from 1 each time the loop is entered; never an attempt, never the `~n` of a key | `Loop.pass_`, `flow[].loops[].pass`; `max_passes` (the passes a `while` loop may make; a `for` loop has no limit), `TooManyPasses` |
 | **created from** | the keys whose results a flow call had received when it created a task | `Origin.created_from` |
-| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
+| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
 
 ## Definition
 
 | Word | Means | In code |
 |---|---|---|
 | **interface** | what an agent task takes, produces and may spend | `agent_task(params=, output=, max_turns=, ...)` |
-| **implementation** | how an agent task is done: a plugin directory | `agent_task(plugin=)`, `Plugin` |
+| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names | `agent_task(plugin=)`, `Plugin` |
+| **skill plugin** | a plugin that holds skills and nothing else that acts; tasks with different plugins load it to share its skills | `agent_task(skills_from=)`, `Plugin.skills_only` |
 | **role** | a named agent definition in a plugin: its procedure | `agents/<role>.md`, `Launch.role`, Claude Code's `--agent` |
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
 | **hook** | a hook inside the coding agent, declared by a plugin; nothing else | `hooks.toml`, `plugins/hooks.py` |

@@ -79,15 +79,23 @@ class SpecAdapter(TaskAdapter):
         return self._node(task).spec.role
 
     def plugin_dirs(self, task: Task) -> tuple[str, ...]:
-        plugin = self._node(task).spec.plugin
-        return (str(plugin.root),) if plugin is not None else ()
+        """The task's own plugin first, then the skill plugins of `skills_from`."""
+        return tuple(str(p.root) for p in self._node(task).spec.plugins)
 
     def settings_path(self, task: Task) -> str | None:
-        """The plugin's `settings.json`; for a task with no plugin, the template's permissions
-        (`DEFAULT_SETTINGS`, as JSON text)."""
-        if self._node(task).spec.plugin is None:
+        """The task's own plugin's `settings.json`; for a task with no plugin, the template's
+        permissions (`DEFAULT_SETTINGS`, as JSON text)."""
+        plugin = self._node(task).spec.plugin
+        if plugin is None:
             return " ".join(DEFAULT_SETTINGS.split())
-        return super().settings_path(task)
+        f = plugin.root / "settings.json"
+        return str(f) if f.is_file() else None
+
+    def mcp_config_path(self, task: Task) -> str | None:
+        """The task's own plugin's `.mcp.json`, if it has one."""
+        plugin = self._node(task).spec.plugin
+        f = plugin.root / ".mcp.json" if plugin is not None else None
+        return str(f) if f is not None and f.is_file() else None
 
     def context_files(self, task: Task, backend: Backend) -> tuple[str, ...]:
         """A coding agent with no named-agent flag (omp) gets the role's file attached;
@@ -113,6 +121,11 @@ class SpecAdapter(TaskAdapter):
             if spec.plugin is not None
             else {"plugin": False, "role": spec.role, "plugin_dirs": [], "files": []}
         )
+        for shared in spec.skills_from:
+            base["plugin_dirs"] = [*base["plugin_dirs"], str(shared.root)]
+            base["files"] += [
+                {"path": f"{shared.name}/{rel}", "part": "skill", "text": text[:40_000]} for rel, text in shared.skill_files()
+            ]
         if spec.instructions:
             base["files"] = [{"path": "instructions", "part": "instructions", "text": spec.instructions}, *base["files"]]
         return {
