@@ -232,8 +232,8 @@ export class CaMonitor extends LitElement {
   }
 
   protected override updated(): void {
-    // The click that opens the picker is still on its way up: listen from the next task on.
-    if (this.pickerOpen !== this.outsideClickOn) setTimeout(() => this.listenOutside(this.isConnected && this.pickerOpen));
+    // The click on the run button that opened the picker reaches the document after this: `onOutsideClick` passes it over.
+    this.listenOutside(this.isConnected && this.pickerOpen);
     this.observeNav();
     // Tab comes back into the tab list on the selected tab.
     if (this.snap && this.route) this.tabFocus.set(Math.max(0, this.selectedTab()));

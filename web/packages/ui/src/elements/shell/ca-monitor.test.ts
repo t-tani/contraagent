@@ -152,7 +152,6 @@ describe('ca-monitor', () => {
       root(el).querySelector<HTMLButtonElement>('.runbtn')!.click();
       await el.updateComplete;
       expect(root(el).querySelector('ca-run-picker')!.hasAttribute('open')).toBe(true);
-      await settle(10);
       document.body.click();
       await el.updateComplete;
       expect(root(el).querySelector('ca-run-picker')!.hasAttribute('open')).toBe(false);
