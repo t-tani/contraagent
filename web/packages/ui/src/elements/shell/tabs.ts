@@ -57,6 +57,8 @@ export function tabBar(
   badge: (id: Tab) => [string | number, Tone] | null,
   pick: (id: Tab) => void,
   panel: string,
+  /** Show the hint for the single-key shortcuts. */
+  keys = true,
 ): TemplateResult {
   return html`<nav>
     <div class="tabs" role="tablist" aria-label=${msg('Views', { desc: 'The label of the list of tabs: Overview, Tasks, History, ...' })}>
@@ -73,10 +75,10 @@ export function tabBar(
       })}
     </div>
     <span class="tab-ind init" aria-hidden="true"></span>
-    <span class="tabhint meta" role="note" aria-label=${msg('Keyboard shortcuts')}
+    ${keys ? html`<span class="tabhint meta" role="note" aria-label=${msg('Keyboard shortcuts')}
       ><span aria-hidden="true"><span class="kbd">1</span>–<span class="kbd">${Math.min(9, tabs.length)}</span> ${msg('Tabs')} |
         <span class="kbd">r</span> ${msg('Runs')} | <span class="kbd">/</span> ${msg('Filter')}</span></span
-    >
+    >` : nothing}
   </nav>`;
 }
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  A host page for embed.spec.ts: an application with its own title, text field
+  and single-key shortcuts, and two embedded monitors. The spec serves it on
+  the monitor's origin, so /app.js loads as it is.
+-->
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Host page</title>
+    <script type="module" src="/app.js"></script>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; }
+      .pane { height: 360px; border: 1px solid #888; margin: 8px; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <label>Search the host <input id="host-input" /></label>
+    <button id="host-button" type="button">Host button</button>
+    <div class="pane"><ca-monitor id="a" history="memory" run="docs"></ca-monitor></div>
+    <div class="pane"><ca-monitor id="b" history="memory" run="docs"></ca-monitor></div>
+    <script>
+      // The host's own shortcuts: every key the document hears outside a text field.
+      window.hostKeys = [];
+      document.addEventListener('keydown', (e) => {
+        if (!(e.composedPath()[0] instanceof HTMLInputElement)) window.hostKeys.push(e.key);
+      });
+    </script>
+  </body>
+</html>

@@ -73,11 +73,6 @@ export class CaThemeSwitch extends LitElement {
     if (this.open && !e.composedPath().includes(this)) this.open = false;
   };
 
-  override connectedCallback(): void {
-    super.connectedCallback();
-    document.addEventListener('pointerdown', this.onDocDown);
-  }
-
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener('pointerdown', this.onDocDown);
@@ -88,6 +83,11 @@ export class CaThemeSwitch extends LitElement {
   }
 
   protected override updated(changed: PropertyValues<this>): void {
+    // A press outside the open menu closes it: listened for on the document only while it is open.
+    if (changed.has('open' as keyof CaThemeSwitch)) {
+      if (this.open) document.addEventListener('pointerdown', this.onDocDown);
+      else document.removeEventListener('pointerdown', this.onDocDown);
+    }
     if (changed.has('open' as keyof CaThemeSwitch) && this.open) {
       (this.items().find((b) => b.getAttribute('aria-checked') === 'true') ?? this.items()[0])?.focus();
     }
