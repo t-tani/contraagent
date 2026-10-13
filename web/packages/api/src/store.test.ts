@@ -31,4 +31,34 @@ describe('MonitorStore', () => {
     expect(opened.at(-1)).toContain('panel:notes');
     expect(store.snapshot.run).toBe('docs');
   });
+
+  it('on a hub, fetches the host list with the run list', async () => {
+    const info: Info = { title: 't', panels: [], api_version: '3', hosts: true };
+    const hosts = { hosts: [{ host_id: 'h1', up: true, last_seen: '', interval_s: 3, runs: 1, running: 0, unresponsive: 0 }], quota: [] };
+    let asked = 0;
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.resolve([]),
+      hosts: () => (asked++, Promise.resolve(hosts)),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client });
+    await store.start();
+    store.stop();
+    expect(asked).toBe(1);
+    expect(store.snapshot.hosts).toEqual(hosts);
+  });
+
+  it('on one host, asks for no host list', async () => {
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve({ title: 't', panels: [], api_version: '3' }),
+      runs: () => Promise.resolve([]),
+      hosts: () => Promise.reject(new Error('not asked')),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client });
+    await store.start();
+    store.stop();
+    expect(store.snapshot.hosts).toBeNull();
+  });
 });

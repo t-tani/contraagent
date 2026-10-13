@@ -140,6 +140,12 @@ wherever the UI shows a state or a count to the reader.
 | N tasks retried / N tasks with corrections / N tasks with model switches (a tile's sub-line) | リトライしたタスク N 件 / 修正依頼のあったタスク N 件 / モデル切り替えのあったタスク N 件 |
 | Must be written during the task: yes / no; Check time: when the task starts (a checked file's conditions) | タスク実行中の書き込みが必須: はい / いいえ; 検証のタイミング: タスクの開始時 |
 | monitor / filter | モニター / フィルター |
+| host / Hosts (the hosts page, on a hub) / Host h1 / All hosts (the host filter) | ホスト / ホスト一覧 / ホスト h1 / すべてのホスト |
+| up / no report / no report since 10:41:03 (a host's state: its reports keep arriving, or stopped) | 稼働中 / 報告なし / 10:41:03 以降報告なし |
+| last report / report interval (when a host last reported; seconds between its reports) | 最終報告 / 報告間隔 |
+| no report from host (a run whose host stopped reporting while it ran: neither running nor finished) / 1 with no report from host | ホストからの報告なし / ホストからの報告なし 1 件 |
+| last activity (the time of a run's last record, while its host is not reporting) | 最終更新 |
+| 2 runs / 2 hosts / 1 with no report (hosts) | 実行 2 件 / ホスト 2 台 / 報告なし 1 台（ホストは「台」で数える） |
 
 ## Style
 

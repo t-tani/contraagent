@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { deriveRun, elapsedS, progress, result, tryCounts } from './derive.js';
+import { deriveRun, elapsedS, hostGroups, hostOf, progress, result, runActivity, runIdOf, tryCounts } from './derive.js';
 import { emptyRunState, reduceRun } from './run-state.js';
-import type { JournalRow, Plan, PlanGroup, PlanNode, Stop } from './types.js';
+import type { HostSummary, JournalRow, Plan, PlanGroup, PlanNode, RunSummary, Stop } from './types.js';
 
 const row = (key: string, stop: Stop, attempt = 0): JournalRow => ({
   ts: `2026-10-11T00:00:0${attempt}`, key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', stop, ok: stop === 'completed', attempt,
@@ -122,5 +122,39 @@ describe('run result', () => {
   it('measures a run from its start to its last activity', () => {
     expect(elapsedS({ started_at: '2026-10-11T10:00:00Z', last_ts: '2026-10-11T10:00:07Z' })).toBe(7);
     expect(elapsedS({ started_at: '', last_ts: '2026-10-11T10:00:07Z' })).toBeNull();
+  });
+});
+
+describe('a run and its host', () => {
+  const run = (name: string, host_id: string, flags: Partial<RunSummary> = {}) => ({ run: name, host_id, running: false, unresponsive: false, ...flags }) as RunSummary;
+  const host = (host_id: string, up = true) => ({ host_id, up, last_seen: '', interval_s: 3, runs: 0, running: 0, unresponsive: 0 }) as HostSummary;
+
+  it('names what its process does: running, no report from its host, or stopped', () => {
+    expect(runActivity(run('a', 'h', { running: true }))).toBe('running');
+    expect(runActivity(run('a', 'h', { unresponsive: true }))).toBe('unresponsive');
+    expect(runActivity(run('a', 'h'))).toBe('stopped');
+    // the feed's procs say it is alive: running, whatever the run list said
+    expect(runActivity(run('a', 'h', { unresponsive: true }), true)).toBe('running');
+    expect(runActivity(undefined)).toBe('stopped');
+  });
+
+  it("takes a hub's run name apart from its host", () => {
+    expect(runIdOf(run('docs@h1', 'h1'))).toBe('docs');
+    expect(runIdOf(run('docs', 'h1'))).toBe('docs');
+    expect(runIdOf(run('docs@h1', ''))).toBe('docs@h1');
+    expect(runIdOf(run('@h1', 'h1'))).toBe('@h1');
+    expect(hostOf([host('h1'), host('h2')], run('x', 'h2'))?.host_id).toBe('h2');
+    expect(hostOf([host('h1')], run('x', ''))).toBeUndefined();
+  });
+
+  it('groups runs by host in the host list order: running, then no report from host, then the rest', () => {
+    const runs = [run('old@h2', 'h2'), run('a@h1', 'h1'), run('quiet@h2', 'h2', { unresponsive: true }), run('live@h2', 'h2', { running: true }), run('x', '')];
+    const groups = hostGroups(runs, [host('h2', false), host('h1')]);
+    expect(groups.map((g) => [g.hostId, g.host?.up, g.runs.map((r) => r.run)])).toEqual([
+      ['h2', false, ['live@h2', 'quiet@h2', 'old@h2']],
+      ['h1', true, ['a@h1']],
+      ['', undefined, ['x']],
+    ]);
+    expect(hostGroups([], [host('h1')])).toEqual([]);
   });
 });
