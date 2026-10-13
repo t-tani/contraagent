@@ -121,7 +121,7 @@ class PythonTaskRunner:
         try:
             d = self._run_dir / rundir.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
-            (d / f"{task.kind}.json").write_text(json.dumps({"kind": task.kind, **definition}, default=str))
+            rundir.write_document(d / f"{task.kind}.json", json.dumps({"kind": task.kind, **definition}, default=str))
         except OSError:  # a definition the monitor cannot show must not fail the task
             pass
 

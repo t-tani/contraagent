@@ -296,7 +296,7 @@ def record_contracts(
         d = Path(run_dir) / rundir.CONTRACTS
         d.mkdir(parents=True, exist_ok=True)
         safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in task.key)
-        (d / f"{safe}.json").write_text(json.dumps(record, default=str))
+        rundir.write_document(d / f"{safe}.json", json.dumps(record, default=str))
     except (OSError, TypeError):
         pass
 

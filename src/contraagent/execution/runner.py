@@ -263,7 +263,7 @@ class AgentRunner:
             body = {"kind": kind, **(self.adapter.definition(task) or {})}
             d = self.run_dir / rundir.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
-            (d / f"{kind}.json").write_text(json.dumps(body, default=str))
+            rundir.write_document(d / f"{kind}.json", json.dumps(body, default=str))
         except Exception:  # a definition the monitor cannot show must not fail a launch
             pass
 

@@ -132,7 +132,8 @@ class Run:
         self._teardown_callbacks: list[Callable[[], None]] = []
         if lock:
             self._acquire()
-        (self.dir / rundir.RUN_INFO).write_text(
+        rundir.write_document(
+            self.dir / rundir.RUN_INFO,
             json.dumps(
                 {
                     "run_id": run_id,
@@ -145,7 +146,7 @@ class Run:
                     "cwd": str(Path(cwd or os.getcwd()).resolve()),
                     "started_at": utcnow_iso(),
                 }
-            )
+            ),
         )
 
     def _previous_uid(self) -> str | None:
@@ -202,9 +203,7 @@ class Run:
         except (OSError, ValueError):
             info = {}
         info.update(fields)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(info))
-        os.replace(tmp, path)
+        rundir.write_document(path, json.dumps(info))
 
     def on_teardown(self, callback: Callable[[], None]) -> None:
         """Register a stop callback (a server, a VM lease) for `teardown`."""
@@ -416,7 +415,8 @@ class Run:
         if not running:
             path.unlink(missing_ok=True)
             return
-        path.write_text(
+        rundir.write_document(
+            path,
             json.dumps(
                 {
                     "key": task.key,
@@ -426,5 +426,5 @@ class Run:
                     "started_at": utcnow_iso(),
                     "pid": os.getpid(),
                 }
-            )
+            ),
         )
