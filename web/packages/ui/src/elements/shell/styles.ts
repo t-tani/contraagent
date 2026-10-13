@@ -19,6 +19,10 @@ export const monitorStyles = css`
   .rn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 40%; }
   .rs { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chev { color: var(--text-muted); }
+  /* a hub: the run's host, after its name */
+  .hostchip { flex: none; font-family: var(--mono); font-size: 11px; color: var(--text-2); padding: 0 7px; border: 1px solid var(--line2);
+    border-radius: 999px; white-space: nowrap; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+  .runbtn .pill { flex: none; font-size: 11px; }
   ca-run-picker { inset-inline-start: 110px; }
   .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
   .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40vw;

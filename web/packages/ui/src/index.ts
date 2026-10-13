@@ -16,6 +16,7 @@ export * from './elements/shared/ca-definition.js';
 export * from './elements/shell/ca-monitor.js';
 export * from './elements/shell/ca-clock.js';
 export * from './elements/shell/ca-run-picker.js';
+export * from './elements/shell/ca-hosts.js';
 export * from './elements/shell/ca-toasts.js';
 export * from './elements/overview/index.js';
 export * from './elements/lists/index.js';

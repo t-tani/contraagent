@@ -1,9 +1,12 @@
 // End-to-end: the built page (src/contraagent/monitor/static), served by the
-// real Python monitor over the demo pipeline's runs. Run `pnpm build` first
+// real Python monitor over the demo pipeline's runs, and by a hub over the same
+// runs shipped from two hosts (e2e/hub.py; hub.spec.ts). Run `pnpm build` first
 // (`pnpm e2e` does both).
 import { defineConfig } from '@playwright/test';
 
 const PORT = Number(process.env["E2E_PORT"] ?? 18793);
+/** The hub's port; hub.spec.ts reads it from `E2E_HUB_PORT` too. */
+const HUB_PORT = Number(process.env["E2E_HUB_PORT"] ?? 18794);
 
 export default defineConfig({
   testDir: 'e2e',
@@ -12,10 +15,20 @@ export default defineConfig({
   workers: 1,
   timeout: 30_000,
   use: { baseURL: `http://127.0.0.1:${PORT}`, viewport: { width: 1280, height: 800 } },
-  webServer: {
-    command: `uv run contraagent monitor --runs-dir web/e2e/.runs/demo-runs --port ${PORT}`,
-    cwd: '..',
-    url: `http://127.0.0.1:${PORT}/api/info`,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: `uv run contraagent monitor --runs-dir web/e2e/.runs/demo-runs --port ${PORT}`,
+      cwd: '..',
+      url: `http://127.0.0.1:${PORT}/api/info`,
+      reuseExistingServer: false,
+    },
+    {
+      // Runs the demo pipeline into a temporary directory of its own, then serves the hub.
+      command: `uv run python web/e2e/hub.py --port ${HUB_PORT}`,
+      cwd: '..',
+      url: `http://127.0.0.1:${HUB_PORT}/api/info`,
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });

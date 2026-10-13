@@ -71,6 +71,12 @@ there: one word, one meaning, on every screen. Japanese follows
 | selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
 | an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |
 | an input file's origin | Output of `kind · unit`; File from before the run | `kind · unit` の出力; 実行前からあるファイル |
+| host (`host_id`), shown only on a hub (`Info.hosts`) | host; `Host h1` as a fact; the hosts page: Hosts | ホスト; ホスト h1; ホスト一覧 |
+| a host's `up` / not `up` (heartbeats stopped, or never sent) | up / no report; no report since `time` (a run picker's host header) | 稼働中 / 報告なし; `time` 以降報告なし |
+| `HostSummary.last_seen`, `interval_s` | last report; report interval | 最終報告; 報告間隔 |
+| `RunSummary.unresponsive`, `RunActivity` `unresponsive` (its host stopped reporting while the run was alive) | no report from host; N with no report from host (a count) | ホストからの報告なし; ホストからの報告なし N 件 |
+| a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
+| a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
 
 The UI states facts about the run; it never narrates what the monitor or
 contraagent does, will do, or lets the reader do. No "checked once", "the agent
