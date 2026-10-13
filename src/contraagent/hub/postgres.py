@@ -17,8 +17,9 @@ A batch is stored in one transaction that first locks its run's row, so two hub 
 ingesting the same run apply its batches one after the other. A new `run_uid` under a held
 name keeps the row (and its lock) and removes the old run's logs, documents and files.
 
-After each committed batch the store sends `NOTIFY contraagent_hub` with the run's name as
-the payload, and after each heartbeat with `host:<host_id>` (`NOTIFY_CHANNEL`).
+After each committed batch that changed what the hub holds of the run (the rule in
+`store`, which also decides `received_at`) the store sends `NOTIFY contraagent_hub` with the
+run's name as the payload, and after each heartbeat with `host:<host_id>` (`NOTIFY_CHANNEL`).
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from psycopg.types.json import Jsonb
 from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch
 from contraagent.hub.store import RunEntry
 
-#: The channel a `PostgresHubStore` notifies after each batch and heartbeat.
+#: The channel a `PostgresHubStore` notifies after each batch that changed a run, and each heartbeat.
 NOTIFY_CHANNEL = "contraagent_hub"
 
 SCHEMA_VERSION = 1
@@ -143,14 +144,16 @@ class PostgresHubStore:
         ref = batch.run
         held: dict[str, int] = {}
         with self._conn() as conn, conn.transaction():
-            conn.execute(
-                "INSERT INTO runs (name, run_uid, host_id, run_id) VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING",
+            created = conn.execute(
+                "INSERT INTO runs (name, run_uid, host_id, run_id) VALUES (%s, %s, %s, %s) ON CONFLICT (name) DO NOTHING RETURNING id",
                 (ref.name, ref.run_uid, ref.host_id, ref.run_id),
-            )
+            ).fetchone()
+            changed = created is not None
             row = conn.execute("SELECT id, run_uid FROM runs WHERE name = %s FOR UPDATE", (ref.name,)).fetchone()
             assert row is not None
             run, run_uid = row
             if run_uid != ref.run_uid:
+                changed = True
                 conn.execute("DELETE FROM logs WHERE run = %s", (run,))
                 conn.execute("DELETE FROM documents WHERE run = %s", (run,))
                 conn.execute("DELETE FROM files WHERE run = %s", (run,))
@@ -161,11 +164,12 @@ class PostgresHubStore:
             for chunk in batch.logs:
                 row = conn.execute(
                     "INSERT INTO logs (run, log) VALUES (%s, %s) "
-                    "ON CONFLICT (run, log) DO UPDATE SET lines = logs.lines RETURNING id, lines",
+                    "ON CONFLICT (run, log) DO UPDATE SET lines = logs.lines RETURNING id, lines, xmax = 0",
                     (run, chunk.log),
                 ).fetchone()
                 assert row is not None
-                log, count = row
+                log, count, inserted = row
+                changed |= inserted
                 if chunk.offset <= count:
                     new = chunk.lines[count - chunk.offset :]
                     if new:
@@ -173,26 +177,31 @@ class PostgresHubStore:
                             for i, line in enumerate(new, count):
                                 copy.write_row((log, i, line))
                         count += len(new)
+                        changed = True
                         conn.execute("UPDATE logs SET lines = %s WHERE id = %s", (count, log))
                 held[chunk.log] = count
             for doc in batch.documents:
                 if doc.text is None:
-                    conn.execute("DELETE FROM documents WHERE run = %s AND name = %s", (run, doc.name))
+                    cur = conn.execute("DELETE FROM documents WHERE run = %s AND name = %s", (run, doc.name))
                 else:
-                    conn.execute(
+                    cur = conn.execute(
                         "INSERT INTO documents (run, name, text) VALUES (%s, %s, %s) "
-                        "ON CONFLICT (run, name) DO UPDATE SET text = EXCLUDED.text",
+                        "ON CONFLICT (run, name) DO UPDATE SET text = EXCLUDED.text WHERE documents.text <> EXCLUDED.text",
                         (run, doc.name, doc.text),
                     )
+                changed |= cur.rowcount > 0
             if batch.files:
                 with conn.cursor() as cur:
                     cur.executemany(
                         "INSERT INTO files (run, path, sha256, size, mtime) VALUES (%s, %s, %s, %s, %s) "
-                        "ON CONFLICT (run, path) DO UPDATE SET sha256 = EXCLUDED.sha256, size = EXCLUDED.size, mtime = EXCLUDED.mtime",
+                        "ON CONFLICT (run, path) DO UPDATE SET sha256 = EXCLUDED.sha256, size = EXCLUDED.size, mtime = EXCLUDED.mtime "
+                        "WHERE (files.sha256, files.size, files.mtime) IS DISTINCT FROM (EXCLUDED.sha256, EXCLUDED.size, EXCLUDED.mtime)",
                         [(run, f.path, f.sha256, f.size, f.mtime) for f in batch.files],
                     )
-            conn.execute("UPDATE runs SET received_at = %s WHERE id = %s", (received_at, run))
-            conn.execute("SELECT pg_notify(%s, %s)", (NOTIFY_CHANNEL, ref.name))
+                    changed |= cur.rowcount > 0
+            if changed:
+                conn.execute("UPDATE runs SET received_at = %s WHERE id = %s", (received_at, run))
+                conn.execute("SELECT pg_notify(%s, %s)", (NOTIFY_CHANNEL, ref.name))
         return Accepted(logs=held)
 
     def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:

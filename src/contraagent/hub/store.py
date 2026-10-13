@@ -7,6 +7,11 @@ Its storing rules are the protocol's: a log keeps every line once, in order, and
 chunk that leaves a gap; a document is replaced whole; a batch whose `run_uid` differs from
 the one held under the same name is a new run, which replaces the old one's records.
 
+A run's activity (`HubStore.activity`) is when a batch last changed what the hub holds of
+it: a new run or a new `run_uid`, a log not held before, new lines, a document whose text
+differs or one removed that was held, or a file ref that differs. A batch that stores
+nothing new (a relay asking how many lines are held, a resend) leaves it as it was.
+
 `MemoryHubStore` and `MemoryBlobs` keep everything in memory (tests, a single-process
 hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs are in
 `postgres` and `s3`.
@@ -72,7 +77,7 @@ class HubStore(Protocol):
         ...
 
     def activity(self, name: str) -> str | None:
-        """When the hub last received a batch for the run (ISO 8601), or None."""
+        """When a batch last changed what the hub holds of the run (ISO 8601), or None."""
         ...
 
     def heartbeats(self) -> dict[str, tuple[Heartbeat, str]]:
@@ -129,22 +134,30 @@ class MemoryHubStore:
         ref = batch.run
         with self._lock:
             run = self._runs.get(ref.name)
-            if run is None or run.entry.run_uid != ref.run_uid:
+            changed = run is None or run.entry.run_uid != ref.run_uid
+            if run is None or changed:
                 run = self._runs[ref.name] = _Run(RunEntry(ref.name, ref.run_uid, ref.host_id, ref.run_id))
             held: dict[str, int] = {}
             for chunk in batch.logs:
+                changed |= chunk.log not in run.logs
                 lines = run.logs.setdefault(chunk.log, [])
                 if chunk.offset <= len(lines):
-                    lines.extend(chunk.lines[len(lines) - chunk.offset :])
+                    new = chunk.lines[len(lines) - chunk.offset :]
+                    changed |= bool(new)
+                    lines.extend(new)
                 held[chunk.log] = len(lines)
             for doc in batch.documents:
                 if doc.text is None:
-                    run.documents.pop(doc.name, None)
-                else:
+                    changed |= run.documents.pop(doc.name, None) is not None
+                elif run.documents.get(doc.name) != doc.text:
                     run.documents[doc.name] = doc.text
+                    changed = True
             for ref_file in batch.files:
-                run.files[ref_file.path] = ref_file
-            run.received_at = received_at
+                if run.files.get(ref_file.path) != ref_file:
+                    run.files[ref_file.path] = ref_file
+                    changed = True
+            if changed:
+                run.received_at = received_at
             return Accepted(logs=held)
 
     def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:

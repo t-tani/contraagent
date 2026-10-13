@@ -110,6 +110,16 @@ def test_files_runs_and_activity(store):
     assert store.activity("r1@h1") == "2026-10-13T00:00:00+00:00" and store.activity("nope@h1") is None
 
 
+def test_activity_is_when_a_batch_last_changed_what_is_held(store):
+    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t1")
+    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=2, lines=[])), "t2")  # how many lines are held
+    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t3")  # a resend
+    assert store.activity("r1@h1") == "t1"
+    store.put_batch(batch(documents=[DocumentPut(name=rundir.RUN_INFO, text="{}")]), "t4")
+    store.put_batch(batch(documents=[DocumentPut(name=rundir.RUN_INFO, text="{}")]), "t5")
+    assert store.activity("r1@h1") == "t4"
+
+
 def test_a_new_run_uid_under_a_name_replaces_the_old_run(store):
     store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["old"])), "t1")
     store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["new"]), run=RunRef(host_id="h1", run_id="r1", run_uid="u2")), "t2")
