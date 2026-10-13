@@ -60,8 +60,6 @@ export class MonitorStore {
   private hostsError: ApiError | null = null;
   private infoLoaded = false;
   private stopped = false;
-  /** The message last written to the console, so a poll that fails the same way does not repeat it. */
-  private logged = '';
   private readonly listeners = new Set<(s: MonitorSnapshot) => void>();
   private readonly rowListeners = new Set<(row: JournalRow) => void>();
   private closeFeed: Unsubscribe | null = null;
@@ -93,8 +91,8 @@ export class MonitorStore {
 
   /**
    * Load the title, panels and run list, and keep the run list fresh. A request
-   * that gets no answer sets `error` and is written to the console; the title
-   * and panels are asked for again with each refresh until they arrive.
+   * that gets no answer sets `error`; the title and panels are asked for again
+   * with each refresh until they arrive.
    */
   async start(): Promise<void> {
     this.stopped = false;
@@ -137,16 +135,10 @@ export class MonitorStore {
       patch.hosts = hosts.value;
       this.hostsError = null;
     } else this.hostsError = asApiError(hosts.reason, `${this.client.baseUrl}/api/hosts`);
-    if (Object.keys(patch).length) this.set(patch);
-    this.report();
-  }
-
-  /** Set `error` from the last answers, and write a new one to the console. */
-  private report(): void {
     const error = this.infoError ?? this.runsError ?? this.hostsError;
-    if (error && error.message !== this.logged) console.error(error);
-    this.logged = error?.message ?? '';
-    if (error?.message !== this.snap.error?.message) this.set({ error });
+    // The same failure again keeps the same `error`.
+    if (error?.message !== this.snap.error?.message) patch.error = error;
+    if (Object.keys(patch).length) this.set(patch);
   }
 
   private panelNames(): string {

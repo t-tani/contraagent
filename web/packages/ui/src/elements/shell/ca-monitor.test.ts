@@ -216,7 +216,7 @@ describe('ca-monitor', () => {
       await el.updateComplete;
       expect(alert(el)).toBe(`✕ No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`);
       expect(text(root(el).querySelector('main'))).toBe('');
-      expect(errors).toHaveBeenCalled();
+      expect(errors.mock.calls).toEqual([[`No monitor API at ${location.origin}/api/info: the response is HTML, not JSON`]]);
       el.remove();
       errors.mockRestore();
     });

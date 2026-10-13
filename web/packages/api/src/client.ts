@@ -14,12 +14,17 @@ import type {
 /**
  * Why a request got no JSON answer: `network`, no response (a network error, a
  * refused connection, or a cross-origin response the browser blocked);
- * `status`, a status outside 2xx; `empty`, no body; `not-json`, a body that is
- * not JSON (such as the HTML page a development server answers every path with).
+ * `status`, a status outside 2xx; `not-json`, a body that is not JSON (empty,
+ * or the HTML page a development server answers every path with).
  */
-export type ApiFailure = 'network' | 'status' | 'empty' | 'not-json';
+export type ApiFailure = 'network' | 'status' | 'not-json';
 
-/** A request to the monitor's API that got no JSON answer. Its message states the URL and the cause. */
+/**
+ * A request to the monitor's API that got no JSON answer. Its message states
+ * the URL, the failure, the status and the media type
+ * ("No JSON answer from http://host/api/runs: not-json 200 text/html");
+ * `@contraagent/ui` words it for the reader.
+ */
 export class ApiError extends Error {
   constructor(
     /** The URL requested. */
@@ -30,31 +35,10 @@ export class ApiError extends Error {
     /** The response's media type, such as `text/html`; '' when it states none. */
     readonly type = '',
   ) {
-    // A status other than 404 comes from a server that has the API.
-    super(
-      `${failure === 'status' && status !== 404 ? 'Monitor API error' : 'No monitor API'} at ${url}: ${
-        failure === 'network'
-          ? 'network error, no response'
-          : failure === 'status'
-            ? `the response status is ${status}`
-            : failure === 'empty'
-              ? 'the response is empty'
-              : isHtml(type)
-                ? 'the response is HTML, not JSON'
-                : isJson(type) || !type
-                  ? 'the response is not valid JSON'
-                  : `the response is ${type}, not JSON`
-      }`,
-    );
+    super(`No JSON answer from ${url}: ${failure} ${status} ${type}`.trim());
     this.name = 'ApiError';
   }
 }
-
-/** The media type is HTML: a page, not the API. */
-export const isHtml = (type: string): boolean => /^(text\/html|application\/xhtml\+xml)$/.test(type);
-
-/** The media type is JSON. */
-export const isJson = (type: string): boolean => /^application\/(.+\+)?json$/.test(type);
 
 export interface ClientOptions {
   /** Where the monitor is served; '' (the default) is the page's own origin. */
@@ -104,16 +88,14 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
     } catch {
       throw new ApiError(target, 'network');
     }
-    const { status } = response;
+    const { status, ok } = response;
     const type = (response.headers.get('Content-Type') ?? '').split(';')[0]!.trim().toLowerCase();
-    if (!response.ok) throw new ApiError(target, 'status', status, type);
-    if (status === 204 || response.headers.get('Content-Length') === '0') throw new ApiError(target, 'empty', status, type);
-    if (type && !isJson(type)) throw new ApiError(target, 'not-json', status, type);
     try {
-      return (await response.json()) as Answer<P>;
+      if (ok) return (await response.json()) as Answer<P>;
     } catch {
-      throw new ApiError(target, 'not-json', status, type);
+      // An empty body, an HTML page, or text that is not JSON.
     }
+    throw new ApiError(target, ok ? 'not-json' : 'status', status, type);
   }
   return {
     baseUrl,

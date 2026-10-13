@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { MonitorStore } from './store.js';
 import type { Info } from './types.js';
@@ -32,29 +32,24 @@ describe('MonitorStore', () => {
     expect(store.snapshot.run).toBe('docs');
   });
 
-  it('sets error when the API answers with an HTML page, writes it to the console once, and clears it on an answer', async () => {
+  it('sets error when the API answers with an HTML page, and clears it on an answer', async () => {
     let answer = (): Response => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } });
     const fetch = () => Promise.resolve(answer());
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const store = new MonitorStore({ client: createMonitorClient({ baseUrl: 'http://app.test', fetch }), runsEveryMs: 60_000 });
     expect(store.snapshot).toMatchObject({ runsLoaded: false, error: null });
     await store.start();
     expect(store.snapshot.runsLoaded).toBe(false);
     expect(store.snapshot.error).toMatchObject({ url: 'http://app.test/api/info', failure: 'not-json', type: 'text/html' });
     await store.refreshRuns();
-    expect(errors).toHaveBeenCalledTimes(1);
-    expect(String(errors.mock.calls[0]![0])).toContain('No monitor API at http://app.test/api/info: the response is HTML, not JSON');
     answer = () => new Response('[]', { headers: { 'Content-Type': 'application/json' } });
     await store.refreshRuns();
     // /api/info is asked for again on the next refresh: until then its error stays.
     expect(store.snapshot).toMatchObject({ runsLoaded: true, runs: [] });
     expect(store.snapshot.error?.url).toBe('http://app.test/api/info');
     store.stop();
-    errors.mockRestore();
   });
 
   it('sets error for a 404 of the run list', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const info: Info = { title: 't', panels: [], api_version: '1' };
     const client = {
       baseUrl: '',
@@ -65,12 +60,9 @@ describe('MonitorStore', () => {
     await store.start();
     store.stop();
     expect(store.snapshot.error).toMatchObject({ failure: 'status', status: 404 });
-    expect(errors).toHaveBeenCalledTimes(1);
-    errors.mockRestore();
   });
 
   it('on a hub, sets error when the host list gets no answer', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = {
       baseUrl: 'http://hub.test',
       info: () => Promise.resolve({ title: 't', panels: [], api_version: '3', hosts: true }),
@@ -81,7 +73,6 @@ describe('MonitorStore', () => {
     await store.start();
     store.stop();
     expect(store.snapshot).toMatchObject({ runsLoaded: true, error: { url: 'http://hub.test/api/hosts', failure: 'not-json' } });
-    errors.mockRestore();
   });
 
   it('on a hub, fetches the host list with the run list', async () => {

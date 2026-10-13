@@ -38,14 +38,15 @@ export const monitorStyles = css`
     padding: 5px 9px; outline: none; font: inherit; font-size: 12px; }
   .bar input:focus, .bar select:focus { border-color: var(--focus); box-shadow: 0 0 0 calc(var(--focus-width) - 2px) var(--focus); }
 
-  .api-error { flex: none; margin: 0; padding: 8px 18px; border-top: 1px solid var(--line); color: var(--status-failed);
-    font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
-  .api-error:empty { padding: 0; border: 0; }
+  .api-error { flex: none; margin: 0; padding: 8px 18px; color: var(--status-failed); font: 12px var(--mono); overflow-wrap: anywhere; }
+  .api-error:empty { padding: 0; }
   main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
   main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
   @media (max-width: 760px) {
     header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
     .runbtn { max-width: calc(100vw - 130px); }
+    /* the run picker spans the header, 16px from each side */
+    ca-run-picker { inset-inline: 16px; width: auto; }
     .hdr-right { width: 100%; margin-left: 0; }
     .nowline { max-width: none; flex: 1; }
     nav { padding: 4px 8px 0; }

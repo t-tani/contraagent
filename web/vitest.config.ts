@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: { conditions: ['source'] },
   ssr: { resolve: { conditions: ['source'], externalConditions: ['source'] } },
   test: {
-    include: ['packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts', 'packages/*/scripts/**/*.test.ts'],
     // DOM tests opt in per file with `// @vitest-environment happy-dom`.
     environment: 'node',
   },

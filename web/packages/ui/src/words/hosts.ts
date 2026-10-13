@@ -1,17 +1,12 @@
 // Words for the hosts behind a hub's runs (`Info.hosts`): a host's state, its
 // last report, its runs, and a run whose host stopped reporting. The code's
 // terms (`up`, `last_seen`, `unresponsive`) stay in the data and in tooltips.
-import type { HostSummary, RunActivity } from '@contraagent/api';
+import type { HostSummary } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
-import { facts, fmtDur, localTime } from './format.js';
+import { facts, localTime } from './format.js';
 
 /** A run whose host stopped reporting (`RunSummary.unresponsive`), as a status value. */
 export const noReportLabel = (): string => msg('no report from host');
-
-/** A run's process as a status value: `running`, `no report from host`; '' for a run that is not running. */
-export function activityLabel(a: RunActivity): string {
-  return a === 'running' ? msg('running') : a === 'unresponsive' ? noReportLabel() : '';
-}
 
 /** A host's state: `up`, or `no report` (its reports stopped, or it never reported). */
 export const hostStateLabel = (h: Pick<HostSummary, 'up'>): string =>
@@ -40,5 +35,3 @@ export function hostsLine(hosts: readonly Pick<HostSummary, 'up'>[]): string {
   return facts(hosts.length === 1 ? msg('1 host') : msg(str`${hosts.length} hosts`), quiet ? msg(str`${quiet} with no report`) : '');
 }
 
-/** Seconds between a host's reports; '—' when it does not report. */
-export const reportInterval = (s: number | null | undefined): string => (s == null ? '—' : fmtDur(s));
