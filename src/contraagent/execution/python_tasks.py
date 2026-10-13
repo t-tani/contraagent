@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from contraagent import rundir
 from contraagent.contracts import check_input, file_stamp, record_contracts
 from contraagent.dispatch.task import (
     STOP_COMPLETED,
@@ -118,7 +119,7 @@ class PythonTaskRunner:
             return
         self._defined.add(task.kind)
         try:
-            d = self._run_dir / "definitions"
+            d = self._run_dir / rundir.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
             (d / f"{task.kind}.json").write_text(json.dumps({"kind": task.kind, **definition}, default=str))
         except OSError:  # a definition the monitor cannot show must not fail the task

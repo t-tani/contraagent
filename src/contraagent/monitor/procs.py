@@ -111,11 +111,9 @@ def _flag(cmd: str, name: str) -> str:
     return m.group(1) if m else ""
 
 
-def snapshot(runs_dir: Path, run: str) -> dict:
-    """Live processes of one run: its agent launches, the full tree, and running Python tasks."""
-    info = read_run_info(runs_dir, run)
-    alive = is_alive(info)
-    out: dict = {
+def empty_snapshot(run: str, info: dict | None, alive: bool) -> dict:
+    """A snapshot with no processes: what `run.json` says about the run, and whether it is live."""
+    return {
         "run": run,
         "alive": alive,
         "pid": (info or {}).get("pid"),
@@ -127,6 +125,13 @@ def snapshot(runs_dir: Path, run: str) -> dict:
         "tree": [],
         "python_tasks": [],
     }
+
+
+def snapshot(runs_dir: Path, run: str) -> dict:
+    """Live processes of one run: its agent launches, the full tree, and running Python tasks."""
+    info = read_run_info(runs_dir, run)
+    alive = is_alive(info)
+    out = empty_snapshot(run, info, alive)
     if not alive or info is None:
         return out
     procs = _scan()

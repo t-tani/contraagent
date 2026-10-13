@@ -12,6 +12,9 @@ A domain extends it two ways, neither touching the framework:
   "findings" or "targets"; a data pipeline would register "datasets".
 * `task_detail` — `fn(run, key, rows) -> dict` (`TaskDetailFn`), merged into the
   per-task view (a task's declared inputs/outputs, the state it wrote).
+
+It reads runs only through a `RunSource` and a `Liveness` (`source.py`): by default
+one host's `runs/` directory and `/proc`.
 """
 
 from __future__ import annotations
@@ -19,12 +22,13 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from itertools import islice
 from pathlib import Path
 
+from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
-from contraagent.monitor import paths, procs
+from contraagent.execution.cursor import parse_cursor
+from contraagent.monitor import paths
+from contraagent.monitor.source import DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 
 PanelFn = Callable[[str], dict]
 
@@ -80,21 +84,26 @@ def _shown_flow(flow: list, cwd: Path | None) -> list:
     return [{**f, "file": _shown(f.get("file", ""), cwd)} for f in flow if isinstance(f, dict)]
 
 
-def _plain(name: str) -> bool:
-    try:
-        paths.check_name(name)
-    except paths.BadName:
-        return False
-    return True
+def _parse(lines: list[str]) -> list[dict]:
+    """The JSON values of log lines or documents; one that does not parse (a torn last write) is skipped."""
+    out = []
+    for line in lines:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out
 
 
 class Monitor:
-    """Read-only views over `runs/<run>/`, shared by the web server and any other front end."""
+    """Read-only views over runs, shared by the web server and any other front end."""
 
     def __init__(
         self,
         runs_dir: str | Path = "runs",
         *,
+        source: RunSource | None = None,
+        liveness: Liveness | None = None,
         title: str = "contraagent",
         panels: dict[str, Panel | PanelFn] | None = None,
         task_detail: TaskDetailFn | None = None,
@@ -107,8 +116,17 @@ class Monitor:
         `static_dir` replaces the bundled web UI with the caller's own.
         `stream_formats` maps a custom coding agent's name to a built-in stream
         format (`claude`, `omp`) when the monitor runs in another process than
-        the one that called `register_normalizer`."""
+        the one that called `register_normalizer`.
+        `source` and `liveness` replace where runs are read from (default: `runs_dir`
+        and this host's `/proc`); a `source` given without `liveness` has no live run."""
         self.runs_dir = Path(runs_dir).resolve()
+        self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
+        if liveness is not None:
+            self.liveness: Liveness = liveness
+        elif source is None:
+            self.liveness = ProcLiveness(self.runs_dir)
+        else:
+            self.liveness = StaticLiveness(source)
         self.title = title
         self.panels: dict[str, Panel] = {n: p if isinstance(p, Panel) else Panel(p, title=n) for n, p in (panels or {}).items()}
         self.task_detail_fn = task_detail
@@ -116,26 +134,18 @@ class Monitor:
         self.stream_formats = dict(stream_formats or {})
         self.group_defs = list(groups or [])
 
-    def _path(self, run: str, *parts: str) -> Path:
-        """`runs/<run>/<parts...>`; `paths.BadName` (a ValueError) when `run`
-        is not a plain name or the path would leave `runs_dir`."""
-        return paths.under(self.runs_dir, paths.check_name(run, "run id"), *parts)
-
-    def run_dir(self, run: str) -> Path:
-        return self._path(run)
+    def check_run(self, run: str) -> str:
+        """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
+        return paths.check_name(run, "run id")
 
     # --- runs --------------------------------------------------------------
 
     def runs(self) -> list[dict]:
         """One row per run directory, newest activity first."""
         out: list[dict] = []
-        if not self.runs_dir.is_dir():
-            return out
-        live = procs.live_runs(self.runs_dir)
-        for d in sorted(self.runs_dir.iterdir()):
-            if not d.is_dir() or not _plain(d.name):
-                continue
-            info = procs.read_run_info(self.runs_dir, d.name) or {}
+        live = self.liveness.live()
+        for run in self.source.runs():
+            info = self.source.info(run) or {}
             n = ok = not_run = 0
             cost: float | None = None
             tokens = {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0, "calls": 0}
@@ -144,7 +154,7 @@ class Monitor:
             last = ""
             run_group = info.get("run_group", "")
             kinds: dict[str, int] = {}
-            for e in self._read_journal(d.name):
+            for e in self._read_journal(run):
                 n += 1
                 ok += bool(e.get("ok"))
                 not_run += e.get("stop") in ("invalid_input", "skipped")
@@ -161,27 +171,26 @@ class Monitor:
             if not last:
                 # A run on its first task has no journal row yet (rows land when
                 # a task finishes); still list it once it has live evidence.
-                if not info and not (d / "streams").is_dir():
+                if not info and not self.source.exists(run, rundir.STREAMS):
                     continue
-                try:
-                    last = datetime.fromtimestamp(d.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
-                except OSError:
+                last = self.source.activity(run) or ""
+                if not last:
                     continue
             out.append(
                 {
-                    "run": d.name,
-                    "run_group": run_group or d.name,
+                    "run": run,
+                    "run_group": run_group or run,
                     "attempts": n,
                     "ok": ok,
                     "not_run": not_run,
-                    "tasks": self._task_counts(d.name, live=d.name in live),
+                    "tasks": self._task_counts(run, live=run in live),
                     "cost_usd": round(cost, 6) if cost is not None else None,
                     "tokens": tokens,
                     **_first_last(readings),
                     "wall_s": round(wall),
                     "last_ts": last,
                     "kinds": kinds,
-                    "running": d.name in live,
+                    "running": run in live,
                     "started_at": info.get("started_at", ""),
                 }
             )
@@ -194,7 +203,7 @@ class Monitor:
         for a run that is `live`."""
         counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "skipped": 0}
         name = {"done": "done", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
-        running = _running_keys(procs.snapshot(self.runs_dir, run)) if live else set()
+        running = _running_keys(self.liveness.snapshot(run)) if live else set()
         for n in self.plan(run, live={})["nodes"]:
             counts["total"] += 1
             state = name.get(n["state"], "waiting")
@@ -204,45 +213,20 @@ class Monitor:
     # --- journal -----------------------------------------------------------
 
     def _read_journal(self, run: str) -> list[dict]:
-        try:
-            lines = self._path(run, "journal.jsonl").read_text().splitlines()
-        except OSError:
-            return []
-        out = []
-        for line in lines:
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-        return out
+        return _parse(self.source.lines(run, rundir.JOURNAL)[0])
 
     def journal(self, run: str, since: int = 0) -> tuple[list[dict], int]:
         """Rows after line offset `since`, and the new total."""
-        try:
-            lines = self._path(run, "journal.jsonl").read_text().splitlines(True)
-        except OSError:
+        if self.source.size(run, rundir.JOURNAL) < 0:
             return [], since
-        out = []
-        for line in lines[since:]:
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-        return out, len(lines)
+        lines, total = self.source.lines(run, rundir.JOURNAL, since)
+        return _parse(lines), total
 
     # --- plan (the pipeline, including work that has not started) ---------
 
     def _read_plan(self, run: str) -> list[dict]:
-        try:
-            lines = self._path(run, "plan.jsonl").read_text().splitlines()
-        except OSError:
-            return []
         out, seen = [], set()
-        for line in lines:
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
+        for row in _parse(self.source.lines(run, rundir.PLAN)[0]):
             # A key queued again (a retry, a re-dispatch) is the same node.
             if row.get("key") not in seen:
                 seen.add(row.get("key"))
@@ -280,7 +264,7 @@ class Monitor:
                         "flow_call": e.get("flow_call"),
                     }
                 )
-        snap = live if live is not None else procs.snapshot(self.runs_dir, run)
+        snap = live if live is not None else self.liveness.snapshot(run)
         running = _running_keys(snap)
         nodes = []
         for r in rows:
@@ -335,22 +319,14 @@ class Monitor:
 
     def _cwd(self, run: str) -> Path | None:
         """The run's working directory, as `run.json` records it."""
-        cwd = (procs.read_run_info(self.runs_dir, run) or {}).get("cwd")
+        cwd = (self.source.info(run) or {}).get("cwd")
         return Path(cwd) if isinstance(cwd, str) and cwd else None
 
     def _flow_calls(self, run: str, cwd: Path | None) -> list[dict]:
         """Each flow call of `flow_calls.jsonl` in start order, folded with its end. A
         resumed run starts its flow calls again: the latest start of an id counts."""
-        try:
-            lines = self._path(run, "flow_calls.jsonl").read_text().splitlines()
-        except OSError:
-            return []
         calls: dict[str, dict] = {}
-        for line in lines:
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
+        for row in _parse(self.source.lines(run, rundir.FLOW_CALLS)[0]):
             cid = row.get("id") if isinstance(row, dict) else None
             if not isinstance(cid, str):
                 continue
@@ -393,13 +369,13 @@ class Monitor:
         return [tally(g, g, groups[g]) for g in order]
 
     def procs(self, run: str) -> dict:
-        return procs.snapshot(self.runs_dir, run)
+        return self.liveness.snapshot(run)
 
     def task_detail(self, run: str, key: str) -> dict:
         """Journal rows, live launches and the stream file for one task, by its key."""
         paths.check_name(key, "task key")
         rows = [e for e in self._read_journal(run) if e.get("key") == key]
-        snap = procs.snapshot(self.runs_dir, run)
+        snap = self.liveness.snapshot(run)
         launches = [
             {k: c.get(k) for k in ("key", "kind", "unit", "pid", "age_s", "plugin", "model", "role")}
             | {"cmd": (c.get("full_cmd") or "")[:600]}
@@ -415,7 +391,7 @@ class Monitor:
             "launches": launches,
             "definition": defs.get(kind),
             "io": self.task_io(run, key),
-            "stream": key if _plain(key) and self.stream_path(run, key).is_file() else None,
+            "stream": key if self.source.size(run, rundir.stream(key)) >= 0 else None,
         }
         if self.task_detail_fn is not None:
             try:
@@ -432,15 +408,15 @@ class Monitor:
         for e in reversed(self._read_journal(run)):
             if e.get("key") == key and e.get("agent"):
                 return e["agent"]
-        for c in procs.snapshot(self.runs_dir, run).get("launches", []):
+        for c in self.liveness.snapshot(run).get("launches", []):
             if c.get("key") == key and c.get("full_cmd"):
                 return c["full_cmd"].split()[0].rsplit("/", 1)[-1]
         return "omp"
 
-    def stream_path(self, run: str, key: str) -> Path:
-        """`runs/<run>/streams/<key>.stream.jsonl`; `paths.BadName` for a run id or
-        task key that is not a plain name."""
-        return self._path(run, "streams", f"{paths.check_name(key, 'task key')}.stream.jsonl")
+    def stream_size(self, run: str, key: str) -> int:
+        """A number that changes whenever task `key`'s transcript grows; -1 while it has
+        none. `paths.BadName` for a run id or task key that is not a plain name."""
+        return self.source.size(run, rundir.stream(paths.check_name(key, "task key")))
 
     def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict, int]:
         """A page of task `key`'s normalized transcript events.
@@ -450,35 +426,27 @@ class Monitor:
         pages backward on demand. Always `{events, total, behind}`, including
         when the file is absent.
         """
-        path = self.stream_path(run, key)
-        try:
-            with open(path, "rb") as f:
-                total = sum(1 for _ in f)
-        except OSError:
+        log = rundir.stream(paths.check_name(key, "task key"))
+        if self.source.size(run, log) < 0:
             return {"events": [], "total": since, "behind": 0}, since
+        total = self.source.lines(run, log, 0, 0)[1]
         behind = 0
         if since <= 0:
             behind = max(0, total - limit)
             since = behind
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
         out: list[dict] = []
-        try:
-            # errors="replace": a stream is an agent's raw transcript, not
-            # guaranteed UTF-8; one bad byte must not crash the request.
-            with open(path, errors="replace") as f:
-                tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
-                for line in islice(f, since, since + limit * 4):
-                    ev = normalize_stream_event(fmt, line)
-                    if ev is not None:
-                        if ev.get("type") == "tool_execution_start" and ev.get("call"):
-                            tools[ev["call"]] = ev.get("tool") or ""
-                        elif ev.get("type") == "tool_execution_end" and not ev.get("tool"):
-                            ev["tool"] = tools.get(ev.get("call") or "", "")
-                        out.append(ev)
-                        if len(out) >= limit:
-                            break
-        except OSError:
-            return {"events": [], "total": since, "behind": 0}, since
+        tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
+        for line in self.source.lines(run, log, since, limit * 4)[0]:
+            ev = normalize_stream_event(fmt, line)
+            if ev is not None:
+                if ev.get("type") == "tool_execution_start" and ev.get("call"):
+                    tools[ev["call"]] = ev.get("tool") or ""
+                elif ev.get("type") == "tool_execution_end" and not ev.get("tool"):
+                    ev["tool"] = tools.get(ev.get("call") or "", "")
+                out.append(ev)
+                if len(out) >= limit:
+                    break
         return {"events": out, "total": total, "behind": behind}, total
 
     # --- contracts: the files tasks must leave behind ----------------------
@@ -494,20 +462,15 @@ class Monitor:
         the task never started, `failed` when the task ended for another reason before
         the check could pass.
         """
-        d = self._path(run, "contracts")
         last: dict[str, dict] = {}
         for e in self._read_journal(run):
             last[e.get("key", "")] = e
-        running = _running_keys(procs.snapshot(self.runs_dir, run))
+        running = _running_keys(self.liveness.snapshot(run))
         records = []
-        for f in sorted(d.glob("*.json")) if d.is_dir() else []:
-            try:
-                rec = json.loads(f.read_text())
-            except (OSError, ValueError):
-                continue
+        for rec in _parse(self.source.folder(run, rundir.CONTRACTS)):
             row = last.get(rec.get("key", ""))
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
-                spec["file"] = self._file_view(Path(spec["path"]))
+                spec["file"] = self._file_view(spec["path"])
                 props = (spec.get("schema") or {}).get("properties", {})
                 req = set((spec.get("schema") or {}).get("required", []))
                 spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
@@ -528,16 +491,13 @@ class Monitor:
             return f"list[{Monitor._type_of(prop.get('items', {}))}]"
         return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
 
-    @staticmethod
-    def _file_view(path: Path, limit: int = 20_000) -> dict:
-        try:
-            st = path.stat()
-        except OSError:
+    def _file_view(self, path: str, limit: int = 20_000) -> dict:
+        got = self.source.file(path)
+        if got is None:
             return {"exists": False}
-        out = {"exists": True, "size": st.st_size, "mtime": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(timespec="seconds")}
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, ValueError):
+        text, size, mtime = got
+        out: dict = {"exists": True, "size": size, "mtime": mtime}
+        if text is None:
             out["content"] = None
             return out
         out["truncated"] = len(text) > limit
@@ -566,14 +526,7 @@ class Monitor:
 
     def definitions(self, run: str) -> list[dict]:
         """What defined each kind of task in this run (`definitions/<kind>.json`)."""
-        d = self._path(run, "definitions")
-        out = []
-        for f in sorted(d.glob("*.json")) if d.is_dir() else []:
-            try:
-                out.append(json.loads(f.read_text()))
-            except (OSError, ValueError):
-                continue
-        return out
+        return _parse(self.source.folder(run, rundir.DEFINITIONS))
 
     def task_io(self, run: str, key: str) -> dict:
         """One task's input and output: its params, the files it read, the files
@@ -618,8 +571,8 @@ class Monitor:
         """What the task was given: the call file's params (every value, a value
         from an earlier task included), else the contract record's scalar ones."""
         try:
-            params = json.loads(self._path(run, "calls", f"{key}.json").read_text()).get("params")
-        except (OSError, ValueError, AttributeError):
+            params = json.loads(self.source.document(run, rundir.entry(rundir.CALLS, key)) or "").get("params")
+        except (ValueError, AttributeError):
             return fallback
         return params if isinstance(params, dict) else fallback
 
@@ -628,12 +581,8 @@ class Monitor:
     def cursor(self, run: str) -> dict | None:
         """The run's `CursorStore` (runs/<run>/cursor.json), or None when it keeps none:
         the stage it is in, the stages behind it, and each unit's step."""
-        from contraagent.execution.cursor import CursorStore
-
-        path = self._path(run, "cursor.json")
-        if not path.is_file():
-            return None
-        cur = CursorStore(path, run).read()
+        text = self.source.document(run, rundir.CURSOR)
+        cur = parse_cursor(text) if text is not None else None
         if cur is None:
             return None
         return {

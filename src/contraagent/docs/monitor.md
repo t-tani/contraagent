@@ -113,6 +113,11 @@ The monitor is local and read-only, but it serves agent transcripts: it sends no
 CORS headers unless origins are opted in (`--cors-origin`), and answers only
 requests whose `Host` names this machine.
 
+It reads a run's records only through a run source and liveness
+(`contraagent/monitor/source.py`): by default the runs directory and this host's
+`/proc`. `Monitor(source=..., liveness=...)` serves the same views from another
+store; the layout of a run's records is `contraagent/rundir.py`.
+
 ## Your own views: panels
 
 A pipeline adds tabs of its own with `monitor.Panel`: a function of the run id

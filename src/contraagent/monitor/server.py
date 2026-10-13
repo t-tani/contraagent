@@ -254,7 +254,7 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     @app.get("/api/runs/{run}/panels/{name}", response_model=api.JsonObject, responses={404: {"description": "no panel of that name"}})
     def api_panel(run: str, name: str) -> dict:
         """One registered panel's body: a JSON object whose shape the domain chooses."""
-        monitor.run_dir(run)
+        monitor.check_run(run)
         try:
             return monitor.panel(name, run)
         except KeyError:
@@ -273,22 +273,17 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     )
     async def events(run: str, request: Request) -> EventSourceResponse:
         """The run, live: journal rows as they land, then each other view when it changes."""
-        monitor.run_dir(run)
+        monitor.check_run(run)
         return EventSourceResponse(run_feed(monitor, run, request.is_disconnected), ping=15)
 
     async def _stream_events(run: str, key: str, request: Request):
         since, sent_first, last_size = 0, False, -1
-        path = monitor.stream_path(run, key)
         while True:
             if await request.is_disconnected():
                 return
-            # A byte-size stat first turns "nothing new" (almost every tick)
-            # into one syscall instead of a full-file scan of a transcript
-            # that can run past 500MB.
-            try:
-                size = path.stat().st_size
-            except OSError:
-                size = -1
+            # The size first turns "nothing new" (almost every tick) into one
+            # syscall instead of a full scan of a transcript that can run past 500MB.
+            size = monitor.stream_size(run, key)
             if size != last_size:
                 last_size = size
                 page, total = monitor.stream(run, key, since)
@@ -311,7 +306,8 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     )
     async def events_stream(run: str, key: str, request: Request) -> EventSourceResponse:
         """Task `key`'s transcript, live: the tail page, then the events after it as they are written."""
-        monitor.stream_path(run, key)
+        monitor.check_run(run)
+        monitor.stream_size(run, key)
         return EventSourceResponse(_stream_events(run, key, request), ping=15)
 
     @app.get("/", include_in_schema=False)
