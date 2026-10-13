@@ -6,6 +6,6 @@ tableOfContents: false
 
 import TokenTable from '../../../components/TokenTable.astro';
 
-Generated from `@contraagent/elements`' `src/themes/tokens-list.ts` and `src/themes/data.ts`: each property, its meaning and its value in each built-in theme. A property with no value per theme has one default for every theme, computed from the others or a fixed size, unless it is set.
+Generated from `@contraagent/elements`' `src/themes/tokens-list.ts` and `src/themes/data.ts`: each property, its meaning and its value in each built-in theme. `data-ca-theme` sets each property that has a value per theme on its element, so a page's own CSS reads it with the same name (`var(--ca-text-secondary)`). A property with no value per theme has one default for every theme, computed from the others or a fixed size, inside the elements only, unless it is set.
 
 <TokenTable />
