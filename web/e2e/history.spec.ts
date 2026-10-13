@@ -16,7 +16,7 @@ test('tabs and tasks are places: Back and Forward step between them', async ({ p
   await tab(page, 'history').click();
   await expect.poll(() => params(page)).toEqual({ run, tab: 'journal' });
 
-  await page.locator('ca-journal-table .jrow.agent').first().click();
+  await page.locator('ca-journal-table tbody tr[data-executor="agent"]').first().click();
   await expect.poll(() => params(page).tab).toBe('stream');
   const key = params(page).key;
   expect(key).toBeTruthy();
@@ -53,7 +53,7 @@ test('a filter refines the place: it is in the URL but adds no history entry', a
 test('reload and Back restore how far the list was scrolled', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 420 });
   await tab(page, 'history').click();
-  await expect(page.locator('ca-journal-table .jrow.agent').first()).toBeVisible();
+  await expect(page.locator('ca-journal-table tbody tr[data-executor="agent"]').first()).toBeVisible();
   const max = await main(page).evaluate((m) => m.scrollHeight - m.clientHeight);
   test.skip(max < 120, 'the demo journal is too short to scroll');
   const y = Math.round(max / 2);

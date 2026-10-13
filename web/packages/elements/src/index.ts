@@ -14,3 +14,4 @@ export * from './primitives/index.js';
 export * from './json/index.js';
 export * from './markdown/index.js';
 export * from './count/index.js';
+export * from './table/index.js';

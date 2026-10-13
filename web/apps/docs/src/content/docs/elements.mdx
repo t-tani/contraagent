@@ -4,24 +4,29 @@ description: "Each view of the monitor as an element of its own, live, fed with 
 ---
 
 import Demo from '../../components/Demo.astro';
+import Example from '../../components/Example.astro';
 
-Every example below is live, fed with the demo pipeline's run. Click around:
-what an element sends shows under it. Each element's properties, attributes and
-events are in the [reference](/reference/elements/).
+Every example below is live. Click around: what an element sends shows under
+it. Each element's properties, attributes and events are in the
+[reference](/reference/elements/).
 
-## `<ca-transcript>`
+## Contraagent views
+
+The views of the monitor (`@contraagent/ui`), fed with the demo pipeline's run.
+
+### `<ca-transcript>`
 
 <Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
 
-## `<ca-pipeline-graph>`
+### `<ca-pipeline-graph>`
 
 <Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} describe />
 
-## `<ca-timeline>`
+### `<ca-timeline>`
 
 <Demo tag="ca-timeline" props={{ journal: 'journal', plan: 'plan', run: 'run' }} describe />
 
-## `<ca-kpis>`
+### `<ca-kpis>`
 
 <Demo tag="ca-kpis" props={{ journal: 'journal' }} describe />
 
@@ -33,14 +38,27 @@ And in a theme of one's own, `@contraagent/elements`' example (Solarized Light, 
 
 <Demo tag="ca-kpis" props={{ journal: 'journal' }} theme="contraagent-light" custom="solarized-light" />
 
-## `<ca-journal-table>`
+### `<ca-journal-table>`
 
 <Demo tag="ca-journal-table" props={{ rows: 'journal', plan: 'plan' }} height="360px" describe />
 
-## `<ca-task-table>`
+### `<ca-task-table>`
 
 <Demo tag="ca-task-table" props={{ journal: 'journal', plan: 'plan', run: 'run' }} height="360px" describe />
 
-## `<ca-contracts>`
+### `<ca-contracts>`
 
 <Demo tag="ca-contracts" props={{ outputs: 'outputs' }} height="420px" describe />
+
+## Generic elements
+
+The elements of `@contraagent/elements`, each fed with the hand-written data of
+its example in `docs/examples/`, whose source is under it.
+
+### `<cae-data-table>`
+
+<Example name="data-table" />
+
+### `<cae-segmented>`
+
+<Example name="segmented" />

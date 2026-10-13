@@ -1,6 +1,6 @@
 // The tasks tab over the demo's `docs` run: every task of the plan is a row (two
 // passes of review · gamma are two tasks), and every count of tasks agrees.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test('the tasks tab counts and lists as many tasks as the header', async ({ page }) => {
   await page.goto('/?run=docs&tab=tasks');
@@ -10,18 +10,48 @@ test('the tasks tab counts and lists as many tasks as the header', async ({ page
   expect(total).toBeGreaterThan(0);
   await expect(page.locator('nav .tab', { hasText: 'Tasks' }).locator('.badge')).toHaveText(String(total));
   await expect(page.locator('.bar .meta')).toHaveText(`${total} tasks`);
-  await expect(page.locator('ca-task-table .trow:not(.hd)')).toHaveCount(total);
+  await expect(page.locator('ca-task-table tbody tr')).toHaveCount(total);
   // Both passes of review · gamma, each its own row.
-  const passes = page.locator('ca-task-table .trow', { hasText: 'gamma' }).filter({ hasText: 'review' }).locator('.pass');
+  const passes = page.locator('ca-task-table tbody tr', { hasText: 'gamma' }).filter({ hasText: 'review' }).locator('.pass');
   await expect(passes).toHaveCount(2);
   expect((await passes.allTextContents()).sort()).toEqual(['Pass 1', 'Pass 2']);
   // The task that did not start names the earlier task that failed.
-  const z = page.locator('ca-task-table .trow', { hasText: 'summarize' }).filter({ hasText: 'zeta' });
+  const z = page.locator('ca-task-table tbody tr', { hasText: 'summarize' }).filter({ hasText: 'zeta' });
   await expect(z.locator('.pill')).toHaveText('not started');
   await expect(z.locator('.cause')).not.toBeEmpty();
   await z.click();
   await expect(page).toHaveURL(/tab=stream/);
 });
+
+/** The element that has the focus, through shadow roots. */
+const focused = (page: Page) =>
+  page.evaluate(() => {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    return el ? { tag: el.tagName, key: (el as HTMLElement).dataset['key'] ?? null } : null;
+  });
+
+for (const [tab, list] of [['tasks', 'ca-task-table'], ['journal', 'ca-journal-table']] as const) {
+  test(`${list}: Tab reaches the first row, the arrow keys move, Enter opens the task`, async ({ page }) => {
+    await page.goto(`/?run=docs&tab=${tab}`);
+    await expect(page.locator(`${list} tbody tr`).first()).toBeVisible();
+    await page.locator('ca-monitor .bar input').focus();
+    let at = await focused(page);
+    for (let i = 0; i < 30 && at?.tag !== 'TR'; i++) {
+      await page.keyboard.press('Tab');
+      at = await focused(page);
+    }
+    expect(at?.tag).toBe('TR');
+    const rows = page.locator(`${list} tbody tr`);
+    expect(at?.key).toBe(await rows.first().getAttribute('data-key'));
+    await page.keyboard.press('ArrowDown');
+    at = await focused(page);
+    expect(at?.key).toBe(await rows.nth(1).getAttribute('data-key'));
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/tab=stream/);
+    expect(new URL(page.url()).searchParams.get('key')).toBeTruthy();
+  });
+}
 
 test('a task that did not start reads its input file by file, from the earlier task that failed', async ({ page }) => {
   await page.goto('/?run=docs&tab=stream&key=summarize-zeta&view=input');

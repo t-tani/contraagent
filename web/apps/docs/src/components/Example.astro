@@ -1,0 +1,36 @@
+---
+// A generic element live: the module packages/elements/docs/examples/<name>.ts
+// mounts it with its own hand-written data (`mount(host)`), and its source is
+// shown below it, read from the file. `theme` is a built-in theme
+// (`data-ca-theme`); what an element sends shows under it.
+import { Code } from '@astrojs/starlight/components';
+import { repoFile } from '../lib/repo';
+
+interface Props {
+  name: string;
+  height?: string;
+  theme?: string;
+}
+const { name, height, theme = 'contraagent-dark' } = Astro.props;
+const file = `web/packages/elements/docs/examples/${name}.ts`;
+---
+
+<figure class="ca-demo" data-ca-theme={theme} style={height ? `--h:${height}` : undefined}>
+  <div class="ca-demo-frame" data-cae-example={name}></div>
+</figure>
+<Code code={repoFile(file)} lang="ts" title={file} />
+
+<script>
+  import { adoptThemes } from '@contraagent/elements/themes';
+
+  const modules = import.meta.glob<{ mount: (host: HTMLElement) => void }>('../../../../packages/elements/docs/examples/*.ts');
+  adoptThemes(document);
+  for (const host of document.querySelectorAll<HTMLElement>('[data-cae-example]')) {
+    const load = modules[`../../../../packages/elements/docs/examples/${host.dataset['caeExample']}.ts`];
+    if (!load) continue;
+    void load().then((m) => m.mount(host));
+    for (const name of ['cae-activate', 'cae-select', 'cae-sort', 'cae-change']) {
+      host.addEventListener(name, (e) => host.closest('figure')?.setAttribute('data-last-event', `${name} ${JSON.stringify((e as CustomEvent).detail)}`));
+    }
+  }
+</script>
