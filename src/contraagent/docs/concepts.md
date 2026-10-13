@@ -63,6 +63,9 @@ documentation. No other word is used for the same thing.
 | **trait** | a label on a credential that a task may require (`zdr`) | `traits`, `agent_task(requires=)` |
 | **pool** / **gateway** | several credentials used as one / your own endpoint (LiteLLM, a proxy) | `Pool`, `Gateway` |
 | **ambient** | the built-in credential: the host's own setup, untouched | `AMBIENT` |
+| **quota** | a subscription's utilization of its 5-hour and weekly windows, as the coding agent reports it: account-wide | `RateLimit`, `LaunchResult.rate_limits`; journal `quota` (`QuotaReading`) |
+| **quota cap** / **quota rule** | the utilization past which a credential rests / a domain's own test of a credential's latest quota reading | `max_five_hour_pct`, `max_seven_day_pct` / `Pipeline(quota_rule=)` |
+| **rest** | not launched on for a time: a hop or a pool member after a 429, a credential past a quota cap or rule until its window resets; a task takes the next hop; with none left it ends `rate_limited` after 429s, and is deferred (never launched) when its credentials rest on their quota | `Router`, `CredentialPool`, `QuotaRests` |
 
 ## Running
 
@@ -98,8 +101,9 @@ documentation. No other word is used for the same thing.
 
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.
-A task not launched by the deadline, or whose remaining work cannot finish
-before it, finishes `deferred`; a follow-up task the
+A task not launched by the deadline, whose remaining work cannot finish
+before it, or with every hop on a resting credential, finishes `deferred`, and
+`deferred.jsonl` records why (`AgentRunner.deferral`); a follow-up task the
 queue refuses because its key is in flight finishes `duplicate_key`. A task a
 flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a

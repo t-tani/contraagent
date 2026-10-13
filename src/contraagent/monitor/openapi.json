@@ -2203,6 +2203,12 @@
             "type": "integer",
             "title": "Attempts",
             "default": 1
+          },
+          "deferred": {
+            "type": "string",
+            "title": "Deferred",
+            "description": "why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not",
+            "default": ""
           }
         },
         "additionalProperties": true,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { attemptFacts, filterJournal, filterTasks, journalTally, sortTasks } from './filters.js';
 
 const task = (key: string, kind: string, last_stop = 'completed', outcome: Outcome = 'done', last_ts = ''): TaskRow => ({
-  key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null,
+  key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null, deferred: '',
   pass: null, wall_s: 1, last_ts, last_stop, waits_for: [],
 });
 const row = (key: string, kind: string, stop: Stop, extra: Partial<JournalRow> = {}): JournalRow => ({

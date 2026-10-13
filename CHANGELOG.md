@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Quota caps: `max_five_hour_pct` and `max_seven_day_pct` on a `[credentials.<name>]`, and
+  `Pipeline(quota_rule=)` for a rule of your own. A credential past one rests until its
+  window resets: tasks skip its hops without launching and take the next hop of their
+  failover chain (a gateway, say); a task with no hop left is deferred. `finishing_kinds`
+  still launch on it for `grace_s`.
+- `deferred.jsonl` records each deferred task and why; the monitor shows a deferred task
+  as "not run" with the reason, while the run goes on too (`PlanNode.deferred`).
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

@@ -71,6 +71,15 @@ describe('ca-task-table', () => {
     el.remove();
   });
 
+  it('a deferred task did not run, with the reason the run recorded, even while the run goes on', async () => {
+    const reason = 'personal rests: 5-hour usage 93%, max 90%';
+    const deferred: Plan = { ...plan, nodes: plan.nodes.map((n) => (n.key === 'write-a' ? { ...n, deferred: reason } : n)) };
+    const { rows, el } = await table({ live: true, plan: deferred });
+    const w = byKey(rows, 'write-a');
+    expect([text(w.querySelector('.pill')), text(w.querySelector('.cause'))]).toEqual(['not run', reason]);
+    el.remove();
+  });
+
   it('two passes of one kind and unit are two rows, each with its pass', async () => {
     const { rows, el } = await table({ kind: 'review' });
     expect(rows.map((r) => [r.dataset['key'], text(r.querySelector('.pass'))])).toEqual([

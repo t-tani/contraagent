@@ -31,6 +31,7 @@ from typing import Any
 
 from contraagent.backends import Backend, create_backend, known_agents
 from contraagent.dispatch.flow import FlowCall, FlowDriver
+from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.task import Task, TaskResult
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
@@ -40,6 +41,7 @@ from contraagent.pipeline.graph import MAX_PASSES, Graph
 from contraagent.pipeline.reach import reachable
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.plan import Overrides, RoutingPlan, check_task_tables
+from contraagent.routing.quota import QuotaRule
 
 
 @dataclass
@@ -96,6 +98,7 @@ class Pipeline:
         env: Mapping[str, str] | None = None,
         log: Callable[[str], None] | None = None,
         max_passes: int | None = None,
+        quota_rule: QuotaRule | None = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -116,6 +119,10 @@ class Pipeline:
         `max_passes`: how many passes a `while` loop of flow code may make: a task call, or a
         `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
         `[defaults] max_passes`, else 10.
+        `quota_rule(credential, reading)`: a reason the credential rests now, or None, given its
+        latest utilization reading (`RateLimit`); beside the config's own caps
+        (`max_five_hour_pct`, `max_seven_day_pct`). A resting credential is not launched
+        on: its tasks take the next hop of their failover chain, or are deferred.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `tag_capacity`, ...); its docstring has the scheduling rules."""
         if config is None:
@@ -134,6 +141,7 @@ class Pipeline:
         self.env = dict(env or {})
         # A malformed [defaults] is reported with every other routing problem, by the routing plan.
         self.max_passes = max_passes if max_passes is not None else int(config.defaults([]).get("max_passes", MAX_PASSES))
+        self.quota_rule = quota_rule
         self.queue_options = queue_options
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
@@ -204,6 +212,12 @@ class Pipeline:
                     if self.preflight:
                         plan.preflight()
                     plan.log()
+                    rests = run.quota_rests(
+                        plan.credentials,
+                        self.quota_rule,
+                        finishing_kinds=self.queue_options.get("finishing_kinds", ()),
+                        grace_s=self.queue_options.get("grace_s", GRACE_S),
+                    )
                     runner = run.agent_runner(
                         self.backends,
                         plan.configs,
@@ -213,6 +227,7 @@ class Pipeline:
                         keep_transcripts=self.keep_transcripts,
                         cwd=self.cwd,
                         env=self.env,
+                        rests=rests,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(

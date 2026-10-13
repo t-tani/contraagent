@@ -67,7 +67,11 @@ The queue records nothing itself. It reports through callbacks:
   are queued with `extend()`.
 
 `runner` only needs to satisfy `TaskRunner` (`.config(task).max_concurrent`
-and `.run(task)`); nothing here imports a concrete runner.
+and `.run(task)`); nothing here imports a concrete runner. A runner may also
+say why a task cannot launch now (`.deferral(task)`, a reason or None): the
+queue asks it just before it would start the task, and defers the task instead.
+A runner that finds the same once the task has started returns a `deferred`
+result, finished as a deferral too.
 """
 
 from __future__ import annotations
@@ -93,6 +97,9 @@ OVERDUE_S = 600.0
 #: The share of `deadline_s` before the deadline from which the queue orders for the
 #: deadline, when `slack_s` is not given.
 SLACK_SHARE = 0.25
+
+#: How long `finishing_kinds` still launch past the deadline, when `grace_s` is not given.
+GRACE_S = 900.0
 
 OnEvent = Callable[..., None]  # on_event(event: str, task: Task | None, **fields)
 FollowUp = Callable[[TaskResult], list[Task]]
@@ -132,7 +139,7 @@ class WorkQueue:
         retry_wait_s: float = 60.0,
         throttle_s: float = 300.0,
         skip: Callable[[Task], bool] | None = None,
-        grace_s: float = 900.0,
+        grace_s: float = GRACE_S,
         retry_on: frozenset[str] = frozenset(),
         throttle_on: frozenset[str] = frozenset(),
         finishing_kinds: tuple[str, ...] = (),
@@ -416,6 +423,11 @@ class WorkQueue:
                 continue
             if guarded and head is not None and self._takes(task, head):
                 continue  # the starvation guard
+            why = self._deferral(task)
+            if why:  # the runner has no way to launch it now
+                self._queued.remove(task)
+                self._defer(task, why)
+                continue
             self._queued.remove(task)
             self._ready_since.pop(task.id, None)
             attempt = self._attempt.get(task.id, 0) + 1
@@ -454,11 +466,28 @@ class WorkQueue:
             del self._running_unit_count[unit]
             del self._running_unit_kind[unit]
 
+    def _deferral(self, task: Task) -> str | None:
+        """The runner's reason not to launch `task` now (`deferral`), if it gives one."""
+        ask = getattr(self.runner, "deferral", None)
+        if ask is None:
+            return None
+        try:
+            return ask(task)
+        except Exception as exc:  # a broken check must not stop the queue: launch, and say so
+            self.on_event("note", task, deferral_failed=repr(exc)[:200])
+            return None
+
     def _on_done(self, task: Task, fut: Future) -> None:
         try:
             res: TaskResult = fut.result()
         except Exception as exc:  # one task must not stop the driver
             res = TaskResult.launch_failed(task, f"exception: {exc!r}")
+        if res.stop == STOP_DEFERRED:  # started, then found no way to launch: never launched
+            self.on_event("deferred", task, reason=res.reason)
+            self._ready_since.pop(task.id, None)
+            self.deferred.append(task)
+            self._settle(res)
+            return
         if self._on_result is not None:
             try:
                 self._on_result(res, self._attempt.get(task.id, 0))

@@ -12,6 +12,7 @@ A `Run` owns `runs/<run-id>/`:
                             (`flow`, `created_from`, `flow_call`)
     flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
                             (`state`, `error`)
+    deferred.jsonl          one row per deferred task: its key and why it was not launched
     inflight/<key>.json     one marker per running task
     contracts/, definitions/  what each task declared, for the monitor
 
@@ -27,6 +28,7 @@ is ok and carries the task's `fingerprint`.
 
 from __future__ import annotations
 
+import dataclasses
 import fcntl
 import json
 import logging
@@ -39,17 +41,18 @@ from pathlib import Path
 
 from contraagent import procfs, rundir
 from contraagent.backends.base import Backend
-from contraagent.backends.launch import Stop
+from contraagent.backends.launch import RateLimit, Stop
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
 from contraagent.dispatch.task import Frame, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
-from contraagent.execution.estimates import JournalEstimates
+from contraagent.execution.estimates import JournalEstimates, journal_rows, recent_journals
 from contraagent.execution.journal import Journal, utcnow_iso
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
+from contraagent.routing.quota import QuotaRests, QuotaRule
 
 _logger = logging.getLogger(__name__)
 
@@ -271,6 +274,19 @@ class Run:
             self._estimates = JournalEstimates(self.runs_dir)
         return self._estimates
 
+    def quota_rests(self, credentials: Mapping, rule: QuotaRule | None = None, **kwargs) -> QuotaRests:
+        """The run's quota rests (`routing.quota`) over `credentials`, told the utilization
+        readings of the recent runs' journals (this run's included, when resumed): an
+        account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`."""
+        rests = QuotaRests(credentials, rule, **kwargs)
+        fields = {f.name for f in dataclasses.fields(RateLimit)}
+        for path in recent_journals(self.runs_dir):
+            for row in journal_rows(path):
+                for reading in row.get("quota") or ():
+                    if isinstance(reading, dict):
+                        rests.observe(RateLimit(**{k: v for k, v in reading.items() if k in fields}))
+        return rests
+
     def queue(self, runner, *, follow_up: Callable[[TaskResult], list[Task]] | None = None, resume: bool = False, **kwargs) -> WorkQueue:
         """A `WorkQueue` over `runner` that records the plan and journals Python tasks.
 
@@ -337,6 +353,8 @@ class Run:
                 self._log(logging.INFO, f"[start] {task.key}")
             elif fields.get("stop") == "skipped":
                 self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
+        if event == "deferred" and task is not None:
+            self._record_deferral(task, str(fields.get("reason") or ""))
         if event == "duplicate_key_refused":
             self._log(logging.WARNING, f"[refused] {fields.get('key')}: already in flight")
         elif event == "retry" and task is not None:
@@ -374,6 +392,17 @@ class Run:
         self._append(rundir.PLAN, row)
         if self._estimates is not None:
             self._estimates.observe_plan(row)
+
+    def _record_deferral(self, task: Task, reason: str) -> None:
+        """Record a task the queue deferred in `deferred.jsonl` (`{ts, key, kind, unit, reason}`):
+        the monitor names the reason it did not run. A task deferred after it started (its
+        runner found no way to launch it) loses its running marker too."""
+        self._mark_inflight(task, running=False)
+        self._append(
+            rundir.DEFERRED,
+            {"ts": utcnow_iso(), "key": task.key, "kind": kind_name(task.kind), "unit": self._unit_of(task), "reason": reason},
+        )
+        self._log(logging.INFO, f"[deferred] {task.key}: {reason}")
 
     def record_flow_call(
         self,
