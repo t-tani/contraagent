@@ -127,6 +127,15 @@ class Liveness(Protocol):
         """One run's live processes, in `procs.snapshot`'s shape."""
         ...
 
+    def unresponsive(self) -> set[str]:
+        """The ids of the runs last reported alive whose host has stopped reporting."""
+        ...
+
+    def hosts(self) -> list[dict]:
+        """The hosts that drive these runs: `{host_id, up, last_seen, interval_s}`;
+        `last_seen` is when the host last reported (ISO 8601, "" when not reported)."""
+        ...
+
 
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds")
@@ -241,6 +250,12 @@ class ProcLiveness:
     def snapshot(self, run: str) -> dict:
         return procs.snapshot(self.root, run)
 
+    def unresponsive(self) -> set[str]:
+        return set()
+
+    def hosts(self) -> list[dict]:
+        return [{"host_id": rundir.host_id(), "up": True, "last_seen": "", "interval_s": None}]
+
 
 class MemorySource:
     """Run records held in memory: `{run: {name: text or list of lines}}`.
@@ -337,3 +352,9 @@ class StaticLiveness:
         if run in self._snapshots:
             return self._snapshots[run]
         return procs.empty_snapshot(run, self.source.info(run), run in self._live)
+
+    def unresponsive(self) -> set[str]:
+        return set()
+
+    def hosts(self) -> list[dict]:
+        return []

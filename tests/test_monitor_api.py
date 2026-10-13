@@ -50,7 +50,7 @@ def test_every_endpoint_carries_what_the_core_computed(demo_runs):
     mon = Monitor(demo_runs, panels={"notes": Panel(lambda r: {"run": r}, title="notes")})
     c = client_for(mon)
     info = c.get("/api/info").json()
-    assert info == {"title": mon.title, "panels": raw(mon.panel_info()), "api_version": api.API_VERSION}
+    assert info == {"title": mon.title, "panels": raw(mon.panel_info()), "api_version": api.API_VERSION, "hosts": False}
     assert c.get("/api/runs").json() == raw(mon.runs())
     seen_streams = 0
     for run in [r["run"] for r in mon.runs()]:

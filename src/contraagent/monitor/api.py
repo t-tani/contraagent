@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, Validatio
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, TokenUsage  # part of this contract
 
-API_VERSION = "3.0.0"
+API_VERSION = "3.1.0"
 
 
 class Closed(BaseModel):
@@ -73,6 +73,7 @@ class Info(Closed):
     title: str
     panels: list[PanelInfo]
     api_version: str = Field(description="Version of this API contract (semver)")
+    hosts: bool = Field(False, description="the runs come from many hosts (a hub): `/api/hosts` lists them")
 
 
 # --- /api/runs -------------------------------------------------------------
@@ -123,7 +124,32 @@ class RunSummary(Closed):
     last_ts: str = Field(description="ISO time of the last journal row, else the directory's mtime")
     kinds: dict[str, int] = Field(description="journal rows per task kind")
     running: bool = Field(description="the process that runs it is alive")
+    unresponsive: bool = Field(False, description="its host last reported it alive and has stopped reporting (a hub only)")
+    host_id: str = Field("", description="the host that drives it; empty when its run.json does not say")
+    run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
+
+
+class HostSummary(Closed):
+    """One host that drives runs."""
+
+    host_id: str
+    up: bool = Field(description="its reports keep arriving (a hub: a heartbeat within the TTL; one host: always)")
+    last_seen: str = Field(description="when it last reported, ISO 8601; empty when it does not report (one host)")
+    interval_s: float | None = Field(description="seconds between its reports; null when it does not report")
+    runs: int = Field(description="its runs")
+    running: int = Field(description="its runs whose process is alive")
+    unresponsive: int = Field(description="its runs last reported alive since it stopped reporting")
+
+
+class Hosts(Closed):
+    """The hosts, and each account's utilization over every run of every host."""
+
+    hosts: list[HostSummary]
+    quota: list[AccountQuota] = Field(
+        default_factory=list,
+        description="per credential (account): its first and last utilization reading over every run; highest weekly use first",
+    )
 
 
 # --- journal ---------------------------------------------------------------

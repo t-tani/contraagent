@@ -52,12 +52,16 @@ class HubSource:
         return [e.name for e in self.store.runs()]
 
     def info(self, run: str) -> dict | None:
+        """The run's `run.json`, its `host_id` the one the hub names it by (the relay's)."""
         text = self.store.document(self._name(run), rundir.RUN_INFO)
         try:
             info = json.loads(text) if text is not None else None
         except ValueError:
             return None
-        return info if isinstance(info, dict) else None
+        if not isinstance(info, dict):
+            return None
+        entry = self.store.entry(self._name(run))
+        return {**info, "host_id": entry.host_id} if entry else info
 
     def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         entry_parts(log)
@@ -137,6 +141,42 @@ class HeartbeatLiveness:
 
     def live(self) -> set[str]:
         return set(self._reports())
+
+    def unresponsive(self) -> set[str]:
+        """Runs a host's latest heartbeat reported alive, when that heartbeat is older
+        than the TTL and the run's `run.json` does not say it finished."""
+        now = self.clock()
+        out = set()
+        for heartbeat, received_at in self.store.heartbeats().values():
+            at = _seconds(received_at)
+            if at is not None and now - at <= self.ttl_s:
+                continue
+            for report in heartbeat.runs:
+                if not report.alive:
+                    continue
+                text = self.store.document(report.run.name, rundir.RUN_INFO)
+                try:
+                    info = json.loads(text) if text is not None else {}
+                except ValueError:
+                    info = {}
+                if not (isinstance(info, dict) and info.get("finished_at")):
+                    out.add(report.run.name)
+        return out
+
+    def hosts(self) -> list[dict]:
+        now = self.clock()
+        out = []
+        for host_id, (heartbeat, received_at) in sorted(self.store.heartbeats().items()):
+            at = _seconds(received_at)
+            out.append(
+                {
+                    "host_id": host_id,
+                    "up": at is not None and now - at <= self.ttl_s,
+                    "last_seen": received_at,
+                    "interval_s": heartbeat.interval_s,
+                }
+            )
+        return out
 
     def snapshot(self, run: str) -> dict:
         paths.check_name(run, "run id")

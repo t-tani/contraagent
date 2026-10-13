@@ -80,4 +80,4 @@ class Hub:
 
     def monitor(self, **kwargs) -> Monitor:
         """The monitor's views of every host's runs (`Monitor`'s keyword arguments pass through)."""
-        return Monitor(source=self.source(), liveness=HeartbeatLiveness(self.store, self.ttl_s), **kwargs)
+        return Monitor(source=self.source(), liveness=HeartbeatLiveness(self.store, self.ttl_s), many_hosts=True, **kwargs)

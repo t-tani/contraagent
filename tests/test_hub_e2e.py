@@ -244,7 +244,7 @@ def _converged(e: Env, host: str, run: str, timeout: float = 30) -> tuple[dict, 
 
 
 def _strip(rows: list[dict]) -> list[dict]:
-    return sorted(({k: v for k, v in r.items() if k not in ("run", "last_ts")} for r in rows), key=json.dumps)
+    return sorted(({k: v for k, v in r.items() if k not in ("run", "last_ts", "host_id")} for r in rows), key=json.dumps)
 
 
 def test_every_host_s_runs_have_the_views_of_their_directory(env):

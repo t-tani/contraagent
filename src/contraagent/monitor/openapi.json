@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.0.0"
+    "version": "3.1.0"
   },
   "paths": {
     "/api/info": {
@@ -41,6 +41,25 @@
                   },
                   "type": "array",
                   "title": "Response Api Runs Api Runs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hosts": {
+      "get": {
+        "summary": "Api Hosts",
+        "description": "The hosts that drive the runs, and each account's utilization over every run.",
+        "operationId": "api_hosts_api_hosts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Hosts"
                 }
               }
             }
@@ -1239,6 +1258,90 @@
         "title": "Hop",
         "description": "One launch in a failover walk: where it ran and how it ended."
       },
+      "HostSummary": {
+        "properties": {
+          "host_id": {
+            "type": "string",
+            "title": "Host Id"
+          },
+          "up": {
+            "type": "boolean",
+            "title": "Up",
+            "description": "its reports keep arriving (a hub: a heartbeat within the TTL; one host: always)"
+          },
+          "last_seen": {
+            "type": "string",
+            "title": "Last Seen",
+            "description": "when it last reported, ISO 8601; empty when it does not report (one host)"
+          },
+          "interval_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval S",
+            "description": "seconds between its reports; null when it does not report"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs",
+            "description": "its runs"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running",
+            "description": "its runs whose process is alive"
+          },
+          "unresponsive": {
+            "type": "integer",
+            "title": "Unresponsive",
+            "description": "its runs last reported alive since it stopped reporting"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "host_id",
+          "up",
+          "last_seen",
+          "interval_s",
+          "runs",
+          "running",
+          "unresponsive"
+        ],
+        "title": "HostSummary",
+        "description": "One host that drives runs."
+      },
+      "Hosts": {
+        "properties": {
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/HostSummary"
+            },
+            "type": "array",
+            "title": "Hosts"
+          },
+          "quota": {
+            "items": {
+              "$ref": "#/components/schemas/AccountQuota"
+            },
+            "type": "array",
+            "title": "Quota",
+            "description": "per credential (account): its first and last utilization reading over every run; highest weekly use first"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hosts"
+        ],
+        "title": "Hosts",
+        "description": "The hosts, and each account's utilization over every run of every host."
+      },
       "InflightPythonTask": {
         "properties": {
           "key": {
@@ -1291,6 +1394,12 @@
             "type": "string",
             "title": "Api Version",
             "description": "Version of this API contract (semver)"
+          },
+          "hosts": {
+            "type": "boolean",
+            "title": "Hosts",
+            "description": "the runs come from many hosts (a hub): `/api/hosts` lists them",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -2546,6 +2655,24 @@
             "type": "boolean",
             "title": "Running",
             "description": "the process that runs it is alive"
+          },
+          "unresponsive": {
+            "type": "boolean",
+            "title": "Unresponsive",
+            "description": "its host last reported it alive and has stopped reporting (a hub only)",
+            "default": false
+          },
+          "host_id": {
+            "type": "string",
+            "title": "Host Id",
+            "description": "the host that drives it; empty when its run.json does not say",
+            "default": ""
+          },
+          "run_uid": {
+            "type": "string",
+            "title": "Run Uid",
+            "description": "the id no other run has, on any host; empty when its run.json does not say",
+            "default": ""
           },
           "started_at": {
             "type": "string",

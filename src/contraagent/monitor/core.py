@@ -112,6 +112,7 @@ class Monitor:
         *,
         source: RunSource | None = None,
         liveness: Liveness | None = None,
+        many_hosts: bool = False,
         title: str = "contraagent",
         panels: dict[str, Panel | PanelFn] | None = None,
         task_detail: TaskDetailFn | None = None,
@@ -126,7 +127,9 @@ class Monitor:
         format (`claude`, `omp`) when the monitor runs in another process than
         the one that called `register_normalizer`.
         `source` and `liveness` replace where runs are read from (default: `runs_dir`
-        and this host's `/proc`); a `source` given without `liveness` has no live run."""
+        and this host's `/proc`); a `source` given without `liveness` has no live run.
+        `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts."""
+        self.many_hosts = many_hosts
         self.runs_dir = Path(runs_dir).resolve()
         self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
         if liveness is not None:
@@ -152,6 +155,7 @@ class Monitor:
         """One row per run directory, newest activity first."""
         out: list[dict] = []
         live = self.liveness.live()
+        unresponsive = self.liveness.unresponsive()
         for run in self.source.runs():
             info = self.source.info(run) or {}
             n = ok = not_run = 0
@@ -199,11 +203,38 @@ class Monitor:
                     "last_ts": last,
                     "kinds": kinds,
                     "running": run in live,
+                    "unresponsive": run in unresponsive,
+                    "host_id": info.get("host_id", ""),
+                    "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
                 }
             )
         out.sort(key=lambda r: r["last_ts"], reverse=True)
         return out
+
+    def hosts(self) -> dict:
+        """The hosts that drive the runs, with their runs counted, and each account's first
+        and last utilization reading over every run. A host that drives runs but does not
+        report (it has no heartbeat) is listed as not up."""
+        rows = self.runs()
+        by_host: dict[str, list[dict]] = {}
+        for row in rows:
+            by_host.setdefault(row.get("host_id", ""), []).append(row)
+        reported = {h["host_id"]: h for h in self.liveness.hosts()}
+        hosts = []
+        for host_id in sorted(set(reported) | {h for h in by_host if h}):
+            mine = by_host.get(host_id, [])
+            base = reported.get(host_id) or {"host_id": host_id, "up": False, "last_seen": "", "interval_s": None}
+            hosts.append(
+                {
+                    **base,
+                    "runs": len(mine),
+                    "running": sum(1 for r in mine if r["running"]),
+                    "unresponsive": sum(1 for r in mine if r["unresponsive"]),
+                }
+            )
+        readings = [q for row in rows for a in row["quota"] for q in (a["first"], a["last"])]
+        return {"hosts": hosts, **_first_last(readings)}
 
     def _task_counts(self, run: str, live: bool = False) -> dict:
         """Tasks (not attempts) by how they ended, from the plan's states: the

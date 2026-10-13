@@ -4,6 +4,7 @@ Endpoints (all GET; response models in `api.py`):
 
   /api/info                          Info: title, the panel names the UI should offer, the contract version
   /api/runs                          list[RunSummary]
+  /api/hosts                         Hosts: the hosts that drive the runs, and accounts' utilization over every run
   /api/runs/<run>/journal?since=N    JournalPage: journal rows after line offset N
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
@@ -252,12 +253,17 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     @route("/api/info", api.Info)
     def api_info() -> dict:
         """The title, the panel tabs to offer, and the version of this contract."""
-        return {"title": monitor.title, "panels": monitor.panel_info(), "api_version": api.API_VERSION}
+        return {"title": monitor.title, "panels": monitor.panel_info(), "api_version": api.API_VERSION, "hosts": monitor.many_hosts}
 
     @route("/api/runs", list[api.RunSummary])
     def api_runs() -> list[dict]:
         """Every run directory, newest activity first."""
         return monitor.runs()
+
+    @route("/api/hosts", api.Hosts)
+    def api_hosts() -> dict:
+        """The hosts that drive the runs, and each account's utilization over every run."""
+        return monitor.hosts()
 
     @route("/api/runs/{run}/journal", api.JournalPage)
     def api_journal(run: str, since: int = 0) -> dict:

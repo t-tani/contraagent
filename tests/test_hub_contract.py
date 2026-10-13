@@ -247,5 +247,7 @@ def test_runs_shipped_to_a_hub_have_every_view_of_their_directory(demo_runs, sto
     assert names and sorted(r["run"] for r in remote.runs()) == sorted(f"{n}@h1" for n in names)
     for name in names:
         assert views(remote, f"{name}@h1") == views(local, name), name
-    strip = lambda rows: [{k: v for k, v in r.items() if k not in ("run", "last_ts")} for r in sorted(rows, key=lambda r: r["run"])]
+    strip = lambda rows: [
+        {k: v for k, v in r.items() if k not in ("run", "last_ts", "host_id")} for r in sorted(rows, key=lambda r: r["run"])
+    ]
     assert strip(remote.runs()) == strip(local.runs())

@@ -41,6 +41,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Hosts
+         * @description The hosts that drive the runs, and each account's utilization over every run.
+         */
+        get: operations["api_hosts_api_hosts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run}/journal": {
         parameters: {
             query?: never;
@@ -628,6 +648,57 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * HostSummary
+         * @description One host that drives runs.
+         */
+        HostSummary: {
+            /** Host Id */
+            host_id: string;
+            /**
+             * Up
+             * @description its reports keep arriving (a hub: a heartbeat within the TTL; one host: always)
+             */
+            up: boolean;
+            /**
+             * Last Seen
+             * @description when it last reported, ISO 8601; empty when it does not report (one host)
+             */
+            last_seen: string;
+            /**
+             * Interval S
+             * @description seconds between its reports; null when it does not report
+             */
+            interval_s: number | null;
+            /**
+             * Runs
+             * @description its runs
+             */
+            runs: number;
+            /**
+             * Running
+             * @description its runs whose process is alive
+             */
+            running: number;
+            /**
+             * Unresponsive
+             * @description its runs last reported alive since it stopped reporting
+             */
+            unresponsive: number;
+        };
+        /**
+         * Hosts
+         * @description The hosts, and each account's utilization over every run of every host.
+         */
+        Hosts: {
+            /** Hosts */
+            hosts: components["schemas"]["HostSummary"][];
+            /**
+             * Quota
+             * @description per credential (account): its first and last utilization reading over every run; highest weekly use first
+             */
+            quota?: components["schemas"]["AccountQuota"][];
+        };
+        /**
          * InflightPythonTask
          * @description A Python task running inside the run's own process.
          */
@@ -658,6 +729,12 @@ export type components = {
              * @description Version of this API contract (semver)
              */
             api_version: string;
+            /**
+             * Hosts
+             * @description the runs come from many hosts (a hub): `/api/hosts` lists them
+             * @default false
+             */
+            hosts?: boolean;
         };
         /**
          * JournalMessage
@@ -1283,6 +1360,24 @@ export type components = {
              * @description the process that runs it is alive
              */
             running: boolean;
+            /**
+             * Unresponsive
+             * @description its host last reported it alive and has stopped reporting (a hub only)
+             * @default false
+             */
+            unresponsive?: boolean;
+            /**
+             * Host Id
+             * @description the host that drives it; empty when its run.json does not say
+             * @default
+             */
+            host_id?: string;
+            /**
+             * Run Uid
+             * @description the id no other run has, on any host; empty when its run.json does not say
+             * @default
+             */
+            run_uid?: string;
             /** Started At */
             started_at: string;
         };
@@ -1715,6 +1810,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunSummary"][];
+                };
+            };
+        };
+    };
+    api_hosts_api_hosts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Hosts"];
                 };
             };
         };
