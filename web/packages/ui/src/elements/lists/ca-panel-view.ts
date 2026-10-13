@@ -2,8 +2,8 @@ import type { JsonObject, PanelInfo } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { base } from '../../styles/index.js';
-import '../shared/ca-json-tree.js';
+import { base } from '@contraagent/elements/styles';
+import '@contraagent/elements/json-tree/define';
 
 /** A view the pipeline added (`monitor.Panel`): its body as a JSON tree, updating live. */
 @customElement('ca-panel-view')
@@ -37,7 +37,7 @@ export class CaPanelView extends LitElement {
       <h3><span class="tab-ic" aria-hidden="true">${info?.icon || '▤'}</span>${info?.title || this.name}
         <span class="r">${msg('Custom view')}</span></h3>
       ${info?.description ? html`<div class="meta desc">${info.description}</div>` : nothing}
-      <ca-json-tree .value=${this.data}></ca-json-tree>
+      <cae-json-tree .value=${this.data}></cae-json-tree>
     </section>`;
   }
 }

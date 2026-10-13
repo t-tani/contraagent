@@ -23,8 +23,8 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { facts, kindUnit, localTime, sentence } from '../../words/format.js';
 import { notStartedCause, outcomeLabel, stateCount, stopLabel } from '../../words/index.js';
-import { base } from '../../styles/index.js';
-import { statusPill, statusWord } from '../../lib/status.js';
+import { base } from '@contraagent/elements/styles';
+import { pill, statusWord } from '@contraagent/elements/primitives';
 import { contractTone, outcomeTone } from '../../lib/tone.js';
 import { contractChip, formatOf } from '../shared/contract-parts.js';
 import { contractStatusLabel, contractStatusWhy } from '../../words/contract.js';
@@ -209,7 +209,7 @@ export class CaOverview extends LitElement {
       </div>
       ${shown.map(
         ([c, o]) => html`<div class="fl" @click=${() => this.go('outputs')}>
-          ${statusWord(o.status ? contractStatusLabel(o.status) : '—', contractTone(o.status), { title: o.status ? contractStatusWhy(o.status) : null })}
+          ${statusWord({ text: o.status ? contractStatusLabel(o.status) : '—', tone: contractTone(o.status), title: o.status ? contractStatusWhy(o.status) : null })}
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
           <div class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</div>
@@ -276,7 +276,7 @@ export class CaOverview extends LitElement {
                 <span class="jmono">${u}</span>
                 <span class="meta">${facts(x.step || '—', x.loop_pass ? msg(str`loop pass ${x.loop_pass}`) : '')}</span>
                 <span class="cu-bar" title=${x.completed.length === 1 ? msg('1 step completed') : msg(str`${x.completed.length} steps completed`)}><i style="width:${Math.min(100, 12 * (x.completed.length + 1))}%"></i></span>
-                ${x.inflight.length ? statusPill(msg('running'), 'running', { title: x.inflight.join('\n') }) : nothing}
+                ${x.inflight.length ? pill({ text: msg('running'), tone: 'running', title: x.inflight.join('\n') }) : nothing}
               </div>`,
             )}
           </div>`
@@ -327,7 +327,7 @@ export class CaOverview extends LitElement {
         (p) => {
           const last = p.task.attempts[p.task.attempts.length - 1];
           return html`<div class="fl" @click=${() => this.open(p.task)}>
-            ${statusWord(outcomeLabel('failed'), 'failed')}
+            ${statusWord({ text: outcomeLabel('failed'), tone: 'failed' })}
             <b class="jmono" title=${p.task.key}>${this.name(p.task)}</b><span class="meta">${localTime(last?.ts, true)}</span>
             <div class="meta">${stopLabel(last?.stop)}: ${reason(p.task)}</div>
             ${stoppedLine(p.stopped)}
@@ -338,7 +338,7 @@ export class CaOverview extends LitElement {
         notStarted,
         (t) => t.key,
         (t) => html`<div class="fl" @click=${() => this.open(t)}>
-          ${statusWord(outcomeLabel('not_started'), 'attention')}
+          ${statusWord({ text: outcomeLabel('not_started'), tone: 'attention' })}
           <b class="jmono" title=${t.key}>${this.name(t)}</b><span></span>
           <div class="meta">${notStartedCause(t, outcomes, this.run) ? sentence(notStartedCause(t, outcomes, this.run)) : reason(t)}</div>
         </div>`,
@@ -351,7 +351,7 @@ export class CaOverview extends LitElement {
           const n = t.tries.length;
           const name = this.name(t);
           return html`<div class="fl muted" @click=${() => this.open(t)}>
-            ${statusWord(outcomeLabel('recovered'), outcomeTone('recovered'))}
+            ${statusWord({ text: outcomeLabel('recovered'), tone: outcomeTone('recovered') })}
             <b class="jmono" title=${t.key}>${name}</b><span></span>
             <div class="meta">${fails === 1
               ? msg(str`Done on attempt ${n} after 1 failed attempt`)

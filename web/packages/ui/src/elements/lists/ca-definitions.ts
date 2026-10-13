@@ -5,8 +5,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { factList } from '../../words/format.js';
-import { factLine } from '../shared/fact-line.js';
-import { base } from '../../styles/index.js';
+import { factLine } from '@contraagent/elements/primitives';
+import { base } from '@contraagent/elements/styles';
 
 /** How long to wait before asking again for definitions that have not been recorded yet. */
 const REFETCH_MS = 3000;

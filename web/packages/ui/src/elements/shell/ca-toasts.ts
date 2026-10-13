@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { base } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
 
 /** The notice's status (its mark and the colour of its edge); `agent` is a model switch, which is not a status. */
 export type ToastKind = 'done' | 'failed' | 'attention' | 'running' | 'agent';

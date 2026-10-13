@@ -38,13 +38,15 @@ import {
   stopLabel,
 } from '../../words/index.js';
 import { accountReading, readingShort, readingTip } from '../../words/quota.js';
-import { outcomePill, statusPill } from '../../lib/status.js';
-import { stopTone, type Tone } from '../../lib/tone.js';
+import { outcomeMark, outcomeTone, stopTone, type Tone } from '../../lib/tone.js';
+import { toneAttr } from '@contraagent/elements';
+import { pill } from '@contraagent/elements/primitives';
 import { TASK_VIEWS, type TaskView } from '../../core/route.js';
-import { base, executorIconStyles } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
+import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import '../shared/ca-definition.js';
-import '../shared/ca-json-tree.js';
-import '../shared/ca-markdown.js';
+import '@contraagent/elements/json-tree/define';
+import { promptText } from '../shared/prompt-text.js';
 import { contractChip, contractStyles, ioFileCard } from '../shared/contract-parts.js';
 import { type Producer } from '../../words/contract.js';
 import { inputView, notPassed, type EarlierTask, type InputFile } from './inputs.js';
@@ -91,6 +93,9 @@ const sameJson = (a: unknown, b: unknown): boolean => {
 const mark = (ok: boolean) =>
   html`<span aria-hidden="true">${ok ? '✓' : '✕'}</span><span class="sr">${ok ? msg('passed') : msg('failed')}</span>`;
 
+
+/** A task's outcome as a pill, in its words. */
+const outcomeChip = (o: Outcome) => pill({ text: outcomeLabel(o), tone: outcomeTone(o), mark: outcomeMark(o) });
 
 /**
  * One task: who ran it, every finished attempt, and four views of it: the
@@ -331,7 +336,7 @@ export class CaTaskView extends LitElement {
     const state = this.stateOf(d, live);
     switch (state) {
       case 'running':
-        return [msg('Running'), ''];
+        return [msg('Running'), 'neutral'];
       case 'waiting':
         return [msg('Waiting'), 'muted'];
       case 'skipped':
@@ -347,7 +352,7 @@ export class CaTaskView extends LitElement {
       default:
         break;
     }
-    if (!last) return [outcomeLabel(state), ''];
+    if (!last) return [outcomeLabel(state), 'neutral'];
     const fails = tries.filter((r) => !r.ok);
     if (fails.length) {
       const why = runRelative(fails[0]?.reason, this.run) || stopLabel(fails[0]?.stop);
@@ -355,24 +360,24 @@ export class CaTaskView extends LitElement {
         fails.length === 1
           ? msg(str`Done on attempt ${tries.length} after 1 failed attempt. First failure: ${why}`)
           : msg(str`Done on attempt ${tries.length} after ${fails.length} failed attempts. First failure: ${why}`),
-        '',
+        'neutral',
       ];
     }
     const corrections = (last.rounds || 1) - 1 + (last.hook_errors ?? []).length;
     if (corrections > 0) {
       const errors = [...(last.hook_errors ?? []).flat(), ...(last.round_errors ?? []).flat(), ...this.rounds.flatMap((r) => r.rejectedWith)];
       const first = errors[0] ? checkMessage(runRelative(errors[0], this.run)) : '';
-      if (!first) return [corrections === 1 ? msg('Done after 1 correction') : msg(str`Done after ${corrections} corrections`), ''];
+      if (!first) return [corrections === 1 ? msg('Done after 1 correction') : msg(str`Done after ${corrections} corrections`), 'neutral'];
       return [
         corrections === 1
           ? msg(str`Done after 1 correction. First failed check: ${first}`)
           : msg(str`Done after ${corrections} corrections. First failed check: ${first}`),
-        '',
+        'neutral',
       ];
     }
     const sw = modelSwitch(last.hops);
-    if (sw) return [msg(str`Done after a model switch: ${sw}`), ''];
-    return [msg('Done'), ''];
+    if (sw) return [msg(str`Done after a model switch: ${sw}`), 'neutral'];
+    return [msg('Done'), 'neutral'];
   }
 
   /** The model of the latest round, as its launch named it (`--model`). */
@@ -407,10 +412,10 @@ export class CaTaskView extends LitElement {
     const node = this.plan?.nodes.find((n) => n.key === d.key);
     return html`<div class="taskmeta">
       <div class="tm-head">
-        <span class="tm-av ${py ? 'py' : ''}" title=${kindName}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
+        ${executorIcon(py, kindName, `tm-av ${py ? 'py' : ''}`)}
         <div style="min-width:0">
-          <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? statusPill(msg('running'), 'running') : nothing}</div>
-          <div class="verdict" data-tone=${tone || nothing}>${verdict}</div>
+          <div class="tm-name" title=${key}>${first ? kindUnit(first) : node ? kindUnit(node) : key.replace(/^python:/, '')} ${live ? pill({ text: msg('running'), tone: 'running' }) : nothing}</div>
+          <div class="verdict" data-tone=${toneAttr(tone)}>${verdict}</div>
           ${session
             ? html`<div class="whos">
                 ${whoChips(who)}${this.identityChip(tries)}
@@ -443,7 +448,7 @@ export class CaTaskView extends LitElement {
         </details>`,
       )}
       ${extras.map(
-        ([k, v]) => html`<details class="io-fold"><summary>${k}</summary><ca-json-tree .value=${v}></ca-json-tree></details>`,
+        ([k, v]) => html`<details class="io-fold"><summary>${k}</summary><cae-json-tree .value=${v}></cae-json-tree></details>`,
       )}
     </div>`;
   }
@@ -567,7 +572,7 @@ export class CaTaskView extends LitElement {
               const from = source(v);
               return html`<tr>
                 <td class="jmono">${k}</td>
-                <td>${v !== null && typeof v === 'object' ? html`<ca-json-tree .value=${v} .open=${0}></ca-json-tree>` : html`<span class="jmono">${valueText(v)}</span>`}</td>
+                <td>${v !== null && typeof v === 'object' ? html`<cae-json-tree .value=${v} .open=${0}></cae-json-tree>` : html`<span class="jmono">${valueText(v)}</span>`}</td>
                 <td>${from ? html`<span class="from">${msg(html`From ${this.link(from)}`)}</span>` : nothing}</td>
               </tr>`;
             })}
@@ -585,7 +590,7 @@ export class CaTaskView extends LitElement {
     const u = f.from;
     const state = u ? this.outcomes.get(u.key)?.outcome : undefined;
     const origin = u
-      ? html`<span>${msg(html`Output of ${this.link(u)}`)}</span>${state && state !== 'done' ? outcomePill(state, outcomeLabel(state)) : nothing}`
+      ? html`<span>${msg(html`Output of ${this.link(u)}`)}</span>${state && state !== 'done' ? outcomeChip(state) : nothing}`
       : msg('File from before the run');
     // Written by an earlier task: that task's check of it ("passed", "not written (task failed)").
     const st = f.out?.status;
@@ -604,9 +609,9 @@ export class CaTaskView extends LitElement {
       ? msg('No output files')
       : facts(n === 1 ? msg('1 output file') : msg(str`${n} output files`), e.read ? (e.read === 1 ? msg('1 read by this task') : msg(str`${e.read} read by this task`)) : '');
     const head = html`<div class="up-hd">
-      <span class="k-ic ${isPython(u) ? '' : 'llm'}" title=${kindName}><span aria-hidden="true">${isPython(u) ? '⚙' : '✦'}</span><span class="sr">${kindName}</span></span>
+      ${executorIcon(isPython(u), kindName)}
       ${this.link(u)}
-      ${state ? outcomePill(state, outcomeLabel(state)) : nothing}
+      ${state ? outcomeChip(state) : nothing}
       <span class="meta">${summary}</span>
     </div>`;
     if (!e.rest.length) return html`<div class="upstream">${head}</div>`;
@@ -631,7 +636,7 @@ export class CaTaskView extends LitElement {
         ? html` <span class="meta">${roundLabel(info, tries, names[info.tryNo - 1])}: ${roundWhy(info, starts[info.tryNo - 1] !== starts[info.tryNo - 2])}</span>`
         : nothing}</h4>
       ${prompt
-        ? html`<ca-markdown .text=${prompt}></ca-markdown>`
+        ? promptText(prompt)
         : html`<div class="meta">${d.stream
             ? msg('Loading…')
             : this.hadSession(d)
@@ -698,7 +703,7 @@ export class CaTaskView extends LitElement {
       ${last
         ? html`<h4 class="sect-h">${msg('Outcome')}</h4>
             <div class="ct-in">
-              ${statusPill(stopLabel(last.stop, last.reason), stopTone(last.stop))}
+              ${pill({ text: stopLabel(last.stop, last.reason), tone: stopTone(last.stop) })}
               ${isLaunched(last) ? html`<span class="meta">${facts(attemptLabel(last.attempt), fmtDur(last.wall_s), correctionsOf(last))}</span>` : nothing}
 
             </div>`

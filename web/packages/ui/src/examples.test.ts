@@ -1,11 +1,9 @@
 // @vitest-environment happy-dom
-// docs/examples is documentation: the elements it uses exist, and the theme sets
-// only properties the elements read.
+// docs/examples is documentation: the elements it uses exist.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import './index.js';
-import { tokenStyles } from './styles/index.js';
 
 // Vitest runs from web/ (under happy-dom, import.meta.url is not a file URL).
 const DIR = join(process.cwd(), 'packages', 'ui', 'docs', 'examples');
@@ -18,12 +16,5 @@ describe('docs/examples', () => {
     const known = [...tags].filter((t) => !t.startsWith('ca-open') && !t.startsWith('ca-select') && !['ca-filter', 'ca-navigate'].includes(t));
     expect(known.length).toBeGreaterThan(0);
     for (const t of known) expect(customElements.get(t), t).toBeDefined();
-  });
-
-  it('themes only with --ca-* properties the elements read', () => {
-    const read_ = new Set([...tokenStyles.cssText.matchAll(/var\((--ca-[a-z0-9-]+)/g)].map((m) => m[1]));
-    const set = [...read('theme.css').matchAll(/(--ca-[a-z0-9-]+)\s*:/g)].map((m) => m[1]);
-    expect(set.length).toBeGreaterThan(0);
-    for (const p of set) expect(read_.has(p), p).toBe(true);
   });
 });

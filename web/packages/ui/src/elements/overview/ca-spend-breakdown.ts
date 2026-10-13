@@ -5,7 +5,8 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { facts, kindUnit, tokenCount, usd } from '../../words/format.js';
-import { base, legendStyles } from '../../styles/index.js';
+import { base } from '@contraagent/elements/styles';
+import { legend, legendStyles } from '@contraagent/elements/primitives';
 
 type Part = 'input' | 'cache_read' | 'cache_creation' | 'output';
 const PARTS: readonly Part[] = ['input', 'cache_read', 'cache_creation', 'output'];
@@ -82,7 +83,7 @@ export class CaSpendBreakdown extends LitElement {
             <span class="num share">${k.share !== null ? `${Math.round(k.share * 100)}%` : ''}</span>`,
         )}
       </div>
-      <div class="legend">${PARTS.map((p) => html`<span><i class="seg-${p}"></i>${this.partLabel(p)}</span>`)}</div>
+      ${legend(PARTS.map((p) => ({ label: this.partLabel(p), cls: `seg-${p}` })))}
       <h4>${msg('Most expensive tasks')}</h4>
       <div class="top">
         ${tasks.map(

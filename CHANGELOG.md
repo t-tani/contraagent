@@ -256,17 +256,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   header's theme control changes the theme at once and remembers it; System
   follows the system's colour scheme. `<ca-monitor theme="...">` fixes it;
   `data-ca-theme` on any ancestor themes any element; `--ca-*` properties still
-  override one token at a time. `@contraagent/ui/themes` holds the themes as data.
+  override one token at a time. `@contraagent/elements/themes` holds the themes
+  as data, and `adoptThemes()` adds their rules to a document or a shadow root.
   New properties: `--ca-backdrop`, `--ca-shadow`, `--ca-focus`,
   `--ca-focus-width`, `--ca-selection`, `--ca-tint`, `--ca-color-scheme`. The
   example of a theme of one's own is Solarized Light.
 - A type and radius scale for the elements: `--ca-font-size-xs`, `-sm`, `-md`,
   `-lg`, `-xl`, `-2xl` (10, 11, 12, 13, 15 and 28 px) and `--ca-radius-sm`,
   `-md`, `-lg`, `-pill` (4, 8, 12 and 999 px), the same in every theme. The
-  shared stylesheets read them; `@contraagent/ui` exports each shared sheet
-  (`resetStyles`, `textStyles`, `statusStyles`, `chipStyles`, `layoutStyles`,
-  `motionStyles`, `meterStyles`, `legendStyles`, `executorIconStyles`,
-  `factStyles`), and `base` is the list every element starts from.
+  shared stylesheets read them; `@contraagent/elements/styles` exports each
+  shared sheet (`resetStyles`, `textStyles`, `statusStyles`, `chipStyles`,
+  `layoutStyles`, `motionStyles`, `meterStyles`, `factStyles`), and `base` is
+  the list every element starts from.
+- `@contraagent/elements`: generic web components and their parts, with no
+  contraagent data and no localization library (Lit is a peer dependency):
+  - the design tokens, the shared stylesheets and the built-in themes;
+  - primitives: a tone (`Tone`: failed, attention, done, running, muted,
+    neutral) and status pills (`pill`, `statusWord`, `statusChip`), `legend`,
+    `factLine`, `icon`, `RovingFocusController` (one tab stop for a group of
+    items) and `windowRows`;
+  - elements: `<cae-segmented>` (one choice among a few, a radio group that
+    sends `cae-change`), `<cae-json-tree>`, `<cae-markdown>` (its words in
+    `strings`), `<cae-count>` and `<cae-elapsed>`, with markdown and code
+    highlighting (`md`, `mdFile`, `highlight`).
+  Importing a module registers nothing: `@contraagent/elements/define` registers
+  every `cae-*` element, and `…/segmented/define`, `…/json-tree/define`,
+  `…/markdown/define` and `…/count/define` one each. Its documentation:
+  primitives, theming and strings.
 
 ### Fixed
 
@@ -371,6 +387,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `ca-json-tree`, `ca-markdown`, `ca-count` and `ca-elapsed` are
+  `cae-json-tree`, `cae-markdown`, `cae-count` and `cae-elapsed` in
+  `@contraagent/elements`. `@contraagent/ui` no longer exports the styles,
+  the themes, markdown (`md`, `mdFile`, `highlight`) or these elements, and
+  `@contraagent/ui/themes` is `@contraagent/elements/themes`.
+- The pipeline graph's Graph | Table switch and the header's language switch
+  are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
+  The legends are lists for screen readers.
 - The monitor writes a list of names (tasks, passes, models, identities) as the
   page's language writes a list: "a, b, and c" in English, "a、b、c" in
   Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).

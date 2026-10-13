@@ -3,10 +3,10 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { highlight } from '../../lib/highlight.js';
-import { instructionsHtml, markInstructions, mdFile } from '../../lib/markdown.js';
+import { highlight, mdFile } from '@contraagent/elements/markdown';
+import { instructionsHtml, markInstructions } from '../../words/prompt.js';
 import { RememberedSet } from '../../core/memory.js';
-import { base, factStyles, prose } from '../../styles/index.js';
+import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
 
 const OPEN_FIRST = new Set(['instructions', 'schema', 'agent']);

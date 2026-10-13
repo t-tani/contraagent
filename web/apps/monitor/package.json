@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@contraagent/api": "workspace:*",
+    "@contraagent/elements": "workspace:*",
     "@contraagent/ui": "workspace:*"
   },
   "devDependencies": {

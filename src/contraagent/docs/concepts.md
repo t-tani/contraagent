@@ -105,7 +105,8 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |
-| **element** | a web component of `@contraagent/ui` (`ca-*`) | `CaMonitor`, `CaTranscript`, ... |
+| **element** | a web component: `ca-*` in `@contraagent/ui`, `cae-*` in `@contraagent/elements` | `CaMonitor`, `CaTranscript`, `CaeSegmented`, ... |
+| **tone** | the status colour a value takes: failed, attention, done, running, muted, neutral | `Tone`, `data-tone` |
 | **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | route `sel`, `markSel`, `selected` |
 | **inspector** | the card beside the selection in the pipeline graph's frame (a sheet under the frame on a narrow screen) that shows its facts and where it leads | `ca-pipeline-graph` |
 | **run start** | one start of a run over its directory: the first, or a resume; a task numbers its attempts from 0 in each | `run.json` `started_at` (the latest), `runStarts` |

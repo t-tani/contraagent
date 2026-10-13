@@ -1,27 +1,37 @@
 ---
-// Each element's properties, attributes and events, from the custom elements
-// manifest the UI package's build writes (custom-elements.json).
+// Each element's properties, attributes, events and parts, from the custom
+// elements manifests the packages' builds write (custom-elements.json), by package.
 import { inlineMd as md, repoJson } from '../lib/repo';
 
 interface Member { kind: string; name: string; privacy?: string; static?: boolean; type?: { text: string }; description?: string; attribute?: string; default?: string; readonly?: boolean }
 interface Ev { name: string; description?: string }
-interface Decl { kind: string; name: string; tagName?: string; description?: string; members?: Member[]; events?: Ev[] }
+interface Part { name: string; description?: string }
+interface Decl { kind: string; name: string; tagName?: string; description?: string; members?: Member[]; events?: Ev[]; cssParts?: Part[] }
 interface Manifest { modules: { path: string; declarations?: Decl[] }[] }
 
-const manifest = repoJson<Manifest>('web/packages/ui/custom-elements.json');
+const PACKAGES = [
+  { name: '@contraagent/ui', manifest: 'web/packages/ui/custom-elements.json' },
+  { name: '@contraagent/elements', manifest: 'web/packages/elements/custom-elements.json' },
+];
 const INTERNAL = new Set(['ca-clock']);
-const elements = manifest.modules
-  .flatMap((m) => (m.declarations ?? []).map((d) => ({ ...d, path: m.path })))
-  .filter((d) => d.tagName && !INTERNAL.has(d.tagName))
-  .sort((a, b) => a.tagName!.localeCompare(b.tagName!));
+const groups = PACKAGES.map((p) => ({
+  ...p,
+  elements: repoJson<Manifest>(p.manifest)
+    .modules.flatMap((m) => (m.declarations ?? []).map((d) => ({ ...d, path: m.path })))
+    .filter((d) => d.tagName && !INTERNAL.has(d.tagName))
+    .sort((a, b) => a.tagName!.localeCompare(b.tagName!)),
+}));
 const props = (d: Decl) =>
   (d.members ?? []).filter((m) => m.kind === 'field' && !m.static && !m.privacy && !m.name.startsWith('_') && m.name !== 'styles');
 ---
 
 {
-  elements.map((d) => (
+  groups.map((g) => (
+    <>
+    <h2 id={g.name}><code>{g.name}</code></h2>
+    {g.elements.map((d) => (
     <section>
-      <h2 id={d.tagName}><code>&lt;{d.tagName}&gt;</code></h2>
+      <h3 id={d.tagName}><code>&lt;{d.tagName}&gt;</code></h3>
       <p set:html={md(d.description)} />
       <p class="meta">
         <code>{d.name}</code> · <code>{d.path}</code>
@@ -54,6 +64,21 @@ const props = (d: Decl) =>
           </tbody>
         </table>
       )}
+      {(d.cssParts ?? []).length > 0 && (
+        <table>
+          <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+          <tbody>
+            {d.cssParts!.map((p) => (
+              <tr>
+                <td><code>{p.name}</code></td>
+                <td set:html={md(p.description)} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
+    ))}
+    </>
   ))
 }

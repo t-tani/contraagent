@@ -6,8 +6,10 @@ import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { facts, fmtDur, localTime, tokenCount, usd } from '../../words/format.js';
 import { notStartedCause, passLabel, taskStatusLabel, waitCause } from '../../words/index.js';
-import { outcomePill } from '../../lib/status.js';
-import { base, executorIconStyles, meterStyles } from '../../styles/index.js';
+import { outcomeMark, outcomeTone } from '../../lib/tone.js';
+import { pill } from '@contraagent/elements/primitives';
+import { base, meterStyles } from '@contraagent/elements/styles';
+import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import { filterTasks, sortTasks } from './filters.js';
 
 /**
@@ -110,7 +112,7 @@ export class CaTaskTable extends LitElement {
           return html`<div class="trow ${running ? 'running' : ''} ${py ? 'py' : ''}"
             @click=${() => emit(this, 'ca-open-task', py ? { key: t.key, view: 'output' } : { key: t.key })}>
             <span class="grow jmono" title=${t.key}>
-              <span class="k-ic ${py ? '' : 'llm'}" title=${py ? msg('Python task') : msg('Agent task')}><span aria-hidden="true">${py ? '⚙' : '✦'}</span><span class="sr">${py ? msg('Python task') : msg('Agent task')}</span></span>${t.kind}
+              ${executorIcon(py, py ? msg('Python task') : msg('Agent task'))}${t.kind}
               ${t.unit ? html`<span class="jdim">· ${t.unit}</span>` : nothing}${pass !== null ? html`<span class="pass">${passLabel(pass)}</span>` : nothing}
             </span>
             <span class="num">${t.tries.length}</span>
@@ -120,7 +122,7 @@ export class CaTaskTable extends LitElement {
               : html`<span class="jdim">${msg('none', { id: 'none', desc: 'An empty value' })}</span><span class="jdur" style="visibility:hidden"></span>`}</span>
             ${this.spendCells(ran, spend.get(t.key))}
             <span class="num meta">${ran ? localTime(t.tries[t.tries.length - 1]?.ts, true) : msg('none', { id: 'none', desc: 'An empty value' })}</span>
-            <span class="st">${outcomePill(t.outcome, taskStatusLabel(t.outcome, this.live), t.last_stop)}${cause
+            <span class="st">${pill({ text: taskStatusLabel(t.outcome, this.live), tone: outcomeTone(t.outcome), mark: outcomeMark(t.outcome), title: t.last_stop })}${cause
               ? html`<span class="cause">${cause}</span>`
               : nothing}</span>
           </div>`;

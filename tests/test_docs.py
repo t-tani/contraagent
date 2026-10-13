@@ -102,7 +102,8 @@ def test_the_demo_tests_pass_on_the_stub_agent():
 def test_every_page_of_every_package_expands(tmp_path):
     """Each quote resolves: what `contraagent docs` prints and the site renders."""
     root = docs.DIR.parents[2]
-    for index, home in ((docs.INDEX, docs.DIR), (root / "web/packages/ui/README.md", root / "web/packages/ui")):
+    packages = [root / "web/packages" / p for p in ("ui", "elements")]
+    for index, home in ((docs.INDEX, docs.DIR), *((p / "README.md", p) for p in packages)):
         for page in [index, *(e.path for e in docs.entries(index))]:
             docs.expand(page, home)
     assert 'title="examples/demo/tasks.py"' in docs.text("tasks") and "def docs_one_review(" in docs.text("tasks")

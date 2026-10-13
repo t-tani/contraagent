@@ -2,12 +2,12 @@ import { runAccounts, type JournalRow, type QuotaReading } from '@contraagent/ap
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { ClockController } from '../../core/clock.js';
+import { ClockController } from '@contraagent/elements';
 import { localTime } from '../../words/format.js';
 import { credentialLabel } from '../../words/index.js';
 import { pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
-import { statusPill } from '../../lib/status.js';
-import { base } from '../../styles/index.js';
+import { pill } from '@contraagent/elements/primitives';
+import { base } from '@contraagent/elements/styles';
 
 type Window = 'five_hour' | 'seven_day';
 
@@ -75,7 +75,7 @@ export class CaQuota extends LitElement {
       const status = quotaStatusLabel(a.last.status);
       return html`<div class="acct">
         <div class="acct-h"><i>${msg('Identity')}</i><b>${credentialLabel(a.credential) || '—'}</b>${status
-            ? statusPill(status, 'attention', { title: a.last.status, mark: null })
+            ? pill({ text: status, tone: 'attention', title: a.last.status, mark: null })
             : nothing}</div>
         <div class="rows">
           ${this.row('seven_day', msg('Weekly usage'), a.first, a.last)} ${this.row('five_hour', msg('5-hour usage'), a.first, a.last)}

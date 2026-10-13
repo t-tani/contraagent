@@ -8,7 +8,7 @@ describe('problemTone', () => {
     expect(problemTone(4, 'failed')).toBe('failed');
     expect(problemTone(1, 'attention')).toBe('attention');
     // a 0 is neutral: not green, not red
-    expect(problemTone(0, 'failed')).toBe('');
+    expect(problemTone(0, 'failed')).toBe('neutral');
   });
 });
 
@@ -19,8 +19,8 @@ describe('runTone', () => {
     expect(runTone(false, t(1, 1))).toBe('failed');
     expect(runTone(false, t(0, 1))).toBe('attention');
     expect(runTone(false, t(0, 0))).toBe('done');
-    expect(runTone(false, t(0, 0, 0))).toBe('');
-    expect(runTone(false, undefined)).toBe('');
+    expect(runTone(false, t(0, 0, 0))).toBe('neutral');
+    expect(runTone(false, undefined)).toBe('neutral');
   });
 });
 
@@ -75,6 +75,6 @@ describe('outcomeTone and contractTone', () => {
     expect(outcomes.map(outcomeTone)).toEqual(['done', 'done', 'failed', 'attention', 'running', 'muted', 'muted']);
     const statuses = ['valid', 'invalid', 'failed', 'refused', 'running', 'pending'] as const;
     expect(statuses.map(contractTone)).toEqual(['done', 'failed', 'failed', 'attention', 'running', 'muted']);
-    expect(contractTone(undefined)).toBe('');
+    expect(contractTone(undefined)).toBe('neutral');
   });
 });

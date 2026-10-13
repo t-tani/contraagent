@@ -5,10 +5,10 @@ import { customElement, property } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
 import { factList, facts, fmtDur, kindUnit, tokenCount, usd } from '../../words/format.js';
 import { stateCount } from '../../words/index.js';
-import { base } from '../../styles/index.js';
-import '../shared/ca-count.js';
-import { factLine } from '../shared/fact-line.js';
-import { markOf } from '../../lib/status.js';
+import { base } from '@contraagent/elements/styles';
+import '@contraagent/elements/count/define';
+import { toneAttr } from '@contraagent/elements';
+import { factLine, markOf, type Fact } from '@contraagent/elements/primitives';
 import { problemTone, type Tone } from '../../lib/tone.js';
 import { kpis } from './kpis-model.js';
 
@@ -46,17 +46,6 @@ function notStartedCauses(outcomes: Iterable<TaskOutcome>): string[] {
     if (!ps.length && t.cause) earlier = true;
   }
   return factList(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
-}
-
-/** A fact that is a status ("1 failed"): shown in that status's colour. */
-interface Fact {
-  text: string;
-  tone: Tone;
-}
-
-/** One line of facts, each kept whole (as `factLine`), a status fact in its colour. */
-function tonedFacts(fs: readonly Fact[]): TemplateResult {
-  return html`${fs.filter((f) => f.text).map((f, i) => html`${i ? ' | ' : ''}<span class="f tone-text" data-tone=${f.tone || nothing}>${f.text}</span>`)}`;
 }
 
 const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -120,16 +109,16 @@ export class CaKpis extends LitElement {
     const { outcomes, counts: c } = deriveRun(this.journal, this.plan);
     // The total is neutral; the parts that are problems carry their own status.
     const parts: Fact[] = [
-      { text: stateCount('done', c.doneTotal), tone: '' },
-      { text: c.skipped ? stateCount('skipped', c.skipped) : '', tone: '' },
+      { text: stateCount('done', c.doneTotal), tone: 'neutral' },
+      { text: c.skipped ? stateCount('skipped', c.skipped) : '', tone: 'neutral' },
       { text: c.failed ? stateCount('failed', c.failed) : '', tone: problemTone(c.failed, 'failed') },
       { text: c.not_started ? stateCount('not_started', c.not_started) : '', tone: problemTone(c.not_started, 'attention') },
     ];
     return [
-      { id: 'tasks', tone: '', label: msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), value: c.total, sub: [[]], parts },
+      { id: 'tasks', tone: 'neutral', label: msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), value: c.total, sub: [[]], parts },
       {
         id: 'attempts',
-        tone: '',
+        tone: 'neutral',
         label: msg('Attempts'),
         value: k.attempts,
         sub: [factList(k.launches === 1 ? msg('1 agent session') : msg(str`${k.launches} agent sessions`), k.python === 1 ? msg('1 Python task attempt') : msg(str`${k.python} Python task attempts`))],
@@ -154,7 +143,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'wall',
-        tone: '',
+        tone: 'neutral',
         label: msg('Agent session time'),
         value: fmtDur(k.launchWall),
         sub: [[msg(str`Python tasks: ${fmtDur(k.pythonWall)}`)]],
@@ -162,7 +151,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'retry',
-        tone: '',
+        tone: 'neutral',
         label: msg('Retries'),
         value: k.retries,
         sub: [[!k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`)]],
@@ -171,7 +160,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'ct',
-        tone: '',
+        tone: 'neutral',
         label: msg('Corrections'),
         value: k.fixups,
         sub: [[!k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`)]],
@@ -180,7 +169,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'fo',
-        tone: '',
+        tone: 'neutral',
         label: msg('Model switches'),
         value: k.switches,
         sub: [[!k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`)]],
@@ -197,7 +186,7 @@ export class CaKpis extends LitElement {
     return [
       {
         id: 'cost',
-        tone: '',
+        tone: 'neutral',
         label: msg('Cost'),
         value: usd(s.cost),
         sub: top && top.share !== null ? [[msg(str`Highest cost: ${top.kind}`)], factList(usd(top.spend.cost), msg(str`${Math.round(top.share * 100)}% of the total`))] : [[]],
@@ -205,7 +194,7 @@ export class CaKpis extends LitElement {
       },
       {
         id: 'tokens',
-        tone: '',
+        tone: 'neutral',
         label: msg('Tokens'),
         value: tokenCount(totalTokens(s)),
         sub: [factList(msg(str`${tokenCount(s.input)} input`), msg(str`${tokenCount(s.output)} output`), msg(str`${tokenCount(s.cache_read + s.cache_creation)} cache`))],
@@ -230,11 +219,11 @@ export class CaKpis extends LitElement {
   }
 
   private tile(t: Tile): TemplateResult {
-    return html`<div class="kpi" data-tone=${t.tone || nothing} data-id=${t.id} title=${t.tip ?? nothing}>
+    return html`<div class="kpi" data-tone=${toneAttr(t.tone)} data-id=${t.id} title=${t.tip ?? nothing}>
       <div class="k words" data-mark=${markOf(t.tone) ?? nothing}>${t.label}</div>
-      <div class="v">${typeof t.value === 'number' ? html`<ca-count .value=${t.value}></ca-count>` : t.value}</div>
+      <div class="v">${typeof t.value === 'number' ? html`<cae-count .value=${t.value}></cae-count>` : t.value}</div>
       ${t.parts
-        ? html`<div class="s words">${tonedFacts(t.parts)}</div>`
+        ? html`<div class="s words">${factLine(t.parts)}</div>`
         : t.sub.map((line) => html`<div class="s words">${factLine(line)}</div>`)}
       ${t.action
         ? html`<div class="a words"><a class="lnk" href="#" @click=${(e: Event) => {

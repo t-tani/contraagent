@@ -11,6 +11,9 @@ const UI = 'packages/ui/src';
 const UI_FOLDERS = readdirSync(new URL(`./${UI}/elements`, import.meta.url), { withFileTypes: true })
   .filter((d) => d.isDirectory())
   .map((d) => d.name);
+/** The folders of @contraagent/elements in layer order: a folder imports only from itself and the ranks before it. */
+const ELEMENTS = 'packages/elements/src';
+const ELEMENTS_LAYERS = [['core'], ['themes'], ['styles'], ['primitives'], ['table', 'graph', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'], ['define']];
 /** `elements/<a>` may import only itself and `shared/`; these imports wait for a later phase. */
 /** @type {Record<string, string[]>} */
 const CROSS_FOLDER_GAPS = {};
@@ -37,7 +40,7 @@ const LAYERS = [
     patterns: [{ group: ['lit', 'lit/*', '@lit/*', '@contraagent/ui', '@contraagent/ui/*', '@contraagent/elements', '@contraagent/elements/*'], message: '@contraagent/api has no UI.' }],
   },
   { files: [`${UI}/core/**/*.ts`], patterns: [intoElements, intoWordsOrLib] },
-  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`, `${UI}/styles/**/*.ts`, `${UI}/themes/**/*.ts`], patterns: [intoElements] },
+  { files: [`${UI}/words/**/*.ts`, `${UI}/lib/**/*.ts`], patterns: [intoElements] },
   ...UI_FOLDERS.flatMap((a) => {
     const others = UI_FOLDERS.filter((b) => b !== a && b !== 'shared');
     const gaps = Object.entries(CROSS_FOLDER_GAPS).filter(([f]) => f.startsWith(`${UI}/elements/${a}/`));
@@ -46,9 +49,21 @@ const LAYERS = [
       ...gaps.map(([f, allowed]) => ({ files: [f], patterns: others.map((b) => intoFolder(b, allowed.filter((x) => x.startsWith(`${b}/`)))) })),
     ];
   }),
-  // The generic package (from P8): no contraagent code, no localization.
+  // The generic package: no contraagent code, no localization; and inside it, a
+  // folder imports only from itself and the ranks before it (ELEMENTS_LAYERS).
   ...(existsSync(new URL('./packages/elements', import.meta.url))
-    ? [{ files: ['packages/elements/src/**/*.ts'], patterns: [{ group: ['@contraagent/*', '@lit/localize', '@lit/localize/*'], message: '@contraagent/elements is generic.' }] }]
+    ? ELEMENTS_LAYERS.flatMap((r, i) =>
+        r.map((a) => ({
+          files: [`${ELEMENTS}/${a}/**/*.ts`],
+          patterns: [
+            { group: ['@contraagent/*', '@lit/localize', '@lit/localize/*'], message: '@contraagent/elements is generic.' },
+            ...ELEMENTS_LAYERS.slice(i)
+              .flat()
+              .filter((b) => b !== a)
+              .map((b) => ({ regex: `^\\.\\./(\\.\\./)*${b}/`, message: `${a}/ comes before ${b}/ in the layers of @contraagent/elements: it must not import it.` })),
+          ],
+        })),
+      )
     : []),
   // A page imports a package only through its `exports`.
   {
@@ -61,7 +76,7 @@ const LAYERS = [
 ];
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/.astro/**', 'packages/ui/src/locales/**', 'packages/api/src/schema.ts', 'packages/ui/custom-elements.json'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/.astro/**', 'packages/ui/src/locales/**', 'packages/api/src/schema.ts', 'packages/ui/custom-elements.json', 'packages/elements/custom-elements.json'] },
   ...tseslint.configs.recommendedTypeChecked,
   lit.configs['flat/recommended'],
   {

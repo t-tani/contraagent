@@ -5,7 +5,9 @@ The contraagent monitor and each of its views as web components (Lit):
 from the transcript to the timeline. An element renders the data you set on its
 properties and reports what the reader asks for as an event; it never fetches
 unless it is one of the few that tail a live feed. They work in any page or
-framework. The data comes from `@contraagent/api`.
+framework. The data comes from `@contraagent/api`; the generic parts they are
+built from (design tokens, themes, primitives, `cae-*` elements) are
+`@contraagent/elements`.
 
 The words used here (run, task, attempt, round, element, route, ...) are
 contraagent's, each with one meaning: `contraagent docs concepts` in the Python

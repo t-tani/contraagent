@@ -199,6 +199,9 @@ importers:
       '@contraagent/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@contraagent/elements':
+        specifier: workspace:*
+        version: link:../../packages/elements
       '@contraagent/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -218,13 +221,16 @@ importers:
       '@contraagent/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@contraagent/elements':
+        specifier: workspace:*
+        version: link:../../packages/elements
       '@contraagent/ui':
         specifier: workspace:*
         version: link:../../packages/ui
     devDependencies:
       vite:
         specifier: ^8.3.1
-        version: 8.3.1(@types/node@22.20.4)
+        version: 8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1)
 
   packages/api:
     dependencies:
@@ -236,11 +242,23 @@ importers:
         specifier: ^7.13.0
         version: 7.13.0(typescript@5.9.3)
 
+  packages/elements:
+    devDependencies:
+      '@custom-elements-manifest/analyzer':
+        specifier: ^0.11.0
+        version: 0.11.0
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
+
   packages/ui:
     dependencies:
       '@contraagent/api':
         specifier: workspace:*
         version: link:../api
+      '@contraagent/elements':
+        specifier: workspace:*
+        version: link:../elements
     devDependencies:
       '@custom-elements-manifest/analyzer':
         specifier: ^0.11.0
@@ -6174,17 +6192,6 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
-
-  vite@8.3.1(@types/node@22.20.4):
-    dependencies:
-      lightningcss: 1.33.0
-      picomatch: 4.0.7
-      postcss: 8.5.28
-      rolldown: 1.2.11
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 22.20.4
-      fsevents: 2.3.3
 
   vite@8.3.1(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1):
     dependencies:

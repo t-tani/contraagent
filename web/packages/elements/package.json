@@ -1,0 +1,92 @@
+{
+  "name": "@contraagent/elements",
+  "version": "0.1.0",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./primitives": {
+      "source": "./src/primitives/index.ts",
+      "types": "./dist/primitives/index.d.ts",
+      "default": "./dist/primitives/index.js"
+    },
+    "./styles": {
+      "source": "./src/styles/index.ts",
+      "types": "./dist/styles/index.d.ts",
+      "default": "./dist/styles/index.js"
+    },
+    "./themes": {
+      "source": "./src/themes/index.ts",
+      "types": "./dist/themes/index.d.ts",
+      "default": "./dist/themes/index.js"
+    },
+    "./json-tree": {
+      "source": "./src/json/index.ts",
+      "types": "./dist/json/index.d.ts",
+      "default": "./dist/json/index.js"
+    },
+    "./markdown": {
+      "source": "./src/markdown/index.ts",
+      "types": "./dist/markdown/index.d.ts",
+      "default": "./dist/markdown/index.js"
+    },
+    "./count": {
+      "source": "./src/count/index.ts",
+      "types": "./dist/count/index.d.ts",
+      "default": "./dist/count/index.js"
+    },
+    "./define": {
+      "source": "./src/define/all.ts",
+      "types": "./dist/define/all.d.ts",
+      "default": "./dist/define/all.js"
+    },
+    "./json-tree/define": {
+      "source": "./src/define/json-tree.ts",
+      "types": "./dist/define/json-tree.d.ts",
+      "default": "./dist/define/json-tree.js"
+    },
+    "./markdown/define": {
+      "source": "./src/define/markdown.ts",
+      "types": "./dist/define/markdown.d.ts",
+      "default": "./dist/define/markdown.js"
+    },
+    "./count/define": {
+      "source": "./src/define/count.ts",
+      "types": "./dist/define/count.d.ts",
+      "default": "./dist/define/count.js"
+    },
+    "./segmented/define": {
+      "source": "./src/define/segmented.ts",
+      "types": "./dist/define/segmented.d.ts",
+      "default": "./dist/define/segmented.js"
+    },
+    "./custom-elements.json": "./custom-elements.json"
+  },
+  "customElements": "custom-elements.json",
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "custom-elements.json"
+  ],
+  "sideEffects": [
+    "./dist/define/*.js",
+    "./src/define/*.ts"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/**/*.ts' --exclude 'src/**/*.test.ts'",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs"
+  },
+  "peerDependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.11.0",
+    "lit": "^3.3.3"
+  }
+}
