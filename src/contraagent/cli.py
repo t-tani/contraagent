@@ -29,11 +29,21 @@ def main(argv: list[str] | None = None) -> int:
         from contraagent.monitor.server import main as monitor_main
 
         return monitor_main(argv[1:])
+    if argv[:1] == ["relay"]:
+        from contraagent.hub.relay import main as relay_main
+
+        return relay_main(argv[1:])
+    if argv[:1] == ["hub"]:
+        from contraagent.hub.server import main as hub_main
+
+        return hub_main(argv[1:])
     # Output piped into `head` ends quietly, as a command line tool's should.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     ap = argparse.ArgumentParser(prog="contraagent")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("monitor", help="live web monitor for runs (see `contraagent monitor --help`)")
+    sub.add_parser("relay", help="ship this host's runs to a hub (see `contraagent relay --help`)")
+    sub.add_parser("hub", help="receive every host's runs and serve their monitor (see `contraagent hub --help`)")
 
     plugin = sub.add_parser("plugin", help="agent-task plugins: the implementation of an agent task")
     psub = plugin.add_subparsers(dest="pcmd", required=True)

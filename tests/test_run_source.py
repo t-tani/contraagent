@@ -32,7 +32,7 @@ def copy_to_memory(root: Path) -> MemorySource:
     """Every record of every run under `root`, and every file a contract names, held in memory."""
     source = DirectorySource(root)
     records: dict[str, dict] = {}
-    files: dict[str, str] = {}
+    files: dict[str, dict[str, tuple[str, str]]] = {}
     times: dict[str, str] = {}
     for run in source.runs():
         held: dict = {}
@@ -46,10 +46,9 @@ def copy_to_memory(root: Path) -> MemorySource:
         times[run] = source.activity(run) or ""
         for text in source.folder(run, rundir.CONTRACTS):
             for spec in (lambda r: r.get("outputs", []) + r.get("inputs", []))(json.loads(text)):
-                got = source.file(spec["path"])
+                got = source.file(run, spec["path"])
                 if got is not None and got[0] is not None:
-                    files[spec["path"]] = got[0]
-                    times[spec["path"]] = got[2]
+                    files.setdefault(run, {})[spec["path"]] = (got[0], got[2])
     return MemorySource(records, files=files, times=times)
 
 
@@ -101,7 +100,7 @@ def test_an_absent_log_or_document_is_empty_not_an_error(source):
     assert source.document(run, rundir.entry(rundir.CALLS, "no-such-task")) is None
     assert source.folder(run, "no-such-folder") == []
     assert not source.exists(run, "no-such-folder")
-    assert source.file("/no/such/file.json") is None
+    assert source.file(run, "/no/such/file.json") is None
 
 
 def test_size_grows_with_its_log_and_documents_read_whole(source):
@@ -124,6 +123,7 @@ def test_size_grows_with_its_log_and_documents_read_whole(source):
         lambda s: s.folder(s.runs()[0], ".."),
         lambda s: s.exists("..", rundir.JOURNAL),
         lambda s: s.activity("a/b"),
+        lambda s: s.file("../x", "/etc/hostname"),
     ],
 )
 def test_a_name_that_is_not_plain_is_refused_by_every_source(source, call):

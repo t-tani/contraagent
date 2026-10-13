@@ -25,6 +25,8 @@ Layers, bottom up (each imports only the ones above it in this list):
                 hooks declared once and rendered into each agent's own hook system
 * `pipeline/`   `agent_task`, `@python_task`, `Pipeline`: the API a pipeline is written in
 * `monitor/`    a read-only live view of a run, as a library and a web UI
+* `hub/`        the runs of many hosts in one monitor: `contraagent relay` ships a host's runs,
+                `contraagent hub` stores them and serves their monitor
 * `testing`     `StubAgent`: a coding agent that plays scripted replies, for tests
 
 A pipeline declares its tasks (parameters, output, budget), implements each

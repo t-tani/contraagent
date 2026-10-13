@@ -74,7 +74,10 @@ documentation. No other word is used for the same thing.
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |
 | **run uid** / **host id** | the id no other run has, on any host, kept when the run is resumed / the host that drives the run | `run.json` `run_uid` / `host_id` (`CONTRAAGENT_HOST_ID`, else the host name) |
-| **run source** / **liveness** | where the monitor reads runs' records / which runs are live and their processes | `RunSource` (`DirectorySource`, `MemorySource`) / `Liveness` (`ProcLiveness`, `StaticLiveness`), `contraagent/monitor/source.py` |
+| **run source** / **liveness** | where the monitor reads runs' records / which runs are live and their processes | `RunSource` (`DirectorySource`, `MemorySource`, `HubSource`) / `Liveness` (`ProcLiveness`, `StaticLiveness`, `HeartbeatLiveness`), `contraagent/monitor/source.py` |
+| **hub** / **relay** | the server that holds every host's runs and serves their monitor / the process on a host that ships its runs to a hub (never "agent", which is the coding agent) | `contraagent hub`, `Hub`, `HubStore` / `contraagent relay`, `HubClient`; `contraagent/hub/` |
+| **heartbeat** | a relay's report that its host is up, with its runs' live processes; a host's runs are live while its heartbeats keep arriving | `protocol.Heartbeat`, `HeartbeatLiveness` |
+| **blob** | a file's content on a hub, named by its SHA-256 | `BlobStore` |
 | **journal** / **plan** | the finished attempts / the queued tasks | `journal.jsonl` / `plan.jsonl` |
 | **unread event** | an event type a coding agent sent that its reader in this contraagent does not know: a newer coding agent | `LaunchResult.unread_events`, `JournalRow.unread_events` |
 | **web fetch** | the coding agent reading a web page by its URL (Claude Code `WebFetch`, omp `read` of a URL) | a transcript's tool call `web_fetch` |

@@ -64,9 +64,10 @@ class RunSource(Protocol):
         """When the run's records last changed (ISO 8601), or None when unknown."""
         ...
 
-    def file(self, path: str) -> tuple[str | None, int, str] | None:
-        """A file a contract names (a task's input or output): its text (None when it is
-        not text), its byte size and its modification time; None when it does not exist."""
+    def file(self, run: str, path: str) -> tuple[str | None, int, str] | None:
+        """A file one of the run's contracts names (a task's input or output), as the host
+        that drove the run sees it: its text (None when it is not text), its byte size and
+        its modification time; None when it does not exist."""
         ...
 
 
@@ -94,7 +95,7 @@ def _plain(name: str) -> bool:
     return True
 
 
-def _relative(name: str) -> tuple[str, ...]:
+def entry_parts(name: str) -> tuple[str, ...]:
     """A layout name (`streams/<key>.stream.jsonl`) as checked path parts."""
     return tuple(paths.check_name(p, "file name") for p in name.split("/"))
 
@@ -107,7 +108,7 @@ class DirectorySource:
 
     def path(self, run: str, name: str = "") -> Path:
         """`root/<run>/<name>`, refused (`paths.BadName`) when a part is not a plain name."""
-        parts = _relative(name) if name else ()
+        parts = entry_parts(name) if name else ()
         return paths.under(self.root, paths.check_name(run, "run id"), *parts)
 
     def runs(self) -> list[str]:
@@ -164,7 +165,8 @@ class DirectorySource:
         except OSError:
             return None
 
-    def file(self, path: str) -> tuple[str | None, int, str] | None:
+    def file(self, run: str, path: str) -> tuple[str | None, int, str] | None:
+        paths.check_name(run, "run id")
         p = Path(path)
         try:
             st = p.stat()
@@ -194,25 +196,26 @@ class MemorySource:
     """Run records held in memory: `{run: {name: text or list of lines}}`.
 
     A log (`journal.jsonl`, `streams/<key>.stream.jsonl`) is a list of lines; a document
-    (`run.json`, `cursor.json`, `contracts/<name>.json`) is a str. `files` maps a path a
-    contract names to its text, and `times` a run id to its last activity."""
+    (`run.json`, `cursor.json`, `contracts/<name>.json`) is a str. `files` maps a run id
+    to the files its contracts name, `{path: (text, modification time)}`, and `times` a
+    run id to its last activity."""
 
     def __init__(
         self,
         records: Mapping[str, Mapping[str, str | list[str]]] | None = None,
         *,
-        files: Mapping[str, str] | None = None,
+        files: Mapping[str, Mapping[str, tuple[str, str]]] | None = None,
         times: Mapping[str, str] | None = None,
     ) -> None:
         self.records: dict[str, dict[str, str | list[str]]] = {r: dict(v) for r, v in (records or {}).items()}
-        self.files = dict(files or {})
+        self.files = {r: dict(v) for r, v in (files or {}).items()}
         self.times = dict(times or {})
 
     def _run(self, run: str) -> dict[str, str | list[str]]:
         return self.records.get(paths.check_name(run, "run id"), {})
 
     def _get(self, run: str, name: str) -> str | list[str] | None:
-        _relative(name)
+        entry_parts(name)
         return self._run(run).get(name)
 
     def runs(self) -> list[str]:
@@ -237,7 +240,7 @@ class MemorySource:
         return sum(len(line) + 1 for line in every) if isinstance(every, list) else -1
 
     def exists(self, run: str, name: str) -> bool:
-        _relative(name)
+        entry_parts(name)
         held = self._run(run)
         return name in held or any(k.startswith(name + "/") for k in held)
 
@@ -246,7 +249,7 @@ class MemorySource:
         return text if isinstance(text, str) else None
 
     def folder(self, run: str, folder: str) -> list[str]:
-        _relative(folder)
+        entry_parts(folder)
         held = self._run(run)
         prefix = folder + "/"
         names = sorted(k for k in held if k.startswith(prefix) and k.endswith(".json") and "/" not in k[len(prefix) :])
@@ -255,11 +258,12 @@ class MemorySource:
     def activity(self, run: str) -> str | None:
         return self.times.get(paths.check_name(run, "run id"))
 
-    def file(self, path: str) -> tuple[str | None, int, str] | None:
-        text = self.files.get(path)
-        if text is None:
+    def file(self, run: str, path: str) -> tuple[str | None, int, str] | None:
+        got = self.files.get(paths.check_name(run, "run id"), {}).get(path)
+        if got is None:
             return None
-        return text, len(text.encode()), self.times.get(path, "")
+        text, mtime = got
+        return text, len(text.encode()), mtime
 
 
 class StaticLiveness:

@@ -1,0 +1,250 @@
+"""What a hub holds: the records of every host's runs (`HubStore`) and file contents by
+SHA-256 (`BlobStore`).
+
+A `HubStore` stores what relays send (`protocol.RecordBatch`, `protocol.Heartbeat`) and
+answers the reads `source.HubSource` needs, by the run's hub name (`<run_id>@<host_id>`).
+Its storing rules are the protocol's: a log keeps every line once, in order, and refuses a
+chunk that leaves a gap; a document is replaced whole; a batch whose `run_uid` differs from
+the one held under the same name is a new run, which replaces the old one's records.
+
+`MemoryHubStore` and `MemoryBlobs` keep everything in memory (tests, a single-process
+hub); `DirectoryBlobs` keeps blobs as files. The Postgres store and the S3 blobs are in
+`postgres` and `s3`.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import NamedTuple, Protocol
+
+from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch
+
+
+class RunEntry(NamedTuple):
+    """One run the hub holds."""
+
+    name: str
+    run_uid: str
+    host_id: str
+    run_id: str
+
+
+class HubStore(Protocol):
+    """The records of every host's runs."""
+
+    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+        """Store a batch by the protocol's rules; how many lines of each log it named are held."""
+        ...
+
+    def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:
+        """Keep a host's latest heartbeat, and when it arrived."""
+        ...
+
+    def runs(self) -> list[RunEntry]:
+        """Every run held, by name."""
+        ...
+
+    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+        """Lines `since`.. (at most `limit`) of a run's log, and how many it holds; ([], 0) when none."""
+        ...
+
+    def count(self, name: str, log: str) -> int:
+        """How many lines of the log are held; -1 when the run has no such log."""
+        ...
+
+    def document(self, name: str, doc: str) -> str | None:
+        """A document's text, or None."""
+        ...
+
+    def folder(self, name: str, folder: str) -> list[str]:
+        """The texts of the documents directly in `folder`, by document name."""
+        ...
+
+    def exists(self, name: str, entry: str) -> bool:
+        """Whether a log, a document, or a folder holding one is held for the run."""
+        ...
+
+    def file(self, name: str, path: str) -> FileRef | None:
+        """The latest `FileRef` the run's host sent for `path`, or None."""
+        ...
+
+    def activity(self, name: str) -> str | None:
+        """When the hub last received a batch for the run (ISO 8601), or None."""
+        ...
+
+    def heartbeats(self) -> dict[str, tuple[Heartbeat, str]]:
+        """Each host's latest heartbeat and when it arrived."""
+        ...
+
+
+class BlobStore(Protocol):
+    """File contents, named by their SHA-256."""
+
+    def has(self, sha256: str) -> bool: ...
+
+    def put(self, sha256: str, data: bytes) -> None:
+        """Store `data`; `ValueError` when it does not hash to `sha256`."""
+        ...
+
+    def get(self, sha256: str) -> bytes | None: ...
+
+
+def sha256_of(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _check(sha256: str, data: bytes) -> None:
+    if len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+        raise ValueError(f"not a SHA-256 in hex: {sha256!r}")
+    if sha256_of(data) != sha256:
+        raise ValueError(f"content does not hash to {sha256}")
+
+
+@dataclass
+class _Run:
+    entry: RunEntry
+    logs: dict[str, list[str]] = field(default_factory=dict)
+    documents: dict[str, str] = field(default_factory=dict)
+    files: dict[str, FileRef] = field(default_factory=dict)
+    received_at: str = ""
+
+
+def _in_folder(doc: str, folder: str) -> bool:
+    prefix = folder + "/"
+    return doc.startswith(prefix) and "/" not in doc[len(prefix) :]
+
+
+class MemoryHubStore:
+    """A `HubStore` in memory; safe across threads."""
+
+    def __init__(self) -> None:
+        self._runs: dict[str, _Run] = {}
+        self._heartbeats: dict[str, tuple[Heartbeat, str]] = {}
+        self._lock = threading.Lock()
+
+    def put_batch(self, batch: RecordBatch, received_at: str) -> Accepted:
+        ref = batch.run
+        with self._lock:
+            run = self._runs.get(ref.name)
+            if run is None or run.entry.run_uid != ref.run_uid:
+                run = self._runs[ref.name] = _Run(RunEntry(ref.name, ref.run_uid, ref.host_id, ref.run_id))
+            held: dict[str, int] = {}
+            for chunk in batch.logs:
+                lines = run.logs.setdefault(chunk.log, [])
+                if chunk.offset <= len(lines):
+                    lines.extend(chunk.lines[len(lines) - chunk.offset :])
+                held[chunk.log] = len(lines)
+            for doc in batch.documents:
+                if doc.text is None:
+                    run.documents.pop(doc.name, None)
+                else:
+                    run.documents[doc.name] = doc.text
+            for ref_file in batch.files:
+                run.files[ref_file.path] = ref_file
+            run.received_at = received_at
+            return Accepted(logs=held)
+
+    def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:
+        with self._lock:
+            self._heartbeats[heartbeat.host_id] = (heartbeat, received_at)
+
+    def runs(self) -> list[RunEntry]:
+        with self._lock:
+            return [self._runs[n].entry for n in sorted(self._runs)]
+
+    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+        with self._lock:
+            run = self._runs.get(name)
+            every = run.logs.get(log, []) if run else []
+            page = every[since:] if limit is None else every[since : since + limit]
+            return list(page), len(every)
+
+    def count(self, name: str, log: str) -> int:
+        with self._lock:
+            run = self._runs.get(name)
+            return len(run.logs[log]) if run and log in run.logs else -1
+
+    def document(self, name: str, doc: str) -> str | None:
+        with self._lock:
+            run = self._runs.get(name)
+            return run.documents.get(doc) if run else None
+
+    def folder(self, name: str, folder: str) -> list[str]:
+        with self._lock:
+            run = self._runs.get(name)
+            if run is None:
+                return []
+            return [run.documents[d] for d in sorted(run.documents) if _in_folder(d, folder)]
+
+    def exists(self, name: str, entry: str) -> bool:
+        with self._lock:
+            run = self._runs.get(name)
+            if run is None:
+                return False
+            held = [*run.logs, *run.documents]
+            return entry in held or any(k.startswith(entry + "/") for k in held)
+
+    def file(self, name: str, path: str) -> FileRef | None:
+        with self._lock:
+            run = self._runs.get(name)
+            return run.files.get(path) if run else None
+
+    def activity(self, name: str) -> str | None:
+        with self._lock:
+            run = self._runs.get(name)
+            return run.received_at or None if run else None
+
+    def heartbeats(self) -> dict[str, tuple[Heartbeat, str]]:
+        with self._lock:
+            return dict(self._heartbeats)
+
+
+class MemoryBlobs:
+    """A `BlobStore` in memory."""
+
+    def __init__(self) -> None:
+        self._blobs: dict[str, bytes] = {}
+
+    def has(self, sha256: str) -> bool:
+        return sha256 in self._blobs
+
+    def put(self, sha256: str, data: bytes) -> None:
+        _check(sha256, data)
+        self._blobs[sha256] = bytes(data)
+
+    def get(self, sha256: str) -> bytes | None:
+        return self._blobs.get(sha256)
+
+
+class DirectoryBlobs:
+    """A `BlobStore` in a directory: `<root>/<sha[:2]>/<sha>`, written atomically."""
+
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root)
+
+    def _path(self, sha256: str) -> Path:
+        if len(sha256) != 64 or any(c not in "0123456789abcdef" for c in sha256):
+            raise ValueError(f"not a SHA-256 in hex: {sha256!r}")
+        return self.root / sha256[:2] / sha256
+
+    def has(self, sha256: str) -> bool:
+        return self._path(sha256).is_file()
+
+    def put(self, sha256: str, data: bytes) -> None:
+        _check(sha256, data)
+        path = self._path(sha256)
+        if path.is_file():
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(data)
+        tmp.replace(path)
+
+    def get(self, sha256: str) -> bytes | None:
+        try:
+            return self._path(sha256).read_bytes()
+        except OSError:
+            return None

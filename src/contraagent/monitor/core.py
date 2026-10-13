@@ -470,7 +470,7 @@ class Monitor:
         for rec in _parse(self.source.folder(run, rundir.CONTRACTS)):
             row = last.get(rec.get("key", ""))
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
-                spec["file"] = self._file_view(spec["path"])
+                spec["file"] = self._file_view(run, spec["path"])
                 props = (spec.get("schema") or {}).get("properties", {})
                 req = set((spec.get("schema") or {}).get("required", []))
                 spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
@@ -491,8 +491,8 @@ class Monitor:
             return f"list[{Monitor._type_of(prop.get('items', {}))}]"
         return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
 
-    def _file_view(self, path: str, limit: int = 20_000) -> dict:
-        got = self.source.file(path)
+    def _file_view(self, run: str, path: str, limit: int = 20_000) -> dict:
+        got = self.source.file(run, path)
         if got is None:
             return {"exists": False}
         text, size, mtime = got
