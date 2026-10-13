@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documentation examples: "Building a page" in `@contraagent/elements` (a CI pipeline's
+  page from the generic elements, live on the documentation site), and `<ca-monitor>` in
+  a Vite application in `@contraagent/ui`'s "Embed the monitor".
 - `run.json` names the run across hosts: `run_uid`, an id no other run has (kept when
   the run is resumed), and `host_id` (`CONTRAAGENT_HOST_ID`, else the host name).
 - `Monitor(source=..., liveness=...)`: the monitor reads runs through a `RunSource` and a

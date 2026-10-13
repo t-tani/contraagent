@@ -44,6 +44,7 @@ The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
 - [Lanes](docs/lanes.md): bars on a time axis, a lane per group, running bars growing until now.
 - [Check table](docs/check-table.md): named values checked one by one, each with what it must be, what it is and the verdict.
 - [Transcript](docs/transcript.md): a conversation with an agent in sessions: bubbles, reasoning, tool cards and web searches, following the end as it grows.
+- [Building a page](docs/page.md): a CI pipeline's page from several elements: a theme switch, stat tiles, a sortable table, a graph with shards and a retry loop, and a detail panel.
 
 Every element's properties, events and parts are in `custom-elements.json`,
 generated from the sources with the package.
