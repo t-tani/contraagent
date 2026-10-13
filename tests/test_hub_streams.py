@@ -13,11 +13,32 @@ from contraagent import rundir
 from contraagent.hub.client import DirectClient
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import LogChunk, RecordBatch, RunRef
+from contraagent.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
+from contraagent.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
 from contraagent.monitor.source import PAGE_BYTES, page
+from hub_services import (
+    hub_services,  # noqa: F401  # the fixture that stops the containers
+    postgres_dsn,
+    s3_url,
+)
 
-STREAMS: dict[str, Callable[[Path], StreamLogs]] = {"memory": lambda tmp: MemoryStreamLogs()}
+pytestmark = pytest.mark.usefixtures("hub_services")
+
+STREAMS: dict[str, Callable[[Path], StreamLogs]] = {
+    "memory": lambda tmp: MemoryStreamLogs(),
+    # small blocks and segments, so that the tests cross both
+    "segments-memory": lambda tmp: SegmentedStreamLogs(
+        tmp / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=2048, segment_bytes=20_000
+    ),
+    "segments-directory": lambda tmp: SegmentedStreamLogs(
+        tmp / "hot", DirectorySegmentObjects(tmp / "objects"), MemorySegmentIndex(), block_bytes=4096, background=False
+    ),
+    "segments-postgres-s3": lambda tmp: SegmentedStreamLogs(
+        tmp / "hot", S3SegmentObjects(s3_url()), PostgresSegmentIndex(postgres_dsn()), block_bytes=4096, segment_bytes=30_000
+    ),
+}
 
 LOG = rundir.stream("summarize-a")
 
