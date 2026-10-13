@@ -4,8 +4,8 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { statusWord } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
-import { localTime } from '../../words/format.js';
-import { hostStateLabel, hostsLine, noReportCount, reportInterval, runCount } from '../../words/hosts.js';
+import { fmtDur, localTime } from '../../words/format.js';
+import { hostStateLabel, hostsLine, noReportCount, runCount } from '../../words/hosts.js';
 import '../overview/ca-quota.js';
 
 /** The column of a host's runs, counted. */
@@ -50,7 +50,7 @@ export class CaHosts extends LitElement {
       <th scope="row">${h.host_id}</th>
       <td data-label=${msg('Status')}>${statusWord({ text: hostStateLabel(h), tone: quiet ? 'attention' : 'done' })}</td>
       <td data-label=${msg('Last report')} class="num" title=${h.last_seen}>${localTime(h.last_seen, true) || '—'}</td>
-      <td data-label=${msg('Report interval')} class="num">${reportInterval(h.interval_s)}</td>
+      <td data-label=${msg('Report interval')} class="num">${h.interval_s == null ? '—' : fmtDur(h.interval_s)}</td>
       <td data-label=${runsLabel()} class="runs"
         ><span>${runCount(h.runs)}${h.running ? html` | ${msg(str`${h.running} running`)}` : nothing}${h.unresponsive
           ? html` | <span class="tone-text" data-tone="attention">${noReportCount(h.unresponsive)}</span>`

@@ -132,3 +132,23 @@ test('one host: no host filter, no hosts page, no host in the header', async ({ 
   expect(params(page).page).toBeUndefined();
   await expect(page.locator('ca-hosts')).toHaveCount(0);
 });
+
+// Narrow screens: the open run picker stays inside the viewport, 16px from each side, and the page does not scroll sideways.
+for (const width of [390, 600]) {
+  test(`at ${width}px wide, the run picker fits the viewport, on one host and on a hub`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    for (const url of ['/?run=docs', `${HUB}/?run=docs@h1`]) {
+      await page.goto(url);
+      await openPicker(page);
+      const box = await page.locator('ca-monitor ca-run-picker').boundingBox();
+      expect(box, url).not.toBeNull();
+      expect(box!.x, url).toBeGreaterThanOrEqual(16 - 0.5);
+      expect(box!.x + box!.width, url).toBeLessThanOrEqual(width - 16 + 0.5);
+      if (url.startsWith(HUB)) {
+        const select = await picker(page).getByRole('combobox', { name: 'Host' }).boundingBox();
+        expect(select!.x + select!.width, url).toBeLessThanOrEqual(box!.x + box!.width);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth), url).toBeLessThanOrEqual(width);
+    }
+  });
+}

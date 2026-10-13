@@ -120,8 +120,8 @@ export const hostOf = (hosts: readonly HostSummary[] | undefined, summary: Pick<
 
 /** A run's name without its host: a hub names a run `<run_id>@<host_id>`; any other name as it is. */
 export function runIdOf(r: Pick<RunSummary, 'run' | 'host_id'>): string {
-  const tail = r.host_id ? `@${r.host_id}` : '';
-  return tail && r.run.endsWith(tail) && r.run.length > tail.length ? r.run.slice(0, -tail.length) : r.run;
+  const n = r.run.length - (r.host_id?.length ?? 0) - 1;
+  return r.host_id && n > 0 && r.run.endsWith(`@${r.host_id}`) ? r.run.slice(0, n) : r.run;
 }
 
 /** One host's runs. */
@@ -132,7 +132,7 @@ export interface HostGroup {
   runs: RunSummary[];
 }
 
-const ACTIVITY_ORDER: Record<RunActivity, number> = { running: 0, unresponsive: 1, stopped: 2 };
+const ACTIVITY_ORDER: RunActivity[] = ['running', 'unresponsive', 'stopped'];
 
 /**
  * Runs by host, in the host list's order (then the host ids it does not have,
@@ -140,17 +140,13 @@ const ACTIVITY_ORDER: Record<RunActivity, number> = { running: 0, unresponsive: 
  * then the rest, each in the order given (the run list's: most recent first).
  */
 export function hostGroups(runs: readonly RunSummary[], hosts: readonly HostSummary[] = []): HostGroup[] {
-  const by = new Map<string, RunSummary[]>();
-  for (const r of runs) {
-    const id = r.host_id ?? '';
-    let list = by.get(id);
-    if (!list) by.set(id, (list = []));
-    list.push(r);
-  }
-  const order = [...hosts.map((h) => h.host_id).filter((id) => by.has(id)), ...[...by.keys()].filter((id) => !hosts.some((h) => h.host_id === id)).sort()];
-  return order.map((hostId) => ({
+  const ids = [...new Set(runs.map((r) => r.host_id ?? ''))];
+  const known = hosts.map((h) => h.host_id);
+  const rank = (r: RunSummary) => ACTIVITY_ORDER.indexOf(runActivity(r));
+  return [...known.filter((id) => ids.includes(id)), ...ids.filter((id) => !known.includes(id)).sort()].map((hostId) => ({
     hostId,
     host: hosts.find((h) => h.host_id === hostId),
-    runs: by.get(hostId)!.map((r, i) => [r, i] as const).sort(([a, i], [b, j]) => ACTIVITY_ORDER[runActivity(a)] - ACTIVITY_ORDER[runActivity(b)] || i - j).map(([r]) => r),
+    // A stable sort: equal runs keep the order given.
+    runs: runs.filter((r) => (r.host_id ?? '') === hostId).sort((a, b) => rank(a) - rank(b)),
   }));
 }

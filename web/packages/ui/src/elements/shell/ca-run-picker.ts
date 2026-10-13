@@ -6,7 +6,7 @@ import { emit } from '../../core/events.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
 import { stateCount } from '../../words/index.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
-import { activityLabel, hostFact, hostStateSince, hostsLine, lastReport, runCount } from '../../words/hosts.js';
+import { hostFact, noReportLabel, hostStateSince, hostsLine, lastReport, runCount } from '../../words/hosts.js';
 import { runTone } from '../../lib/tone.js';
 import { toneAttr } from '@contraagent/elements';
 import { statusWord } from '@contraagent/elements/primitives';
@@ -51,8 +51,8 @@ export class CaRunPicker extends LitElement {
       /* Visible (and focusable) at once when it opens; hidden only after it has faded out. */
       :host([open]) { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s; }
       .search { padding: 10px; border-bottom: 1px solid var(--line); }
-      input { width: 100%; background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px;
-        padding: 8px 11px; font: inherit; outline: none; }
+      input, select { background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px; font: inherit; outline: none; }
+      input { width: 100%; padding: 8px 11px; }
       input:focus, select:focus { border-color: var(--accent); }
       .list { overflow: auto; padding: 6px; }
       .group { font-size: 11.5px; font-weight: 600; color: var(--text-muted); padding: 10px 9px 4px; }
@@ -67,7 +67,7 @@ export class CaRunPicker extends LitElement {
       .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
       /* a hub: the host filter beside the search field, a header per host, the hosts page as the first option */
       .row { display: flex; gap: 8px; }
-      select { max-width: 40%; background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 9px; padding: 0 8px; font: inherit; outline: none; }
+      select { max-width: 40%; padding: 0 8px; }
       .host { display: flex; gap: 8px; flex-wrap: wrap; color: var(--text-2); border-top: 1px solid var(--line); margin-top: 6px; }
       .host b { font-family: var(--mono); color: var(--text); }
       .host .n { margin-left: auto; }
@@ -91,6 +91,7 @@ export class CaRunPicker extends LitElement {
   /** The keyboard's place in the visible list; -1 for none. */
   @state() private kb = -1;
   @query('input') private input!: HTMLInputElement;
+  @query('select') private select!: HTMLSelectElement | null;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -110,140 +111,108 @@ export class CaRunPicker extends LitElement {
     }
   }
 
-  /** The runs the search and the host filter leave, in the order they are listed. */
-  private visible(): RunSummary[] {
+  /**
+   * The runs the search and the host filter leave, in groups, in list order:
+   * by host on a hub, each headed by its host's id, its state (attention once
+   * its reports stopped) and how many of its runs are listed; else by recency.
+   * Each group: its accessible name, its header, its runs.
+   */
+  private groups(): [string, unknown, RunSummary[]][] {
     const q = this.q.toLowerCase().trim();
     const rows = this.runs.filter(
       (r) => (!q || r.run.toLowerCase().includes(q) || (r.run_group || '').toLowerCase().includes(q)) && (!this.host || r.host_id === this.host),
     );
-    if (this.hub) return hostGroups(rows, this.hosts).flatMap((g) => g.runs);
-    return [
-      ...rows.filter((r) => r.running),
-      ...rows.filter((r) => !r.running && ago(r) < 86400),
-      ...rows.filter((r) => !r.running && ago(r) >= 86400),
-    ];
+    if (this.hub) {
+      return hostGroups(rows, this.hosts).map(({ hostId, host: h, runs }) => {
+        const id = hostId || hostFact('');
+        const state = h ? hostStateSince(h) : '';
+        const n = runCount(runs.length);
+        return [facts(id, state, n), html`<b>${id}</b>${h ? statusWord({ text: state, tone: h.up ? 'done' : 'attention', title: lastReport(h) }) : nothing}<span class="n">${n}</span>`, runs];
+      });
+    }
+    const old = (r: RunSummary) => !r.running && ago(r) >= 86400;
+    return (
+      [
+        [msg('Running'), rows.filter((r) => r.running)],
+        [msg('Last 24 hours'), rows.filter((r) => !r.running && !old(r))],
+        [msg('Older'), rows.filter(old)],
+      ] as const
+    ).map(([name, rs]) => [name, html`${name} <span class="n">${rs.length}</span>`, rs]);
   }
 
-  /** The options in list order: on a hub, the hosts page (null) first while nothing is searched. */
-  private options(rows: RunSummary[]): (RunSummary | null)[] {
-    return this.hub && !this.q.trim() ? [null, ...rows] : rows;
-  }
-
-  private pick(run: string): void {
+  /** A run, or the hosts page (null). */
+  private pick(r: RunSummary | null): void {
     this.close();
-    if (run !== this.current || this.hostsPage) emit(this, 'ca-select-run', { run });
-  }
-
-  private pickHosts(): void {
-    this.close();
-    if (!this.hostsPage) emit(this, 'ca-navigate', { page: 'hosts', run: '' });
+    if (!r) {
+      if (!this.hostsPage) emit(this, 'ca-navigate', { page: 'hosts', run: '' });
+    } else if (r.run !== this.current || this.hostsPage) emit(this, 'ca-select-run', { run: r.run });
   }
 
   private close(): void {
     emit(this, 'ca-close', {});
   }
 
-  private onKey(e: KeyboardEvent, rows: (RunSummary | null)[]): void {
-    if (e.key === 'Escape') return this.close();
-    // The search field is the dialog's only stop (on a hub, with the host filter): Tab stays in the dialog.
-    if (e.key === 'Tab') {
+  /** The dialog's keys: Escape closes; Tab stays in the dialog, between the search field and (on a hub) the host filter. */
+  private onDialogKey(e: KeyboardEvent): void {
+    if (e.key === 'Escape') this.close();
+    else if (e.key === 'Tab') {
       e.preventDefault();
-      if (this.hub) this.renderRoot.querySelector('select')?.focus();
-      return;
+      (e.target === this.input && this.hub ? this.select : this.input)?.focus();
     }
-    if (e.key === 'ArrowDown') this.kb = Math.min(rows.length - 1, this.kb + 1);
+  }
+
+  /** The search field's keys: the arrow keys move through the options, Enter picks one. */
+  private onKey(e: KeyboardEvent, opts: (RunSummary | null)[]): void {
+    if (e.key === 'ArrowDown') this.kb = Math.min(opts.length - 1, this.kb + 1);
     else if (e.key === 'ArrowUp') this.kb = Math.max(0, this.kb - 1);
     else if (e.key === 'Enter') {
       // The focus goes back to the button that opened the picker: this Enter must not press it.
       e.preventDefault();
-      const r = rows[Math.max(0, this.kb)];
-      if (r) this.pick(r.run);
-      else if (r === null) this.pickHosts();
+      const r = opts[Math.max(0, this.kb)];
+      if (r !== undefined) this.pick(r);
       return;
     } else return;
     e.preventDefault();
     void this.updateComplete.then(() => this.renderRoot.querySelector('.item.kb')?.scrollIntoView({ block: 'nearest' }));
   }
 
-  /** The host filter's keys: Tab back to the search field, Escape closes. */
-  private onSelectKey(e: KeyboardEvent): void {
-    if (e.key === 'Escape') this.close();
-    else if (e.key === 'Tab') {
-      e.preventDefault();
-      this.input?.focus();
-    }
-  }
-
   override render() {
-    const rows = this.visible();
-    const opts = this.options(rows);
+    const groups = this.groups().filter((g) => g[2].length);
+    const rows = groups.flatMap((g) => g[2]);
+    // On a hub, the hosts page (null) is the first option while nothing is searched.
+    const opts = this.hub && !this.q.trim() ? [null, ...rows] : rows;
     const active = opts[this.kb] !== undefined ? optionId(this.kb) : nothing;
     const search = html`<input placeholder=${msg('Search runs')} aria-label=${msg('Search runs')} autocomplete="off" .value=${this.q}
       role="combobox" aria-expanded=${opts.length ? 'true' : 'false'} aria-controls="runs" aria-autocomplete="list" aria-activedescendant=${active}
       @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.kb = 0; }}
       @keydown=${(e: KeyboardEvent) => this.onKey(e, opts)} />`;
-    return html`<div class="search">
+    let i = 0;
+    return html`<div class="search" @keydown=${(e: KeyboardEvent) => this.onDialogKey(e)}>
         ${this.hub ? html`<div class="row">${search}${this.hostFilter()}</div>` : search}
         <div class="keys meta" aria-hidden="true"><span class="kbd">↑</span><span class="kbd">↓</span> <span class="kbd">Enter</span> <span class="kbd">Esc</span></div>
       </div>
       <div class="list" @mousedown=${(e: MouseEvent) => e.preventDefault()}>
         ${opts.length
-          ? html`<div id="runs" role="listbox" aria-label=${msg('Runs')}>${this.hub ? this.byHost(rows, opts.length > rows.length) : this.byRecency(rows)}</div>`
+          ? html`<div id="runs" role="listbox" aria-label=${msg('Runs')}>
+              ${opts[0] === null ? this.item(null, i++) : nothing}
+              ${groups.map(
+                ([name, head, rs]) => html`<div role="group" aria-label=${name}>
+                  <div class="group${this.hub ? ' host' : ''}" aria-hidden="true">${head}</div>
+                  ${rs.map((r) => this.item(r, i++))}
+                </div>`,
+              )}
+            </div>`
           : html`<div class="blank"><span>${msg('No runs match')}</span></div>`}
       </div>`;
   }
 
   /** The host filter: every host with runs. */
   private hostFilter() {
-    const groups = hostGroups(this.runs, this.hosts);
-    return html`<select aria-label=${msg('Host')} title=${msg('Host')} @keydown=${(e: KeyboardEvent) => this.onSelectKey(e)}
+    return html`<select aria-label=${msg('Host')} title=${msg('Host')}
       @change=${(e: Event) => { this.host = (e.target as HTMLSelectElement).value; this.kb = -1; }}>
       <option value="" ?selected=${!this.host}>${msg('All hosts')}</option>
-      ${groups.map((g) => html`<option value=${g.hostId} ?selected=${g.hostId === this.host}>${g.hostId || hostFact('')}</option>`)}
+      ${hostGroups(this.runs, this.hosts).map((g) => html`<option value=${g.hostId} ?selected=${g.hostId === this.host}>${g.hostId || hostFact('')}</option>`)}
     </select>`;
-  }
-
-  /** A hub: the hosts page, then each host's runs under its header. */
-  private byHost(rows: RunSummary[], withHosts: boolean) {
-    let i = 0;
-    const hostsOpt = withHosts ? this.hostsItem(i++) : nothing;
-    // Each host's header: its id, its state (attention once its reports stopped), how many of its runs are listed.
-    return html`${hostsOpt}${hostGroups(rows, this.hosts).map(({ hostId, host: h, runs }) => {
-      const id = hostId || hostFact('');
-      const state = h ? hostStateSince(h) : '';
-      return html`<div role="group" aria-label=${facts(id, state, runCount(runs.length))}>
-        <div class="group host" aria-hidden="true"><b>${id}</b>${h ? statusWord({ text: state, tone: h.up ? 'done' : 'attention', title: lastReport(h) }) : nothing}<span
-          class="n">${runCount(runs.length)}</span></div>
-        ${runs.map((r) => this.item(r, i++))}
-      </div>`;
-    })}`;
-  }
-
-  /** The option that opens the hosts page. */
-  private hostsItem(i: number) {
-    const cls = `item${this.hostsPage ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
-    return html`<div class=${cls} id=${optionId(i)} role="option" aria-selected=${i === this.kb ? 'true' : 'false'}
-      aria-current=${this.hostsPage ? 'page' : nothing} @click=${() => this.pickHosts()}>
-      <span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>
-    </div>`;
-  }
-
-  /** One host: runs grouped by recency (running, the last 24 hours, older). */
-  private byRecency(rows: RunSummary[]) {
-    const groups: [string, RunSummary[]][] = [
-      [msg('Running'), rows.filter((r) => r.running)],
-      [msg('Last 24 hours'), rows.filter((r) => !r.running && ago(r) < 86400)],
-      [msg('Older'), rows.filter((r) => !r.running && ago(r) >= 86400)],
-    ];
-    let i = 0;
-    return groups.map(([name, rs]) =>
-      rs.length
-        ? html`<div role="group" aria-label=${name}>
-            <div class="group" aria-hidden="true">${name} <span class="n">${rs.length}</span></div>
-            ${rs.map((r) => this.item(r, i++))}
-          </div>`
-        : nothing,
-    );
   }
 
   /** Tasks by how they ended, as the run's own page counts them, and how long it took: one line. */
@@ -269,22 +238,26 @@ export class CaRunPicker extends LitElement {
     const at = localTime(r.last_ts, true);
     const quiet = a === 'unresponsive';
     return html`<span class="when" data-tone=${quiet ? 'attention' : nothing} data-mark=${quiet ? 'pending' : nothing}
-      title=${quiet ? facts(lastReport(hostOf(this.hosts, r)), msg(str`Last activity ${at}`)) : at}>${a === 'stopped' ? relAgo(r.last_ts) : activityLabel(a)}</span>`;
+      title=${quiet ? facts(lastReport(hostOf(this.hosts, r)), msg(str`Last activity ${at}`)) : at}
+      >${a === 'running' ? msg('running') : quiet ? noReportLabel() : relAgo(r.last_ts)}</span>`;
   }
 
-  private item(r: RunSummary, i: number) {
-    const dot = runTone(runActivity(r), r.tasks);
-    const cur = r.run === this.current && !this.hostsPage;
+  /** An option: a run, or (null) the hosts page. */
+  private item(r: RunSummary | null, i: number) {
+    const cur = r ? r.run === this.current && !this.hostsPage : this.hostsPage;
     const cls = `item${cur ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
     // An option of the listbox: the search field keeps the focus and names the active option (`aria-activedescendant`).
     return html`<div class=${cls} id=${optionId(i)} role="option" aria-selected=${i === this.kb ? 'true' : 'false'}
-      aria-current=${cur ? 'true' : nothing} @click=${() => this.pick(r.run)}>
-      <span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span><span class="nm" title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}</span>
-      ${this.when(r)}
-      <span class="sub">
-        ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}
-        <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
-      </span>
+      aria-current=${cur ? (r ? 'true' : 'page') : nothing} @click=${() => this.pick(r)}>
+      ${r
+        ? html`<span class="dot" data-tone=${toneAttr(runTone(runActivity(r), r.tasks))} aria-hidden="true"></span><span class="nm"
+              title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}</span>
+            ${this.when(r)}
+            <span class="sub">
+              ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}
+              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
+            </span>`
+        : html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`}
     </div>`;
   }
 }

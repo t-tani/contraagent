@@ -310,7 +310,7 @@ export class CaMonitor extends LitElement {
         ${brand(snap.info.title)}
         <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          ${hostsPage ? this.hostsLabel() : this.runLabel(hub)}
+          ${hostsPage ? this.hostsLabel() : this.runLabel(hub, derived)}
           <span class="chev" aria-hidden="true">▾</span>
         </button>
         <div class="hdr-right">
@@ -341,7 +341,7 @@ export class CaMonitor extends LitElement {
    * without the host, which follows it), no report from its host (a hub; before
    * the run line, which the button may cut), its run line.
    */
-  private runLabel(hub: boolean) {
+  private runLabel(hub: boolean, derived: RunDerived) {
     const { snap, route } = this;
     const summary = runRow(snap.runs, snap.run);
     const activity = runActivity(summary, !!snap.state.procs?.alive);
@@ -351,7 +351,7 @@ export class CaMonitor extends LitElement {
       <span class="rn" title=${host ? route.run : nothing}>${summary && host ? runIdOf(summary) : route.run || '—'}</span>
       ${host ? html`<span class="hostchip" title=${hostFact(host)}><span class="sr">${hostFact(host)}</span><span aria-hidden="true">${host}</span></span>` : nothing}
       ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
-      <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, deriveRun(snap.state.journal, snap.state.plan)) : ''}</span>`;
+      <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>`;
   }
 
   /** The run button's label on the hosts page: the hosts in one line, attention while a host has no report. */

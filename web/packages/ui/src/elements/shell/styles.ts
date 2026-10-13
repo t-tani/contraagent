@@ -43,6 +43,8 @@ export const monitorStyles = css`
   @media (max-width: 760px) {
     header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
     .runbtn { max-width: calc(100vw - 130px); }
+    /* the run picker spans the header, 16px from each side */
+    ca-run-picker { inset-inline: 16px; width: auto; }
     .hdr-right { width: 100%; margin-left: 0; }
     .nowline { max-width: none; flex: 1; }
     nav { padding: 4px 8px 0; }

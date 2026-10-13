@@ -5,10 +5,11 @@ import { defineConfig } from 'vite';
 import { compactLocales, staticLocales } from '../../scripts/compact-locale.mjs';
 import { minifyCss } from '../../scripts/minify-css.mjs';
 import { minifyHtml } from '../../scripts/minify-html.mjs';
+import { stripMsgDescs } from './scripts/strip-msg-desc.mjs';
 
 export default defineConfig({
   // One file: the locales are imported with the page rather than loaded when chosen.
-  plugins: [minifyCss(), minifyHtml(), compactLocales(), staticLocales()],
+  plugins: [stripMsgDescs(), minifyCss(), minifyHtml(), compactLocales(), staticLocales()],
   resolve: { conditions: ['source'] },
   build: {
     outDir: 'dist',
