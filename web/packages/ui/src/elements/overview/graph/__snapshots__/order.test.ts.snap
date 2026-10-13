@@ -1,0 +1,7622 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the graph of each plan, frozen > branch 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all / flows.review_loop",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "kind:check 16,50 110x52",
+      "kind:publish 182,16 118x52",
+      "kind:escalate 182,84 122x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:check > kind:publish created 1",
+      "kind:check > kind:escalate created 1",
+    ],
+    "layers": [
+      [
+        "kind:check",
+      ],
+      [
+        "kind:publish",
+        "kind:escalate",
+      ],
+    ],
+    "lines": [
+      "kind:check > kind:publish: M126,76 C154,76 154,42 182,42",
+      "kind:check > kind:escalate: M126,76 C154,76 154,110 182,110",
+    ],
+    "nodes": [
+      "kind:check [check-a check-b] []",
+      "kind:publish [publish-a -] []",
+      "kind:escalate [- escalate-b] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:check",
+        ],
+        [
+          "kind:publish",
+          "kind:escalate",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "created: kind:check@ | kind:publish@",
+      "created: kind:check@ | kind:escalate@",
+    ],
+    "size": "320x152",
+    "slots": {
+      "": [
+        [
+          "kind:check",
+        ],
+        [
+          "kind:publish",
+          "kind:escalate",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "kind:check 88,16 110x52",
+      "kind:publish 16,108 118x52",
+      "kind:escalate 150,108 122x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:check > kind:publish created 1",
+      "kind:check > kind:escalate created 1",
+    ],
+    "layers": [
+      [
+        "kind:check",
+      ],
+      [
+        "kind:publish",
+        "kind:escalate",
+      ],
+    ],
+    "lines": [
+      "kind:check > kind:publish: M143,68 C143,88 75,88 75,108",
+      "kind:check > kind:escalate: M143,68 C143,88 211,88 211,108",
+    ],
+    "nodes": [
+      "kind:check [check-a check-b] []",
+      "kind:publish [publish-a -] []",
+      "kind:escalate [- escalate-b] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:check",
+        ],
+        [
+          "kind:publish",
+          "kind:escalate",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "created: kind:check@ | kind:publish@",
+      "created: kind:check@ | kind:escalate@",
+    ],
+    "size": "288x176",
+    "slots": {
+      "": [
+        [
+          "kind:check",
+        ],
+        [
+          "kind:publish",
+          "kind:escalate",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0.1 0.2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0.1 0.2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > crossing 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "kind:x1 16,16 98x52",
+      "kind:x2 16,84 98x52",
+      "kind:y2 170,16 98x52",
+      "kind:y1 170,84 98x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:x2 > kind:y1 after 1",
+      "kind:x1 > kind:y2 after 1",
+    ],
+    "layers": [
+      [
+        "kind:x1",
+        "kind:x2",
+      ],
+      [
+        "kind:y2",
+        "kind:y1",
+      ],
+    ],
+    "lines": [
+      "kind:x2 > kind:y1: M114,110 L170,110",
+      "kind:x1 > kind:y2: M114,42 L170,42",
+    ],
+    "nodes": [
+      "kind:x1 [x1-u] []",
+      "kind:x2 [x2-u] []",
+      "kind:y2 [y2-u] []",
+      "kind:y1 [y1-u] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:x1",
+          "kind:x2",
+        ],
+        [
+          "kind:y2",
+          "kind:y1",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:x2@ | kind:y1@",
+      "after: kind:x1@ | kind:y2@",
+    ],
+    "size": "284x152",
+    "slots": {
+      "": [
+        [
+          "kind:x1",
+          "kind:x2",
+        ],
+        [
+          "kind:y2",
+          "kind:y1",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "kind:x1 16,16 98x52",
+      "kind:x2 130,16 98x52",
+      "kind:y2 16,108 98x52",
+      "kind:y1 130,108 98x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:x2 > kind:y1 after 1",
+      "kind:x1 > kind:y2 after 1",
+    ],
+    "layers": [
+      [
+        "kind:x1",
+        "kind:x2",
+      ],
+      [
+        "kind:y2",
+        "kind:y1",
+      ],
+    ],
+    "lines": [
+      "kind:x2 > kind:y1: M179,68 L179,108",
+      "kind:x1 > kind:y2: M65,68 L65,108",
+    ],
+    "nodes": [
+      "kind:x1 [x1-u] []",
+      "kind:x2 [x2-u] []",
+      "kind:y2 [y2-u] []",
+      "kind:y1 [y1-u] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:x1",
+          "kind:x2",
+        ],
+        [
+          "kind:y2",
+          "kind:y1",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:x2@ | kind:y1@",
+      "after: kind:x1@ | kind:y2@",
+    ],
+    "size": "244x176",
+    "slots": {
+      "": [
+        [
+          "kind:x1",
+          "kind:x2",
+        ],
+        [
+          "kind:y2",
+          "kind:y1",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "auto": "",
+}
+`;
+
+exports[`the graph of each plan, frozen > cycle and waits inside a node 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "kind:a 16,16 94x52",
+      "kind:b 16,84 94x52",
+      "kind:c 166,84 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:c > kind:b after 1 back",
+      "kind:b > kind:c after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+        "kind:b",
+      ],
+      [
+        "kind:c",
+      ],
+    ],
+    "lines": [
+      "kind:b > kind:c: M110,110 L166,110",
+    ],
+    "nodes": [
+      "kind:a [a1 a2] []",
+      "kind:b [b1 -] []",
+      "kind:c [c1 -] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:b@ | kind:c@",
+    ],
+    "size": "276x152",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+      "v",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "kind:a 16,16 94x52",
+      "kind:b 126,16 94x52",
+      "kind:c 126,108 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:c > kind:b after 1 back",
+      "kind:b > kind:c after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+        "kind:b",
+      ],
+      [
+        "kind:c",
+      ],
+    ],
+    "lines": [
+      "kind:b > kind:c: M173,68 L173,108",
+    ],
+    "nodes": [
+      "kind:a [a1 a2] []",
+      "kind:b [b1 -] []",
+      "kind:c [c1 -] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:b@ | kind:c@",
+    ],
+    "size": "236x176",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+      "v",
+    ],
+  },
+  "auto": "",
+}
+`;
+
+exports[`the graph of each plan, frozen > deep, calls 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop / flows.refine / flows.polish | across": {
+    "at": [
+      "stub:3:kind:draft 16,31 80x22",
+      "kind:tune 152,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:tune",
+      ],
+    ],
+    "lines": [
+      "stub:3:kind:draft > kind:tune: M96,42 L152,42",
+    ],
+    "nodes": [
+      "kind:tune [tune-a] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: stub:3:kind:draft@ | kind:tune@",
+    ],
+    "size": "274x84",
+    "slots": {
+      "": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:3:kind:draft > kind:tune after 1",
+    ],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine / flows.polish | down": {
+    "at": [
+      "stub:3:kind:draft 29,16 80x22",
+      "kind:tune 16,78 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:tune",
+      ],
+    ],
+    "lines": [
+      "stub:3:kind:draft > kind:tune: M69,38 L69,78",
+    ],
+    "nodes": [
+      "kind:tune [tune-a] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: stub:3:kind:draft@ | kind:tune@",
+    ],
+    "size": "138x146",
+    "slots": {
+      "": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:3:kind:draft > kind:tune after 1",
+    ],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine | across": {
+    "at": [
+      "kind:draft 16,16 110x52",
+      "flow:flows.polish 182,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:draft > flow:flows.polish after 1",
+    ],
+    "layers": [
+      [
+        "kind:draft",
+      ],
+      [
+        "flow:flows.polish",
+      ],
+    ],
+    "lines": [
+      "kind:draft > flow:flows.polish: M126,42 L182,42",
+    ],
+    "nodes": [
+      "kind:draft [draft-a] []",
+      "flow:flows.polish [0.1.1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:draft@ | flow:flows.polish@",
+    ],
+    "size": "312x84",
+    "slots": {
+      "": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine | down": {
+    "at": [
+      "kind:draft 18,16 110x52",
+      "flow:flows.polish 16,108 114x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:draft > flow:flows.polish after 1",
+    ],
+    "layers": [
+      [
+        "kind:draft",
+      ],
+      [
+        "flow:flows.polish",
+      ],
+    ],
+    "lines": [
+      "kind:draft > flow:flows.polish: M73,68 L73,108",
+    ],
+    "nodes": [
+      "kind:draft [draft-a] []",
+      "flow:flows.polish [0.1.1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:draft@ | flow:flows.polish@",
+    ],
+    "size": "146x176",
+    "slots": {
+      "": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "flow:flows.refine 16,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.refine",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.refine [0.1>2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "146x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "flow:flows.refine 16,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.refine",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.refine [0.1>2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "146x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+      "kind:report 206,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:report: M150,42 L206,42",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [0.1] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "336x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+      "kind:report 26,108 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:report: M83,68 L83,108",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [0.1] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "166x174",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > deep, no calls 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop / flows.refine / flows.polish | across": {
+    "at": [
+      "stub:3:kind:draft 16,31 80x22",
+      "kind:tune 152,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:tune",
+      ],
+    ],
+    "lines": [
+      "stub:3:kind:draft > kind:tune: M96,42 L152,42",
+    ],
+    "nodes": [
+      "kind:tune [tune-a] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: stub:3:kind:draft@ | kind:tune@",
+    ],
+    "size": "274x84",
+    "slots": {
+      "": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:3:kind:draft > kind:tune after 1",
+    ],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine / flows.polish | down": {
+    "at": [
+      "stub:3:kind:draft 29,16 80x22",
+      "kind:tune 16,78 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:tune",
+      ],
+    ],
+    "lines": [
+      "stub:3:kind:draft > kind:tune: M69,38 L69,78",
+    ],
+    "nodes": [
+      "kind:tune [tune-a] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: stub:3:kind:draft@ | kind:tune@",
+    ],
+    "size": "138x146",
+    "slots": {
+      "": [
+        [
+          "stub:3:kind:draft",
+        ],
+        [
+          "kind:tune",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:3:kind:draft > kind:tune after 1",
+    ],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine | across": {
+    "at": [
+      "kind:draft 16,16 110x52",
+      "flow:flows.polish 182,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:draft > flow:flows.polish after 1",
+    ],
+    "layers": [
+      [
+        "kind:draft",
+      ],
+      [
+        "flow:flows.polish",
+      ],
+    ],
+    "lines": [
+      "kind:draft > flow:flows.polish: M126,42 L182,42",
+    ],
+    "nodes": [
+      "kind:draft [draft-a] []",
+      "flow:flows.polish [0.1.1>3] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:draft@ | flow:flows.polish@",
+    ],
+    "size": "312x84",
+    "slots": {
+      "": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop / flows.refine | down": {
+    "at": [
+      "kind:draft 18,16 110x52",
+      "flow:flows.polish 16,108 114x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:draft > flow:flows.polish after 1",
+    ],
+    "layers": [
+      [
+        "kind:draft",
+      ],
+      [
+        "flow:flows.polish",
+      ],
+    ],
+    "lines": [
+      "kind:draft > flow:flows.polish: M73,68 L73,108",
+    ],
+    "nodes": [
+      "kind:draft [draft-a] []",
+      "flow:flows.polish [0.1.1>3] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:draft@ | flow:flows.polish@",
+    ],
+    "size": "146x176",
+    "slots": {
+      "": [
+        [
+          "kind:draft",
+        ],
+        [
+          "flow:flows.polish",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "flow:flows.refine 16,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.refine",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.refine [0.1.1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "146x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "flow:flows.refine 16,16 114x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.refine",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.refine [0.1.1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "146x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.refine",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+      "kind:report 206,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:report: M150,42 L206,42",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [0.1] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "336x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+      "kind:report 26,108 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:report: M83,68 L83,108",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [0.1] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "166x174",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > fan-out 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "kind:part 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:part",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "kind:part [part-a/1 part-a/2 part-b/1 part-b/2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:part",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "kind:part",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a/1",
+      "a/2",
+      "b/1",
+      "b/2",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "kind:part 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "kind:part",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "kind:part [part-a/1 part-a/2 part-b/1 part-b/2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:part",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "kind:part",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a/1",
+      "a/2",
+      "b/1",
+      "b/2",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x60",
+      "kind:merge 206,21 110x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:merge after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:merge",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:merge: M150,46 L206,46",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [] [0.1 0.2]",
+      "kind:merge [] [merge]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:merge",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:merge@",
+    ],
+    "size": "332x92",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:merge",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x60",
+      "kind:merge 28,116 110x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:flows.review_loop > kind:merge after 1",
+    ],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:merge",
+      ],
+    ],
+    "lines": [
+      "flow:flows.review_loop > kind:merge: M83,76 L83,116",
+    ],
+    "nodes": [
+      "flow:flows.review_loop [] [0.1 0.2]",
+      "kind:merge [] [merge]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:merge",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:flows.review_loop@ | kind:merge@",
+    ],
+    "size": "166x182",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:merge",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > into and out of a box 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "auto": "flows.run_all / flows.review_loop",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "kind:s 16,48 94x52",
+      "loop:7 166,16 386x108",
+      "kind:a@7 178,48 94x52",
+      "kind:b@7 312,48 94x52",
+      "kind:c@7 446,48 94x52",
+      "kind:w 608,48 94x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 1 spread [[1,1]] [["kind:a@7"],["kind:b@7"],["kind:c@7"]]",
+    ],
+    "edges": [
+      "kind:s > kind:a@7 after 1",
+      "kind:a@7 > kind:b@7 after 1",
+      "kind:b@7 > kind:c@7 after 1",
+      "kind:s > kind:c@7 after 1",
+      "kind:b@7 > kind:w after 1",
+      "kind:s > kind:w after 1",
+      "kind:c@7 > kind:w after 1",
+    ],
+    "layers": [
+      [
+        "kind:s",
+      ],
+      [
+        "loop:7",
+      ],
+      [
+        "kind:w",
+      ],
+    ],
+    "lines": [
+      "kind:s > kind:a@7: M110,74 L166,74 L178,74",
+      "kind:a@7 > kind:b@7: M272,74 L312,74",
+      "kind:b@7 > kind:c@7: M406,74 L446,74",
+      "kind:s > kind:c@7: M110,74 C138,74 138,152 166,152 L406,152 C426,152 426,74 446,74",
+      "kind:b@7 > kind:w: M406,74 C426,74 426,140 446,140 L552,140 C580,140 580,74 608,74",
+      "kind:s > kind:w: M110,74 C138,74 138,164 166,164 L552,164 C580,164 580,74 608,74",
+      "kind:c@7 > kind:w: M540,74 L552,74 L608,74",
+    ],
+    "nodes": [
+      "kind:s [s-u] []",
+      "kind:a@7 [a-u] []",
+      "kind:b@7 [b-u] []",
+      "kind:c@7 [c-u] []",
+      "kind:w [w-u] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:a@7",
+          ],
+          [
+            "kind:b@7",
+          ],
+          [
+            "kind:c@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:s",
+        ],
+        [
+          "loop:7",
+        ],
+        [
+          "kind:w",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M493,103 L493,106 Q493,112 487,112 L231,112 Q225,112 225,106 L225,103",
+    ],
+    "routes": [
+      "after: kind:s@ | loop:7@ | kind:a@7@loop:7",
+      "after: kind:a@7@loop:7 | kind:b@7@loop:7",
+      "after: kind:b@7@loop:7 | kind:c@7@loop:7",
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
+      "after: kind:b@7@loop:7 | loop:7@ | ~|by:loop:7|kind:b@7|after|1@ | kind:w@",
+      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
+      "after: kind:c@7@loop:7 | loop:7@ | kind:w@",
+    ],
+    "size": "718x180",
+    "slots": {
+      "": [
+        [
+          "kind:s",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|kind:b@7|after|1",
+          "~|by:loop:7|>:kind:s|after|1",
+          "~|kind:s|after|1",
+        ],
+        [
+          "kind:w",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:a@7",
+        ],
+        [
+          "kind:b@7",
+        ],
+        [
+          "kind:c@7",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "kind:s 159,16 94x52",
+      "loop:7 16,108 158x280",
+      "kind:a@7 26,158 94x52",
+      "kind:b@7 26,242 94x52",
+      "kind:c@7 26,326 94x52",
+      "kind:w 26,428 94x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 1 spread [[1,1]] [["kind:a@7"],["kind:b@7"],["kind:c@7"]]",
+    ],
+    "edges": [
+      "kind:s > kind:a@7 after 1",
+      "kind:a@7 > kind:b@7 after 1",
+      "kind:b@7 > kind:c@7 after 1",
+      "kind:s > kind:c@7 after 1",
+      "kind:b@7 > kind:w after 1",
+      "kind:s > kind:w after 1",
+      "kind:c@7 > kind:w after 1",
+    ],
+    "layers": [
+      [
+        "kind:s",
+      ],
+      [
+        "loop:7",
+      ],
+      [
+        "kind:w",
+      ],
+    ],
+    "lines": [
+      "kind:s > kind:a@7: M206,68 C206,88 202,88 202,108 L202,138 C202,148 73,148 73,158",
+      "kind:a@7 > kind:b@7: M73,210 L73,242",
+      "kind:b@7 > kind:c@7: M73,294 L73,326",
+      "kind:s > kind:c@7: M206,68 C206,88 202,88 202,108 L202,294 C202,310 73,310 73,326",
+      "kind:b@7 > kind:w: M73,294 C73,310 190,310 190,326 L190,388 C190,408 73,408 73,428",
+      "kind:s > kind:w: M206,68 C206,88 214,88 214,108 L214,388 C214,408 73,408 73,428",
+      "kind:c@7 > kind:w: M73,378 L73,388 L73,428",
+    ],
+    "nodes": [
+      "kind:s [s-u] []",
+      "kind:a@7 [a-u] []",
+      "kind:b@7 [b-u] []",
+      "kind:c@7 [c-u] []",
+      "kind:w [w-u] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:a@7",
+          ],
+          [
+            "kind:b@7",
+          ],
+          [
+            "kind:c@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:s",
+        ],
+        [
+          "loop:7",
+        ],
+        [
+          "kind:w",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M123,352 L126,352 Q132,352 132,346 L132,190 Q132,184 126,184 L123,184",
+    ],
+    "routes": [
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:a@7@loop:7",
+      "after: kind:a@7@loop:7 | kind:b@7@loop:7",
+      "after: kind:b@7@loop:7 | kind:c@7@loop:7",
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
+      "after: kind:b@7@loop:7 | loop:7@ | ~|by:loop:7|kind:b@7|after|1@ | kind:w@",
+      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
+      "after: kind:c@7@loop:7 | loop:7@ | kind:w@",
+    ],
+    "size": "269x496",
+    "slots": {
+      "": [
+        [
+          "kind:s",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|kind:b@7|after|1",
+          "~|by:loop:7|>:kind:s|after|1",
+          "~|kind:s|after|1",
+        ],
+        [
+          "kind:w",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:a@7",
+        ],
+        [
+          "kind:b@7",
+        ],
+        [
+          "kind:c@7",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:a@7|1",
+      "kind:b@7|1",
+      "kind:c@7|1",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+      ],
+      [
+        "kind:a@7 1x1",
+        "kind:b@7 1x1",
+        "kind:c@7 1x1",
+      ],
+    ],
+    "rows": [
+      "u 1 done: a-u b-u c-u",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > long edge 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "kind:a 16,16 94x52",
+      "kind:b 166,16 94x52",
+      "kind:c 316,16 94x52",
+      "kind:d 466,16 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:a > kind:b after 1",
+      "kind:b > kind:c after 1",
+      "kind:c > kind:d after 1",
+      "kind:a > kind:d after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+      ],
+      [
+        "kind:b",
+      ],
+      [
+        "kind:c",
+      ],
+      [
+        "kind:d",
+      ],
+    ],
+    "lines": [
+      "kind:a > kind:b: M110,42 L166,42",
+      "kind:b > kind:c: M260,42 L316,42",
+      "kind:c > kind:d: M410,42 L466,42",
+      "kind:a > kind:d: M110,42 C138,42 138,80 166,80 L260,80 L316,80 L410,80 C438,80 438,42 466,42",
+    ],
+    "nodes": [
+      "kind:a [a-u] []",
+      "kind:b [b-u] []",
+      "kind:c [c-u] []",
+      "kind:d [d-u] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:a@ | kind:b@",
+      "after: kind:b@ | kind:c@",
+      "after: kind:c@ | kind:d@",
+      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
+    ],
+    "size": "576x96",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+          "~|kind:a|after|1",
+        ],
+        [
+          "kind:c",
+          "~|kind:a|after|2",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "kind:a 16,16 94x52",
+      "kind:b 16,108 94x52",
+      "kind:c 16,200 94x52",
+      "kind:d 16,292 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:a > kind:b after 1",
+      "kind:b > kind:c after 1",
+      "kind:c > kind:d after 1",
+      "kind:a > kind:d after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+      ],
+      [
+        "kind:b",
+      ],
+      [
+        "kind:c",
+      ],
+      [
+        "kind:d",
+      ],
+    ],
+    "lines": [
+      "kind:a > kind:b: M63,68 L63,108",
+      "kind:b > kind:c: M63,160 L63,200",
+      "kind:c > kind:d: M63,252 L63,292",
+      "kind:a > kind:d: M63,68 C63,88 122,88 122,108 L122,160 L122,200 L122,252 C122,272 63,272 63,292",
+    ],
+    "nodes": [
+      "kind:a [a-u] []",
+      "kind:b [b-u] []",
+      "kind:c [c-u] []",
+      "kind:d [d-u] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+        ],
+        [
+          "kind:c",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:a@ | kind:b@",
+      "after: kind:b@ | kind:c@",
+      "after: kind:c@ | kind:d@",
+      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
+    ],
+    "size": "138x360",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+          "~|kind:a|after|1",
+        ],
+        [
+          "kind:c",
+          "~|kind:a|after|2",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "auto": "",
+}
+`;
+
+exports[`the graph of each plan, frozen > loop of one layer 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "auto": "flows.run_all / flows.review_loop",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "loop:7 16,16 162x108",
+      "kind:a@7 28,48 94x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[2,1]] [["kind:a@7"]]",
+    ],
+    "edges": [],
+    "layers": [
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "kind:a@7 [a-u~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:a@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M98.5,103 L98.5,106 Q98.5,112 92.5,112 L57.5,112 Q51.5,112 51.5,106 L51.5,103",
+    ],
+    "routes": [],
+    "size": "194x140",
+    "slots": {
+      "": [
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:a@7",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "loop:7 16,16 158x112",
+      "kind:a@7 26,66 94x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[2,1]] [["kind:a@7"]]",
+    ],
+    "edges": [],
+    "layers": [
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "kind:a@7 [a-u~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:a@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M123,105 L126,105 Q132,105 132,99 L132,85 Q132,79 126,79 L123,79",
+    ],
+    "routes": [],
+    "size": "190x144",
+    "slots": {
+      "": [
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:a@7",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:a@7|1",
+      "kind:a@7|2",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 1x1",
+        "pass loop:7 2 1x1",
+      ],
+      [
+        "kind:a@7 1x1",
+        "kind:a@7 1x1",
+      ],
+    ],
+    "rows": [
+      "u 2 done: a-u a-u~2",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.review_loop 16,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.review_loop [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "166x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > nested boxes 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [0] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "auto": "flows.run_all / flows.scan",
+  "flows.run_all / flows.scan | across": {
+    "at": [
+      "kind:rank 16,80 106x52",
+      "loop:30 178,16 474x180",
+      "kind:propose@30 190,80 118x52",
+      "loop:30.33 348,48 292x108",
+      "kind:verify@30.33 360,80 114x52",
+      "kind:refine@30.33 514,80 114x52",
+      "kind:report 708,80 114x52",
+    ],
+    "boxes": [
+      "loop:30 <  passes 1 spread [[1,1]] [["kind:propose@30"],["loop:30.33"]]",
+      "loop:30.33 < loop:30 passes 1 spread [[1,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
+    ],
+    "edges": [
+      "kind:rank > kind:propose@30 created 1",
+      "kind:propose@30 > kind:verify@30.33 after 1",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
+      "kind:propose@30 > kind:refine@30.33 after 1",
+      "kind:refine@30.33 > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:rank",
+      ],
+      [
+        "loop:30",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:rank > kind:propose@30: M122,106 L178,106 L190,106",
+      "kind:propose@30 > kind:verify@30.33: M308,106 L348,106 L360,106",
+      "kind:verify@30.33 > kind:refine@30.33: M474,106 L514,106",
+      "kind:propose@30 > kind:refine@30.33: M308,106 C328,106 328,172 348,172 L474,172 C494,172 494,106 514,106",
+      "kind:refine@30.33 > kind:report: M628,106 L640,106 L652,106 L708,106",
+    ],
+    "nodes": [
+      "kind:rank [rank-a] []",
+      "kind:propose@30 [propose-a] []",
+      "kind:verify@30.33 [verify-a] []",
+      "kind:refine@30.33 [refine-a] []",
+      "kind:report [report-a] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:30": [
+          [
+            "kind:propose@30",
+          ],
+          [
+            "loop:30.33",
+          ],
+        ],
+        "loop:30.33": [
+          [
+            "kind:verify@30.33",
+          ],
+          [
+            "kind:refine@30.33",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:rank",
+        ],
+        [
+          "loop:30",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:30: M494,159 L494,178 Q494,184 488,184 L255,184 Q249,184 249,178 L249,135",
+      "loop:30.33: M571,135 L571,138 Q571,144 565,144 L423,144 Q417,144 417,138 L417,135",
+    ],
+    "routes": [
+      "created: kind:rank@ | loop:30@ | kind:propose@30@loop:30",
+      "after: kind:propose@30@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
+      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:refine@30.33@loop:30.33",
+      "after: kind:refine@30.33@loop:30.33 | loop:30.33@loop:30 | loop:30@ | kind:report@",
+    ],
+    "size": "838x212",
+    "slots": {
+      "": [
+        [
+          "kind:rank",
+        ],
+        [
+          "loop:30",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+      "loop:30": [
+        [
+          "kind:propose@30",
+        ],
+        [
+          "loop:30.33",
+          "~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1",
+        ],
+      ],
+      "loop:30.33": [
+        [
+          "kind:verify@30.33",
+        ],
+        [
+          "kind:refine@30.33",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.scan | down": {
+    "at": [
+      "kind:rank 258,16 106x52",
+      "loop:30 16,108 279x340",
+      "kind:propose@30 153,158 118x52",
+      "loop:30.33 26,242 170x196",
+      "kind:verify@30.33 36,292 114x52",
+      "kind:refine@30.33 36,376 114x52",
+      "kind:report 36,488 114x52",
+    ],
+    "boxes": [
+      "loop:30 <  passes 1 spread [[1,1]] [["kind:propose@30"],["loop:30.33"]]",
+      "loop:30.33 < loop:30 passes 1 spread [[1,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
+    ],
+    "edges": [
+      "kind:rank > kind:propose@30 created 1",
+      "kind:propose@30 > kind:verify@30.33 after 1",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
+      "kind:propose@30 > kind:refine@30.33 after 1",
+      "kind:refine@30.33 > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:rank",
+      ],
+      [
+        "loop:30",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:rank > kind:propose@30: M311,68 L311,108 L311,138 C311,148 212,148 212,158",
+      "kind:propose@30 > kind:verify@30.33: M212,210 L212,242 L212,272 C212,282 93,282 93,292",
+      "kind:verify@30.33 > kind:refine@30.33: M93,344 L93,376",
+      "kind:propose@30 > kind:refine@30.33: M212,210 L212,242 L212,344 C212,360 93,360 93,376",
+      "kind:refine@30.33 > kind:report: M93,428 L93,438 L93,448 L93,488",
+    ],
+    "nodes": [
+      "kind:rank [rank-a] []",
+      "kind:propose@30 [propose-a] []",
+      "kind:verify@30.33 [verify-a] []",
+      "kind:refine@30.33 [refine-a] []",
+      "kind:report [report-a] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:30": [
+          [
+            "kind:propose@30",
+          ],
+          [
+            "loop:30.33",
+          ],
+        ],
+        "loop:30.33": [
+          [
+            "kind:verify@30.33",
+          ],
+          [
+            "kind:refine@30.33",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:rank",
+        ],
+        [
+          "loop:30",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:30: M199,340 L277,340 Q283,340 283,334 L283,190 Q283,184 277,184 L274,184",
+      "loop:30.33: M153,402 L156,402 Q162,402 162,396 L162,324 Q162,318 156,318 L153,318",
+    ],
+    "routes": [
+      "created: kind:rank@ | ~|by:loop:30|>:kind:rank|created|1@ | loop:30@ | kind:propose@30@loop:30",
+      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
+      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:refine@30.33@loop:30.33",
+      "after: kind:refine@30.33@loop:30.33 | loop:30.33@loop:30 | loop:30@ | kind:report@",
+    ],
+    "size": "380x556",
+    "slots": {
+      "": [
+        [
+          "kind:rank",
+        ],
+        [
+          "loop:30",
+          "~|by:loop:30|>:kind:rank|created|1",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+      "loop:30": [
+        [
+          "kind:propose@30",
+        ],
+        [
+          "loop:30.33",
+          "~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1",
+        ],
+      ],
+      "loop:30.33": [
+        [
+          "kind:verify@30.33",
+        ],
+        [
+          "kind:refine@30.33",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all / flows.scan | loop:30": {
+    "columns": [
+      "kind:propose@30|1",
+      "kind:verify@30.33|1.1",
+      "kind:refine@30.33|1.1",
+    ],
+    "head": [
+      [
+        "pass loop:30 1 3x1",
+      ],
+      [
+        "kind:propose@30 1x3",
+        "loop loop:30.33 2x1",
+      ],
+      [
+        "pass loop:30.33 1 2x1",
+      ],
+      [
+        "kind:verify@30.33 1x1",
+        "kind:refine@30.33 1x1",
+      ],
+    ],
+    "rows": [
+      "a 1 done: propose-a verify-a refine-a",
+    ],
+  },
+  "flows.run_all / flows.scan | loop:30.33": {
+    "columns": [
+      "kind:verify@30.33|1",
+      "kind:refine@30.33|1",
+    ],
+    "head": [
+      [
+        "pass loop:30.33 1 2x1",
+      ],
+      [
+        "kind:verify@30.33 1x1",
+        "kind:refine@30.33 1x1",
+      ],
+    ],
+    "rows": [
+      "a 1 done: verify-a refine-a",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.scan 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.scan",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.scan [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.scan 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.scan",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.scan [0>1] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > nested loops 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all / flows.scan",
+  "flows.run_all / flows.scan | across": {
+    "at": [
+      "loop:30 16,16 474x164",
+      "kind:propose@30 28,80 118x52",
+      "loop:30.33 186,48 292x108",
+      "kind:verify@30.33 198,80 114x52",
+      "kind:refine@30.33 352,80 114x52",
+    ],
+    "boxes": [
+      "loop:30 <  passes 2 spread [[1,1],[2,1]] [["kind:propose@30"],["loop:30.33"]]",
+      "loop:30.33 < loop:30 passes 2 spread [[1,1],[3,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
+    ],
+    "edges": [
+      "kind:propose@30 > kind:verify@30.33 after 3",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
+      "kind:refine@30.33 > kind:verify@30.33 after 1 back",
+    ],
+    "layers": [
+      [
+        "loop:30",
+      ],
+    ],
+    "lines": [
+      "kind:propose@30 > kind:verify@30.33: M146,106 L186,106 L198,106",
+      "kind:verify@30.33 > kind:refine@30.33: M312,106 L352,106",
+    ],
+    "nodes": [
+      "kind:propose@30 [propose-a~2 propose-b] []",
+      "kind:verify@30.33 [verify-a~3 verify-b] []",
+      "kind:refine@30.33 [refine-a -] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:30": [
+          [
+            "kind:propose@30",
+          ],
+          [
+            "loop:30.33",
+          ],
+        ],
+        "loop:30.33": [
+          [
+            "kind:verify@30.33",
+          ],
+          [
+            "kind:refine@30.33",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "loop:30",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:30: M332,159 L332,162 Q332,168 326,168 L93,168 Q87,168 87,162 L87,135",
+      "loop:30.33: M409,135 L409,138 Q409,144 403,144 L261,144 Q255,144 255,138 L255,135",
+    ],
+    "routes": [
+      "after: kind:propose@30@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
+    ],
+    "size": "506x196",
+    "slots": {
+      "": [
+        [
+          "loop:30",
+        ],
+      ],
+      "loop:30": [
+        [
+          "kind:propose@30",
+        ],
+        [
+          "loop:30.33",
+        ],
+      ],
+      "loop:30.33": [
+        [
+          "kind:verify@30.33",
+        ],
+        [
+          "kind:refine@30.33",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.scan | down": {
+    "at": [
+      "loop:30 16,16 279x340",
+      "kind:propose@30 153,66 118x52",
+      "loop:30.33 26,150 170x196",
+      "kind:verify@30.33 36,200 114x52",
+      "kind:refine@30.33 36,284 114x52",
+    ],
+    "boxes": [
+      "loop:30 <  passes 2 spread [[1,1],[2,1]] [["kind:propose@30"],["loop:30.33"]]",
+      "loop:30.33 < loop:30 passes 2 spread [[1,1],[3,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
+    ],
+    "edges": [
+      "kind:propose@30 > kind:verify@30.33 after 3",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
+      "kind:refine@30.33 > kind:verify@30.33 after 1 back",
+    ],
+    "layers": [
+      [
+        "loop:30",
+      ],
+    ],
+    "lines": [
+      "kind:propose@30 > kind:verify@30.33: M212,118 L212,150 L212,180 C212,190 93,190 93,200",
+      "kind:verify@30.33 > kind:refine@30.33: M93,252 L93,284",
+    ],
+    "nodes": [
+      "kind:propose@30 [propose-a~2 propose-b] []",
+      "kind:verify@30.33 [verify-a~3 verify-b] []",
+      "kind:refine@30.33 [refine-a -] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:30": [
+          [
+            "kind:propose@30",
+          ],
+          [
+            "loop:30.33",
+          ],
+        ],
+        "loop:30.33": [
+          [
+            "kind:verify@30.33",
+          ],
+          [
+            "kind:refine@30.33",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "loop:30",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:30: M199,248 L277,248 Q283,248 283,242 L283,98 Q283,92 277,92 L274,92",
+      "loop:30.33: M153,310 L156,310 Q162,310 162,304 L162,232 Q162,226 156,226 L153,226",
+    ],
+    "routes": [
+      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
+    ],
+    "size": "311x372",
+    "slots": {
+      "": [
+        [
+          "loop:30",
+        ],
+      ],
+      "loop:30": [
+        [
+          "kind:propose@30",
+        ],
+        [
+          "loop:30.33",
+          "~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1",
+        ],
+      ],
+      "loop:30.33": [
+        [
+          "kind:verify@30.33",
+        ],
+        [
+          "kind:refine@30.33",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.scan | loop:30": {
+    "columns": [
+      "kind:propose@30|1",
+      "kind:verify@30.33|1.1",
+      "kind:refine@30.33|1.1",
+      "kind:verify@30.33|1.2",
+      "kind:propose@30|2",
+      "kind:verify@30.33|2.1",
+    ],
+    "head": [
+      [
+        "pass loop:30 1 4x1",
+        "pass loop:30 2 2x1",
+      ],
+      [
+        "kind:propose@30 1x3",
+        "loop loop:30.33 3x1",
+        "kind:propose@30 1x3",
+        "loop loop:30.33 1x1",
+      ],
+      [
+        "pass loop:30.33 1 2x1",
+        "pass loop:30.33 2 1x1",
+        "pass loop:30.33 1 1x1",
+      ],
+      [
+        "kind:verify@30.33 1x1",
+        "kind:refine@30.33 1x1",
+        "kind:verify@30.33 1x1",
+        "kind:verify@30.33 1x1",
+      ],
+    ],
+    "rows": [
+      "a 2 failed: propose-a verify-a refine-a verify-a~2 propose-a~2 verify-a~3",
+      "b 1 done: propose-b verify-b - - - -",
+    ],
+  },
+  "flows.run_all / flows.scan | loop:30.33": {
+    "columns": [
+      "kind:verify@30.33|1",
+      "kind:refine@30.33|1",
+      "kind:verify@30.33|2",
+    ],
+    "head": [
+      [
+        "pass loop:30.33 1 2x1",
+        "pass loop:30.33 2 1x1",
+      ],
+      [
+        "kind:verify@30.33 1x1",
+        "kind:refine@30.33 1x1",
+        "kind:verify@30.33 1x1",
+      ],
+    ],
+    "rows": [
+      "a 3 failed: verify-a~3 refine-a verify-a~2",
+      "b 1 done: verify-b - -",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "flow:flows.scan 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.scan",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.scan [0.1 0.2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "flow:flows.scan 16,16 106x52",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.scan",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.scan [0.1 0.2] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x84",
+    "slots": {
+      "": [
+        [
+          "flow:flows.scan",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 2",
+      "kind:check > kind:fix@7 after 2",
+      "kind:fix@7 > kind:score@7 after 3",
+      "kind:fix@7 > kind:check@7 after 3",
+      "kind:score@7 > kind:check@7 created 3",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [fix-a fix-b~2] []",
+      "kind:score@7 [score-a score-b~2] []",
+      "kind:check@7 [check-a~2 check-b~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 2",
+      "kind:check > kind:fix@7 after 2",
+      "kind:fix@7 > kind:score@7 after 3",
+      "kind:fix@7 > kind:check@7 after 3",
+      "kind:score@7 > kind:check@7 created 3",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [fix-a fix-b~2] []",
+      "kind:score@7 [score-a score-b~2] []",
+      "kind:check@7 [check-a~2 check-b~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:fix@7|1",
+      "kind:score@7|1",
+      "kind:check@7|1",
+      "kind:fix@7|2",
+      "kind:score@7|2",
+      "kind:check@7|2",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+        "pass loop:7 2 3x1",
+      ],
+      [
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+      ],
+    ],
+    "rows": [
+      "a 1 done: fix-a score-a check-a~2 - - -",
+      "b 2 done: fix-b score-b check-b~2 fix-b~2 score-b~2 check-b~3",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "kind:prepare 16,16 118x52",
+      "flow:flows.review_loop 190,16 134x52",
+      "kind:report 380,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 2",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
+      "flow:flows.review_loop > kind:report: M324,42 L380,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b] []",
+      "flow:flows.review_loop [0.1 0.2] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "510x84",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "kind:prepare 24,16 118x52",
+      "flow:flows.review_loop 16,108 134x52",
+      "kind:report 26,200 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 2",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
+      "flow:flows.review_loop > kind:report: M83,160 L83,200",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b] []",
+      "flow:flows.review_loop [0.1 0.2] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "166x266",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > review loop, calls 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 1 spread [[1,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 1",
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:score@7 after 1",
+      "kind:fix@7 > kind:check@7 after 1",
+      "kind:score@7 > kind:check@7 created 1",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [- fix-b] []",
+      "kind:score@7 [- score-b] []",
+      "kind:check@7 [- check-b~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 1 spread [[1,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 1",
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:score@7 after 1",
+      "kind:fix@7 > kind:check@7 after 1",
+      "kind:score@7 > kind:check@7 created 1",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [- fix-b] []",
+      "kind:score@7 [- score-b] []",
+      "kind:check@7 [- check-b~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:fix@7|1",
+      "kind:score@7|1",
+      "kind:check@7|1",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+      ],
+      [
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+      ],
+    ],
+    "rows": [
+      "b 1 done: fix-b score-b check-b~2",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "kind:prepare 16,16 118x52",
+      "flow:flows.review_loop 190,16 134x52",
+      "kind:report 380,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 2",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
+      "flow:flows.review_loop > kind:report: M324,42 L380,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b] []",
+      "flow:flows.review_loop [0.1 0.2] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "510x84",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "kind:prepare 24,16 118x52",
+      "flow:flows.review_loop 16,108 134x52",
+      "kind:report 26,200 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 2",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
+      "flow:flows.review_loop > kind:report: M83,160 L83,200",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b] []",
+      "flow:flows.review_loop [0.1 0.2] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "166x266",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > review loop, calls, failed 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 3",
+      "kind:summarize > kind:fix@7 after 2",
+      "kind:check > kind:fix@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c] []",
+      "kind:check [check-a check-b check-c] []",
+      "kind:fix@7 [- fix-b fix-c~2] []",
+      "kind:score@7 [- score-b score-c] []",
+      "kind:check@7 [- check-b~2 check-c~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 3",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 3",
+      "kind:summarize > kind:fix@7 after 2",
+      "kind:check > kind:fix@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c] []",
+      "kind:check [check-a check-b check-c] []",
+      "kind:fix@7 [- fix-b fix-c~2] []",
+      "kind:score@7 [- score-b score-c] []",
+      "kind:check@7 [- check-b~2 check-c~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 3",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:fix@7|1",
+      "kind:score@7|1",
+      "kind:check@7|1",
+      "kind:fix@7|2",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+        "pass loop:7 2 1x1",
+      ],
+      [
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+      ],
+    ],
+    "rows": [
+      "b 1 done: fix-b score-b check-b~2 -",
+      "c 2 failed: fix-c score-c check-c~2 fix-c~2",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "kind:prepare 16,16 118x52",
+      "flow:flows.review_loop 190,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 3",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c] []",
+      "flow:flows.review_loop [0.1 0.2 0.3] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+    ],
+    "size": "340x84",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "kind:prepare 24,16 118x52",
+      "flow:flows.review_loop 16,108 134x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 3",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c] []",
+      "flow:flows.review_loop [0.1 0.2 0.3] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+    ],
+    "size": "166x176",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > review loop, failed 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 3 spread [[1,1],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 4",
+      "kind:summarize > kind:fix@7 after 3",
+      "kind:check > kind:fix@7 after 3",
+      "kind:fix@7 > kind:score@7 after 5",
+      "kind:fix@7 > kind:check@7 after 5",
+      "kind:score@7 > kind:check@7 created 5",
+      "kind:check@7 > kind:fix@7 after 3 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c summarize-d] []",
+      "kind:check [check-a check-b check-c check-d] []",
+      "kind:fix@7 [fix-a fix-b~3 - fix-d~2] []",
+      "kind:score@7 [score-a score-b~3 - score-d] []",
+      "kind:check@7 [check-a~2 check-b~4 - check-d~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 4",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 3 spread [[1,1],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 4",
+      "kind:summarize > kind:fix@7 after 3",
+      "kind:check > kind:fix@7 after 3",
+      "kind:fix@7 > kind:score@7 after 5",
+      "kind:fix@7 > kind:check@7 after 5",
+      "kind:score@7 > kind:check@7 created 5",
+      "kind:check@7 > kind:fix@7 after 3 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c summarize-d] []",
+      "kind:check [check-a check-b check-c check-d] []",
+      "kind:fix@7 [fix-a fix-b~3 - fix-d~2] []",
+      "kind:score@7 [score-a score-b~3 - score-d] []",
+      "kind:check@7 [check-a~2 check-b~4 - check-d~2] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 4",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:fix@7|1",
+      "kind:score@7|1",
+      "kind:check@7|1",
+      "kind:fix@7|2",
+      "kind:score@7|2",
+      "kind:check@7|2",
+      "kind:fix@7|3",
+      "kind:score@7|3",
+      "kind:check@7|3",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+        "pass loop:7 2 3x1",
+        "pass loop:7 3 3x1",
+      ],
+      [
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+      ],
+    ],
+    "rows": [
+      "a 1 done: fix-a score-a check-a~2 - - - - - -",
+      "b 3 done: fix-b score-b check-b~2 fix-b~2 score-b~2 check-b~3 fix-b~3 score-b~3 check-b~4",
+      "d 2 failed: fix-d score-d check-d~2 fix-d~2 - - - - -",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "kind:prepare 16,16 118x52",
+      "flow:flows.review_loop 190,16 134x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 4",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c prepare-d] []",
+      "flow:flows.review_loop [0.1 0.2 0.3 0.4] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+    ],
+    "size": "340x84",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "kind:prepare 24,16 118x52",
+      "flow:flows.review_loop 16,108 134x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 4",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c prepare-d] []",
+      "flow:flows.review_loop [0.1 0.2 0.3 0.4] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+    ],
+    "size": "166x176",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > review loop, spread 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.run_all 16,16 118x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.run_all",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.run_all [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "150x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.run_all",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.run_all",
+  "flows.run_all / flows.review_loop | across": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 3 spread [[1,2],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 5",
+      "kind:summarize > kind:fix@7 after 4",
+      "kind:check > kind:fix@7 after 4",
+      "kind:fix@7 > kind:score@7 after 7",
+      "kind:fix@7 > kind:check@7 after 7",
+      "kind:score@7 > kind:check@7 created 7",
+      "kind:check@7 > kind:fix@7 after 3 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c summarize-d summarize-e] []",
+      "kind:check [check-a check-b check-c check-d check-e] []",
+      "kind:fix@7 [fix-a fix-b~3 - fix-d fix-e~2] []",
+      "kind:score@7 [score-a score-b~3 - score-d score-e~2] []",
+      "kind:check@7 [check-a~2 check-b~4 - check-d~2 check-e~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 5",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ],
+  },
+  "flows.run_all / flows.review_loop | down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 3 spread [[1,2],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 5",
+      "kind:summarize > kind:fix@7 after 4",
+      "kind:check > kind:fix@7 after 4",
+      "kind:fix@7 > kind:score@7 after 7",
+      "kind:fix@7 > kind:check@7 after 7",
+      "kind:score@7 > kind:check@7 created 7",
+      "kind:check@7 > kind:fix@7 after 3 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b summarize-c summarize-d summarize-e] []",
+      "kind:check [check-a check-b check-c check-d check-e] []",
+      "kind:fix@7 [fix-a fix-b~3 - fix-d fix-e~2] []",
+      "kind:score@7 [score-a score-b~3 - score-d score-e~2] []",
+      "kind:check@7 [check-a~2 check-b~4 - check-d~2 check-e~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 5",
+    ],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ],
+  },
+  "flows.run_all / flows.review_loop | loop:7": {
+    "columns": [
+      "kind:fix@7|1",
+      "kind:score@7|1",
+      "kind:check@7|1",
+      "kind:fix@7|2",
+      "kind:score@7|2",
+      "kind:check@7|2",
+      "kind:fix@7|3",
+      "kind:score@7|3",
+      "kind:check@7|3",
+    ],
+    "head": [
+      [
+        "pass loop:7 1 3x1",
+        "pass loop:7 2 3x1",
+        "pass loop:7 3 3x1",
+      ],
+      [
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+        "kind:fix@7 1x1",
+        "kind:score@7 1x1",
+        "kind:check@7 1x1",
+      ],
+    ],
+    "rows": [
+      "a 1 done: fix-a score-a check-a~2 - - - - - -",
+      "b 3 done: fix-b score-b check-b~2 fix-b~2 score-b~2 check-b~3 fix-b~3 score-b~3 check-b~4",
+      "d 1 done: fix-d score-d check-d~2 - - - - - -",
+      "e 2 done: fix-e score-e check-e~2 fix-e~2 score-e~2 check-e~3 - - -",
+    ],
+  },
+  "flows.run_all | across": {
+    "at": [
+      "kind:prepare 16,16 118x52",
+      "flow:flows.review_loop 190,16 134x52",
+      "kind:report 380,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 5",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
+      "flow:flows.review_loop > kind:report: M324,42 L380,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c prepare-d prepare-e] []",
+      "flow:flows.review_loop [0.1 0.2 0.3 0.4 0.5] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "510x84",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ],
+  },
+  "flows.run_all | down": {
+    "at": [
+      "kind:prepare 24,16 118x52",
+      "flow:flows.review_loop 16,108 134x52",
+      "kind:report 26,200 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > flow:flows.review_loop after 5",
+      "flow:flows.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "flow:flows.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
+      "flow:flows.review_loop > kind:report: M83,160 L83,200",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-a prepare-b prepare-c prepare-d prepare-e] []",
+      "flow:flows.review_loop [0.1 0.2 0.3 0.4 0.5] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | flow:flows.review_loop@",
+      "after: flow:flows.review_loop@ | kind:report@",
+    ],
+    "size": "166x266",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "flow:flows.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > static demo 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "kind:prepare 16,58.5 118x52",
+      "kind:summarize 190,58.5 126x52",
+      "kind:review 372,16 114x52",
+      "kind:write_note 372,84 130x52",
+      "kind:report 558,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
+      "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "688x152",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "kind:prepare 100.25,16 118x52",
+      "kind:summarize 96.25,108 126x52",
+      "kind:review 16,200 114x52",
+      "kind:write_note 146,200 130x52",
+      "kind:report 16,292 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
+      "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
+      "kind:review > kind:report: M73,252 L73,292",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "292x358",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "auto": "",
+}
+`;
+
+exports[`the graph of each plan, frozen > static demo under one function 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:flows.pipeline 16,16 122x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.pipeline",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.pipeline [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.pipeline",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "154x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.pipeline",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:flows.pipeline 16,16 122x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:flows.pipeline",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:flows.pipeline [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:flows.pipeline",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "154x82",
+    "slots": {
+      "": [
+        [
+          "flow:flows.pipeline",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "flows.pipeline",
+  "flows.pipeline | across": {
+    "at": [
+      "kind:prepare 16,58.5 118x52",
+      "kind:summarize 190,58.5 126x52",
+      "kind:review 372,16 114x52",
+      "kind:write_note 372,84 130x52",
+      "kind:report 558,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
+      "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "688x152",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "flows.pipeline | down": {
+    "at": [
+      "kind:prepare 100.25,16 118x52",
+      "kind:summarize 96.25,108 126x52",
+      "kind:review 16,200 114x52",
+      "kind:write_note 146,200 130x52",
+      "kind:report 16,292 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
+      "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
+      "kind:review > kind:report: M73,252 L73,292",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "292x358",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > static demo, running 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "kind:prepare 16,58.5 118x52",
+      "kind:summarize 190,58.5 126x52",
+      "kind:review 372,16 114x52",
+      "kind:write_note 372,84 130x52",
+      "kind:report 558,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
+      "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "688x152",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "(top) | down": {
+    "at": [
+      "kind:prepare 100.25,16 118x52",
+      "kind:summarize 96.25,108 126x52",
+      "kind:review 16,200 114x52",
+      "kind:write_note 146,200 130x52",
+      "kind:report 16,292 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:review after 6",
+      "kind:summarize > kind:write_note after 6",
+      "kind:review > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:review",
+        "kind:write_note",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
+      "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
+      "kind:review > kind:report: M73,252 L73,292",
+    ],
+    "nodes": [
+      "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:review [review-alpha review-beta review-gamma review-delta review-epsilon review-zeta] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon write_note-zeta] []",
+      "kind:report [] [report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | kind:review@",
+      "after: kind:summarize@ | kind:write_note@",
+      "after: kind:review@ | kind:report@",
+    ],
+    "size": "292x358",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:review",
+          "kind:write_note",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "auto": "",
+}
+`;
+
+exports[`the graph of each plan, frozen > the demo run 1`] = `
+{
+  "(top) | across": {
+    "at": [
+      "flow:contraagent.docs.examples.demo.tasks.docs 16,16 106x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:contraagent.docs.examples.demo.tasks.docs",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:contraagent.docs.examples.demo.tasks.docs [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.docs",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x82",
+    "slots": {
+      "": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.docs",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "(top) | down": {
+    "at": [
+      "flow:contraagent.docs.examples.demo.tasks.docs 16,16 106x50",
+    ],
+    "boxes": [],
+    "edges": [],
+    "layers": [
+      [
+        "flow:contraagent.docs.examples.demo.tasks.docs",
+      ],
+    ],
+    "lines": [],
+    "nodes": [
+      "flow:contraagent.docs.examples.demo.tasks.docs [] [0]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.docs",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [],
+    "size": "138x82",
+    "slots": {
+      "": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.docs",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [],
+  },
+  "auto": "contraagent.docs.examples.demo.tasks.docs",
+  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | across": {
+    "at": [
+      "kind:prepare 16,48 118x52",
+      "kind:summarize 190,48 126x52",
+      "loop:130 372,16 442x108",
+      "kind:score@130 384,48 110x52",
+      "kind:review@130 534,48 114x52",
+      "kind:revise@130 688,48 114x52",
+      "kind:write_note 870,48 130x52",
+    ],
+    "boxes": [
+      "loop:130 <  passes 2 spread [[1,4],[2,1]] [["kind:score@130"],["kind:review@130"],["kind:revise@130"]]",
+    ],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:score@130 after 5",
+      "kind:summarize > kind:review@130 after 5",
+      "kind:score@130 > kind:review@130 after 6",
+      "kind:summarize > kind:write_note after 4",
+      "kind:review@130 > kind:write_note created 5",
+      "kind:summarize > kind:revise@130 after 1",
+      "kind:review@130 > kind:revise@130 after 1",
+      "kind:revise@130 > kind:score@130 after 1 back",
+      "kind:revise@130 > kind:review@130 after 1 back",
+      "kind:revise@130 > kind:write_note after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "loop:130",
+      ],
+      [
+        "kind:write_note",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M134,74 L190,74",
+      "kind:summarize > kind:score@130: M316,74 L372,74 L384,74",
+      "kind:summarize > kind:review@130: M316,74 C344,74 344,152 372,152 L494,152 C514,152 514,74 534,74",
+      "kind:score@130 > kind:review@130: M494,74 L534,74",
+      "kind:summarize > kind:write_note: M316,74 C344,74 344,164 372,164 L814,164 C842,164 842,74 870,74",
+      "kind:review@130 > kind:write_note: M648,74 C668,74 668,140 688,140 L814,140 C842,140 842,74 870,74",
+      "kind:summarize > kind:revise@130: M316,74 C344,74 344,152 372,152 L648,152 C668,152 668,74 688,74",
+      "kind:review@130 > kind:revise@130: M648,74 L688,74",
+      "kind:revise@130 > kind:write_note: M802,74 L814,74 L870,74",
+    ],
+    "nodes": [
+      "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-epsilon python:prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:score@130 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
+      "kind:review@130 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
+      "kind:revise@130 [- - revise-gamma - - -] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon -] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:130": [
+          [
+            "kind:score@130",
+          ],
+          [
+            "kind:review@130",
+          ],
+          [
+            "kind:revise@130",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "loop:130",
+        ],
+        [
+          "kind:write_note",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:130: M745,103 L745,106 Q745,112 739,112 L445,112 Q439,112 439,106 L439,103",
+    ],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | loop:130@ | kind:score@130@loop:130",
+      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:review@130@loop:130",
+      "after: kind:score@130@loop:130 | kind:review@130@loop:130",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
+      "created: kind:review@130@loop:130 | loop:130@ | ~|by:loop:130|kind:review@130|created|2@ | kind:write_note@",
+      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:revise@130@loop:130",
+      "after: kind:review@130@loop:130 | kind:revise@130@loop:130",
+      "after: kind:revise@130@loop:130 | loop:130@ | kind:write_note@",
+    ],
+    "size": "1016x180",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "loop:130",
+          "~|by:loop:130|kind:review@130|created|2",
+          "~|by:loop:130|>:kind:summarize|after|2",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "kind:write_note",
+        ],
+      ],
+      "loop:130": [
+        [
+          "kind:score@130",
+        ],
+        [
+          "kind:review@130",
+        ],
+        [
+          "kind:revise@130",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | down": {
+    "at": [
+      "kind:prepare 152,16 118x52",
+      "kind:summarize 148,108 126x52",
+      "loop:130 16,200 164x280",
+      "kind:score@130 28,250 110x52",
+      "kind:review@130 26,334 114x52",
+      "kind:revise@130 26,418 114x52",
+      "kind:write_note 18,520 130x52",
+    ],
+    "boxes": [
+      "loop:130 <  passes 2 spread [[1,4],[2,1]] [["kind:score@130"],["kind:review@130"],["kind:revise@130"]]",
+    ],
+    "edges": [
+      "kind:prepare > kind:summarize after 6",
+      "kind:summarize > kind:score@130 after 5",
+      "kind:summarize > kind:review@130 after 5",
+      "kind:score@130 > kind:review@130 after 6",
+      "kind:summarize > kind:write_note after 4",
+      "kind:review@130 > kind:write_note created 5",
+      "kind:summarize > kind:revise@130 after 1",
+      "kind:review@130 > kind:revise@130 after 1",
+      "kind:revise@130 > kind:score@130 after 1 back",
+      "kind:revise@130 > kind:review@130 after 1 back",
+      "kind:revise@130 > kind:write_note after 1",
+    ],
+    "layers": [
+      [
+        "kind:prepare",
+      ],
+      [
+        "kind:summarize",
+      ],
+      [
+        "loop:130",
+      ],
+      [
+        "kind:write_note",
+      ],
+    ],
+    "lines": [
+      "kind:prepare > kind:summarize: M211,68 L211,108",
+      "kind:summarize > kind:score@130: M211,160 C211,180 208,180 208,200 L208,230 C208,240 83,240 83,250",
+      "kind:summarize > kind:review@130: M211,160 C211,180 208,180 208,200 L208,302 C208,318 83,318 83,334",
+      "kind:score@130 > kind:review@130: M83,302 L83,334",
+      "kind:summarize > kind:write_note: M211,160 C211,180 220,180 220,200 L220,480 C220,500 83,500 83,520",
+      "kind:review@130 > kind:write_note: M83,386 C83,402 196,402 196,418 L196,480 C196,500 83,500 83,520",
+      "kind:summarize > kind:revise@130: M211,160 C211,180 208,180 208,200 L208,386 C208,402 83,402 83,418",
+      "kind:review@130 > kind:revise@130: M83,386 L83,418",
+      "kind:revise@130 > kind:write_note: M83,470 L83,480 L83,520",
+    ],
+    "nodes": [
+      "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-epsilon python:prepare-zeta] []",
+      "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
+      "kind:score@130 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
+      "kind:review@130 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
+      "kind:revise@130 [- - revise-gamma - - -] []",
+      "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon -] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:130": [
+          [
+            "kind:score@130",
+          ],
+          [
+            "kind:review@130",
+          ],
+          [
+            "kind:revise@130",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "loop:130",
+        ],
+        [
+          "kind:write_note",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:130: M143,444 L146,444 Q152,444 152,438 L152,282 Q152,276 146,276 L141,276",
+    ],
+    "routes": [
+      "after: kind:prepare@ | kind:summarize@",
+      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:score@130@loop:130",
+      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:review@130@loop:130",
+      "after: kind:score@130@loop:130 | kind:review@130@loop:130",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
+      "created: kind:review@130@loop:130 | loop:130@ | ~|by:loop:130|kind:review@130|created|2@ | kind:write_note@",
+      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:revise@130@loop:130",
+      "after: kind:review@130@loop:130 | kind:revise@130@loop:130",
+      "after: kind:revise@130@loop:130 | loop:130@ | kind:write_note@",
+    ],
+    "size": "290x588",
+    "slots": {
+      "": [
+        [
+          "kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "loop:130",
+          "~|by:loop:130|kind:review@130|created|2",
+          "~|by:loop:130|>:kind:summarize|after|2",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "kind:write_note",
+        ],
+      ],
+      "loop:130": [
+        [
+          "kind:score@130",
+        ],
+        [
+          "kind:review@130",
+        ],
+        [
+          "kind:revise@130",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | loop:130": {
+    "columns": [
+      "kind:score@130|1",
+      "kind:review@130|1",
+      "kind:revise@130|1",
+      "kind:score@130|2",
+      "kind:review@130|2",
+    ],
+    "head": [
+      [
+        "pass loop:130 1 3x1",
+        "pass loop:130 2 2x1",
+      ],
+      [
+        "kind:score@130 1x1",
+        "kind:review@130 1x1",
+        "kind:revise@130 1x1",
+        "kind:score@130 1x1",
+        "kind:review@130 1x1",
+      ],
+    ],
+    "rows": [
+      "alpha 1 done: python:score-alpha review-alpha - - -",
+      "beta 1 done: python:score-beta review-beta - - -",
+      "gamma 2 done: python:score-gamma review-gamma revise-gamma python:score-gamma~2 review-gamma~2",
+      "delta 1 done: python:score-delta review-delta - - -",
+      "epsilon 1 done: python:score-epsilon review-epsilon - - -",
+    ],
+  },
+  "contraagent.docs.examples.demo.tasks.docs | across": {
+    "at": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop 16,16 134x52",
+      "kind:report 206,17 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:contraagent.docs.examples.demo.tasks.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop > kind:report: M150,42 L206,42",
+    ],
+    "nodes": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop [0.1 0.2 0.3 0.4 0.5 0.6] []",
+      "kind:report [] [python:report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:contraagent.docs.examples.demo.tasks.review_loop@ | kind:report@",
+    ],
+    "size": "336x84",
+    "slots": {
+      "": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+  "contraagent.docs.examples.demo.tasks.docs | down": {
+    "at": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop 16,16 134x52",
+      "kind:report 26,108 114x50",
+    ],
+    "boxes": [],
+    "edges": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop > kind:report after 1",
+    ],
+    "layers": [
+      [
+        "flow:contraagent.docs.examples.demo.tasks.review_loop",
+      ],
+      [
+        "kind:report",
+      ],
+    ],
+    "lines": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop > kind:report: M83,68 L83,108",
+    ],
+    "nodes": [
+      "flow:contraagent.docs.examples.demo.tasks.review_loop [0.1 0.2 0.3 0.4 0.5 0.6] []",
+      "kind:report [] [python:report]",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: flow:contraagent.docs.examples.demo.tasks.review_loop@ | kind:report@",
+    ],
+    "size": "166x174",
+    "slots": {
+      "": [
+        [
+          "flow:contraagent.docs.examples.demo.tasks.review_loop",
+        ],
+        [
+          "kind:report",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "alpha",
+      "beta",
+      "gamma",
+      "delta",
+      "epsilon",
+      "zeta",
+    ],
+  },
+}
+`;
+
+exports[`the graph of each plan, frozen > with a previous order 1`] = `
+{
+  "a loop box after pass 2": {
+    "at": [
+      "stub:1:kind:prepare 16,63 88x22",
+      "kind:summarize 160,48 126x52",
+      "kind:check 342,48 110x52",
+      "loop:7 508,16 426x120",
+      "kind:fix@7 520,48 102x52",
+      "kind:score@7 662,48 110x52",
+      "kind:check@7 812,48 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 1",
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M286,74 L342,74",
+      "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
+      "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [- fix-b~2] []",
+      "kind:score@7 [- score-b~2] []",
+      "kind:check@7 [- check-b~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M867,103 L867,118 Q867,124 861,124 L577,124 Q571,124 571,118 L571,103",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "950x152",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "a loop box after pass 2, down": {
+    "at": [
+      "stub:1:kind:prepare 146,16 88x22",
+      "kind:summarize 127,78 126x52",
+      "kind:check 135,170 110x52",
+      "loop:7 16,262 158x280",
+      "kind:fix@7 30,312 102x52",
+      "kind:score@7 26,396 110x52",
+      "kind:check@7 26,480 110x52",
+    ],
+    "boxes": [
+      "loop:7 <  passes 2 spread [[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
+    ],
+    "edges": [
+      "kind:summarize > kind:check after 2",
+      "kind:summarize > kind:fix@7 after 1",
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+    ],
+    "layers": [
+      [
+        "kind:summarize",
+      ],
+      [
+        "kind:check",
+      ],
+      [
+        "loop:7",
+      ],
+    ],
+    "lines": [
+      "kind:summarize > kind:check: M190,130 L190,170",
+      "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
+      "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
+    ],
+    "nodes": [
+      "kind:summarize [summarize-a summarize-b] []",
+      "kind:check [check-a check-b] []",
+      "kind:fix@7 [- fix-b~2] []",
+      "kind:score@7 [- score-b~2] []",
+      "kind:check@7 [- check-b~3] []",
+    ],
+    "order": {
+      "boxes": {
+        "loop:7": [
+          [
+            "kind:fix@7",
+          ],
+          [
+            "kind:score@7",
+          ],
+          [
+            "kind:check@7",
+          ],
+        ],
+      },
+      "layers": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+        ],
+        [
+          "loop:7",
+        ],
+      ],
+    },
+    "returns": [
+      "loop:7: M139,506 L154,506 Q160,506 160,500 L160,344 Q160,338 154,338 L135,338",
+    ],
+    "routes": [
+      "after: kind:summarize@ | kind:check@",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
+      "after: stub:1:kind:prepare@ | kind:summarize@",
+    ],
+    "size": "273x558",
+    "slots": {
+      "": [
+        [
+          "stub:1:kind:prepare",
+        ],
+        [
+          "kind:summarize",
+        ],
+        [
+          "kind:check",
+          "~|kind:summarize|after|2",
+        ],
+        [
+          "loop:7",
+          "~|by:loop:7|>:kind:check|after|3",
+          "~|by:loop:7|>:kind:summarize|after|3",
+        ],
+      ],
+      "loop:7": [
+        [
+          "kind:fix@7",
+        ],
+        [
+          "kind:score@7",
+          "~loop:7|kind:fix@7|after|1",
+        ],
+        [
+          "kind:check@7",
+        ],
+      ],
+    },
+    "stubs": [
+      "stub:1:kind:prepare > kind:summarize after 2",
+    ],
+    "units": [
+      "a",
+      "b",
+    ],
+  },
+  "a point moves": {
+    "at": [
+      "kind:a 16,58.5 94x52",
+      "kind:b 166,16 94x52",
+      "kind:e 166,84 94x52",
+      "kind:c 316,20.25 94x52",
+      "kind:d 466,20.25 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:a > kind:b after 1",
+      "kind:b > kind:c after 1",
+      "kind:c > kind:d after 1",
+      "kind:a > kind:d after 1",
+      "kind:a > kind:e after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+      ],
+      [
+        "kind:b",
+        "kind:e",
+      ],
+      [
+        "kind:c",
+      ],
+      [
+        "kind:d",
+      ],
+    ],
+    "lines": [
+      "kind:a > kind:b: M110,84.5 C138,84.5 138,42 166,42",
+      "kind:b > kind:c: M260,42 C288,42 288,46.5 316,46.5",
+      "kind:c > kind:d: M410,46.5 L466,46.5",
+      "kind:a > kind:d: M110,84.5 C138,84.5 138,148 166,148 L260,148 C288,148 288,99.5 316,99.5 L410,99.5 C438,99.5 438,46.5 466,46.5",
+      "kind:a > kind:e: M110,84.5 C138,84.5 138,110 166,110",
+    ],
+    "nodes": [
+      "kind:a [a-u] []",
+      "kind:b [b-u] []",
+      "kind:e [e-u] []",
+      "kind:c [c-u] []",
+      "kind:d [d-u] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+          "kind:e",
+        ],
+        [
+          "kind:c",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:a@ | kind:b@",
+      "after: kind:b@ | kind:c@",
+      "after: kind:c@ | kind:d@",
+      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
+      "after: kind:a@ | kind:e@",
+    ],
+    "size": "576x164",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+        ],
+        [
+          "kind:b",
+          "kind:e",
+          "~|kind:a|after|1",
+        ],
+        [
+          "kind:c",
+          "~|kind:a|after|2",
+        ],
+        [
+          "kind:d",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+    ],
+  },
+  "nodes that appear later": {
+    "at": [
+      "kind:a 16,50 94x52",
+      "kind:z 16,118 94x52",
+      "kind:b 166,16 94x52",
+      "kind:c 166,84 94x52",
+      "kind:d 166,152 94x52",
+    ],
+    "boxes": [],
+    "edges": [
+      "kind:a > kind:b after 1",
+      "kind:a > kind:c after 1",
+      "kind:z > kind:d after 1",
+      "kind:z > kind:c after 1",
+    ],
+    "layers": [
+      [
+        "kind:a",
+        "kind:z",
+      ],
+      [
+        "kind:b",
+        "kind:c",
+        "kind:d",
+      ],
+    ],
+    "lines": [
+      "kind:a > kind:b: M110,76 C138,76 138,42 166,42",
+      "kind:a > kind:c: M110,76 C138,76 138,110 166,110",
+      "kind:z > kind:d: M110,144 C138,144 138,178 166,178",
+      "kind:z > kind:c: M110,144 C138,144 138,110 166,110",
+    ],
+    "nodes": [
+      "kind:a [a-u -] []",
+      "kind:z [z-u -] []",
+      "kind:b [b-u -] []",
+      "kind:c [c-u c-v] []",
+      "kind:d [d-u -] []",
+    ],
+    "order": {
+      "boxes": {},
+      "layers": [
+        [
+          "kind:a",
+          "kind:z",
+        ],
+        [
+          "kind:b",
+          "kind:c",
+          "kind:d",
+        ],
+      ],
+    },
+    "returns": [],
+    "routes": [
+      "after: kind:a@ | kind:b@",
+      "after: kind:a@ | kind:c@",
+      "after: kind:z@ | kind:d@",
+      "after: kind:z@ | kind:c@",
+    ],
+    "size": "276x220",
+    "slots": {
+      "": [
+        [
+          "kind:a",
+          "kind:z",
+        ],
+        [
+          "kind:b",
+          "kind:c",
+          "kind:d",
+        ],
+      ],
+    },
+    "stubs": [],
+    "units": [
+      "u",
+      "v",
+    ],
+  },
+}
+`;
