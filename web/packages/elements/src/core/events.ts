@@ -23,6 +23,11 @@ export interface SortDetail {
   direction: 'asc' | 'desc';
 }
 
+/** A view of the same data: a drawing, or a table. */
+export interface ViewDetail {
+  view: 'graph' | 'table';
+}
+
 /** A named action of an item (a tile's link): the item's id and the action's id. */
 export interface ActionDetail {
   id: string;
@@ -42,6 +47,10 @@ export interface CaeEventMap {
   'cae-select': SelectDetail;
   'cae-sort': SortDetail;
   'cae-action': ActionDetail;
+  /** Enter an item's inner view (a cluster, a node or a mark that has one). */
+  'cae-drill': ItemDetail;
+  /** The reader chose another view. */
+  'cae-view-change': ViewDetail;
   /** The reader picked a section (null: follow the latest). */
   'cae-section-change': SectionDetail;
   /** The section on screen changed (-1: none). */
@@ -57,6 +66,8 @@ declare global {
     'cae-select': CustomEvent<SelectDetail>;
     'cae-sort': CustomEvent<SortDetail>;
     'cae-action': CustomEvent<ActionDetail>;
+    'cae-drill': CustomEvent<ItemDetail>;
+    'cae-view-change': CustomEvent<ViewDetail>;
     'cae-section-change': CustomEvent<SectionDetail>;
     'cae-section-shown': CustomEvent<{ index: number }>;
     'cae-load-earlier': CustomEvent<Record<string, never>>;

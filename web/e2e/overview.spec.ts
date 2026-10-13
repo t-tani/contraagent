@@ -7,7 +7,9 @@ const graph = (page: Page) => page.locator('ca-pipeline-graph');
 const crumbs = (page: Page) => graph(page).locator('.crumbs');
 const crumbTexts = async (page: Page) => (await crumbs(page).locator('li').allTextContents()).map((t) => t.replace('›', '').trim());
 const nodeName = (page: Page, text: string) => graph(page).locator('.node .name', { hasText: text }).first();
-const inspector = (page: Page) => graph(page).locator('section.insp');
+/** The selection's card as the generic graph places it, and its content (the pipeline graph's, in the card's slot). */
+const cardOf = (page: Page) => graph(page).locator('[part~="inspector"]');
+const inspector = (page: Page) => graph(page).locator('[slot="inspector"]');
 /** Into a function's layer: a double click on its node (a click selects it). */
 const enter = async (page: Page, text: string) => nodeName(page, text).dblclick();
 const params = (page: Page) => Object.fromEntries(new URL(page.url()).searchParams);
@@ -28,7 +30,7 @@ test.describe('docs: a review loop per unit', () => {
 
   test("draws the loop box with its passes, and gamma's 2 passes on its marks", async ({ page }) => {
     await enter(page, 'review_loop');
-    const box = graph(page).locator('.box');
+    const box = graph(page).locator('.cluster');
     await expect(box.locator('> .hd .count')).toHaveText('up to 2 passes');
     await expect(box.locator('> .hd .spread')).toHaveText('1 pass: 4 | 2 passes: 1');
     await expect(box.locator('.mark[data-n="2"]').first()).toHaveAttribute('title', /gamma/);
@@ -39,10 +41,10 @@ test.describe('docs: a review loop per unit', () => {
 
   test("shows the loop's passes as units by node and pass, and Escape goes back to the box", async ({ page }) => {
     await enter(page, 'review_loop');
-    await graph(page).locator('.box > .hd .name').dblclick();
+    await graph(page).locator('.cluster > .hd .name').dblclick();
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
     const matrix = graph(page).locator('table.matrix');
-    await expect(matrix.locator('thead th.pass')).toHaveText(['Pass 1', 'Pass 2']);
+    await expect(matrix.locator('thead th.group')).toHaveText(['Pass 1', 'Pass 2']);
     await expect(matrix.locator('tbody th')).toHaveText(['alpha', 'beta', 'gamma', 'delta', 'epsilon']);
     const gamma = matrix.locator('tbody tr', { hasText: 'gamma' });
     await expect(gamma.locator('.mark')).toHaveCount(5);
@@ -60,7 +62,7 @@ test.describe('docs: a review loop per unit', () => {
     await expect.poll(() => params(page).sel).toBeUndefined();
     await page.keyboard.press('Escape');
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
-    await expect(graph(page).locator('.box > .hd .name')).toBeFocused();
+    await expect(graph(page).locator('.cluster > .hd .name')).toBeFocused();
   });
 
   test('Shift and an arrow key follow an edge on the same unit', async ({ page }) => {
@@ -113,7 +115,7 @@ test.describe('docs: a review loop per unit', () => {
     await enter(page, 'review_loop');
     const views = graph(page).locator('.views');
     const at = (await views.boundingBox())!;
-    await graph(page).locator('.box > .hd .name').dblclick();
+    await graph(page).locator('.cluster > .hd .name').dblclick();
     const frame = graph(page).locator('.main > .frame');
     const block = frame.locator('.mxblock');
     await expect(block.locator('table.matrix')).toBeVisible();
@@ -130,7 +132,7 @@ test.describe('docs: a review loop per unit', () => {
     await expect(views.getByRole('radio', { name: 'Table' })).toHaveAttribute('aria-checked', 'true');
     await views.getByRole('radio', { name: 'Graph' }).click();
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
-    await expect(graph(page).locator('.box.sel')).toHaveCount(1);
+    await expect(graph(page).locator('.cluster.sel')).toHaveCount(1);
     await expect(inspector(page).locator('h4')).toHaveText(/Loop at tasks\.py:\d+$/);
   });
 });
@@ -153,17 +155,17 @@ test.describe('analyse: nested flow calls and loops', () => {
   test('draws a loop inside a loop as nested boxes', async ({ page }) => {
     await enter(page, 'analyse_bundle');
     await enter(page, 'analyse_file');
-    await expect(graph(page).locator('.box')).toHaveCount(2);
-    await expect(graph(page).locator('.box .box')).toHaveCount(1);
-    await expect(graph(page).locator('.box .box .node .name', { hasText: 'verify' })).toBeVisible();
-    await expect(graph(page).locator('.box .box .node .name', { hasText: 'propose' })).toHaveCount(0);
+    await expect(graph(page).locator('.cluster')).toHaveCount(2);
+    await expect(graph(page).locator('.cluster .cluster')).toHaveCount(1);
+    await expect(graph(page).locator('.cluster .cluster .node .name', { hasText: 'verify' })).toBeVisible();
+    await expect(graph(page).locator('.cluster .cluster .node .name', { hasText: 'propose' })).toHaveCount(0);
   });
 
   test('shows the inner loop within each pass of the outer one, a breadcrumb level below it', async ({ page }) => {
     await enter(page, 'analyse_bundle');
     await enter(page, 'analyse_file');
-    await expect(graph(page).locator('.box .box .hd .spread')).toHaveText('1 pass: 7 | 2 passes: 1');
-    await graph(page).locator('.box .box > .hd .name').dblclick();
+    await expect(graph(page).locator('.cluster .cluster .hd .spread')).toHaveText('1 pass: 7 | 2 passes: 1');
+    await graph(page).locator('.cluster .cluster > .hd .name').dblclick();
     // Each loop is named by where it is: the outer one and the one inside it are told apart.
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file', 'Loop at flow.py:122', 'Loop at flow.py:125']);
     const matrix = graph(page).locator('table.matrix');
@@ -173,8 +175,8 @@ test.describe('analyse: nested flow calls and loops', () => {
     await expect(matrix.locator('tbody tr', { hasText: 'east-0-id' }).locator('.mark')).toHaveCount(3);
     // The outer loop's passes: its own node, then the nested loop's passes inside each pass.
     await crumbs(page).locator('button', { hasText: 'Loop at flow.py:122' }).click();
-    await expect(matrix.locator('thead th.pass').first()).toHaveText('Pass 1');
-    await expect(matrix.locator('thead th.loop')).toHaveCount(2);
+    await expect(matrix.locator('thead th.group').first()).toHaveText('Pass 1');
+    await expect(matrix.locator('thead th.group.code')).toHaveCount(2);
     await expect(matrix.locator('thead th.nh').first()).toHaveText(/propose$/);
   });
 });
@@ -185,7 +187,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
   test('a click selects a mark; the inspector shows it and links to its task detail', async ({ page }) => {
     await enter(page, 'review_loop');
     // No selection, no card: the graph has the panel's whole width.
-    await expect(inspector(page)).toHaveCount(0);
+    await expect(cardOf(page)).toHaveCount(0);
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     await prepare.locator('.mark[title*="zeta"]').click();
     await expect(prepare.locator('.mark.sel')).toHaveCount(1);
@@ -208,8 +210,8 @@ test.describe('docs: selecting, and where a selection leads', () => {
     // Who runs a kind's tasks: prepare is Python, summarize an agent.
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     const summarize = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'summarize' }) });
-    await expect(prepare).not.toHaveClass(/agent/);
-    await expect(summarize).toHaveClass(/agent/);
+    await expect(prepare).not.toHaveClass(/accent/);
+    await expect(summarize).toHaveClass(/accent/);
     await expect(summarize).toHaveAttribute('aria-label', /Agent task/);
     await summarize.locator('.name').click();
     await expect(inspector(page)).toContainText('Agent task');
@@ -219,12 +221,12 @@ test.describe('docs: selecting, and where a selection leads', () => {
 
   test('a double click follows the first link: a mark to its task, a loop box to its passes', async ({ page }) => {
     await enter(page, 'review_loop');
-    await graph(page).locator('.box > .hd').dblclick();
+    await graph(page).locator('.cluster > .hd').dblclick();
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop', expect.stringMatching(/^Loop at tasks\.py:\d+$/)]);
     await page.goBack();
     // The loop box is selected again; its card may cover a mark: close it.
     await inspector(page).locator('.switch', { hasText: 'Clear selection' }).click();
-    await expect(inspector(page)).toHaveCount(0);
+    await expect(cardOf(page)).toHaveCount(0);
     const summarize = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'summarize' }) });
     await summarize.locator('.mark[title*="alpha"]').dblclick();
     await expect.poll(() => params(page)).toMatchObject({ tab: 'stream', key: 'summarize-alpha' });
@@ -241,7 +243,7 @@ test.describe('docs: selecting, and where a selection leads', () => {
     await expect(inspector(page).locator('h4')).toHaveText('prepare · beta');
     await page.keyboard.press('Escape');
     await expect.poll(() => params(page).sel).toBeUndefined();
-    await expect(inspector(page)).toHaveCount(0);
+    await expect(cardOf(page)).toHaveCount(0);
     await page.keyboard.press('Escape');
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
   });
@@ -260,7 +262,7 @@ test.describe('the selection’s card', () => {
     await enter(page, 'review_loop');
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     await prepare.locator('.mark[title*="zeta"]').click();
-    const card = inspector(page);
+    const card = cardOf(page);
     await expect(card).toBeVisible();
     await expect(card).toHaveAttribute('data-side', 'right');
     const c = await box(card);
@@ -275,7 +277,7 @@ test.describe('the selection’s card', () => {
     await enter(page, 'review_loop');
     const last = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'write_note' }) });
     await last.locator('.name').click();
-    const card = inspector(page);
+    const card = cardOf(page);
     await expect(card).toHaveAttribute('data-side', 'left');
     const c = await box(card);
     expect(gap(await box(last), c)).toBeLessThan(40);
@@ -284,7 +286,7 @@ test.describe('the selection’s card', () => {
 
   test('follows a pan, and hides while the item is out of the frame', async ({ page }) => {
     await nodeName(page, 'report').click();
-    const card = inspector(page);
+    const card = cardOf(page);
     await expect(card).toBeVisible();
     const report = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'report' }) });
     // Measured once it has faded in (it scales from 96%).
@@ -313,7 +315,7 @@ test.describe('the selection’s card', () => {
 
   test('Tab from the selected item reaches the card; Escape closes it and keeps the focus on the item', async ({ page }) => {
     await nodeName(page, 'review_loop').focus();
-    await expect(inspector(page)).toBeVisible();
+    await expect(cardOf(page)).toBeVisible();
     await expect(nodeName(page, 'review_loop')).toBeFocused();
     await expect(graph(page).locator('[role="status"]')).toContainText('review_loop');
     await page.keyboard.press('Tab');
@@ -322,7 +324,7 @@ test.describe('the selection’s card', () => {
     await expect(nodeName(page, 'review_loop')).toBeFocused();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Escape');
-    await expect(inspector(page)).toHaveCount(0);
+    await expect(cardOf(page)).toHaveCount(0);
     await expect(nodeName(page, 'review_loop')).toBeFocused();
   });
 
@@ -332,9 +334,9 @@ test.describe('the selection’s card', () => {
     await enter(page, 'review_loop');
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     await prepare.locator('.mark[title*="zeta"]').click();
-    const card = inspector(page);
+    const card = cardOf(page);
     await expect(card).toHaveClass(/sheet/);
-    await expect(card.locator('h4')).toHaveText('prepare · zeta');
+    await expect(inspector(page).locator('h4')).toHaveText('prepare · zeta');
     await expect(card).toBeInViewport();
     await expect(prepare.locator('.mark.sel')).toBeInViewport();
   });

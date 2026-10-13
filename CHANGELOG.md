@@ -298,6 +298,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `define` entry and a page in the package's `docs/`. `@contraagent/ui` builds
   `ca-kpis`, `ca-timeline` and a checked file's field table on them, from the
   adapters `kpiTiles`, `lanesFromJournal` and `checkRowsFromContract`.
+- `<cae-layered-graph>` (`@contraagent/elements/graph`): nodes in layers, joined
+  by edges, in clusters (a cycling cluster draws its return), each node a group of
+  marks lined up by series; pan, zoom, a card for the selection (the `inspector`
+  slot), the keyboard, a node table, and `arrange` and `layoutGraph` for the order
+  and the drawing. `<cae-mark-matrix>` (`@contraagent/elements/matrix`): marks in
+  a table under nested groups of columns. Events `cae-drill` and
+  `cae-view-change`. `ca-pipeline-graph` is built on them, from the adapters
+  `graphFromPlan` and `matrixFromPlan`; both are documented in `docs/graph.md`
+  and `docs/matrix.md`.
 - `<cae-transcript>` (`@contraagent/elements/transcript`, registered by
   `…/transcript/define`): a conversation with an agent in sections, with
   bubbles, reasoning, notices and tool cards (a web search lists its pages,

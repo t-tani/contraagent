@@ -16,11 +16,11 @@ const ALLOWED: Record<string, string> = {
   'packages/ui/src/elements/lists/ca-procs-view.ts|div.fl': 'a launch row: its name is a button that opens the same task',
   'packages/ui/src/elements/shell/ca-run-picker.ts|div.':
     'an option of a listbox: the focus stays on the search field (a combobox), which names the active option with aria-activedescendant',
-  'packages/ui/src/elements/overview/pipeline-graph/dag.ts|div.frame': 'the graph background: clears the selection, which Escape does from the keyboard',
-  'packages/ui/src/elements/overview/pipeline-graph/table.ts|div.frame': 'the table background: clears the selection, which Escape does from the keyboard',
-  'packages/ui/src/elements/overview/pipeline-graph/dag.ts|section.box': 'a loop box: its name is a button that selects it',
-  'packages/ui/src/elements/overview/pipeline-graph/dag.ts|section.node': 'a node: its name is a button that selects it',
-  'packages/ui/src/elements/overview/pipeline-graph/table.ts|tr.': 'a row of the table: its name is a button that selects it',
+  'packages/elements/src/graph/views/dag.ts|div.frame': 'the graph background: clears the selection, which Escape does from the keyboard',
+  'packages/elements/src/graph/views/node-table.ts|div.frame': 'the table background: clears the selection, which Escape does from the keyboard',
+  'packages/elements/src/graph/views/dag.ts|section.cluster': 'a cluster: its name is a button that selects it',
+  'packages/elements/src/graph/views/dag.ts|section.node': 'a node: its name is a button that selects it',
+  'packages/elements/src/graph/views/node-table.ts|tr.': 'a row of the table: its name is a button that selects it',
   'packages/elements/src/table/data-table.ts|tbody.': 'the rows (one listener for all): one tab stop, the arrow keys move between them and Enter opens one',
 };
 

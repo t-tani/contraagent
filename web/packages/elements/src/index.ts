@@ -18,4 +18,7 @@ export * from './table/index.js';
 export * from './tiles/index.js';
 export * from './lanes/index.js';
 export * from './checks/index.js';
+export * from './matrix/index.js';
+export * from './graph/index.js';
+export * from './core/frame.js';
 export * from './transcript/index.js';
