@@ -42,6 +42,19 @@ function sent(text: string): Set<string> {
 /** The event names in the JSDoc `@fires` tags of `text`. */
 const declared = (text: string): Set<string> => new Set([...text.matchAll(/@fires\s+([\w-]+)/g)].map((m) => m[1]!));
 
+/**
+ * An element's view modules: the files of the folder named after it, beside it
+ * (`overview/pipeline-graph/` for `overview/ca-pipeline-graph.ts`). They render into
+ * the element and send its events.
+ */
+const viewFiles = (element: string): string[] => {
+  const dir = /^(.*)\/ca-([\w-]+)\.ts$/.exec(element);
+  return dir ? sources(`${dir[1]}/${dir[2]}`) : [];
+};
+
+/** The events an element sends: its own, and its view modules'. */
+const sentBy = (element: string): Set<string> => new Set([element, ...viewFiles(element)].flatMap((f) => [...sent(read(f))]));
+
 /** The names an element handles on itself (`this.addEventListener('x'`): it is their host, not their source. */
 const handled = (text: string): Set<string> => new Set([...text.matchAll(/\bthis\.addEventListener\(\s*'([^']+)'/g)].map((m) => m[1]!));
 
@@ -67,7 +80,7 @@ describe('@fires', () => {
   it.each(elementFiles)('%s declares exactly the events it sends', (f) => {
     const text = read(f);
     const own = handled(text);
-    expect(sorted(declared(text))).toEqual(sorted(new Set([...sent(text)].filter((n) => !own.has(n)))));
+    expect(sorted(declared(text))).toEqual(sorted(new Set([...sentBy(f)].filter((n) => !own.has(n)))));
   });
 
   it('every event sent is in an event map', () => {
