@@ -276,6 +276,9 @@ class Run:
         if rounds and rounds > 1 and launched is not None and launched.round_errors and launched.round_errors[0]:
             # Why the first round went back: the fix-up is otherwise only a count here.
             first = " ".join(launched.round_errors[0][0].split())
+            # A path in the run's directory as the run names it, so the cause fits in the line.
+            for root in (str(self.dir.resolve()) + os.sep, str(self.dir) + os.sep):
+                first = first.replace(root, "")
             line += f", {rounds} rounds (round 1: {first[:160]}{'…' if len(first) > 160 else ''})"
         elif rounds and rounds > 1:
             line += f", {rounds} rounds"

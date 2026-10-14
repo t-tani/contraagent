@@ -138,3 +138,13 @@ def test_unwrap_needs_a_json_output_from_the_message_and_enters_the_definition()
 )
 def test_unwrap_json(message, document):
     assert unwrap_json(message) == document
+
+
+def test_the_end_line_names_the_cause_whatever_the_run_directory_s_path(tmp_path):
+    deep = tmp_path / ("very-long-directory-name-" * 8)
+    task = classify()
+    lines: list[str] = []
+    stub = StubAgent({"classify": [WRAPPED, '{"approved": true, "note": "fine"}']})
+    run(deep, stub, lambda: task("a"), log=lines.append)
+    [end] = [line for line in lines if line.startswith("[end]")]
+    assert "round 1: out/classify/" in end and "not valid JSON" in end and str(deep) not in end
