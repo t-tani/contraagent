@@ -67,7 +67,10 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 def finished_before(row: dict | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
-    task's fingerprint. What a resume skips."""
+    task's fingerprint. What a resume skips; never a task that reruns on resume
+    (`Task.rerun_on_resume`)."""
+    if task.rerun_on_resume:
+        return False
     return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 

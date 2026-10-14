@@ -55,6 +55,8 @@ class AgentTask[Out]:
     output_from: str = "file"
     #: The agent's tools: None, those its role and settings allow; `()`, none (a light launch).
     tools: tuple[str, ...] | None = None
+    #: A resume runs its tasks again even when an earlier attempt finished them.
+    rerun_on_resume: bool = False
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -98,7 +100,8 @@ class AgentTask[Out]:
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `skills_from`, `config`, `requires`, `claims` and `output_name`. None:
+        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name` and
+        `rerun_on_resume`. None:
         one kind, declared twice the same way."""
         if other is self:
             return []
@@ -108,7 +111,11 @@ class AgentTask[Out]:
             parts.append("plugin")
         if [p.root for p in self.skills_from] != [p.root for p in other.skills_from]:
             parts.append("skills_from")
-        return parts + [name for name in ("config", "requires", "claims", "output_name") if getattr(self, name) != getattr(other, name)]
+        return parts + [
+            name
+            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume")
+            if getattr(self, name) != getattr(other, name)
+        ]
 
     def _defined(self) -> dict[str, Any]:
         role = ""
@@ -159,6 +166,7 @@ def agent_task[Out](
     claims: Sequence[str] = (),
     changes: Sequence[str] = (),
     tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
     **config: Any,
 ) -> AgentTask[Out]:
     """Declare an agent task.
@@ -209,6 +217,10 @@ def agent_task[Out](
     no plugin, settings, skill, hook or MCP server is loaded. It needs `output_from="message"`.
     Tool names are each coding agent's own, so a list of them is not taken here: a role names
     its tools in its frontmatter, a plugin's `settings.json` what they may do.
+    `rerun_on_resume`: a resume (`Pipeline.run(resume=True)`) runs its tasks again even when
+    an earlier attempt of the run finished them, for a final step that reports or publishes
+    the state of the work. A task that takes the output of a task that ran again already
+    runs again, through its fingerprint.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
@@ -265,6 +277,7 @@ def agent_task[Out](
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
         output_from=output_from,
         tools=checked_tools,
+        rerun_on_resume=bool(rerun_on_resume),
     )
 
 
@@ -292,6 +305,8 @@ class PythonTask[Out]:
     output_schema: type[BaseModel] | None
     validators: tuple[Validator, ...]
     claims: tuple[str, ...] = ()
+    #: A resume runs its tasks again even when an earlier attempt finished them.
+    rerun_on_resume: bool = False
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -379,7 +394,7 @@ class PythonTask[Out]:
 def python_task[Out](fn: Callable[..., Out], /) -> PythonTask[Out]: ...
 @overload
 def python_task(
-    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = ()
+    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = (), rerun_on_resume: bool = False
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -390,16 +405,25 @@ def python_task(
     name: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
+    rerun_on_resume: bool = False,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
-    `agent_task`: the names each of its tasks holds while it runs."""
+    `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
+    `agent_task`: a resume runs its tasks again (a step that publishes the work's state)."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
         checked = _checked_claims(f"python_task({kind!r})", claims)
-        return PythonTask(fn=f, name=kind, output_schema=_output_schema_of(f), validators=tuple(validators), claims=checked)
+        return PythonTask(
+            fn=f,
+            name=kind,
+            output_schema=_output_schema_of(f),
+            validators=tuple(validators),
+            claims=checked,
+            rerun_on_resume=bool(rerun_on_resume),
+        )
 
     return wrap(fn) if fn is not None else wrap
 

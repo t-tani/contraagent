@@ -314,6 +314,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `rerun_on_resume=True` on `agent_task` and `@python_task`: a resume runs the task again
+  even when an earlier attempt finished it, for a final step that reports or publishes the
+  state of the work (a site, statistics, a commit) and takes no output of the tasks before it.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a

@@ -75,6 +75,13 @@ wrote the same output leaves it skipped. In a flow that does not yield, every ta
 after it runs again. The functions that call the tasks, their names and lines are
 not part of it: renaming a function of the flow runs nothing again.
 
+A final step that reports or publishes the state of the work (a site, statistics,
+a commit) often takes nothing from the tasks before it: it reads the working tree.
+Its fingerprint does not change when they run again, so a resume would skip it.
+`rerun_on_resume=True` on its declaration (`agent_task`, `@python_task`) makes a
+resume run it again whatever an earlier attempt did. A task that takes the output
+of a task that ran again needs no flag: its fingerprint already changes.
+
 ::code{file="examples/demo/run.py" from="    if args.real:" to="    if not args.no_serve:"}
 
 ## Flows that depend on results
