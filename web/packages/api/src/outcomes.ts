@@ -2,7 +2,7 @@
 // fail, never start, or fail and then recover; and for a problem, which task
 // caused it. Folded from the journal (finished attempts) and the plan (every
 // queued task and what it waits for). Pure.
-import type { JournalRow, Plan, PlanNode, TaskState } from './types.js';
+import type { DeferralCause, JournalRow, Plan, PlanNode, TaskState } from './types.js';
 
 /**
  * - `done`: its last attempt completed, first time.
@@ -27,6 +27,8 @@ export interface TaskOutcome {
   cause: string | null;
   /** For a task the queue deferred (never launched): why, as the run recorded it; '' when it was not. */
   deferred: string;
+  /** The same as data, for words of a reader's language; null when it was not deferred, or the run recorded no cause. */
+  deferredCause: DeferralCause | null;
 }
 
 const isOk = (r: JournalRow) => r.ok;
@@ -112,6 +114,7 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
       tries: attempts.filter(isLaunched),
       cause: null,
       deferred: node?.deferred ?? '',
+      deferredCause: node?.deferred_cause ?? null,
     });
   }
   // A task that did not start: follow what it waits for to the task that actually failed.

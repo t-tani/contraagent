@@ -16,7 +16,7 @@ from pathlib import Path
 from contraagent.backends.process import signal_of
 from contraagent.dispatch.task import Task, TaskResult, kind_name
 from contraagent.execution import schemas
-from contraagent.execution.schemas import Hop, JournalRow, QuotaReading, TokenUsage
+from contraagent.execution.schemas import Hop, JournalRow, QuotaReading, SkippedHop, TokenUsage
 
 
 def _usage(o) -> TokenUsage | None:
@@ -84,6 +84,7 @@ class Journal:
             credential=o.credential if o is not None else "",
             route=result.route,
             hops=[Hop.model_validate(h) for h in result.hops],
+            skipped_hops=[SkippedHop.model_validate(h) for h in result.skipped_hops],
             stop=result.stop,
             ok=result.ok,
             wall_s=round(result.wall_s, 1),

@@ -185,6 +185,18 @@ STOP_DUPLICATE_KEY = "duplicate_key"
 
 
 @dataclass(frozen=True)
+class Deferral:
+    """Why a task is not launched: `reason` in one line (logs, the CLI), and `cause`, the
+    same as data for a reader that words it itself (the monitor): `{"cause": <name>, ...}`.
+    The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
+    `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; a runner adds its own
+    (`rest`: `routing.quota`)."""
+
+    reason: str
+    cause: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Changes:
     """The files one attempt changed under its task's `changes` patterns, as paths
     relative to the working directory: those it `created`, `modified` and `deleted`.
@@ -226,6 +238,11 @@ class TaskResult:
     round_errors: tuple[tuple[str, ...], ...] = ()
     # The files the attempt changed under its task's `changes` patterns; None when it declares none.
     changes: Changes | None = None
+    # The hops the walk passed over without a launch, in order, each a plain dict a runner
+    # fills (`{"route", "model", ...}` and why its credential rests). Not in `hops`: no launch.
+    skipped_hops: tuple[dict, ...] = ()
+    # A `deferred` result's cause as data (`Deferral.cause`); None for any other result.
+    cause: dict | None = None
     payload: Any = None
 
     @classmethod
@@ -233,8 +250,8 @@ class TaskResult:
         return cls(task=task, ok=True, stop=STOP_SKIPPED)
 
     @classmethod
-    def deferred(cls, task: Task, reason: str) -> TaskResult:
-        return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=reason)
+    def deferred(cls, task: Task, deferral: Deferral) -> TaskResult:
+        return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=deferral.reason, cause=dict(deferral.cause))
 
     @classmethod
     def duplicate_key(cls, task: Task) -> TaskResult:

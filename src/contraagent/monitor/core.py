@@ -27,6 +27,7 @@ from pathlib import Path
 from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
 from contraagent.execution.cursor import parse_cursor
+from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import paths
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 
@@ -68,6 +69,22 @@ def _first_last(readings: list[dict]) -> dict:
     accounts = [{"credential": c, "first": qs[0], "last": qs[-1]} for c, qs in by.items()]
     accounts.sort(key=lambda a: -(a["last"].get("seven_day_pct") or 0))
     return {"quota": accounts}
+
+
+def _number(v: object) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _deferral_cause(cause: dict) -> dict:
+    """A `deferred.jsonl` row's `cause` (`Deferral.cause`) as the monitor serves it
+    (`DeferralCause`): its name, a deadline's figures, and the rests of a resting credential."""
+    rests = [r for r in cause.get("rests") or () if isinstance(r, dict) and isinstance(r.get("credential"), str)]
+    return {
+        "cause": str(cause.get("cause")),
+        "need_s": _number(cause.get("need_s")),
+        "left_s": _number(cause.get("left_s")),
+        "rests": [{**r, "window": r.get("window") or "", "rule": r.get("rule") or "", "until": r.get("until") or ""} for r in rests],
+    }
 
 
 def _shown(file: str, cwd: Path | None) -> str:
@@ -166,8 +183,10 @@ class Monitor:
             last = ""
             run_group = info.get("run_group", "")
             kinds: dict[str, int] = {}
+            extras: dict[str, None] = {}
             for e in self._read_journal(run):
                 n += 1
+                extras.update(dict.fromkeys(row_extras([e])))
                 ok += bool(e.get("ok"))
                 not_run += e.get("stop") in ("invalid_input", "skipped")
                 if e.get("cost_usd") is not None:
@@ -208,6 +227,7 @@ class Monitor:
                     "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
                     "stub": info.get("stub") is True,
+                    "row_extras": list(extras),
                 }
             )
         out.sort(key=lambda r: r["last_ts"], reverse=True)
@@ -305,11 +325,11 @@ class Monitor:
                     }
                 )
         # Why a task was deferred, unless a journal row came after (a resumed run ran it).
-        deferred: dict[str, str] = {}
+        deferred: dict[str, dict] = {}
         for d in _parse(self.source.lines(run, rundir.DEFERRED)[0]):
             j = last.get(d.get("key", ""))
             if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
-                deferred[d.get("key", "")] = str(d.get("reason") or "")
+                deferred[d.get("key", "")] = d
         snap = live if live is not None else self.liveness.snapshot(run)
         running = _running_keys(snap)
         nodes = []
@@ -327,7 +347,10 @@ class Monitor:
                 state = "done" if j.get("ok") else "failed"
             node = {**r, "state": state}
             if state == "pending" and r["key"] in deferred:
-                node["deferred"] = deferred[r["key"]]
+                d = deferred[r["key"]]
+                node["deferred"] = str(d.get("reason") or "")
+                cause = d.get("cause")
+                node["deferred_cause"] = _deferral_cause(cause) if isinstance(cause, dict) and cause.get("cause") else None
             if j:
                 node.update(
                     {
@@ -363,7 +386,33 @@ class Monitor:
             n["group"] = self._group_name(n)
             if n.get("flow"):
                 n["flow"] = _shown_flow(n["flow"], cwd)
-        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd)}
+        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd), **self._quota(run)}
+
+    def _quota(self, run: str) -> dict:
+        """The run's quota caps and rule (`run.json`), and each credential's rests
+        (`rests.jsonl`): a start folded with its end, in start order."""
+        info = self.source.info(run) or {}
+        caps = info.get("quota_caps")
+        quota_caps = [
+            {"credential": c, "five_hour_pct": v.get("five_hour_pct"), "seven_day_pct": v.get("seven_day_pct")}
+            for c, v in (caps.items() if isinstance(caps, dict) else ())
+            if isinstance(v, dict)
+        ]
+        rests: list[dict] = []
+        open_: dict[str, dict] = {}
+        for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
+            if not isinstance(row, dict) or not isinstance(row.get("credential"), str):
+                continue
+            name = row["credential"]
+            if row.get("event") == "start":
+                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until")}
+                rest = {**rest, "window": rest["window"] or "", "rule": rest["rule"] or "", "until": rest["until"] or ""}
+                open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
+                rests.append(open_[name])
+            elif row.get("event") == "end" and name in open_:
+                open_.pop(name)["ended"] = row.get("ts", "")
+        rule = info.get("quota_rule")
+        return {"quota_caps": quota_caps, "quota_rule": rule if isinstance(rule, str) else "", "rests": rests}
 
     def _cwd(self, run: str) -> Path | None:
         """The run's working directory, as `run.json` records it."""
@@ -440,6 +489,7 @@ class Monitor:
             "definition": defs.get(kind),
             "io": self.task_io(run, key),
             "stream": key if self.source.size(run, rundir.stream(key)) >= 0 else None,
+            "row_extras": row_extras(rows),
         }
         if self.task_detail_fn is not None:
             try:
@@ -681,3 +731,13 @@ class Monitor:
 
     def panel_info(self) -> list[dict]:
         return [{"name": n, "title": p.title or n, "description": p.description, "icon": p.icon} for n, p in sorted(self.panels.items())]
+
+
+def row_extras(rows: list[dict]) -> list[str]:
+    """The columns of journal rows that are a pipeline's own (`Run(row_extras=)`): keys
+    `JournalRow` does not name, in the order they first appear."""
+    known = JournalRow.model_fields
+    out: dict[str, None] = {}
+    for row in rows:
+        out.update(dict.fromkeys(k for k in row if k not in known))
+    return list(out)

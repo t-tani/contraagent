@@ -502,3 +502,23 @@ def test_a_task_detail_is_one_task_key(demo_runs):
     assert first["rows"] and {r["key"] for r in first["rows"]} == {"review-gamma"}
     assert second["rows"] and {r["key"] for r in second["rows"]} == {"review-gamma~2"}
     assert first["definition"]["kind"] == second["definition"]["kind"] == "review"
+
+
+def test_a_pipelines_own_journal_columns_are_named_and_passed_through(tmp_path):
+    """`Run(row_extras=)` columns reach the API as written, and the run and the task name them."""
+    d = tmp_path / "r1"
+    d.mkdir()
+    done = {"kind": "write", "stop": "completed", "ok": True}
+    rows = [
+        {"ts": "2026-10-14T00:00:00+00:00", "key": "write-a", **done, "effect": "new"},
+        {"ts": "2026-10-14T00:01:00+00:00", "key": "write-b", **done, "effect": "updated", "lines": 3},
+    ]
+    (d / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    client = client_for(Monitor(tmp_path))
+    [summary] = client.get("/api/runs").json()
+    assert summary["row_extras"] == ["effect", "lines"]
+    page = client.get("/api/runs/r1/journal").json()
+    assert [e.get("effect") for e in page["entries"]] == ["new", "updated"] and page["entries"][1]["lines"] == 3
+    detail = client.get("/api/runs/r1/task/write-b").json()
+    assert detail["row_extras"] == ["effect", "lines"]
+    assert client.get("/api/runs/r1/task/write-a").json()["row_extras"] == ["effect"]

@@ -1,6 +1,6 @@
 // The history's columns (`ca-journal-table`): a row per finished attempt
 // (`JournalRow`), when it ended, the task, its stop, the agent and model, tokens,
-// cost, time and the reason.
+// cost, time and the reason, then the pipeline's own columns (`row_extras`).
 import { isBad, isLaunched, isPython, runRelative, type JournalRow, type TaskOutcome } from '@contraagent/api';
 import type { DataColumn } from '@contraagent/elements/data-table';
 import { statusWord } from '@contraagent/elements/primitives';
@@ -11,6 +11,7 @@ import { executorIcon } from '../words/executor.js';
 import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../words/format.js';
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../words/index.js';
 import { accountReading, readingShort } from '../words/quota.js';
+import { customColumnTip, customValue } from '../words/row-extras.js';
 import { attemptFacts } from './filters.js';
 
 export interface JournalColumnsContext {
@@ -22,6 +23,8 @@ export interface JournalColumnsContext {
   journal: readonly JournalRow[];
   /** The rows shown: the time bars are relative to their longest. */
   rows: readonly JournalRow[];
+  /** The pipeline's own columns (`RunSummary.row_extras`): one column each, after the reason. */
+  extras?: readonly string[];
 }
 
 /** A stop as a short column label: a task that never ran is just "not started"; the cause goes to the reason. */
@@ -60,7 +63,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
    */
   const reason = (e: JournalRow) => {
     const ran = isLaunched(e);
-    const sw = modelSwitch(e.hops);
+    const sw = modelSwitch(e.hops, null, e.skipped_hops);
     const run = ctx.run || e.run_id || '';
     const own = ctx.outcomes.get(e.key);
     const cause = e.stop === 'invalid_input' && own ? notStartedCause({ attempts: [e], cause: null }, ctx.outcomes, run) : '';
@@ -72,6 +75,19 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       ? html`<span class="later">${later}</span>`
       : nothing}`;
   };
+
+  /** A pipeline's own column: its name as the pipeline wrote it, its value as text. */
+  const custom = (name: string): DataColumn<JournalRow> => ({
+    id: `x:${name}`,
+    header: name,
+    tip: customColumnTip(),
+    width: 'minmax(80px,0.6fr)',
+    text: (e) => customValue((e as Record<string, unknown>)[name]),
+    cell: (e) => {
+      const v = customValue((e as Record<string, unknown>)[name]);
+      return v === '—' ? html`<span class="jdim">—</span>` : html`<span class="jmono" title=${v}>${v}</span>`;
+    },
+  });
 
   return [
     { id: 'ended', header: msg('Ended'), width: '64px', cell: (e) => html`<span class="jmono" title=${localTime(e.ts, true)}>${localTime(e.ts)}</span>` },
@@ -111,7 +127,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       header: msg('Agent, model, identity'),
       width: 'minmax(150px,1fr)',
       cell: (e) =>
-        html`<span class="jmono jdim two" title=${facts(e.route, modelSwitch(e.hops)) || nothing}>${isLaunched(e)
+        html`<span class="jmono jdim two" title=${facts(e.route, modelSwitch(e.hops, null, e.skipped_hops)) || nothing}>${isLaunched(e)
           ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${identity(e)}`
           : '—'}</span>`,
     },
@@ -169,5 +185,6 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
           : nothing}</span>`;
       },
     },
+    ...(ctx.extras ?? []).map(custom),
   ];
 }

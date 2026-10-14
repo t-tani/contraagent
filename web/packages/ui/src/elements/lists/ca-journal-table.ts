@@ -87,6 +87,8 @@ export class CaJournalTable extends LitElement {
   @property() q = '';
   /** The run id: paths inside the run directory are shown relative to it. */
   @property() run = '';
+  /** The pipeline's own journal columns (`RunSummary.row_extras`): a column each. */
+  @property({ attribute: false }) extras: readonly string[] = [];
 
   private open(rows: readonly JournalRow[], id: string): void {
     const e = rows.find((r) => rowId(r) === id);
@@ -101,7 +103,7 @@ export class CaJournalTable extends LitElement {
       html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${toneAttr(tone)} data-mark=${markOf(tone) ?? nothing}
         aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
-    const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows });
+    const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows, extras: this.extras });
     return html`<div class="jtally">
         ${journalTally(this.rows).map(([k, c]) => chip(k, shortStop(k), c, k, stopTone(k)))}
         ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, msg('Attempts with at least one correction')) : nothing}

@@ -6,8 +6,9 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { alsoLocksLabel, alsoLocksTip, attemptNames, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
+import { alsoLocksLabel, alsoLocksTip, attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
 import { readingShort, readingTip } from '../../words/quota.js';
+import { customColumnTip, customValues } from '../../words/row-extras.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
@@ -17,7 +18,7 @@ import { agentLabel, launchWho, whoTags, type Who } from '../../adapters/transcr
 import { correctionsOf, hadSession, isPy, notStartedWhy, stateOf, type TaskContext } from './context.js';
 
 /** Keys of `TaskDetail` the header shows itself; any other key (a `task_detail` callback's) is shown as JSON. */
-const SHOWN_KEYS = new Set(['key', 'rows', 'launches', 'stream', 'task_detail_error', 'definition', 'io']);
+const SHOWN_KEYS = new Set(['key', 'rows', 'launches', 'stream', 'task_detail_error', 'definition', 'io', 'row_extras']);
 
 /** The status mark and the word a screen reader says for it. */
 const mark = (ok: boolean) =>
@@ -32,8 +33,11 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
   switch (state) {
     case 'running':
       return [msg('Running'), 'neutral'];
-    case 'waiting':
-      return [msg('Waiting'), 'muted'];
+    case 'waiting': {
+      const node = c.plan?.nodes.find((n) => n.key === c.detail.key);
+      const why = node?.deferred ? deferredText(node.deferred_cause, node.deferred) : '';
+      return why ? [msg(str`Not run: ${why}`), 'attention'] : [msg('Waiting'), 'muted'];
+    }
     case 'skipped':
       return [msg('Skipped'), 'muted'];
     case 'not_started': {
@@ -70,7 +74,7 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       'neutral',
     ];
   }
-  const sw = modelSwitch(last.hops);
+  const sw = modelSwitch(last.hops, null, last.skipped_hops);
   if (sw) return [msg(str`Done after a model switch: ${sw}`), 'neutral'];
   return [msg('Done'), 'neutral'];
 }
@@ -139,7 +143,10 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
           ${quotaLine(c, tries)}
         </div>
       </div>
-      ${tries.length ? html`<div class="runchips">${attemptNames(tries).map((name, i) => runChip(c, tries[i] as JournalRow, name, session))}</div>` : nothing}
+      ${tries.length
+        ? html`<div class="runchips">${attemptNames(tries).map((name, i) => runChip(c, tries[i] as JournalRow, name, session, d.row_extras ?? []))}</div>`
+        : nothing}
+      ${customLine(tries, d.row_extras ?? [])}
       ${searchFold(tries, onSearch)}
       ${changesFold(tries)}
       ${unreadEvents(tries)
@@ -208,6 +215,15 @@ function changesFold(tries: JournalRow[]) {
   </details>`;
 }
 
+/** The latest attempt's custom columns (`row_extras`), name and value; each attempt's are in its chip's tooltip. */
+function customLine(tries: JournalRow[], extras: readonly string[]) {
+  const last = tries[tries.length - 1];
+  const values = last ? customValues(last, extras) : [];
+  if (!values.length) return nothing;
+  const tip = customColumnTip();
+  return html`<div class="whos">${tagChips(values.map(([label, value]) => ({ label, value, tip, look: 'quiet' as const })))}</div>`;
+}
+
 /** The task's spend over all its attempts: cost, then tokens. Nothing when none was reported. */
 function spendLine(s: Spend | null) {
   if (!s) return nothing;
@@ -234,10 +250,10 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
 }
 
 /** One finished attempt: how it ended, how long, its cost; the rest (when, corrections, model, model switch) in its tooltip. */
-function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean) {
+function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, extras: readonly string[]) {
   const ok = r.ok;
   const reason = runRelative(r.reason, c.run);
-  const sw = modelSwitch(r.hops);
+  const sw = modelSwitch(r.hops, null, r.skipped_hops);
   const tip = [
     msg(str`Ended ${localTime(r.ts, true)}`),
     correctionsOf(r),
@@ -245,6 +261,7 @@ function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean) 
     sw ? msg(str`Model switch: ${sw}`) : '',
     reason,
     r.route || '',
+    ...customValues(r, extras).map(([k, v]) => `${k}: ${v}`),
   ]
     .filter(Boolean)
     .join('\n');

@@ -445,6 +445,47 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * CredentialRest
+         * @description A rest of one credential (`rests.jsonl`): why it began, when, and when it ended.
+         */
+        CredentialRest: {
+            /** Credential */
+            credential: string;
+            /**
+             * Window
+             * @default
+             * @enum {string}
+             */
+            window?: "" | "five_hour" | "seven_day";
+            /** Pct */
+            pct?: number | null;
+            /** Cap */
+            cap?: number | null;
+            /**
+             * Rule
+             * @default
+             */
+            rule?: string;
+            /**
+             * Until
+             * @default
+             */
+            until?: string;
+            /**
+             * Since
+             * @description when it began resting, ISO 8601
+             */
+            since: string;
+            /**
+             * Ended
+             * @description when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)
+             * @default
+             */
+            ended?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * CursorMessage
          * @description The resume cursor, or null for a run that keeps none.
          */
@@ -486,6 +527,32 @@ export type components = {
                     [key: string]: unknown;
                 }[];
             };
+        };
+        /**
+         * DeferralCause
+         * @description Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,
+         *     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
+         *     `dependency_not_queued`, `rest` (the credential of every hop it could take rests:
+         *     `rests`), or a runner's own name.
+         */
+        DeferralCause: {
+            /** Cause */
+            cause: string;
+            /**
+             * Need S
+             * @description `cannot_finish`: the work it needed, in seconds
+             */
+            need_s?: number | null;
+            /**
+             * Left S
+             * @description `cannot_finish`: the time left before the deadline, in seconds
+             */
+            left_s?: number | null;
+            /**
+             * Rests
+             * @description `rest`: each hop passed over and why its credential rests
+             */
+            rests?: components["schemas"]["SkippedHop"][];
         };
         /**
          * DefinitionFile
@@ -836,6 +903,8 @@ export type components = {
             route?: string;
             /** Hops */
             hops?: components["schemas"]["Hop"][];
+            /** Skipped Hops */
+            skipped_hops?: components["schemas"]["SkippedHop"][];
             /**
              * Stop
              * @enum {string}
@@ -1057,6 +1126,22 @@ export type components = {
              * @description in start order
              */
             flow_calls?: components["schemas"]["FlowCallNode"][];
+            /**
+             * Quota Caps
+             * @description the run's credentials that have quota caps (`run.json`)
+             */
+            quota_caps?: components["schemas"]["QuotaCap"][];
+            /**
+             * Quota Rule
+             * @description `module.qualname` of the run's quota rule (`Pipeline(quota_rule=)`); empty for none
+             * @default
+             */
+            quota_rule?: string;
+            /**
+             * Rests
+             * @description each rest of a credential in the run (`rests.jsonl`), in start order
+             */
+            rests?: components["schemas"]["CredentialRest"][];
         };
         /**
          * PlanGroup
@@ -1183,6 +1268,8 @@ export type components = {
              * @default
              */
             deferred?: string;
+            /** @description the same as data; null when it was not deferred, or the run recorded no cause */
+            deferred_cause?: components["schemas"]["DeferralCause"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -1258,6 +1345,18 @@ export type components = {
              */
             event: "procs";
             data: components["schemas"]["Procs"];
+        };
+        /**
+         * QuotaCap
+         * @description One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`).
+         */
+        QuotaCap: {
+            /** Credential */
+            credential: string;
+            /** Five Hour Pct */
+            five_hour_pct?: number | null;
+            /** Seven Day Pct */
+            seven_day_pct?: number | null;
         };
         /**
          * QuotaReading
@@ -1415,6 +1514,52 @@ export type components = {
              * @default false
              */
             stub?: boolean;
+            /**
+             * Row Extras
+             * @description the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
+             */
+            row_extras?: string[];
+        };
+        /**
+         * SkippedHop
+         * @description A hop of the failover chain an attempt passed over without a launch, because its
+         *     credential rested: its route label and model, and the rest.
+         */
+        SkippedHop: {
+            /** Credential */
+            credential: string;
+            /**
+             * Window
+             * @default
+             * @enum {string}
+             */
+            window?: "" | "five_hour" | "seven_day";
+            /** Pct */
+            pct?: number | null;
+            /** Cap */
+            cap?: number | null;
+            /**
+             * Rule
+             * @default
+             */
+            rule?: string;
+            /**
+             * Until
+             * @default
+             */
+            until?: string;
+            /**
+             * Route
+             * @default
+             */
+            route?: string;
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
+        } & {
+            [key: string]: unknown;
         };
         /** StageEntry */
         StageEntry: {
@@ -1564,6 +1709,11 @@ export type components = {
              * @description the transcript's task key for /stream and /events/stream, null when it has none
              */
             stream: string | null;
+            /**
+             * Row Extras
+             * @description the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
+             */
+            row_extras?: string[];
             /** Task Detail Error */
             task_detail_error?: string | null;
         } & {

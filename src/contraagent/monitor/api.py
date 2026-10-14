@@ -32,9 +32,9 @@ from typing import Annotated, Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, ValidationError, WrapValidator
 
-from contraagent.execution.schemas import JournalRow, QuotaReading, TokenUsage  # part of this contract
+from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.1.0"
+API_VERSION = "3.2.0"
 
 
 class Closed(BaseModel):
@@ -129,6 +129,10 @@ class RunSummary(Closed):
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
     stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
+    row_extras: list[str] = Field(
+        default_factory=list,
+        description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
+    )
 
 
 class HostSummary(Closed):
@@ -211,6 +215,18 @@ class FlowCallNode(Closed):
     error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what closing it raised); else null")
 
 
+class DeferralCause(Closed):
+    """Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,
+    `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
+    `dependency_not_queued`, `rest` (the credential of every hop it could take rests:
+    `rests`), or a runner's own name."""
+
+    cause: str
+    need_s: float | None = Field(None, description="`cannot_finish`: the work it needed, in seconds")
+    left_s: float | None = Field(None, description="`cannot_finish`: the time left before the deadline, in seconds")
+    rests: list[SkippedHop] = Field(default_factory=list, description="`rest`: each hop passed over and why its credential rests")
+
+
 class PlanNode(Open):
     """A queued task (a `plan.jsonl` row, passed through) with its state and
     layout. The journal fields (`wall_s` .. `attempts`) appear once it finished.
@@ -237,6 +253,24 @@ class PlanNode(Open):
         "",
         description="why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not",
     )
+    deferred_cause: DeferralCause | None = Field(
+        None, description="the same as data; null when it was not deferred, or the run recorded no cause"
+    )
+
+
+class QuotaCap(Closed):
+    """One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`)."""
+
+    credential: str
+    five_hour_pct: float | None = None
+    seven_day_pct: float | None = None
+
+
+class CredentialRest(QuotaRest):
+    """A rest of one credential (`rests.jsonl`): why it began, when, and when it ended."""
+
+    since: str = Field(description="when it began resting, ISO 8601")
+    ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
 
 
 class PlanGroup(Closed):
@@ -261,6 +295,11 @@ class Plan(Closed):
     nodes: list[PlanNode]
     groups: list[PlanGroup]
     flow_calls: list[FlowCallNode] = Field(default_factory=list, description="in start order")
+    quota_caps: list[QuotaCap] = Field(default_factory=list, description="the run's credentials that have quota caps (`run.json`)")
+    quota_rule: str = Field("", description="`module.qualname` of the run's quota rule (`Pipeline(quota_rule=)`); empty for none")
+    rests: list[CredentialRest] = Field(
+        default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
+    )
 
 
 # --- outputs (contracts) -----------------------------------------------------
@@ -522,6 +561,10 @@ class TaskDetail(Open):
     definition: TaskDefinition | None
     io: TaskIO
     stream: str | None = Field(description="the transcript's task key for /stream and /events/stream, null when it has none")
+    row_extras: list[str] = Field(
+        default_factory=list,
+        description="the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
+    )
     task_detail_error: str | None = None
 
 

@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.1.0"
+    "version": "3.2.0"
   },
   "paths": {
     "/api/info": {
@@ -917,6 +917,75 @@
         "title": "ContractSpec",
         "description": "One declared `OutputContract` / `InputContract` (its record, passed through,\nminus the raw JSON schema, which `fields` summarizes). `status`, `rounds`\nand `errors` are on outputs only."
       },
+      "CredentialRest": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "",
+              "five_hour",
+              "seven_day"
+            ],
+            "title": "Window",
+            "default": ""
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          },
+          "cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "default": ""
+          },
+          "until": {
+            "type": "string",
+            "title": "Until",
+            "default": ""
+          },
+          "since": {
+            "type": "string",
+            "title": "Since",
+            "description": "when it began resting, ISO 8601"
+          },
+          "ended": {
+            "type": "string",
+            "title": "Ended",
+            "description": "when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "credential",
+          "since"
+        ],
+        "title": "CredentialRest",
+        "description": "A rest of one credential (`rests.jsonl`): why it began, when, and when it ended."
+      },
       "CursorMessage": {
         "additionalProperties": false,
         "description": "The resume cursor, or null for a run that keeps none.",
@@ -1000,6 +1069,53 @@
         "type": "object",
         "title": "CursorView",
         "description": "The run's resume cursor. The REST endpoint answers `{}` (every field\nabsent) for a run that keeps none; the live feed sends `null`."
+      },
+      "DeferralCause": {
+        "properties": {
+          "cause": {
+            "type": "string",
+            "title": "Cause"
+          },
+          "need_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need S",
+            "description": "`cannot_finish`: the work it needed, in seconds"
+          },
+          "left_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left S",
+            "description": "`cannot_finish`: the time left before the deadline, in seconds"
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedHop"
+            },
+            "type": "array",
+            "title": "Rests",
+            "description": "`rest`: each hop passed over and why its credential rests"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cause"
+        ],
+        "title": "DeferralCause",
+        "description": "Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name."
       },
       "DefinitionFile": {
         "properties": {
@@ -1561,6 +1677,13 @@
             "type": "array",
             "title": "Hops"
           },
+          "skipped_hops": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedHop"
+            },
+            "type": "array",
+            "title": "Skipped Hops"
+          },
           "stop": {
             "type": "string",
             "enum": [
@@ -2058,6 +2181,28 @@
             "type": "array",
             "title": "Flow Calls",
             "description": "in start order"
+          },
+          "quota_caps": {
+            "items": {
+              "$ref": "#/components/schemas/QuotaCap"
+            },
+            "type": "array",
+            "title": "Quota Caps",
+            "description": "the run's credentials that have quota caps (`run.json`)"
+          },
+          "quota_rule": {
+            "type": "string",
+            "title": "Quota Rule",
+            "description": "`module.qualname` of the run's quota rule (`Pipeline(quota_rule=)`); empty for none",
+            "default": ""
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/CredentialRest"
+            },
+            "type": "array",
+            "title": "Rests",
+            "description": "each rest of a credential in the run (`rests.jsonl`), in start order"
           }
         },
         "additionalProperties": false,
@@ -2263,6 +2408,17 @@
             "title": "Deferred",
             "description": "why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not",
             "default": ""
+          },
+          "deferred_cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeferralCause"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the same as data; null when it was not deferred, or the run recorded no cause"
           }
         },
         "additionalProperties": true,
@@ -2487,6 +2643,43 @@
         ],
         "title": "ProcsMessage",
         "type": "object"
+      },
+      "QuotaCap": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "five_hour_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Five Hour Pct"
+          },
+          "seven_day_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seven Day Pct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "QuotaCap",
+        "description": "One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`)."
       },
       "QuotaReading": {
         "properties": {
@@ -2743,6 +2936,14 @@
             "title": "Stub",
             "description": "a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
             "default": false
+          },
+          "row_extras": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Row Extras",
+            "description": "the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear"
           }
         },
         "additionalProperties": false,
@@ -2762,6 +2963,73 @@
         ],
         "title": "RunSummary",
         "description": "One run directory, as the run picker lists it."
+      },
+      "SkippedHop": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "",
+              "five_hour",
+              "seven_day"
+            ],
+            "title": "Window",
+            "default": ""
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          },
+          "cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "default": ""
+          },
+          "until": {
+            "type": "string",
+            "title": "Until",
+            "default": ""
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "SkippedHop",
+        "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest."
       },
       "StageEntry": {
         "properties": {
@@ -3153,6 +3421,14 @@
             ],
             "title": "Stream",
             "description": "the transcript's task key for /stream and /events/stream, null when it has none"
+          },
+          "row_extras": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Row Extras",
+            "description": "the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear"
           },
           "task_detail_error": {
             "anyOf": [

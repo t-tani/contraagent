@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor shows a pipeline's own journal columns (`row_extras`): a column each in the
+  history, under its name as written, and the values of each attempt in the task's
+  detail. `RunSummary.row_extras` and `TaskDetail.row_extras` name them.
 - `agent_task(skills_from=[...])`: skill plugins whose skills a task loads after its own
   plugin's, so tasks with different roles share skills. A skill plugin holds skills only;
   one that holds agents, commands, settings, MCP servers or hooks is refused where the
@@ -19,8 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window resets: tasks skip its hops without launching and take the next hop of their
   failover chain (a gateway, say); a task with no hop left is deferred. `finishing_kinds`
   still launch on it for `grace_s`.
-- `deferred.jsonl` records each deferred task and why; the monitor shows a deferred task
-  as "not run" with the reason, while the run goes on too (`PlanNode.deferred`).
+- `deferred.jsonl` records each deferred task and why: a reason in one line and its
+  cause as data (`Deferral`: `deadline`, `grace_window`, `cannot_finish`,
+  `dependency_not_queued`, `rest` with each resting credential's window, reading, cap
+  and reset). The monitor shows a deferred task as "not run" with its cause in the
+  reader's language, while the run goes on too (`PlanNode.deferred_cause`).
+- Quota rests in the monitor: `run.json` records the caps (`quota_caps`) and the quota
+  rule (`quota_rule`), `rests.jsonl` each start and end of a credential's rest, and a
+  journal row the hops it passed over (`skipped_hops`). The overview's subscription usage
+  shows each window's limit, an identity paused and until when, its rests over the run
+  and the usage rule (`Plan.quota_caps`, `.rests`, `.quota_rule`); a model switch names
+  a hop passed over as "(identity paused)".
 - A task call takes `extra_units=[...]`: further units the task locks while it runs, as it
   locks its own (no task of another kind on any of them runs at the same time). Its key,
   output file and place in the monitor stay its own unit's; `plan.jsonl` records them, and

@@ -26,7 +26,12 @@ there: one word, one meaning, on every screen. Japanese follows
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
-| a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, its reason as the run recorded it | 実行されず |
+| a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, with its cause in words (`deferredText`, from `deferred_cause`; the recorded reason only for a cause it does not know) | 実行されず |
+| deferral causes `deadline`, `grace_window`, `cannot_finish`, `dependency_not_queued` | Past the deadline; Past the deadline and its finishing time; Cannot finish before the deadline \| needs `time` \| `time` left; An earlier task was never scheduled | 締め切りを過ぎた; 締め切りと仕上げの猶予を過ぎた; 締め切りまでに終わらない \| 必要な時間 \| 残り; 依存先タスクが登録されなかった |
+| a credential's quota rest (`Rest`, `rests.jsonl`, deferral cause `rest`) | Identity `name` paused \| 5-hour usage 93% \| limit 90% \| until `time`; a pill: paused until `time`; over a run: Paused `time` → `time` | 認証情報 `name` は休止中; `time` まで休止; 休止 `time` → `time` |
+| a quota cap (`max_five_hour_pct`, `max_seven_day_pct`) | limit 90%; Limits: weekly 95% \| 5-hour 90% | 上限 |
+| the quota rule (`Pipeline(quota_rule=)`) and what it said | Usage rule; Usage rule: `text` | 利用率のルール |
+| a skipped hop (`skipped_hops`), in a model switch | `model` (identity paused) → `model` | （認証情報が休止中） |
 | attempt | attempt N | N 回目 |
 | stop `error` | error | エラー |
 | round after contract errors | correction | 修正依頼 |
@@ -41,6 +46,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | run not live | not running / finished | 実行中ではありません / 終了 |
 | TaskAdapter (a kind without a plugin) | defined in Python code | Python コードで定義 |
 | panel (`monitor.Panel`) | custom view | カスタムビュー |
+| a pipeline's own journal column (`row_extras`; `RunSummary.row_extras`, `TaskDetail.row_extras` name them) | a column headed by its name as written; tooltip: custom column (row_extras) | カスタム列 |
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |

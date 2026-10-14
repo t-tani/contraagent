@@ -24,7 +24,8 @@ export function rowToast(row: JournalRow, run: string): [kind: ToastKind, title:
   const reason = runRelative(row.reason, run).slice(0, 110);
   if (row.stop === 'invalid_input') return ['attention', msg(str`${name}: not started`), reason];
   if (isBad(row)) return ['failed', msg(str`${name}: ${stopLabel(row.stop)}`), reason];
-  if ((row.hops || []).length > 1) return ['agent', msg(str`${name}: model switch`), modelSwitch(row.hops, row.wall_s).slice(0, 110)];
+  const sw = modelSwitch(row.hops, row.wall_s, row.skipped_hops);
+  if (sw) return ['agent', msg(str`${name}: model switch`), sw.slice(0, 110)];
   return ['done', msg(str`${name}: done`), facts(fmtDur(row.wall_s), row.model)];
 }
 

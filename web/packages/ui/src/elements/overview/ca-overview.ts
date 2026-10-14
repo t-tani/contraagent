@@ -148,11 +148,11 @@ export class CaOverview extends LitElement {
             <ca-spend-breakdown .journal=${s.journal}></ca-spend-breakdown>
           </section>`
         : nothing}
-      ${runAccounts(s.journal).length
+      ${runAccounts(s.journal).length || s.plan.rests?.length
         ? html`<section class="panel c12 enter">
             <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
               ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
-            <ca-quota .journal=${s.journal}></ca-quota>
+            <ca-quota .journal=${s.journal} .caps=${s.plan.quota_caps ?? []} .rests=${s.plan.rests ?? []} .rule=${s.plan.quota_rule ?? ''} ?live=${live}></ca-quota>
           </section>`
         : nothing}
       <section class="panel ${live ? 'c5' : 'c12'} enter">

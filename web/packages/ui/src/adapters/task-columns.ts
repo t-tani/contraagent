@@ -8,7 +8,7 @@ import { html, nothing } from 'lit';
 import { outcomeMark, outcomeTone } from '../lib/tone.js';
 import { executorIcon } from '../words/executor.js';
 import { facts, fmtDur, localTime, tokenCount, usd } from '../words/format.js';
-import { alsoLocksNames, alsoLocksShort, notStartedCause, passLabel, taskStatusLabel, waitCause } from '../words/index.js';
+import { alsoLocksNames, alsoLocksShort, deferredText, deferredTip, notStartedCause, passLabel, taskStatusLabel, waitCause } from '../words/index.js';
 
 export interface TaskColumnsContext {
   /** The run id: paths in a cause are shown relative to it. */
@@ -30,7 +30,7 @@ const none = () => msg('none', { id: 'none', desc: 'An empty value' });
 /** Why a task that never ran did not run: what stopped it, or the earlier tasks it waits for; '' when unknown. */
 function cause(t: TaskRow, ctx: TaskColumnsContext): string {
   if (t.outcome === 'not_started') return notStartedCause(t, ctx.outcomes, ctx.run);
-  if (t.outcome === 'waiting' && t.deferred) return t.deferred;
+  if (t.outcome === 'waiting' && t.deferred) return deferredText(t.deferredCause, t.deferred);
   if (t.outcome === 'waiting') return waitCause(t.waits_for.map((k) => ctx.outcomes.get(k) ?? { kind: k }));
   return '';
 }
@@ -108,8 +108,9 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
       width: 'minmax(240px, 1fr)',
       cell: (t) => {
         const why = cause(t, ctx);
+        const tip = t.outcome === 'waiting' && t.deferred ? deferredTip(t.deferredCause) || t.deferred : '';
         return html`${pill({ text: taskStatusLabel(t.outcome, ctx.live && !t.deferred), tone: outcomeTone(t.outcome), mark: outcomeMark(t.outcome), title: t.last_stop })}${why
-          ? html`<span class="cause">${why}</span>`
+          ? html`<span class="cause" title=${tip || nothing}>${why}</span>`
           : nothing}`;
       },
     },

@@ -99,6 +99,26 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it("shows the pipeline's own columns: the latest attempt's, and each attempt's in its chip", async () => {
+    const custom: TaskDetail = {
+      ...emptyDetail('write-a'),
+      rows: [
+        row('write-a', { stop: 'timeout', ok: false, attempt: 0 }),
+        row('write-a', { attempt: 1, effect: 'new', counts: { a: 1 } }),
+      ],
+      row_extras: ['effect', 'counts'],
+    };
+    const { client } = fakeClient({ 'write-a': custom });
+    const el = await view({ client, taskKey: 'write-a' });
+    const chips = [...root(el).querySelectorAll('.runchip')];
+    expect(chips[1]!.getAttribute('title')).toContain('effect: new\ncounts: {"a":1}');
+    expect(chips[0]!.getAttribute('title')).not.toContain('effect');
+    expect(text(root(el).querySelector('.taskmeta'))).toContain('effect');
+    expect(text(root(el).querySelector('.taskmeta'))).toContain('{"a":1}');
+    expect([...root(el).querySelectorAll('details.io-fold summary')].map(text)).not.toContain('row_extras');
+    el.remove();
+  });
+
   it('switches its pane with the view: transcript, input, output, definition', async () => {
     const { client } = fakeClient({ 'review-a': review });
     const el = await view({ client, taskKey: 'review-a' });
