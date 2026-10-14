@@ -314,6 +314,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A tutorial (`contraagent docs tutorial`): a pipeline from an empty directory, step by
+  step, through a stub run, a run on a coding agent and a test; its pipeline is
+  `examples/tutorial/`.
 - Claims: `agent_task(claims=[...])` and `@python_task(claims=...)` name what each task
   holds while it runs, and one task at a time holds a name, whatever its kind. A claim
   is a template: `{unit}`, `{key}`, `{kind}` and `{params.<name>}` (a list gives one name
@@ -716,6 +719,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A skill whose directory is a symbolic link is read like any other: its files are part
+  of the task's fingerprint and show in the monitor's definition (they were left out).
 - A read of a transcript on a hub no longer fails when several segments are sealed while
   it runs: a sealed segment's file stays until the reads that hold it end.
 - `<cae-layered-graph>`: the line of key hints keeps its height when the graph has no

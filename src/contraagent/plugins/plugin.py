@@ -27,6 +27,7 @@ its skills.
 from __future__ import annotations
 
 import json
+import os
 import re
 import tomllib
 from dataclasses import dataclass
@@ -105,8 +106,7 @@ class Plugin:
 
     def skill_files(self) -> list[tuple[str, str]]:
         """`(path relative to the plugin, text)` of every Markdown file under `skills/`."""
-        d = self.root / "skills"
-        return [(str(f.relative_to(self.root)), f.read_text()) for f in sorted(d.rglob("*.md"))] if d.is_dir() else []
+        return [(str(f.relative_to(self.root)), f.read_text()) for f in markdown_under(self.root / "skills")]
 
     def besides_skills(self) -> list[str]:
         """The parts it holds that act besides skills (`NOT_SKILLS`); empty for a skill plugin."""
@@ -136,7 +136,7 @@ class Plugin:
             if f.is_file():
                 files.append({"path": rel, "part": part, "text": f.read_text()[:limit]})
         for sub, part in (("agents", "agent"), ("skills", "skill")):
-            for f in sorted((self.root / sub).rglob("*.md")) if (self.root / sub).is_dir() else []:
+            for f in markdown_under(self.root / sub):
                 files.append({"path": str(f.relative_to(self.root)), "part": part, "text": f.read_text()[:limit]})
         return {"plugin": True, "name": self.name, "root": str(self.root), "role": role, "plugin_dirs": [str(self.root)], "files": files}
 
@@ -145,6 +145,24 @@ class Plugin:
         from contraagent.plugins.lint import lint_plugin
 
         return lint_plugin(self)
+
+
+def markdown_under(d: Path) -> list[Path]:
+    """Every Markdown file under `d`, sorted, through symbolic links to directories too
+    (a skill linked in from elsewhere is the plugin's, as the coding agent loads it), each
+    directory once; empty when `d` is not a directory. Paths stay under `d` as linked."""
+    if not d.is_dir():
+        return []
+    out: list[Path] = []
+    seen: set[str] = set()
+    for top, dirs, files in os.walk(d, followlinks=True):
+        real = os.path.realpath(top)
+        if real in seen:  # a link back to a directory already read
+            dirs[:] = []
+            continue
+        seen.add(real)
+        out += [Path(top) / f for f in files if f.endswith(".md")]
+    return sorted(out)
 
 
 def frontmatter(text: str) -> dict:
