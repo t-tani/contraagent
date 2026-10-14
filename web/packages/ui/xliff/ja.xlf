@@ -2436,6 +2436,10 @@
   <source>Also locks <x id="0" equiv-text="${listText(units)}"/></source>
   <target>併せてロックするユニット <x id="0" equiv-text="${listText(units)}"/></target>
 </trans-unit>
+<trans-unit id="s76d0878052a529e9">
+  <source>Custom column (row_extras)</source>
+  <target>カスタム列（row_extras）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

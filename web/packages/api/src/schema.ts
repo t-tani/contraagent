@@ -1415,6 +1415,11 @@ export type components = {
              * @default false
              */
             stub?: boolean;
+            /**
+             * Row Extras
+             * @description the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
+             */
+            row_extras?: string[];
         };
         /** StageEntry */
         StageEntry: {
@@ -1564,6 +1569,11 @@ export type components = {
              * @description the transcript's task key for /stream and /events/stream, null when it has none
              */
             stream: string | null;
+            /**
+             * Row Extras
+             * @description the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
+             */
+            row_extras?: string[];
             /** Task Detail Error */
             task_detail_error?: string | null;
         } & {
