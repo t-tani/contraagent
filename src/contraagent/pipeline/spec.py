@@ -53,6 +53,8 @@ class AgentTask[Out]:
     changes: tuple[str, ...] = ()
     #: Where the output arrives: `file` (the agent writes it) or `message` (its final message is it).
     output_from: str = "file"
+    #: The final message may wrap the JSON output: it is taken out of the message (`unwrap_json`).
+    unwrap: bool = False
     #: The agent's tools: None, those its role and settings allow; `()`, none (a light launch).
     tools: tuple[str, ...] | None = None
 
@@ -126,6 +128,7 @@ class AgentTask[Out]:
             "params": _schema(self.params) if self.params is not None else None,
             "changes": list(self.changes),
             "output_from": self.output_from,
+            **({"unwrap": True} if self.unwrap else {}),
             **({"tools": list(self.tools)} if self.tools is not None else {}),
         }
 
@@ -155,6 +158,7 @@ def agent_task[Out](
     validators: Sequence[Validator] = (),
     output_name: str | None = None,
     output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
     requires: Sequence[str] = (),
     claims: Sequence[str] = (),
     changes: Sequence[str] = (),
@@ -202,6 +206,10 @@ def agent_task[Out](
     final message is the output: the runner writes it to the output file and checks it
     there, and a message that fails its checks goes back to the same session. For a task
     that needs no tool (a classification in one turn), it saves the turn the `Write` takes.
+    `unwrap`: with `output_from="message"` and a JSON output, the message may wrap the
+    document (a sentence before it, a fenced block): the runner takes the document out of it
+    (`contracts.unwrap_json`) and keeps the whole message beside the output file
+    (`<output>.message.txt`). By default the whole message must be the document.
     `tools`: None (default), the tools its role and settings allow; `()`, none: a **light
     launch**, for a judgement in one turn. The role's text (without its frontmatter), or for a
     task with no plugin `instructions`, replaces the coding agent's own system prompt; the
@@ -224,6 +232,10 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
+    if unwrap and (output_from != "message" or output is str):
+        raise TypeError(
+            f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
+        )
     checked_tools = _checked_tools(kind, tools)
     if checked_tools == () and output_from != "message":
         raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
@@ -264,6 +276,7 @@ def agent_task[Out](
         changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
         output_from=output_from,
+        unwrap=bool(unwrap),
         tools=checked_tools,
     )
 

@@ -314,6 +314,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(output_from="message", unwrap=True)`: a final message that wraps its JSON
+  output (a sentence before it, a fence around it) gives the document as the output
+  instead of a fix-up round; the whole message is kept beside the output file. The
+  progress line of an attempt with fix-up rounds names the first round's first error.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a
@@ -745,6 +749,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An attempt with fix-up rounds on Claude Code is no longer charged its earlier rounds
+  twice: a resumed session reports its cost so far, which the runner added to the rounds
+  before it (on one run, 29 % more than spent). Each coding agent says how it reports
+  (`Backend.cost_is_session_total`: Claude Code the session's, omp each launch's), the
+  hops' costs in the journal and the monitor's model shares follow, `num_turns` counts
+  every round's turns, and `launches.jsonl` keeps each round's own cost (`round_costs`).
 - A long table (the monitor's history, its tasks) no longer hangs the page when it is
   scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
   heights no longer move its window back and forth, and it measures again on the next

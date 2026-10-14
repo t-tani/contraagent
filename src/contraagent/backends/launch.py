@@ -305,6 +305,12 @@ class LaunchResult:
     # ended `INVALID_OUTPUT` the last is what still stood.
     rounds: int | None = None
     round_errors: list[list[str]] = field(default_factory=list)
+    #: What each round cost on its own, in order (None for a round that reported no cost):
+    #: `cost_usd` is their sum. Empty without a contract.
+    round_costs: list[float | None] = field(default_factory=list)
+    #: True when the output was taken out of a final message that wrapped it
+    #: (`OutputContract.unwrap`); the whole message is kept beside the output file.
+    unwrapped: bool = False
     #: What the plugin's stop hook sent back within the launch, before the agent
     #: ended its turn (Claude Code): one list of errors per time it objected.
     hook_errors: list[list[str]] = field(default_factory=list)
@@ -357,6 +363,8 @@ class LaunchResult:
             "stderr_tail": self.stderr_tail[-300:],
             "rounds": self.rounds,
             "round_errors": [errors[:10] for errors in self.round_errors],
+            "round_costs": list(self.round_costs),
+            "unwrapped": self.unwrapped,
             "hook_errors": [errors[:10] for errors in self.hook_errors],
         }
         return d

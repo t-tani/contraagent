@@ -80,6 +80,12 @@ class Backend(abc.ABC):
     # loads no settings, skills or MCP servers it was not given. A kind declared with
     # `agent_task(tools=())` is refused on an agent without it (routing).
     light_launch: bool = False
+    # True when the cost a resumed launch reports (`LaunchResult.cost_usd`) is the
+    # session's so far, the earlier launches of the session included, not that launch's
+    # alone. A fix-up round resumes the session, so its cost replaces the rounds' total
+    # rather than adding to it (`contracts.fold_spend`). Measured per CLI: Claude Code's
+    # `total_cost_usd` is the session's; omp reports each launch's own.
+    cost_is_session_total: bool = False
     # The reasoning-depth values this CLI accepts for `Launch.effort`, read off
     # the installed CLI rather than guessed (`claude --help | grep effort`,
     # `omp --help | grep thinking`). The vocabularies differ, so a value valid
