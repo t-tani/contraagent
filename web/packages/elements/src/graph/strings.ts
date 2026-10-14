@@ -32,6 +32,9 @@ export interface LayeredGraphStrings {
   dashedEdge: string;
   cycle: string;
   drill: string;
+  /** The open and close controls of an item that can be drawn open ("Show inside", "Hide inside"). */
+  open: string;
+  close: string;
   /** Icon name → its legend word; an icon drawn and named here is in the legend, in this order. */
   iconNames: Readonly<Record<string, string>>;
   /** The node table's headers, the empty list, and a node's name in a cluster. */
@@ -69,6 +72,8 @@ export const DEFAULT_LAYERED_GRAPH_STRINGS: Readonly<LayeredGraphStrings> = {
   dashedEdge: 'other link',
   cycle: 'next round',
   drill: 'has an inner view',
+  open: 'Show inside',
+  close: 'Hide inside',
   iconNames: {},
   nameHeader: 'Name',
   statusHeader: 'Status',

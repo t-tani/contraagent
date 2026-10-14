@@ -6,7 +6,9 @@ import { expect, test, type Page } from '@playwright/test';
 const graph = (page: Page) => page.locator('ca-pipeline-graph');
 const crumbs = (page: Page) => graph(page).locator('.crumbs');
 const crumbTexts = async (page: Page) => (await crumbs(page).locator('li').allTextContents()).map((t) => t.replace('›', '').trim());
-const nodeName = (page: Page, text: string) => graph(page).locator('.node .name', { hasText: text }).first();
+/** A node's name, or, for a function drawn open, its cluster's name. */
+const nodeName = (page: Page, text: string) =>
+  graph(page).locator('.node .name, .cluster > .hd .name', { hasText: new RegExp(`^\\s*${text}\\s*$`) }).first();
 /** The selection's card as the generic graph places it, and its content (the pipeline graph's, in the card's slot). */
 const cardOf = (page: Page) => graph(page).locator('[part~="inspector"]');
 const inspector = (page: Page) => graph(page).locator('[slot="inspector"]');
@@ -233,8 +235,9 @@ test.describe('docs: selecting, and where a selection leads', () => {
   });
 
   test('keyboard: the focus selects, Enter follows, Escape clears the selection, then goes up', async ({ page }) => {
+    // review_loop is drawn open: its cluster's name, named by its place.
     await nodeName(page, 'review_loop').focus();
-    await expect.poll(() => params(page).sel).toBe('flow:contraagent.docs.examples.demo.tasks.review_loop');
+    await expect.poll(() => params(page).sel).toBe('fx::contraagent.docs.examples.demo.tasks.docs/flow:contraagent.docs.examples.demo.tasks.review_loop');
     await page.keyboard.press('Enter');
     expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs', 'review_loop']);
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
@@ -376,5 +379,87 @@ test.describe('colour means status', () => {
     // A tab's count is a total too.
     const badge = page.getByRole('tab', { name: /History/ }).locator('.badge');
     await expect(badge).not.toHaveAttribute('data-tone');
+  });
+});
+
+test.describe('functions drawn open: the whole flow in one drawing', () => {
+  const exact = (name: string) => new RegExp(`^\\s*${name}\\s*$`);
+  const cluster = (page: Page, name: string) => graph(page).locator('.cluster', { has: page.locator(':scope > .hd .name', { hasText: exact(name) }) }).first();
+  const fnNode = (page: Page, name: string) => graph(page).locator('.node', { has: page.locator('.name', { hasText: exact(name) }) }).first();
+
+  test('a function with agent tasks and a failure opens on its own: its kinds are drawn without going in', async ({ page }) => {
+    await open(page, 'docs');
+    expect(await crumbTexts(page)).toEqual(['Pipeline', 'docs']);
+    await expect(cluster(page, 'review_loop')).toBeVisible();
+    await expect(cluster(page, 'review_loop').locator('.node .name', { hasText: 'prepare' })).toBeVisible();
+    await expect(cluster(page, 'review_loop').locator('.cluster > .hd .count')).toHaveText('up to 2 passes');
+    // The node outside it waits for what is inside it.
+    await expect(fnNode(page, 'report')).toBeVisible();
+  });
+
+  test('its control hides inside and shows inside again, keeps the focus, and is kept across a reload', async ({ page }) => {
+    await open(page, 'docs');
+    const hide = cluster(page, 'review_loop').locator(':scope > .cue .tog');
+    await expect(hide).toHaveAttribute('aria-expanded', 'true');
+    await expect(hide).toHaveAttribute('aria-label', 'Hide inside: review_loop');
+    await hide.click();
+    const show = fnNode(page, 'review_loop').locator('.tog');
+    await expect(show).toHaveAttribute('aria-expanded', 'false');
+    await expect(show).toBeFocused();
+    await expect(cluster(page, 'review_loop')).toHaveCount(0);
+    await page.reload();
+    await expect(fnNode(page, 'review_loop').locator('.tog')).toHaveAttribute('aria-expanded', 'false');
+    // By keyboard: Enter on the control shows inside again.
+    await fnNode(page, 'review_loop').locator('.tog').focus();
+    await page.keyboard.press('Enter');
+    await expect(cluster(page, 'review_loop')).toBeVisible();
+    await expect(cluster(page, 'review_loop').locator(':scope > .cue .tog')).toBeFocused();
+  });
+
+  test('a chain of single functions is one box named by its path; a part of the name goes to its layer', async ({ page }) => {
+    await open(page, 'analyse');
+    const chain = graph(page).locator('.cluster', { has: page.locator(':scope > .hd .part', { hasText: 'analyse_file' }) }).first();
+    await expect(chain.locator(':scope > .hd .name')).toHaveText('analyse_bundle');
+    await expect(chain.locator('.node .name', { hasText: 'parse_csv' })).toBeVisible();
+    await chain.locator(':scope > .hd .part', { hasText: 'analyse_file' }).click();
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file']);
+  });
+
+  test('"Hide all inside" draws every function closed; pressed again, the graph chooses again', async ({ page }) => {
+    await open(page, 'docs');
+    const hideAll = graph(page).locator('.opens button', { hasText: 'Hide all inside' });
+    await hideAll.click();
+    await expect(hideAll).toHaveAttribute('aria-pressed', 'true');
+    await expect(fnNode(page, 'review_loop')).toBeVisible();
+    await expect(graph(page).locator('.cluster')).toHaveCount(0);
+    await hideAll.click();
+    await expect(hideAll).toHaveAttribute('aria-pressed', 'false');
+    await expect(cluster(page, 'review_loop')).toBeVisible();
+  });
+
+  test('the outline: beside a wide graph, a click selects in the graph, Enter goes in, the layer shown is current', async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await open(page, 'analyse');
+    const outline = graph(page).locator('nav.outline');
+    await expect(outline).toBeVisible();
+    const item = outline.locator('.oname', { hasText: 'analyse_bundle › analyse_file' });
+    await expect(item).toBeVisible();
+    await item.click();
+    await expect.poll(() => params(page).sel ?? '').toMatch(/^fx::.*analyse_bundle$/);
+    await expect(graph(page).locator('.cluster.sel')).toHaveCount(1);
+    await item.focus();
+    await page.keyboard.press('Enter');
+    // A chain goes into its last function.
+    await expect.poll(() => crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file']);
+    await expect(outline.locator('[aria-current="location"]')).toHaveCount(1);
+  });
+
+  test('on a narrower frame the outline is a part above the graph that opens', async ({ page }) => {
+    await open(page, 'analyse');
+    const part = graph(page).locator('details.odet');
+    await expect(part).toBeVisible();
+    await expect(part.locator('nav.outline')).toBeHidden();
+    await part.locator('summary').click();
+    await expect(part.locator('nav.outline .oname').first()).toBeVisible();
   });
 });

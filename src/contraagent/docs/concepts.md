@@ -127,6 +127,9 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | Word | Means | In code |
 |---|---|---|
 | **group** | a column of the plan | `Monitor(groups=)` |
+| **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
+| **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |
+| **outline** | the pipeline graph's list of every function of the flow and the loops they are in, as a tree | `outlineTree`, `nav.outline` |
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |

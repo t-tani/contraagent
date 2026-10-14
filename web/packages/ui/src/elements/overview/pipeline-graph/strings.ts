@@ -33,6 +33,8 @@ export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraph
     dashedEdge: msg('created after result'),
     cycle: msg('next pass'),
     drill: msg('has an inner view'),
+    open: msg('Show inside'),
+    close: msg('Hide inside'),
     iconNames: { agent: msg('agent task'), python: msg('Python task') },
     nameHeader: functions ? msg('Kind or function') : msg('Kind'),
     statusHeader: msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }),

@@ -12,6 +12,12 @@ export interface ItemDetail {
   id: string;
 }
 
+/** An item opened (`open`) or closed. */
+export interface ToggleDetail {
+  id: string;
+  open: boolean;
+}
+
 /** The item chosen as the selection; null when the selection was cleared. */
 export interface SelectDetail {
   id: string | null;
@@ -49,6 +55,8 @@ export interface CaeEventMap {
   'cae-action': ActionDetail;
   /** Enter an item's inner view (a cluster, a node or a mark that has one). */
   'cae-drill': ItemDetail;
+  /** The reader opened or closed an item (`open`: it is to be drawn open). */
+  'cae-toggle': ToggleDetail;
   /** The reader chose another view. */
   'cae-view-change': ViewDetail;
   /** The reader picked a section (null: follow the latest). */
@@ -67,6 +75,7 @@ declare global {
     'cae-sort': CustomEvent<SortDetail>;
     'cae-action': CustomEvent<ActionDetail>;
     'cae-drill': CustomEvent<ItemDetail>;
+    'cae-toggle': CustomEvent<ToggleDetail>;
     'cae-view-change': CustomEvent<ViewDetail>;
     'cae-section-change': CustomEvent<SectionDetail>;
     'cae-section-shown': CustomEvent<{ index: number }>;

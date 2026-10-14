@@ -53,9 +53,11 @@ const iconsOf = (n: GraphNode): string[] => (n.executor === 'mixed' ? ['agent', 
  * task's node with an accent, a function node with an inner view), a cluster per
  * loop box (it cycles: its return is the loop's next pass), a solid edge per
  * `after` and a dashed one per `created_from`, and the units as the series. Its
- * nodes are in the plan's order, as `arrange` reads them.
+ * nodes are in the plan's order, as `arrange` reads them. With `open`, a function node
+ * can be drawn open (`toggle`), and each function drawn open (`LayerModel.fns`) is a
+ * cluster named by its path, each part a link to its own layer.
  */
-export function graphInput(m: LayerModel, x: GraphWordsContext): GraphInput {
+export function graphInput(m: LayerModel, x: GraphWordsContext, open = false): GraphInput {
   const ctx = markContext(x);
   const mark = (n: GraphNode, mk: LayerMark): GraphMark => {
     const { name, parts } = markText(n.label, mk, ctx(mk));
@@ -87,6 +89,30 @@ export function graphInput(m: LayerModel, x: GraphWordsContext): GraphInput {
       notes: exceptions(n, x.live).map(([cls, text]) => ({ text, tone: NOTE_TONE[cls] })),
       // Finished (done and skipped) only sets the frame's look; the count is of the tasks done.
       look: c.failed || n.errors ? 'failed' : c.running ? 'running' : c.done + c.skipped === c.total ? 'done' : undefined,
+      // A function can be drawn open, where the layer is drawn with its functions (not in a loop's passes).
+      ...(n.type === 'flow' && open ? { toggle: 'closed' as const } : {}),
+    };
+  });
+  // A function drawn open: a cluster named by its path, its count and what is not done under its name.
+  const fns = m.fns.map((f): GraphClusterInput => {
+    const first = (f.parts[0] as (typeof f.parts)[number]).node;
+    const label = f.parts.map((p) => p.node.label).join(' › ');
+    const c = first.counts;
+    const notes = exceptions(first, x.live).map(([, text]) => text);
+    return {
+      id: f.id,
+      parent: f.parent,
+      label,
+      tip: first.name,
+      note: `${c.done}/${c.total}`,
+      ...(notes.length ? { detail: facts(...notes) } : {}),
+      summary: facts(label, nodeLabel(first, m, x.live)),
+      chipLabel: msg(str`Inside ${label}`),
+      chipTip: facts(msg('Function'), label),
+      drill: true,
+      cycle: false,
+      toggle: 'open',
+      path: f.parts.map((p) => ({ id: p.id, label: p.node.label, tip: p.node.name })),
     };
   });
   const clusters = m.boxes.map((b): GraphClusterInput => {
@@ -110,7 +136,7 @@ export function graphInput(m: LayerModel, x: GraphWordsContext): GraphInput {
   return {
     series: m.units,
     nodes,
-    clusters,
+    clusters: [...clusters, ...fns],
     edges: m.edges.map((e) => ({ from: e.from, to: e.to, style: edgeStyle(e.type), weight: e.tasks, ranks: e.samePass })),
     stubs: m.stubs.map((s) => ({ id: s.id, label: s.label, to: s.to, style: edgeStyle(s.type), weight: s.tasks })),
   };

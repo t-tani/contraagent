@@ -28,7 +28,16 @@ marks whose state has the tone `done` of all its marks, in the words of
 
 A cluster is a box of nodes (and of other clusters). A cluster that `cycle`s draws
 a return from its last layer to its first; an edge with `ranks: false` closes that
-cycle: it never sets the layers and is not drawn.
+cycle: it never sets the layers and is not drawn. An edge may join items in
+different clusters, at any depth: it leaves and enters each box on its way.
+
+An item the host can draw open or closed carries `toggle`: a node with `toggle:
+'closed'` draws a control in its header (`strings.open`, "Show inside") and a
+cluster with `toggle: 'open'` one in its corner (`strings.close`); either sends
+`cae-toggle` with the item's id and whether it is to be open, and the host draws
+the graph again. A cluster named by a `path` of parts shows them as "a › b › c":
+the first part is its name, and each later part sends `cae-drill` with that part's
+id. `focusToggle(id)` puts the focus on an item's control once it is drawn again.
 
 `key` is the graph's identity. A new `key` is a new graph: the frame shows all of
 it again, and the focused mark of each node is forgotten. Keep the `key` while the
@@ -42,7 +51,10 @@ The order depends on the structure only. Give the element the `order` of an earl
 drawing of the same graph to keep its items in place: an item that appears later is
 added at the end of its layer. `layoutGraph` places everything from the measured
 sizes; the element measures its nodes itself. Below 640 px of width, `direction:
-'auto'` draws top to bottom.
+'auto'` draws top to bottom. `extentOf(arrangement)` gives a drawing's shape before
+it is measured: the layers it spans along the flow and the items it stacks across
+it at most, a cluster counted as what it holds; a host can choose the direction,
+or how much to draw, from it.
 
 ## Size
 

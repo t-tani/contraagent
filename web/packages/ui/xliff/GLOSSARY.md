@@ -128,6 +128,10 @@ wherever the UI shows a state or a count to the reader.
 | 1 pass: 4 \| 2 passes: 1 (how many units ran each number of passes; tooltip: units by number of passes) | 1 周: 4 \| 2 周: 1（ツールチップ: ユニットごとの周回数） |
 | next pass (a loop box's dotted return from its last layer to its first) | 次の周 |
 | has an inner view (a function node's layer, a loop box's passes; the legend of their two-card mark) | 内部の表示あり |
+| Show inside / Hide inside (a function drawn open as a box of its layer, or closed as a node; not "open", which goes into a layer) | 中を表示 / 中を隠す |
+| Show all inside / Hide all inside | すべての中を表示 / すべての中を隠す |
+| Outline of the flow (the tree of functions and loops beside the graph) | フローの構成 |
+| Fold / Unfold (an outline item) | 折りたたむ / 展開 |
 | Selected item / Clear selection (the inspector beside the pipeline graph) | 選択中の項目 / 選択を解除 |
 | Task detail / Tasks of review / Inside review_loop / Passes of the loop at flow.py:130 (the inspector's links: where each goes) | タスク詳細 / review のタスク / review_loop の内部 / flow.py:130 のループの各周 |
 | No layer X in this run (a link to a layer the run does not have) | この実行には階層 X がありません |

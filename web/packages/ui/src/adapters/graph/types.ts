@@ -36,6 +36,8 @@ export interface GraphNode {
   /** The plan group's id, or the function's `module.qualname`. */
   name: string;
   label: string;
+  /** The layer it is in (function names, outermost first): the layer shown, or a function's drawn open inside it. */
+  layer: string[];
   /** The kinds of its tasks. */
   kinds: string[];
   /** A kind node: who runs its tasks (`mixed` when its kinds differ); null for a function node. */
@@ -60,8 +62,12 @@ export interface GraphNode {
 
 /** The nodes created by one loop of the layer's function; a nested loop is a box inside it. */
 export interface LoopBox {
-  /** `loop:<line>`, `loop:<outer>.<inner>` for a nested loop. */
+  /** Its id in the graph: `local`, or, in a function drawn open, prefixed with that function's place. */
   id: string;
+  /** `loop:<line>`, `loop:<outer>.<inner>` for a nested loop: its segment in its layer. */
+  local: string;
+  /** The layer it is in (function names, outermost first). */
+  layer: string[];
   /** The loop's first line. */
   loop: number;
   /** The file the loop is in (the layer's function's file, as recorded); '' when not known. */
@@ -74,6 +80,20 @@ export interface LoopBox {
   spread: [passes: number, units: number][];
   /** Its items (node ids and nested loop box ids) by layer, each layer in drawing order. */
   layers: string[][];
+}
+
+/**
+ * A function drawn open: a cluster holding its layer's nodes, edges and loop boxes
+ * (`compound.ts`). A chain of functions, each the only function in the layer of the one
+ * before, is one of these, named by its path.
+ */
+export interface FlowBox {
+  /** `fx::<place>` of its first part. */
+  id: string;
+  /** What it is drawn in: a loop box, another function drawn open, or null (the layer shown). */
+  parent: string | null;
+  /** The functions it holds open, outermost first: each with its place, and its node as it is drawn closed. */
+  parts: { id: string; key: string; node: GraphNode }[];
 }
 
 export interface GraphEdge {
@@ -104,6 +124,8 @@ export interface LayerModel {
   path: string[];
   nodes: GraphNode[];
   boxes: LoopBox[];
+  /** Its functions drawn open ([]: a layer drawn alone). */
+  fns: FlowBox[];
   edges: GraphEdge[];
   stubs: GraphStub[];
   /** The units with a mark in this layer, in the order the run first scheduled them. */
@@ -117,6 +139,8 @@ export interface LayerGraph extends Arrangement {
   /** Every node, in drawing order. */
   nodes: GraphNode[];
   boxes: LoopBox[];
+  /** Its functions drawn open ([]: a layer drawn alone). */
+  fns: FlowBox[];
   edges: GraphEdge[];
   stubs: GraphStub[];
   /** The units with a mark in this layer, in the order the run first scheduled them. */

@@ -41,7 +41,7 @@ The graph is drawn from `plan.jsonl` and `flow_calls.jsonl`, so tasks that have
 not started are in it too. A layer holds a node per kind (or per group,
 `Monitor(groups=)`) for the tasks its flow function created itself, and a node
 per function it called as a flow call, which holds that function's own layer;
-while a layer holds a single node, the graph opens it, and stops at a node whose
+while a layer holds a single node, the graph goes into it, and stops at a node whose
 flow call raised, where that failure shows. Each node has one mark per unit: a
 task in a kind node, a flow call in a function node; above 200 marks, a bar of
 its counts and its failed units by name. A mark that stands for several tasks
@@ -59,6 +59,30 @@ it is at, so a loop and the loop inside it are told apart. A solid edge is a dep
 one joins a task to a result its flow call had received when it created the task
 (`created_from`), drawn only where the task does not also wait for that output.
 A flow that does not yield is one layer: its kinds.
+
+The layer shown is drawn with some of its functions open: a function drawn open
+is a box that holds its own layer (its kinds, its loops, the functions it called,
+drawn open or closed in turn), joined by the same edges to what is outside it, so
+the whole flow reads in one drawing. A chain of functions, each the only function
+in the layer of the one before (outside any loop), is one box named by its path
+(`topic_work › write_batches › write_batch`), each part of the name a link into
+that function's layer. Which functions open is chosen by interest: one that holds
+agent tasks, a failure, running work, work that did not run, or the selection,
+the more of these and the more tasks the sooner, and the nearer the layer shown
+the sooner; a function of finished Python steps stays a node, whose count says it
+all. They open while the drawing holds about 40 nodes (fewer in a narrower frame)
+and spans about one screen of layers; what would make it longer stays closed. A
+function's control opens or closes it (Show inside, Hide inside), and "Show all
+inside" and "Hide all inside" set every one; the reader's choices outrank the
+graph's and are kept for the page, a reload included. A drawing too long to read
+left to right in its frame is drawn top to bottom, where the frame grows with it.
+
+Beside the graph (above it, in a part that opens, on a frame narrower than 1500
+px) the outline lists every function of the flow and the loops they are in, a
+chain as one item, each with a bar of its tasks done and what is not done, the
+layer shown marked and the selection's item highlighted. A click shows its item
+in the graph, selected, opening the functions around it; a double click or Enter
+goes into its layer (a loop's: its passes).
 
 The nodes created inside one loop are drawn in a box, a nested loop's box inside
 it. A pass is one iteration of one loop (`flow[].loops[].pass`, see
