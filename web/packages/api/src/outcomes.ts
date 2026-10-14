@@ -203,6 +203,8 @@ export interface TaskRow extends TaskOutcome {
   waits_for: string[];
   /** The units it locks besides its own (`extra_units`); empty for none. */
   extra_units: string[];
+  /** The tags it holds while it runs (`tags`); empty for none. */
+  tags: string[];
 }
 
 /** The innermost loop pass of a plan node's flow path; null outside a loop (a pass not counted reads as the first). */
@@ -235,6 +237,7 @@ export function taskRows(outcomes: ReadonlyMap<string, TaskOutcome>, plan: Plan)
       waits_for:
         t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !isFinished(outcomes.get(d)?.outcome ?? 'waiting')) : [],
       extra_units: node?.extra_units ?? [],
+      tags: node?.tags ?? [],
     };
   });
 }

@@ -224,6 +224,27 @@ one kind. `extra_units` is not part of the fingerprint, since it changes when a 
 runs, not what it does. An extra unit that is the task's own unit, or one named
 twice, raises at the task call.
 
+### Tags: one task at a time on a resource
+
+The unit lock leaves tasks of one kind free to share a unit. When they must not,
+or when tasks of any kind share something that is not a unit, give their kinds a
+tag and the tag a capacity. A tag is a template, filled in like `output_name`
+(`{unit}`, `{key}`, `{kind}`), and a tag that names `{unit}` is held once per unit
+the task locks, its extra units included. A `tag_capacity` key is a tag's name or
+an `fnmatch` pattern: `{"topic:*": 1}` gives every `topic:` tag a capacity of 1,
+each its own, so each topic is written by one task at a time and two topics by two.
+A tag's name outranks a pattern, and the longest matching pattern outranks the
+others; a tag that no entry names has no limit. The config holds them as
+`[defaults.tag_capacity]`, and `Pipeline(tag_capacity=)` outranks it key by key.
+
+::code{file="examples/tags/flow.py" from="draft = agent_task(" to="def pipeline("}
+
+No two of `draft`, `fix-<topic>-style` and `fix-<topic>-terms` write a topic at
+once; the two `triage` tasks of a topic hold no tag and run together. A tag that
+names `{unit}` on a task with no unit raises at the task call. Tags are not part of
+the fingerprint. The plan records each task's tags, and the monitor shows them in
+the task's detail.
+
 ## Files a task changes
 
 An agent task whose work is files in the working tree, beside its output,

@@ -9,6 +9,8 @@ Each test runs a small flow once per coding agent:
 * `changes`, with `Pipeline(scopes=, enrichers=, row_extras=)`: an attempt's changed files
   are journaled, and the files a timed-out attempt created are removed;
 * `extra_units`: a task on two units does not overlap a task of another kind on either;
+* tags: two tasks of one kind on one topic, which the unit lock lets overlap, run one
+  after the other under a tag `topic:{unit}` capped at 1 by the pattern `topic:*`;
 * `output_from="message"`: the final message is the output, after a tool call, and a
   message that fails its checks is corrected in the same session;
 * quota caps and `quota_rule`: a credential past one rests, its tasks take the next hop,
@@ -287,6 +289,44 @@ def test_extra_units_lock_both_units(ws, agent):
     assert order.index(f"[end] {first}") < order.index(f"[start] {second}"), order
     plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
     assert next(p for p in plan if p["key"] == f"cmp-{agent}")["extra_units"] == ["beta"]
+
+
+# --- tags ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_tag_capped_by_a_pattern_writes_one_topic_at_a_time(ws, agent):
+    fix = agent_task(
+        f"fix_{agent}",
+        instructions="Append one line about ${rule} to the file ${path}. Then write the output: that path as `topic`.",
+        output=Written,
+        tags=["topic:{unit}"],
+        max_turns=10,
+        timeout_s=300,
+        **route(agent),
+    )
+
+    def flow():
+        for rule in ("style", "terms"):
+            fix("alpha", key=f"fix-{agent}-{rule}", rule=rule, path=f"tags-{agent}/alpha.md")
+
+    (ws / f"tags-{agent}").mkdir(exist_ok=True)
+    (ws / f"tags-{agent}" / "alpha.md").write_text("Notes on alpha.\n")
+    lines: list[str] = []
+
+    def log(line: str) -> None:
+        print(line)
+        lines.append(line)
+
+    report = pipeline(ws, max_concurrent=4, log=log, tag_capacity={"topic:*": 1}).run(flow, run_id=f"tags-{agent}")
+    show(report)
+    assert report.ok, report.failed
+    order = [line.split(":")[0] for line in lines if line.startswith(("[start]", "[end]"))]
+    print(f"  order: {order}")
+    first, second = sorted((f"fix-{agent}-style", f"fix-{agent}-terms"), key=lambda k: order.index(f"[start] {k}"))
+    assert order.index(f"[end] {first}") < order.index(f"[start] {second}"), order
+    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    assert {p["key"]: p["tags"] for p in plan} == {f"fix-{agent}-style": ["topic:alpha"], f"fix-{agent}-terms": ["topic:alpha"]}
 
 
 # --- output_from="message" ----------------------------------------------------

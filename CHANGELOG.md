@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tags are templates: `agent_task(tags=["topic:{unit}"])` and `@python_task(tags=...)` fill
+  in `{unit}`, `{key}` and `{kind}` for each task, a tag naming `{unit}` once per unit the
+  task locks (its extra units too). A `tag_capacity` key may be an `fnmatch` pattern
+  (`{"topic:*": 1}`) that gives each tag it matches a capacity of its own, and the config
+  holds them as `[defaults.tag_capacity]`. So tasks of any kind, one kind on one unit
+  included, write one topic at a time. The plan records each task's tags
+  (`PlanNode.tags`), and the monitor shows them in the task's detail ("Tags").
 - The monitor shows a pipeline's own journal columns (`row_extras`): a column each in the
   history, under its name as written, and the values of each attempt in the task's
   detail. `RunSummary.row_extras` and `TaskDetail.row_extras` name them.

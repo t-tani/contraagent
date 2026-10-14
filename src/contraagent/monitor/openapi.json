@@ -2311,6 +2311,14 @@
             "title": "Extra Units",
             "description": "further units it locks while it runs, besides `unit`"
           },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "the tags it holds while it runs, its kind's templates filled in"
+          },
           "after": {
             "items": {
               "type": "string"

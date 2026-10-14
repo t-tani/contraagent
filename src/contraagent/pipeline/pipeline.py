@@ -139,7 +139,8 @@ class Pipeline:
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
-        `overdue_s`, `tag_capacity`, ...); its docstring has the scheduling rules."""
+        `overdue_s`, `tag_capacity`, ...); its docstring has the scheduling rules.
+        `tag_capacity` outranks the config's `[defaults.tag_capacity]` key by key."""
         if config is None:
             config = PipelineConfig()
         elif not isinstance(config, PipelineConfig):
@@ -165,7 +166,9 @@ class Pipeline:
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
         self.row_extras = row_extras
-        self.queue_options = queue_options
+        # A malformed [defaults.tag_capacity] is reported by the routing plan too.
+        tag_capacity = {**config.tag_capacity([]), **dict(queue_options.pop("tag_capacity", None) or {})}
+        self.queue_options = {**queue_options, **({"tag_capacity": tag_capacity} if tag_capacity else {})}
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
         """Build the task graph `run` would, and check everything that needs no launch:

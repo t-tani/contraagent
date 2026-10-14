@@ -164,7 +164,11 @@ def agent_task[Out](
     credential that is, is the config's to say; a route that does not satisfy
     it, failover hops included, is refused before anything launches.
     `tags`: named resources each of its tasks holds while it runs (`["heavy"]`);
-    `Pipeline(tag_capacity={"heavy": 1})` caps how many run at once.
+    `Pipeline(tag_capacity={"heavy": 1})` caps how many run at once. A tag is a template:
+    `{unit}`, `{key}` and `{kind}` as in `output_name`, and a tag naming `{unit}` is held
+    once per unit the task locks (its unit and its `extra_units`), so `["topic:{unit}"]`
+    with `tag_capacity={"topic:*": 1}` runs one task at a time on each topic, whatever
+    its kind.
     `changes`: `Path.glob` patterns, relative to the working directory, of the files its
     tasks may change beside their output (`["topics/{unit}/**"]`; `{unit}`, `{key}` and
     `{kind}` as in `output_name`; a pattern that matches a directory covers everything
@@ -204,6 +208,7 @@ def agent_task[Out](
     changes = tuple(changes)
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
+    checked_tags = _checked_tags(f"agent_task({kind!r})", tags)
     base = _caller_dir()
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
@@ -221,7 +226,7 @@ def agent_task[Out](
         config=dict(config),
         validators=tuple(validators),
         requires=tuple(requires),
-        tags=tuple(tags),
+        tags=checked_tags,
         skills_from=shared,
         changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
@@ -341,11 +346,13 @@ def python_task(
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
-    any JSON-able type (kept as a JSON file), or None (no output). `tags`, as for
+    any JSON-able type (kept as a JSON file), or None (no output). `tags` (templates), as for
     `agent_task`: resources each of its tasks holds while it runs."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
-        return PythonTask(fn=f, name=name or f.__name__, output_schema=_output_schema_of(f), validators=tuple(validators), tags=tuple(tags))
+        kind = name or f.__name__
+        checked = _checked_tags(f"python_task({kind!r})", tags)
+        return PythonTask(fn=f, name=kind, output_schema=_output_schema_of(f), validators=tuple(validators), tags=checked)
 
     return wrap(fn) if fn is not None else wrap
 
@@ -391,6 +398,25 @@ def _type_name(t: type) -> str:
         inner = t.model_fields["root"].annotation
         return getattr(inner, "__name__", None) or str(inner)
     return t.__name__
+
+
+def _checked_tags(owner: str, tags: Sequence[str]) -> tuple[str, ...]:
+    """`tags` as declared, checked: each a non-empty template naming only `{unit}`, `{key}`
+    and `{kind}`."""
+    if isinstance(tags, str):
+        raise TypeError(f"{owner}: tags must be a list of tags, not the string {tags!r}")
+    out = tuple(tags)
+    for tag in out:
+        if not isinstance(tag, str) or not tag:
+            raise TypeError(f"{owner}: tags holds {tag!r}; each tag is a non-empty string")
+        try:
+            fields = {f for _, f, _, _ in string.Formatter().parse(tag) if f is not None}
+        except ValueError as exc:
+            raise ValueError(f"{owner}: tag {tag!r}: {exc}") from None
+        unknown = sorted(fields - {"unit", "key", "kind"})
+        if unknown:
+            raise ValueError(f"{owner}: tag {tag!r} names {', '.join(unknown)}; it may name unit, key and kind")
+    return out
 
 
 def _check_changes_pattern(kind: str, pattern: str) -> None:

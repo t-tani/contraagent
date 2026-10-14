@@ -8,6 +8,7 @@ import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
 import { alsoLocksLabel, alsoLocksTip, attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
 import { readingShort, readingTip } from '../../words/quota.js';
+import { tagsLabel, tagsTip } from '../../words/tags.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
@@ -124,6 +125,11 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
           ${node?.extra_units?.length
             ? html`<div class="meta" title=${alsoLocksTip()}>
                 ${alsoLocksLabel()} ${node.extra_units.map((text) => pill({ text }))}
+              </div>`
+            : nothing}
+          ${node?.tags?.length
+            ? html`<div class="meta" title=${tagsTip()}>
+                ${tagsLabel()} ${node.tags.map((text) => pill({ text }))}
               </div>`
             : nothing}
           ${session

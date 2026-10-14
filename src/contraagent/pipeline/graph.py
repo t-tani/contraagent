@@ -160,6 +160,8 @@ class Node:
     upstream: list[Pending] = field(default_factory=list)
     #: Its `changes` patterns, with `{unit}`, `{key}` and `{kind}` filled in.
     changes: tuple[str, ...] = ()
+    #: Its tags, with `{unit}` (once per unit it locks), `{key}` and `{kind}` filled in.
+    tags: tuple[str, ...] = ()
     origin: Origin | None = None
     fingerprint: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -285,6 +287,7 @@ class Graph:
             upstream=upstream,
             origin=origin,
             changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
+            tags=_expand_tags(spec, unit, extras, base),
         )
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)
@@ -457,7 +460,7 @@ class Graph:
             params={k: v for k, v in node.params.items() if isinstance(v, (str, int, float, bool))},
             origin=node.origin,
             fingerprint=node.fingerprint,
-            tags=node.spec.tags,
+            tags=node.tags,
             payload=node,
         )
         if self.tail is not None:
@@ -491,6 +494,21 @@ class Graph:
                 definition=node.spec.definition(),
             ),
         )
+
+
+def _expand_tags(spec: Any, unit: str, extras: tuple[str, ...], key: str) -> tuple[str, ...]:
+    """A task's tags: each of its kind's templates filled in, one tag per unit the task locks
+    for a template naming `{unit}`, in order and once each. A task with no unit has no unit
+    to name: a template naming `{unit}` raises at its call."""
+    out: list[str] = []
+    for template in getattr(spec, "tags", ()):
+        if "{unit}" in template:
+            if not unit:
+                raise ValueError(f"{spec.kind}(): tag {template!r} names {{unit}}, and the task has no unit")
+            out += [template.format(unit=u, key=key, kind=spec.kind) for u in (unit, *extras)]
+        else:
+            out.append(template.format(unit=unit, key=key, kind=spec.kind))
+    return tuple(dict.fromkeys(out))
 
 
 def _extra_units(kind: str, unit: str, extra_units: Sequence[str]) -> tuple[str, ...]:

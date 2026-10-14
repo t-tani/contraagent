@@ -4,7 +4,7 @@ import { attemptFacts, filterJournal, filterTasks, journalTally, sortTasks } fro
 
 const task = (key: string, kind: string, last_stop = 'completed', outcome: Outcome = 'done', last_ts = ''): TaskRow => ({
   key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null, deferred: '', deferredCause: null,
-  pass: null, wall_s: 1, last_ts, last_stop, waits_for: [], extra_units: [],
+  pass: null, wall_s: 1, last_ts, last_stop, waits_for: [], extra_units: [], tags: [],
 });
 const row = (key: string, kind: string, stop: Stop, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '', key, kind, stop, ok: stop === 'completed', ...extra,
@@ -21,6 +21,10 @@ describe('filterTasks', () => {
   it('by an extra unit too', () => {
     const both = [task('compare-alpha', 'compare'), { ...task('compare-gamma', 'compare'), extra_units: ['beta'] }];
     expect(filterTasks(both, '', 'beta').map((t) => t.key)).toEqual(['compare-gamma']);
+  });
+  it('by a tag too', () => {
+    const both = [task('fix-alpha', 'fix'), { ...task('fix-gamma', 'fix'), tags: ['topic:gamma', 'heavy'] }];
+    expect(filterTasks(both, '', 'heavy').map((t) => t.key)).toEqual(['fix-gamma']);
   });
 });
 

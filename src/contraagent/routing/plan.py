@@ -327,6 +327,7 @@ class RoutingPlan:
         errors: list[str] = []  # every problem, reported together
         config.unknown_tables(errors)
         defaults = config.defaults(errors)
+        config.tag_capacity(errors)
         file_tables = config.task_tables(errors)
         if all_kinds:
             check_task_tables(file_tables, kinds)

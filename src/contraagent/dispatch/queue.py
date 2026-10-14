@@ -9,7 +9,11 @@ ready when:
   concurrently on purpose; only a different kind on that unit has to wait its
   turn;
 * the kind's own cap (`runner.config(task).max_concurrent`) and every tag's
-  capacity (`tag_capacity`) have room.
+  capacity (`tag_capacity`) have room. A `tag_capacity` key is a tag's name or
+  an `fnmatch` pattern (`topic:*`); a pattern gives each tag it matches a
+  capacity of its own, not one shared among them. A tag's name outranks a
+  pattern, and the longest matching pattern outranks the others; a tag that
+  none names has no limit.
 
 The schedule is a greedy list schedule: whenever a slot is free, the first
 task in the order that can start, starts; no slot idles while a task can start
@@ -78,6 +82,7 @@ cause as data (`on_event("deferred", task, reason=, cause=)`, `Deferral`).
 
 from __future__ import annotations
 
+import fnmatch
 import random
 import time
 from collections import deque
@@ -111,6 +116,11 @@ GRACE_S = 900.0
 OnEvent = Callable[..., None]  # on_event(event: str, task: Task | None, **fields)
 FollowUp = Callable[[TaskResult], list[Task]]
 OnResult = Callable[[TaskResult, int], None]  # on_result(result, attempt)
+
+
+def _is_pattern(name: str) -> bool:
+    """A `tag_capacity` key with an `fnmatch` wildcard."""
+    return any(ch in name for ch in "*?[")
 
 
 class _HasMaxConcurrent(Protocol):
@@ -168,6 +178,8 @@ class WorkQueue:
         self.hard_stop_at = (self.deadline_at + grace_s) if self.deadline_at is not None else None
         self.finishing_kinds = tuple(finishing_kinds)
         self.tag_capacity: dict[str, int] = dict(tag_capacity or {})
+        # Patterns, the longest first: the first that matches a tag no exact entry names wins.
+        self._tag_patterns = sorted((k for k in self.tag_capacity if _is_pattern(k)), key=len, reverse=True)
         # A domain's own estimate per task (e.g. from past runs); used when a
         # task carries none. Asked again on every pass, so it may learn as the run goes.
         self._estimate_fn = estimate
@@ -295,12 +307,12 @@ class WorkQueue:
     def _possible(self, task: Task) -> bool:
         """It could start with nothing else running: no capacity of 0 stands in its way."""
         cap = self.runner.config(task).max_concurrent
-        return (cap is None or cap > 0) and all(self.tag_capacity.get(t, 1) > 0 for t in task.tags)
+        return (cap is None or cap > 0) and all(self.capacity(t) != 0 for t in task.tags)
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes a resource `head` still needs: a capped tag of
         its, one of its units (for another kind), or a place under its kind's cap."""
-        if any(t in self.tag_capacity for t in set(task.tags) & set(head.tags)):
+        if any(self.capacity(t) is not None for t in set(task.tags) & set(head.tags)):
             return True
         if task.kind != head.kind and set(task.units) & set(head.units):
             return True
@@ -399,8 +411,18 @@ class WorkQueue:
 
         return sorted(tasks, key=key)
 
+    def capacity(self, tag: str) -> int | None:
+        """How many running tasks may hold `tag`: its own entry in `tag_capacity`, else the
+        longest pattern that matches it; None (no limit) when none does."""
+        if tag in self.tag_capacity:
+            return self.tag_capacity[tag]
+        for pattern in self._tag_patterns:
+            if fnmatch.fnmatchcase(tag, pattern):
+                return self.tag_capacity[pattern]
+        return None
+
     def _tag_full(self, tag: str) -> bool:
-        limit = self.tag_capacity.get(tag)
+        limit = self.capacity(tag)
         return limit is not None and sum(1 for t in self._running.values() if tag in t.tags) >= limit
 
     def _start_ready(self, pool: ThreadPoolExecutor) -> None:

@@ -1199,6 +1199,11 @@ export type components = {
              */
             extra_units?: string[];
             /**
+             * Tags
+             * @description the tags it holds while it runs, its kind's templates filled in
+             */
+            tags?: string[];
+            /**
              * After
              * @description task keys it waits for
              */

@@ -2516,6 +2516,14 @@
   <source>Custom column (row_extras)</source>
   <target>カスタム列（row_extras）</target>
 </trans-unit>
+<trans-unit id="s03aa3cfb08dff960">
+  <source>Tags</source>
+  <target>タグ</target>
+</trans-unit>
+<trans-unit id="s80f1ffc8a2d8b78b">
+  <source>Resources this task holds while it runs (tags)</source>
+  <target>実行中にこのタスクが確保するリソース（tags）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

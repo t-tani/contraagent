@@ -6,7 +6,7 @@ import { isBad, isLaunched, retries, type JournalRow, type Outcome, type TaskRow
 export function filterTasks(tasks: readonly TaskRow[], kind: string, q: string): TaskRow[] {
   const needle = q.toLowerCase();
   return tasks.filter(
-    (t) => (!kind || t.kind === kind) && (!needle || `${t.kind} ${t.unit} ${(t.extra_units ?? []).join(' ')} ${t.key} ${t.last_stop}`.toLowerCase().includes(needle)),
+    (t) => (!kind || t.kind === kind) && (!needle || `${t.kind} ${t.unit} ${(t.extra_units ?? []).join(' ')} ${(t.tags ?? []).join(' ')} ${t.key} ${t.last_stop}`.toLowerCase().includes(needle)),
   );
 }
 
