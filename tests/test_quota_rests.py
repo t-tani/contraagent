@@ -24,8 +24,9 @@ from contraagent import (
     TaskResult,
     agent_task,
 )
+from contraagent.dispatch import Deferral
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.monitor import Monitor
+from contraagent.monitor import Monitor, api
 from contraagent.routing.quota import QuotaRests
 from contraagent.testing import StubAgent
 
@@ -189,6 +190,15 @@ def test_a_resting_hop_is_skipped_without_a_launch(tmp_path):
     assert second.ok and agent.seen == ["sub-b"]
     assert [h["credential"] for h in second.hops] == ["sub-b"]  # a skipped hop is no hop
     assert second.reason == "personal rests: 5-hour usage 95%, max 90%; ran on hop 2/2 claude/m2@sub-b"
+    [skipped] = second.skipped_hops
+    assert (skipped["route"], skipped["model"], skipped["credential"], skipped["window"], skipped["pct"], skipped["cap"]) == (
+        "hop 1/2 claude/m1@personal",
+        "m1",
+        "personal",
+        "five_hour",
+        95.0,
+        90.0,
+    )
 
 
 def test_with_no_hop_left_the_task_is_deferred(tmp_path):
@@ -196,9 +206,24 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
     r = runner(tmp_path, agent, fallback=False)
     assert r.deferral(Task("k", key="t0")) is None
     assert r.run(Task("k", key="t1")).ok
-    assert r.deferral(Task("k", key="t2")) == "personal rests: 5-hour usage 95%, max 90%"
+    deferral = r.deferral(Task("k", key="t2"))
+    assert deferral is not None and deferral.reason == "personal rests: 5-hour usage 95%, max 90%"
+    assert deferral.cause["cause"] == "rest"
+    [rest] = deferral.cause["rests"]
+    assert rest | {"until": ""} == {
+        "route": "hop 1/1 claude/m1@personal",
+        "model": "m1",
+        "credential": "personal",
+        "window": "five_hour",
+        "pct": 95.0,
+        "cap": 90.0,
+        "rule": "",
+        "until": "",
+    }
+    assert rest["until"] == iso(NOW + timedelta(hours=2))  # the window's reset
     res = r.run(Task("k", key="t2"))
     assert res.stop == "deferred" and not res.ok and res.reason.startswith("personal rests")
+    assert res.cause is not None and res.cause["cause"] == "rest"
     assert agent.seen == ["personal"]
 
 
@@ -223,12 +248,12 @@ class Deferring:
         return KindConfig(agent="claude", max_turns=1, timeout_s=1)
 
     def deferral(self, task):
-        return "rests" if task.key in self.before else None
+        return Deferral("rests", {"cause": "rest"}) if task.key in self.before else None
 
     def run(self, task):
         self.ran.append(task.key)
         if task.key in self.after:
-            return TaskResult.deferred(task, "rests now")
+            return TaskResult.deferred(task, Deferral("rests now", {"cause": "rest"}))
         return TaskResult(task=task, ok=True, stop="completed")
 
 
@@ -237,14 +262,14 @@ def test_the_queue_defers_what_its_runner_cannot_launch():
     runner = Deferring(before={"a"}, after={"b"})
     q = WorkQueue(
         runner,
-        on_event=lambda e, t, **f: events.append((e, t.key if t else None, f.get("reason"))),
+        on_event=lambda e, t, **f: events.append((e, t.key if t else None, f.get("reason"), f.get("cause"))),
         on_result=lambda r, n: results.append(r.task.key),
     )
     for key in ("a", "b", "c"):
         q.add(Task("k", key=key, unit=key))
     summary = q.run()
     assert runner.ran == ["b", "c"] or sorted(runner.ran) == ["b", "c"]  # a never started
-    assert ("deferred", "a", "rests") in events and ("deferred", "b", "rests now") in events
+    assert ("deferred", "a", "rests", {"cause": "rest"}) in events and ("deferred", "b", "rests now", {"cause": "rest"}) in events
     assert sorted(summary["deferred"]) == ["a", "b"] and results == ["c"]  # a deferral is no result
 
 
@@ -305,8 +330,70 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
     rows = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
     assert {r["key"] for r in rows} == {"note-a", "note-b"}
     assert rows[0]["reason"] == "personal rests: 5-hour usage 93%, max 90%" and rows[0]["unit"] in ("a", "b")
-    nodes = {n["key"]: n for n in Monitor(tmp_path / "runs").plan(report.run_id)["nodes"]}
+    assert rows[0]["cause"]["cause"] == "rest" and rows[0]["cause"]["rests"][0]["pct"] == 93.0
+    plan = Monitor(tmp_path / "runs").plan(report.run_id)
+    nodes = {n["key"]: n for n in plan["nodes"]}
     assert nodes["note-a"]["state"] == "pending" and nodes["note-a"]["deferred"] == rows[0]["reason"]
+    cause = nodes["note-a"]["deferred_cause"]
+    assert cause["cause"] == "rest" and cause["rests"][0]["credential"] == "personal" and cause["rests"][0]["cap"] == 90.0
+    # The run's caps, and the rest that began: what the monitor shows beside the readings.
+    assert {"credential": "personal", "five_hour_pct": 90.0, "seven_day_pct": 95.0} in plan["quota_caps"]
+    assert plan["quota_rule"] == ""
+    [rest] = plan["rests"]
+    assert rest["credential"] == "personal" and rest["window"] == "five_hour" and rest["since"] and rest["ended"] == ""
+    api.Plan.model_validate(plan)
+
+
+def test_the_run_records_its_rule_and_each_rest_as_it_begins_and_ends(tmp_path):
+    seed(tmp_path, five=93)
+    cfg = config(
+        tmp_path, '\n[defaults]\ncredential = "sub-b"\n\n[[defaults.fallbacks]]\nagent = "omp"\nmodel = "m2"\ncredential = "ambient"\n'
+    )
+    calls = []
+
+    def pace(credential, reading):
+        """Rests sub-b for its first three checks: both tasks before they start (the queue asks), then the first to run."""
+        calls.append(credential)
+        return "over the pace" if credential == "sub-b" and len(calls) < 4 else None
+
+    stub = StubAgent({"note": lambda launch: {"text": launch.unit}})
+    # The stub agent reports no reading: the earlier run's is sub-b's.
+    old = tmp_path / "runs" / "earlier" / "journal.jsonl"
+    row = json.loads(old.read_text())
+    row["quota"][0]["credential"] = "sub-b"
+    old.write_text(json.dumps(row) + "\n")
+    report = Pipeline(cfg, runs_dir=tmp_path / "runs", backends=stub.backends(), cwd=tmp_path, quota_rule=pace).run(flow, units=["a", "b"])
+    assert report.ok
+    info = json.loads((report.run_dir / "run.json").read_text())
+    assert info["quota_rule"].endswith("pace") and info["quota_caps"]["personal"] == {"five_hour_pct": 90.0, "seven_day_pct": 95.0}
+    events = [json.loads(line) for line in (report.run_dir / "rests.jsonl").read_text().splitlines()]
+    assert [(e["event"], e["credential"], e["rule"]) for e in events] == [
+        ("start", "sub-b", "over the pace"),
+        ("end", "sub-b", "over the pace"),
+    ]
+    plan = Monitor(tmp_path / "runs").plan(report.run_id)
+    assert plan["quota_rule"] == info["quota_rule"]
+    [rest] = plan["rests"]
+    assert rest["rule"] == "over the pace" and rest["since"] and rest["ended"]
+    rows = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    skipped = [r for r in rows if r["skipped_hops"]]
+    assert skipped and skipped[0]["skipped_hops"][0]["rule"] == "over the pace" and skipped[0]["agent"] == "omp"
+
+
+def test_the_queue_records_its_own_causes(tmp_path):
+    events = []
+
+    class Never:
+        def config(self, task):
+            return KindConfig(agent="claude", max_turns=1, timeout_s=1)
+
+        def run(self, task):
+            return TaskResult(task=task, ok=True, stop="completed")
+
+    q = WorkQueue(Never(), on_event=lambda e, t, **f: events.append((e, f.get("cause"))) if e == "deferred" else None)
+    q.add(Task("k", key="x", after=("never-queued",)))
+    q.run()
+    assert events == [("deferred", {"cause": "dependency_not_queued"})]
 
 
 @pytest.mark.parametrize("bad", ["0", "101", '"x"'])

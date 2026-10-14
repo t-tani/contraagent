@@ -57,6 +57,10 @@ unit names, stop values such as `completed`, model and role names).
 | launch time (summed wall time of launches; the tile "Agent session time") | エージェントの所要時間 |
 | last (time of the last attempt) | 最終試行 |
 | items (length of a list) | 要素 N 個 |
+| paused (an identity past its usage limit or rule: a quota rest) | 休止中; paused until 14:30: 14:30 まで休止 |
+| limit (a quota cap) | 上限 |
+| usage rule (the quota rule) | 利用率のルール |
+| deadline / finishing time (the grace window after it) | 締め切り / 仕上げの猶予 |
 
 Tabs: overview 概要, tasks タスク, journal 実行履歴, outputs 出力, definitions
 定義, processes プロセス, stream タスク詳細. The tab list as a whole (its

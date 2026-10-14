@@ -32,6 +32,7 @@ from contraagent.dispatch.task import (
     STOP_ERROR,
     STOP_INVALID_INPUT,
     STOP_INVALID_OUTPUT,
+    Deferral,
     Task,
     TaskResult,
 )
@@ -64,7 +65,7 @@ class PythonTaskRunner:
             return _PythonTaskConfig()
         return self._inner.config(task)
 
-    def deferral(self, task: Task) -> str | None:
+    def deferral(self, task: Task) -> Deferral | None:
         """Why an agent task cannot launch now (`inner`'s); a Python task always can."""
         ask = getattr(self._inner, "deferral", None) if task.fn is None else None
         return ask(task) if ask is not None else None

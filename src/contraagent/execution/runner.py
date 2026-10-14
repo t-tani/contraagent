@@ -32,15 +32,31 @@ from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.backends.process import signal_of
 from contraagent.contracts import check_input, fold_spend, record_contracts, run_until_valid
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent.dispatch.task import STOP_DEFERRED, Task, TaskResult, kind_name
+from contraagent.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.execution.changes import ChangesEnricher
 from contraagent.routing.kind_config import KindConfig
 from contraagent.routing.pool import pools_of
-from contraagent.routing.quota import QuotaRests
+from contraagent.routing.quota import QuotaRests, Rest
 from contraagent.routing.router import Route, Router
 
 _logger = logging.getLogger(__name__)
+
+
+def _texts(rests: Sequence[dict]) -> list[str]:
+    """Each rest (`Rest.to_dict`, a skipped hop's) in one line, once each."""
+    out: list[str] = []
+    for r in rests:
+        line = Rest(**{k: v for k, v in r.items() if k in Rest.__dataclass_fields__}).text()
+        if line not in out:
+            out.append(line)
+    return out
+
+
+def _rest_deferral(rests: Sequence[dict]) -> Deferral:
+    """A task deferred because the credential of every hop it could take rests: `rest`,
+    with each rest (`Rest.to_dict`, and for a skipped hop its `route` and `model`)."""
+    return Deferral("; ".join(_texts(rests)), {"cause": "rest", "rests": list(rests)})
 
 
 def telemetry_line(task: Task, run_id: str, role: str | None) -> str:
@@ -228,39 +244,40 @@ class AgentRunner:
     def _credential_name(self, task: Task, route: Route | None) -> str:
         return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
 
-    def _rest(self, task: Task, route: Route | None) -> str:
-        """Why `route`'s credential rests for this task now (`QuotaRests`); '' when it does not."""
+    def _rest(self, task: Task, route: Route | None) -> list[Rest]:
+        """Why `route`'s credential rests for this task now (`QuotaRests`); empty when it does not."""
         if self.rests is None:
-            return ""
-        return self.rests.reason(self._credential_name(task, route), kind_name(task.kind))
+            return []
+        return self.rests.rests(self._credential_name(task, route), kind_name(task.kind))
 
-    def _usable(self, task: Task, route: Route, router: Router, skipped: list[str]) -> Route | None:
+    def _usable(self, task: Task, route: Route, router: Router, skipped: list[dict]) -> Route | None:
         """`route`, or the first hop after it whose credential does not rest; None when every
-        one rests. Each skipped hop's reason is added to `skipped`. Stateless for the router: a
-        rest is the credential's, not a hop's 429."""
+        one rests. Each hop passed over is added to `skipped`: its label and model, and why
+        its credential rests (`Rest.to_dict`). Stateless for the router: a rest is the
+        credential's, not a hop's 429."""
         here: Route | None = route
         while here is not None:
             why = self._rest(task, here)
             if not why:
                 return here
-            if why not in skipped:
-                skipped.append(why)
+            skipped += [{"route": router.label_of(here), "model": here.model, **r.to_dict()} for r in why]
             here = router.next_route_after(here)
         return None
 
-    def deferral(self, task: Task) -> str | None:
+    def deferral(self, task: Task) -> Deferral | None:
         """Why this task cannot launch now: every hop it could take, from the one its kind's
         router picks on, is on a resting credential. None when one is not, or nothing rests."""
         if self.rests is None:
             return None
         router = self.router_for(task)
         if router is None:
-            return self._rest(task, None) or None
+            why = self._rest(task, None)
+            return _rest_deferral([r.to_dict() for r in why]) if why else None
         route = router.pick()
         if route is None:  # every hop rate limited: the launch says so
             return None
-        skipped: list[str] = []
-        return "; ".join(skipped) if self._usable(task, route, router, skipped) is None else None
+        skipped: list[dict] = []
+        return _rest_deferral(skipped) if self._usable(task, route, router, skipped) is None else None
 
     def _model_chain(self, task: Task, route: Route | None, backend: Backend) -> str | None:
         """The same-agent remainder to hand the agent's own failover flag, when asked.
@@ -343,7 +360,7 @@ class AgentRunner:
         if router is None:
             rest = self._rest(task, None)
             if rest:
-                return TaskResult.deferred(task, rest)
+                return TaskResult.deferred(task, _rest_deferral([r.to_dict() for r in rest]))
             result = self._run_once(task, None)
             o = result.launch_result
             if o is not None:
@@ -360,18 +377,19 @@ class AgentRunner:
         pinned = None  # this task's own walk after a failure other than a 429
         trail: list[dict] = []
         spent: LaunchResult | None = None  # the hops so far: their tokens and cost
-        skipped: list[str] = []  # why hops were passed over without a launch (a resting credential)
+        skipped: list[dict] = []  # the hops passed over without a launch (a resting credential)
         last: TaskResult | None = None
         while True:
             route = pinned if pinned is not None else router.pick()
             if route is not None and self.rests is not None:
                 seen = len(skipped)
                 usable = self._usable(task, route, router, skipped)
-                notes = skipped[seen:]
+                notes = _texts(skipped[seen:])
                 if usable is None:
                     if last is None:  # nothing launched: deferred, not failed
-                        return TaskResult.deferred(task, "; ".join(skipped))
+                        return TaskResult.deferred(task, _rest_deferral(skipped))
                     last.reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
+                    last.skipped_hops = tuple(skipped)
                     return last
                 if usable != route:
                     prior_reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
@@ -389,6 +407,7 @@ class AgentRunner:
                 # Not this task's 429: the kind's breaker is still open after another task's.
                 _logger.info(f"[route] {task.key}: starting on {label}; {router.label_of(router.routes[0])} rests after a 429")
             result = last = self._run_once(task, route)
+            result.skipped_hops = tuple(skipped)
             trail.append(_hop(label, result))
             # Tokens and cost of the hops before this one belong to the attempt too.
             if result.launch_result is not None:
@@ -555,7 +574,7 @@ class RetryingRunner:
         override = self._overrides.get(task.kind)
         return replace(rc, max_concurrent=override) if override is not None else rc
 
-    def deferral(self, task: Task) -> str | None:
+    def deferral(self, task: Task) -> Deferral | None:
         return self._runner.deferral(task)
 
     def run(self, task: Task) -> TaskResult:

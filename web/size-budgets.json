@@ -34,7 +34,7 @@
     "@contraagent/ui/pipeline-graph": 14.6,
     "@contraagent/ui/task-view": 21.0,
     "@contraagent/ui/transcript": 7.5,
-    "@contraagent/ui/task-table": 4.4,
+    "@contraagent/ui/task-table": 5.1,
     "@contraagent/ui/journal-table": 6.6,
     "@contraagent/ui/contracts": 6.6,
     "@contraagent/ui/definitions": 5.6,
@@ -42,12 +42,12 @@
     "@contraagent/ui/timeline": 3.0,
     "@contraagent/ui/procs": 2.3,
     "@contraagent/ui/adapters": 18.5,
-    "@contraagent/ui/words": 4.8,
+    "@contraagent/ui/words": 5.4,
     "@contraagent/ui/core": 1.8,
     "@contraagent/ui/localize": 0.6,
     "@contraagent/ui/bundle": 256.0,
     "src/contraagent/monitor/static/app.js": 256.0,
-    "src/contraagent/monitor/static/ja.js": 7.5
+    "src/contraagent/monitor/static/ja.js": 8.3
   },
   "files": ["src/contraagent/monitor/static/app.js", "src/contraagent/monitor/static/ja.js"],
   "consumer": 41.0,

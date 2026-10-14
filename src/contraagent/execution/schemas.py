@@ -66,6 +66,30 @@ class QuotaReading(BaseModel):
     status: str = ""
 
 
+class QuotaRest(BaseModel):
+    """Why a credential rests (`routing.quota.Rest`): past the cap of one window (`window`
+    `five_hour` or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule
+    (`rule`, what it said; `window` empty). `until`: when the window resets, ISO 8601;
+    empty when unknown (a rule's rest)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    credential: str
+    window: Literal["", "five_hour", "seven_day"] = ""
+    pct: float | None = None
+    cap: float | None = None
+    rule: str = ""
+    until: str = ""
+
+
+class SkippedHop(QuotaRest):
+    """A hop of the failover chain an attempt passed over without a launch, because its
+    credential rested: its route label and model, and the rest."""
+
+    route: str = ""
+    model: str = ""
+
+
 class TokenUsage(BaseModel):
     """Tokens one attempt used, summed over its API calls, rounds and hops."""
 
@@ -117,6 +141,9 @@ class JournalRow(BaseModel):
     credential: str = ""
     route: str = ""
     hops: list[Hop] = Field(default_factory=list)
+    #: The hops passed over without a launch because their credential rested (quota), in
+    #: order; not in `hops`, which are launches.
+    skipped_hops: list[SkippedHop] = Field(default_factory=list)
     stop: str = Field(json_schema_extra={"enum": list(JOURNAL_STOPS)})
     ok: bool
     wall_s: float = 0.0

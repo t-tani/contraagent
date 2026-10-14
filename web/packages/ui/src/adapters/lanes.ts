@@ -53,7 +53,7 @@ function rowLabel(e: JournalRow, end: number, outcomes: ReadonlyMap<string, Task
     const cause = e.stop === 'invalid_input' && t ? notStartedCause(t, outcomes, run) : '';
     return [kindUnit(e), cause ? msg(str`Not started: ${cause}`) : stopLabel(e.stop, e.reason), e.key].join('\n');
   }
-  const sw = modelSwitch(e.hops);
+  const sw = modelSwitch(e.hops, null, e.skipped_hops);
   const reason = e.reason && !e.ok ? runRelative(e.reason, run) : '';
   // One item per line: a task's name holds a `·` of its own.
   return [

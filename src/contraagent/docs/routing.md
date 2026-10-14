@@ -98,11 +98,18 @@ A credential past a cap or the rule **rests** until the window its reading
 names resets. Nothing launches as it meanwhile: a pool passes over the member,
 and a task skips the hop without launching it and takes the next hop of its
 failover chain (a gateway, an API key), the reason in its journal row
-(`personal rests: 5-hour usage 93%, max 90%; ran on hop 2/2 ...`). A task
-with no hop left is deferred at once: it spent nothing and did not fail, and
-`deferred.jsonl` says why, as does the monitor ("not run" and the reason). A
-task of `finishing_kinds` still launches on a resting credential for `grace_s`
-after the rest began, as it does past a deadline.
+(`personal rests: 5-hour usage 93%, max 90%; ran on hop 2/2 ...`) and the hop
+it passed over in `skipped_hops`. A task with no hop left is deferred at once:
+it spent nothing and did not fail, and `deferred.jsonl` says why, as does the
+monitor ("not run" and the cause). A task of `finishing_kinds` still launches
+on a resting credential for `grace_s` after the rest began, as it does past a
+deadline.
+
+`run.json` records the run's caps (`quota_caps`) and the rule's name
+(`quota_rule`), and `rests.jsonl` each rest as it begins and ends: the window,
+the reading, the cap (or what the rule said) and when the window resets. The
+monitor's overview shows them beside each account's usage: the limit on each
+window, the identity paused until when, and its rests over the run.
 
 The readings are those the coding agents report: Claude Code when a session
 starts or resumes, omp at each launch. The run starts from the newest of

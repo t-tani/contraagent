@@ -69,10 +69,11 @@ The queue records nothing itself. It reports through callbacks:
 
 `runner` only needs to satisfy `TaskRunner` (`.config(task).max_concurrent`
 and `.run(task)`); nothing here imports a concrete runner. A runner may also
-say why a task cannot launch now (`.deferral(task)`, a reason or None): the
+say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
 A runner that finds the same once the task has started returns a `deferred`
-result, finished as a deferral too.
+result, finished as a deferral too. A deferral is reported with its reason and its
+cause as data (`on_event("deferred", task, reason=, cause=)`, `Deferral`).
 """
 
 from __future__ import annotations
@@ -84,7 +85,12 @@ from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Protocol
 
-from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult
+from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult
+
+#: The queue's own deferrals (`Deferral.cause` names each).
+_DEADLINE = Deferral("deadline", {"cause": "deadline"})
+_GRACE_WINDOW = Deferral("grace window exhausted", {"cause": "grace_window"})
+_NOT_QUEUED = Deferral("no launchable task (dependency never queued)", {"cause": "dependency_not_queued"})
 
 #: Used when a task carries no estimate and the `estimate` callback has none: about one
 #: coding-agent session, the usual task. Only an ordering default; a task with no known
@@ -315,16 +321,16 @@ class WorkQueue:
                     # what is queued; a deferral's follow-ups may queue more
                     # work, which the next pass handles.
                     if self.past_hard_stop():
-                        self._defer_all("grace window exhausted")
+                        self._defer_all(_GRACE_WINDOW)
                         continue
                     if self.past_deadline():
                         if self._drop_openers():  # finishing tasks stay; loop to launch them
                             continue
-                        self._defer_all("deadline")
+                        self._defer_all(_DEADLINE)
                         continue
                     if self._sleep_until_retry():
                         continue
-                    self._defer_all("no launchable task (dependency never queued)")
+                    self._defer_all(_NOT_QUEUED)
                     continue
                 done, _ = wait(list(self._running), timeout=1.0, return_when=FIRST_COMPLETED)
                 for fut in done:
@@ -340,7 +346,7 @@ class WorkQueue:
         openers = [t for t in self._queued if not self._finishing(t)]
         self._queued = [t for t in self._queued if self._finishing(t)]
         for t in openers:
-            self._defer(t, "deadline")
+            self._defer(t, _DEADLINE)
         return bool(self._queued)
 
     def _known_est(self, task: Task) -> float | None:
@@ -459,7 +465,8 @@ class WorkQueue:
         ids = {t.id for t, _ in late}
         self._queued = [t for t in self._queued if t.id not in ids]
         for t, need in late:
-            self._defer(t, f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left")
+            reason = f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left"
+            self._defer(t, Deferral(reason, {"cause": "cannot_finish", "need_s": round(need), "left_s": round(left)}))
 
     def _occupy(self, task: Task) -> None:
         for unit in task.units:
@@ -473,8 +480,8 @@ class WorkQueue:
                 del self._running_unit_count[unit]
                 del self._running_unit_kind[unit]
 
-    def _deferral(self, task: Task) -> str | None:
-        """The runner's reason not to launch `task` now (`deferral`), if it gives one."""
+    def _deferral(self, task: Task) -> Deferral | None:
+        """The runner's `Deferral` of `task` now (`deferral`), if it gives one."""
         ask = getattr(self.runner, "deferral", None)
         if ask is None:
             return None
@@ -490,7 +497,7 @@ class WorkQueue:
         except Exception as exc:  # one task must not stop the driver
             res = TaskResult.launch_failed(task, f"exception: {exc!r}")
         if res.stop == STOP_DEFERRED:  # started, then found no way to launch: never launched
-            self.on_event("deferred", task, reason=res.reason)
+            self.on_event("deferred", task, reason=res.reason, cause=res.cause or {})
             self._ready_since.pop(task.id, None)
             self.deferred.append(task)
             self._settle(res)
@@ -571,17 +578,17 @@ class WorkQueue:
         time.sleep(min(max(0.05, min(waits)), 5.0))
         return True
 
-    def _defer_all(self, reason: str) -> None:
+    def _defer_all(self, deferral: Deferral) -> None:
         tasks, self._queued = self._queued, []
         for t in tasks:
-            self._defer(t, reason)
+            self._defer(t, deferral)
 
-    def _defer(self, task: Task, reason: str) -> None:
+    def _defer(self, task: Task, deferral: Deferral) -> None:
         """Not launched: reported as `deferred`, then finished as such."""
-        self.on_event("deferred", task, reason=reason)
+        self.on_event("deferred", task, reason=deferral.reason, cause=dict(deferral.cause))
         self._ready_since.pop(task.id, None)
         self.deferred.append(task)
-        self._settle(TaskResult.deferred(task, reason))
+        self._settle(TaskResult.deferred(task, deferral))
 
     def _summary(self, wall_s: float) -> dict:
         by_stop: dict[str, int] = {}

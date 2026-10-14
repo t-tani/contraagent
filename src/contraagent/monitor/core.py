@@ -70,6 +70,22 @@ def _first_last(readings: list[dict]) -> dict:
     return {"quota": accounts}
 
 
+def _number(v: object) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _deferral_cause(cause: dict) -> dict:
+    """A `deferred.jsonl` row's `cause` (`Deferral.cause`) as the monitor serves it
+    (`DeferralCause`): its name, a deadline's figures, and the rests of a resting credential."""
+    rests = [r for r in cause.get("rests") or () if isinstance(r, dict) and isinstance(r.get("credential"), str)]
+    return {
+        "cause": str(cause.get("cause")),
+        "need_s": _number(cause.get("need_s")),
+        "left_s": _number(cause.get("left_s")),
+        "rests": [{**r, "window": r.get("window") or "", "rule": r.get("rule") or "", "until": r.get("until") or ""} for r in rests],
+    }
+
+
 def _shown(file: str, cwd: Path | None) -> str:
     """A flow code file as the monitor serves it: relative to the run's working
     directory when under it, else as recorded."""
@@ -305,11 +321,11 @@ class Monitor:
                     }
                 )
         # Why a task was deferred, unless a journal row came after (a resumed run ran it).
-        deferred: dict[str, str] = {}
+        deferred: dict[str, dict] = {}
         for d in _parse(self.source.lines(run, rundir.DEFERRED)[0]):
             j = last.get(d.get("key", ""))
             if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
-                deferred[d.get("key", "")] = str(d.get("reason") or "")
+                deferred[d.get("key", "")] = d
         snap = live if live is not None else self.liveness.snapshot(run)
         running = _running_keys(snap)
         nodes = []
@@ -327,7 +343,10 @@ class Monitor:
                 state = "done" if j.get("ok") else "failed"
             node = {**r, "state": state}
             if state == "pending" and r["key"] in deferred:
-                node["deferred"] = deferred[r["key"]]
+                d = deferred[r["key"]]
+                node["deferred"] = str(d.get("reason") or "")
+                cause = d.get("cause")
+                node["deferred_cause"] = _deferral_cause(cause) if isinstance(cause, dict) and cause.get("cause") else None
             if j:
                 node.update(
                     {
@@ -363,7 +382,33 @@ class Monitor:
             n["group"] = self._group_name(n)
             if n.get("flow"):
                 n["flow"] = _shown_flow(n["flow"], cwd)
-        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd)}
+        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd), **self._quota(run)}
+
+    def _quota(self, run: str) -> dict:
+        """The run's quota caps and rule (`run.json`), and each credential's rests
+        (`rests.jsonl`): a start folded with its end, in start order."""
+        info = self.source.info(run) or {}
+        caps = info.get("quota_caps")
+        quota_caps = [
+            {"credential": c, "five_hour_pct": v.get("five_hour_pct"), "seven_day_pct": v.get("seven_day_pct")}
+            for c, v in (caps.items() if isinstance(caps, dict) else ())
+            if isinstance(v, dict)
+        ]
+        rests: list[dict] = []
+        open_: dict[str, dict] = {}
+        for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
+            if not isinstance(row, dict) or not isinstance(row.get("credential"), str):
+                continue
+            name = row["credential"]
+            if row.get("event") == "start":
+                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until")}
+                rest = {**rest, "window": rest["window"] or "", "rule": rest["rule"] or "", "until": rest["until"] or ""}
+                open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
+                rests.append(open_[name])
+            elif row.get("event") == "end" and name in open_:
+                open_.pop(name)["ended"] = row.get("ts", "")
+        rule = info.get("quota_rule")
+        return {"quota_caps": quota_caps, "quota_rule": rule if isinstance(rule, str) else "", "rests": rests}
 
     def _cwd(self, run: str) -> Path | None:
         """The run's working directory, as `run.json` records it."""

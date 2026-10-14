@@ -18,3 +18,4 @@ export * from './hosts.js';
 export * from './table.js';
 export * from './changes.js';
 export * from './units.js';
+export * from './rests.js';

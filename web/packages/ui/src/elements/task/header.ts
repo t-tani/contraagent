@@ -6,7 +6,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { alsoLocksLabel, alsoLocksTip, attemptNames, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
+import { alsoLocksLabel, alsoLocksTip, attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
@@ -32,8 +32,11 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
   switch (state) {
     case 'running':
       return [msg('Running'), 'neutral'];
-    case 'waiting':
-      return [msg('Waiting'), 'muted'];
+    case 'waiting': {
+      const node = c.plan?.nodes.find((n) => n.key === c.detail.key);
+      const why = node?.deferred ? deferredText(node.deferred_cause, node.deferred) : '';
+      return why ? [msg(str`Not run: ${why}`), 'attention'] : [msg('Waiting'), 'muted'];
+    }
     case 'skipped':
       return [msg('Skipped'), 'muted'];
     case 'not_started': {
@@ -70,7 +73,7 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       'neutral',
     ];
   }
-  const sw = modelSwitch(last.hops);
+  const sw = modelSwitch(last.hops, null, last.skipped_hops);
   if (sw) return [msg(str`Done after a model switch: ${sw}`), 'neutral'];
   return [msg('Done'), 'neutral'];
 }
@@ -237,7 +240,7 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
 function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean) {
   const ok = r.ok;
   const reason = runRelative(r.reason, c.run);
-  const sw = modelSwitch(r.hops);
+  const sw = modelSwitch(r.hops, null, r.skipped_hops);
   const tip = [
     msg(str`Ended ${localTime(r.ts, true)}`),
     correctionsOf(r),
