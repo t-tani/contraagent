@@ -84,7 +84,7 @@ export class CaTrends extends LitElement {
     const sections = data ? trendSections(data, getLocale()) : [];
     const wide = sections.filter((s) => s.wide);
     const narrow = sections.filter((s) => !s.wide);
-    const order = ['totals', 'cost-by-day', 'kinds', 'models', 'usage'];
+    const order = ['totals', 'cost-by-day', 'kinds', 'python-kinds', 'models', 'usage'];
     const first = wide.filter((s) => order.includes(s.id));
     const last = wide.filter((s) => !order.includes(s.id));
     const card = (body: unknown, id: string) => html`<section class="panel" data-section=${id}><ca-panel-body .body=${body}></ca-panel-body></section>`;

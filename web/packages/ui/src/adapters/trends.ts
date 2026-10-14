@@ -6,7 +6,7 @@ import { fmtDur, tokenCount, usd } from '../words/format.js';
 import { windowName } from '../words/quota.js';
 import { deferredText } from '../words/rests.js';
 import { stopLabel } from '../words/stop.js';
-import { dayLabel, modelName, passedShare, perDay, restEvent, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
+import { dayLabel, modelName, passedShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
 
 /** The sections of the trends, one body each, in the order a reader checks them: their key and their body. */
 export interface TrendSection {
@@ -64,13 +64,14 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
     },
   });
 
-  out.push({
-    id: 'kinds',
+  // Agent tasks first, with their tokens and cost; Python tasks (no model, no cost) in a fold of their own.
+  const kindsTable = (id: string, title: string, kinds: Trends['kinds'], collapsed: boolean): TrendSection => ({
+    id,
     wide: true,
     body: {
       type: 'table',
-      collapsed: false,
-      title: w.kinds,
+      collapsed,
+      title,
       columns: [
         { id: 'kind', label: w.kind },
         ...(t.kinds.some((k) => k.group && k.group !== k.kind) ? [{ id: 'group', label: w.group }] : []),
@@ -82,7 +83,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         { id: 'tokens', label: w.tokens, align: 'end' as const, format: 'tokens' as const },
         { id: 'cost', label: w.cost, align: 'end' as const, format: 'usd' as const, bar: true },
       ],
-      rows: [...t.kinds]
+      rows: [...kinds]
         .sort((a, b) => (b.cost_usd ?? 0) - (a.cost_usd ?? 0) || b.attempts - a.attempts)
         .map((k) => ({
           kind: k.kind,
@@ -98,6 +99,10 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         })),
     },
   });
+  const agentKinds = t.kinds.filter((k) => k.executor !== 'python');
+  const pythonKinds = t.kinds.filter((k) => k.executor === 'python');
+  if (agentKinds.length) out.push(kindsTable('kinds', w.kinds, agentKinds, false));
+  if (pythonKinds.length) out.push(kindsTable('python-kinds', titled(w.pythonKinds, pythonKinds.length), pythonKinds, agentKinds.length > 0));
 
   if (t.models.length) {
     out.push({
@@ -187,7 +192,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         title: w.denials,
         columns: [
           { id: 'tool', label: w.tool },
-          { id: 'count', label: w.calls, align: 'end', format: 'number', bar: true },
+          { id: 'count', label: w.toolCalls, align: 'end', format: 'number', bar: true },
           { id: 'kinds', label: w.kinds },
         ],
         rows: t.denials.map((d) => ({
@@ -206,8 +211,9 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
       id: 'deferred',
       body: {
         type: 'table',
-        collapsed: false,
-        title: w.deferred,
+        // A long list folds: its count is in its title.
+        collapsed: t.deferred.length > 20,
+        title: titled(w.deferred, t.deferred.length),
         columns: [
           { id: 'when', label: w.when, format: 'datetime' },
           { id: 'task', label: w.task },
@@ -219,7 +225,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
           .map((d) => ({
             when: d.ts,
             task: d.key,
-            cause: deferredText({ cause: d.cause }, d.reason),
+            cause: d.cause === 'rest' ? pausedCause(d.reason) : deferredText({ cause: d.cause }, d.reason),
             run: d.run,
             _tone: 'attention' as const,
           })),

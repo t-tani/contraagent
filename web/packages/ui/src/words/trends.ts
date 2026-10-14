@@ -38,7 +38,7 @@ export function weekdayLabels(locale: string = getLocale()): string[] {
 
 /** The headings and labels of the trends' sections. */
 export const trendWords = () => ({
-  runs: msg('Runs'),
+  runs: msg('Runs', { id: 'trends-runs', desc: 'How many runs worked in the trends period' }),
   attempts: msg('Attempts'),
   passed: msg('Passed'),
   cost: msg('Cost'),
@@ -64,6 +64,8 @@ export const trendWords = () => ({
   outcomes: msg('Attempts that did not complete'),
   outcome: msg('Outcome'),
   denials: msg('Refused tool calls'),
+  toolCalls: msg('Tool calls'),
+  pythonKinds: msg('Python tasks'),
   tool: msg('Tool'),
   usage: msg('Subscription usage'),
   usageTip: msg('The highest reading of each day'),
@@ -80,6 +82,15 @@ export const trendWords = () => ({
   started: msg('Started'),
   trendPanels: msg('Custom views'),
 });
+
+/** A count beside a title: `Not run | 64`. */
+export const titled = (title: string, n: number): string => `${title} | ${n}`;
+
+/** A deferral by a paused identity, the identity named when the run's sentence names it (`personal rests: ...`). */
+export const pausedCause = (reason: string): string => {
+  const who = /^(\S+) rests\b/.exec(reason)?.[1];
+  return who ? msg(str`Identity ${who} paused`) : msg('Identity paused');
+};
 
 /** A model's name with its coding agent: `sonnet | claude`. */
 export const modelName = (agent: string, model: string): string => (agent ? `${model || '—'} | ${agent}` : model || '—');

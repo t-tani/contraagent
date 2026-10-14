@@ -2866,6 +2866,23 @@
   <target>終了日</target>
   <note from="lit-localize">The last day of the trends period</note>
 </trans-unit>
+<trans-unit id="sb38cfd00b497faae">
+  <source>Tool calls</source>
+  <target>ツール呼び出し</target>
+</trans-unit>
+<trans-unit id="s906dec6a4b401a3d">
+  <source>Python tasks</source>
+  <target>Python タスク</target>
+</trans-unit>
+<trans-unit id="s8273cf03c84a59ef">
+  <source>Identity paused</source>
+  <target>認証情報が休止中</target>
+</trans-unit>
+<trans-unit id="trends-runs">
+  <source>Runs</source>
+  <target>実行</target>
+  <note from="lit-localize">How many runs worked in the trends period</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

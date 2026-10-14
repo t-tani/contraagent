@@ -84,7 +84,7 @@ const LAYERS = [
 ];
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/.astro/**', 'packages/ui/src/locales/**', 'packages/api/src/schema.ts', 'packages/ui/custom-elements.json', 'packages/elements/custom-elements.json'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/.astro/**', 'e2e/.runs/**', 'packages/ui/src/locales/**', 'packages/api/src/schema.ts', 'packages/ui/custom-elements.json', 'packages/elements/custom-elements.json'] },
   ...tseslint.configs.recommendedTypeChecked,
   lit.configs['flat/recommended'],
   {
