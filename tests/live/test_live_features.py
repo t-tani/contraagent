@@ -542,6 +542,8 @@ def test_a_credential_past_its_quota_rests_and_its_tasks_fall_over(ws, agent):
     print(f"  readings of the first task: {first['quota']}")
     if not any(q.get("five_hour_pct") is not None or q.get("seven_day_pct") is not None for q in first["quota"]):
         pytest.skip(f"{agent} reported no utilization reading for a subscription: nothing can rest on a cap")
+    if not any((q.get("five_hour_pct") or 0) >= 0.01 or (q.get("seven_day_pct") or 0) >= 0.01 for q in first["quota"]):
+        pytest.skip(f"{agent}'s account reads 0% in every window (just reset): nothing reaches the 0.01% cap")
     assert first["ok"] and first["agent"] == agent and first["credential"] == f"capped_{agent}"
     second = by_key["q_capped-second"]
     assert second["ok"] and second["agent"] == other and f"capped_{agent} rests" in second["reason"], second
