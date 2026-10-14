@@ -1,7 +1,9 @@
 # Guide
 
 contraagent's API is newer than any LLM's training data: read the topic before
-writing the code, and check what you wrote with `contraagent check`.
+writing the code, and check what you wrote with `contraagent check`. The
+[tutorial](tutorial.md) builds a pipeline step by step; this page is the short
+form, with the decisions and the pitfalls.
 
 A pipeline has three parts: the **interface** of each task, in Python; the
 **implementation** of each agent task, a plugin the coding agent loads itself;

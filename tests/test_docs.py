@@ -5,6 +5,7 @@ The examples are the documentation's code: they run here, so they cannot go stal
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 
@@ -34,7 +35,7 @@ def test_a_topic_is_printed_and_an_unknown_one_named(capsys):
     assert main(["docs", "testing"]) == 0
     assert capsys.readouterr().out.startswith("# Checking and testing")
     assert main(["docs", "nope"]) == 1
-    assert "the topics: guide, concepts" in capsys.readouterr().err
+    assert "the topics: tutorial, guide, concepts" in capsys.readouterr().err
 
 
 def test_the_pointer_names_the_commands_it_points_to(capsys):
@@ -97,6 +98,35 @@ def test_the_demo_tests_pass_on_the_stub_agent():
         text=True,
     )
     assert proc.returncode == 0, proc.stdout[-2000:]
+
+
+def test_the_tutorial_plugin_is_clean():
+    assert Plugin.load(EXAMPLES / "tutorial" / "plugins" / "triage").lint() == []
+
+
+def test_the_tutorial_tests_pass_on_the_stub_agent():
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(EXAMPLES / "tutorial" / "test_tutorial.py")],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stdout[-2000:]
+
+
+def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):
+    """The tutorial's check and stub run, from a project laid out as it says."""
+    for part in ("tasks.py", "pipeline.toml", "plugins", "issues"):
+        (shutil.copytree if (EXAMPLES / "tutorial" / part).is_dir() else shutil.copy)(EXAMPLES / "tutorial" / part, tmp_path / part)
+    page = docs.text("tutorial")
+    reports = '{"reports": ["login-timeout", "csv-export", "dark-mode"]}'
+    for args in (["check", "tasks.py:triage_all"], ["run", "tasks.py:triage_all", "--stub"]):
+        assert f"contraagent {' '.join(args)} --kwargs '{reports}'" in page
+        proc = subprocess.run(
+            [sys.executable, "-m", "contraagent", *args, "--kwargs", reports], cwd=tmp_path, capture_output=True, text=True
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        shown = [line for line in proc.stdout.splitlines() if line.startswith(("✓ 4 tasks", "  triage", "  write_table"))]
+        assert shown and all(line in page for line in shown), shown
 
 
 def test_every_page_of_every_package_expands(tmp_path):

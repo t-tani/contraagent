@@ -1,0 +1,11 @@
+# Where each kind runs. The code says what a task is; this file says which coding
+# agent and model run it, and may change the budgets declared in tasks.py.
+
+[defaults]
+agent = "claude"
+model = "claude-sonnet-5-5"
+effort = "medium"
+
+[tasks.plan_fix]
+model = "claude-opus-5-5"
+effort = "high"

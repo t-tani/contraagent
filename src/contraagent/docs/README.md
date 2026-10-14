@@ -36,7 +36,8 @@ block that points a coding agent at them, for the instruction file it reads
 A `::code` line in these files quotes a file of the package; `contraagent docs`
 and the documentation site print the quoted lines in place.
 
-- [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls. Start here.
+- [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test. Start here.
+- [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
 - [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, files a task changes, and the engine underneath.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
@@ -47,7 +48,7 @@ and the documentation site print the quoted lines in place.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
 
-`examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
+`examples/tutorial/` is the tutorial's pipeline, finished. `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
