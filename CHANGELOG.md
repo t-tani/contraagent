@@ -314,9 +314,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- A tutorial, "Your first pipeline" (`contraagent docs tutorial`): a pipeline built from an
-  empty directory step by step, from its output models to a test on the stub agent, with
-  the finished pipeline in `examples/tutorial/`. The index lists it first.
 - A tutorial (`contraagent docs tutorial`): a pipeline from an empty directory, step by
   step, through a stub run, a run on a coding agent and a test; its pipeline is
   `examples/tutorial/`.
