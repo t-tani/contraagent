@@ -332,6 +332,10 @@ class Monitor:
 
     # --- plan (the pipeline, including work that has not started) ---------
 
+    def plan_rows(self, run: str) -> list[dict]:
+        """The run's `plan.jsonl`, one row per key: the first, as it was queued."""
+        return self._read_plan(run)
+
     def _read_plan(self, run: str) -> list[dict]:
         out, seen = [], set()
         for row in _parse(self.source.lines(run, rundir.PLAN)[0]):
@@ -701,18 +705,19 @@ class Monitor:
         """What defined each kind of task in this run (`definitions/<kind>.json`)."""
         return _parse(self.source.folder(run, rundir.DEFINITIONS))
 
-    def task_io(self, run: str, key: str) -> dict:
+    def task_io(self, run: str, key: str, *, outputs: dict | None = None, plan_rows: list[dict] | None = None) -> dict:
         """One task's input and output: its params, the files it read, the files
         it left behind with the contract verdict, and how data flows around it.
 
         `upstream` are the output files of the tasks this one waits for (`after=`): for a task
         that declares no `InputContract`, they are what it actually reads. `downstream` are the
-        tasks that wait for this one.
+        tasks that wait for this one. `outputs` and `plan_rows`, when given, are the run's
+        (`outputs(run)`, its plan rows), read once for many tasks.
         """
-        outs = self.outputs(run)
+        outs = outputs if outputs is not None else self.outputs(run)
         by_key = {c.get("key"): c for c in outs["contracts"]}
         rec = by_key.get(key) or {}
-        plan = {n["key"]: n for n in self._read_plan(run)}
+        plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
         upstream = []
         for dep in node.get("after", []):

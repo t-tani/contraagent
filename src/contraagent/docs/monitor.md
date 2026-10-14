@@ -194,6 +194,35 @@ attempts) are summed in about 0.2 s from memory and 1 s from their `trends.json`
 reading their logs the first time takes about half a minute
 (`uv run pytest -m perf` measures it).
 
+## Without a server: an export
+
+`contraagent monitor export` writes the monitor's views of the newest runs as files a
+static server or a site serves, with no monitor running: the page (`index.html`,
+`app.js`, `ja.js`) and `data/`, the JSON each route of the API would answer
+(`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
+cursor, each task and each panel).
+
+```
+contraagent monitor export --runs-dir runs --out site/stats --runs 14 --panels mypipeline.panels:PANELS
+python -m http.server --directory site/stats    # or put site/stats on any static site
+```
+
+An export holds no transcripts and no process trees, and none of the launches running
+when it was written; its page says so where those views would be, and its header
+shows when it was written. It takes out what says where it ran: a path under the
+run's directory, the run's working directory or the runs directory is made relative
+to it and one under the home directory starts with `~`, everywhere; outside a
+document's contents, any other path of a person's or a temporary directory is
+`<path>` (a system path such as `/etc/hosts` stays), and the host's name is left
+blank. `--keep paths` or `--keep host` puts either back, `--exclude <key>` takes a key
+out wherever it appears (`--exclude params`), and `Info.export.redacted` lists what was
+taken out. Written again, the export holds only the runs chosen then.
+
+In another page, `<ca-monitor export="data/">` reads an export, and
+`createExportClient` with `openExportFeed` (in `@contraagent/api`) give a
+`MonitorStore` the same data; `export(monitor, out, ...)` in
+`contraagent.monitor.export` writes one from Python.
+
 ## Its API and its page
 
 The monitor publishes its contract as OpenAPI at `/api/openapi.json`

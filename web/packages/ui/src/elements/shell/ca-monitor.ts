@@ -1,4 +1,17 @@
-import { deriveRun, isRunLive, liveActivities, MonitorStore, hostOf, runActivity, runIdOf, runRow, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
+import {
+  createExportClient,
+  deriveRun,
+  isRunLive,
+  liveActivities,
+  MonitorStore,
+  hostOf,
+  openExportFeed,
+  runActivity,
+  runIdOf,
+  runRow,
+  type MonitorSnapshot,
+  type RunDerived,
+} from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -13,6 +26,7 @@ import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
 import { stubLabel, stubTip } from '../../words/run-line.js';
+import { exportTip, exportedLabel } from '../../words/export.js';
 import { apiErrorLine } from '../../words/api-error.js';
 import { accountsTip } from '../../words/quota.js';
 import { hostFact, hostsLine, lastReport, noReportLabel } from '../../words/hosts.js';
@@ -57,6 +71,13 @@ export class CaMonitor extends LitElement {
    * with its URL and cause, and written to the console.
    */
   @property({ attribute: 'base-url' }) baseUrl = '';
+  /**
+   * An export to read instead of a server (`contraagent monitor export`): its `data/`
+   * directory, relative to the page (`export="data/"`) or absolute. The monitor then
+   * makes no request to an API and opens no feed: it reads the export's files, which
+   * hold no transcripts and no processes. Set, it outranks `base-url`.
+   */
+  @property({ attribute: 'export' }) exportUrl = '';
   /**
    * `url`: the monitor is the page. The route lives in the address bar (Back
    * and reload return to it), and the monitor sets the page's title, `lang` and
@@ -179,10 +200,18 @@ export class CaMonitor extends LitElement {
     });
   }
 
-  /** A store for `baseUrl`, shown and listened to; not started. */
+  /** Where the store reads: an export's files, else the server at `baseUrl`. */
+  private get source(): string {
+    return this.exportUrl ? `export:${this.exportUrl}` : this.baseUrl;
+  }
+
+  /** A store for the export, else for `baseUrl`, shown and listened to; not started. */
   private openStore(): void {
-    this.storeBase = this.baseUrl;
-    this.store = new MonitorStore({ baseUrl: this.baseUrl });
+    this.storeBase = this.source;
+    if (this.exportUrl) {
+      const client = createExportClient(new URL(this.exportUrl, this.ownerDocument.baseURI).href);
+      this.store = new MonitorStore({ client, openRunFeed: openExportFeed(client), runsEveryMs: 0 });
+    } else this.store = new MonitorStore({ baseUrl: this.baseUrl });
     this.show(this.store.snapshot);
     this.storeCleanups.push(
       this.store.subscribe((s) => {
@@ -217,7 +246,7 @@ export class CaMonitor extends LitElement {
    */
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (!this.isConnected || !this.store) return;
-    if (this.baseUrl !== this.storeBase) {
+    if (this.source !== this.storeBase) {
       this.closeStore();
       this.openStore();
       this.navigate({ run: this.run }, { replace: true });
@@ -387,7 +416,9 @@ export class CaMonitor extends LitElement {
                 .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
                 @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>`
             : nothing}
-          ${connection(snap.connected)}
+          ${snap.info.export
+            ? pill({ text: exportedLabel(snap.info.export), tone: 'muted', title: exportTip(snap.info.export) })
+            : connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
         <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} ?hostsPage=${hostsPage}

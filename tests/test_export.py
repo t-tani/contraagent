@@ -1,0 +1,142 @@
+"""`contraagent monitor export`: the monitor's views of some runs as files, with this
+machine's paths and names taken out."""
+
+import json
+import socket
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from contraagent import Pipeline, agent_task
+from contraagent.monitor import Monitor, api
+from contraagent.monitor import export as ex
+from contraagent.monitor.core import Panel
+from contraagent.monitor.export import export, main
+from contraagent.testing import StubAgent
+
+
+class Note(BaseModel):
+    text: str
+
+
+note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60)
+NOW = lambda: datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
+
+
+def runs(tmp_path: Path, ids=("first", "second")) -> Path:
+    """Runs under `tmp_path/runs` whose records hold absolute paths of `tmp_path` (call
+    files, output paths, a reason) and, in an output's contents, a system path."""
+    stub = StubAgent(
+        {
+            "note-a": {"text": f"/etc/hosts was read; see {tmp_path}/work/notes.md"},
+            "note-b": {"text": 3},  # off its schema twice: a reason with the file's absolute path
+        }
+    )
+    for run_id in ids:
+        Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, backends=stub.backends(), log=lambda line: None).run(
+            lambda: [note("a"), note("b")], run_id=run_id
+        )
+    return tmp_path / "runs"
+
+
+def files(out: Path) -> dict[str, str]:
+    return {str(p.relative_to(out)): p.read_text() for p in sorted(out.rglob("*")) if p.is_file() and p.suffix in (".json", ".html")}
+
+
+def panel(run: str) -> dict:
+    return {"run": run, "where": str(Path.home() / "secret")}
+
+
+def test_an_export_holds_each_route_of_the_runs_as_a_file(tmp_path):
+    report = export(Monitor(runs(tmp_path), title="notes", panels={"p": panel}), tmp_path / "site", runs=1, now=NOW)
+    out = tmp_path / "site"
+    assert report.runs == ["second"]  # the newest activity first, one asked for
+    names = files(out)
+    for name in ("journal", "plan", "outputs", "definitions", "cursor"):
+        assert f"data/runs/second/{name}.json" in names
+    assert {"data/runs/second/tasks/note-a.json", "data/runs/second/tasks/note-b.json", "data/runs/second/panels/p.json"} <= set(names)
+    assert not any("/first/" in n for n in names)
+    assert (out / "app.js").is_file() and (out / "ja.js").is_file()
+    page = names["index.html"]
+    assert '<ca-monitor export="data/"></ca-monitor>' in page and "<title>notes</title>" in page
+    info = json.loads(names["data/info.json"])
+    assert info["export"] == {
+        "exported_at": "2026-10-14T12:00:00+00:00",
+        "runs": ["second"],
+        "left_out": ["transcripts", "processes"],
+        "redacted": ["host", "paths"],
+    }
+    assert [r["run"] for r in json.loads(names["data/runs.json"])] == ["second"]
+    # No transcript, no process: a task's file names none, and its rows and definition are the run's files'.
+    task = json.loads(names["data/runs/second/tasks/note-a.json"])
+    assert task["stream"] is None and task["launches"] == [] and task["rows"] == [] and task["definition"] is None
+    assert task["io"]["outputs"]
+    assert not list(out.rglob("*.stream.jsonl"))
+
+
+def test_this_machine_s_paths_and_name_are_taken_out(tmp_path):
+    export(Monitor(runs(tmp_path), panels={"p": panel}), tmp_path / "site", now=NOW)
+    text = "\n".join(files(tmp_path / "site" / "data").values())
+    assert str(tmp_path) not in text and str(Path.home()) not in text
+    assert socket.gethostname() not in text
+    journal = json.loads((tmp_path / "site/data/runs/second/journal.json").read_text())
+    reasons = " ".join(e["reason"] for e in journal["entries"])
+    assert "out/note/b.json" in reasons  # made relative to the run directory, not dropped
+    assert json.loads((tmp_path / "site/data/runs/second/panels/p.json").read_text())["where"] == "~/secret"
+    outputs = (tmp_path / "site/data/runs/second/outputs.json").read_text()
+    # An output's contents keep what is not this machine's: a system path stays, the run's working directory goes.
+    assert "/etc/hosts was read; see work/notes.md" in outputs
+
+
+def test_keep_puts_the_paths_back_and_exclude_takes_a_key_out(tmp_path):
+    rd = runs(tmp_path, ids=("only",))
+    export(Monitor(rd), tmp_path / "kept", keep=["paths"], now=NOW)
+    assert str(tmp_path) in "\n".join(files(tmp_path / "kept").values())
+    export(Monitor(rd), tmp_path / "lean", exclude=["params"], now=NOW)
+    text = "\n".join(files(tmp_path / "lean").values())
+    assert '"params":' not in text
+    assert json.loads((tmp_path / "lean/data/info.json").read_text())["export"]["redacted"] == ["host", "params", "paths"]
+
+
+def test_an_export_written_again_holds_only_the_runs_chosen_now(tmp_path):
+    rd = runs(tmp_path)
+    out = tmp_path / "site"
+    export(Monitor(rd), out, runs=None, now=NOW)
+    first = files(out)
+    export(Monitor(rd), out, runs=None, now=NOW)
+    assert files(out) == first  # the same runs: the same files
+    export(Monitor(rd), out, runs=1, now=NOW)
+    assert not (out / "data/runs/first").exists()
+
+
+def test_the_cli_writes_the_export_and_says_how_large_it_is(tmp_path, capsys):
+    rd = runs(tmp_path, ids=("only",))
+    assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "site"), "--title", "notes", "--exclude", "params"]) == 0
+    said = capsys.readouterr().out
+    assert "only:" in said and "wrote 1 runs" in said
+    assert '"params":' not in (tmp_path / "site/data/runs/only/tasks/note-a.json").read_text()
+
+
+@dataclass
+class TrendsPanel(Panel):
+    """A panel across runs, as the monitor's `scope="trends"` will declare one."""
+
+    scope: str = "trends"
+
+
+def test_a_route_of_no_run_and_a_panel_across_runs_are_one_entry_each(tmp_path, monkeypatch):
+    class WithTrends(Monitor):
+        def trends_panel(self, name: str) -> dict:
+            return {"panel": name, "where": str(tmp_path)}
+
+    monkeypatch.setattr(ex, "SITE_ROUTES", (ex.Route("trends.json", lambda m, _: {"title": "t"}, api.JsonObject),))
+    monitor = WithTrends(runs(tmp_path, ids=("only",)), panels={"days": TrendsPanel(lambda run: {}), "p": panel})
+    export(monitor, tmp_path / "site", now=NOW)
+    data = tmp_path / "site/data"
+    assert json.loads((data / "trends.json").read_text()) == {"title": "t"}
+    # Redacted as any view: a temporary directory outside the runs is no root of the export.
+    assert json.loads((data / "trends/panels/days.json").read_text()) == {"panel": "days", "where": "<path>"}
+    assert not (data / "runs/only/panels/days.json").exists()
+    assert (data / "runs/only/panels/p.json").exists()

@@ -3,6 +3,7 @@ export * from './client.js';
 export * from './feed.js';
 export * from './run-state.js';
 export * from './store.js';
+export * from './export.js';
 export * from './outcomes.js';
 export * from './derive.js';
 export * from './spend.js';

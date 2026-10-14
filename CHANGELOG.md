@@ -352,6 +352,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the same numbers as panel bodies. A panel whose `scope` is `"trends"` takes the
   period's runs (`/api/trends/panels/<name>`). Each run is read through a digest of its
   logs by 15-minute slot, kept in memory and, for a finished run, in its `trends.json`.
+- `contraagent monitor export`: the monitor's views of the newest runs written as files
+  (the page and `data/`, the JSON each route answers) that a static server or a site
+  serves with no monitor running (`<ca-monitor export="data/">`, `createExportClient`,
+  `openExportFeed`). It holds no transcripts and no processes; this machine's paths
+  are made relative or taken out and its host name left blank (`--keep`, `--exclude`),
+  and the page's header says when it was written (`Info.export`).
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a

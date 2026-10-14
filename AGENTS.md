@@ -66,6 +66,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
 | `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
+| an export (`Info.export`), the header's mark in place of the connection; a view it does not hold | Exported `time`; tooltip: Not in this export: transcripts and processes; not in this export | `time` 時点の書き出し; この書き出しに含まれないもの; 書き出しに含まれない |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
 | a reading's windows (`status_window`, `windows`: `five_hour`, `seven_day`, `seven_day_<model>`) | 5-hour, weekly, weekly (`model`); a status with its window: near the limit \| weekly | 5 時間枠, 週, 週（`model`） |

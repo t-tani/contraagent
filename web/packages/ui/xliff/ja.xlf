@@ -2680,6 +2680,27 @@
   <target>その他</target>
   <note from="lit-localize">The series of a chart past the sixth, summed into one</note>
 </trans-unit>
+<trans-unit id="s786837e1e48f17c8">
+  <source>transcripts</source>
+  <target>トランスクリプト</target>
+</trans-unit>
+<trans-unit id="saee49dc66c73b95a">
+  <source>processes</source>
+  <target>プロセス</target>
+</trans-unit>
+<trans-unit id="s36db253f6326b641">
+  <source>Not in this export: <x id="0" equiv-text="${listText(e.left_out.map(leftOutLabel))}"/></source>
+  <target>この書き出しに含まれないもの: <x id="0" equiv-text="${listText(e.left_out.map(leftOutLabel))}"/></target>
+</trans-unit>
+<trans-unit id="s7009515e0b51ee67">
+  <source>not in this export</source>
+  <target>書き出しに含まれない</target>
+</trans-unit>
+<trans-unit id="s9d313ec614917a38">
+  <source>Exported <x id="0" equiv-text="${localTime(e.exported_at, true)}"/></source>
+  <target><x id="0" equiv-text="${localTime(e.exported_at, true)}"/> 時点の書き出し</target>
+  <note from="lit-localize">The monitor shows files written at this time, not a live server</note>
+</trans-unit>
 </body>
 </file>
 </xliff>
