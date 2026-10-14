@@ -17,6 +17,7 @@ directory's `models.json`, spoken to over the OpenAI chat-completions API.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -35,8 +36,9 @@ from contraagent.backends.credentials import (
     Subscription,
     child_env,
 )
-from contraagent.backends.launch import Launch, LaunchResult, Stop
+from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
 from contraagent.backends.omp.trace import message_usage
+from contraagent.backends.opencode import login as opencode_login
 from contraagent.backends.pi import agent_dir
 from contraagent.backends.pi.wire import parse_events
 from contraagent.backends.process import Sink, via_stdin
@@ -45,8 +47,19 @@ from contraagent.backends.process import Sink, via_stdin
 #: among them), skills, prompt templates, themes, `AGENTS.md`/`CLAUDE.md`, and a project's
 #: `.pi/` files. Explicit `--skill` and `-e` paths still load (checked against pi 1.2.0).
 ISOLATION_ARGS = ("--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve")
+
+
 #: The extension that registers a plugin's MCP servers (`.mcp.json`, named by
 #: `MCP_CONFIG_ENV`), loaded with pi's built-in MCP support.
+def _pi_login(home: Path, provider: str) -> dict | None:
+    """The login pi keeps for `provider` in agent directory `home` (`auth.json`); None when none."""
+    try:
+        login = json.loads((home / "auth.json").read_text()).get(provider)
+    except (OSError, ValueError, AttributeError):
+        return None
+    return login if isinstance(login, dict) else None
+
+
 MCP_EXTENSION = Path(__file__).resolve().parent / "mcp.ts"
 MCP_CONFIG_ENV = "CONTRAAGENT_PI_MCP_CONFIG"
 #: Added to every launch: no request to pi.dev for the latest version.
@@ -173,6 +186,59 @@ class PiBackend(OneShotBackend):
 
         return sink
 
+    # --- the account and its usage ---------------------------------------------
+
+    def _opencode_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+        """The OpenCode key a launch of `model` as `credential` bills and its endpoint ('' for
+        opencode.ai's), as pi picks it: the binding's key variable, else pi's own login, else
+        (`ambient`) `OPENCODE_API_KEY`. ('', '') for another provider."""
+        provider = model.split("/", 1)[0] if "/" in model else getattr(credential, "provider", "")
+        if not opencode_login.is_opencode(provider):
+            return "", ""
+        if isinstance(credential, Gateway):
+            token = credential.token.resolve(self._base_env) if credential.token is not None else ""
+            return token, credential.endpoint(self._base_env)
+        if isinstance(credential, ApiKey):
+            return credential.key.resolve(self._base_env), ""
+        source = agent_dir.default_source(self._base_env)
+        home = Path(credential.config_dir).expanduser() if isinstance(credential, Subscription) and credential.config_dir else source
+        login = _pi_login(home, provider) or {}
+        stored = login.get("key")
+        key = stored if isinstance(stored, str) else ""
+        if not key and isinstance(credential, Subscription):
+            key = opencode_login.stored_key(provider, self._base_env)
+        if not key and isinstance(credential, Ambient):
+            key = opencode_login.env_key(self._base_env)
+        return key, ""
+
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """For an OpenCode model: the account of the key the launch bills (`opencode_login`),
+        the same digest opencode and omp give for that key. '' for any other provider."""
+        try:
+            key, _ = self._opencode_key(credential, model)
+        except CredentialError:
+            return ""
+        return opencode_login.account_of_key(key)
+
+    def usage_reading(self, launch: Launch) -> RateLimit | None:
+        """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
+        route (pi reports none itself); None for another model or when it cannot be read."""
+        if not launch.model.startswith(opencode_login.GO + "/"):
+            return None
+        try:
+            key, base = self._opencode_key(launch.credential, launch.model)
+        except CredentialError:
+            return None
+        return opencode_login.go_usage(key, base)
+
+    def run(self, launch: Launch) -> LaunchResult:
+        """One launch, with the Go subscription's usage at its start (`usage_reading`)."""
+        reading = self.usage_reading(launch)
+        result = super().run(launch)
+        if reading is not None:
+            result.rate_limits.insert(0, reading)
+        return result
+
     def env(self, launch: Launch) -> dict[str, str]:
         """The child environment (`child_env`): for `ambient` the parent's, for any other
         credential every other one removed; in both, pi's agent directory is the launch's
@@ -212,6 +278,19 @@ class PiBackend(OneShotBackend):
         match c:
             case Subscription():
                 home = Path(c.config_dir).expanduser() if c.config_dir else source
+                if opencode_login.is_opencode(provider) and env is not None and _pi_login(home, provider) is None:
+                    # pi holds no OpenCode login here: opencode's own, as the key pi reads
+                    # after its logins. One login serves pi, opencode and omp alike.
+                    key = opencode_login.stored_key(provider, env)
+                    if key:
+                        return self._binding(
+                            {opencode_login.KEY_VAR: key},
+                            env,
+                            home,
+                            logins=(home / "auth.json").is_file(),
+                            isolated=c.isolate,
+                            isolation=f"opencode's stored {provider} login (pi agent directory {home} holds none)",
+                        )
                 if env is not None and not (home / "auth.json").is_file():
                     raise CredentialError(f"no pi logins in {home} (auth.json): run pi and /login {provider} there")
                 return self._binding(

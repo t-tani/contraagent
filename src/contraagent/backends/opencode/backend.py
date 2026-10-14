@@ -40,6 +40,7 @@ from contraagent.backends.credentials import (
     child_env,
 )
 from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.opencode import login as opencode_login
 from contraagent.backends.opencode.wire import line_usage, parse_events, refusal_in_log
 from contraagent.backends.process import Sink, via_stdin
 
@@ -307,14 +308,61 @@ class OpencodeBackend(OneShotBackend):
 
     def _stored_login(self, provider: str, env: dict[str, str]) -> dict:
         """The login opencode stores for `provider` (`auth.json` in its data directory)."""
-        data = Path(env.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "opencode" / "auth.json"
-        try:
-            login = json.loads(data.read_text()).get(provider)
-        except (OSError, ValueError, AttributeError):
-            login = None
-        if not isinstance(login, dict):
+        login = opencode_login.stored_login(provider, env)
+        if login is None:
             raise CredentialError(f"opencode stores no {provider} login (`opencode providers login`)")
         return login
+
+    # --- the account and its usage ---------------------------------------------
+
+    def _opencode_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+        """The OpenCode key a launch of `model` as `credential` bills, and the endpoint it
+        goes to ('' for opencode.ai's), as opencode picks it: the credential's own key, else
+        (`ambient`, a `subscription`) the stored login, then `OPENCODE_API_KEY`. ('', '')
+        for another provider, or a key opencode would take from the user's config file."""
+        provider = model.split("/", 1)[0] if "/" in model else getattr(credential, "provider", "")
+        if not opencode_login.is_opencode(provider):
+            return "", ""
+        env = self._base_env
+        match credential:
+            case ApiKey():
+                return credential.key.resolve(env), ""
+            case Gateway():
+                return (credential.token.resolve(env) if credential.token is not None else ""), credential.endpoint(env)
+            case Ambient() | Subscription():
+                key = opencode_login.stored_key(provider, env)
+                if not key and isinstance(credential, Ambient):
+                    key = opencode_login.env_key(env)
+                return key, ""
+        return "", ""
+
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """For an OpenCode model: the account of the key the launch bills (`opencode_login`),
+        the same digest omp and pi give for that key. '' for any other provider."""
+        try:
+            key, _ = self._opencode_key(credential, model)
+        except (CredentialError, ValueError, KeyError):
+            return ""
+        return opencode_login.account_of_key(key)
+
+    def usage_reading(self, launch: Launch) -> RateLimit | None:
+        """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
+        route (opencode reports none itself); None for another model or when it cannot be read."""
+        if not launch.model.startswith(opencode_login.GO + "/"):
+            return None
+        try:
+            key, base = self._opencode_key(launch.credential, launch.model)
+        except (CredentialError, ValueError, KeyError):
+            return None
+        return opencode_login.go_usage(key, base)
+
+    def run(self, launch: Launch) -> LaunchResult:
+        """One launch, with the Go subscription's usage at its start (`usage_reading`)."""
+        reading = self.usage_reading(launch)
+        result = super().run(launch)
+        if reading is not None:
+            result.rate_limits.insert(0, reading)
+        return result
 
     # --- running --------------------------------------------------------------
 

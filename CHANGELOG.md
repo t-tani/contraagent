@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An OpenCode key is one account on every agent that runs its models (`backends/opencode/login.py`):
+  opencode, pi and omp give the digest of the key they would send, so a quota rest on one
+  holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
+  launch of an `opencode-go` model, from the route omp reads (5-hour, weekly, and monthly by
+  name), so caps and rests apply there too. On pi, a `subscription` for `opencode` or
+  `opencode-go` with no login in its agent directory uses opencode's stored login.
 - `pi` (pi.dev) as a coding agent: `agent = "pi"`, `PiBackend`. A launch runs
   `pi --mode json -p` with an agent directory of contraagent's own that links
   the user's pi logins and nothing else of theirs, and with pi's discovery of
@@ -853,6 +859,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- omp reads `.env` files at start (its working directory's, its agent directory's, its config
+  root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
+  there came back after contraagent removed it: an isolated omp binding now names the file
+  and is no longer isolated when one sets its provider's key or endpoint, so a task that
+  requires traits is refused there; omp's account for an OpenCode model is that key's.
 - The run list counts a deferred task, and a task still queued in a run that is no longer
   live, as `not_run` (`TaskCounts.not_run`, "not run" in the run line and the run
   picker); `waiting` is a live run's queued tasks only. The hosts view's subscription
