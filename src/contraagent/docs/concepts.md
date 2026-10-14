@@ -8,7 +8,7 @@ documentation. No other word is used for the same thing.
 
 | Word | Means | In code |
 |---|---|---|
-| **coding agent** | the CLI program that does the work (`claude`, `omp`, `opencode`) | `agent` in config, routes, journal and monitor; `Backend` is its Python adapter |
+| **coding agent** | the CLI program that does the work (`claude`, `omp`, `opencode`, `pi`) | `agent` in config, routes, journal and monitor; `Backend` is its Python adapter |
 | **LLM** | the language model the coding agent runs on, nothing else | `model` |
 | **agent task** / **Python task** | a task a coding agent executes / one this process executes | `agent_task`, `@python_task`; on disk `executor: "agent" \| "python"` |
 | **kind** | the class of work (`summarize`); a Python task's kind is its own name | `Task.kind` |
@@ -106,7 +106,7 @@ documentation. No other word is used for the same thing.
 | **slack** | the time before the deadline from which the queue orders for the deadline: shortest remaining work first, deferring what cannot finish | `WorkQueue(slack_s=)` |
 | **time box** | a deadline over part of a run: the run's own (`deadline_s`), or a flow call's, counted from its start, over the tasks it and the flow calls it starts create; past it only its finishing kinds launch, for its grace window; a task is held to every time box it is in | `time_box(flow, deadline_s=, grace_s=, finishing_kinds=, slack_s=)`, `TimeBox`, `Task.time_boxes`; `flow_calls.jsonl` and monitor `FlowCallNode.time_box`; a deferral's cause `flow_call` |
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
-| **stream format** | how a stream file is parsed (`claude`, `omp`, `opencode`) | `normalize_stream_line(format, ...)` |
+| **stream format** | how a stream file is parsed (`claude`, `omp`, `opencode`, `pi`) | `normalize_stream_line(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
 | **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
 | **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |

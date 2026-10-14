@@ -65,20 +65,22 @@ never written anywhere.
 
 Each coding agent says which credential types it can use:
 
-| type | claude | omp | opencode |
-|---|---|---|---|
-| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile | the provider's stored login (`opencode providers login`) |
-| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider |
-| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — |
-| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible |
-| `workload_identity`, `bedrock`, `vertex` | yes | — | — |
-| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same |
+| type | claude | omp | opencode | pi |
+|---|---|---|---|---|
+| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`) |
+| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) |
+| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic |
+| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) |
+| `workload_identity`, `bedrock`, `vertex` | yes | — | — | — |
+| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same | the same |
 
 A **gateway** is your own endpoint: LiteLLM, a company proxy, a self-hosted
-API. Claude Code speaks the Anthropic Messages API to it; omp and opencode
+API. Claude Code speaks the Anthropic Messages API to it; omp, opencode and pi
 address it as a provider, so its models are `<provider>/<model>`
 (`litellm/<model>`; on opencode, `anthropic/<model>` with `provider =
-"anthropic"` and a `base_url` ending in `/v1`).
+"anthropic"` and a `base_url` ending in `/v1`). pi speaks the OpenAI
+chat-completions API to `base_url`, and its token stays in the environment, not
+in the `models.json` that names the provider.
 
 A **pool** uses several credentials as one. `in_order` uses the first member
 until it answers 429, then the next; `round_robin` turns to the next member on

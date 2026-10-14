@@ -1,6 +1,6 @@
 # contraagent
 
-Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`) as typed, supervised, observable
+Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`, `pi -p`) as typed, supervised, observable
 tasks. Think pydantic-ai for coding agents: a task is a typed function whose
 body is a coding agent, and your contract with it is a file it must leave
 behind. Scheduling, failover, validation, credentials, resume and live
@@ -19,7 +19,7 @@ monitoring are the framework's job.
 ## Install
 
 Linux, Python 3.12 or later, and a coding agent on `PATH` for real runs:
-`claude` (Claude Code), `omp` (oh-my-pi), `opencode`, or several of them.
+`claude` (Claude Code), `omp` (oh-my-pi), `opencode`, `pi` (pi.dev), or several of them.
 
 ```
 uv add contraagent                  # or: pip install contraagent

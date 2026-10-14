@@ -10,6 +10,7 @@ import pytest
 
 from contraagent import Launch, OpencodeBackend, Plugin, PluginError, agent_task
 from contraagent.backends.omp.backend import plugin_extension_args
+from contraagent.backends.pi.backend import plugin_args as pi_plugin_args
 from contraagent.pipeline.adapter import SpecAdapter
 from contraagent.pipeline.graph import Graph
 from contraagent.plugins import hooks, new_plugin
@@ -75,7 +76,11 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert "Stop" in claude
     omp = (plugin / "omp" / "index.ts").read_text()
     assert 'pi.on("tool_call"' in omp and 'pi.on("tool_result"' in omp and '"match": "update-finding"' in omp
-    assert json.loads((plugin / "package.json").read_text())["omp"] == {"extensions": ["./omp/index.ts"]}
+    pi = (plugin / "pi" / "index.ts").read_text()
+    assert 'pi.on("tool_call"' in pi and "ExtensionAPI" in pi and "@oh-my-pi" not in pi and '"find": "Glob"' in pi
+    # one package.json declares both extensions
+    pkg = json.loads((plugin / "package.json").read_text())
+    assert pkg["omp"] == {"extensions": ["./omp/index.ts"]} and pkg["pi"] == {"extensions": ["./pi/index.ts"]}
     assert any("stop hook cannot continue" in n for n in notes)  # the difference is stated, not hidden
     assert plugin_extension_args([str(plugin)]) == ["-e", str(plugin.resolve() / "omp" / "index.ts")]
     opencode = (plugin / "opencode" / "index.js").read_text()
@@ -83,6 +88,7 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert any(n.startswith("opencode: a stop hook") for n in notes)
     launch = Launch(prompt="x", plugin_dirs=(str(plugin),))
     assert OpencodeBackend(base_env={}).config(launch)["plugin"] == [f"file://{plugin.resolve()}/opencode/index.js"]
+    assert pi_plugin_args([str(plugin)])[-2:] == ["-e", str(plugin / "pi" / "index.ts")]
 
 
 def test_a_new_agent_registers_its_own_renderer(plugin):

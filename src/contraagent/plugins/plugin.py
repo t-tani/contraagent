@@ -2,7 +2,8 @@
 
 The Python side declares a task's *interface* (`agent_task`: its parameters,
 its output, its budget); the plugin holds everything about *how* the task is
-done, in the form Claude Code and omp read natively through `--plugin-dir`:
+done, in the form Claude Code and omp read natively through `--plugin-dir` (pi is given
+its skills and hooks by flag):
 
     plugins/summarize/
       .claude-plugin/plugin.json   what makes the directory a plugin
@@ -15,6 +16,7 @@ done, in the form Claude Code and omp read natively through `--plugin-dir`:
       hooks/*.sh                   the hook scripts
       hooks/hooks.json             hooks as Claude Code reads them   (rendered)
       package.json, omp/           hooks as omp reads them           (rendered)
+      package.json, pi/            hooks as pi reads them            (rendered)
 
 Nothing in it names a run, a unit or a file path: those arrive per task in the
 call file (`contraagent.calls`).
@@ -41,8 +43,8 @@ HOOKS_TOML = "hooks.toml"
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
 #: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
-RENDERED = ("hooks", "package.json", "omp", "opencode")
-NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp", "opencode")
+RENDERED = ("hooks", "package.json", "omp", "opencode", "pi")
+NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp", "opencode", "pi")
 
 
 class PluginError(ContraagentError):
