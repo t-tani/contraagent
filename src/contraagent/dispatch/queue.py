@@ -234,6 +234,8 @@ class WorkQueue:
         self._draining = False
         self._seq: dict[str, int] = {}  # by .id: arrival order
         self._successors: dict[str, list[Task]] = {}  # by .key: known dependents
+        # Tasks queued so far: a pass that queued any (a deferral's follow-ups) did not see them.
+        self._added = 0
 
     # --- queueing -----------------------------------------------------------
 
@@ -260,6 +262,7 @@ class WorkQueue:
             self._settle(TaskResult.skipped(task))
             return True
         self._queued.append(task)
+        self._added += 1
         return True
 
     def extend(self, tasks: Iterable[Task]) -> None:
@@ -343,13 +346,17 @@ class WorkQueue:
         t0 = time.monotonic()
         with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
             while self._queued or self._running:
+                added = self._added
                 self._start_ready(pool)
                 if not self._running:
                     if not self._queued:
                         break
-                    # Nothing runs and nothing started: what is queued waits for a
-                    # retry, or for a task that will never come. A deferral's
-                    # follow-ups may queue more work, which the next pass handles.
+                    # A deferral in the pass (a rest, a closed time box, work that cannot
+                    # finish) queued its follow-ups during it: the pass did not look at them.
+                    if self._added != added:
+                        continue
+                    # Nothing runs and nothing started of what the pass saw: what is queued
+                    # waits for a retry, or for a task that will never come.
                     if self._sleep_until_retry():
                         continue
                     self._defer_all(_NOT_QUEUED)

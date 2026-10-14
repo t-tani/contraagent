@@ -745,6 +745,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A task queued while the queue was starting tasks (a rest's or a time box's deferral
+  answered by a follow-up, such as a finishing task) launches: when nothing else ran, the
+  queue deferred it as never queued (`no launchable task (dependency never queued)`)
+  without having looked at it.
 - A long table (the monitor's history, its tasks) no longer hangs the page when it is
   scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
   heights no longer move its window back and forth, and it measures again on the next
