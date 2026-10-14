@@ -79,6 +79,10 @@ pipeline was started from. A skill, a hook, a permission or an MCP server a task
 needs belongs in its plugin. omp's part is the overlay
 `contraagent/backends/omp/isolation/config.yml`.
 
+A task declared with no tools (`agent_task(tools=())`, a light launch) keeps less
+still: no tool, no plugin, and its role's text in place of the coding agent's own
+system prompt (see "A judgement in one turn" in [contracts](contracts.md)).
+
 ## Tools a task may use
 
 A task gets a tool through its plugin, and each coding agent reads a different

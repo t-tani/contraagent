@@ -3291,6 +3291,21 @@
             "type": "array",
             "title": "Validators"
           },
+          "tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools",
+            "description": "agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
+          },
           "executor": {
             "anyOf": [
               {
@@ -3650,6 +3665,17 @@
             "type": "integer",
             "title": "Calls",
             "default": 0
+          },
+          "resident": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resident"
           }
         },
         "additionalProperties": true,

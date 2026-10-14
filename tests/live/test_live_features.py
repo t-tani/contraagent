@@ -14,7 +14,9 @@ Each test runs a small flow once per coding agent:
 * `output_from="message"`: the final message is the output, after a tool call, and a
   message that fails its checks is corrected in the same session;
 * quota caps and `quota_rule`: a credential past one rests, its tasks take the next hop,
-  and a task with no hop left is deferred (`deferred.jsonl`).
+  and a task with no hop left is deferred (`deferred.jsonl`);
+* a light launch (`tools=()`): one call with no tools and the role as the system prompt,
+  its input a small part of the same judgement's with the agent's tools.
 """
 
 import json
@@ -438,3 +440,67 @@ def test_a_credential_past_its_quota_rests_and_its_tasks_fall_over(ws, agent):
     lines = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
     print(f"  deferred.jsonl: {lines}")
     assert any(d["key"] == "q_nohop-third" and f"capped_{agent} rests" in d["reason"] for d in lines)
+
+
+# --- a light launch -------------------------------------------------------------
+
+
+class Classified(BaseModel):
+    category: str
+    promo: bool
+
+
+CLASSIFIER = """---
+name: classifier
+description: Classifies one news item.
+tools: Read
+---
+
+You classify one news item: its category (`security`, `product` or `other`) and whether it
+advertises a product or a service (`promo`).
+"""
+
+ITEM = "Acme patches a critical remote code execution flaw in its VPN appliance (CVE-2026-1234)."
+
+
+def classifier_plugin(ws: Path) -> Path:
+    root = ws / "plugins" / "classifier"
+    if not root.exists():
+        new_plugin(root)
+        (root / "agents" / "worker.md").unlink()
+        (root / "agents" / "classifier.md").write_text(CLASSIFIER)
+    return root
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_light_launch_is_one_call_with_no_tools(ws, agent):
+    plugin = classifier_plugin(ws)
+    common = dict(plugin=plugin, output=Classified, output_from="message", max_turns=6, timeout_s=300, **route(agent))
+    light = agent_task(f"classify_light_{agent}", tools=(), **common)
+    full = agent_task(f"classify_full_{agent}", **common)  # the same judgement with the agent's tools
+
+    def flow():
+        light("item", title=ITEM)
+        full("item", title=ITEM)
+
+    report = pipeline(ws, max_concurrent=1).run(flow, run_id=f"light-{agent}")
+    show(report)
+    assert report.ok, report.failed
+    by_key = {r["key"]: r for r in rows(report)}
+    lit, heavy = by_key[f"classify_light_{agent}-item"], by_key[f"classify_full_{agent}-item"]
+    launches = {r["label"]: r for r in map(json.loads, (report.run_dir / "launches.jsonl").read_text().splitlines())}
+    argv = launches[f"classify_light_{agent}-item"]["argv"]
+    print(f"  light: resident={lit['usage']['resident']} calls={lit['usage']['calls']} rounds={lit['rounds']}")
+    print(f"  full:  resident={heavy['usage']['resident']} calls={heavy['usage']['calls']} rounds={heavy['rounds']}")
+    print(f"  light argv: {argv}")
+    assert lit["rounds"] == 1 and lit["usage"]["calls"] == 1  # one turn: no tool to call
+    assert heavy["usage"]["calls"] >= 2  # with tools, the call file is read first
+    # Less input on its one call than the same role with tools. On Claude Code the role already
+    # replaces the default system prompt (`--agent`, `tools: Read`), so the gap is narrower there.
+    assert lit["usage"]["resident"] < heavy["usage"]["resident"]
+    assert any(a.startswith("--system-prompt=You classify one news item") for a in argv)
+    assert "--plugin-dir" not in argv and "--agent" not in argv
+    if agent == "claude":
+        assert "--tools" in argv and "--strict-mcp-config" in argv and "--setting-sources" in argv
+    else:
+        assert "--no-tools" in argv and "--no-lsp" in argv

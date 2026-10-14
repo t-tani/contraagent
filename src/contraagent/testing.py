@@ -169,6 +169,9 @@ class StubAgent(Backend):
 
     name = "stub"
     binary = ""
+    # It plays a launch with no tools as well as any other; under a coding agent's name it
+    # can do what that agent can (`_named`), so routing refuses there what it refuses for real.
+    light_launch = True
 
     def __init__(self, script: Script | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0) -> None:
         super().__init__(base_env={})
@@ -193,6 +196,9 @@ class StubAgent(Backend):
     def _named(self, name: str) -> StubAgent:
         view = copy.copy(self)  # shallow: the script, the launches and the lock stay shared
         view.name = name
+        cls = backend_class(name)
+        if cls is not None:
+            view.light_launch = cls.light_launch
         return view
 
     def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]:

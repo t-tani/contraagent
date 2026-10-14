@@ -93,6 +93,9 @@ export class CaDefinition extends LitElement {
           : def.output || msg('none', { id: 'none', desc: 'An empty value' }),
       ],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
+      ...(Array.isArray(def.tools) && def.tools.length === 0
+        ? [[msg('Tools', { desc: "The coding agent's tools in a task definition" }), msg('none', { id: 'none', desc: 'An empty value' })] as [string, string]]
+        : []),
     ];
     const declared = Array.isArray(def['declared']) ? (def['declared'] as DeclaredContract[]) : [];
     // The role file this kind runs as goes first, open; other roles' files are folded.

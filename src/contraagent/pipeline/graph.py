@@ -394,7 +394,7 @@ class Graph:
         """Make an agent task's kind one of the run's as a task of it is added. One kind, one
         declaration: a second declaration of the kind that differs from the first one created
         (`AgentTask.differences`) raises. `new_kind` is called the first time, unless the
-        kind was reached with the same `config` and `requires` (its routing)."""
+        kind was reached with the same `config`, `requires` and `tools` (its routing)."""
         if spec.executor != "agent":
             return
         seen = self._specs.get(spec.kind)
@@ -406,7 +406,8 @@ class Graph:
                 )
             return
         routed = self._reached.pop(spec.kind, None)
-        if self.new_kind is not None and (routed is None or (routed.config, routed.requires) != (spec.config, spec.requires)):
+        routing = (spec.config, spec.requires, spec.tools)
+        if self.new_kind is not None and (routed is None or (routed.config, routed.requires, routed.tools) != routing):
             self.new_kind(spec)
         self._specs[spec.kind] = spec
 

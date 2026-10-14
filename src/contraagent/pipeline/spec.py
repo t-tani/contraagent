@@ -26,6 +26,7 @@ from pydantic import BaseModel, RootModel
 
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
+from contraagent.plugins.plugin import body
 from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.validators import Validator, validator_name
 
@@ -52,6 +53,8 @@ class AgentTask[Out]:
     changes: tuple[str, ...] = ()
     #: Where the output arrives: `file` (the agent writes it) or `message` (its final message is it).
     output_from: str = "file"
+    #: The agent's tools: None, those its role and settings allow; `()`, none (a light launch).
+    tools: tuple[str, ...] | None = None
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -68,6 +71,20 @@ class AgentTask[Out]:
         return "text" if self.output is str else "json"
 
     @property
+    def light(self) -> bool:
+        """A light launch (`tools=()`): no tools, the role as the system prompt, the call in the prompt."""
+        return self.tools == ()
+
+    def system_prompt(self, instructions: str | None = None) -> str | None:
+        """The system prompt of a light launch: the role's text without its frontmatter, else
+        `instructions` (the task's own, filled in). None for any other launch."""
+        if not self.light:
+            return None
+        if self.plugin is not None and self.role is not None:
+            return body(self.plugin.role_file(self.role).read_text()).strip()
+        return (instructions if instructions is not None else self.instructions or "").strip()
+
+    @property
     def plugins(self) -> tuple[Plugin, ...]:
         """Every plugin the task loads: its own first, then those of `skills_from`."""
         return ((self.plugin,) if self.plugin is not None else ()) + self.skills_from
@@ -75,7 +92,8 @@ class AgentTask[Out]:
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
         instructions, its role file's content, the skills of its plugins, its output schema,
-        its validators, its params schema and its `changes` patterns."""
+        its validators, its params schema, its `changes` patterns, where its output arrives and,
+        for a light launch, that it has no tools."""
         return _digest(self._defined())
 
     def differences(self, other: AgentTask) -> list[str]:
@@ -85,7 +103,7 @@ class AgentTask[Out]:
         if other is self:
             return []
         mine, theirs = self._defined(), other._defined()
-        parts = [name for name in mine if mine[name] != theirs[name]]
+        parts = [name for name in dict.fromkeys([*mine, *theirs]) if mine.get(name) != theirs.get(name)]
         if (self.plugin and self.plugin.root) != (other.plugin and other.plugin.root):
             parts.append("plugin")
         if [p.root for p in self.skills_from] != [p.root for p in other.skills_from]:
@@ -108,6 +126,7 @@ class AgentTask[Out]:
             "params": _schema(self.params) if self.params is not None else None,
             "changes": list(self.changes),
             "output_from": self.output_from,
+            **({"tools": list(self.tools)} if self.tools is not None else {}),
         }
 
     def __call__(
@@ -139,6 +158,7 @@ def agent_task[Out](
     requires: Sequence[str] = (),
     claims: Sequence[str] = (),
     changes: Sequence[str] = (),
+    tools: Sequence[str] | None = None,
     **config: Any,
 ) -> AgentTask[Out]:
     """Declare an agent task.
@@ -182,6 +202,13 @@ def agent_task[Out](
     final message is the output: the runner writes it to the output file and checks it
     there, and a message that fails its checks goes back to the same session. For a task
     that needs no tool (a classification in one turn), it saves the turn the `Write` takes.
+    `tools`: None (default), the tools its role and settings allow; `()`, none: a **light
+    launch**, for a judgement in one turn. The role's text (without its frontmatter), or for a
+    task with no plugin `instructions`, replaces the coding agent's own system prompt; the
+    params and the output's JSON Schema are in the prompt (the agent cannot read a call file);
+    no plugin, settings, skill, hook or MCP server is loaded. It needs `output_from="message"`.
+    Tool names are each coding agent's own, so a list of them is not taken here: a role names
+    its tools in its frontmatter, a plugin's `settings.json` what they may do.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
@@ -197,6 +224,11 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
+    checked_tools = _checked_tools(kind, tools)
+    if checked_tools == () and output_from != "message":
+        raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
+    if checked_tools == () and skills_from:
+        raise TypeError(f"agent_task({kind!r}): tools=() loads no skill: drop skills_from, or the tools=()")
     if config:
         # The same checks a [tasks.<kind>] table gets, so a typo is an error here too.
         try:
@@ -215,6 +247,8 @@ def agent_task[Out](
             why = "written by `contraagent plugin render`; remove them" if p.render_leftovers() else "a plugin it names holds skills only"
             raise PluginError(f"agent_task({kind!r}): skills_from {p.root} holds {', '.join(others)}; {why}")
     resolved_role = loaded.resolve_role(role) if loaded is not None else role
+    if checked_tools == () and loaded is not None and resolved_role is None:
+        raise TypeError(f"agent_task({kind!r}): tools=() takes its system prompt from the role, and {loaded.root} defines none")
     return AgentTask(
         kind=kind,
         output=output,
@@ -230,7 +264,23 @@ def agent_task[Out](
         changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
         output_from=output_from,
+        tools=checked_tools,
     )
+
+
+def _checked_tools(kind: str, tools: Sequence[str] | None) -> tuple[str, ...] | None:
+    """`tools` as declared: None, or `()`. A list of tool names is refused: they are each
+    coding agent's own (`Read` for Claude Code, `read` for omp), so a role names them."""
+    if tools is None:
+        return None
+    if isinstance(tools, str) or not isinstance(tools, Sequence):
+        raise TypeError(f"agent_task({kind!r}): tools must be () (no tools) or None, not {tools!r}")
+    if tools:
+        raise TypeError(
+            f"agent_task({kind!r}): tools takes () (no tools) or None; the tools a task may use are its role's "
+            "(`tools:` in agents/<role>.md) and its plugin's settings.json, in each coding agent's own names"
+        )
+    return ()
 
 
 @dataclass(frozen=True, eq=False)

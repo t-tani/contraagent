@@ -402,6 +402,9 @@ class TaskDefinition(Open):
         None, description="agent task: `file`, the agent writes its output; `message`, its final message is the output"
     )
     validators: list[str] = Field(default_factory=list)
+    tools: list[str] | None = Field(
+        None, description="agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
+    )
     executor: Executor | None = None
     function: str | None = Field(None, description="Python task: `module.qualname` of its function")
     signature: str | None = Field(None, description="Python task: the function's signature")

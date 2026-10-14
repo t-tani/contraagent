@@ -2516,6 +2516,15 @@
   <source>Locks <x id="0" equiv-text="${listText(names)}"/></source>
   <target>ロック <x id="0" equiv-text="${listText(names)}"/></target>
 </trans-unit>
+<trans-unit id="s0f2bb86b7444a525">
+  <source>Input of the first API call: <x id="0" equiv-text="${tokenCount(u.resident)}"/></source>
+  <target>最初の API 呼び出しの入力: <x id="0" equiv-text="${tokenCount(u.resident)}"/></target>
+</trans-unit>
+<trans-unit id="sc26501e3ade7da3c">
+  <source>Tools</source>
+  <target>ツール</target>
+  <note from="lit-localize">The coding agent's tools in a task definition</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

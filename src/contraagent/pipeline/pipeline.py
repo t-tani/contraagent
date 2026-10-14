@@ -236,6 +236,7 @@ class Pipeline:
                         self.overrides,
                         declared={kind: spec.config for kind, spec in specs.items()},
                         requirements={kind: spec.requires for kind, spec in specs.items()},
+                        light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=not driven,
                     )
                     if self.preflight:
@@ -296,6 +297,7 @@ class Pipeline:
             self.overrides,
             declared={spec.kind: spec.config},
             requirements={spec.kind: spec.requires},
+            light=[spec.kind] if spec.light else [],
             all_kinds=False,
         )
         plan.log()

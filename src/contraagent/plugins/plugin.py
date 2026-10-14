@@ -175,6 +175,12 @@ def markdown_under(d: Path) -> list[Path]:
     return sorted(out)
 
 
+def body(text: str) -> str:
+    """A Markdown file's text after its leading `---` frontmatter (all of it when it has none)."""
+    m = re.match(r"^---\n.*?\n---[ \t]*\n?", text, re.S)
+    return text[m.end() :] if m else text
+
+
 def frontmatter(text: str) -> dict:
     """The `key: value` lines between the leading `---` fences of a Markdown file."""
     m = re.match(r"^---\n(.*?)\n---", text, re.S)

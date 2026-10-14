@@ -314,6 +314,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A light launch for a judgement in one turn: `agent_task(tools=())` runs the task with
+  no tools, its role's text (or its instructions) in place of the coding agent's system
+  prompt, its params and output schema in the prompt, and no plugin, settings or MCP
+  server; it needs `output_from="message"`. Claude Code and omp both run it
+  (`--system-prompt`, `--tools ""` / `--no-tools`); a coding agent that cannot is refused
+  by routing (`Backend.light_launch`). On Haiku it is one call: on omp 658 tokens of input
+  where the same task with tools takes two calls of 12,311; on Claude Code 1,180 where a
+  role with tools takes two calls of 2,230 (16,863 with the agent's default prompt and tools).
+- `usage.resident` in a journal row: the input of the attempt's first API call. The
+  monitor shows it on the tokens of each attempt.
+- omp launches take `Launch.system_prompt`, `Launch.append_system_prompt` and
+  `Launch.tools`, which they left out before.
 - A tutorial (`contraagent docs tutorial`): a pipeline from an empty directory, step by
   step, through a stub run, a run on a coding agent and a test; its pipeline is
   `examples/tutorial/`.
