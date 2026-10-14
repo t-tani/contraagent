@@ -119,8 +119,9 @@ class QuotaWindow(BaseModel):
 class QuotaRest(BaseModel):
     """Why a credential rests (`routing.quota.Rest`): past the cap of one window (`window`
     `five_hour` or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule
-    (`rule`, what it said; `window` empty). `until`: when the window resets, ISO 8601;
-    empty when unknown (a rule's rest)."""
+    (`rule`, what it said, `reading`, the reading it judged; `window` empty). `until`, ISO
+    8601: when the window resets, for a cap; for the rule, when the reading it judged
+    stops standing (its earliest reset); empty when unknown."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -132,6 +133,9 @@ class QuotaRest(BaseModel):
     until: str = ""
     #: The account whose reading it is (`QuotaReading.account`); '' when not known.
     account: str = ""
+    #: The reading the quota rule judged: `{observed_at, windows: {<window>: {pct, resets_at}}}`;
+    #: None for a cap's rest.
+    reading: dict | None = None
 
 
 class SkippedHop(QuotaRest):

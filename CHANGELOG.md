@@ -796,6 +796,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A rest by `quota_rule` records the reading the rule judged (`reading`: when it arrived,
+  each window's usage and reset) and ends when that reading is out of date, at its
+  earliest reset: it recorded no reading and never ended, since nothing launches on a
+  resting credential to bring a newer one.
 - A failover breaker stays open when a launch that began before it opened succeeds: such a
   success says nothing of the limit since, and it sent the next task back to the hop that
   had just answered 429 (the demo's test failed under load because of it).

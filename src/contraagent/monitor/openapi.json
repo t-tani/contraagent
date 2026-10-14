@@ -1355,6 +1355,18 @@
             "title": "Account",
             "default": ""
           },
+          "reading": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading"
+          },
           "since": {
             "type": "string",
             "title": "Since",
@@ -4019,6 +4031,18 @@
             "type": "string",
             "title": "Account",
             "default": ""
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading"
           },
           "route": {
             "type": "string",

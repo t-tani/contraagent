@@ -463,7 +463,7 @@ class Monitor:
                 continue
             name = (row["credential"], row.get("account") or "")
             if row.get("event") == "start":
-                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until", "account")}
+                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until", "account", "reading")}
                 rest = {**rest, **{k: rest[k] or "" for k in ("window", "rule", "until", "account")}}
                 open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
                 rests.append(open_[name])

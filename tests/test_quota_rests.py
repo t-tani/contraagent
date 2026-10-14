@@ -102,6 +102,48 @@ def test_a_credential_without_caps_or_reading_never_rests(tmp_path):
     assert r.reason("gateway") == ""  # unknown, no reading
 
 
+def test_a_rule_s_rest_records_its_reading_and_ends_when_that_reading_is_out_of_date(tmp_path):
+    """Nothing launches on a resting credential, so no new reading comes: the rule's rest
+    lasts until the reading it judged is out of date (its earliest reset), then the stale
+    reading counts no more, and the next launch brings a fresh one."""
+    clock = [NOW]
+    events: list[tuple[str, dict]] = []
+    r = QuotaRests(
+        config(tmp_path).credentials(),
+        lambda cred, rd: "pace" if (rd.seven_day_pct or 0) > 50 else None,
+        now=lambda: clock[0],
+        on_change=lambda event, rest: events.append((event, rest.to_dict())),
+    )
+    r.observe(reading("sub-b", five=10, week=60))  # 5-hour resets at NOW + 2h, weekly in 3 days
+    [rest] = r.rests("sub-b")
+    assert rest.rule == "pace" and rest.until == iso(NOW + timedelta(hours=2))
+    assert rest.reading == {
+        "observed_at": iso(NOW),
+        "windows": {
+            "five_hour": {"pct": 10, "resets_at": iso(NOW + timedelta(hours=2))},
+            "seven_day": {"pct": 60, "resets_at": iso(NOW + timedelta(days=3))},
+        },
+    }
+    assert events == [("start", rest.to_dict())] and events[0][1]["reading"] == rest.reading
+    clock[0] = NOW + timedelta(hours=1, minutes=59)
+    assert r.reason("sub-b") == "sub-b rests: pace"  # the reading still stands
+    clock[0] = NOW + timedelta(hours=2, seconds=1)
+    assert r.reason("sub-b") == ""  # out of date: no rest on it
+    assert [e for e, _ in events] == ["start", "end"]
+    r.observe(reading("sub-b", five=20, week=40, observed=clock[0], resets=clock[0] + timedelta(hours=5)))
+    assert r.reason("sub-b") == ""  # the fresh reading, judged anew
+
+
+def test_a_rule_s_rest_on_a_reading_with_no_reset_lasts_its_window_s_length(tmp_path):
+    clock = [NOW]
+    r = QuotaRests(config(tmp_path).credentials(), lambda cred, rd: "pace", now=lambda: clock[0])
+    r.observe(reading("sub-b", five=10, resets=None))
+    # five_hour names no reset: it stands 5 hours after it was observed; seven_day resets in 3 days.
+    assert r.rests("sub-b")[0].until == iso(NOW + timedelta(hours=5))
+    clock[0] = NOW + timedelta(hours=5, seconds=1)
+    assert r.rests("sub-b") == []
+
+
 def test_a_quota_rule_rests_a_credential_by_its_reading(tmp_path):
     r = rests(tmp_path, rule=lambda cred, rd: f"pace {rd.seven_day_pct:.0f}%" if (rd.seven_day_pct or 0) > 50 else None)
     r.observe(reading("sub-b", week=60))

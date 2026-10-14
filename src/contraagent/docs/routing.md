@@ -105,9 +105,18 @@ monitor ("not run" and the cause). A task of `finishing_kinds` still launches
 on a resting credential for `grace_s` after the rest began, as it does past a
 deadline.
 
+A rest by the rule lasts while the reading it judged stands: until the earliest
+reset among that reading's windows (a window that names no reset stands for its
+length after the reading arrived). Nothing launches on a resting credential, so no
+newer reading comes; after that time the stale reading no longer counts, the
+credential does not rest, and the next launch brings a reading for the rule to
+judge again. The rest records the reading it judged (`reading`: when it arrived,
+each window's usage and reset) and that time (`until`).
+
 `run.json` records the run's caps (`quota_caps`) and the rule's name
 (`quota_rule`), and `rests.jsonl` each rest as it begins and ends: the window,
-the reading, the cap (or what the rule said) and when the window resets. The
+the reading, the cap (or what the rule said and the reading it judged) and when it
+ends. The
 monitor's overview shows them beside each account's usage: the limit on each
 window, the identity paused until when, and its rests over the run.
 

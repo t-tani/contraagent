@@ -593,6 +593,10 @@ export type components = {
              * @default
              */
             account?: string;
+            /** Reading */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Since
              * @description when it began resting, ISO 8601
@@ -1937,6 +1941,10 @@ export type components = {
              * @default
              */
             account?: string;
+            /** Reading */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Route
              * @default
