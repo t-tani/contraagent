@@ -230,7 +230,7 @@ export type paths = {
         };
         /**
          * Api Panel
-         * @description One registered panel's body: a JSON object whose shape the domain chooses.
+         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object.
          */
         get: operations["api_panel_api_runs__run__panels__name__get"];
         put?: never;
@@ -340,6 +340,33 @@ export type components = {
             plugin: string;
         };
         /**
+         * BlocksBody
+         * @description Bodies one under another: a panel of several parts.
+         */
+        BlocksBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default blocks
+             * @constant
+             */
+            type?: "blocks";
+            /** Blocks */
+            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
+                [key: string]: unknown;
+            })[];
+        };
+        /**
          * Changes
          * @description The files one attempt changed under its task's `changes` patterns, relative to
          *     the working directory (`dispatch.Changes`).
@@ -355,6 +382,50 @@ export type components = {
             removed?: string[];
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * ChartSeries
+         * @description One series: a value per label of the chart's `x`; null where it has none.
+         */
+        ChartSeries: {
+            /** Name */
+            name: string;
+            /** Values */
+            values: (number | null)[];
+        };
+        /**
+         * ColumnsBody
+         * @description Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar.
+         */
+        ColumnsBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default columns
+             * @constant
+             */
+            type?: "columns";
+            /** X */
+            x: string[];
+            /** Series */
+            series: components["schemas"]["ChartSeries"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+            /**
+             * Stacked
+             * @default false
+             */
+            stacked?: boolean;
         };
         /**
          * ContractField
@@ -709,10 +780,77 @@ export type components = {
              */
             pass: number | null;
         };
+        /** HBar */
+        HBar: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /** Tone */
+            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
+        };
+        /**
+         * HBarsBody
+         * @description Horizontal bars, one per label, in the order given.
+         */
+        HBarsBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default hbars
+             * @constant
+             */
+            type?: "hbars";
+            /** Bars */
+            bars: components["schemas"]["HBar"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HeatmapBody
+         * @description A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none.
+         */
+        HeatmapBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default heatmap
+             * @constant
+             */
+            type?: "heatmap";
+            /** X */
+            x: string[];
+            /** Y */
+            y: string[];
+            /** Values */
+            values: (number | null)[][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
         };
         /**
          * Hop
@@ -1011,6 +1149,32 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /** LinesBody */
+        LinesBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default lines
+             * @constant
+             */
+            type?: "lines";
+            /** X */
+            x: string[];
+            /** Series */
+            series: components["schemas"]["ChartSeries"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+        };
         /**
          * MessageEvent
          * @description omp: a whole message or a turn's closing thinking. Either `role` + `text`, or `thinking`.
@@ -1160,7 +1324,8 @@ export type components = {
         };
         /**
          * PanelInfo
-         * @description A panel a domain registered: its tab label, tooltip and glyph.
+         * @description A panel a domain registered: its tab label, tooltip and glyph, and what it is
+         *     computed over (`run`: one run, a tab of the run; `trends`: the runs of a period).
          */
         PanelInfo: {
             /** Name */
@@ -1171,22 +1336,46 @@ export type components = {
             description: string;
             /** Icon */
             icon: string;
+            /**
+             * Scope
+             * @default run
+             * @enum {string}
+             */
+            scope?: "run" | "trends";
         };
         /**
          * PanelMessage
-         * @description A domain panel's body (any JSON object), sent when it changed. `{"error": ...}`
+         * @description A domain panel's body (`PanelBody`), sent when it changed. `{"error": ...}`
          *     when the panel raised.
          */
         PanelMessage: {
             /**
              * Event
-             * @description `panel:<name>`, one per name in /api/info `panels`
+             * @description `panel:<name>`, one per run panel in /api/info `panels`
              */
             event: string;
             /** Data */
-            data: {
+            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * PanelTile
+         * @description A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts.
+         */
+        PanelTile: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | string;
+            /** Tone */
+            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
+            /** Tip */
+            tip?: string | null;
+            /** Sub */
+            sub?: string[][];
         };
         /**
          * Plan
@@ -1727,6 +1916,57 @@ export type components = {
             behind: number;
         };
         /**
+         * TableBody
+         * @description Rows of values, one key per column; a row's `_tone` is its status.
+         */
+        TableBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default table
+             * @constant
+             */
+            type?: "table";
+            /** Columns */
+            columns: components["schemas"]["TableColumn"][];
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * TableColumn
+         * @description A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
+         *     the cell, as long as the value against the column's largest.
+         */
+        TableColumn: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Align */
+            align?: ("start" | "end") | null;
+            /** Format */
+            format?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+            /**
+             * Bar
+             * @default false
+             */
+            bar?: boolean;
+            /** Tip */
+            tip?: string | null;
+        };
+        /**
          * TaskCounts
          * @description A run's tasks (not attempts) by how they ended. `not_started`: refused for
          *     an input, or waiting behind a task that failed; `running`: running now (in a
@@ -1904,6 +2144,28 @@ export type components = {
              * @description the full command line, cut at 600 characters
              */
             cmd: string;
+        };
+        /** TilesBody */
+        TilesBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default tiles
+             * @constant
+             */
+            type?: "tiles";
+            /** Tiles */
+            tiles: components["schemas"]["PanelTile"][];
         };
         /**
          * TimeBoxInfo
@@ -2466,12 +2728,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };
             };
-            /** @description no panel of that name */
+            /** @description no run panel of that name */
             404: {
                 headers: {
                     [name: string]: unknown;

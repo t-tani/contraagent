@@ -1,0 +1,58 @@
+// A pipeline's own view (`monitor.Panel`) → what the generic elements take: a table
+// body's columns and rows for `<cae-data-table>`, its tiles for `<cae-stat-tiles>`.
+import type { PanelTile, TableBody, TableColumn } from '@contraagent/api';
+import type { DataColumn } from '@contraagent/elements/data-table';
+import type { StatTile } from '@contraagent/elements/tiles';
+import type { Tone } from '@contraagent/elements';
+import { html } from 'lit';
+import { cellText } from '../words/panels.js';
+
+/** A row of a table body: a value per column id, and its status (`_tone`). */
+export type BodyRow = Readonly<Record<string, unknown>> & { _tone?: Tone | null };
+
+const TONES: readonly string[] = ['failed', 'attention', 'done', 'running', 'muted', 'neutral'];
+
+/** A row's status, when it names one the monitor knows. */
+export const rowTone = (r: BodyRow): Tone | undefined => (typeof r._tone === 'string' && TONES.includes(r._tone) ? r._tone : undefined);
+
+/** The formats of numbers: their columns are right-aligned. */
+const NUMERIC = new Set(['usd', 'pct', 'duration', 'tokens', 'number']);
+
+/** A cell as the text it is ordered by. */
+const cellKey = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v));
+
+/** The order of two cells: numbers by value, then text; empty cells last. */
+function compareCells(a: unknown, b: unknown): number {
+  const empty = (v: unknown) => v === null || v === undefined || v === '';
+  if (empty(a) || empty(b)) return empty(a) === empty(b) ? 0 : empty(a) ? 1 : -1;
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return cellKey(a).localeCompare(cellKey(b));
+}
+
+/** The columns of a table body: each cell written by its column's format, a number right-aligned, a `bar` column with a bar. */
+export function bodyColumns(body: TableBody): DataColumn<BodyRow>[] {
+  return body.columns.map((c: TableColumn, i): DataColumn<BodyRow> => {
+    const numeric = c.format ? NUMERIC.has(c.format) : body.rows.some((r) => typeof (r as BodyRow)[c.id] === 'number');
+    const top = c.bar ? Math.max(0, ...body.rows.map((r) => Number((r as BodyRow)[c.id]) || 0)) : 0;
+    return {
+      id: c.id,
+      header: c.label,
+      tip: c.tip ?? undefined,
+      align: c.align ?? (numeric ? 'end' : 'start'),
+      rowHeader: i === 0,
+      compare: (a, b) => compareCells(a[c.id], b[c.id]),
+      text: (r) => cellText(r[c.id], c.format),
+      cell: (r) => {
+        const v = r[c.id];
+        const text = cellText(v, c.format);
+        if (!c.bar || typeof v !== 'number') return text;
+        // A measure, not a verdict: the bar stays neutral; the row's tone marks its status.
+        return html`${text}<span class="jdur" aria-hidden="true"><i style="width: ${top > 0 ? (100 * Math.max(0, v)) / top : 0}%"></i></span>`;
+      },
+    };
+  });
+}
+
+/** A body's tiles as `<cae-stat-tiles>` takes them. */
+export const bodyTiles = (tiles: readonly PanelTile[]): StatTile[] =>
+  tiles.map((t) => ({ id: t.id, label: t.label, value: t.value, tone: t.tone ?? undefined, tip: t.tip ?? undefined, sub: t.sub ?? [] }));

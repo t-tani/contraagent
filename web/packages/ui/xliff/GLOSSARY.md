@@ -96,6 +96,10 @@ wherever the UI shows a state or a count to the reader.
 | finished with errors (a run with failed or not-started tasks) | エラーで終了 |
 | defined in Python code | Python コードで定義 |
 | custom view (a `monitor.Panel`: an extra view the pipeline's code adds) | カスタムビュー |
+| Show table / Show chart (a chart's switch to a table of its values, and back) | 表で表示 / グラフで表示 |
+| Total (the sum of a stacked bar) / Other (series past the sixth, summed) / Label (a chart table's first column) | 合計 / その他 / 項目 |
+| `low` to `high` (a heatmap's colour scale) | `low` 〜 `high` |
+| No values (a chart with nothing to draw) / No rows (a table with no rows) | 値なし / 行なし |
 | custom column (`row_extras`: a journal column the pipeline's code adds; its name is the pipeline's, shown as written) | カスタム列 |
 | Models (a run's use of each model, `Plan.models`), Share, Measure, Other models (the models past the sixth colour, folded into one part of the bar) | モデル別の内訳, 割合, 指標, その他のモデル |
 | identity (the credential an attempt authenticated as) | 認証情報 |

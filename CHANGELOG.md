@@ -335,6 +335,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   output (a sentence before it, a fence around it) gives the document as the output
   instead of a fix-up round; the whole message is kept beside the output file. The
   progress line of an attempt with fix-up rounds names the first round's first error.
+- Typed panel bodies: a `monitor.Panel` may return tiles, a table, charts (`columns`,
+  `lines`, `heatmap`, `hbars`) or `blocks` of them (`contraagent.monitor.api.PanelBody`,
+  as models or dicts with their `type`), which the monitor draws with its own elements;
+  any other dict is still a JSON tree. `Panel(scope="trends")` is a view over the runs
+  of a period (`fn(runs, period)`, `Period`); it is not a run's tab.
+- `contraagent monitor --panels views.py:PANELS` (also `--groups` and `--task-detail`):
+  a pipeline's own views from a file or a module, with no script of its own.
+- `@contraagent/elements/charts`: `<cae-column-chart>` (stacked or side by side),
+  `<cae-line-chart>`, `<cae-heatmap>` and `<cae-bar-chart>`, each with a legend, a
+  tooltip reached with the pointer or the keys, and a table of its values; the series
+  take `--ca-series-1` to `--ca-series-6`, and past six they fold into one.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a

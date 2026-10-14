@@ -13,7 +13,7 @@ const UI_FOLDERS = readdirSync(new URL(`./${UI}/elements`, import.meta.url), { w
   .map((d) => d.name);
 /** The folders of @contraagent/elements in layer order: a folder imports only from itself and the ranks before it. */
 const ELEMENTS = 'packages/elements/src';
-const ELEMENTS_LAYERS = [['core'], ['themes'], ['styles'], ['primitives'], ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'], ['graph'], ['define']];
+const ELEMENTS_LAYERS = [['core'], ['themes'], ['styles'], ['primitives'], ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count', 'charts'], ['graph'], ['define']];
 /** `elements/<a>` may import only itself and `shared/`; these imports wait for a later phase. */
 /** @type {Record<string, string[]>} */
 const CROSS_FOLDER_GAPS = {};

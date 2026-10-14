@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, Validatio
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.2.0"
+API_VERSION = "3.3.0"
 
 
 class Closed(BaseModel):
@@ -58,12 +58,14 @@ JsonObject = dict[str, Any]
 
 
 class PanelInfo(Closed):
-    """A panel a domain registered: its tab label, tooltip and glyph."""
+    """A panel a domain registered: its tab label, tooltip and glyph, and what it is
+    computed over (`run`: one run, a tab of the run; `trends`: the runs of a period)."""
 
     name: str
     title: str
     description: str
     icon: str
+    scope: Literal["run", "trends"] = "run"
 
 
 class Info(Closed):
@@ -782,6 +784,140 @@ class StreamPage(Closed):
     behind: int
 
 
+# --- panel bodies ------------------------------------------------------------
+#
+# What a panel returns: a typed body, drawn with the monitor's tiles, table and
+# charts, or any other JSON object, shown as a JSON tree. A body is typed by its
+# `type`; one of these types that does not validate is an error, never a JSON tree.
+
+#: A status a value or a row is in: the monitor's status colours (`Tone` in the UI).
+Tone = Literal["failed", "attention", "done", "running", "muted", "neutral"]
+
+#: How a number is written. `usd`: dollars; `pct`: a fraction (0.97 is 97%); `duration`:
+#: seconds; `tokens`: a count of tokens (1.2k); `datetime`: an ISO 8601 time; `number`: as is.
+ValueFormat = Literal["usd", "pct", "duration", "tokens", "datetime", "number"]
+
+
+class _Body(Closed):
+    title: str | None = Field(default=None, description="a heading over the body")
+    collapsed: bool = Field(default=False, description="shown folded, under its title")
+
+
+class PanelTile(Closed):
+    """A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts."""
+
+    id: str
+    label: str
+    value: float | str
+    tone: Tone | None = None
+    tip: str | None = None
+    sub: list[list[str]] = Field(default_factory=list)
+
+
+class TilesBody(_Body):
+    type: Literal["tiles"] = "tiles"
+    tiles: list[PanelTile]
+
+
+class TableColumn(Closed):
+    """A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
+    the cell, as long as the value against the column's largest."""
+
+    id: str
+    label: str
+    align: Literal["start", "end"] | None = None
+    format: ValueFormat | None = None
+    bar: bool = False
+    tip: str | None = None
+
+
+class TableBody(_Body):
+    """Rows of values, one key per column; a row's `_tone` is its status."""
+
+    type: Literal["table"] = "table"
+    columns: list[TableColumn]
+    rows: list[dict[str, Any]]
+
+
+class ChartSeries(Closed):
+    """One series: a value per label of the chart's `x`; null where it has none."""
+
+    name: str
+    values: list[float | None]
+
+
+class ColumnsBody(_Body):
+    """Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar."""
+
+    type: Literal["columns"] = "columns"
+    x: list[str]
+    series: list[ChartSeries]
+    unit: ValueFormat | None = None
+    stacked: bool = False
+
+
+class LinesBody(_Body):
+    type: Literal["lines"] = "lines"
+    x: list[str]
+    series: list[ChartSeries]
+    unit: ValueFormat | None = None
+
+
+class HeatmapBody(_Body):
+    """A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none."""
+
+    type: Literal["heatmap"] = "heatmap"
+    x: list[str]
+    y: list[str]
+    values: list[list[float | None]]
+    unit: ValueFormat | None = None
+
+
+class HBar(Closed):
+    label: str
+    value: float
+    tone: Tone | None = None
+
+
+class HBarsBody(_Body):
+    """Horizontal bars, one per label, in the order given."""
+
+    type: Literal["hbars"] = "hbars"
+    bars: list[HBar]
+    unit: ValueFormat | None = None
+
+
+class BlocksBody(_Body):
+    """Bodies one under another: a panel of several parts."""
+
+    type: Literal["blocks"] = "blocks"
+    blocks: list[PanelBody]
+
+
+#: The `type` of each typed body.
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "blocks")
+
+
+def _panel_kind(v: Any) -> str:
+    t = v.get("type") if isinstance(v, dict) else getattr(v, "type", None)
+    return t if t in PANEL_TYPES else "untyped"
+
+
+#: What a panel returns: a typed body, or any JSON object (shown as a JSON tree).
+PanelBody = Annotated[
+    Annotated[TilesBody, Tag("tiles")]
+    | Annotated[TableBody, Tag("table")]
+    | Annotated[ColumnsBody, Tag("columns")]
+    | Annotated[LinesBody, Tag("lines")]
+    | Annotated[HeatmapBody, Tag("heatmap")]
+    | Annotated[HBarsBody, Tag("hbars")]
+    | Annotated[BlocksBody, Tag("blocks")]
+    | Annotated[JsonObject, Tag("untyped")],
+    Discriminator(_panel_kind),
+]
+BlocksBody.model_rebuild()
+
+
 # --- live feeds (Server-Sent Events) -------------------------------------
 #
 # `/events?run=` and `/events/stream?run=&key=` send `text/event-stream`
@@ -821,11 +957,11 @@ class CursorMessage(Closed):
 
 
 class PanelMessage(Closed):
-    """A domain panel's body (any JSON object), sent when it changed. `{"error": ...}`
+    """A domain panel's body (`PanelBody`), sent when it changed. `{"error": ...}`
     when the panel raised."""
 
-    event: str = Field(pattern=r"^panel:.+$", description="`panel:<name>`, one per name in /api/info `panels`")
-    data: JsonObject
+    event: str = Field(pattern=r"^panel:.+$", description="`panel:<name>`, one per run panel in /api/info `panels`")
+    data: PanelBody
 
 
 class FeedReady(Closed):

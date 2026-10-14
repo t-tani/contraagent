@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.2.0"
+    "version": "3.3.0"
   },
   "paths": {
     "/api/info": {
@@ -432,7 +432,7 @@
     "/api/runs/{run}/panels/{name}": {
       "get": {
         "summary": "Api Panel",
-        "description": "One registered panel's body: a JSON object whose shape the domain chooses.",
+        "description": "One run panel's body: a typed body (tiles, a table, charts), or any JSON object.",
         "operationId": "api_panel_api_runs__run__panels__name__get",
         "parameters": [
           {
@@ -460,15 +460,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TilesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TableBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ColumnsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LinesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HeatmapBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HBarsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlocksBody"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ],
                   "title": "Response Api Panel Api Runs  Run  Panels  Name  Get"
                 }
               }
             }
           },
           "404": {
-            "description": "no panel of that name"
+            "description": "no run panel of that name"
           },
           "422": {
             "description": "Validation Error",
@@ -679,6 +704,74 @@
         "title": "AgentProcess",
         "description": "One live agent launch: the topmost process of a coding-agent CLI, found by its\n`CONTRAAGENT_*` environment; or, for an agent behind a library-call backend (no\nchild process), the run's own process, from its in-flight marker, with empty\n`cmd`, `full_cmd`, `role`, `model` and `plugin`."
       },
+      "BlocksBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "blocks",
+            "title": "Type",
+            "default": "blocks"
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TilesBody"
+                },
+                {
+                  "$ref": "#/components/schemas/TableBody"
+                },
+                {
+                  "$ref": "#/components/schemas/ColumnsBody"
+                },
+                {
+                  "$ref": "#/components/schemas/LinesBody"
+                },
+                {
+                  "$ref": "#/components/schemas/HeatmapBody"
+                },
+                {
+                  "$ref": "#/components/schemas/HBarsBody"
+                },
+                {
+                  "$ref": "#/components/schemas/BlocksBody"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Blocks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "blocks"
+        ],
+        "title": "BlocksBody",
+        "description": "Bodies one under another: a panel of several parts."
+      },
       "Changes": {
         "properties": {
           "created": {
@@ -714,6 +807,110 @@
         "type": "object",
         "title": "Changes",
         "description": "The files one attempt changed under its task's `changes` patterns, relative to\nthe working directory (`dispatch.Changes`)."
+      },
+      "ChartSeries": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "values"
+        ],
+        "title": "ChartSeries",
+        "description": "One series: a value per label of the chart's `x`; null where it has none."
+      },
+      "ColumnsBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "columns",
+            "title": "Type",
+            "default": "columns"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ChartSeries"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "stacked": {
+            "type": "boolean",
+            "title": "Stacked",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "series"
+        ],
+        "title": "ColumnsBody",
+        "description": "Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar."
       },
       "ContractField": {
         "properties": {
@@ -1387,6 +1584,105 @@
         "title": "FlowLoop",
         "description": "A loop of a generator around a call site, and the pass the call site was in."
       },
+      "HBar": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "HBar"
+      },
+      "HBarsBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "hbars",
+            "title": "Type",
+            "default": "hbars"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/HBar"
+            },
+            "type": "array",
+            "title": "Bars"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bars"
+        ],
+        "title": "HBarsBody",
+        "description": "Horizontal bars, one per label, in the order given."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1399,6 +1695,93 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HeatmapBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "heatmap",
+            "title": "Type",
+            "default": "heatmap"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Y"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "values"
+        ],
+        "title": "HeatmapBody",
+        "description": "A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none."
       },
       "Hop": {
         "properties": {
@@ -1959,6 +2342,74 @@
         "title": "LaunchEvent",
         "description": "Head of one invocation: the exact argv, cwd and the submitted prompt."
       },
+      "LinesBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "lines",
+            "title": "Type",
+            "default": "lines"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ChartSeries"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "series"
+        ],
+        "title": "LinesBody"
+      },
       "MessageEvent": {
         "properties": {
           "type": {
@@ -2240,6 +2691,15 @@
           "icon": {
             "type": "string",
             "title": "Icon"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "run",
+              "trends"
+            ],
+            "title": "Scope",
+            "default": "run"
           }
         },
         "additionalProperties": false,
@@ -2251,22 +2711,47 @@
           "icon"
         ],
         "title": "PanelInfo",
-        "description": "A panel a domain registered: its tab label, tooltip and glyph."
+        "description": "A panel a domain registered: its tab label, tooltip and glyph, and what it is\ncomputed over (`run`: one run, a tab of the run; `trends`: the runs of a period)."
       },
       "PanelMessage": {
         "additionalProperties": false,
-        "description": "A domain panel's body (any JSON object), sent when it changed. `{\"error\": ...}`\nwhen the panel raised.",
+        "description": "A domain panel's body (`PanelBody`), sent when it changed. `{\"error\": ...}`\nwhen the panel raised.",
         "properties": {
           "event": {
-            "description": "`panel:<name>`, one per name in /api/info `panels`",
+            "description": "`panel:<name>`, one per run panel in /api/info `panels`",
             "pattern": "^panel:.+$",
             "title": "Event",
             "type": "string"
           },
           "data": {
-            "additionalProperties": true,
-            "title": "Data",
-            "type": "object"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TilesBody"
+              },
+              {
+                "$ref": "#/components/schemas/TableBody"
+              },
+              {
+                "$ref": "#/components/schemas/ColumnsBody"
+              },
+              {
+                "$ref": "#/components/schemas/LinesBody"
+              },
+              {
+                "$ref": "#/components/schemas/HeatmapBody"
+              },
+              {
+                "$ref": "#/components/schemas/HBarsBody"
+              },
+              {
+                "$ref": "#/components/schemas/BlocksBody"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Data"
           }
         },
         "required": [
@@ -2275,6 +2760,78 @@
         ],
         "title": "PanelMessage",
         "type": "object"
+      },
+      "PanelTile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          },
+          "tip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tip"
+          },
+          "sub": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Sub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "value"
+        ],
+        "title": "PanelTile",
+        "description": "A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts."
       },
       "Plan": {
         "properties": {
@@ -3345,6 +3902,127 @@
         "title": "StreamPage",
         "description": "A page of one transcript. `total` is the file's line count: pass it back as\n`since` for the next page. The first page (`since=0`) is the tail; `behind`\nlines precede it, fetched by asking again with a smaller `since`."
       },
+      "TableBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "table",
+            "title": "Type",
+            "default": "table"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TableColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "title": "TableBody",
+        "description": "Rows of values, one key per column; a row's `_tone` is its status."
+      },
+      "TableColumn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "align": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "end"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Align"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "bar": {
+            "type": "boolean",
+            "title": "Bar",
+            "default": false
+          },
+          "tip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tip"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "TableColumn",
+        "description": "A column of a table body: `id` names the key of each row it shows. `bar`: a bar in\nthe cell, as long as the value against the column's largest."
+      },
       "TaskCounts": {
         "properties": {
           "total": {
@@ -3853,6 +4531,47 @@
         ],
         "title": "TaskLaunch",
         "description": "A live launch of the task (a child process, or an in-process marker with empty plugin/model/role/cmd)."
+      },
+      "TilesBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "tiles",
+            "title": "Type",
+            "default": "tiles"
+          },
+          "tiles": {
+            "items": {
+              "$ref": "#/components/schemas/PanelTile"
+            },
+            "type": "array",
+            "title": "Tiles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tiles"
+        ],
+        "title": "TilesBody"
       },
       "TimeBoxInfo": {
         "properties": {

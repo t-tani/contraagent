@@ -61,6 +61,7 @@ pnpm add <checkout>/web/tarballs/contraagent-elements-*.tgz
 - [Mark matrix](docs/matrix.md): marks in a table, a row per series, the columns under nested groups.
 - [Stat tiles](docs/tiles.md): figures as tiles, each a label, a value that counts up, lines of facts and a link.
 - [Lanes](docs/lanes.md): bars on a time axis, a lane per group, running bars growing until now.
+- [Charts](docs/charts.md): columns (stacked or side by side), lines, a heatmap and horizontal bars of plain series, each with a legend, a tooltip and a table of its values.
 - [Check table](docs/check-table.md): named values checked one by one, each with what it must be, what it is and the verdict.
 - [Transcript](docs/transcript.md): a conversation with an agent in sessions: bubbles, reasoning, tool cards and web searches, following the end as it grows.
 - [Building a page](docs/page.md): a CI pipeline's page from several elements: a theme switch, stat tiles, a sortable table, a graph with shards and a retry loop, and a detail panel.

@@ -1,7 +1,7 @@
 // The monitor's tab list: the built-in views, then the custom views; each tab
 // with its count, and the line under the selected one. The selected tab is
 // bold and underlined, not only coloured.
-import type { Info } from '@contraagent/api';
+import { isRunPanel, type Info } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
@@ -27,11 +27,11 @@ const builtinTabs = (): Omit<TabInfo, 'panel'>[] => [
   { id: 'stream', label: msg('Task detail'), icon: '✦' },
 ];
 
-/** Every tab, in the current locale: the built-in ones, then one per custom view (`panels`). */
+/** Every tab, in the current locale: the built-in ones, then one per custom view computed per run (`panels`; a trends panel is not a run's tab). */
 export function monitorTabs(panels: Info['panels']): TabInfo[] {
   return [
     ...builtinTabs().map((t) => ({ ...t, panel: false })),
-    ...panels.map((p) => ({
+    ...panels.filter(isRunPanel).map((p) => ({
       id: `panel:${p.name}` as Tab,
       label: p.title || p.name,
       icon: p.icon || '▤',

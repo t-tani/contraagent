@@ -9,9 +9,9 @@ and never touches the pipeline. The web server needs the `monitor` extra
 itself and the response models in `contraagent.monitor.api` do not.
 """
 
-from contraagent.monitor.core import Monitor, Panel
+from contraagent.monitor.core import Monitor, Panel, Period
 
-__all__ = ["Monitor", "Panel", "create_app", "serve"]
+__all__ = ["Monitor", "Panel", "Period", "create_app", "serve"]
 
 
 def create_app(monitor: Monitor, **kwargs):
