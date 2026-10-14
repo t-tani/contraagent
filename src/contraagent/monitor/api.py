@@ -235,7 +235,7 @@ class PlanNode(Open):
     key: str
     kind: str
     unit: str = ""
-    extra_units: list[str] = Field(default_factory=list, description="further units it locks while it runs, besides `unit`")
+    claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     after: list[str] = Field(default_factory=list, description="task keys it waits for")
     executor: Executor = "agent"
     flow: list[FlowFrame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")

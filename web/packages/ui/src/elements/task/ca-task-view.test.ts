@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // One task's detail: fetched for the task shown, then its header and the pane
 // of the view chosen.
-import type { ContractSpec, JournalRow, MonitorClient, TaskDetail } from '@contraagent/api';
+import type { ContractSpec, JournalRow, MonitorClient, Plan, TaskDetail } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
 import { emptyDetail } from '../../controllers/task-detail.js';
 import './ca-task-view.js';
@@ -65,6 +65,22 @@ async function view(props: Partial<CaTaskView>): Promise<CaTaskView> {
 const root = (el: CaTaskView) => el.shadowRoot!;
 
 describe('ca-task-view', () => {
+  it('shows the names the task claims as its locks', async () => {
+    const node = {
+      key: 'review-a', kind: 'review', unit: 'a', claims: ['topic:a', 'topic:b'], after: [],
+      executor: 'agent', flow: [], created_from: [], flow_call: '0', ts: '', state: 'done', group: 0, row: 0,
+    };
+    const plan = { nodes: [node], groups: [] } as unknown as Plan;
+    const { client } = fakeClient({ 'review-a': review });
+    const el = await view({ client, taskKey: 'review-a', plan });
+    const metas = [...root(el).querySelectorAll('.taskmeta .meta')];
+    const locks = metas.find((m) => text(m).startsWith('Locks'));
+    expect(text(locks)).toBe('Locks topic:atopic:b');
+    expect([...locks!.children].map(text)).toEqual(['topic:a', 'topic:b']);
+    expect(locks!.getAttribute('title')).toBe('Names this task holds while it runs (claims)');
+    el.remove();
+  });
+
   it('loads the task and shows its header: name, verdict, a chip per attempt', async () => {
     const { client, asked } = fakeClient({ 'review-a': review });
     const el = await view({ client, taskKey: 'review-a' });

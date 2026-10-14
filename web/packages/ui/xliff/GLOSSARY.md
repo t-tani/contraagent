@@ -98,7 +98,7 @@ wherever the UI shows a state or a count to the reader.
 | identity (the credential an attempt authenticated as) | 認証情報 |
 | default (the built-in credential `ambient`: local credentials) | 既定 |
 | No unit (a row for tasks that run once per run, not once per unit) | ユニットなし |
-| Also locks (a task's extra units: units it locks while it runs, besides its own) | 併せてロックするユニット |
+| Locks (a task's claims: the names it holds while it runs) | ロック; tooltip: 実行中にこのタスクが占有する名前（claims） |
 | reasoning (the model's thinking in a transcript) | 思考 |
 | cost (USD, as the coding agent reports it) | 料金 |
 | tokens / input / output / cache read / cache write / API calls | トークン / 入力 / 出力 / キャッシュ読み込み / キャッシュ書き込み / API 呼び出し |

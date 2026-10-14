@@ -1194,10 +1194,10 @@ export type components = {
              */
             unit?: string;
             /**
-             * Extra Units
-             * @description further units it locks while it runs, besides `unit`
+             * Claims
+             * @description the names it holds while it runs, its kind's `claims` filled in
              */
-            extra_units?: string[];
+            claims?: string[];
             /**
              * After
              * @description task keys it waits for

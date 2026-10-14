@@ -4,12 +4,14 @@ One finished task wakes the ready tasks at the head of the queue. A task is
 ready when:
 
 * every `Task.after` key is done;
-* no task of a *different* kind holds one of its units (`Task.units`: its
-  `unit` and its `extra_units`). Tasks of the same kind on one unit run
-  concurrently on purpose; only a different kind on that unit has to wait its
-  turn;
-* the kind's own cap (`runner.config(task).max_concurrent`) and every tag's
-  capacity (`tag_capacity`) have room.
+* every name it claims (`Task.claims`) has room: fewer running tasks hold it
+  than its capacity (`claim_capacity`; 1 when no entry names it). A
+  `claim_capacity` key is a name or an `fnmatch` pattern (`topic:*`); a pattern
+  gives each name it matches a capacity of its own, not one shared among them.
+  A name's own entry outranks a pattern, and the longest matching pattern
+  outranks the others. A task's kind or unit locks nothing: tasks that claim
+  nothing run together whatever they are;
+* the kind's own cap (`runner.config(task).max_concurrent`) has room.
 
 The schedule is a greedy list schedule: whenever a slot is free, the first
 task in the order that can start, starts; no slot idles while a task can start
@@ -24,10 +26,10 @@ The order:
   waiting first (a task's wait is bounded however high the levels of later
   arrivals are);
 * the **starvation guard**: when the first task in the order that cannot start
-  is overdue, a later task may not take a resource it still needs: one of its
-  tags, one of its units (a task of another kind), or a place under its kind's cap (a
-  task of its kind). So a task that needs two tags, or a unit that a stream of
-  tasks of one kind keeps busy, starts once what holds them ends.
+  is overdue, a later task may not take what it still needs: a name it claims,
+  or a place under its kind's cap (a task of its kind). So a task that claims
+  two names, or a name that a stream of tasks keeps busy, starts once what
+  holds them ends.
 
 With a deadline (`deadline_s`), from `deadline - slack_s` on the objective is
 the work finished by the deadline, not the makespan: tasks of `finishing_kinds`
@@ -78,6 +80,7 @@ cause as data (`on_event("deferred", task, reason=, cause=)`, `Deferral`).
 
 from __future__ import annotations
 
+import fnmatch
 import random
 import time
 from collections import deque
@@ -113,6 +116,11 @@ FollowUp = Callable[[TaskResult], list[Task]]
 OnResult = Callable[[TaskResult, int], None]  # on_result(result, attempt)
 
 
+def _is_pattern(name: str) -> bool:
+    """A `claim_capacity` key with an `fnmatch` wildcard."""
+    return any(ch in name for ch in "*?[")
+
+
 class _HasMaxConcurrent(Protocol):
     max_concurrent: int | None
 
@@ -128,7 +136,7 @@ class TaskRunner(Protocol):
 
 
 class WorkQueue:
-    """Runs Tasks against one `TaskRunner`, enforcing the per-unit
+    """Runs Tasks against one `TaskRunner`, enforcing the claim,
     ordering, concurrency-cap, retry, and throttle rules described in this
     module's docstring. Construct one per run; `add()` tasks, then `run()`
     to drain the queue to completion.
@@ -150,7 +158,7 @@ class WorkQueue:
         retry_on: frozenset[str] = frozenset(),
         throttle_on: frozenset[str] = frozenset(),
         finishing_kinds: tuple[str, ...] = (),
-        tag_capacity: Mapping[str, int] | None = None,
+        claim_capacity: Mapping[str, int] | None = None,
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
@@ -167,7 +175,9 @@ class WorkQueue:
         self.grace_s = grace_s
         self.hard_stop_at = (self.deadline_at + grace_s) if self.deadline_at is not None else None
         self.finishing_kinds = tuple(finishing_kinds)
-        self.tag_capacity: dict[str, int] = dict(tag_capacity or {})
+        self.claim_capacity: dict[str, int] = dict(claim_capacity or {})
+        # Patterns, the longest first: the first that matches a name no exact entry names wins.
+        self._claim_patterns = sorted((k for k in self.claim_capacity if _is_pattern(k)), key=len, reverse=True)
         # A domain's own estimate per task (e.g. from past runs); used when a
         # task carries none. Asked again on every pass, so it may learn as the run goes.
         self._estimate_fn = estimate
@@ -193,11 +203,8 @@ class WorkQueue:
         # guards against is two *concurrent* dispatches of the same work.
         self._inflight_keys: set[str] = set()
         self._running: dict[Future, Task] = {}
-        # Per unit: which kind currently occupies
-        # it and how many of that kind's tasks are in flight. A different
-        # kind wanting that same unit waits; more of the SAME kind does not.
-        self._running_unit_kind: dict[str, str] = {}
-        self._running_unit_count: dict[str, int] = {}
+        # Per claimed name: how many running tasks hold it.
+        self._held: dict[str, int] = {}
         self._done: dict[str, TaskResult] = {}  # by .id
         self._done_keys: set[str] = set()  # by .key: what `after` checks
         self._attempt: dict[str, int] = {}
@@ -270,39 +277,26 @@ class WorkQueue:
             return max(1, self.max_concurrent // 2)
         return self.max_concurrent
 
-    def _held_by_other_kind(self, task: Task) -> bool:
-        """A task of another kind holds one of its units."""
-        for unit in task.units:
-            occupant = self._running_unit_kind.get(unit)
-            if occupant is not None and occupant != task.kind:
-                return True
-        return False
-
     def _startable(self, task: Task, now: float) -> bool:
         """Its dependencies are done and it is not waiting for a retry."""
         return all(d in self._done_keys for d in task.after) and now >= self._not_before.get(task.id, 0.0)
 
     def _free(self, task: Task) -> bool:
-        """What it needs is free: its units (no other kind holds one), a place under its
-        kind's cap, and every tag."""
-        if self._held_by_other_kind(task):
-            return False
+        """What it needs is free: every name it claims, and a place under its kind's cap."""
         cap = self.runner.config(task).max_concurrent
         if cap is not None and sum(1 for t in self._running.values() if t.kind == task.kind) >= cap:
             return False
-        return not any(self._tag_full(t) for t in task.tags)
+        return not any(self._held.get(name, 0) >= self.capacity(name) for name in set(task.claims))
 
     def _possible(self, task: Task) -> bool:
         """It could start with nothing else running: no capacity of 0 stands in its way."""
         cap = self.runner.config(task).max_concurrent
-        return (cap is None or cap > 0) and all(self.tag_capacity.get(t, 1) > 0 for t in task.tags)
+        return (cap is None or cap > 0) and all(self.capacity(name) > 0 for name in task.claims)
 
     def _takes(self, task: Task, head: Task) -> bool:
-        """Whether starting `task` takes a resource `head` still needs: a capped tag of
-        its, one of its units (for another kind), or a place under its kind's cap."""
-        if any(t in self.tag_capacity for t in set(task.tags) & set(head.tags)):
-            return True
-        if task.kind != head.kind and set(task.units) & set(head.units):
+        """Whether starting `task` takes what `head` still needs: a name both claim, or a
+        place under its kind's cap."""
+        if set(task.claims) & set(head.claims):
             return True
         return task.kind == head.kind and self.runner.config(head).max_concurrent is not None
 
@@ -399,9 +393,15 @@ class WorkQueue:
 
         return sorted(tasks, key=key)
 
-    def _tag_full(self, tag: str) -> bool:
-        limit = self.tag_capacity.get(tag)
-        return limit is not None and sum(1 for t in self._running.values() if tag in t.tags) >= limit
+    def capacity(self, name: str) -> int:
+        """How many running tasks may claim `name` at once: its own entry in
+        `claim_capacity`, else the longest pattern that matches it; 1 when none does."""
+        if name in self.claim_capacity:
+            return self.claim_capacity[name]
+        for pattern in self._claim_patterns:
+            if fnmatch.fnmatchcase(name, pattern):
+                return self.claim_capacity[pattern]
+        return 1
 
     def _start_ready(self, pool: ThreadPoolExecutor) -> None:
         if self.past_hard_stop():
@@ -469,16 +469,14 @@ class WorkQueue:
             self._defer(t, Deferral(reason, {"cause": "cannot_finish", "need_s": round(need), "left_s": round(left)}))
 
     def _occupy(self, task: Task) -> None:
-        for unit in task.units:
-            self._running_unit_kind[unit] = task.kind
-            self._running_unit_count[unit] = self._running_unit_count.get(unit, 0) + 1
+        for name in set(task.claims):
+            self._held[name] = self._held.get(name, 0) + 1
 
     def _release(self, task: Task) -> None:
-        for unit in task.units:
-            self._running_unit_count[unit] -= 1
-            if self._running_unit_count[unit] <= 0:
-                del self._running_unit_count[unit]
-                del self._running_unit_kind[unit]
+        for name in set(task.claims):
+            self._held[name] -= 1
+            if self._held[name] <= 0:
+                del self._held[name]
 
     def _deferral(self, task: Task) -> Deferral | None:
         """The runner's `Deferral` of `task` now (`deferral`), if it gives one."""

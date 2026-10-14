@@ -96,19 +96,15 @@ class Task:
     per-kind config and concurrency-class lookup (the generic scheduler only
     ever hashes or compares it, never interprets its value). For a Python
     task, its own name.
-    `unit`: what the kind is applied to. It is also the lock: tasks of the
-    same kind on one unit may run together, tasks of different kinds on one
-    unit never overlap (a domain decides what a unit is -- a file, a
-    document, anything with a serialization boundary). Empty: the task's
-    own key, so it shares its lock with nothing.
-    `extra_units`: further units it locks while it runs, by the same rule as
-    `unit`; its output, its name and its place in the monitor stay its `unit`'s.
+    `unit`: what the kind is applied to (a domain decides what a unit is -- a
+    file, a document, a topic). It names the task and its output; it locks
+    nothing. Empty: the task's own key.
     `after`: task keys this one depends on, named in terms of `key` below,
     never `id`.
     `fn`: a Python task's function, run in-process on the pool instead of
     a coding-agent launch. None for an agent task.
-    `tags`: named resources this task holds while it runs, each with a
-    capacity the queue enforces (see WorkQueue's `tag_capacity`).
+    `claims`: the names this task holds while it runs; no more tasks hold one
+    name at once than its capacity (WorkQueue's `claim_capacity`; 1 by default).
     `estimate_s`: expected wall time, used to order the ready set.
     `tail_s`: expected wall time of the work that follows this task but is
     not queued yet (a flow creates it from this task's result); the queue's
@@ -129,10 +125,9 @@ class Task:
 
     kind: str
     unit: str = ""
-    extra_units: tuple[str, ...] = ()
     after: tuple[str, ...] = ()
     fn: Callable[[], None] | None = None
-    tags: tuple[str, ...] = ()
+    claims: tuple[str, ...] = ()
     estimate_s: float | None = None
     tail_s: float | None = None
     params: dict = field(default_factory=dict)
@@ -155,14 +150,8 @@ class Task:
 
     @property
     def declared_unit(self) -> str:
-        """The unit the task was given: empty for one given none (whose `unit` is its key,
-        so that it still has a unit of its own to lock)."""
+        """The unit the task was given: empty for one given none (whose `unit` is its key)."""
         return "" if self.unit == self.key else self.unit
-
-    @property
-    def units(self) -> tuple[str, ...]:
-        """Every unit it locks: its `unit`, then its `extra_units`."""
-        return (self.unit, *(u for u in self.extra_units if u != self.unit))
 
     @property
     def executor(self) -> Literal["agent", "python"]:

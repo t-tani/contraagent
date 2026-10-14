@@ -2,7 +2,6 @@
 
 import json
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -323,81 +322,3 @@ def test_claude_s_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path,
     assert "JSON output" not in second.prompt  # a text output is not told about JSON
     row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
     assert row["rounds"] == 1 and row["hook_errors"] == [[second.prompt.split("- ", 1)[1].strip()]]
-
-
-def test_extra_units_lock_other_kinds_out_and_are_recorded_in_the_plan(tmp_path, plugin_dir):
-    summarize, review = declare(plugin_dir)
-    spans: dict[str, tuple[float, float]] = {}
-
-    def slow(launch):
-        t0 = time.monotonic()
-        time.sleep(0.2)
-        spans[launch.key] = (t0, time.monotonic())
-        return good_answer(launch) if launch.kind == "summarize" else {"approved": True}
-
-    @python_task
-    def tally(unit: str) -> int:
-        t0 = time.monotonic()
-        time.sleep(0.2)
-        spans[f"tally-{unit}"] = (t0, time.monotonic())
-        return 1
-
-    def flow():
-        review("a", key="audit-a-b", extra_units=["b"], summary={"unit": "a", "summary": "s", "points": []})
-        summarize("b", path="in/b.md")
-        summarize("c", path="in/c.md")
-        tally("x", extra_units=["c"])
-
-    rep = pipeline(tmp_path, stub(slow), max_concurrent=4).run(flow)
-    assert rep.ok, rep.failed
-
-    def overlap(a: str, b: str) -> bool:
-        (a0, a1), (b0, b1) = spans[a], spans[b]
-        return a0 < b1 and b0 < a1
-
-    assert not overlap("audit-a-b", "summarize-b") and not overlap("tally-x", "summarize-c")
-    assert overlap("audit-a-b", "summarize-c")
-    plan = {row["key"]: row for row in map(json.loads, (rep.run_dir / "plan.jsonl").read_text().splitlines())}
-    assert plan["audit-a-b"]["extra_units"] == ["b"] and plan["audit-a-b"]["unit"] == "a"
-    assert plan["python:tally-x"]["extra_units"] == ["c"] and plan["summarize-b"]["extra_units"] == []
-    assert (rep.run_dir / "out" / "review" / "audit-a-b.json").exists()  # named by its key, as without extra units
-
-
-def test_extra_units_are_checked_at_the_task_call_and_leave_the_fingerprint_alone(tmp_path, plugin_dir):
-    summarize, _ = declare(plugin_dir)
-    for i, (extra, message) in enumerate(
-        ((["a"], "own unit 'a'"), (["b", "b"], "'b' more than once"), ([""], "non-empty"), ("b", "not the string"))
-    ):
-        with pytest.raises((ValueError, TypeError), match=message):
-            pipeline(tmp_path, stub()).run(lambda extra=extra: summarize("a", extra_units=extra, path="x"), run_id=f"bad-{i}")
-    plain = pipeline(tmp_path, stub()).run(lambda: summarize("a", path="x"), run_id="plain")
-    locked = pipeline(tmp_path, stub()).run(lambda: summarize("a", extra_units=["b"], path="x"), run_id="locked")
-    assert plain.results["summarize-a"].task.fingerprint == locked.results["summarize-a"].task.fingerprint
-
-
-def test_the_units_example_compares_a_pair_while_neither_topic_is_rewritten(tmp_path):
-    from contraagent.docs.examples.units import flow as example
-
-    spans: dict[str, tuple[float, float]] = {}
-
-    def timed(answer):
-        def reply(launch):
-            t0 = time.monotonic()
-            time.sleep(0.1)
-            spans[launch.key] = (t0, time.monotonic())
-            return answer(launch)
-
-        return reply
-
-    agent = StubAgent(
-        {
-            "write": timed(lambda launch: {"path": launch.params["path"]}),
-            "compare": timed(lambda launch: {"same_subject": False, "note": "different"}),
-        }
-    )
-    rep = pipeline(tmp_path, agent, max_concurrent=4).run(example.topics, names=["alpha", "beta", "gamma"], pairs=[("alpha", "beta")])
-    assert rep.ok, rep.failed
-    (c0, c1) = spans["compare-alpha-beta"]
-    for topic in ("write-alpha", "write-beta"):
-        (w0, w1) = spans[topic]
-        assert w1 <= c0 or c1 <= w0

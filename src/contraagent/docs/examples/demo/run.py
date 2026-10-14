@@ -218,14 +218,13 @@ def main(argv: list[str] | None = None):
 
     shutil.rmtree(Path("demo-runs", "analyse"), ignore_errors=True)
     if args.real:
-        nested = Pipeline(None, runs_dir="demo-runs", overrides=Overrides(agent=args.real), tag_capacity={"heavy": 1})
+        nested = Pipeline(None, runs_dir="demo-runs", overrides=Overrides(agent=args.real))
     else:
         nested = Pipeline(
             None,
             runs_dir="demo-runs",
             backends={"stub": DemoAgent(pace=0.03 if args.fast else 1.0)},
             overrides=Overrides(agent="stub"),
-            tag_capacity={"heavy": 1},
         )
     nested.run(analyse, bundles=["east", "west", "south"])
 

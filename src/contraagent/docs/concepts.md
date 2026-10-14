@@ -12,8 +12,8 @@ documentation. No other word is used for the same thing.
 | **LLM** | the language model the coding agent runs on, nothing else | `model` |
 | **agent task** / **Python task** | a task a coding agent executes / one this process executes | `agent_task`, `@python_task`; on disk `executor: "agent" \| "python"` |
 | **kind** | the class of work (`summarize`); a Python task's kind is its own name | `Task.kind` |
-| **unit** | what a kind is applied to (`alpha`); tasks of different kinds on one unit do not overlap | `Task.unit` |
-| **extra units** | further units a task locks while it runs, by the same rule as its unit; its key, output file and place in the monitor stay its unit's | task call `extra_units=`, `Task.extra_units`, `Task.units`; plan `extra_units` |
+| **unit** | what a kind is applied to (`alpha`): it names a task and its output, and locks nothing | `Task.unit` |
+| **claim** / **claim capacity** | a name a task holds while it runs, its declaration a template (`topic:{unit}`, `topic:{params.topics}`: one name per element of a list); one task holds a name at a time / how many running tasks may hold one name instead, given by the name or by an `fnmatch` pattern that gives each name it matches a capacity of its own | `agent_task(claims=)`, `@python_task(claims=)`, `Task.claims`; plan `claims` / `claim_capacity`, `[defaults.claim_capacity]`, `WorkQueue.capacity` |
 | **task** | one kind applied to one unit | `Task` |
 | **key** | a task's stable identity: `<kind>-<unit>` or `key=`; the n-th task a flow call creates under one key is `<key>~n` | `Task.key`, field `key` everywhere, monitor URL `key` |
 | **params** | what a task is given | `Task.params`, call file `params`, `CONTRAAGENT_PARAMS` |
@@ -98,7 +98,7 @@ documentation. No other word is used for the same thing.
 | **web search** | a search of the web by the coding agent's own tool (Claude Code `WebSearch`, omp `web_search`); its query is recorded | `LaunchResult.web_queries`, `JournalRow.web_queries`; a transcript's tool call `web_query` |
 | **tail** | the expected wall time of the work a flow creates after a task, not queued when the task is: the median, over tasks with the same flow path's function names, kind and loop passes (capped) in recent runs and in this one, of the longest complete chain of wall times after them along `after` and created from | `Task.tail_s`, `JournalEstimates.tail`, `TailKey` |
 | **bottom level** | a queued task's estimate plus the longer of its known dependents' path and its tail: the queue's priority | `WorkQueue._blevel` |
-| **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes a resource it needs (the starvation guard) | `WorkQueue(overdue_s=)` |
+| **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes a name it claims or a place under its kind's cap (the starvation guard) | `WorkQueue(overdue_s=)` |
 | **slack** | the time before the deadline from which the queue orders for the deadline: shortest remaining work first, deferring what cannot finish | `WorkQueue(slack_s=)` |
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |

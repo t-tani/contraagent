@@ -2402,10 +2402,6 @@
   <source>created, removed after the failed attempt</source>
   <target>作成、試行の失敗後に削除</target>
 </trans-unit>
-<trans-unit id="s4d1a0186da48bbf6">
-  <source>Also locks</source>
-  <target>併せてロックするユニット</target>
-</trans-unit>
 <trans-unit id="s73418db933aba694">
   <source>stub agent</source>
   <target>スタブエージェント</target>
@@ -2423,18 +2419,6 @@
 <trans-unit id="s223237cc8c577db8">
   <source>A run whose tasks the stub agent played with scripted replies, not a model (stub)</source>
   <target>モデルを使わず、スタブエージェントが台本の応答で各タスクを処理した実行（stub）</target>
-</trans-unit>
-<trans-unit id="s141208d30dab2e4d">
-  <source>Units this task locks while it runs, besides its own unit (extra_units)</source>
-  <target>実行中、自分のユニットに加えてロックするユニット（extra_units）</target>
-</trans-unit>
-<trans-unit id="s2d7f4105cbd49f03">
-  <source>Also locks <x id="0" equiv-text="${units.length}"/> units</source>
-  <target>併せてロックするユニット <x id="0" equiv-text="${units.length}"/> 件</target>
-</trans-unit>
-<trans-unit id="s99ebe4b8ebe10374">
-  <source>Also locks <x id="0" equiv-text="${listText(units)}"/></source>
-  <target>併せてロックするユニット <x id="0" equiv-text="${listText(units)}"/></target>
 </trans-unit>
 <trans-unit id="s70348dd289d771d5">
   <source>paused until <x id="0" equiv-text="${localTime(now.until, true)}"/></source>
@@ -2515,6 +2499,22 @@
 <trans-unit id="s76d0878052a529e9">
   <source>Custom column (row_extras)</source>
   <target>カスタム列（row_extras）</target>
+</trans-unit>
+<trans-unit id="se99de5c72fecbbc3">
+  <source>Locks</source>
+  <target>ロック</target>
+</trans-unit>
+<trans-unit id="s5d0bd939d106436c">
+  <source>Names this task holds while it runs (claims)</source>
+  <target>実行中にこのタスクが占有する名前（claims）</target>
+</trans-unit>
+<trans-unit id="s652e7d36f0a948dd">
+  <source>Locks <x id="0" equiv-text="${names.length}"/> names</source>
+  <target>ロック <x id="0" equiv-text="${names.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="sbf1d2c3f0f4a41c5">
+  <source>Locks <x id="0" equiv-text="${listText(names)}"/></source>
+  <target>ロック <x id="0" equiv-text="${listText(names)}"/></target>
 </trans-unit>
 </body>
 </file>

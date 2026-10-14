@@ -8,7 +8,9 @@ Each test runs a small flow once per coding agent:
 * `skills_from`: a task loads a skill from a skill plugin beside its own plugin;
 * `changes`, with `Pipeline(scopes=, enrichers=, row_extras=)`: an attempt's changed files
   are journaled, and the files a timed-out attempt created are removed;
-* `extra_units`: a task on two units does not overlap a task of another kind on either;
+* claims: tasks of two kinds that claim `topic:{unit}` write one topic one after the
+  other, a task that claims nothing runs beside them, and a task that claims two topics
+  through `{params.topics}` waits while a write of either runs;
 * `output_from="message"`: the final message is the output, after a tool call, and a
   message that fails its checks is corrected in the same session;
 * quota caps and `quota_rule`: a credential past one rests, its tasks take the next hop,
@@ -237,56 +239,83 @@ def test_changes_are_journaled_and_a_failed_attempt_leaves_none(ws, agent):
     assert sorted(entered) == sorted(f"{e} {k}" for k in keys for e in ("enter", "exit"))
 
 
-# --- extra_units --------------------------------------------------------------
+# --- claims -----------------------------------------------------------------
 
 
-class Overlap(BaseModel):
-    same_subject: bool
+class Verdict(BaseModel):
+    relevant: bool
+
+
+def spans(lines: list[str]) -> dict[str, tuple[int, int]]:
+    """Each task's (start, end) as positions in the progress lines, which are in the order
+    the queue started and ended the tasks."""
+    order = [line.split(":")[0] for line in lines if line.startswith(("[start]", "[end]"))]
+    keys = {o.split(" ", 1)[1] for o in order}
+    return {k: (order.index(f"[start] {k}"), order.index(f"[end] {k}")) for k in keys}
+
+
+def overlap(s: dict[str, tuple[int, int]], a: str, b: str) -> bool:
+    (a0, a1), (b0, b1) = s[a], s[b]
+    return a0 < b1 and b0 < a1
 
 
 @pytest.mark.parametrize("agent", AGENTS)
-def test_extra_units_lock_both_units(ws, agent):
-    write = agent_task(
-        f"rewrite_{agent}",
-        instructions="Write the file ${path} with two sentences about ${topic}. Then write the output: that path as `topic`.",
+def test_claims_keep_writes_to_one_topic_apart_and_leave_the_rest_parallel(ws, agent):
+    rewrite = "Rewrite the file ${path} so that it ${rule}. Then write the output: that path as `topic`."
+    style = agent_task(
+        f"style_{agent}", instructions=rewrite, output=Written, claims=["topic:{unit}"], max_turns=10, timeout_s=300, **route(agent)
+    )
+    terms = agent_task(
+        f"terms_{agent}", instructions=rewrite, output=Written, claims=["topic:{unit}"], max_turns=10, timeout_s=300, **route(agent)
+    )
+    merge = agent_task(
+        f"merge_{agent}",
+        instructions="Append the text of the files ${second} to the file ${first}. Then write the output: ${first} as `topic`.",
         output=Written,
+        claims=["topic:{params.topics}"],
         max_turns=10,
         timeout_s=300,
         **route(agent),
     )
-    compare = agent_task(
-        f"compare_{agent}",
-        instructions="Read the files ${first} and ${second}. Do they cover one subject? Write the output.",
-        output=Overlap,
-        max_turns=10,
+    triage = agent_task(
+        f"triage_{agent}",
+        instructions="Read the file ${path}. Is it about tea? Write the output.",
+        output=Verdict,
+        max_turns=6,
         timeout_s=300,
         **route(agent),
     )
+    d = f"claims-{agent}"
 
     def flow():
-        compare("alpha", key=f"cmp-{agent}", extra_units=["beta"], first=f"t-{agent}/alpha.md", second=f"t-{agent}/beta.md")
-        write("beta", topic="green tea", path=f"t-{agent}/beta.md")
+        style("alpha", path=f"{d}/alpha.md", rule="uses short sentences")
+        terms("alpha", path=f"{d}/alpha.md", rule="says 'green tea' for every tea")
+        style("beta", path=f"{d}/beta.md", rule="uses short sentences")
+        triage("alpha", path=f"{d}/alpha.md")
+        merge("alpha", key=f"merge-{agent}", topics=["alpha", "beta"], first=f"{d}/alpha.md", second=f"{d}/beta.md")
 
-    (ws / f"t-{agent}").mkdir(exist_ok=True)
+    (ws / d).mkdir(exist_ok=True)
     for name in ("alpha", "beta"):
-        (ws / f"t-{agent}" / f"{name}.md").write_text(f"Notes on {name}.\n")
+        (ws / d / f"{name}.md").write_text(f"Notes on {name}. It is about tea, which people drink.\n")
     lines: list[str] = []
 
     def log(line: str) -> None:
         print(line)
         lines.append(line)
 
-    report = pipeline(ws, max_concurrent=4, log=log).run(flow, run_id=f"units-{agent}")
+    report = pipeline(ws, max_concurrent=5, log=log).run(flow, run_id=f"claims-{agent}")
     show(report)
     assert report.ok, report.failed
-    # The progress lines are in the order the queue started and ended the tasks.
-    order = [line.split(":")[0] for line in lines if line.startswith(("[start]", "[end]"))]
-    print(f"  order: {order}")
-    cmp, rewrite = f"cmp-{agent}", f"rewrite_{agent}-beta"
-    first, second = (cmp, rewrite) if order.index(f"[start] {cmp}") < order.index(f"[start] {rewrite}") else (rewrite, cmp)
-    assert order.index(f"[end] {first}") < order.index(f"[start] {second}"), order
-    plan = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
-    assert next(p for p in plan if p["key"] == f"cmp-{agent}")["extra_units"] == ["beta"]
+    s = spans(lines)
+    print(f"  spans: {s}")
+    alpha = [f"style_{agent}-alpha", f"terms_{agent}-alpha", f"merge-{agent}"]
+    assert not any(overlap(s, a, b) for a in alpha for b in alpha if a < b)  # one topic: one write at a time
+    assert not overlap(s, f"merge-{agent}", f"style_{agent}-beta")  # merge claims beta too
+    assert any(overlap(s, f"triage_{agent}-alpha", w) for w in alpha)  # claims nothing: beside the writes
+    assert overlap(s, f"style_{agent}-alpha", f"style_{agent}-beta") or overlap(s, f"terms_{agent}-alpha", f"style_{agent}-beta")
+    plan = {p["key"]: p for p in map(json.loads, (report.run_dir / "plan.jsonl").read_text().splitlines())}
+    assert plan[f"merge-{agent}"]["claims"] == ["topic:alpha", "topic:beta"]
+    assert plan[f"triage_{agent}-alpha"]["claims"] == []
 
 
 # --- output_from="message" ----------------------------------------------------

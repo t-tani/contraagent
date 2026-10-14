@@ -47,7 +47,6 @@ def pipeline(runs, agent=None):
         backends=backends,
         cwd=HERE,
         overrides=Overrides(agent="stub"),
-        tag_capacity={"heavy": 1},
         log=lambda line: None,
     )
 

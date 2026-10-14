@@ -122,10 +122,10 @@ describe('taskRows', () => {
     expect(r).toMatchObject({ outcome: 'not_started', cause: 'prepare-z', last_stop: 'invalid_input', tries: [] });
   });
 
-  it("a task's extra units from its plan node; none for a node without them", () => {
-    const p: Plan = { nodes: [{ ...node('audit-a', 'pending'), extra_units: ['b', 'c'] }, node('write-a', 'pending')], groups: [] };
+  it("a task's claims from its plan node; none for a node without them", () => {
+    const p: Plan = { nodes: [{ ...node('merge-a', 'pending'), claims: ['topic:a', 'topic:b'] }, node('write-a', 'pending')], groups: [] };
     const rows = taskRows(taskOutcomes([], p), p);
-    expect(rows.map((t) => t.extra_units)).toEqual([['b', 'c'], []]);
+    expect(rows.map((t) => t.claims)).toEqual([['topic:a', 'topic:b'], []]);
   });
 
   it('a loop pass per task: two tasks of one kind and unit are two rows', () => {

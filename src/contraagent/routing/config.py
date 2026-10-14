@@ -101,7 +101,7 @@ class PipelineConfig:
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
-        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "fallbacks"}
+        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "fallbacks", "claim_capacity"}
         unknown = set(entry) - allowed - {"_comment"}
         if unknown:
             _problem(errors, f"{self.source}: {_unknown_keys('[defaults]', unknown, allowed, tuple(TASK_TABLE_KEYS))}")
@@ -116,6 +116,24 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].max_passes = {value!r} is not a positive integer")
             else:
                 out["max_passes"] = value
+        return out
+
+    def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int]:
+        """`[defaults.claim_capacity]`: how many running tasks may claim each name at once, by
+        the name or an `fnmatch` pattern (`"heavy*" = 2`: each name it matches, two tasks at a
+        time), each a non-negative integer; a name no entry gives is claimed by one at a time.
+        `Pipeline(claim_capacity=)` outranks it, key by key. A malformed entry raises; with
+        `errors`, it is appended there and the rest still read."""
+        entry = _section(self.raw, "defaults").get("claim_capacity", {})
+        if not isinstance(entry, dict):
+            _problem(errors, f"{self.source}: [defaults].claim_capacity must be a table of name = capacity")
+            return {}
+        out: dict[str, int] = {}
+        for name, value in entry.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                _problem(errors, f"{self.source}: [defaults.claim_capacity] {name!r} = {value!r} is not a non-negative integer")
+            else:
+                out[name] = value
         return out
 
     def task_tables(self, errors: list[str] | None = None) -> dict[str, dict]:
