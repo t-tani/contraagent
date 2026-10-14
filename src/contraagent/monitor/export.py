@@ -43,7 +43,7 @@ import re
 import shutil
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -51,6 +51,7 @@ from pydantic import TypeAdapter
 
 from contraagent.monitor import api
 from contraagent.monitor.core import Monitor, row_extras
+from contraagent.monitor.trends import Period
 
 STATIC = Path(__file__).parent / "static"
 
@@ -83,11 +84,20 @@ class Route:
     model: Any
 
 
+@dataclass(frozen=True)
+class SiteRoute:
+    """One route of no run as a file under `data/`: `read(monitor, period)` its body, over
+    the export's period, `model` its contract."""
+
+    file: str
+    read: Callable[[Monitor, Period], Any]
+    model: Any
+
+
 #: The routes of no run, beside `info.json` and `runs.json` (which the export writes
-#: itself: they say what it holds). The view across runs goes here, one entry:
-#: `Route("trends.json", lambda m, _: m.trends(), api.Trends)` for `/api/trends`; panels
-#: of `scope="trends"` are written under `trends/panels/` (`_panels`).
-SITE_ROUTES: tuple[Route, ...] = ()
+#: itself: they say what it holds); panels of `scope="trends"` are written under
+#: `trends/panels/` (`_panels`).
+SITE_ROUTES: tuple[SiteRoute, ...] = (SiteRoute("trends.json", lambda m, period: m.trends(period), api.Trends),)
 
 # `Optional`, not `X | None`: a TypeAdapter's type must be a type, not a `UnionType` value.
 ROUTES: tuple[Route, ...] = (
@@ -194,11 +204,14 @@ def export(
     since: str | None = None,
     keep: Iterable[str] = (),
     exclude: Iterable[str] = (),
+    period: Period | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> ExportReport:
     """Write the monitor's views of the newest `runs` runs (None: every run; `since`, an
-    ISO time: only runs active since then) to `out`: the page and `data/`. `data/` is
-    written anew: a run no longer chosen leaves the export."""
+    ISO time: only runs active since then) to `out`: the page and `data/`, with the trends
+    of `period` (default: the last 14 days in UTC) over every run. `data/` is written anew:
+    a run no longer chosen leaves the export."""
+    period = period or Period.parse()
     out = Path(out)
     summaries = monitor.runs()
     if since:
@@ -242,8 +255,8 @@ def export(
             n += _write(d / "tasks" / f"{key}.json", red(_dump(api.TaskDetail, detail)))
         n += _panels(monitor, "run", run, d / "panels", red)
         sizes[run] = n
-    total = sum(_write(data / route.file, base(_dump(route.model, route.read(monitor, "")))) for route in SITE_ROUTES)
-    total += _panels(monitor, "trends", "", data / "trends" / "panels", base)
+    total = sum(_write(data / route.file, base(_dump(route.model, route.read(monitor, period)))) for route in SITE_ROUTES)
+    total += _panels(monitor, "trends", "", data / "trends" / "panels", base, period)
     redacted = sorted({r for r in REDACTED if r not in keep} | exclude)
     info = {
         "title": monitor.title,
@@ -261,22 +274,28 @@ def export(
     return ExportReport(out=out, runs=chosen, bytes_by_run=sizes, total_bytes=total + sum(sizes.values()))
 
 
-def _panels(monitor: Monitor, scope: str, run: str, where: Path, red: Redactor) -> int:
+def _panels(monitor: Monitor, scope: str, run: str, where: Path, red: Redactor, period: Period | None = None) -> int:
     """Write each panel of `scope` under `where`, as its route answers it (`run`: the run
-    `run`'s, `/api/runs/<run>/panels/<name>`; `trends`: across runs,
-    `/api/trends/panels/<name>`, read with `Monitor.trends_panel`); the bytes written. A
-    panel that names no `scope` is a run's."""
+    `run`'s, `/api/runs/<run>/panels/<name>`; `trends`: over the runs of `period`,
+    `/api/trends/panels/<name>`); the bytes written."""
     n = 0
-    read_trends = getattr(monitor, "trends_panel", None)
     for name, panel in monitor.panels.items():
-        if getattr(panel, "scope", "run") != scope or (scope == "trends" and read_trends is None):
+        if panel.scope != scope:
             continue
         try:
-            body = monitor.panel(name, run) if scope == "run" else read_trends(name)  # type: ignore[misc]
+            body = monitor.panel(name, run) if scope == "run" else monitor.trends_panel(name, period or Period.parse())
         except Exception as exc:  # one bad panel must not stop the export
             body = {"error": f"{type(exc).__name__}: {exc}"}
         n += _write(where / f"{name}.json", red(json.loads(json.dumps(body, default=str))))
     return n
+
+
+def _period(start: str, end: str, days: int, tz: str) -> Period:
+    """The trends' period of the command line: `--from`/`--to`, else the last `days` days to `--to` (or today)."""
+    if start:
+        return Period.parse(start, end, tz)
+    last = Period.parse("", end, tz).end
+    return Period.parse((last - timedelta(days=max(1, days) - 1)).isoformat(), last.isoformat(), tz)
 
 
 def _load(target: str) -> Any:
@@ -305,6 +324,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--since", default=None, metavar="ISO_TIME", help="only runs active since this time, e.g. 2026-10-01")
     ap.add_argument("--panels", default=None, metavar="MODULE:ATTR", help="a dict of panels (name -> Panel) to write for each run")
     ap.add_argument("--title", default="contraagent")
+    ap.add_argument("--days", type=int, default=14, help="the trends' period: the last N days, today included (default: 14)")
+    ap.add_argument("--from", dest="start", default="", metavar="YYYY-MM-DD", help="the trends' first day, instead of --days")
+    ap.add_argument("--to", dest="end", default="", metavar="YYYY-MM-DD", help="the trends' last day (default: today)")
+    ap.add_argument("--tz", default="UTC", help="the time zone the trends' days are counted in (default: UTC)")
     ap.add_argument("--keep", action="append", default=[], choices=REDACTED, help="keep what is taken out by default: paths, host")
     ap.add_argument("--exclude", action="append", default=[], metavar="KEY", help="take out this key wherever it appears (e.g. params)")
     args = ap.parse_args(argv)
@@ -313,8 +336,13 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # an import that fails is the user's to fix: say which
         sys.stderr.write(f"contraagent monitor export: --panels {args.panels}: {type(exc).__name__}: {exc}\n")
         return 2
+    try:
+        period = _period(args.start, args.end, args.days, args.tz)
+    except ValueError as exc:
+        sys.stderr.write(f"contraagent monitor export: {exc}\n")
+        return 2
     monitor = Monitor(args.runs_dir, title=args.title, panels=panels)
-    report = export(monitor, args.out, runs=args.runs or None, since=args.since, keep=args.keep, exclude=args.exclude)
+    report = export(monitor, args.out, runs=args.runs or None, since=args.since, keep=args.keep, exclude=args.exclude, period=period)
     for run in report.runs:
         sys.stdout.write(f"  {run}: {report.bytes_by_run[run] / 1000:.0f} kB\n")
     sys.stdout.write(f"wrote {len(report.runs)} runs to {report.out} ({report.total_bytes / 1000:.0f} kB of data)\n")

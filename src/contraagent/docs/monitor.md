@@ -173,6 +173,14 @@ of each day and of each hour; the rests and deferrals; the runs; and when runs s
 and hour. An attempt counts on the day it ended, in the period's time zone; a
 stub run counts only with `stub=true`, and `run_group=` keeps one group's runs.
 
+The page shows them as **Trends**, the first entry of the run picker
+(`?page=trends`): the last 7, 14 or 30 days or two dates, counted in the browser's
+time zone unless the page names another (`&tz=`), and one run group or all. It draws
+each fact in its own form: the totals as figures, the cost of each day as stacked
+columns by kind, each kind's and each model's numbers as tables, the subscription
+usage as a line per identity and window, when runs start as a weekday by hour grid;
+then the pipeline's own trend panels.
+
 `Trends.bodies` holds the same numbers as panel bodies (`{"type": "blocks", ...}`),
 in English, for a page that draws them without words of its own. A pipeline adds
 its own numbers over a period as a panel whose `scope` is `"trends"`: its function
@@ -200,10 +208,12 @@ reading their logs the first time takes about half a minute
 static server or a site serves, with no monitor running: the page (`index.html`,
 `app.js`, `ja.js`) and `data/`, the JSON each route of the API would answer
 (`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
-cursor, each task and each panel).
+cursor, each task and each panel), and the trends of a period over every run with
+its trend panels (`--days 14`, or `--from` and `--to`; `--tz`, default UTC). The
+export's Trends page shows that period and offers no other.
 
 ```
-contraagent monitor export --runs-dir runs --out site/stats --runs 14 --panels mypipeline.panels:PANELS
+contraagent monitor export --runs-dir runs --out site/stats --runs 14 --days 30 --tz Asia/Tokyo --panels mypipeline.panels:PANELS
 python -m http.server --directory site/stats    # or put site/stats on any static site
 ```
 

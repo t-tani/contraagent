@@ -171,6 +171,9 @@ wherever the UI shows a state or a count to the reader.
 | no report from host (a run whose host stopped reporting while it ran: neither running nor finished) / 1 with no report from host | ホストからの報告なし / ホストからの報告なし 1 件 |
 | last activity (the time of a run's last record, while its host is not reporting) | 最終更新 |
 | 2 runs / 2 hosts / 1 with no report (hosts) | 実行 2 件 / ホスト 2 台 / 報告なし 1 台（ホストは「台」で数える） |
+| Trends (the page of what the runs of a period add up to) | 推移 |
+| Period; N days; Dates (the trends' period) | 期間; N 日間; 日付指定 |
+| Run starts (by weekday and hour) | 実行の開始時刻 |
 
 ## Style
 

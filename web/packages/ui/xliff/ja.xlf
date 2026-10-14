@@ -2701,6 +2701,171 @@
   <target><x id="0" equiv-text="${localTime(e.exported_at, true)}"/> 時点の書き出し</target>
   <note from="lit-localize">The monitor shows files written at this time, not a live server</note>
 </trans-unit>
+<trans-unit id="sd26f6fb3acfd5ca0">
+  <source><x id="0" equiv-text="${busy}"/> running at once</source>
+  <target><x id="0" equiv-text="${busy}"/> 件を同時実行</target>
+</trans-unit>
+<trans-unit id="sdd178845f5450ded">
+  <source>No answer from the monitor</source>
+  <target>モニターから応答がありません</target>
+</trans-unit>
+<trans-unit id="sea2adb1f2047d144">
+  <source>Period</source>
+  <target>期間</target>
+</trans-unit>
+<trans-unit id="se5bc88938f3b6e59">
+  <source>Trends</source>
+  <target>推移</target>
+</trans-unit>
+<trans-unit id="s05c8009460057241">
+  <source>Cost, tasks and models over the runs of a period</source>
+  <target>期間内の実行の料金・タスク・モデル</target>
+</trans-unit>
+<trans-unit id="sc9757b387904aaba">
+  <source>Time zone</source>
+  <target>タイムゾーン</target>
+</trans-unit>
+<trans-unit id="sf7e6e6be222007c3">
+  <source>All run groups</source>
+  <target>すべての実行グループ</target>
+</trans-unit>
+<trans-unit id="sf39e32f2714673d9">
+  <source>Passed</source>
+  <target>成功</target>
+</trans-unit>
+<trans-unit id="s38e6a13eab00995b">
+  <source>Cost by day</source>
+  <target>日ごとの料金</target>
+</trans-unit>
+<trans-unit id="sed053125096b538d">
+  <source>Reported by the coding agent, on the day each attempt ended</source>
+  <target>コーディングエージェントが報告した料金（試行が終わった日に計上）</target>
+</trans-unit>
+<trans-unit id="s535a5e9dfeb308f0">
+  <source>Kinds</source>
+  <target>種別</target>
+</trans-unit>
+<trans-unit id="s98b1cb8fb62909ec">
+  <source>Group</source>
+  <target>グループ</target>
+</trans-unit>
+<trans-unit id="sc797fd9076cc136d">
+  <source>Tasks</source>
+  <target>タスク</target>
+</trans-unit>
+<trans-unit id="sda51677b3165358b">
+  <source>Tasks passed</source>
+  <target>成功したタスク</target>
+</trans-unit>
+<trans-unit id="sf03233d91a50e834">
+  <source>Median time</source>
+  <target>所要時間の中央値</target>
+</trans-unit>
+<trans-unit id="sd5e28ee1c3ede3b6">
+  <source>Total time</source>
+  <target>所要時間の合計</target>
+</trans-unit>
+<trans-unit id="sfd77270c3f54f664">
+  <source>Output</source>
+  <target>出力</target>
+</trans-unit>
+<trans-unit id="sdd25e8feb052173f">
+  <source>Attempts that did not complete</source>
+  <target>完了しなかった試行</target>
+</trans-unit>
+<trans-unit id="s23abb58d8b90bb52">
+  <source>Refused tool calls</source>
+  <target>拒否されたツール呼び出し</target>
+</trans-unit>
+<trans-unit id="s5a71f1fb3a12c6a7">
+  <source>Tool</source>
+  <target>ツール</target>
+</trans-unit>
+<trans-unit id="sfd8b7f2a4b9c87f0">
+  <source>The highest reading of each day</source>
+  <target>各日の最大値</target>
+</trans-unit>
+<trans-unit id="s02f7b7c4ece3e097">
+  <source>Not run</source>
+  <target>実行されず</target>
+</trans-unit>
+<trans-unit id="s76f396a17f89a5e0">
+  <source>Cause</source>
+  <target>原因</target>
+</trans-unit>
+<trans-unit id="sc683c10250a1b719">
+  <source>When</source>
+  <target>日時</target>
+</trans-unit>
+<trans-unit id="sc53249f5adb55c77">
+  <source>Paused identities</source>
+  <target>休止した認証情報</target>
+</trans-unit>
+<trans-unit id="sd0ea7366ebc403ff">
+  <source>Event</source>
+  <target>出来事</target>
+</trans-unit>
+<trans-unit id="s28add9c74fb1b7ef">
+  <source>By weekday and hour, in the period's time zone</source>
+  <target>曜日と時刻ごと（期間のタイムゾーン）</target>
+</trans-unit>
+<trans-unit id="s1f8825d28510387f">
+  <source>Passed <x id="0" equiv-text="${pctText}"/></source>
+  <target>成功 <x id="0" equiv-text="${pctText}"/></target>
+</trans-unit>
+<trans-unit id="sc3e8e7f06031088e">
+  <source>No runs in this period</source>
+  <target>この期間の実行はありません</target>
+</trans-unit>
+<trans-unit id="s9491c01903726a63">
+  <source>Period of this export</source>
+  <target>書き出しの期間</target>
+</trans-unit>
+<trans-unit id="s34bb12befe88eb1b">
+  <source>ended</source>
+  <target>終了</target>
+  <note from="lit-localize">A paused identity was used again</note>
+</trans-unit>
+<trans-unit id="s504d83b92c9ed51e">
+  <source>Dates</source>
+  <target>日付指定</target>
+  <note from="lit-localize">A period of the trends from one chosen day to another</note>
+</trans-unit>
+<trans-unit id="s9976b5befb314c64">
+  <source><x id="0" equiv-text="${n}"/> days</source>
+  <target><x id="0" equiv-text="${n}"/> 日間</target>
+  <note from="lit-localize">A period of the trends: the last N days, today included</note>
+</trans-unit>
+<trans-unit id="s941fcdd13e8d6110">
+  <source><x id="0" equiv-text="${amount}"/> a day</source>
+  <target>1 日あたり <x id="0" equiv-text="${amount}"/></target>
+  <note from="lit-localize">An average over the days of the trends period that had any cost</note>
+</trans-unit>
+<trans-unit id="sc732f2e2fbe9f15e">
+  <source>started</source>
+  <target>開始</target>
+  <note from="lit-localize">An identity began its pause</note>
+</trans-unit>
+<trans-unit id="s6c711e2b5f703d67">
+  <source>Run starts</source>
+  <target>実行の開始時刻</target>
+  <note from="lit-localize">How many runs started, by weekday and hour</note>
+</trans-unit>
+<trans-unit id="s868d75732fc45754">
+  <source><x id="0" equiv-text="${dayLabel(from, locale)}"/> to <x id="1" equiv-text="${dayLabel(to, locale)}"/>, <x id="2" equiv-text="${year}"/> | <x id="3" equiv-text="${tz}"/></source>
+  <target><x id="2" equiv-text="${year}"/> 年 <x id="0" equiv-text="${dayLabel(from, locale)}"/>〜<x id="1" equiv-text="${dayLabel(to, locale)}"/> | <x id="3" equiv-text="${tz}"/></target>
+  <note from="lit-localize">The days the trends cover, and the time zone they are counted in</note>
+</trans-unit>
+<trans-unit id="sa6ab5184d6315895">
+  <source>From</source>
+  <target>開始日</target>
+  <note from="lit-localize">The first day of the trends period</note>
+</trans-unit>
+<trans-unit id="s09353907b5c79284">
+  <source>To</source>
+  <target>終了日</target>
+  <note from="lit-localize">The last day of the trends period</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

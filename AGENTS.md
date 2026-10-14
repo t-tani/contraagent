@@ -97,6 +97,8 @@ there: one word, one meaning, on every screen. Japanese follows
 | `RunSummary.unresponsive`, `RunActivity` `unresponsive` (its host stopped reporting while the run was alive) | no report from host; N with no report from host (a count) | ホストからの報告なし; ホストからの報告なし N 件 |
 | a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
 | a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
+| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
+| a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
 
 The UI states facts about the run; it never narrates what the monitor or
 contraagent does, will do, or lets the reader do. No "checked once", "the agent

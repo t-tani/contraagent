@@ -14,6 +14,7 @@ import type {
   RunSummary,
   TaskDefinition,
   TaskDetail,
+  Trends,
 } from './types.js';
 
 /** A client of an export: the monitor's client, and the files the server sends over its feed instead. */
@@ -97,6 +98,9 @@ export function createExportClient(baseUrl: string, options: ExportClientOptions
     },
     stream: (r, key) => absent(run(r, `streams/${seg(key)}.json`)),
     panel: (r, name) => file<JsonObject>(run(r, `panels/${seg(name)}.json`)),
+    // An export holds one period's trends (`Info.export`): a query for another is answered with it.
+    trends: () => file<Trends>('trends.json'),
+    trendsPanel: (name) => file<JsonObject>(`trends/panels/${seg(name)}.json`),
   };
 }
 

@@ -331,6 +331,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor's **Trends** page (`?page=trends`, the run picker's first entry): what the
+  runs of the last 7, 14 or 30 days (or two dates) add up to, in a time zone and for a
+  run group: totals, cost by day stacked by kind, kinds, models, subscription usage,
+  attempts that did not complete, refused tool calls, tasks not run, paused identities,
+  run starts by weekday and hour, the runs, and the pipeline's trend panels. An export
+  holds the trends of its period (`contraagent monitor export --days`, `--from`, `--to`,
+  `--tz`) and its page shows them.
 - `agent_task(output_from="message", unwrap=True)`: a final message that wraps its JSON
   output (a sentence before it, a fence around it) gives the document as the output
   instead of a fix-up round; the whole message is kept beside the output file. The

@@ -104,4 +104,30 @@ describe('MonitorStore', () => {
     store.stop();
     expect(store.snapshot.hosts).toBeNull();
   });
+
+  it('loads the trends of a period and the trend panels, and drops an answer to an older request', async () => {
+    const info: Info = { title: 't', panels: [{ name: 'q', title: 'q', description: '', icon: '', scope: 'trends' }, { name: 'r', title: 'r', description: '', icon: '' }], api_version: '1' };
+    const asked: unknown[] = [];
+    let slow: (v: unknown) => void = () => {};
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.resolve([]),
+      trends: (q: unknown) => {
+        asked.push(q);
+        return asked.length === 1 ? new Promise((r) => (slow = r)) : Promise.resolve({ period: { from: '2026-10-01' } });
+      },
+      trendsPanel: (name: string) => Promise.resolve({ panel: name }),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 0 });
+    await store.start();
+    const first = store.loadTrends({ from: '2026-09-01', to: '2026-09-30', tz: 'UTC' });
+    expect(store.snapshot.trends).toMatchObject({ loading: true, data: null });
+    await store.loadTrends({ from: '2026-10-01', to: '2026-10-14', tz: 'UTC' });
+    slow({ period: { from: '2026-09-01' } }); // the older answer arrives last
+    await first;
+    expect(store.snapshot.trends).toMatchObject({ loading: false, error: null, data: { period: { from: '2026-10-01' } }, panels: { q: { panel: 'q' } } });
+    expect(Object.keys(store.snapshot.trends!.panels)).toEqual(['q']); // a run panel is no trend panel
+    store.stop();
+  });
 });

@@ -46,6 +46,9 @@ import './ca-hosts.js';
 import './ca-run-picker.js';
 import './ca-toasts.js';
 import './ca-theme-switch.js';
+import '../trends/ca-trends.js';
+import { browserZone, runGroups, trendsQuery } from '../../lib/trends.js';
+import { trendsTip, trendsTitle } from '../../words/trends.js';
 
 /** Applies a typed filter to the URL after the reader stops typing, so the history is not written per key. */
 const Q_DEBOUNCE_MS = 250;
@@ -304,6 +307,8 @@ export class CaMonitor extends LitElement {
     this.route = route;
     if (cause !== 'replace') this.qDraft = null;
     this.store.selectRun(route.run);
+    if (route.page === 'trends') void this.store.loadTrends(trendsQuery(route));
+    else this.store.closeTrends();
     this.pickDefaultRun();
     if (cause !== 'replace') this.pendingScroll = cause;
   }
@@ -314,6 +319,7 @@ export class CaMonitor extends LitElement {
    */
   private pickDefaultRun(): void {
     const { info, runs } = this.snap;
+    if (this.route.page === 'trends') return;
     if (this.route.page === 'hosts') {
       if (!info.api_version || info.hosts) return;
       this.navigate({ page: '' }, { replace: true });
@@ -329,7 +335,7 @@ export class CaMonitor extends LitElement {
     } else if (e.key === '/') {
       e.preventDefault();
       this.renderRoot.querySelector<HTMLInputElement>('.bar input')?.focus();
-    } else if (/^[1-9]$/.test(e.key) && this.route.page !== 'hosts') {
+    } else if (/^[1-9]$/.test(e.key) && !this.route.page) {
       const tab = monitorTabs(this.snap.info.panels)[Number(e.key) - 1];
       if (tab) this.navigate({ tab: tab.id });
     }
@@ -400,12 +406,13 @@ export class CaMonitor extends LitElement {
     const keys = this.shortcutScope !== 'off';
     const hub = !!snap.info.hosts;
     const hostsPage = route.page === 'hosts';
+    const trendsPage = route.page === 'trends';
     return html`
       <header>
         ${brand(snap.info.title)}
         <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          ${hostsPage ? this.hostsLabel() : this.runLabel(hub, derived)}
+          ${hostsPage ? this.hostsLabel() : trendsPage ? this.trendsLabel() : this.runLabel(hub, derived)}
           <span class="chev" aria-hidden="true">▾</span>
         </button>
         <div class="hdr-right">
@@ -421,11 +428,15 @@ export class CaMonitor extends LitElement {
             : connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
-        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} ?hostsPage=${hostsPage}
+        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} page=${route.page}
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${hostsPage
         ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
+        : trendsPage
+        ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${route.days} from=${route.from} to=${route.to}
+            tz=${route.tz || browserZone()} group=${route.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
+            ?exported=${!!snap.info.export}></ca-trends></main>`
         : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
             <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
               >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
@@ -450,6 +461,11 @@ export class CaMonitor extends LitElement {
       ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
       ${summary?.stub ? pill({ text: stubLabel(), tone: 'muted', title: stubTip() }) : nothing}
       <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>`;
+  }
+
+  /** The run button's label on the trends page: its name, and what it shows. */
+  private trendsLabel() {
+    return html`<span class="dot" data-tone="neutral" aria-hidden="true"></span><span class="rn">${trendsTitle()}</span><span class="rs">${trendsTip()}</span>`;
   }
 
   /** The run button's label on the hosts page: the hosts in one line, attention while a host has no report. */

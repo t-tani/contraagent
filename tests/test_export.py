@@ -3,7 +3,6 @@ machine's paths and names taken out."""
 
 import json
 import socket
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,9 +10,9 @@ from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
 from contraagent.monitor import Monitor, api
-from contraagent.monitor import export as ex
 from contraagent.monitor.core import Panel
 from contraagent.monitor.export import export, main
+from contraagent.monitor.trends import Period
 from contraagent.testing import StubAgent
 
 
@@ -119,24 +118,31 @@ def test_the_cli_writes_the_export_and_says_how_large_it_is(tmp_path, capsys):
     assert '"params":' not in (tmp_path / "site/data/runs/only/tasks/note-a.json").read_text()
 
 
-@dataclass
-class TrendsPanel(Panel):
-    """A panel across runs, as the monitor's `scope="trends"` will declare one."""
+def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path):
+    seen: dict = {}
 
-    scope: str = "trends"
+    def days(run_ids, period):
+        seen["args"] = (sorted(run_ids), period.tz)
+        return {"panel": "days", "where": str(tmp_path)}
 
-
-def test_a_route_of_no_run_and_a_panel_across_runs_are_one_entry_each(tmp_path, monkeypatch):
-    class WithTrends(Monitor):
-        def trends_panel(self, name: str) -> dict:
-            return {"panel": name, "where": str(tmp_path)}
-
-    monkeypatch.setattr(ex, "SITE_ROUTES", (ex.Route("trends.json", lambda m, _: {"title": "t"}, api.JsonObject),))
-    monitor = WithTrends(runs(tmp_path, ids=("only",)), panels={"days": TrendsPanel(lambda run: {}), "p": panel})
-    export(monitor, tmp_path / "site", now=NOW)
+    rd = runs(tmp_path, ids=("only",))
+    today = datetime.now(UTC).date().isoformat()
+    monitor = Monitor(rd, panels={"days": Panel(days, scope="trends"), "p": Panel(panel)})
+    export(monitor, tmp_path / "site", now=NOW, period=Period.parse(today, today, "Asia/Tokyo"))
     data = tmp_path / "site/data"
-    assert json.loads((data / "trends.json").read_text()) == {"title": "t"}
+    trends = api.Trends.model_validate_json((data / "trends.json").read_text())
+    assert trends.period.tz == "Asia/Tokyo" and trends.totals.runs == 1 and [r.run for r in trends.runs] == ["only"]
+    assert seen["args"] == (["only"], "Asia/Tokyo")
     # Redacted as any view: a temporary directory outside the runs is no root of the export.
     assert json.loads((data / "trends/panels/days.json").read_text()) == {"panel": "days", "where": "<path>"}
     assert not (data / "runs/only/panels/days.json").exists()
     assert (data / "runs/only/panels/p.json").exists()
+
+
+def test_the_cli_takes_the_trends_period(tmp_path):
+    rd = runs(tmp_path, ids=("only",))
+    assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "a"), "--from", "2026-09-01", "--to", "2026-09-30", "--tz", "UTC"]) == 0
+    assert json.loads((tmp_path / "a/data/trends.json").read_text())["period"]["from"] == "2026-09-01"
+    assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "b"), "--days", "7", "--to", "2026-10-14"]) == 0
+    assert json.loads((tmp_path / "b/data/trends.json").read_text())["period"]["from"] == "2026-10-08"
+    assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "c"), "--tz", "Mars/Olympus"]) == 2

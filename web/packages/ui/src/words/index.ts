@@ -24,3 +24,4 @@ export * from './row-extras.js';
 export * from './models.js';
 export * from './panels.js';
 export * from './export.js';
+export * from './trends.js';

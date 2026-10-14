@@ -18,6 +18,18 @@ export type RunSummary = S['RunSummary'];
 export type Hosts = S['Hosts'];
 export type HostSummary = S['HostSummary'];
 export type AccountQuota = S['AccountQuota'];
+/** What the runs of a period add up to (`/api/trends`). */
+export type Trends = S['Trends'];
+export type TrendKind = S['TrendKind'];
+export type TrendQuota = S['TrendQuota'];
+export type TrendRun = S['TrendRun'];
+/** Which runs `/api/trends` sums: days `from` to `to` (YYYY-MM-DD) in the time zone `tz`, of one `run_group`. */
+export interface TrendsQuery {
+  from?: string;
+  to?: string;
+  tz?: string;
+  run_group?: string;
+}
 
 export type JournalRow = S['JournalRow'];
 /** How one attempt ended (`JournalRow.stop`): a `Stop` of the Python package, or `skipped`. */
