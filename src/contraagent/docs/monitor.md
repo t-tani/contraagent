@@ -134,6 +134,33 @@ that returns any JSON object, sent live whenever it changes.
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
 
+## Over many runs: trends
+
+A run's page says what one run did. The trends say what the runs of a
+**period** did together (`/api/trends?from=2026-10-01&to=2026-10-14&tz=Asia/Tokyo`;
+by default the last 14 days in UTC): the cost of each day by kind, or by group
+when the monitor has groups (`Monitor(groups=)`); each kind's tasks, how many
+passed, its attempts and their median time, tokens and cost; what each model was
+spent on; the outcomes that were not `completed`; the tool calls the coding
+agent's permissions refused; each account's utilization, by its highest reading
+of each day; the rests and deferrals; the runs; and when runs start, by weekday
+and hour. An attempt counts on the day it ended, in the period's time zone; a
+stub run counts only with `stub=true`, and `run_group=` keeps one group's runs.
+
+`Trends.bodies` holds the same numbers as panel bodies (`{"type": "blocks", ...}`),
+in English, for a page that draws them without words of its own. A pipeline adds
+its own numbers over a period as a panel whose `scope` is `"trends"`: its function
+takes the period's run ids and the `Period`, and it is served at
+`/api/trends/panels/<name>`.
+
+The monitor reads only the runs that started before the period ends and did not
+finish before it begins, and of each, only a digest of its logs (one entry per
+attempt, utilization reading, refused tool call, rest and deferral), which it
+keeps: in memory while the logs stay the same, and, for a finished run that is not
+live, as `trends.json` in the run's directory, so a restarted monitor reads that
+instead of the logs (`Monitor(keep_digests=False)` keeps none on disk). A
+`trends.json` made from other logs or by another version is made again.
+
 ## Its API and its page
 
 The monitor publishes its contract as OpenAPI at `/api/openapi.json`

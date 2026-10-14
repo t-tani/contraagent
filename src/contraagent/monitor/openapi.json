@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.2.0"
+    "version": "3.3.0"
   },
   "paths": {
     "/api/info": {
@@ -60,6 +60,188 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Hosts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trends": {
+      "get": {
+        "summary": "Api Trends",
+        "description": "What the runs of a period add up to, day by day.",
+        "operationId": "api_trends_api_trends_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the first day, YYYY-MM-DD (default: 13 days before `to`)",
+              "default": "",
+              "title": "From"
+            },
+            "description": "the first day, YYYY-MM-DD (default: 13 days before `to`)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the last day, YYYY-MM-DD (default: today in `tz`)",
+              "default": "",
+              "title": "To"
+            },
+            "description": "the last day, YYYY-MM-DD (default: today in `tz`)"
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the time zone the days are in, an IANA name (default UTC)",
+              "default": "",
+              "title": "Tz"
+            },
+            "description": "the time zone the days are in, an IANA name (default UTC)"
+          },
+          {
+            "name": "run_group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "only the runs of this run group",
+              "default": "",
+              "title": "Run Group"
+            },
+            "description": "only the runs of this run group"
+          },
+          {
+            "name": "stub",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "count stub runs too",
+              "default": false,
+              "title": "Stub"
+            },
+            "description": "count stub runs too"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trends"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a period it cannot read"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trends/panels/{name}": {
+      "get": {
+        "summary": "Api Trend Panel",
+        "description": "One trend panel's body: its `fn(runs, period)` over the runs of the period.",
+        "operationId": "api_trend_panel_api_trends_panels__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "To"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Tz"
+            }
+          },
+          {
+            "name": "run_group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Run Group"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Api Trend Panel Api Trends Panels  Name  Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a period it cannot read"
+          },
+          "404": {
+            "description": "no trend panel of that name"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -4063,6 +4245,641 @@
         ],
         "title": "ToolStartEvent",
         "description": "A tool call starting (or omp's progress update for it). `call` pairs it with its end event."
+      },
+      "TrendDay": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day"
+          },
+          "cost_usd": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Cost Usd",
+            "description": "group -> cost, USD; a group with no cost reported is absent"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "day",
+          "cost_usd",
+          "attempts",
+          "ok"
+        ],
+        "title": "TrendDay",
+        "description": "One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own)."
+      },
+      "TrendDeferral": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "cause": {
+            "type": "string",
+            "title": "Cause"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "ts",
+          "key",
+          "kind",
+          "cause",
+          "reason"
+        ],
+        "title": "TrendDeferral",
+        "description": "A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`."
+      },
+      "TrendDenial": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tool",
+          "count",
+          "kinds"
+        ],
+        "title": "TrendDenial",
+        "description": "Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`)."
+      },
+      "TrendKind": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          },
+          "tasks": {
+            "type": "integer",
+            "title": "Tasks"
+          },
+          "tasks_ok": {
+            "type": "integer",
+            "title": "Tasks Ok"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "description": "every attempt's wall time, summed"
+          },
+          "wall_s_median": {
+            "type": "number",
+            "title": "Wall S Median",
+            "description": "the median attempt's wall time"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "group",
+          "executor",
+          "tasks",
+          "tasks_ok",
+          "attempts",
+          "ok",
+          "wall_s",
+          "wall_s_median",
+          "cost_usd",
+          "tokens"
+        ],
+        "title": "TrendKind",
+        "description": "One kind over the period. A task is one key of one run; its last attempt in the period says how it ended."
+      },
+      "TrendPeriod": {
+        "properties": {
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "the first day, YYYY-MM-DD"
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "the last day, YYYY-MM-DD"
+          },
+          "tz": {
+            "type": "string",
+            "title": "Tz"
+          },
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "every day of the period, in order"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "tz",
+          "days"
+        ],
+        "title": "TrendPeriod",
+        "description": "The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name)."
+      },
+      "TrendQuota": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "five_hour",
+              "seven_day"
+            ],
+            "title": "Window"
+          },
+          "daily_peak": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Daily Peak",
+            "description": "per day of `period.days`; null when no reading arrived that day"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TrendQuotaPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential",
+          "window",
+          "daily_peak",
+          "points"
+        ],
+        "title": "TrendQuota",
+        "description": "One account's utilization of one window over the period: each day's highest reading, and every reading."
+      },
+      "TrendQuotaPoint": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "pct": {
+            "type": "number",
+            "title": "Pct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "at",
+          "pct"
+        ],
+        "title": "TrendQuotaPoint"
+      },
+      "TrendRest": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "run"
+        ],
+        "title": "TrendRest",
+        "description": "A start or end of a credential's rest (`rests.jsonl`), with its run."
+      },
+      "TrendRun": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "run_group": {
+            "type": "string",
+            "title": "Run Group"
+          },
+          "host_id": {
+            "type": "string",
+            "title": "Host Id"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "finished_at": {
+            "type": "string",
+            "title": "Finished At"
+          },
+          "last_ts": {
+            "type": "string",
+            "title": "Last Ts",
+            "description": "when its last attempt in the period ended; empty when it has none"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S"
+          },
+          "stub": {
+            "type": "boolean",
+            "title": "Stub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "run_group",
+          "host_id",
+          "started_at",
+          "finished_at",
+          "last_ts",
+          "attempts",
+          "ok",
+          "cost_usd",
+          "wall_s",
+          "stub"
+        ],
+        "title": "TrendRun",
+        "description": "One run of the period: its attempts in the period."
+      },
+      "TrendStarts": {
+        "properties": {
+          "weekdays": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weekdays"
+          },
+          "hours": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hours"
+          },
+          "counts": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Counts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "weekdays",
+          "hours",
+          "counts"
+        ],
+        "title": "TrendStarts",
+        "description": "Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`."
+      },
+      "TrendStop": {
+        "properties": {
+          "stop": {
+            "type": "string",
+            "title": "Stop"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stop",
+          "attempts",
+          "kinds"
+        ],
+        "title": "TrendStop",
+        "description": "Attempts that ended on one `stop`, and by which kinds."
+      },
+      "TrendTotals": {
+        "properties": {
+          "runs": {
+            "type": "integer",
+            "title": "Runs",
+            "description": "runs with an attempt in the period, or started in it"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "what the coding agents reported; null when no attempt reported a cost"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "runs",
+          "attempts",
+          "ok",
+          "cost_usd",
+          "wall_s",
+          "tokens"
+        ],
+        "title": "TrendTotals",
+        "description": "The period's runs and attempts, summed."
+      },
+      "Trends": {
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/TrendPeriod"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TrendTotals"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/TrendKind"
+            },
+            "type": "array",
+            "title": "Kinds"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/TrendStop"
+            },
+            "type": "array",
+            "title": "Stops"
+          },
+          "denials": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDenial"
+            },
+            "type": "array",
+            "title": "Denials"
+          },
+          "quota": {
+            "items": {
+              "$ref": "#/components/schemas/TrendQuota"
+            },
+            "type": "array",
+            "title": "Quota"
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/TrendRest"
+            },
+            "type": "array",
+            "title": "Rests"
+          },
+          "deferred": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDeferral"
+            },
+            "type": "array",
+            "title": "Deferred"
+          },
+          "deferred_causes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deferred Causes"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TrendRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "starts": {
+            "$ref": "#/components/schemas/TrendStarts"
+          },
+          "bodies": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Bodies"
+          },
+          "panels": {
+            "items": {
+              "$ref": "#/components/schemas/PanelInfo"
+            },
+            "type": "array",
+            "title": "Panels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period",
+          "totals",
+          "daily",
+          "kinds",
+          "models",
+          "stops",
+          "denials",
+          "quota",
+          "rests",
+          "deferred",
+          "deferred_causes",
+          "runs",
+          "starts",
+          "bodies",
+          "panels"
+        ],
+        "title": "Trends",
+        "description": "What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as\npanel bodies (`{\"type\": \"blocks\", ...}`), in English, for a page with no words of its own;\n`panels`: the trend panels a domain registered (`Panel(scope=\"trends\")`)."
       },
       "UnitPosition": {
         "properties": {
