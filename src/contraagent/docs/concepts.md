@@ -98,7 +98,7 @@ documentation. No other word is used for the same thing.
 | **web search** | a search of the web by the coding agent's own tool (Claude Code `WebSearch`, omp `web_search`); its query is recorded | `LaunchResult.web_queries`, `JournalRow.web_queries`; a transcript's tool call `web_query` |
 | **tail** | the expected wall time of the work a flow creates after a task, not queued when the task is: the median, over tasks with the same flow path's function names, kind and loop passes (capped) in recent runs and in this one, of the longest complete chain of wall times after them along `after` and created from | `Task.tail_s`, `JournalEstimates.tail`, `TailKey` |
 | **bottom level** | a queued task's estimate plus the longer of its known dependents' path and its tail: the queue's priority | `WorkQueue._blevel` |
-| **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes a name it claims or a place under its kind's cap (the starvation guard) | `WorkQueue(overdue_s=)` |
+| **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes the last place it needs on a name it claims or under its kind's cap (the starvation guard) | `WorkQueue(overdue_s=)` |
 | **slack** | the time before the deadline from which the queue orders for the deadline: shortest remaining work first, deferring what cannot finish | `WorkQueue(slack_s=)` |
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |

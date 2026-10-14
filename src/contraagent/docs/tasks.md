@@ -215,9 +215,9 @@ topic's file, a heavy tool, claims it by name: `claims=[...]` on its
 declaration. One task at a time holds a name, whatever its kind and wherever
 the flow created it; a task that claims nothing runs beside any other.
 
-A claim is a template, filled in when the task is created: `{unit}`, `{key}`
-and `{kind}` as in `output_name`, and `{params.<name>}`, a parameter of the
-task call. A parameter that holds a list gives one name per element, so a task
+A claim is a template, filled in when the task is created: `{unit}`, `{kind}`,
+`{key}` (the task's key, `~n` included: the second task a flow call creates under
+one key claims `<key>~2`), and `{params.<name>}`, a parameter of the task call. A parameter that holds a list gives one name per element, so a task
 over several topics claims each of them.
 
 ::code{file="examples/claims/flow.py" from="style = agent_task(" to="def topics("}
@@ -239,7 +239,8 @@ key.
 
 A claim that names `{unit}` on a task with no unit, or a parameter the call does
 not give, raises at the task call; so does a parameter that is an output not
-received yet (yield it first). Claims are not part of the fingerprint: they change
+received yet (yield it first), and one that holds an empty list, which would claim
+nothing. Claims are not part of the fingerprint: they change
 when a task runs, not what it does. The plan records each task's claims, and the
 monitor shows them in the task's detail.
 

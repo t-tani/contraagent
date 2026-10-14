@@ -7,6 +7,311 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A unit locks nothing: tasks of different kinds on one unit run together unless they
+  claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
+  must not overlap on a unit.
+- `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
+  `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
+  `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when
+  it is set on that element or inside it; an embedded `<ca-monitor>` carries
+  `data-ca-theme`, so a theme of your own goes on it. `themeRules()` takes the page's
+  selector by default (`pageThemeSelector`, no specificity); `themeProp` is removed.
+- `ca-json-tree`, `ca-markdown`, `ca-count` and `ca-elapsed` are
+  `cae-json-tree`, `cae-markdown`, `cae-count` and `cae-elapsed` in
+  `@contraagent/elements`. `@contraagent/ui` no longer exports the styles,
+  the themes, markdown (`md`, `mdFile`, `highlight`) or these elements, and
+  `@contraagent/ui/themes` is `@contraagent/elements/themes`.
+- Rows in Tasks and History are reached with Tab and the arrow keys, and opened
+  with Enter. Both lists are tables (`<cae-data-table>`), and a long list draws
+  only the rows on screen. The lists' filters (`filterTasks`, `filterJournal`,
+  ...) and columns (`taskColumns`, `journalColumns`) are in
+  `@contraagent/ui`'s `adapters/`.
+- The pipeline graph's Graph | Table switch and the header's language switch
+  are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
+  The legends are lists for screen readers.
+- The monitor's tabs are a tab list ("Views"): one tab stop, the arrow keys,
+  Home and End move between the tabs, Enter opens one, and the view below is
+  its tab panel. The selected tab is bold as well as underlined.
+- `<ca-monitor history="memory">` leaves the host page alone:
+  - its single-key shortcuts (1 to 9, `r`, `/`) work only while the focus is
+    inside it; the new `shortcuts` attribute (`page`, `element`, `off`) sets
+    where they work, `page` being the default with `history="url"`;
+  - it writes no `document.title`, and adds no listener to the document or the
+    window (the run picker and the theme menu listen for a click outside them
+    only while they are open);
+  - it keeps its scroll position and the open sections of Outputs and
+    definitions in its own memory, not in the page's history entry, so two
+    monitors on one page do not share them.
+  `e2e/embed.spec.ts` checks this with two monitors in a host page that has its
+  own field and shortcuts. A `<cae-data-table>` in a scrolling box follows the
+  box's size (a `ResizeObserver`), not the window's.
+- The run picker is a dialog: its search field (a combobox) takes the focus
+  when it opens and keeps it, the arrow keys name the active run, and Escape or
+  a pick returns the focus to the run button.
+- Every element that opens something on a click opens it from the keyboard too:
+  the task names in Problems and Processes, the rows of Outputs in the
+  overview, the definitions, the running tasks, a tool call in a transcript and
+  a definition file are buttons. Notices are read by screen readers (failures
+  at once). `pnpm e2e` checks every tab with axe (`e2e/a11y.spec.ts`; serious
+  and critical violations fail it).
+- The monitor writes a list of names (tasks, passes, models, identities) as the
+  page's language writes a list: "a, b, and c" in English, "a、b、c" in
+  Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).
+  `factList()` returns the facts of a row as a list, which `facts()` joins.
+- `@contraagent/api` reads a refusal's reason: `inputProblems(reason)` (the
+  inputs it names, missing or failed checks) and `runRelative(text, run)`
+  (paths cut to the run directory).
+- `Router` takes an `onLeave` callback, called before it pushes a new history
+  entry.
+- The monitor API's `JournalRow.stop` is an enum in `openapi.json`: every
+  `Stop`, and `skipped` (a row a domain wrote with its own value still
+  validates). `@contraagent/api` exports it as `Stop`; a stop the schema adds
+  fails type-checking in `@contraagent/ui` until it has a tone and words.
+- `@contraagent/ui` exports one name per meaning:
+  - `tokenCount()` (was `tokens()`) formats a token count;
+  - `tokenStyles` (was `tokens`) is the stylesheet with the design tokens;
+  - `taskStatusLabel` and `contractStatusLabel`/`contractStatusWhy` (were
+    both `statusLabel`, `statusWhy`).
+  The layout engine of the overview (`autoLayer`, `layerGraph`, `kpis`,
+  `timeline` and their types) and the `Flow*` type aliases are no longer
+  exported; the plan's types are `@contraagent/api`'s.
+- Every event an element sends is in `CaEventMap`: the run picker sends
+  `ca-close` (was `close`), and `ca-transcript` sends `ca-rounds` (was
+  `rounds-changed`; it does not bubble). `RoundsChangedDetail`, `RoundInfo`
+  and `TryResult` are with the other event details. `emit()` takes
+  `{bubbles: false}`.
+- A retry is a try that ran after a try of the same task ran and failed
+  (`retries()` in `@contraagent/api`): a task refused for its input and then
+  done is not counted as retried in the overview or in the history's
+  "tasks retried" filter.
+- `@contraagent/ui` takes `lit` and `@lit/localize` as peer dependencies: a
+  page that imports it installs them, and its bundle holds one copy of Lit.
+- One view of `@contraagent/ui` can be imported alone: `@contraagent/ui/monitor`,
+  `/overview`, `/pipeline-graph`, `/task-view`, `/transcript`, `/task-table`,
+  `/journal-table`, `/contracts`, `/definitions`, `/kpis`, `/timeline` and
+  `/procs` each register their `ca-*` elements and the `cae-*` elements they
+  render; `/adapters`, `/words`, `/core` and `/localize` register nothing.
+- Importing `@contraagent/ui` no longer configures Lit Localize or adds the
+  themes' rules to the document. `configureLocales()` (`@contraagent/ui/localize`)
+  sets up the languages and `adoptThemes(document)` (`@contraagent/elements/themes`)
+  the themes; `<ca-monitor>` calls both when it connects. On a page that
+  configured Lit Localize itself, the elements stay in English and the
+  monitor shows no language switch.
+- The Japanese text loads when a reader first chooses Japanese: the monitor
+  serves it as `ja.js` beside `app.js` (110 kB gzip, from 126 kB), and
+  `<ca-monitor>` draws its first view once it is loaded.
+- `@contraagent/ui/bundle` is minified: 117 kB gzip, from 139 kB. It keeps
+  Lit and the Japanese text in one file. In it and in the monitor's `app.js`
+  and `ja.js`, the indentation of the elements' HTML templates is left out
+  and the Japanese text is keyed by short prefixes of its message ids.
+- `@contraagent/api` makes its requests with `fetch` itself and no longer
+  depends on `openapi-fetch`; `createMonitorClient` keeps its options and calls.
+- `@contraagent/elements/themes`: each token's meaning is `TOKEN_MEANINGS[name]`,
+  not `TokenInfo.meaning`, so the elements' code does not carry the text.
+- `custom-elements.json` of `@contraagent/elements` lists the elements' modules
+  and their `define` entries only, not the layout and model modules.
+- The monitor's colours mean a status, and only where it applies: totals, cost,
+  tokens, time and the tabs' counts are in the text colour (the Tasks total is
+  no longer red when a task failed), a count of a problem (failed attempts, not
+  started) takes its status colour only above 0, and done is a green ✓ beside
+  the word rather than a green fill. Failed and not started carry ✕ and ◌ in
+  pills and chips, a run's dot is a square when it failed, and links, focus and
+  selection share one accent, apart from the cyan of running. The tool icons,
+  the coding agent and model chips and the token bars are neutral or identity
+  colours that no status uses.
+- Theme properties are named by meaning: `--ca-text`, `--ca-text-secondary`,
+  `--ca-text-muted`, `--ca-accent`, `--ca-status-failed` (`-attention`, `-done`,
+  `-running`, `-muted`, each with a `-bg`), `--ca-agent`, `--ca-meter`,
+  `--ca-tok-*` and `--ca-code-*` (syntax colours); `--ca-fg`, `--ca-fg2`,
+  `--ca-mut`, `--ca-muted`, `--ca-ok`, `--ca-warn`, `--ca-err`, `--ca-info`,
+  `--ca-live` and `--ca-llm` are gone. No colour is fixed in an element's
+  stylesheet, so the light theme covers the whole monitor, its header included.
+- The pipeline graph's inspector is a card next to the selected mark, node or
+  loop box, inside the frame, joined to it by a pointer: it flips to stay in the
+  frame, follows pans and zooms, and hides while the item is out of view. With no
+  selection the graph has the panel's whole width. On a narrow screen the card is
+  a sheet under the frame. Tab goes on from the selected item to its links.
+- `ca-toasts`: `ToastKind` is `done`, `failed`, `attention`, `running` or `agent`.
+- Python 3.12 or later (`requires-python = ">=3.12"`).
+- `WorkQueue` schedule: a greedy list schedule by bottom level, with no
+  reservation. A task startable for longer than `overdue_s` (600 s) is overdue:
+  overdue tasks go first, the longest waiting first, and while the first task
+  that cannot start is overdue, no later task takes a tag, the unit or a place
+  under the kind's cap it needs (`aging_per_s` and the time-based reservation are
+  gone). With `deadline_s`, from `deadline - slack_s` (a quarter of `deadline_s`
+  by default) on, `finishing_kinds` go first, then the shortest remaining work,
+  and a task whose remaining work cannot finish before the deadline is deferred
+  at once; before that point `finishing_kinds` have no precedence. A task with
+  no estimate is ordered as 300 s (was 60 s). `Pipeline` passes `overdue_s` and
+  `slack_s` through to the queue.
+- A resumed run skips a task only when its key's last journal row is ok and has
+  the task's fingerprint (its kind, unit, key and params; its definition: an
+  agent task's instructions, role file, output schema, validators and params
+  schema, a Python task's function source, output schema and validators; and per
+  task it waits for, the content of that task's output file when the flow
+  received it, else that task's fingerprint): a changed parameter or definition
+  runs the task again, and a task after it when the output it received changed
+  (in a flow that does not yield, every task after it). `Journal.last_rows()` and
+  `contraagent.execution.run.finished_before` replace `done_keys()`.
+- The same kind on the same unit created twice by one flow call is numbered
+  (`summarize-u~2`, output `u~2.json`) instead of raising; one key created by two
+  flow calls raises `ValueError` at the second, naming `key=`.
+- Two `agent_task` declarations of one kind raise at the second task call.
+- `Pipeline.check` and `contraagent check` run a generator flow to its first
+  wait (every flow call it starts) and check the tasks created by then, the
+  exceptions its flow calls raised, and the kinds its code reaches
+  (`contraagent.pipeline.reach`: the task declarations the flow refers to through
+  its globals, module attributes, closures, defaults and containers, and through
+  the functions it calls): their declarations, schemas, validators, plugins and
+  routing. `CheckReport.later_kinds` lists those its first step did not create.
+
+- The monitor's English follows one set of words and one form: a task's
+  status, an attempt's outcome, "attempt N", "correction", "model", "reasoning",
+  "earlier tasks" / "later tasks", the `ambient` credential as "default (this
+  machine's login)"; sentence case, facts separated by ` | `, `·` only inside a
+  task's name, links named by where they go, ✓ ✕ ◌ always beside a word.
+  Times read the same in every locale (`Oct 12, 10:38:40`), durations have one
+  format (`<0.1s`, `4.2s`, `2m 05s`), and raw codes (an unknown stop, a quota
+  status) show in words.
+- A task that did not start names its cause from the run: the input, whether it
+  is missing or failed checks, and the earlier task that failed or did not
+  start. A waiting task is shown as waiting, not as not started, and a task that
+  never ran shows no time, end or model.
+- The run card's title is the run's state ("Finished with errors"); an attempt
+  chip shows attempt, outcome, time and cost, the rest in its tooltip; each cell
+  of the scheduled-tasks matrix has an accessible name.
+- An agent or model override (`--agent`, `--model`, `Overrides`) runs every kind
+  without failover hops: a hop would run it on another agent or model.
+- Any failed launch moves its task to the next failover hop, not only a 429 or a
+  safeguard refusal (a provider's 403, a timeout, an output still off-contract,
+  ...); only a 429 moves the kind's breaker. `invalid_input`,
+  `credential_mismatch` and a launch ended by a signal do not fail over.
+- A credential override (`Overrides(credential=...)`) is every failover hop's
+  credential too; a hop that named its own ran under that one after a 429.
+- The monitor names tasks in a list as chips that open them: the tasks a
+  failure kept from running (overview) and the tasks running now (header).
+  Tooltips that describe a task put one item per line, so the `·` inside a
+  task's name (`kind · unit`) is not also the separator between items.
+  `Activity.unit` in `@contraagent/api`.
+- The monitor names causes the data has: a task that did not start says
+  whether its input is missing or failed checks (`not started (input missing)`),
+  or which earlier task failed (`earlier task review · zeta failed`); an output
+  that is not written says why in parentheses (`not written (task failed)`). A
+  count by status ("3 failed") and a cause are separate messages, so each
+  language can order them its own way. A loop is named by its file and line
+  (`Loop at flow.py:130`); the Retries, Corrections and Model switches tiles say
+  how many tasks ("2 tasks retried"); an agent's own resend of an API request
+  shows the error it got. Labels in tiles, table headers, chips, legends and the
+  Definitions list wrap at spaces and between Japanese phrases, never inside a
+  word or a fact.
+- The pipeline graph shows a failure inside a flow call at every layer: a flow
+  call's mark shows the most severe state of its tasks and of the flow calls it
+  started, and failed when the call raised or was closed, so a call that caught
+  a task's failure and returned shows it failed. A node's count is its tasks done
+  of its tasks ("28/30"), followed by the others by status ("1 failed | 1 not
+  started"); a function node names its flow calls that stopped with an error.
+- The Cost tile puts the most expensive kind on one line and its cost and share
+  of the total on the next. A failed task's output that was not written shows
+  its status once, with no second line repeating it.
+- The monitor's Japanese reads as written in Japanese, not translated: tooltips
+  are whole sentences that say the cause first, stiff words are plain, and one
+  word keeps one meaning (再送 for an agent's own request after a provider
+  error, リトライ only for a new session; ツール実行中に中止 for `aborted`,
+  中断 only for a call cut off in a transcript; 料金の上限 for `budget`; 未実行
+  for a task that never ran, not 未開始). The
+  English says "resent its request" for the agent's own retry. The reason beside
+  a not-started output no longer repeats its status ("Not started: ..."). A model switch
+  is labelled as following any failure, not only a rate limit.
+- Coding agent and role: `RunnerConfig.backend`, `Overrides.backend` and
+  `Outcome.backend` (and the journal's `backend`) are now `agent`; `Launch.agent`,
+  `TaskAdapter.agent()` and `Backend.needs_inline_agent_file` are now
+  `Launch.role`, `TaskAdapter.role()` and `needs_inline_role_file`. The prompt's
+  `TELEMETRY` line says `role=`, and the monitor's process and launch records
+  carry `role`.
+- Schema: `OutputContract.model` / `InputContract.model` are now `.schema`
+  (`check_file(path, schema)`), and `output_model` is now `output_schema`.
+- Python tasks: `@action` / `Action` are now `@python_task` / `PythonTask`;
+  `step_task` is now `make_python_task`; `dispatch/action.py` is now
+  `dispatch/python_task.py` (`PythonTaskPayload`); `ActionRunner` and
+  `ContractActionRunner` are merged into `PythonTaskRunner`
+  (`execution/python_tasks.py`); `Run.actions()` / `Run.run_actions()` are now
+  `Run.python_runner()` / `Run.run_python_steps()`; `Task.action` is now `Task.fn`.
+  A Python task's kind is its own name (no `"det"` kind, no `step` field), its
+  key starts with `python:` (and ends with `-<unit>` when it has one), and every
+  record says who executed a task with `executor: "agent" | "python"` instead of
+  an `action` flag. In the monitor, `InflightAction` is now `InflightPythonTask`,
+  `Procs.actions` is now `Procs.python_tasks` and `Procs.children` is now
+  `Procs.launches` (agents running inside the run's own process included).
+- Units and params: `Task.resource_key` is now `Task.unit`; `Task.inputs` is now
+  `Task.params` (`CONTRAAGENT_PARAMS`, a contract record's `params`, the monitor's
+  `TaskIO.params`); `TaskAdapter.missing_inputs` is now `missing_params`.
+- Task keys are `key` everywhere: the journal row, `CallFile`, contract records
+  and the monitor's task detail, upstream and downstream entries.
+- Results: `Outcome` is now `LaunchResult`, `TaskResult.outcome` is now
+  `.launch_result`, and `runs/<id>/<id>.outcomes.jsonl` is now
+  `runs/<id>/launches.jsonl`; `return_reason` is now `reason`;
+  `contract_attempts` is now `rounds` (the monitor's `ContractSpec.rounds`), and
+  the monitor's `RunSummary.tasks` / `TaskRollup.runs` are now `attempts`.
+- Run groups: `Run(session=)` and the journal's, `run.json`'s and the monitor's
+  `session` are now `run_group`.
+- The monitor's `task_detail` callback type is `TaskDetailFn`; plan columns are
+  called groups (`Monitor(groups=)` takes `kinds` only).
+- Runners: `Runner` is now `AgentRunner` (`Run.agent_runner()`); `run_validated`
+  is now `run_until_valid`; `Run.emit(result)` is now `Run.record_attempt(result)`.
+- Queue callbacks: `WorkQueue(emit=, next=)` and `Run.queue(next=)` are now
+  `on_event=` / `follow_up=`; a failing follow-up is reported as
+  `follow_up_failed`. Tasks left unlaunched at the deadline are `deferred`, not
+  `carried` (the queue event, `WorkQueue.deferred`, the summary key).
+- Per-kind config: `RunnerConfig` is now `KindConfig`; `PipelineConfig.task_plans()`
+  is now `task_tables()`, `configs_from_plans` is now `configs_from_tables`,
+  `check_plans` is now `check_task_tables`, `require_profiles` is now
+  `require_budgets`, `LAUNCH_KNOBS` is now `TASK_TABLE_KEYS`;
+  `RoutingPlan.build(defaults=, require_profile=)` is now
+  `build(declared=, budgets_required=)`; `RoutingPlan.print()` is now `log()`;
+  `Route.key` is now `Route.identity`. `agent_task(**profile)` /
+  `AgentTask.profile` are now `**config` / `.config`.
+- The run-wide failover chain moved from `[[agents.fallbacks]]` to
+  `[[defaults.fallbacks]]`.
+- Validators and budgets: `Command` is now `CommandValidator`; `Guard` is now
+  `Limits` (`Launch.limits`, `KindConfig.limits()`).
+- `TaskHook` is now `TaskScope`, and `AgentRunner(hooks=)` is now `scopes=`
+  ("hook" means a plugin's in-agent hook only).
+- `agent_task(prompt=)` and `call_prompt(preface=)` are now `instructions=`; a
+  task definition records them as part `instructions`.
+- `UnitCursor.inner` (and the monitor's `UnitPosition.inner`) is now `loop_pass`;
+  `advance_step(inner=)` is now `loop_pass=`.
+- `keep_stream` is now `keep_transcripts` (`Pipeline`, `AgentRunner`).
+- `make_python_task(inputs=, outputs=)` and `record_contracts` take
+  `input_contracts=` / `output_contracts=`.
+- `normalize_stream_event`, `read_stream` and `register_normalizer` take a stream
+  `format` (was `backend`); `resolve_format` takes the coding agent's name.
+- Monitor URLs: `/api/runs/{run}/stream/{key}`, `/events/stream?run=&key=`,
+  `/api/runs/{run}/task/{slot_or_key}`, and the UI's `?key=` (was `task`). The
+  `task_detail` callback's failure is reported as `task_detail_error` (was
+  `hook_error`).
+- `WorkQueue(skip_keys=)` is `skip=`, a function of the task; the queue's
+  `follow_up` is a public attribute.
+- `RunReport.results` and `contraagent run`'s list of failed tasks include the
+  tasks deferred past the deadline.
+
+### Removed
+
+- The `contraagent-monitor` command: the monitor is `contraagent monitor`.
+- `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
+  project's state-file names and nothing read them.
+- `Stage`, `StageRunner` and `join_stage`: `FlowDriver` replaces them.
+- API 3.0.0: the monitor's per-(kind, unit) rollup: `Monitor.tasks`,
+  `/api/runs/<run>/tasks`, `TaskRollup`, the feed's `tasks` event and
+  `RunState.tasks`. It made two passes of one task (`review-gamma`,
+  `review-gamma~2`) one row and left out tasks with no journal row. A task is one
+  task key everywhere: `deriveRun(journal, plan).rows` in `@contraagent/api`, and
+  `latestTask(rows)` picks the task the monitor opens by default (in place of
+  `latestSlot`). `/api/runs/<run>/task/<key>` and `Monitor.task_detail(run, key)`
+  take a task key only, not a `<kind>-<unit>` slot; the `task_detail` callback is
+  `fn(run, key, rows)`.
+
 ### Added
 
 - Claims: `agent_task(claims=[...])` and `@python_task(claims=...)` name what each task
@@ -532,311 +837,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `follow_up` (`stop="duplicate_key"`); its waiter was never answered.
 - A long chain of skipped follow-ups on resume, or of queued tasks linked by
   `after`, no longer exceeds Python's recursion limit.
-
-### Changed
-
-- A unit locks nothing: tasks of different kinds on one unit run together unless they
-  claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
-  must not overlap on a unit.
-- `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
-  `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
-  `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when
-  it is set on that element or inside it; an embedded `<ca-monitor>` carries
-  `data-ca-theme`, so a theme of your own goes on it. `themeRules()` takes the page's
-  selector by default (`pageThemeSelector`, no specificity); `themeProp` is removed.
-- `ca-json-tree`, `ca-markdown`, `ca-count` and `ca-elapsed` are
-  `cae-json-tree`, `cae-markdown`, `cae-count` and `cae-elapsed` in
-  `@contraagent/elements`. `@contraagent/ui` no longer exports the styles,
-  the themes, markdown (`md`, `mdFile`, `highlight`) or these elements, and
-  `@contraagent/ui/themes` is `@contraagent/elements/themes`.
-- Rows in Tasks and History are reached with Tab and the arrow keys, and opened
-  with Enter. Both lists are tables (`<cae-data-table>`), and a long list draws
-  only the rows on screen. The lists' filters (`filterTasks`, `filterJournal`,
-  ...) and columns (`taskColumns`, `journalColumns`) are in
-  `@contraagent/ui`'s `adapters/`.
-- The pipeline graph's Graph | Table switch and the header's language switch
-  are radio groups (`<cae-segmented>`): one tab stop, the arrow keys choose.
-  The legends are lists for screen readers.
-- The monitor's tabs are a tab list ("Views"): one tab stop, the arrow keys,
-  Home and End move between the tabs, Enter opens one, and the view below is
-  its tab panel. The selected tab is bold as well as underlined.
-- `<ca-monitor history="memory">` leaves the host page alone:
-  - its single-key shortcuts (1 to 9, `r`, `/`) work only while the focus is
-    inside it; the new `shortcuts` attribute (`page`, `element`, `off`) sets
-    where they work, `page` being the default with `history="url"`;
-  - it writes no `document.title`, and adds no listener to the document or the
-    window (the run picker and the theme menu listen for a click outside them
-    only while they are open);
-  - it keeps its scroll position and the open sections of Outputs and
-    definitions in its own memory, not in the page's history entry, so two
-    monitors on one page do not share them.
-  `e2e/embed.spec.ts` checks this with two monitors in a host page that has its
-  own field and shortcuts. A `<cae-data-table>` in a scrolling box follows the
-  box's size (a `ResizeObserver`), not the window's.
-- The run picker is a dialog: its search field (a combobox) takes the focus
-  when it opens and keeps it, the arrow keys name the active run, and Escape or
-  a pick returns the focus to the run button.
-- Every element that opens something on a click opens it from the keyboard too:
-  the task names in Problems and Processes, the rows of Outputs in the
-  overview, the definitions, the running tasks, a tool call in a transcript and
-  a definition file are buttons. Notices are read by screen readers (failures
-  at once). `pnpm e2e` checks every tab with axe (`e2e/a11y.spec.ts`; serious
-  and critical violations fail it).
-- The monitor writes a list of names (tasks, passes, models, identities) as the
-  page's language writes a list: "a, b, and c" in English, "a、b、c" in
-  Japanese (`listText()` in `@contraagent/ui`, with `Intl.ListFormat`).
-  `factList()` returns the facts of a row as a list, which `facts()` joins.
-- `@contraagent/api` reads a refusal's reason: `inputProblems(reason)` (the
-  inputs it names, missing or failed checks) and `runRelative(text, run)`
-  (paths cut to the run directory).
-- `Router` takes an `onLeave` callback, called before it pushes a new history
-  entry.
-- The monitor API's `JournalRow.stop` is an enum in `openapi.json`: every
-  `Stop`, and `skipped` (a row a domain wrote with its own value still
-  validates). `@contraagent/api` exports it as `Stop`; a stop the schema adds
-  fails type-checking in `@contraagent/ui` until it has a tone and words.
-- `@contraagent/ui` exports one name per meaning:
-  - `tokenCount()` (was `tokens()`) formats a token count;
-  - `tokenStyles` (was `tokens`) is the stylesheet with the design tokens;
-  - `taskStatusLabel` and `contractStatusLabel`/`contractStatusWhy` (were
-    both `statusLabel`, `statusWhy`).
-  The layout engine of the overview (`autoLayer`, `layerGraph`, `kpis`,
-  `timeline` and their types) and the `Flow*` type aliases are no longer
-  exported; the plan's types are `@contraagent/api`'s.
-- Every event an element sends is in `CaEventMap`: the run picker sends
-  `ca-close` (was `close`), and `ca-transcript` sends `ca-rounds` (was
-  `rounds-changed`; it does not bubble). `RoundsChangedDetail`, `RoundInfo`
-  and `TryResult` are with the other event details. `emit()` takes
-  `{bubbles: false}`.
-- A retry is a try that ran after a try of the same task ran and failed
-  (`retries()` in `@contraagent/api`): a task refused for its input and then
-  done is not counted as retried in the overview or in the history's
-  "tasks retried" filter.
-- `@contraagent/ui` takes `lit` and `@lit/localize` as peer dependencies: a
-  page that imports it installs them, and its bundle holds one copy of Lit.
-- One view of `@contraagent/ui` can be imported alone: `@contraagent/ui/monitor`,
-  `/overview`, `/pipeline-graph`, `/task-view`, `/transcript`, `/task-table`,
-  `/journal-table`, `/contracts`, `/definitions`, `/kpis`, `/timeline` and
-  `/procs` each register their `ca-*` elements and the `cae-*` elements they
-  render; `/adapters`, `/words`, `/core` and `/localize` register nothing.
-- Importing `@contraagent/ui` no longer configures Lit Localize or adds the
-  themes' rules to the document. `configureLocales()` (`@contraagent/ui/localize`)
-  sets up the languages and `adoptThemes(document)` (`@contraagent/elements/themes`)
-  the themes; `<ca-monitor>` calls both when it connects. On a page that
-  configured Lit Localize itself, the elements stay in English and the
-  monitor shows no language switch.
-- The Japanese text loads when a reader first chooses Japanese: the monitor
-  serves it as `ja.js` beside `app.js` (110 kB gzip, from 126 kB), and
-  `<ca-monitor>` draws its first view once it is loaded.
-- `@contraagent/ui/bundle` is minified: 117 kB gzip, from 139 kB. It keeps
-  Lit and the Japanese text in one file. In it and in the monitor's `app.js`
-  and `ja.js`, the indentation of the elements' HTML templates is left out
-  and the Japanese text is keyed by short prefixes of its message ids.
-- `@contraagent/api` makes its requests with `fetch` itself and no longer
-  depends on `openapi-fetch`; `createMonitorClient` keeps its options and calls.
-- `@contraagent/elements/themes`: each token's meaning is `TOKEN_MEANINGS[name]`,
-  not `TokenInfo.meaning`, so the elements' code does not carry the text.
-- `custom-elements.json` of `@contraagent/elements` lists the elements' modules
-  and their `define` entries only, not the layout and model modules.
-- The monitor's colours mean a status, and only where it applies: totals, cost,
-  tokens, time and the tabs' counts are in the text colour (the Tasks total is
-  no longer red when a task failed), a count of a problem (failed attempts, not
-  started) takes its status colour only above 0, and done is a green ✓ beside
-  the word rather than a green fill. Failed and not started carry ✕ and ◌ in
-  pills and chips, a run's dot is a square when it failed, and links, focus and
-  selection share one accent, apart from the cyan of running. The tool icons,
-  the coding agent and model chips and the token bars are neutral or identity
-  colours that no status uses.
-- Theme properties are named by meaning: `--ca-text`, `--ca-text-secondary`,
-  `--ca-text-muted`, `--ca-accent`, `--ca-status-failed` (`-attention`, `-done`,
-  `-running`, `-muted`, each with a `-bg`), `--ca-agent`, `--ca-meter`,
-  `--ca-tok-*` and `--ca-code-*` (syntax colours); `--ca-fg`, `--ca-fg2`,
-  `--ca-mut`, `--ca-muted`, `--ca-ok`, `--ca-warn`, `--ca-err`, `--ca-info`,
-  `--ca-live` and `--ca-llm` are gone. No colour is fixed in an element's
-  stylesheet, so the light theme covers the whole monitor, its header included.
-- The pipeline graph's inspector is a card next to the selected mark, node or
-  loop box, inside the frame, joined to it by a pointer: it flips to stay in the
-  frame, follows pans and zooms, and hides while the item is out of view. With no
-  selection the graph has the panel's whole width. On a narrow screen the card is
-  a sheet under the frame. Tab goes on from the selected item to its links.
-- `ca-toasts`: `ToastKind` is `done`, `failed`, `attention`, `running` or `agent`.
-- Python 3.12 or later (`requires-python = ">=3.12"`).
-- `WorkQueue` schedule: a greedy list schedule by bottom level, with no
-  reservation. A task startable for longer than `overdue_s` (600 s) is overdue:
-  overdue tasks go first, the longest waiting first, and while the first task
-  that cannot start is overdue, no later task takes a tag, the unit or a place
-  under the kind's cap it needs (`aging_per_s` and the time-based reservation are
-  gone). With `deadline_s`, from `deadline - slack_s` (a quarter of `deadline_s`
-  by default) on, `finishing_kinds` go first, then the shortest remaining work,
-  and a task whose remaining work cannot finish before the deadline is deferred
-  at once; before that point `finishing_kinds` have no precedence. A task with
-  no estimate is ordered as 300 s (was 60 s). `Pipeline` passes `overdue_s` and
-  `slack_s` through to the queue.
-- A resumed run skips a task only when its key's last journal row is ok and has
-  the task's fingerprint (its kind, unit, key and params; its definition: an
-  agent task's instructions, role file, output schema, validators and params
-  schema, a Python task's function source, output schema and validators; and per
-  task it waits for, the content of that task's output file when the flow
-  received it, else that task's fingerprint): a changed parameter or definition
-  runs the task again, and a task after it when the output it received changed
-  (in a flow that does not yield, every task after it). `Journal.last_rows()` and
-  `contraagent.execution.run.finished_before` replace `done_keys()`.
-- The same kind on the same unit created twice by one flow call is numbered
-  (`summarize-u~2`, output `u~2.json`) instead of raising; one key created by two
-  flow calls raises `ValueError` at the second, naming `key=`.
-- Two `agent_task` declarations of one kind raise at the second task call.
-- `Pipeline.check` and `contraagent check` run a generator flow to its first
-  wait (every flow call it starts) and check the tasks created by then, the
-  exceptions its flow calls raised, and the kinds its code reaches
-  (`contraagent.pipeline.reach`: the task declarations the flow refers to through
-  its globals, module attributes, closures, defaults and containers, and through
-  the functions it calls): their declarations, schemas, validators, plugins and
-  routing. `CheckReport.later_kinds` lists those its first step did not create.
-
-- The monitor's English follows one set of words and one form: a task's
-  status, an attempt's outcome, "attempt N", "correction", "model", "reasoning",
-  "earlier tasks" / "later tasks", the `ambient` credential as "default (this
-  machine's login)"; sentence case, facts separated by ` | `, `·` only inside a
-  task's name, links named by where they go, ✓ ✕ ◌ always beside a word.
-  Times read the same in every locale (`Oct 12, 10:38:40`), durations have one
-  format (`<0.1s`, `4.2s`, `2m 05s`), and raw codes (an unknown stop, a quota
-  status) show in words.
-- A task that did not start names its cause from the run: the input, whether it
-  is missing or failed checks, and the earlier task that failed or did not
-  start. A waiting task is shown as waiting, not as not started, and a task that
-  never ran shows no time, end or model.
-- The run card's title is the run's state ("Finished with errors"); an attempt
-  chip shows attempt, outcome, time and cost, the rest in its tooltip; each cell
-  of the scheduled-tasks matrix has an accessible name.
-- An agent or model override (`--agent`, `--model`, `Overrides`) runs every kind
-  without failover hops: a hop would run it on another agent or model.
-- Any failed launch moves its task to the next failover hop, not only a 429 or a
-  safeguard refusal (a provider's 403, a timeout, an output still off-contract,
-  ...); only a 429 moves the kind's breaker. `invalid_input`,
-  `credential_mismatch` and a launch ended by a signal do not fail over.
-- A credential override (`Overrides(credential=...)`) is every failover hop's
-  credential too; a hop that named its own ran under that one after a 429.
-- The monitor names tasks in a list as chips that open them: the tasks a
-  failure kept from running (overview) and the tasks running now (header).
-  Tooltips that describe a task put one item per line, so the `·` inside a
-  task's name (`kind · unit`) is not also the separator between items.
-  `Activity.unit` in `@contraagent/api`.
-- The monitor names causes the data has: a task that did not start says
-  whether its input is missing or failed checks (`not started (input missing)`),
-  or which earlier task failed (`earlier task review · zeta failed`); an output
-  that is not written says why in parentheses (`not written (task failed)`). A
-  count by status ("3 failed") and a cause are separate messages, so each
-  language can order them its own way. A loop is named by its file and line
-  (`Loop at flow.py:130`); the Retries, Corrections and Model switches tiles say
-  how many tasks ("2 tasks retried"); an agent's own resend of an API request
-  shows the error it got. Labels in tiles, table headers, chips, legends and the
-  Definitions list wrap at spaces and between Japanese phrases, never inside a
-  word or a fact.
-- The pipeline graph shows a failure inside a flow call at every layer: a flow
-  call's mark shows the most severe state of its tasks and of the flow calls it
-  started, and failed when the call raised or was closed, so a call that caught
-  a task's failure and returned shows it failed. A node's count is its tasks done
-  of its tasks ("28/30"), followed by the others by status ("1 failed | 1 not
-  started"); a function node names its flow calls that stopped with an error.
-- The Cost tile puts the most expensive kind on one line and its cost and share
-  of the total on the next. A failed task's output that was not written shows
-  its status once, with no second line repeating it.
-- The monitor's Japanese reads as written in Japanese, not translated: tooltips
-  are whole sentences that say the cause first, stiff words are plain, and one
-  word keeps one meaning (再送 for an agent's own request after a provider
-  error, リトライ only for a new session; ツール実行中に中止 for `aborted`,
-  中断 only for a call cut off in a transcript; 料金の上限 for `budget`; 未実行
-  for a task that never ran, not 未開始). The
-  English says "resent its request" for the agent's own retry. The reason beside
-  a not-started output no longer repeats its status ("Not started: ..."). A model switch
-  is labelled as following any failure, not only a rate limit.
-- Coding agent and role: `RunnerConfig.backend`, `Overrides.backend` and
-  `Outcome.backend` (and the journal's `backend`) are now `agent`; `Launch.agent`,
-  `TaskAdapter.agent()` and `Backend.needs_inline_agent_file` are now
-  `Launch.role`, `TaskAdapter.role()` and `needs_inline_role_file`. The prompt's
-  `TELEMETRY` line says `role=`, and the monitor's process and launch records
-  carry `role`.
-- Schema: `OutputContract.model` / `InputContract.model` are now `.schema`
-  (`check_file(path, schema)`), and `output_model` is now `output_schema`.
-- Python tasks: `@action` / `Action` are now `@python_task` / `PythonTask`;
-  `step_task` is now `make_python_task`; `dispatch/action.py` is now
-  `dispatch/python_task.py` (`PythonTaskPayload`); `ActionRunner` and
-  `ContractActionRunner` are merged into `PythonTaskRunner`
-  (`execution/python_tasks.py`); `Run.actions()` / `Run.run_actions()` are now
-  `Run.python_runner()` / `Run.run_python_steps()`; `Task.action` is now `Task.fn`.
-  A Python task's kind is its own name (no `"det"` kind, no `step` field), its
-  key starts with `python:` (and ends with `-<unit>` when it has one), and every
-  record says who executed a task with `executor: "agent" | "python"` instead of
-  an `action` flag. In the monitor, `InflightAction` is now `InflightPythonTask`,
-  `Procs.actions` is now `Procs.python_tasks` and `Procs.children` is now
-  `Procs.launches` (agents running inside the run's own process included).
-- Units and params: `Task.resource_key` is now `Task.unit`; `Task.inputs` is now
-  `Task.params` (`CONTRAAGENT_PARAMS`, a contract record's `params`, the monitor's
-  `TaskIO.params`); `TaskAdapter.missing_inputs` is now `missing_params`.
-- Task keys are `key` everywhere: the journal row, `CallFile`, contract records
-  and the monitor's task detail, upstream and downstream entries.
-- Results: `Outcome` is now `LaunchResult`, `TaskResult.outcome` is now
-  `.launch_result`, and `runs/<id>/<id>.outcomes.jsonl` is now
-  `runs/<id>/launches.jsonl`; `return_reason` is now `reason`;
-  `contract_attempts` is now `rounds` (the monitor's `ContractSpec.rounds`), and
-  the monitor's `RunSummary.tasks` / `TaskRollup.runs` are now `attempts`.
-- Run groups: `Run(session=)` and the journal's, `run.json`'s and the monitor's
-  `session` are now `run_group`.
-- The monitor's `task_detail` callback type is `TaskDetailFn`; plan columns are
-  called groups (`Monitor(groups=)` takes `kinds` only).
-- Runners: `Runner` is now `AgentRunner` (`Run.agent_runner()`); `run_validated`
-  is now `run_until_valid`; `Run.emit(result)` is now `Run.record_attempt(result)`.
-- Queue callbacks: `WorkQueue(emit=, next=)` and `Run.queue(next=)` are now
-  `on_event=` / `follow_up=`; a failing follow-up is reported as
-  `follow_up_failed`. Tasks left unlaunched at the deadline are `deferred`, not
-  `carried` (the queue event, `WorkQueue.deferred`, the summary key).
-- Per-kind config: `RunnerConfig` is now `KindConfig`; `PipelineConfig.task_plans()`
-  is now `task_tables()`, `configs_from_plans` is now `configs_from_tables`,
-  `check_plans` is now `check_task_tables`, `require_profiles` is now
-  `require_budgets`, `LAUNCH_KNOBS` is now `TASK_TABLE_KEYS`;
-  `RoutingPlan.build(defaults=, require_profile=)` is now
-  `build(declared=, budgets_required=)`; `RoutingPlan.print()` is now `log()`;
-  `Route.key` is now `Route.identity`. `agent_task(**profile)` /
-  `AgentTask.profile` are now `**config` / `.config`.
-- The run-wide failover chain moved from `[[agents.fallbacks]]` to
-  `[[defaults.fallbacks]]`.
-- Validators and budgets: `Command` is now `CommandValidator`; `Guard` is now
-  `Limits` (`Launch.limits`, `KindConfig.limits()`).
-- `TaskHook` is now `TaskScope`, and `AgentRunner(hooks=)` is now `scopes=`
-  ("hook" means a plugin's in-agent hook only).
-- `agent_task(prompt=)` and `call_prompt(preface=)` are now `instructions=`; a
-  task definition records them as part `instructions`.
-- `UnitCursor.inner` (and the monitor's `UnitPosition.inner`) is now `loop_pass`;
-  `advance_step(inner=)` is now `loop_pass=`.
-- `keep_stream` is now `keep_transcripts` (`Pipeline`, `AgentRunner`).
-- `make_python_task(inputs=, outputs=)` and `record_contracts` take
-  `input_contracts=` / `output_contracts=`.
-- `normalize_stream_event`, `read_stream` and `register_normalizer` take a stream
-  `format` (was `backend`); `resolve_format` takes the coding agent's name.
-- Monitor URLs: `/api/runs/{run}/stream/{key}`, `/events/stream?run=&key=`,
-  `/api/runs/{run}/task/{slot_or_key}`, and the UI's `?key=` (was `task`). The
-  `task_detail` callback's failure is reported as `task_detail_error` (was
-  `hook_error`).
-- `WorkQueue(skip_keys=)` is `skip=`, a function of the task; the queue's
-  `follow_up` is a public attribute.
-- `RunReport.results` and `contraagent run`'s list of failed tasks include the
-  tasks deferred past the deadline.
-
-### Removed
-
-- The `contraagent-monitor` command: the monitor is `contraagent monitor`.
-- `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
-  project's state-file names and nothing read them.
-- `Stage`, `StageRunner` and `join_stage`: `FlowDriver` replaces them.
-- API 3.0.0: the monitor's per-(kind, unit) rollup: `Monitor.tasks`,
-  `/api/runs/<run>/tasks`, `TaskRollup`, the feed's `tasks` event and
-  `RunState.tasks`. It made two passes of one task (`review-gamma`,
-  `review-gamma~2`) one row and left out tasks with no journal row. A task is one
-  task key everywhere: `deriveRun(journal, plan).rows` in `@contraagent/api`, and
-  `latestTask(rows)` picks the task the monitor opens by default (in place of
-  `latestSlot`). `/api/runs/<run>/task/<key>` and `Monitor.task_detail(run, key)`
-  take a task key only, not a `<kind>-<unit>` slot; the `task_detail` callback is
-  `fn(run, key, rows)`.
 
 ## [0.1.0] - 2026-10-10
 

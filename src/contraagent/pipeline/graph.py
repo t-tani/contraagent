@@ -261,8 +261,8 @@ class Graph:
         frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
         self.check_passes(frames, base, call_id)
         self.declare(spec)
+        claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
         self._bases[base] = (call_id, n)
-        claims = _expand_claims(spec, unit, base, params)
         received: set[str] = set()
         params = {name: self._dependency(v, received) for name, v in params.items()}
         upstream = list(_pendings(params.values()))
@@ -504,7 +504,7 @@ def _expand_claims(spec: Any, unit: str, key: str, params: dict[str, Any]) -> tu
     a parameter of the call: a list gives one name per element (several lists, every
     combination). In order and once each. Raises at the task call for a `{unit}` of a task
     with no unit, a missing parameter, an output not received yet, or a value that is not
-    a string or a number."""
+    a string or a number, or a list with no element (the claim would hold nothing)."""
     out: list[str] = []
     for template in getattr(spec, "claims", ()):
         names = [""]
@@ -525,11 +525,15 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
     if field_name in ("key", "kind"):
         return [key if field_name == "key" else kind]
     m = CLAIM_PARAM.fullmatch(field_name)
-    name = m.group(1) if m else field_name
+    if m is None:  # the declaration admits no other field (`spec._checked_claims`)
+        raise ValueError(f"{kind}(): claim {template!r} names {field_name}; it may name unit, key, kind and params.<name>")
+    name = m.group(1)
     if name not in params:
         raise ValueError(f"{kind}(): claim {template!r} names params.{name}, and the call gives no {name}")
     value = params[name]
     items = list(value) if isinstance(value, (list, tuple)) else [value]
+    if not items:
+        raise ValueError(f"{kind}(): claim {template!r} names params.{name}, an empty list; the task would claim nothing")
     for v in items:
         if isinstance(v, Pending):
             raise TypeError(f"{kind}(): claim {template!r} names params.{name}, an output not received yet; yield it first")
