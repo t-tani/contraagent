@@ -103,6 +103,9 @@ class TokenUsage(BaseModel):
     cache_creation: int = 0
     #: API calls the coding agent made.
     calls: int = 0
+    #: The whole input of the attempt's first API call (cache included): what the coding agent
+    #: loads before the task starts (system prompt, tools, the prompt). None when no call was read.
+    resident: int | None = None
 
 
 class Changes(BaseModel):

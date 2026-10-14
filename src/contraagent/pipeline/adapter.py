@@ -15,7 +15,7 @@ from pydantic_core import to_jsonable_python
 
 from contraagent import envvars, rundir
 from contraagent.backends.base import Backend
-from contraagent.calls import CallFile, CallOutput, call_prompt, schema_ref_of
+from contraagent.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
 from contraagent.contracts import InputContract, OutputContract
 from contraagent.dispatch.task import Task
 from contraagent.execution.adapter import TaskAdapter
@@ -64,45 +64,69 @@ class SpecAdapter(TaskAdapter):
     # --- TaskAdapter -------------------------------------------------------
 
     def prompt(self, task: Task, backend: Backend) -> str:
+        """The call protocol, which names the call file; for a light launch, the call itself
+        (the agent has no tool to read a file with), the call file still written for the record."""
         call = self.call(task)
         path = call.write(self.call_path(task))
         if call.output is not None:  # the agent writes the file; the directory is ours
             Path(call.output.path).parent.mkdir(parents=True, exist_ok=True)
-        instructions = ""
-        if self._node(task).spec.instructions:
-            values = {k: str(v) for k, v in call.params.items() if isinstance(v, (str, int, float, bool))}
-            instructions = string.Template(self._node(task).spec.instructions).safe_substitute(
-                values, unit=call.unit, key=call.key, kind=call.kind
-            )
-        return call_prompt(path, call, instructions)
+        spec = self._node(task).spec
+        if spec.light:
+            # A light launch with no plugin has its instructions as its system prompt.
+            return inline_prompt(call, self._instructions(task, call) if spec.plugin is not None else "")
+        return call_prompt(path, call, self._instructions(task, call))
+
+    def _instructions(self, task: Task, call: CallFile) -> str:
+        """The task's `instructions`, `$name` filled in from its params, unit, key and kind."""
+        text = self._node(task).spec.instructions
+        if not text:
+            return ""
+        values = {k: str(v) for k, v in call.params.items() if isinstance(v, (str, int, float, bool))}
+        return string.Template(text).safe_substitute(values, unit=call.unit, key=call.key, kind=call.kind)
 
     def role(self, task: Task) -> str | None:
-        return self._node(task).spec.role
+        """The role, as Claude Code's `--agent`; none for a light launch, whose role is its system prompt."""
+        spec = self._node(task).spec
+        return None if spec.light else spec.role
 
     def plugin_dirs(self, task: Task) -> tuple[str, ...]:
-        """The task's own plugin first, then the skill plugins of `skills_from`."""
-        return tuple(str(p.root) for p in self._node(task).spec.plugins)
+        """The task's own plugin first, then the skill plugins of `skills_from`; none for a
+        light launch (no skill, hook or MCP server can act without tools)."""
+        spec = self._node(task).spec
+        return () if spec.light else tuple(str(p.root) for p in spec.plugins)
+
+    def tools(self, task: Task) -> tuple[str, ...] | None:
+        return self._node(task).spec.tools
+
+    def system_prompt(self, task: Task) -> str | None:
+        spec = self._node(task).spec
+        if not spec.light:
+            return None
+        return spec.system_prompt(self._instructions(task, self.call(task)) if spec.plugin is None else None)
 
     def settings_path(self, task: Task) -> str | None:
         """The task's own plugin's `settings.json`; for a task with no plugin, the template's
-        permissions (`DEFAULT_SETTINGS`, as JSON text)."""
-        plugin = self._node(task).spec.plugin
-        if plugin is None:
+        permissions (`DEFAULT_SETTINGS`, as JSON text); none for a light launch."""
+        spec = self._node(task).spec
+        if spec.light:
+            return None
+        if spec.plugin is None:
             return " ".join(DEFAULT_SETTINGS.split())
-        f = plugin.root / "settings.json"
+        f = spec.plugin.root / "settings.json"
         return str(f) if f.is_file() else None
 
     def mcp_config_path(self, task: Task) -> str | None:
-        """The task's own plugin's `.mcp.json`, if it has one."""
-        plugin = self._node(task).spec.plugin
-        f = plugin.root / ".mcp.json" if plugin is not None else None
+        """The task's own plugin's `.mcp.json`, if it has one; none for a light launch."""
+        spec = self._node(task).spec
+        f = spec.plugin.root / ".mcp.json" if spec.plugin is not None and not spec.light else None
         return str(f) if f is not None and f.is_file() else None
 
     def context_files(self, task: Task, backend: Backend) -> tuple[str, ...]:
         """A coding agent with no named-agent flag (omp) gets the role's file attached;
-        one with `--agent` (Claude Code) resolves the role itself."""
+        one with `--agent` (Claude Code) resolves the role itself. A light launch has its
+        role as its system prompt."""
         spec = self._node(task).spec
-        if spec.plugin is None or spec.role is None or not backend.needs_inline_role_file:
+        if spec.light or spec.plugin is None or spec.role is None or not backend.needs_inline_role_file:
             return ()
         return (str(spec.plugin.role_file(spec.role)),)
 
@@ -142,4 +166,5 @@ class SpecAdapter(TaskAdapter):
             ),
             "validators": [getattr(v, "name", "") or getattr(v, "__name__", "") for v in spec.validators],
             "output_from": spec.output_from,
+            "tools": list(spec.tools) if spec.tools is not None else None,
         }

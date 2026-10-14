@@ -139,7 +139,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       width: '92px',
       cell: (e) => {
         const u = e.usage;
-        return html`<span class="two">${u
+        const first = u?.resident != null ? msg(str`Input of the first API call: ${tokenCount(u.resident)}`) : nothing;
+        return html`<span class="two" title=${first}>${u
           ? html`<span>${tokenCount(u.input)} / ${tokenCount(u.output)}</span><span class="sub">${tokenCount(u.cache_read)} / ${tokenCount(u.cache_creation)}</span>`
           : html`<span class="jdim">—</span>`}</span>`;
       },

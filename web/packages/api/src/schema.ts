@@ -1654,6 +1654,11 @@ export type components = {
             output_from?: ("file" | "message") | null;
             /** Validators */
             validators?: string[];
+            /**
+             * Tools
+             * @description agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows
+             */
+            tools?: string[] | null;
             /** Executor */
             executor?: ("agent" | "python") | null;
             /**
@@ -1799,6 +1804,8 @@ export type components = {
              * @default 0
              */
             calls?: number;
+            /** Resident */
+            resident?: number | null;
         } & {
             [key: string]: unknown;
         };

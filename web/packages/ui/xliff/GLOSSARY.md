@@ -102,6 +102,8 @@ wherever the UI shows a state or a count to the reader.
 | reasoning (the model's thinking in a transcript) | 思考 |
 | cost (USD, as the coding agent reports it) | 料金 |
 | tokens / input / output / cache read / cache write / API calls | トークン / 入力 / 出力 / キャッシュ読み込み / キャッシュ書き込み / API 呼び出し |
+| input of the first API call (`usage.resident`, a tooltip on an attempt's tokens) | 最初の API 呼び出しの入力 |
+| tools (a task definition's coding-agent tools; "none" for a light launch) | ツール（なし） |
 | web searches (the queries of the coding agent's web search tool) | Web 検索 |
 | query (what a web search searched for) | 検索語 |
 | results (the pages a web search returned; not a task's outcome) | 検索結果 |

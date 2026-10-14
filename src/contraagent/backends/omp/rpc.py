@@ -26,7 +26,7 @@ from pathlib import Path
 from contraagent.backends import live_processes
 from contraagent.backends.credentials import CredentialError
 from contraagent.backends.launch import Launch, LaunchResult, Stop
-from contraagent.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, session_args
+from contraagent.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, prompt_args, session_args
 from contraagent.backends.omp.trace import TraceReader
 
 
@@ -46,6 +46,7 @@ class OmpRpcBackend(OmpBackend):
         # Same neutral effort as the omp backend: the launch value wins
         # over the constructor default so a per-task effort reaches the CLI.
         a += ["--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]
+        a += prompt_args(launch)
         if launch.limits.timeout_s:
             # CLI-side backstop behind the loop's own abort: the process
             # dies even if our abort frame is lost.

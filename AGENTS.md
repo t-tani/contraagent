@@ -57,6 +57,8 @@ there: one word, one meaning, on every screen. Japanese follows
 | the agent's own resend of an API request (`auto_retry_start`) | API request sent again | 再送 |
 | `cost_usd` (reported by the coding agent) | cost | 料金 |
 | `usage` (input, output, cache_read, cache_creation, calls) | tokens: input, output, cache read, cache write, API calls | トークン: 入力, 出力, キャッシュ読み込み, キャッシュ書き込み, API 呼び出し |
+| `usage.resident` | input of the first API call (a tooltip on an attempt's tokens) | 最初の API 呼び出しの入力 |
+| a light launch (`TaskDefinition.tools` `[]`) | Tools: none (a task definition's fact) | ツール: なし |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
 | `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |

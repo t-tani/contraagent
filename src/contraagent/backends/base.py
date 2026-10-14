@@ -75,6 +75,11 @@ class Backend(abc.ABC):
     # --agent flag. Only omp today: it has no named-agent mechanism of its
     # own, so the caller attaches the file directly.
     needs_inline_role_file: bool = False
+    # True when this agent runs a light launch as asked: `Launch.tools == ()` turns
+    # every tool off, `Launch.system_prompt` replaces its own system prompt, and it
+    # loads no settings, skills or MCP servers it was not given. A kind declared with
+    # `agent_task(tools=())` is refused on an agent without it (routing).
+    light_launch: bool = False
     # The reasoning-depth values this CLI accepts for `Launch.effort`, read off
     # the installed CLI rather than guessed (`claude --help | grep effort`,
     # `omp --help | grep thinking`). The vocabularies differ, so a value valid

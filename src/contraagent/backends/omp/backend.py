@@ -181,6 +181,24 @@ def session_args(launch: Launch) -> list[str]:
     return a
 
 
+def prompt_args(launch: Launch) -> list[str]:
+    """The system prompt and the tools: `Launch.system_prompt` replaces omp's own
+    (`--system-prompt`), `Launch.tools == ()` turns every tool off (`--no-tools`, and
+    `--no-lsp` for the language-server tools, which `--no-tools` leaves), a tuple of
+    names keeps only those (`--tools`). Values ride in one element: a role's text may
+    start with `-`."""
+    a: list[str] = []
+    if launch.system_prompt is not None:
+        a.append(f"--system-prompt={launch.system_prompt}")
+    if launch.append_system_prompt is not None:
+        a.append(f"--append-system-prompt={launch.append_system_prompt}")
+    if launch.tools == ():
+        a += ["--no-tools", "--no-lsp"]
+    elif launch.tools is not None:
+        a.append(f"--tools={','.join(launch.tools)}")
+    return a
+
+
 class OmpBackend(OneShotBackend):
     """Headless oh-my-pi: `omp -p` with text output."""
 
@@ -198,6 +216,9 @@ class OmpBackend(OneShotBackend):
     # omp has no named-agent mechanism of its own: the task's role file
     # (`agents/<role>.md`) rides along as an attached context file instead.
     needs_inline_role_file = True
+    # `--no-tools`, `--system-prompt` (`prompt_args`); the isolation config already
+    # turns off every settings, skill and MCP discovery, and a light launch loads no plugin.
+    light_launch = True
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", trace: bool = True):
         super().__init__(binary, base_env)
@@ -372,6 +393,7 @@ class OmpBackend(OneShotBackend):
         # --omp-only run silently ignored it. `self.thinking` stays as the
         # constructor default for a launch that sets no effort.
         a += ["-p", "--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]
+        a += prompt_args(launch)
         if self.trace:
             a += ["--mode", "json"]
         if launch.model:

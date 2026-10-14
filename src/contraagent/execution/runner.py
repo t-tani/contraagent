@@ -200,7 +200,10 @@ class AgentRunner:
         model = route.model if route is not None and route.model else (rc.model or self.model)
         credential = credential or self.credential_for(task, route)
         plugin_dirs = self.adapter.plugin_dirs(task)
+        tools = self.adapter.tools(task)
         settings = rc.settings if rc.settings and Path(rc.settings).exists() else None
+        if tools == ():  # a light launch loads no settings: they could only add hooks to a launch with no tools
+            settings = None
         env = {
             envvars.PYTHON: sys.executable,
             **self.env,
@@ -219,8 +222,10 @@ class AgentRunner:
             model=model,
             effort=rc.effort,
             fallback_model=self._model_chain(task, route, be),
-            settings=settings or self.adapter.settings_path(task),
+            settings=settings or (self.adapter.settings_path(task) if tools != () else None),
             mcp_config=self.adapter.mcp_config_path(task),
+            tools=tools,
+            system_prompt=self.adapter.system_prompt(task),
             exclude_dynamic_sections=rc.exclude_dynamic_sections,
             limits=rc.limits(),
             credential=credential,

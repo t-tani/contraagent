@@ -148,6 +148,35 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
     return "\n".join(lines)
 
 
+def inline_prompt(call: CallFile, instructions: str = "") -> str:
+    """The prompt of a light launch (`agent_task(tools=())`): the agent has no tool to read
+    a call file with, so the call is in the prompt itself: its params as JSON and, for a
+    JSON output, its JSON Schema. Its final message is the output."""
+    unit = f" for unit `{call.unit}`" if call.unit else ""
+    params = json.dumps(call.params, ensure_ascii=False, indent=1)
+    lines = [f"Task call: `{call.kind}`{unit}.", "", "Your parameters:", "```json", params, "```"]
+    out = call.output
+    if out is not None and out.format == "json":
+        schema = json.dumps(out.json_schema, ensure_ascii=False, indent=1)
+        lines += [
+            "",
+            "Your final message is the output: one JSON document matching this JSON Schema exactly, as "
+            "your whole message, with no prose and no code fences around it.",
+            "```json",
+            schema,
+            "```",
+        ]
+    elif out is not None:
+        lines += ["", "Your final message is the output: the document the task asks for, as your whole message."]
+    lines += [
+        "",
+        "It is checked after you reply; if the check fails you will be sent the errors, so reply again with the corrected output.",
+    ]
+    if instructions:
+        lines = [instructions.rstrip(), "", *lines]
+    return "\n".join(lines)
+
+
 def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env: dict | None = None) -> tuple[int, str]:
     """What a plugin's Stop hook runs. Returns (exit_code, message).
 

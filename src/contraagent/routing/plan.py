@@ -118,9 +118,12 @@ def resolve_routing(
     overrides: Overrides = Overrides(),
     requirements: Mapping[str, Iterable[str]] | None = None,
     errors: list[str] | None = None,
+    *,
+    light: Iterable[str] = (),
 ) -> dict:
     """Fold the routing defaults and each kind's task table into its config.
     With `errors`, an effort the agent does not accept is appended there instead of raised.
+    `light`: the kinds declared with no tools (`agent_task(tools=())`).
 
     Precedence, highest first, for agent, model, effort and credential:
 
@@ -133,6 +136,7 @@ def resolve_routing(
     resolved default and says so, rather than becoming un-runnable.
     """
     run_agent, run_model, run_effort = overrides.run_defaults(defaults)
+    light = set(light)
     out = dict(configs)
     efforts: dict[tuple[str, str], list[str]] = {}  # (agent, effort) -> kinds, checked once each
     for kind, rc in configs.items():
@@ -153,7 +157,7 @@ def resolve_routing(
         rest = {  # budgets, retries, model_failover ...
             k: v
             for k, v in table.items()
-            if k in KindConfig.__dataclass_fields__ and k not in ("agent", "model", "effort", "settings", "credential", "requires")
+            if k in KindConfig.__dataclass_fields__ and k not in ("agent", "model", "effort", "settings", "credential", "requires", "light")
         }
         credential = overrides.credential or str(table.get("credential") or "") or str(defaults.get("credential") or "") or "ambient"
         out[kind] = dataclasses.replace(
@@ -163,6 +167,7 @@ def resolve_routing(
             effort=effort,
             credential=credential,
             requires=tuple((requirements or {}).get(name, ())),
+            light=name in light,
             **rest,
         )
     for (agent, effort), names in efforts.items():
@@ -269,6 +274,8 @@ def _route_problem(rc, route: Route, credentials: Mapping, backends: Mapping[str
     backend = backends.get(route.agent)
     if backend is None:
         return None
+    if rc.light and not backend.light_launch:
+        return f"the task has no tools (tools=()), and {route.agent} cannot launch without them and its own system prompt"
     for member in [credentials[m] for m in cred.members] if isinstance(cred, Pool) else [cred]:
         try:
             binding = backend.bind_credential(member, route.model, label="check")
@@ -308,6 +315,7 @@ class RoutingPlan:
         *,
         declared: Mapping[str, Mapping] | None = None,
         requirements: Mapping[str, Iterable[str]] | None = None,
+        light: Iterable[str] = (),
         budgets_required: bool = True,
         all_kinds: bool = True,
     ) -> RoutingPlan:
@@ -319,6 +327,9 @@ class RoutingPlan:
         (`max_turns`, `timeout_s`) neither set is refused: the generic
         `KindConfig` field defaults are not a budget. `requirements` are the
         traits each kind's credential must carry (`agent_task(requires=...)`).
+        `light` names the kinds with no tools (`agent_task(tools=())`): a route whose
+        coding agent cannot launch them so (`Backend.light_launch`) is refused, failover
+        hops included.
         With `all_kinds` (the default) `kinds` are every kind of the run, and a task
         table naming none of them is logged (`check_task_tables`); False for a plan of
         some kinds only (a generator flow creates kinds as it runs).
@@ -337,7 +348,7 @@ class RoutingPlan:
         configs = configs_from_tables(kinds, tables)
         if budgets_required:
             errors += missing_budgets(configs, tables)
-        configs = resolve_routing(configs, tables, defaults, backends, overrides, requirements, errors)
+        configs = resolve_routing(configs, tables, defaults, backends, overrides, requirements, errors, light=light)
         routers = build_routers(configs, tables, config, backends, overrides, errors)
         credentials = config.credentials()
         check_credentials(configs, routers, credentials, backends, errors)

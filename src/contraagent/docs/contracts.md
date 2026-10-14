@@ -41,6 +41,46 @@ the turn. It saves the turn a `Write` takes, and the permission to write.
 
 ::code{file="examples/review/flow.py" from="# A verdict needs no tool" to="revise = agent_task("}
 
+## A judgement in one turn: a light launch
+
+Such a task still starts with all that a coding agent loads before its first
+turn: its own system prompt and the definitions of its tools, and it spends a
+turn reading its call file. A task declared with no tools, `tools=()`, is
+launched light instead:
+
+- its role's text without the frontmatter (for a task with no plugin, its
+  `instructions`) replaces the coding agent's system prompt;
+- the agent gets no tool, and no plugin, settings file, skill, hook or MCP server
+  is loaded;
+- the prompt holds the call itself: the params as JSON and the output's JSON
+  Schema (the call file is still written, for the record);
+- its final message is its output, so it needs `output_from="message"`; a message
+  that fails its checks goes back to the same session, as above.
+
+::code{file="examples/light/flow.py" from="class Classified(" to="def items("}
+
+A light launch is one call, and a small one. Measured on Haiku with a one-line
+judgement:
+
+| | light launch | the same judgement, the agent's defaults | the same task as its role, with tools |
+|---|---|---|---|
+| Claude Code | 1 call, 644 tokens of input (1,180 with a role and a schema) | 1 call, 16,863 (25 tools) | 2 calls, 2,230 each: `--agent` already puts the role in place of the default system prompt, and `tools: Read` keeps one tool |
+| omp | 1 call, 369 (658) | 1 call, 11,828 | 2 calls, 12,311 each: omp keeps its own system prompt and every tool |
+
+The journal row holds the first call's input (`usage.resident`), and the monitor
+shows it on the tokens of each attempt. Each coding agent does it with its own flags:
+
+| | system prompt | tools | settings, skills, MCP servers |
+|---|---|---|---|
+| Claude Code | `--system-prompt` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
+| omp | `--system-prompt`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
+
+A coding agent that cannot launch so is refused for a kind with `tools=()`, on
+every route of the kind, failover hops included (`Backend.light_launch`). The
+agent can read nothing and run nothing: give it all it needs in its params. A
+list of tool names is not taken, since each coding agent names its tools its own
+way; a role names the ones it may use (`tools:`), as [plugins](plugins.md) says.
+
 ## Validators
 
 A validator is any callable `(path, value) -> errors`. `value` is the checked
