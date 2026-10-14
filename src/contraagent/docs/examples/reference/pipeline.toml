@@ -66,6 +66,8 @@ credential = "company-gateway"
 
 [credentials.personal]              # a /login (Claude Code) or a profile login (omp)
 type = "subscription"
+max_five_hour_pct = 90              # quota caps: past them the credential rests until the window resets,
+max_seven_day_pct = 95              # and its tasks take the next hop (or are deferred with none left)
 # config_dir = "/home/me/.claude-work"   # Claude Code: the CLAUDE_CONFIG_DIR holding the login
 # profile = "work"                       # omp: the profile holding it
 

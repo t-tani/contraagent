@@ -13,6 +13,7 @@ documentation. No other word is used for the same thing.
 | **agent task** / **Python task** | a task a coding agent executes / one this process executes | `agent_task`, `@python_task`; on disk `executor: "agent" \| "python"` |
 | **kind** | the class of work (`summarize`); a Python task's kind is its own name | `Task.kind` |
 | **unit** | what a kind is applied to (`alpha`); tasks of different kinds on one unit do not overlap | `Task.unit` |
+| **extra units** | further units a task locks while it runs, by the same rule as its unit; its key, output file and place in the monitor stay its unit's | task call `extra_units=`, `Task.extra_units`, `Task.units`; plan `extra_units` |
 | **task** | one kind applied to one unit | `Task` |
 | **key** | a task's stable identity: `<kind>-<unit>` or `key=`; the n-th task a flow call creates under one key is `<key>~n` | `Task.key`, field `key` everywhere, monitor URL `key` |
 | **params** | what a task is given | `Task.params`, call file `params`, `CONTRAAGENT_PARAMS` |
@@ -25,18 +26,21 @@ documentation. No other word is used for the same thing.
 | **loop** | a `for` or `while` statement in a generator of flow code, named by its first line; a call site's loops are those whose pass it is in, outermost first; a comprehension is not a loop | `Loop.line`, `Frame.loops`; `flow[].loops[].line` |
 | **pass** | one iteration of one loop, numbered from 1 each time the loop is entered; never an attempt, never the `~n` of a key | `Loop.pass_`, `flow[].loops[].pass`; `max_passes` (the passes a `while` loop may make; a `for` loop has no limit), `TooManyPasses` |
 | **created from** | the keys whose results a flow call had received when it created a task | `Origin.created_from` |
-| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
+| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
 
 ## Definition
 
 | Word | Means | In code |
 |---|---|---|
 | **interface** | what an agent task takes, produces and may spend | `agent_task(params=, output=, max_turns=, ...)` |
-| **implementation** | how an agent task is done: a plugin directory | `agent_task(plugin=)`, `Plugin` |
+| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names | `agent_task(plugin=)`, `Plugin` |
+| **skill plugin** | a plugin that holds skills and nothing else that acts; tasks with different plugins load it to share its skills | `agent_task(skills_from=)`, `Plugin.skills_only` |
 | **role** | a named agent definition in a plugin: its procedure | `agents/<role>.md`, `Launch.role`, Claude Code's `--agent` |
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
 | **hook** | a hook inside the coding agent, declared by a plugin; nothing else | `hooks.toml`, `plugins/hooks.py` |
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
+| **changes** | the files one attempt created, modified or deleted under the patterns its task declares, beside its output; the files a failed attempt created are removed | `agent_task(changes=)`, `TaskAdapter.changes`, `TaskResult.changes`, journal `changes` |
+| **final message** | the agent's last message of a launch; an agent task whose output is its final message has it written to its output file and checked there | `LaunchResult.result_text`; `agent_task(output_from="message")`, call file `output.from`, `OutputContract.from_message` |
 
 ## Checking
 
@@ -48,6 +52,7 @@ documentation. No other word is used for the same thing.
 | **check** | what can be found wrong with a flow without a launch | `Pipeline.check`, `CheckReport`, `contraagent check` |
 | **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch. A candidate, not a use: of two declarations of one kind, the one whose tasks are created is the kind's | `pipeline/reach.py`, `CheckReport.later_kinds` |
 | **stub agent** | a coding agent that plays scripted replies instead of an LLM, for tests | `contraagent.testing.StubAgent` |
+| **stub run** | a run whose tasks the stub agent plays: agent tasks, and Python tasks but the kinds it executes; flow code runs as in any run | `Pipeline(stub=)`, `StubAgent(default=, execute=)`, `writes_smallest`, `contraagent run --stub`; `run.json` `stub` |
 
 ## Routing
 
@@ -63,6 +68,9 @@ documentation. No other word is used for the same thing.
 | **trait** | a label on a credential that a task may require (`zdr`) | `traits`, `agent_task(requires=)` |
 | **pool** / **gateway** | several credentials used as one / your own endpoint (LiteLLM, a proxy) | `Pool`, `Gateway` |
 | **ambient** | the built-in credential: the host's own setup, untouched | `AMBIENT` |
+| **quota** | a subscription's utilization of its 5-hour and weekly windows, as the coding agent reports it: account-wide | `RateLimit`, `LaunchResult.rate_limits`; journal `quota` (`QuotaReading`) |
+| **quota cap** / **quota rule** | the utilization past which a credential rests / a domain's own test of a credential's latest quota reading | `max_five_hour_pct`, `max_seven_day_pct` / `Pipeline(quota_rule=)` |
+| **rest** | not launched on for a time: a hop or a pool member after a 429, a credential past a quota cap or rule until its window resets; a task takes the next hop; with none left it ends `rate_limited` after 429s, and is deferred (never launched) when its credentials rest on their quota | `Router`, `CredentialPool`, `QuotaRests` |
 
 ## Running
 
@@ -94,12 +102,14 @@ documentation. No other word is used for the same thing.
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
-| **`TaskScope`** | the context manager around a task's dispatch | `AgentRunner(scopes=)` |
+| **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
+| **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |
 
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.
-A task not launched by the deadline, or whose remaining work cannot finish
-before it, finishes `deferred`; a follow-up task the
+A task not launched by the deadline, whose remaining work cannot finish
+before it, or with every hop on a resting credential, finishes `deferred`, and
+`deferred.jsonl` records why (`AgentRunner.deferral`); a follow-up task the
 queue refuses because its key is in flight finishes `duplicate_key`. A task a
 flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a

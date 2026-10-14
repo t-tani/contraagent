@@ -4,12 +4,12 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
-import { stateCount } from '../../words/index.js';
+import { stateCount, stubLabel, stubTip } from '../../words/index.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
 import { hostFact, noReportLabel, hostStateSince, hostsLine, lastReport, runCount } from '../../words/hosts.js';
 import { runTone } from '../../lib/tone.js';
 import { toneAttr } from '@contraagent/elements';
-import { statusWord } from '@contraagent/elements/primitives';
+import { pill, statusWord } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
 
 const took = (r: RunSummary) => elapsedS(r);
@@ -251,11 +251,10 @@ export class CaRunPicker extends LitElement {
       aria-current=${cur ? (r ? 'true' : 'page') : nothing} @click=${() => this.pick(r)}>
       ${r
         ? html`<span class="dot" data-tone=${toneAttr(runTone(runActivity(r), r.tasks))} aria-hidden="true"></span><span class="nm"
-              title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}</span>
+              title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}${r.stub ? html` ${pill({ text: stubLabel(), tone: 'muted', title: stubTip() })}` : nothing}</span>
             ${this.when(r)}
             <span class="sub">
-              ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}
-              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
+              ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
             </span>`
         : html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`}
     </div>`;

@@ -8,6 +8,7 @@ done, in the form Claude Code and omp read natively through `--plugin-dir`:
       .claude-plugin/plugin.json   what makes the directory a plugin
       agents/<role>.md             the procedure: who the agent is and how it works
       skills/<name>/SKILL.md       detail the agent loads when it needs it
+                                   (Claude Code names it `<plugin name>:<name>`)
       settings.json                what the agent may do
       .mcp.json                    tools it may call (optional)
       hooks.toml                   hooks, declared once for every coding agent
@@ -17,6 +18,10 @@ done, in the form Claude Code and omp read natively through `--plugin-dir`:
 
 Nothing in it names a run, a unit or a file path: those arrive per task in the
 call file (`contraagent.calls`).
+
+A plugin that holds skills and nothing else that acts (`besides_skills`) is a
+skill plugin: tasks load it beside their own (`agent_task(skills_from=)`) to share
+its skills.
 """
 
 from __future__ import annotations
@@ -31,6 +36,10 @@ from contraagent.errors import ContraagentError, did_you_mean
 
 PLUGIN_JSON = Path(".claude-plugin") / "plugin.json"
 HOOKS_TOML = "hooks.toml"
+
+#: What a plugin holds besides skills that acts on the session that loads it: named
+#: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
+NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp")
 
 
 class PluginError(ContraagentError):
@@ -91,6 +100,22 @@ class Plugin:
                 f"it defines: {', '.join(self.roles) or 'none'}"
             )
         return role
+
+    # --- skills ------------------------------------------------------------
+
+    def skill_files(self) -> list[tuple[str, str]]:
+        """`(path relative to the plugin, text)` of every Markdown file under `skills/`."""
+        d = self.root / "skills"
+        return [(str(f.relative_to(self.root)), f.read_text()) for f in sorted(d.rglob("*.md"))] if d.is_dir() else []
+
+    def besides_skills(self) -> list[str]:
+        """The parts it holds that act besides skills (`NOT_SKILLS`); empty for a skill plugin."""
+        return [name for name in NOT_SKILLS if (self.root / name).exists()]
+
+    @property
+    def skills_only(self) -> bool:
+        """A skill plugin: skills and nothing else that acts."""
+        return (self.root / "skills").is_dir() and not self.besides_skills()
 
     # --- views -------------------------------------------------------------
 

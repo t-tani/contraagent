@@ -4,9 +4,10 @@ One finished task wakes the ready tasks at the head of the queue. A task is
 ready when:
 
 * every `Task.after` key is done;
-* no task of a *different* kind holds the same unit (`Task.unit`).
-  Tasks of the same kind on one unit run concurrently on purpose; only a
-  different kind on that unit has to wait its turn;
+* no task of a *different* kind holds one of its units (`Task.units`: its
+  `unit` and its `extra_units`). Tasks of the same kind on one unit run
+  concurrently on purpose; only a different kind on that unit has to wait its
+  turn;
 * the kind's own cap (`runner.config(task).max_concurrent`) and every tag's
   capacity (`tag_capacity`) have room.
 
@@ -24,7 +25,7 @@ The order:
   arrivals are);
 * the **starvation guard**: when the first task in the order that cannot start
   is overdue, a later task may not take a resource it still needs: one of its
-  tags, its unit (a task of another kind), or a place under its kind's cap (a
+  tags, one of its units (a task of another kind), or a place under its kind's cap (a
   task of its kind). So a task that needs two tags, or a unit that a stream of
   tasks of one kind keeps busy, starts once what holds them ends.
 
@@ -67,7 +68,11 @@ The queue records nothing itself. It reports through callbacks:
   are queued with `extend()`.
 
 `runner` only needs to satisfy `TaskRunner` (`.config(task).max_concurrent`
-and `.run(task)`); nothing here imports a concrete runner.
+and `.run(task)`); nothing here imports a concrete runner. A runner may also
+say why a task cannot launch now (`.deferral(task)`, a reason or None): the
+queue asks it just before it would start the task, and defers the task instead.
+A runner that finds the same once the task has started returns a `deferred`
+result, finished as a deferral too.
 """
 
 from __future__ import annotations
@@ -93,6 +98,9 @@ OVERDUE_S = 600.0
 #: The share of `deadline_s` before the deadline from which the queue orders for the
 #: deadline, when `slack_s` is not given.
 SLACK_SHARE = 0.25
+
+#: How long `finishing_kinds` still launch past the deadline, when `grace_s` is not given.
+GRACE_S = 900.0
 
 OnEvent = Callable[..., None]  # on_event(event: str, task: Task | None, **fields)
 FollowUp = Callable[[TaskResult], list[Task]]
@@ -132,7 +140,7 @@ class WorkQueue:
         retry_wait_s: float = 60.0,
         throttle_s: float = 300.0,
         skip: Callable[[Task], bool] | None = None,
-        grace_s: float = 900.0,
+        grace_s: float = GRACE_S,
         retry_on: frozenset[str] = frozenset(),
         throttle_on: frozenset[str] = frozenset(),
         finishing_kinds: tuple[str, ...] = (),
@@ -256,18 +264,22 @@ class WorkQueue:
             return max(1, self.max_concurrent // 2)
         return self.max_concurrent
 
-    def _held_by_other_kind(self, unit: str, kind: str) -> bool:
-        occupant = self._running_unit_kind.get(unit)
-        return occupant is not None and occupant != kind
+    def _held_by_other_kind(self, task: Task) -> bool:
+        """A task of another kind holds one of its units."""
+        for unit in task.units:
+            occupant = self._running_unit_kind.get(unit)
+            if occupant is not None and occupant != task.kind:
+                return True
+        return False
 
     def _startable(self, task: Task, now: float) -> bool:
         """Its dependencies are done and it is not waiting for a retry."""
         return all(d in self._done_keys for d in task.after) and now >= self._not_before.get(task.id, 0.0)
 
     def _free(self, task: Task) -> bool:
-        """What it needs is free: its unit (no other kind holds it), a place under its
+        """What it needs is free: its units (no other kind holds one), a place under its
         kind's cap, and every tag."""
-        if self._held_by_other_kind(task.unit, task.kind):
+        if self._held_by_other_kind(task):
             return False
         cap = self.runner.config(task).max_concurrent
         if cap is not None and sum(1 for t in self._running.values() if t.kind == task.kind) >= cap:
@@ -281,10 +293,10 @@ class WorkQueue:
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes a resource `head` still needs: a capped tag of
-        its, its unit (for another kind), or a place under its kind's cap."""
+        its, one of its units (for another kind), or a place under its kind's cap."""
         if any(t in self.tag_capacity for t in set(task.tags) & set(head.tags)):
             return True
-        if task.unit == head.unit and task.kind != head.kind:
+        if task.kind != head.kind and set(task.units) & set(head.units):
             return True
         return task.kind == head.kind and self.runner.config(head).max_concurrent is not None
 
@@ -317,7 +329,7 @@ class WorkQueue:
                 done, _ = wait(list(self._running), timeout=1.0, return_when=FIRST_COMPLETED)
                 for fut in done:
                     task = self._running.pop(fut)
-                    self._release(task.unit)
+                    self._release(task)
                     self._on_done(task, fut)
         return self._summary(time.monotonic() - t0)
 
@@ -416,12 +428,17 @@ class WorkQueue:
                 continue
             if guarded and head is not None and self._takes(task, head):
                 continue  # the starvation guard
+            why = self._deferral(task)
+            if why:  # the runner has no way to launch it now
+                self._queued.remove(task)
+                self._defer(task, why)
+                continue
             self._queued.remove(task)
             self._ready_since.pop(task.id, None)
             attempt = self._attempt.get(task.id, 0) + 1
             self._attempt[task.id] = attempt
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
-            self._occupy(task.unit, task.kind)
+            self._occupy(task)
             self._running[pool.submit(self.runner.run, task)] = task
 
     def _defer_late(self, memo: dict[str, float], now: float) -> None:
@@ -444,21 +461,40 @@ class WorkQueue:
         for t, need in late:
             self._defer(t, f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left")
 
-    def _occupy(self, unit: str, kind: str) -> None:
-        self._running_unit_kind[unit] = kind
-        self._running_unit_count[unit] = self._running_unit_count.get(unit, 0) + 1
+    def _occupy(self, task: Task) -> None:
+        for unit in task.units:
+            self._running_unit_kind[unit] = task.kind
+            self._running_unit_count[unit] = self._running_unit_count.get(unit, 0) + 1
 
-    def _release(self, unit: str) -> None:
-        self._running_unit_count[unit] -= 1
-        if self._running_unit_count[unit] <= 0:
-            del self._running_unit_count[unit]
-            del self._running_unit_kind[unit]
+    def _release(self, task: Task) -> None:
+        for unit in task.units:
+            self._running_unit_count[unit] -= 1
+            if self._running_unit_count[unit] <= 0:
+                del self._running_unit_count[unit]
+                del self._running_unit_kind[unit]
+
+    def _deferral(self, task: Task) -> str | None:
+        """The runner's reason not to launch `task` now (`deferral`), if it gives one."""
+        ask = getattr(self.runner, "deferral", None)
+        if ask is None:
+            return None
+        try:
+            return ask(task)
+        except Exception as exc:  # a broken check must not stop the queue: launch, and say so
+            self.on_event("note", task, deferral_failed=repr(exc)[:200])
+            return None
 
     def _on_done(self, task: Task, fut: Future) -> None:
         try:
             res: TaskResult = fut.result()
         except Exception as exc:  # one task must not stop the driver
             res = TaskResult.launch_failed(task, f"exception: {exc!r}")
+        if res.stop == STOP_DEFERRED:  # started, then found no way to launch: never launched
+            self.on_event("deferred", task, reason=res.reason)
+            self._ready_since.pop(task.id, None)
+            self.deferred.append(task)
+            self._settle(res)
+            return
         if self._on_result is not None:
             try:
                 self._on_result(res, self._attempt.get(task.id, 0))

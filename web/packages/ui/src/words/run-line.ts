@@ -31,3 +31,9 @@ export function runLine(state: RunState, summary: RunSummary, derived: RunDerive
 export function triesLine({ tries, notStarted }: RunDerived['tries']): string {
   return facts(tries === 1 ? msg('1 attempt') : msg(str`${tries} attempts`), notStarted ? stateCount('not_started', notStarted) : '');
 }
+
+/** A stub run's mark (`RunSummary.stub`): its tasks were played by the stub agent. */
+export const stubLabel = (): string => msg('stub agent', { desc: 'A run whose tasks a coding agent with scripted replies played' });
+
+/** What a stub run's mark means, for its tooltip. */
+export const stubTip = (): string => msg('A run whose tasks the stub agent played with scripted replies, not a model (stub)');

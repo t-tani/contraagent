@@ -2,11 +2,11 @@
 // for a kind, a stop and a text.
 import { isBad, isLaunched, retries, type JournalRow, type Outcome, type TaskRow } from '@contraagent/api';
 
-/** Tasks of `kind` (all when ''), whose kind, unit, key or last stop contains `q`. */
+/** Tasks of `kind` (all when ''), whose kind, unit, extra units, key or last stop contains `q`. */
 export function filterTasks(tasks: readonly TaskRow[], kind: string, q: string): TaskRow[] {
   const needle = q.toLowerCase();
   return tasks.filter(
-    (t) => (!kind || t.kind === kind) && (!needle || `${t.kind} ${t.unit} ${t.key} ${t.last_stop}`.toLowerCase().includes(needle)),
+    (t) => (!kind || t.kind === kind) && (!needle || `${t.kind} ${t.unit} ${(t.extra_units ?? []).join(' ')} ${t.key} ${t.last_stop}`.toLowerCase().includes(needle)),
   );
 }
 

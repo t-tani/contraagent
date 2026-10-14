@@ -38,6 +38,31 @@ stub agent.
 
 Run it after every change to tasks, plugins or the config.
 
+## Stub run: the whole flow, nothing called
+
+```
+contraagent run tasks.py:<flow> --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
+```
+
+A stub run goes past the first wait. The stub agent plays every task: an agent
+task's output, and a Python task's return value, is the smallest value its schema
+accepts (required fields only, the shortest lists and strings, numbers nearest
+zero, an enum's first value). No model is called, no Python task's function
+runs, and the flow goes on to its end on those outputs, so the run lists every
+task the flow creates on that path (`kind · unit`, how it ended, and the flow
+path that created it). `--execute <kind>` runs that Python task kind's function
+instead (a read-only step whose real output the flow needs). The run id is
+`<flow>-stub`, and the monitor marks the run "stub agent".
+
+The outputs are the smallest, so the flow takes the path they lead to: a branch
+on a value it never sees is not taken, a validator that wants more than the
+schema fails its task at once (the stub does not send the same value back), and a rule the stub cannot build (`pattern`) fails the
+task and names the rule. Flow code itself runs as in any run: a side effect in
+the flow's own body happens in a stub run too. Put side effects in Python tasks.
+In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
+execute=[...]))` scripts the replies of both kinds of task, as a test does
+(`contraagent/testing.py` lists the replies).
+
 ## Test: the stub agent
 
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call

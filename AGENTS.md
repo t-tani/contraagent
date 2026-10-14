@@ -26,6 +26,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
+| a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, its reason as the run recorded it | 実行されず |
 | attempt | attempt N | N 回目 |
 | stop `error` | error | エラー |
 | round after contract errors | correction | 修正依頼 |
@@ -43,6 +44,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |
+| `extra_units` (further units a task locks) | Also locks (before the units; tooltip: extra_units) | 併せてロックするユニット |
 | `model` (the LLM a session ran on) | model (never "LLM") | モデル |
 | `thinking` (the model's reasoning in a transcript) | reasoning | 思考 |
 | upstream / downstream tasks | earlier tasks / later tasks | 依存先タスク / 後続タスク |
@@ -51,6 +53,9 @@ there: one word, one meaning, on every screen. Japanese follows
 | `usage` (input, output, cache_read, cache_creation, calls) | tokens: input, output, cache read, cache write, API calls | トークン: 入力, 出力, キャッシュ読み込み, キャッシュ書き込み, API 呼び出し |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
+| `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
+| `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
+| a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
 | a layer of the flow path (the pipeline graph's level) | Pipeline › `function` › loop (breadcrumb) | パイプライン › `function` › ループ |

@@ -25,6 +25,8 @@ export interface TaskOutcome {
   tries: JournalRow[];
   /** For a task that did not start: the failed task upstream that stopped it, if one is known. */
   cause: string | null;
+  /** For a task the queue deferred (never launched): why, as the run recorded it; '' when it was not. */
+  deferred: string;
 }
 
 const isOk = (r: JournalRow) => r.ok;
@@ -109,6 +111,7 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
       attempts,
       tries: attempts.filter(isLaunched),
       cause: null,
+      deferred: node?.deferred ?? '',
     });
   }
   // A task that did not start: follow what it waits for to the task that actually failed.
@@ -195,6 +198,8 @@ export interface TaskRow extends TaskOutcome {
   last_stop: string;
   /** A waiting task: the keys of the earlier tasks it waits for that have not finished, in plan order. */
   waits_for: string[];
+  /** The units it locks besides its own (`extra_units`); empty for none. */
+  extra_units: string[];
 }
 
 /** The innermost loop pass of a plan node's flow path; null outside a loop (a pass not counted reads as the first). */
@@ -226,6 +231,7 @@ export function taskRows(outcomes: ReadonlyMap<string, TaskOutcome>, plan: Plan)
       last_stop: last?.stop ?? '',
       waits_for:
         t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !isFinished(outcomes.get(d)?.outcome ?? 'waiting')) : [],
+      extra_units: node?.extra_units ?? [],
     };
   });
 }

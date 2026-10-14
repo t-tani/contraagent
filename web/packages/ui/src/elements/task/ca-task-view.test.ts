@@ -75,6 +75,30 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it('lists the files each attempt changed, and a failed attempt\'s removed ones', async () => {
+    const changed: TaskDetail = {
+      ...emptyDetail('write-a'),
+      rows: [
+        row('write-a', { stop: 'timeout', ok: false, attempt: 0, changes: { created: ['t/a/x.md'], modified: [], deleted: [], removed: ['t/a/x.md'] } }),
+        row('write-a', { attempt: 1, changes: { created: ['t/a/y.md'], modified: ['t/a/old.md'], deleted: ['t/a/gone.md'], removed: [] } }),
+      ],
+    };
+    const { client } = fakeClient({ 'write-a': changed });
+    const el = await view({ client, taskKey: 'write-a' });
+    const fold = [...root(el).querySelectorAll('details.io-fold')].find((d) => text(d.querySelector('summary')) === '4 changed files');
+    expect(fold).toBeDefined();
+    expect(fold!.querySelector('summary')!.getAttribute('title')).toBe(
+      "Files under the task's declared patterns that its attempts created, modified or deleted (changes)",
+    );
+    expect([...fold!.querySelectorAll('li')].map(text)).toEqual([
+      'Attempt 1 | t/a/x.md | created, removed after the failed attempt',
+      'Attempt 2 | t/a/y.md | created',
+      'Attempt 2 | t/a/old.md | modified',
+      'Attempt 2 | t/a/gone.md | deleted',
+    ]);
+    el.remove();
+  });
+
   it('switches its pane with the view: transcript, input, output, definition', async () => {
     const { client } = fakeClient({ 'review-a': review });
     const el = await view({ client, taskKey: 'review-a' });

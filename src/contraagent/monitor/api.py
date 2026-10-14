@@ -128,6 +128,7 @@ class RunSummary(Closed):
     host_id: str = Field("", description="the host that drives it; empty when its run.json does not say")
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
+    stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
 
 
 class HostSummary(Closed):
@@ -218,6 +219,7 @@ class PlanNode(Open):
     key: str
     kind: str
     unit: str = ""
+    extra_units: list[str] = Field(default_factory=list, description="further units it locks while it runs, besides `unit`")
     after: list[str] = Field(default_factory=list, description="task keys it waits for")
     executor: Executor = "agent"
     flow: list[FlowFrame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
@@ -231,6 +233,10 @@ class PlanNode(Open):
     stop: str = ""
     route: str = ""
     attempts: int = 1
+    deferred: str = Field(
+        "",
+        description="why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not",
+    )
 
 
 class PlanGroup(Closed):
@@ -353,6 +359,9 @@ class TaskDefinition(Open):
     params: str | None = None
     requires: list[str] = Field(default_factory=list)
     output: str | None = None
+    output_from: Literal["file", "message"] | None = Field(
+        None, description="agent task: `file`, the agent writes its output; `message`, its final message is the output"
+    )
     validators: list[str] = Field(default_factory=list)
     executor: Executor | None = None
     function: str | None = Field(None, description="Python task: `module.qualname` of its function")

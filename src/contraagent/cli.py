@@ -9,6 +9,9 @@ contraagent check tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alp
                                          # a flow, checked without launching anything
 contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}' [--run-id ID] [--resume]
                                          # the same flow, run (exit 1 when a task or the flow failed)
+contraagent run tasks.py:docs --stub [--execute KIND]
+                                         # a stub run: the stub agent plays every task with the smallest
+                                         # output, and the tasks the flow created are listed
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
 """
@@ -73,6 +76,19 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--run-id", default="", help="the run's id (default: the flow's name)")
     run.add_argument("--resume", action="store_true", help="continue the run: skip the tasks it already finished")
     run.add_argument("--runs-dir", default="runs", help="where run directories are written (default: runs)")
+    run.add_argument(
+        "--stub",
+        action="store_true",
+        help="a stub run: the stub agent plays every agent task and every Python task with the smallest output its schema "
+        "accepts; no model is called and no Python task's function runs (run id: <flow>-stub)",
+    )
+    run.add_argument(
+        "--execute",
+        action="append",
+        default=[],
+        metavar="KIND",
+        help="with --stub: run the function of this Python task kind instead of playing it (repeatable)",
+    )
 
     docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
     docs.add_argument("topic", nargs="?", help="a topic the index lists (guide, tasks, ...)")
@@ -153,12 +169,20 @@ def _flow_command(args) -> int:
     try:
         flow = getattr(importlib.import_module(target), name)
         backends = None
-        if getattr(args, "stub", False):
+        stub = None
+        if args.cmd == "check" and args.stub:
             from contraagent.testing import StubAgent
 
             backends = StubAgent().backends()
+        elif args.cmd == "run" and args.stub:
+            from contraagent.testing import StubAgent, writes_smallest
+
+            stub = StubAgent(default=writes_smallest(), execute=args.execute)
+        elif args.cmd == "run" and args.execute:
+            print("--execute: only with --stub", file=sys.stderr)
+            return 2
         overrides = Overrides(agent=args.agent, model=args.model)
-        pipeline = Pipeline(args.config, runs_dir=getattr(args, "runs_dir", "runs"), backends=backends, overrides=overrides)
+        pipeline = Pipeline(args.config, runs_dir=getattr(args, "runs_dir", "runs"), backends=backends, overrides=overrides, stub=stub)
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "
         print(f"✗ {args.flow}\n  error: {where(exc)}{kind}{exc}\n  read: `contraagent docs tasks`")
@@ -179,12 +203,37 @@ def _flow_command(args) -> int:
     spent = [f"{s.get('wall_s', 0):.1f}s"]
     spent += [f"${s['cost_usd']:.4f}"] if s.get("cost_usd") is not None else []
     spent += [f"{s['fixups']} fix-up{'s' if s['fixups'] != 1 else ''}"] if s.get("fixups") else []
+    if stub is not None:
+        _print_created(result)
     print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done in {', '.join(spent)}; run in {result.run_dir}")
     for failed in result.failed:
         print(f"  {failed.task.key}: {failed.stop} {failed.reason[:300]}")
     for call in result.flow_errors:
         print(f"  flow call {call.id} ({call.function}): {type(call.error).__name__}: {str(call.error)[:300]}")
     return 0 if result.ok else 1
+
+
+def _print_created(result) -> None:
+    """The tasks a run's flow created, in the order it created them: `kind · unit`, how each
+    ended, and the flow path that created it (its functions, the last one's line)."""
+    import json
+
+    from contraagent import rundir
+
+    try:
+        rows = [json.loads(line) for line in (result.run_dir / rundir.PLAN).read_text().splitlines() if line.strip()]
+    except (OSError, ValueError):
+        rows = []
+    print(f"{len(rows)} task{'s' if len(rows) != 1 else ''} created:")
+    for row in rows:
+        res = result.results.get(row["key"])
+        ended = res.stop if res is not None else "not run"
+        frames = row.get("flow") or []
+        where = " > ".join(f["function"].rsplit(".", 1)[-1] for f in frames)
+        if frames:
+            where += f" (line {frames[-1]['line']})"
+        name = f"{row['kind']} · {row['unit']}" if row["unit"] else row["kind"]  # as the monitor names it
+        print(f"  {name} | {ended}" + (f" | {where}" if where else ""))
 
 
 def _plugin(args) -> int:

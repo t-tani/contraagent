@@ -334,6 +334,23 @@ export type components = {
             plugin: string;
         };
         /**
+         * Changes
+         * @description The files one attempt changed under its task's `changes` patterns, relative to
+         *     the working directory (`dispatch.Changes`).
+         */
+        Changes: {
+            /** Created */
+            created?: string[];
+            /** Modified */
+            modified?: string[];
+            /** Deleted */
+            deleted?: string[];
+            /** Removed */
+            removed?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        /**
          * ContractField
          * @description One top-level field of the model a contract file must satisfy.
          */
@@ -857,6 +874,7 @@ export type components = {
             unread_events?: {
                 [key: string]: number;
             };
+            changes?: components["schemas"]["Changes"] | null;
             /**
              * Fingerprint
              * @default
@@ -1091,6 +1109,11 @@ export type components = {
              */
             unit?: string;
             /**
+             * Extra Units
+             * @description further units it locks while it runs, besides `unit`
+             */
+            extra_units?: string[];
+            /**
              * After
              * @description task keys it waits for
              */
@@ -1154,6 +1177,12 @@ export type components = {
              * @default 1
              */
             attempts?: number;
+            /**
+             * Deferred
+             * @description why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not
+             * @default
+             */
+            deferred?: string;
         } & {
             [key: string]: unknown;
         };
@@ -1380,6 +1409,12 @@ export type components = {
             run_uid?: string;
             /** Started At */
             started_at: string;
+            /**
+             * Stub
+             * @description a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)
+             * @default false
+             */
+            stub?: boolean;
         };
         /** StageEntry */
         StageEntry: {
@@ -1467,6 +1502,11 @@ export type components = {
             requires?: string[];
             /** Output */
             output?: string | null;
+            /**
+             * Output From
+             * @description agent task: `file`, the agent writes its output; `message`, its final message is the output
+             */
+            output_from?: ("file" | "message") | null;
             /** Validators */
             validators?: string[];
             /** Executor */

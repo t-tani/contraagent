@@ -5,11 +5,13 @@
 * `router.py`      `Route` / `Router`: the failover chain as a circuit breaker
 * `plan.py`        `RoutingPlan`: config + overrides -> per-kind config and router
 * `preflight.py`   probe every route once before the first task
+* `quota.py`       `QuotaRests`: credentials that rest past their quota caps
 """
 
 from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.routing.kind_config import KindConfig, configs_from_tables, require_budgets
 from contraagent.routing.plan import Overrides, RoutingError, RoutingPlan
+from contraagent.routing.quota import QuotaRests, QuotaRule
 from contraagent.routing.router import Route, Router, load_fallbacks
 
 __all__ = [
@@ -17,6 +19,8 @@ __all__ = [
     "KindConfig",
     "Overrides",
     "PipelineConfig",
+    "QuotaRests",
+    "QuotaRule",
     "Route",
     "Router",
     "RoutingError",

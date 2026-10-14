@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(skills_from=[...])`: skill plugins whose skills a task loads after its own
+  plugin's, so tasks with different roles share skills. A skill plugin holds skills only;
+  one that holds agents, commands, settings, MCP servers or hooks is refused where the
+  task is declared. `plugin lint` checks a skill plugin's skills only. A task's
+  fingerprint now covers the skills of its plugins, its own plugin's too.
+- Quota caps: `max_five_hour_pct` and `max_seven_day_pct` on a `[credentials.<name>]`, and
+  `Pipeline(quota_rule=)` for a rule of your own. A credential past one rests until its
+  window resets: tasks skip its hops without launching and take the next hop of their
+  failover chain (a gateway, say); a task with no hop left is deferred. `finishing_kinds`
+  still launch on it for `grace_s`.
+- `deferred.jsonl` records each deferred task and why; the monitor shows a deferred task
+  as "not run" with the reason, while the run goes on too (`PlanNode.deferred`).
+- A task call takes `extra_units=[...]`: further units the task locks while it runs, as it
+  locks its own (no task of another kind on any of them runs at the same time). Its key,
+  output file and place in the monitor stay its own unit's; `plan.jsonl` records them, and
+  the task's detail in the monitor shows them ("Also locks").
+- `agent_task(changes=["topics/{unit}/**"])`: the files a task may change beside its
+  output. Each attempt's journal row records what it created, modified and deleted under
+  them (`changes`), and the files a failed attempt created are removed. The monitor's task
+  detail lists them per attempt ("Changed files").
+- `Pipeline(scopes=, enrichers=, row_extras=)`: a `TaskScope` around each attempt of an
+  agent task, `ResultEnricher`s that see its result (after its changes are recorded),
+  and a domain's own journal columns, as `AgentRunner` and `Run` take them.
+- A stub run: `contraagent run --stub` (`Pipeline(stub=StubAgent(...))`) plays every task
+  with the smallest output its schema accepts (`contraagent.contracts.smallest`,
+  `testing.writes_smallest()`), Python tasks included (their functions do not run, but the
+  kinds named with `--execute` / `StubAgent(execute=)`), runs the flow to its end, and
+  lists the tasks it created. `StubAgent(default=)` is the reply of a task with none
+  scripted; a Python task's reply is its return value. The run id is `<flow>-stub`,
+  `run.json` says `stub: true`, and the monitor marks the run "stub agent".
+- `agent_task(output_from="message")`: the agent's final message is the task's output.
+  The runner writes it to the output file and checks it there, and a message that fails
+  its checks goes back to the same session; the call file says so (`output.from`), the
+  stop hook leaves it to the runner, and a passing message is never taken for a hollow
+  launch. The monitor's definition shows the output "from the final message". The review
+  example's `review` gives its verdict this way.
 - `<cae-layered-graph>`: the part `keys` is the line of key hints. A node's `marks`, `loose`, `counts` and
   `progress` are optional: `counts` and `progress` default to what its marks say
   (`strings.progress`, `fillNode`). graph.md lists the parts and the rules of size,

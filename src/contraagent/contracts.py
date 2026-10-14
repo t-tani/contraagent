@@ -85,6 +85,9 @@ class OutputContract(_FileContract):
     params: Callable[[], Mapping[str, Any]] | None = None
     #: The task's call file (agent tasks), for validators that take `call`.
     call: Path | None = None
+    #: The output is the agent's final message, not a file it writes: `run_until_valid`
+    #: writes each round's final message to `path`, then checks it there.
+    from_message: bool = False
 
     def check(self, cwd: Path, before: tuple[int, int] | None = None) -> Check:
         """This contract's verdict on its file now (`before`: its stamp ahead of the launch)."""
@@ -220,21 +223,28 @@ def check_all(contracts: Sequence[OutputContract], cwd: Path, before: dict[Path,
 
 
 def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Check]) -> str:
-    """The next turn: what is wrong, and the schema of each file that does not meet it."""
+    """The next turn: what is wrong, and the schema of each file that does not meet it.
+    An output taken from the final message (`from_message`) is asked for again as the reply."""
     failing_json = any(c.schema is not None and not chk.schema_ok for c, chk in zip(contracts, checks, strict=True) if not chk.ok)
-    parts = [
-        "The output file(s) you wrote do not pass their checks. Fix them and "
-        "write them again at the same path(s). Do not redo the analysis; correct "
-        "the file contents only."
-        + (" A JSON output must contain only the JSON document, with no prose or code fences around it." if failing_json else "")
-        + "\n"
-    ]
+    only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing_json else ""
+    if any(c.from_message for c, chk in zip(contracts, checks, strict=True) if not chk.ok):
+        parts = [
+            "Your final message is the output, and it does not pass its checks. Reply again "
+            "with the corrected output as your whole message, and nothing else. Do not redo "
+            "the analysis; correct the output only." + only_json + "\n"
+        ]
+    else:
+        parts = [
+            "The output file(s) you wrote do not pass their checks. Fix them and "
+            "write them again at the same path(s). Do not redo the analysis; correct "
+            "the file contents only." + only_json + "\n"
+        ]
     for c, chk in zip(contracts, checks, strict=True):
         if chk.ok:
             continue
         errors = chk.errors[:_MAX_ERRORS]
         more = len(chk.errors) - len(errors)
-        parts.append(f"## {chk.path}\nErrors:")
+        parts.append("## Your final message\nErrors:" if c.from_message else f"## {chk.path}\nErrors:")
         parts += [f"- {e}" for e in errors]
         if more > 0:
             parts.append(f"- … and {more} more")
@@ -360,12 +370,23 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
     while True:
         rounds += 1
         total = fold_spend(total, backend.run(launch))
+        if total.stop is Stop.COMPLETED:
+            _write_messages(contracts, launch.cwd, total.result_text)
         checks = check_all(contracts, launch.cwd, before)
+        if total.stop is Stop.COMPLETED and not total.result_text.strip():
+            for c, chk in zip(contracts, checks, strict=True):
+                if c.from_message:
+                    chk.ok, chk.errors = False, ["the final message is empty"]
         errors = [e for chk in checks for e in chk.errors]
         found += [errors] if errors else []
         total.rounds = rounds
         total.round_errors = list(found)
         if not errors:
+            if total.hollow and any(c.from_message for c in contracts):
+                # The final message is the output, and it passed its checks: text that reads
+                # like a tool call is part of the answer, not a sign of a hollow launch.
+                total.hollow = False
+                total.ok = total.stop is Stop.COMPLETED
             return total
         if total.stop is not Stop.COMPLETED:
             return total
@@ -378,3 +399,96 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
             total.ok = False
             return total
         launch = nxt
+
+
+def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str) -> None:
+    """Write the final message to the file of each contract that takes its output from it,
+    in one replace: the check then reads it as it reads a file the agent wrote."""
+    if not message.strip():
+        return
+    for c in contracts:
+        if c.from_message:
+            path = c.resolve(cwd)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rundir.write_document(path, message)
+
+
+def smallest(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:
+    """The smallest value `json_schema` accepts, and the rules it could not build.
+
+    Only what the schema requires: an object's required fields, a list's
+    `minItems` elements, a string's `minLength` characters, a number's `minimum`
+    (or just past an `exclusiveMinimum`), a field's `default`, an enum's or a
+    `const`'s first value, the first branch of `anyOf`/`oneOf`, `allOf` merged,
+    `$ref` into the schema's own `$defs`. A rule it does not build (`pattern`,
+    `format`, `multipleOf`, `not`) is named in the second item by its location, and
+    the value is built without it. What a stub run plays as each task's output
+    (`contraagent.testing.writes_smallest`).
+    """
+    problems: list[str] = []
+    root = dict(json_schema)
+
+    def resolve(node: Mapping[str, Any], seen: frozenset[str]) -> tuple[Mapping[str, Any], frozenset[str]]:
+        while isinstance(node.get("$ref"), str):
+            ref = node["$ref"]
+            if ref in seen or not ref.startswith("#/"):
+                problems.append(f"{ref}: a reference it does not follow")
+                return {}, seen
+            target: Any = root
+            for part in ref[2:].split("/"):
+                target = target.get(part, {}) if isinstance(target, Mapping) else {}
+            node, seen = {**target, **{k: v for k, v in node.items() if k != "$ref"}}, seen | {ref}
+        return node, seen
+
+    def build(node: Mapping[str, Any], where: str, seen: frozenset[str]) -> Any:
+        node, seen = resolve(node, seen)
+        if "const" in node:
+            return node["const"]
+        if node.get("enum"):
+            return node["enum"][0]
+        if "default" in node:
+            return node["default"]
+        for key in ("anyOf", "oneOf"):
+            if node.get(key):
+                return build(node[key][0], where, seen)
+        if node.get("allOf"):
+            merged: dict[str, Any] = {}
+            for part in node["allOf"]:
+                merged.update(resolve(part, seen)[0])
+            return build({**merged, **{k: v for k, v in node.items() if k != "allOf"}}, where, seen)
+        for rule in ("pattern", "format", "multipleOf", "not"):
+            if rule in node:
+                problems.append(f"{where}: {rule} {node[rule]!r}")
+        kind = node.get("type")
+        if isinstance(kind, list):
+            kind = next((t for t in kind if t != "null"), "null")
+        if kind is None:
+            kind = "object" if "properties" in node else "array" if "items" in node else "null"
+        if kind == "object":
+            props = node.get("properties") or {}
+            return {name: build(props.get(name, {}), f"{where}.{name}", seen) for name in node.get("required") or ()}
+        if kind == "array":
+            prefix = node.get("prefixItems") or []
+            items = node.get("items") or {}
+            n = max(int(node.get("minItems") or 0), len(prefix) if node.get("items") is False else 0)
+            return [build(prefix[i] if i < len(prefix) else items, f"{where}.{i}", seen) for i in range(n)]
+        if kind == "string":
+            return "x" * int(node.get("minLength") or 0)
+        if kind in ("integer", "number"):
+            return _smallest_number(node, integer=kind == "integer")
+        if kind == "boolean":
+            return False
+        return None
+
+    return build(root, "<root>", frozenset()), problems
+
+
+def _smallest_number(node: Mapping[str, Any], *, integer: bool) -> int | float:
+    """The number nearest zero within the node's bounds."""
+    step = 1 if integer else 0.001
+    low = node.get("minimum", node["exclusiveMinimum"] + step if "exclusiveMinimum" in node else None)
+    high = node.get("maximum", node["exclusiveMaximum"] - step if "exclusiveMaximum" in node else None)
+    value = 0 if low is None or low <= 0 else low
+    if high is not None and value > high:
+        value = high
+    return int(value) if integer else value

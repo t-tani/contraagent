@@ -85,7 +85,7 @@ class JournalEstimates:
         self.loop_cap = loop_cap
         samples: dict[str, list[float]] = {}
         tails: dict[TailKey, list[float]] = {}
-        journals = sorted(Path(runs_dir).glob(f"*/{rundir.JOURNAL}"), key=_mtime)[-recent:] if recent > 0 else []
+        journals = recent_journals(runs_dir, recent)
         for run_dir in (p.parent for p in journals):
             journal = list(_rows(run_dir / rundir.JOURNAL))
             for e in journal:
@@ -251,6 +251,16 @@ def run_tails(
             continue
         out.append((row_tail_key(r, loop_cap), tail[k]))
     return out
+
+
+def recent_journals(runs_dir: str | Path, recent: int = RECENT_RUNS) -> list[Path]:
+    """The `journal.jsonl` of the `recent` runs of `runs_dir` written to last, oldest first."""
+    return sorted(Path(runs_dir).glob(f"*/{rundir.JOURNAL}"), key=_mtime)[-recent:] if recent > 0 else []
+
+
+def journal_rows(path: Path) -> Iterator[dict]:
+    """The rows of a journal (any JSON lines file), skipping a line that does not parse."""
+    return _rows(path)
 
 
 def _mtime(path: Path) -> float:

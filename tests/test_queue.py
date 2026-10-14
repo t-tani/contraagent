@@ -263,3 +263,78 @@ def test_a_task_that_cannot_finish_before_the_deadline_is_deferred_at_once():
     assert summary["deferred"] == ["huge"]
     [(_, stop, reason)] = [s for s in seen if s[0] == "huge"]
     assert stop == "deferred" and reason.startswith("cannot finish before the deadline: needs 120s")
+
+
+class Spans(Runner):
+    """Records each task's (start, end) to tell which ran at the same time."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.spans: dict[str, tuple[float, float]] = {}
+
+    def run(self, task: Task) -> TaskResult:
+        t0 = time.monotonic()
+        res = super().run(task)
+        self.spans[task.key] = (t0, time.monotonic())
+        return res
+
+    def overlap(self, a: str, b: str) -> bool:
+        (a0, a1), (b0, b1) = self.spans[a], self.spans[b]
+        return a0 < b1 and b0 < a1
+
+
+def test_a_task_locks_its_extra_units_against_tasks_of_other_kinds():
+    runner = Spans()
+    q = WorkQueue(runner, max_concurrent=4)
+    q.add(Task("audit", key="audit", unit="alpha", extra_units=("beta",), params={"sleep": 0.2}))
+    q.add(Task("write", key="write-beta", unit="beta", params={"sleep": 0.1}))
+    q.add(Task("write", key="write-alpha", unit="alpha", params={"sleep": 0.1}))
+    q.add(Task("write", key="write-gamma", unit="gamma", params={"sleep": 0.1}))
+    q.run()
+    assert not runner.overlap("audit", "write-beta") and not runner.overlap("audit", "write-alpha")
+    assert runner.overlap("audit", "write-gamma")
+
+
+def test_a_task_waits_for_another_kind_holding_one_of_its_extra_units():
+    runner = Spans()
+    q = WorkQueue(runner, max_concurrent=4)
+    q.add(Task("write", key="write-beta", unit="beta", params={"sleep": 0.2}))
+    q.add(Task("audit", key="audit", unit="alpha", extra_units=("beta",), params={"sleep": 0.1}))
+    q.run()
+    assert runner.launched == ["write-beta", "audit"] and not runner.overlap("audit", "write-beta")
+    assert q._running_unit_kind == {} and q._running_unit_count == {}  # every unit released
+
+
+def test_tasks_of_one_kind_share_their_extra_units():
+    runner = Spans()
+    q = WorkQueue(runner, max_concurrent=4)
+    q.add(Task("audit", key="a-b", unit="alpha", extra_units=("beta",), params={"sleep": 0.2}))
+    q.add(Task("audit", key="b-c", unit="beta", extra_units=("gamma",), params={"sleep": 0.2}))
+    q.run()
+    assert runner.overlap("a-b", "b-c")
+
+
+def test_an_overdue_task_gets_its_extra_unit_once_it_is_free():
+    """`audit` (unit `x`, extra unit `u`) waits while tasks of kind `A` keep arriving on `u`."""
+
+    def order(overdue_s: float) -> list[str]:
+        q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
+        q.add(Task("A", key="a0", unit="u", params={"sleep": 0.1}))
+        q.add(Task("A", key="a1", unit="u", params={"sleep": 0.6}))
+        n = [1]
+
+        def follow_up(res: TaskResult) -> list[Task]:
+            out = []
+            if res.task.key == "a0":
+                out.append(Task("audit", key="audit", unit="x", extra_units=("u",), estimate_s=10_000))
+            if res.task.kind == "A" and n[0] < 5:
+                n[0] += 1
+                out.append(Task("A", key=f"a{n[0]}", unit="u", params={"sleep": 0.1}))
+            return out
+
+        q.follow_up = follow_up
+        q.run()
+        return starts
+
+    assert order(overdue_s=0.0)[:3] == ["a0", "a1", "audit"]
+    assert order(overdue_s=60.0)[-1] == "audit"

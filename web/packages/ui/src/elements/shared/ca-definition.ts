@@ -5,6 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight, mdFile } from '@contraagent/elements/markdown';
 import { instructionsHtml, markInstructions } from '../../words/prompt.js';
+import { facts as row } from '../../words/format.js';
 import { RememberedSet } from '../../core/memory.js';
 import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
@@ -85,7 +86,12 @@ export class CaDefinition extends LitElement {
         dirs.length ? html`${dirs.map((d, i) => html`${i ? ', ' : ''}<span class="jmono" title=${d}>${tail(d)}</span>`)}` : msg('none', { id: 'none', desc: 'An empty value' }),
       ],
       [msg('Parameters'), def.params || msg('none', { id: 'none', desc: 'An empty value' })],
-      [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output || msg('none', { id: 'none', desc: 'An empty value' })],
+      [
+        msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }),
+        def.output_from === 'message'
+          ? row(def.output || '', msg('from the final message', { desc: "The task's output is the agent's last message of a session" }))
+          : def.output || msg('none', { id: 'none', desc: 'An empty value' }),
+      ],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
     ];
     const declared = Array.isArray(def['declared']) ? (def['declared'] as DeclaredContract[]) : [];

@@ -2374,6 +2374,68 @@
   <source>the response is not JSON</source>
   <target>応答が JSON ではない</target>
 </trans-unit>
+<trans-unit id="saf8f7df9b95b0ba1">
+  <source>No changed files</source>
+  <target>変更したファイルなし</target>
+</trans-unit>
+<trans-unit id="s81729579ad44c896">
+  <source>1 changed file</source>
+  <target>変更したファイル 1 件</target>
+</trans-unit>
+<trans-unit id="sb34b61edb59f7b62">
+  <source><x id="0" equiv-text="${n}"/> changed files</source>
+  <target>変更したファイル <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="se1a0951856896cfb">
+  <source>created</source>
+  <target>作成</target>
+</trans-unit>
+<trans-unit id="sd381b19c7fd35852">
+  <source>modified</source>
+  <target>変更</target>
+</trans-unit>
+<trans-unit id="s1f25e1e20469a9ea">
+  <source>deleted</source>
+  <target>削除</target>
+</trans-unit>
+<trans-unit id="sb108c2924e1e9e78">
+  <source>created, removed after the failed attempt</source>
+  <target>作成、試行の失敗後に削除</target>
+</trans-unit>
+<trans-unit id="s4d1a0186da48bbf6">
+  <source>Also locks</source>
+  <target>併せてロックするユニット</target>
+</trans-unit>
+<trans-unit id="s73418db933aba694">
+  <source>stub agent</source>
+  <target>スタブエージェント</target>
+  <note from="lit-localize">A run whose tasks a coding agent with scripted replies played</note>
+</trans-unit>
+<trans-unit id="s27af4c4bc810a90d">
+  <source>from the final message</source>
+  <target>最後のメッセージから</target>
+  <note from="lit-localize">The task's output is the agent's last message of a session</note>
+</trans-unit>
+<trans-unit id="s04286bec7654cf3f">
+  <source>Files under the task's declared patterns that its attempts created, modified or deleted (changes)</source>
+  <target>タスクが宣言したパターンの下で、試行が作成・変更・削除したファイル（changes）</target>
+</trans-unit>
+<trans-unit id="s223237cc8c577db8">
+  <source>A run whose tasks the stub agent played with scripted replies, not a model (stub)</source>
+  <target>モデルを使わず、スタブエージェントが台本の応答で各タスクを処理した実行（stub）</target>
+</trans-unit>
+<trans-unit id="s141208d30dab2e4d">
+  <source>Units this task locks while it runs, besides its own unit (extra_units)</source>
+  <target>実行中、自分のユニットに加えてロックするユニット（extra_units）</target>
+</trans-unit>
+<trans-unit id="s2d7f4105cbd49f03">
+  <source>Also locks <x id="0" equiv-text="${units.length}"/> units</source>
+  <target>併せてロックするユニット <x id="0" equiv-text="${units.length}"/> 件</target>
+</trans-unit>
+<trans-unit id="s99ebe4b8ebe10374">
+  <source>Also locks <x id="0" equiv-text="${listText(units)}"/></source>
+  <target>併せてロックするユニット <x id="0" equiv-text="${listText(units)}"/></target>
+</trans-unit>
 </body>
 </file>
 </xliff>

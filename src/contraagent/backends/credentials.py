@@ -18,7 +18,8 @@ used instead (`Backend.bind_credential`).
 
 `traits` are free-form labels a task's requirements are matched against
 (`agent_task(..., requires=["zdr"])`): which task may use which credential is
-decided by the routing plan, not here.
+decided by the routing plan, not here. `max_five_hour_pct` and `max_seven_day_pct`
+are the account's quota caps (`routing.quota`).
 
 Secrets are never stored: a credential names where the value comes from
 (`env:NAME`, `file:/path`), and the value is read in the launching process.
@@ -105,6 +106,11 @@ class CredentialBase(BaseModel, frozen=True):
     #: Keep the coding agent from using anything it would load by default
     #: (stored logins, keys in its own config) instead of this credential.
     isolate: bool = True
+    #: Quota caps: past this 5-hour / weekly usage (%), as the coding agent last reported it
+    #: for this account, the credential rests until that window resets (`routing.quota`).
+    #: On a pool, the cap of each member that sets none.
+    max_five_hour_pct: float | None = Field(default=None, gt=0, le=100)
+    max_seven_day_pct: float | None = Field(default=None, gt=0, le=100)
     #: The `type = "..."` the config names it by; each subclass pins it to its own literal.
     type: str
 

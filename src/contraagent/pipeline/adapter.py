@@ -52,6 +52,7 @@ class SpecAdapter(TaskAdapter):
             output = CallOutput(
                 path=str(node.output_path),
                 format=spec.output_format,
+                from_=spec.output_from,
                 json_schema=schema.model_json_schema() if schema is not None else {},
                 schema_ref=schema_ref_of(schema) if schema is not None else None,
                 commands=[v.to_dict() for v in spec.validators if isinstance(v, CommandValidator)],
@@ -79,15 +80,23 @@ class SpecAdapter(TaskAdapter):
         return self._node(task).spec.role
 
     def plugin_dirs(self, task: Task) -> tuple[str, ...]:
-        plugin = self._node(task).spec.plugin
-        return (str(plugin.root),) if plugin is not None else ()
+        """The task's own plugin first, then the skill plugins of `skills_from`."""
+        return tuple(str(p.root) for p in self._node(task).spec.plugins)
 
     def settings_path(self, task: Task) -> str | None:
-        """The plugin's `settings.json`; for a task with no plugin, the template's permissions
-        (`DEFAULT_SETTINGS`, as JSON text)."""
-        if self._node(task).spec.plugin is None:
+        """The task's own plugin's `settings.json`; for a task with no plugin, the template's
+        permissions (`DEFAULT_SETTINGS`, as JSON text)."""
+        plugin = self._node(task).spec.plugin
+        if plugin is None:
             return " ".join(DEFAULT_SETTINGS.split())
-        return super().settings_path(task)
+        f = plugin.root / "settings.json"
+        return str(f) if f.is_file() else None
+
+    def mcp_config_path(self, task: Task) -> str | None:
+        """The task's own plugin's `.mcp.json`, if it has one."""
+        plugin = self._node(task).spec.plugin
+        f = plugin.root / ".mcp.json" if plugin is not None else None
+        return str(f) if f is not None and f.is_file() else None
 
     def context_files(self, task: Task, backend: Backend) -> tuple[str, ...]:
         """A coding agent with no named-agent flag (omp) gets the role's file attached;
@@ -99,6 +108,9 @@ class SpecAdapter(TaskAdapter):
 
     def env(self, task: Task) -> dict[str, str]:
         return {envvars.CALL: str(self.call_path(task))}
+
+    def changes(self, task: Task) -> tuple[str, ...]:
+        return self._node(task).changes
 
     def output_contracts(self, task: Task) -> list[OutputContract]:
         return self._node(task).output_contracts(params=lambda: self.call(task).params, call=self.call_path(task))
@@ -113,14 +125,21 @@ class SpecAdapter(TaskAdapter):
             if spec.plugin is not None
             else {"plugin": False, "role": spec.role, "plugin_dirs": [], "files": []}
         )
+        for shared in spec.skills_from:
+            base["plugin_dirs"] = [*base["plugin_dirs"], str(shared.root)]
+            base["files"] += [
+                {"path": f"{shared.name}/{rel}", "part": "skill", "text": text[:40_000]} for rel, text in shared.skill_files()
+            ]
         if spec.instructions:
             base["files"] = [{"path": "instructions", "part": "instructions", "text": spec.instructions}, *base["files"]]
         return {
             **base,
             "params": spec.params.__name__ if spec.params is not None else None,
             "requires": list(spec.requires),
+            "changes": list(spec.changes),
             "output": (
                 spec.output_schema.__name__ if spec.output_schema is not None else ("text" if spec.output_format == "text" else None)
             ),
             "validators": [getattr(v, "name", "") or getattr(v, "__name__", "") for v in spec.validators],
+            "output_from": spec.output_from,
         }

@@ -49,8 +49,10 @@ unit names, stop values such as `completed`, model and role names).
 | rendered / source (a markdown view) | プレビュー / ソース |
 | wall time | 所要時間 |
 | snapshot | スナップショット |
+| stub agent (a coding agent with scripted replies instead of a model; a stub run's mark) | スタブエージェント |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
+| final message (the agent's last message of a session; an output taken from it) | 最後のメッセージ |
 | worker (a WorkQueue place for one concurrent task) | 枠 (idle worker: 空き) |
 | launch time (summed wall time of launches; the tile "Agent session time") | エージェントの所要時間 |
 | last (time of the last attempt) | 最終試行 |
@@ -91,12 +93,15 @@ wherever the UI shows a state or a count to the reader.
 | identity (the credential an attempt authenticated as) | 認証情報 |
 | default (the built-in credential `ambient`: local credentials) | 既定 |
 | No unit (a row for tasks that run once per run, not once per unit) | ユニットなし |
+| Also locks (a task's extra units: units it locks while it runs, besides its own) | 併せてロックするユニット |
 | reasoning (the model's thinking in a transcript) | 思考 |
 | cost (USD, as the coding agent reports it) | 料金 |
 | tokens / input / output / cache read / cache write / API calls | トークン / 入力 / 出力 / キャッシュ読み込み / キャッシュ書き込み / API 呼び出し |
 | web searches (the queries of the coding agent's web search tool) | Web 検索 |
 | query (what a web search searched for) | 検索語 |
 | results (the pages a web search returned; not a task's outcome) | 検索結果 |
+| changed files (`changes`: what an attempt did under the task's patterns) | 変更したファイル |
+| created / modified / deleted (a changed file) | 作成 / 変更 / 削除 |
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |

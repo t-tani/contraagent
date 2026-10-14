@@ -38,11 +38,11 @@ and the documentation site print the quoted lines in place.
 
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls. Start here.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
-- [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, and the engine underneath.
+- [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, files a task changes, and the engine underneath.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
-- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity.
-- [Checking and testing](testing.md): `contraagent check`, and flows tested on a stub agent.
+- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
+- [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
@@ -50,5 +50,6 @@ and the documentation site print the quoted lines in place.
 `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
+`examples/changes/flow.py` is a task that changes files beside its output;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
 test suite runs them all.
