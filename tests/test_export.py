@@ -5,6 +5,7 @@ import json
 import socket
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
@@ -126,7 +127,7 @@ def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path)
         return {"panel": "days", "where": str(tmp_path)}
 
     rd = runs(tmp_path, ids=("only",))
-    today = datetime.now(UTC).date().isoformat()
+    today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()  # the period's day, not UTC's
     monitor = Monitor(rd, panels={"days": Panel(days, scope="trends"), "p": Panel(panel)})
     export(monitor, tmp_path / "site", now=NOW, period=Period.parse(today, today, "Asia/Tokyo"))
     data = tmp_path / "site/data"
