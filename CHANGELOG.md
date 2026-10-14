@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A unit locks nothing: tasks of different kinds on one unit run together unless they
   claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
   must not overlap on a unit.
+- The monitor's overview is laid out by what each card holds: the run's state, its problems
+  and its outputs share the first row (the running tasks take a row of their own while
+  some run), the breakdowns of tokens, cost, models and subscription usage share two
+  columns, and only the pipeline graph, the totals and the timeline take the whole
+  width. An empty state is one line ("✓ No problems"); bars end near their figures; a
+  finished run shows no "Running tasks" card, since its state says it runs nothing.
 - `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
   `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
   `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when

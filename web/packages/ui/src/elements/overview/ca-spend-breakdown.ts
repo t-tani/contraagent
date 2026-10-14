@@ -26,7 +26,8 @@ export class CaSpendBreakdown extends LitElement {
     legendStyles,
     css`
       :host { display: block; }
-      .kinds { display: grid; grid-template-columns: minmax(90px, max-content) minmax(0, 1fr) max-content max-content; gap: 8px 14px; align-items: center; }
+      /* the bar's track is bounded, so its figures stay beside it on a wide card */
+      .kinds { display: grid; grid-template-columns: minmax(70px, max-content) minmax(0, 420px) max-content max-content; justify-content: start; gap: 8px 14px; align-items: center; }
       .kind { font-family: var(--mono); font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .bar { display: flex; height: 12px; border-radius: 4px; overflow: hidden; background: var(--track); }
       .bar i { display: block; height: 100%; }
@@ -38,7 +39,7 @@ export class CaSpendBreakdown extends LitElement {
       .seg-output { background: var(--tok-output); }
       .legend { margin-top: 10px; }
       h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
-      .top { display: grid; grid-template-columns: minmax(160px, max-content) 64px 64px 40px; column-gap: 24px; row-gap: 4px; align-items: baseline; }
+      .top { display: grid; grid-template-columns: minmax(0, max-content) 64px 64px 40px; column-gap: 20px; row-gap: 4px; align-items: baseline; }
       .top a { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     `,
   ];

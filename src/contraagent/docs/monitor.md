@@ -8,10 +8,13 @@ contraagent monitor --runs-dir runs          # http://127.0.0.1:8787; --help for
 
 It reads `runs/<id>/` and shows, live, one tab each:
 
-- **Overview**: the run's state, the tasks running at once, progress by kind,
-  the scheduled tasks as a layered graph, totals, each model's share of the
-  agent sessions (by cost, tokens, time or sessions; a failover's hops count on
-  their own models), problems with their causes, outputs, and a timeline;
+- **Overview**: in the order a reader checks a run: its state, problems with
+  their causes and outputs side by side, the tasks running at once (while it
+  runs), the scheduled tasks as a layered graph, totals, then where the tokens,
+  the cost and the subscription went (by kind, and each model's share of the
+  agent sessions by cost, tokens, time or sessions; a failover's hops count on
+  their own models), and a timeline. Each card is as wide as its content needs;
+  the graph, the totals and the timeline take the whole width;
 - **Tasks** and **History**: every task (`kind · unit`) with its status, and
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
   key: each task of the plan (`plan.jsonl`) joined with its journal rows, so
