@@ -21,3 +21,4 @@ export * from './claims.js';
 export * from './rests.js';
 export * from './time-box.js';
 export * from './row-extras.js';
+export * from './models.js';

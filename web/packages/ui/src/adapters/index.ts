@@ -9,6 +9,7 @@ export * from './journal-columns.js';
 export * from './kpi-tiles.js';
 export * from './lanes.js';
 export * from './check-rows.js';
+export * from './model-shares.js';
 export { graphFromPlan, graphInput, matrixFromPlan, matrixInput, type GraphWordsContext } from './graph/input.js';
 export { autoLayer, layerGraph, parentLayer, resolveLayer, splitLayer } from './graph/layer.js';
 export { passMatrix, sortRows as sortPassRows, type MatrixSort, type PassMatrix } from './graph/matrix.js';

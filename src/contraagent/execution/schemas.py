@@ -33,12 +33,33 @@ from contraagent.dispatch.task import STOP_SKIPPED
 JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED)
 
 
+class TokenUsage(BaseModel):
+    """Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)
+    or one hop's (`Hop.usage`)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    input: int = 0
+    output: int = 0
+    #: Input served from the prompt cache.
+    cache_read: int = 0
+    #: Input written to the prompt cache.
+    cache_creation: int = 0
+    #: API calls the coding agent made.
+    calls: int = 0
+    #: The whole input of the attempt's first API call (cache included): what the coding agent
+    #: loads before the task starts (system prompt, tools, the prompt). None when no call was read.
+    resident: int | None = None
+
+
 class Hop(BaseModel):
     """One launch in a failover walk: where it ran and how it ended."""
 
     model_config = ConfigDict(extra="allow")
 
     route: str = ""
+    #: The coding agent that ran the launch.
+    agent: str = ""
     model: str = ""
     #: The `[credentials.<name>]` this hop authenticated as (a hop may change it).
     credential: str = ""
@@ -46,6 +67,9 @@ class Hop(BaseModel):
     wall_s: float = 0.0
     #: What the coding agent reported this hop cost, in USD; None when it reports none.
     cost_usd: float | None = None
+    #: This hop's tokens (its rounds, and pool members tried on it, summed); None when it
+    #: reported no API call. The attempt's `usage` is every hop's.
+    usage: TokenUsage | None = None
 
 
 class QuotaReading(BaseModel):
@@ -88,24 +112,6 @@ class SkippedHop(QuotaRest):
 
     route: str = ""
     model: str = ""
-
-
-class TokenUsage(BaseModel):
-    """Tokens one attempt used, summed over its API calls, rounds and hops."""
-
-    model_config = ConfigDict(extra="allow")
-
-    input: int = 0
-    output: int = 0
-    #: Input served from the prompt cache.
-    cache_read: int = 0
-    #: Input written to the prompt cache.
-    cache_creation: int = 0
-    #: API calls the coding agent made.
-    calls: int = 0
-    #: The whole input of the attempt's first API call (cache included): what the coding agent
-    #: loads before the task starts (system prompt, tools, the prompt). None when no call was read.
-    resident: int | None = None
 
 
 class Changes(BaseModel):

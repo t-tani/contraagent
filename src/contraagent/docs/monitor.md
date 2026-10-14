@@ -9,8 +9,9 @@ contraagent monitor --runs-dir runs          # http://127.0.0.1:8787; --help for
 It reads `runs/<id>/` and shows, live, one tab each:
 
 - **Overview**: the run's state, the tasks running at once, progress by kind,
-  the scheduled tasks as a layered graph, totals, problems with their causes,
-  outputs, and a timeline;
+  the scheduled tasks as a layered graph, totals, each model's share of the
+  agent sessions (by cost, tokens, time or sessions; a failover's hops count on
+  their own models), problems with their causes, outputs, and a timeline;
 - **Tasks** and **History**: every task (`kind · unit`) with its status, and
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
   key: each task of the plan (`plan.jsonl`) joined with its journal rows, so
@@ -143,7 +144,8 @@ under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,
 a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
 carries each task's origin (`flow`, each frame with its loops and their passes; `created_from`, `flow_call`)
 and the run's `flow_calls` (each with `flow`, its parent's frames where it was
-yielded);
+yielded), and `models`: what the agent sessions spent on each model (`ModelUsage`,
+summed from each journal row's hops, which record their own tokens, cost and time);
 a run whose tasks no flow created (queued through `Run.queue` by hand) has
 none. A file of flow code under the run's working directory (`run.json`
 `cwd`) is given relative to it. Its page is built from two npm packages that

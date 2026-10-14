@@ -79,15 +79,30 @@ def _fails_over(result: TaskResult) -> bool:
 
 
 def _hop(label: str, result: TaskResult) -> dict:
-    """The journal's record of one launch on one route."""
+    """The journal's record of one launch on one route: where it ran and what it spent.
+    Taken before the hops after it fold their spend into the attempt's, so each hop holds
+    its own (its rounds, and pool members tried on it, included)."""
     o = result.launch_result
+    u = o.usage if o is not None else None
     return {
         "route": label,
+        "agent": o.agent if o else "",
         "model": o.model if o else "",
         "credential": o.credential if o else "",
         "stop": result.stop,
         "wall_s": round(result.wall_s, 1),  # this hop, pool members tried on it included
         "cost_usd": o.cost_usd if o else None,
+        "usage": (
+            {
+                "input": u.input,
+                "output": max(u.output, u.output_total),
+                "cache_read": u.cache_read,
+                "cache_creation": u.cache_creation,
+                "calls": u.n_calls,
+            }
+            if u is not None and (u.calls or u.output_total)
+            else None
+        ),
     }
 
 

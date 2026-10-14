@@ -314,6 +314,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor's overview shows each model's share of a run's agent sessions, by cost,
+  tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
+  journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a
+  failover's hops count on their own models. The themes carry six series colours
+  (`--ca-series-1` ... `--ca-series-6`), and `@contraagent/elements/primitives` a share bar
+  (`shareBar`, `wholePercents`).
 - A light launch for a judgement in one turn: `agent_task(tools=())` runs the task with
   no tools, its role's text (or its instructions) in place of the coding agent's system
   prompt, its params and output schema in the prompt, and no plugin, settings or MCP

@@ -2557,6 +2557,50 @@
   <source>A deadline of its own (time_box)</source>
   <target>フロー呼び出しごとの締め切り（time_box）</target>
 </trans-unit>
+<trans-unit id="se211e3d21bbf3bff">
+  <source>Measure</source>
+  <target>指標</target>
+</trans-unit>
+<trans-unit id="s5da52af9b083c29a">
+  <source>Model</source>
+  <target>モデル</target>
+</trans-unit>
+<trans-unit id="s2df075aface0dab8">
+  <source>Share</source>
+  <target>割合</target>
+</trans-unit>
+<trans-unit id="sa36aef46efe431eb">
+  <source>Models</source>
+  <target>モデル別の内訳</target>
+</trans-unit>
+<trans-unit id="sdd4a8ac67f7885c1">
+  <source>1 model</source>
+  <target>モデル 1 種類</target>
+</trans-unit>
+<trans-unit id="s915525f01e5ebdb9">
+  <source><x id="0" equiv-text="${s.plan.models.length}"/> models</source>
+  <target>モデル <x id="0" equiv-text="${s.plan.models.length}"/> 種類</target>
+</trans-unit>
+<trans-unit id="s51383b9a7d305b0c">
+  <source>Input, output, cache read and cache write</source>
+  <target>入力・出力・キャッシュ読み込み・キャッシュ書き込みの合計</target>
+</trans-unit>
+<trans-unit id="se55f1e3401225b3f">
+  <source>Time of the agent sessions, summed</source>
+  <target>エージェントのセッションの所要時間の合計</target>
+</trans-unit>
+<trans-unit id="s51316118c75cbced">
+  <source>Agent sessions started on the model</source>
+  <target>そのモデルで始めたエージェントのセッションの数</target>
+</trans-unit>
+<trans-unit id="s559ffe740d166c8d">
+  <source>Other models</source>
+  <target>その他のモデル</target>
+</trans-unit>
+<trans-unit id="s7a6b70474c79f877">
+  <source>The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.</source>
+  <target>エージェントのセッションを、動いたモデルごとに集計したもの。モデル切り替えがあれば、切り替えの前後をそれぞれのモデルで数える。Python タスクはモデルを使わない。</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

@@ -35,6 +35,7 @@ export type PlanGroup = S['PlanGroup'];
 export type DeferralCause = S['DeferralCause'];
 export type QuotaCap = S['QuotaCap'];
 export type CredentialRest = S['CredentialRest'];
+export type ModelUsage = S['ModelUsage'];
 export type TaskState = PlanNode['state'];
 export type FlowFrame = S['FlowFrame'];
 export type FlowLoop = S['FlowLoop'];

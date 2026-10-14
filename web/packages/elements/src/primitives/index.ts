@@ -3,6 +3,7 @@
 // `@contraagent/elements/segmented/define`.
 export * from './pill.js';
 export * from './legend.js';
+export * from './share-bar.js';
 export * from './states.js';
 export * from './fact-line.js';
 export * from './icon.js';
