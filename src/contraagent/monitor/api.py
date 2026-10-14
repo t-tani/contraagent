@@ -302,6 +302,23 @@ class PlanGroup(Closed):
     blocked: int
 
 
+class ModelUsage(Closed):
+    """What a run's agent sessions spent on one model of one coding agent, from each
+    journal row's hops (a failover's hops on two models count apart). Python tasks have
+    no model and are not counted."""
+
+    agent: str
+    model: str
+    sessions: int = Field(description="hops: agent sessions launched on it (pool members tried on one hop count once)")
+    calls: int = Field(0, description="API calls")
+    input: int = 0
+    output: int = 0
+    cache_read: int = 0
+    cache_creation: int = 0
+    cost_usd: float | None = Field(None, description="what the coding agent reported; null when no session on it reported a cost")
+    wall_s: float = 0.0
+
+
 class Plan(Closed):
     """The queued tasks, their groups, and the flow calls that created them. A run with
     no `flow_calls.jsonl` (its tasks queued by hand, not by a flow) has no flow call."""
@@ -314,6 +331,7 @@ class Plan(Closed):
     rests: list[CredentialRest] = Field(
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
+    models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
 
 
 # --- outputs (contracts) -----------------------------------------------------

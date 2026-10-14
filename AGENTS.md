@@ -47,6 +47,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | TaskAdapter (a kind without a plugin) | defined in Python code | Python コードで定義 |
 | panel (`monitor.Panel`) | custom view | カスタムビュー |
 | a pipeline's own journal column (`row_extras`; `RunSummary.row_extras`, `TaskDetail.row_extras` name them) | a column headed by its name as written; tooltip: custom column (row_extras) | カスタム列 |
+| `Plan.models` (`ModelUsage`: what the agent sessions spent on each model, each hop on its own; the measures cost, tokens, time, agent sessions) | Models; Share; Measure; Other models (past six); the measures in their own words (Cost, Tokens, Time, Agent sessions) | モデル別の内訳; 割合; 指標; その他のモデル |
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |

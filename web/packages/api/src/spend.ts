@@ -2,7 +2,7 @@
 // and run from the journal. A row without usage or cost (a Python task, a task
 // that never started, an agent that reports none) adds nothing and is not
 // counted as zero. Pure.
-import type { JournalRow } from './types.js';
+import type { JournalRow, ModelUsage } from './types.js';
 
 export interface Spend {
   input: number;
@@ -82,3 +82,27 @@ export const spendByTask = (journal: readonly JournalRow[]): SpendGroup[] => gro
 /** Spend per kind, most expensive first. */
 export const spendByKind = (journal: readonly JournalRow[]): SpendGroup[] =>
   group(journal, (r) => r.kind).map((g) => ({ ...g, unit: '' }));
+
+/** What a model's use is measured by: its cost, its tokens, its time, its agent sessions. */
+export type ModelMeasure = 'cost' | 'tokens' | 'time' | 'sessions';
+
+/** Every token a model's sessions used: input, output and both cache kinds. */
+export const modelTokens = (m: ModelUsage): number => (m.input ?? 0) + (m.output ?? 0) + (m.cache_read ?? 0) + (m.cache_creation ?? 0);
+
+/** A model's use by `measure`; null for a cost no session on it reported. */
+export function modelValue(m: ModelUsage, measure: ModelMeasure): number | null {
+  switch (measure) {
+    case 'cost':
+      return m.cost_usd ?? null;
+    case 'tokens':
+      return modelTokens(m);
+    case 'time':
+      return m.wall_s ?? 0;
+    case 'sessions':
+      return m.sessions;
+  }
+}
+
+/** The measures some of `models` has a value for, in the order a reader picks them. */
+export const modelMeasures = (models: readonly ModelUsage[]): ModelMeasure[] =>
+  (['cost', 'tokens', 'time', 'sessions'] as const).filter((x) => models.some((m) => (modelValue(m, x) ?? 0) > 0));

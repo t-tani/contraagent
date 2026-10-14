@@ -97,6 +97,7 @@ wherever the UI shows a state or a count to the reader.
 | defined in Python code | Python コードで定義 |
 | custom view (a `monitor.Panel`: an extra view the pipeline's code adds) | カスタムビュー |
 | custom column (`row_extras`: a journal column the pipeline's code adds; its name is the pipeline's, shown as written) | カスタム列 |
+| Models (a run's use of each model, `Plan.models`), Share, Measure, Other models (the models past the sixth colour, folded into one part of the bar) | モデル別の内訳, 割合, 指標, その他のモデル |
 | identity (the credential an attempt authenticated as) | 認証情報 |
 | default (the built-in credential `ambient`: local credentials) | 既定 |
 | No unit (a row for tasks that run once per run, not once per unit) | ユニットなし |

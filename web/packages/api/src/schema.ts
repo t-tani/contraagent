@@ -714,6 +714,11 @@ export type components = {
              */
             route?: string;
             /**
+             * Agent
+             * @default
+             */
+            agent?: string;
+            /**
              * Model
              * @default
              */
@@ -735,6 +740,7 @@ export type components = {
             wall_s?: number;
             /** Cost Usd */
             cost_usd?: number | null;
+            usage?: components["schemas"]["TokenUsage"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -1031,6 +1037,59 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * ModelUsage
+         * @description What a run's agent sessions spent on one model of one coding agent, from each
+         *     journal row's hops (a failover's hops on two models count apart). Python tasks have
+         *     no model and are not counted.
+         */
+        ModelUsage: {
+            /** Agent */
+            agent: string;
+            /** Model */
+            model: string;
+            /**
+             * Sessions
+             * @description hops: agent sessions launched on it (pool members tried on one hop count once)
+             */
+            sessions: number;
+            /**
+             * Calls
+             * @description API calls
+             * @default 0
+             */
+            calls?: number;
+            /**
+             * Input
+             * @default 0
+             */
+            input?: number;
+            /**
+             * Output
+             * @default 0
+             */
+            output?: number;
+            /**
+             * Cache Read
+             * @default 0
+             */
+            cache_read?: number;
+            /**
+             * Cache Creation
+             * @default 0
+             */
+            cache_creation?: number;
+            /**
+             * Cost Usd
+             * @description what the coding agent reported; null when no session on it reported a cost
+             */
+            cost_usd?: number | null;
+            /**
+             * Wall S
+             * @default 0
+             */
+            wall_s?: number;
+        };
+        /**
          * NoticeEvent
          * @description A line of session bookkeeping: init, a retry, a rate-limit status, a custom message.
          */
@@ -1149,6 +1208,11 @@ export type components = {
              * @description each rest of a credential in the run (`rests.jsonl`), in start order
              */
             rests?: components["schemas"]["CredentialRest"][];
+            /**
+             * Models
+             * @description each model the run's agent sessions ran on, in order of first use
+             */
+            models?: components["schemas"]["ModelUsage"][];
         };
         /**
          * PlanGroup
@@ -1814,7 +1878,8 @@ export type components = {
         };
         /**
          * TokenUsage
-         * @description Tokens one attempt used, summed over its API calls, rounds and hops.
+         * @description Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)
+         *     or one hop's (`Hop.usage`).
          */
         TokenUsage: {
             /**

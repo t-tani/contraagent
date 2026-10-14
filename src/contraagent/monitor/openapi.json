@@ -1396,6 +1396,11 @@
             "title": "Route",
             "default": ""
           },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          },
           "model": {
             "type": "string",
             "title": "Model",
@@ -1426,6 +1431,16 @@
               }
             ],
             "title": "Cost Usd"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,
@@ -2012,6 +2027,75 @@
         "title": "MessageUpdateEvent",
         "description": "A piece of assistant prose: `ev` is `text_delta` or `thinking_delta` (omp may send its other delta kinds)."
       },
+      "ModelUsage": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "sessions": {
+            "type": "integer",
+            "title": "Sessions",
+            "description": "hops: agent sessions launched on it (pool members tried on one hop count once)"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "description": "API calls",
+            "default": 0
+          },
+          "input": {
+            "type": "integer",
+            "title": "Input",
+            "default": 0
+          },
+          "output": {
+            "type": "integer",
+            "title": "Output",
+            "default": 0
+          },
+          "cache_read": {
+            "type": "integer",
+            "title": "Cache Read",
+            "default": 0
+          },
+          "cache_creation": {
+            "type": "integer",
+            "title": "Cache Creation",
+            "default": 0
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "what the coding agent reported; null when no session on it reported a cost"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "default": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "agent",
+          "model",
+          "sessions"
+        ],
+        "title": "ModelUsage",
+        "description": "What a run's agent sessions spent on one model of one coding agent, from each\njournal row's hops (a failover's hops on two models count apart). Python tasks have\nno model and are not counted."
+      },
       "NoticeEvent": {
         "properties": {
           "type": {
@@ -2226,6 +2310,14 @@
             "type": "array",
             "title": "Rests",
             "description": "each rest of a credential in the run (`rests.jsonl`), in start order"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "each model the run's agent sessions ran on, in order of first use"
           }
         },
         "additionalProperties": false,
@@ -3746,7 +3838,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "TokenUsage",
-        "description": "Tokens one attempt used, summed over its API calls, rounds and hops."
+        "description": "Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)\nor one hop's (`Hop.usage`)."
       },
       "ToolCallEchoEvent": {
         "properties": {

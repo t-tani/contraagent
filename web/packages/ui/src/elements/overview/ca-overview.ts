@@ -33,6 +33,7 @@ import { taskChip } from '../shared/task-chip.js';
 import '../lists/ca-proc-tree.js';
 import './ca-kpis.js';
 import './ca-spend-breakdown.js';
+import './ca-model-usage.js';
 import './ca-quota.js';
 import './ca-pipeline-graph.js';
 import './ca-run-driver.js';
@@ -146,6 +147,13 @@ export class CaOverview extends LitElement {
         ? html`<section class="panel c12 enter">
             <h3 title=${msg('Reported by the coding agents')}>${msg('Tokens and cost by kind')}</h3>
             <ca-spend-breakdown .journal=${s.journal}></ca-spend-breakdown>
+          </section>`
+        : nothing}
+      ${s.plan.models?.length
+        ? html`<section class="panel c12 enter">
+            <h3 title=${msg('The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.')}>${msg('Models')}
+              <span class="r">${s.plan.models.length === 1 ? msg('1 model') : msg(str`${s.plan.models.length} models`)}</span></h3>
+            <ca-model-usage .models=${s.plan.models}></ca-model-usage>
           </section>`
         : nothing}
       ${runAccounts(s.journal).length || s.plan.rests?.length

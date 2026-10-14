@@ -402,7 +402,13 @@ class Monitor:
             n["group"] = self._group_name(n)
             if n.get("flow"):
                 n["flow"] = _shown_flow(n["flow"], cwd)
-        return {"nodes": nodes, "groups": self._groups(nodes), "flow_calls": self._flow_calls(run, cwd), **self._quota(run)}
+        return {
+            "nodes": nodes,
+            "groups": self._groups(nodes),
+            "flow_calls": self._flow_calls(run, cwd),
+            **self._quota(run),
+            "models": model_usage(journal),
+        }
 
     def _quota(self, run: str) -> dict:
         """The run's quota caps and rule (`run.json`), and each credential's rests
@@ -758,3 +764,36 @@ def row_extras(rows: list[dict]) -> list[str]:
     for row in rows:
         out.update(dict.fromkeys(k for k in row if k not in known))
     return list(out)
+
+
+_TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
+
+
+def model_usage(rows: list[dict]) -> list[dict]:
+    """What the agent sessions of journal `rows` spent per model (`api.ModelUsage`), in order
+    of first use: each hop on its own model (its agent, tokens, cost and time). A row of
+    one hop with no tokens of its own gives the hop the row's. Python rows and hops that
+    never launched (`skipped_hops`) are not counted."""
+    out: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        if row.get("executor") == "python":
+            continue
+        hops = [h for h in row.get("hops") or [] if isinstance(h, dict)]
+        for h in hops:
+            agent, model = str(h.get("agent") or row.get("agent") or ""), str(h.get("model") or "")
+            if not model:
+                continue
+            m = out.setdefault(
+                (agent, model),
+                {"agent": agent, "model": model, "sessions": 0, **dict.fromkeys(_TOKENS, 0), "cost_usd": None, "wall_s": 0.0},
+            )
+            m["sessions"] += 1
+            usage = h.get("usage") if isinstance(h.get("usage"), dict) else (row.get("usage") if len(hops) == 1 else None)
+            for k in _TOKENS:
+                v = (usage or {}).get(k)
+                m[k] += int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+            cost = _number(h.get("cost_usd"))
+            if cost is not None:
+                m["cost_usd"] = round((m["cost_usd"] or 0.0) + cost, 6)
+            m["wall_s"] = round(m["wall_s"] + (_number(h.get("wall_s")) or 0.0), 1)
+    return list(out.values())

@@ -40,6 +40,7 @@ export type ThemeToken =
   | 'text' | 'text-2' | 'text-muted' | 'accent' | 'focus' | 'focus-width' | 'selection'
   | 'status-failed' | 'status-attention' | 'status-done' | 'status-running' | 'status-muted' | 'tint'
   | 'agent' | 'meter' | 'tok-input' | 'tok-cache-read' | 'tok-cache-write' | 'tok-output'
+  | 'series-1' | 'series-2' | 'series-3' | 'series-4' | 'series-5' | 'series-6'
   | 'code-keyword' | 'code-string' | 'code-number' | 'code-constant' | 'code-comment' | 'code-function' | 'code-type' | 'code-name';
 
 export interface Theme {
@@ -52,6 +53,12 @@ export interface Theme {
 
 // Where a value differs from its source palette, the comment says so and why
 // (the contrast rules: text 4.5:1 on every surface and tint, 7:1 in high contrast).
+// The series colours are one categorical palette in a fixed order (blue, orange,
+// aqua, yellow, magenta, green), its light steps in a light theme and its dark
+// steps in a dark one. In that order every adjacent pair stays apart for the
+// colour-blind (CVD ΔE ≥ 8.4) and for everyone (ΔE ≥ 19) on each theme's card;
+// some sit under 3:1 against a card, so an element that uses them names each
+// series in words too (a legend, a table). They are never a status.
 export const THEMES: Record<ThemeName, Theme> = {
   'contraagent-dark': {
     label: 'contraagent Dark',
@@ -87,6 +94,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#3f4d63',
       'tok-cache-write': '#8796ad',
       'tok-output': '#d6b8ff',
+      'series-1': '#3987e5',
+      'series-2': '#d95926',
+      'series-3': '#199e70',
+      'series-4': '#c98500',
+      'series-5': '#d55181',
+      'series-6': '#008300',
       'code-keyword': '#c4a5ff',
       'code-string': '#7ee2a8',
       'code-number': '#f5c26b',
@@ -133,6 +146,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#cdd6e3',
       'tok-cache-write': '#7d8aa0',
       'tok-output': '#a07ad9',
+      'series-1': '#2a78d6',
+      'series-2': '#eb6834',
+      'series-3': '#1baf7a',
+      'series-4': '#eda100',
+      'series-5': '#e87ba4',
+      'series-6': '#008300',
       'code-keyword': '#6f49a8',
       'code-string': '#076b40',
       'code-number': '#7b5605',
@@ -177,6 +196,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#2f3742',
       'tok-cache-write': '#656c76',
       'tok-output': '#d2a8ff',
+      'series-1': '#3987e5',
+      'series-2': '#d95926',
+      'series-3': '#199e70',
+      'series-4': '#c98500',
+      'series-5': '#d55181',
+      'series-6': '#008300',
       'code-keyword': '#ff7b72',
       'code-string': '#a5d6ff',
       'code-number': '#79c0ff',
@@ -221,6 +246,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#d1d9e0',
       'tok-cache-write': '#818b98',
       'tok-output': '#a475f9',
+      'series-1': '#2a78d6',
+      'series-2': '#eb6834',
+      'series-3': '#1baf7a',
+      'series-4': '#eda100',
+      'series-5': '#e87ba4',
+      'series-6': '#008300',
       'code-keyword': '#cf222e',
       'code-string': '#0a3069',
       'code-number': '#0550ae',
@@ -265,6 +296,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#3e4451',
       'tok-cache-write': '#5c6370',
       'tok-output': '#c678dd',
+      'series-1': '#3987e5',
+      'series-2': '#d95926',
+      'series-3': '#199e70',
+      'series-4': '#c98500',
+      'series-5': '#d55181',
+      'series-6': '#008300',
       'code-keyword': '#c678dd',
       'code-string': '#98c379',
       'code-number': '#d19a66',
@@ -309,6 +346,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#4c566a',
       'tok-cache-write': '#7b88a1',
       'tok-output': '#b48ead',
+      'series-1': '#3987e5',
+      'series-2': '#d95926',
+      'series-3': '#199e70',
+      'series-4': '#c98500',
+      'series-5': '#d55181',
+      'series-6': '#008300',
       'code-keyword': '#81a1c1',
       'code-string': '#a3be8c',
       'code-number': '#b790b0',
@@ -353,6 +396,12 @@ export const THEMES: Record<ThemeName, Theme> = {
       'tok-cache-read': '#525964',
       'tok-cache-write': '#9ea7b3',
       'tok-output': '#dbb7ff',
+      'series-1': '#3987e5',
+      'series-2': '#d95926',
+      'series-3': '#199e70',
+      'series-4': '#c98500',
+      'series-5': '#d55181',
+      'series-6': '#008300',
       'code-keyword': '#ff9492',
       'code-string': '#addcff',
       'code-number': '#91cbff',
