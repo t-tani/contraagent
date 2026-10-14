@@ -160,6 +160,149 @@ class Hosts(Closed):
     )
 
 
+# --- /api/trends -------------------------------------------------------------
+
+
+class TrendPeriod(Closed):
+    """The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    from_: str = Field(alias="from", description="the first day, YYYY-MM-DD")
+    to: str = Field(description="the last day, YYYY-MM-DD")
+    tz: str
+    days: list[str] = Field(description="every day of the period, in order")
+
+
+class TrendTotals(Closed):
+    """The period's runs and attempts, summed."""
+
+    runs: int = Field(description="runs with an attempt in the period, or started in it")
+    attempts: int
+    ok: int
+    cost_usd: float | None = Field(description="what the coding agents reported; null when no attempt reported a cost")
+    wall_s: float
+    tokens: TokenUsage
+
+
+class TrendDay(Closed):
+    """One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own)."""
+
+    day: str
+    cost_usd: dict[str, float] = Field(description="group -> cost, USD; a group with no cost reported is absent")
+    attempts: int
+    ok: int
+
+
+class TrendKind(Closed):
+    """One kind over the period. A task is one key of one run; its last attempt in the period says how it ended."""
+
+    kind: str
+    group: str
+    executor: Executor
+    tasks: int
+    tasks_ok: int
+    attempts: int
+    ok: int
+    wall_s: float = Field(description="every attempt's wall time, summed")
+    wall_s_median: float = Field(description="the median attempt's wall time")
+    cost_usd: float | None
+    tokens: TokenUsage
+
+
+class TrendStop(Closed):
+    """Attempts that ended on one `stop`, and by which kinds."""
+
+    stop: str
+    attempts: int
+    kinds: dict[str, int]
+
+
+class TrendDenial(Closed):
+    """Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`)."""
+
+    tool: str
+    count: int
+    kinds: dict[str, int]
+
+
+class TrendQuota(Closed):
+    """One account's utilization of one window over the period: each day's and each hour's highest reading."""
+
+    credential: str
+    window: Literal["five_hour", "seven_day"]
+    daily_peak: list[float | None] = Field(description="per day of `period.days`; null when no reading arrived that day")
+    hourly_peak: list[float | None] = Field(
+        description="per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
+    )
+
+
+class TrendRest(Open):
+    """A start or end of a credential's rest (`rests.jsonl`), with its run."""
+
+    run: str
+    ts: str | None = None
+    event: str | None = None
+    credential: str | None = None
+
+
+class TrendDeferral(Closed):
+    """A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`."""
+
+    run: str
+    ts: str
+    key: str
+    kind: str
+    cause: str
+    reason: str
+
+
+class TrendRun(Closed):
+    """One run of the period: its attempts in the period."""
+
+    run: str
+    run_group: str
+    host_id: str
+    started_at: str
+    finished_at: str
+    last_ts: str = Field(description="when its last attempt in the period ended; empty when it has none")
+    attempts: int
+    ok: int
+    cost_usd: float | None
+    wall_s: float
+    stub: bool
+
+
+class TrendStarts(Closed):
+    """Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`."""
+
+    weekdays: list[str]
+    hours: list[int]
+    counts: list[list[int]]
+
+
+class Trends(Closed):
+    """What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as
+    panel bodies (`{"type": "blocks", ...}`), in English, for a page with no words of its own;
+    `panels`: the trend panels a domain registered (`Panel(scope="trends")`)."""
+
+    period: TrendPeriod
+    totals: TrendTotals
+    daily: list[TrendDay]
+    kinds: list[TrendKind]
+    models: list[ModelUsage]
+    stops: list[TrendStop]
+    denials: list[TrendDenial]
+    quota: list[TrendQuota]
+    rests: list[TrendRest]
+    deferred: list[TrendDeferral]
+    deferred_causes: dict[str, int]
+    runs: list[TrendRun]
+    starts: TrendStarts
+    bodies: dict[str, JsonObject]
+    panels: list[PanelInfo]
+
+
 # --- journal ---------------------------------------------------------------
 
 

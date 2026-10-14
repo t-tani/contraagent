@@ -2,7 +2,6 @@
 
 import json
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -60,14 +59,14 @@ def test_run_and_trends_panels(tmp_path):
     assert table.rows == [{"kind": "write", "attempts": 2, "done": 0.5, "cost": 0.75, "wall": 630, "_tone": "failed"}]
     with pytest.raises(KeyError):
         mon.panel("cost", "r1")
-    period = Period(datetime(2026, 10, 13, tzinfo=UTC), datetime(2026, 10, 15, tzinfo=UTC), tz="Asia/Tokyo")
-    cost = BODY.validate_python(mon.trends_panel("cost", ["r1", "r2"], period))
+    period = Period.parse("2026-10-13", "2026-10-15", "Asia/Tokyo")
+    cost = BODY.validate_python(mon.trends_panel("cost", period))
     assert isinstance(cost, api.ColumnsBody) and cost.stacked
     # Days in Tokyo: 23:30 UTC on the 13th is the 14th there, so every attempt is on 10-14.
     assert cost.x == ["10-14"]
     assert {s.name: s.values for s in cost.series} == {"triage": [0.1], "write": [0.75]}
     with pytest.raises(KeyError):
-        mon.trends_panel("spend", ["r1"], period)
+        mon.trends_panel("spend", period)
 
 
 def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):

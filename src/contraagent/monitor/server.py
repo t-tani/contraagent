@@ -5,6 +5,8 @@ Endpoints (all GET; response models in `api.py`):
   /api/info                          Info: title, the panel names the UI should offer, the contract version
   /api/runs                          list[RunSummary]
   /api/hosts                         Hosts: the hosts that drive the runs, and accounts' utilization over every run
+  /api/trends?from=&to=&tz=&run_group=  Trends: what the runs of a period add up to, day by day
+  /api/trends/panels/<name>?from=...    one trend panel a domain registered (`Panel(scope="trends")`)
   /api/runs/<run>/journal?since=N    JournalPage: journal rows after line offset N
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
@@ -49,7 +51,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from pydantic import TypeAdapter
 
 try:
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.middleware.trustedhost import TrustedHostMiddleware
     from fastapi.openapi.utils import get_openapi
@@ -65,6 +67,7 @@ except ModuleNotFoundError:
 from contraagent.monitor import api
 from contraagent.monitor.core import Monitor
 from contraagent.monitor.paths import BadName
+from contraagent.monitor.trends import Period, PeriodError
 
 log = logging.getLogger(__name__)
 
@@ -266,6 +269,46 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     def api_hosts() -> dict:
         """The hosts that drive the runs, and each account's utilization over every run."""
         return monitor.hosts()
+
+    def period_of(start: str, end: str, tz: str) -> Period:
+        try:
+            return Period.parse(start, end, tz)
+        except PeriodError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.get(
+        "/api/trends",
+        response_model=api.Trends,
+        response_model_exclude_unset=True,
+        responses={400: {"description": "a period it cannot read"}},
+    )
+    def api_trends(
+        start: str = Query("", alias="from", description="the first day, YYYY-MM-DD (default: 13 days before `to`)"),
+        end: str = Query("", alias="to", description="the last day, YYYY-MM-DD (default: today in `tz`)"),
+        tz: str = Query("", description="the time zone the days are in, an IANA name (default UTC)"),
+        run_group: str = Query("", description="only the runs of this run group"),
+        stub: bool = Query(False, description="count stub runs too"),
+    ) -> dict:
+        """What the runs of a period add up to, day by day."""
+        return monitor.trends(period_of(start, end, tz), run_group=run_group, stub=stub)
+
+    @app.get(
+        "/api/trends/panels/{name}",
+        response_model=api.JsonObject,
+        responses={400: {"description": "a period it cannot read"}, 404: {"description": "no trend panel of that name"}},
+    )
+    def api_trend_panel(
+        name: str,
+        start: str = Query("", alias="from"),
+        end: str = Query("", alias="to"),
+        tz: str = Query(""),
+        run_group: str = Query(""),
+    ) -> dict:
+        """One trend panel's body: its `fn(runs, period)` over the runs of the period."""
+        try:
+            return monitor.trends_panel(name, period_of(start, end, tz), run_group=run_group)
+        except KeyError:
+            raise HTTPException(404, f"no trend panel {name!r}") from None
 
     @route("/api/runs/{run}/journal", api.JournalPage)
     def api_journal(run: str, since: int = 0) -> dict:

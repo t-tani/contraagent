@@ -61,6 +61,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Trends
+         * @description What the runs of a period add up to, day by day.
+         */
+        get: operations["api_trends_api_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trends/panels/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Trend Panel
+         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period.
+         */
+        get: operations["api_trend_panel_api_trends_panels__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run}/journal": {
         parameters: {
             query?: never;
@@ -2342,6 +2382,276 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * TrendDay
+         * @description One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own).
+         */
+        TrendDay: {
+            /** Day */
+            day: string;
+            /**
+             * Cost Usd
+             * @description group -> cost, USD; a group with no cost reported is absent
+             */
+            cost_usd: {
+                [key: string]: number;
+            };
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+        };
+        /**
+         * TrendDeferral
+         * @description A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`.
+         */
+        TrendDeferral: {
+            /** Run */
+            run: string;
+            /** Ts */
+            ts: string;
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Cause */
+            cause: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * TrendDenial
+         * @description Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`).
+         */
+        TrendDenial: {
+            /** Tool */
+            tool: string;
+            /** Count */
+            count: number;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * TrendKind
+         * @description One kind over the period. A task is one key of one run; its last attempt in the period says how it ended.
+         */
+        TrendKind: {
+            /** Kind */
+            kind: string;
+            /** Group */
+            group: string;
+            /**
+             * Executor
+             * @enum {string}
+             */
+            executor: "agent" | "python";
+            /** Tasks */
+            tasks: number;
+            /** Tasks Ok */
+            tasks_ok: number;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /**
+             * Wall S
+             * @description every attempt's wall time, summed
+             */
+            wall_s: number;
+            /**
+             * Wall S Median
+             * @description the median attempt's wall time
+             */
+            wall_s_median: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            tokens: components["schemas"]["TokenUsage"];
+        };
+        /**
+         * TrendPeriod
+         * @description The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name).
+         */
+        TrendPeriod: {
+            /**
+             * From
+             * @description the first day, YYYY-MM-DD
+             */
+            from: string;
+            /**
+             * To
+             * @description the last day, YYYY-MM-DD
+             */
+            to: string;
+            /** Tz */
+            tz: string;
+            /**
+             * Days
+             * @description every day of the period, in order
+             */
+            days: string[];
+        };
+        /**
+         * TrendQuota
+         * @description One account's utilization of one window over the period: each day's and each hour's highest reading.
+         */
+        TrendQuota: {
+            /** Credential */
+            credential: string;
+            /**
+             * Window
+             * @enum {string}
+             */
+            window: "five_hour" | "seven_day";
+            /**
+             * Daily Peak
+             * @description per day of `period.days`; null when no reading arrived that day
+             */
+            daily_peak: (number | null)[];
+            /**
+             * Hourly Peak
+             * @description per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it
+             */
+            hourly_peak: (number | null)[];
+        };
+        /**
+         * TrendRest
+         * @description A start or end of a credential's rest (`rests.jsonl`), with its run.
+         */
+        TrendRest: {
+            /** Run */
+            run: string;
+            /** Ts */
+            ts?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Credential */
+            credential?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * TrendRun
+         * @description One run of the period: its attempts in the period.
+         */
+        TrendRun: {
+            /** Run */
+            run: string;
+            /** Run Group */
+            run_group: string;
+            /** Host Id */
+            host_id: string;
+            /** Started At */
+            started_at: string;
+            /** Finished At */
+            finished_at: string;
+            /**
+             * Last Ts
+             * @description when its last attempt in the period ended; empty when it has none
+             */
+            last_ts: string;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Wall S */
+            wall_s: number;
+            /** Stub */
+            stub: boolean;
+        };
+        /**
+         * TrendStarts
+         * @description Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`.
+         */
+        TrendStarts: {
+            /** Weekdays */
+            weekdays: string[];
+            /** Hours */
+            hours: number[];
+            /** Counts */
+            counts: number[][];
+        };
+        /**
+         * TrendStop
+         * @description Attempts that ended on one `stop`, and by which kinds.
+         */
+        TrendStop: {
+            /** Stop */
+            stop: string;
+            /** Attempts */
+            attempts: number;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * TrendTotals
+         * @description The period's runs and attempts, summed.
+         */
+        TrendTotals: {
+            /**
+             * Runs
+             * @description runs with an attempt in the period, or started in it
+             */
+            runs: number;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /**
+             * Cost Usd
+             * @description what the coding agents reported; null when no attempt reported a cost
+             */
+            cost_usd: number | null;
+            /** Wall S */
+            wall_s: number;
+            tokens: components["schemas"]["TokenUsage"];
+        };
+        /**
+         * Trends
+         * @description What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as
+         *     panel bodies (`{"type": "blocks", ...}`), in English, for a page with no words of its own;
+         *     `panels`: the trend panels a domain registered (`Panel(scope="trends")`).
+         */
+        Trends: {
+            period: components["schemas"]["TrendPeriod"];
+            totals: components["schemas"]["TrendTotals"];
+            /** Daily */
+            daily: components["schemas"]["TrendDay"][];
+            /** Kinds */
+            kinds: components["schemas"]["TrendKind"][];
+            /** Models */
+            models: components["schemas"]["ModelUsage"][];
+            /** Stops */
+            stops: components["schemas"]["TrendStop"][];
+            /** Denials */
+            denials: components["schemas"]["TrendDenial"][];
+            /** Quota */
+            quota: components["schemas"]["TrendQuota"][];
+            /** Rests */
+            rests: components["schemas"]["TrendRest"][];
+            /** Deferred */
+            deferred: components["schemas"]["TrendDeferral"][];
+            /** Deferred Causes */
+            deferred_causes: {
+                [key: string]: number;
+            };
+            /** Runs */
+            runs: components["schemas"]["TrendRun"][];
+            starts: components["schemas"]["TrendStarts"];
+            /** Bodies */
+            bodies: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Panels */
+            panels: components["schemas"]["PanelInfo"][];
+        };
+        /**
          * UnitPosition
          * @description One unit's place in the per-unit step sequence; `inflight` are the work
          *     items dispatched but not yet recorded.
@@ -2452,6 +2762,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Hosts"];
+                };
+            };
+        };
+    };
+    api_trends_api_trends_get: {
+        parameters: {
+            query?: {
+                /** @description the first day, YYYY-MM-DD (default: 13 days before `to`) */
+                from?: string;
+                /** @description the last day, YYYY-MM-DD (default: today in `tz`) */
+                to?: string;
+                /** @description the time zone the days are in, an IANA name (default UTC) */
+                tz?: string;
+                /** @description only the runs of this run group */
+                run_group?: string;
+                /** @description count stub runs too */
+                stub?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trends"];
+                };
+            };
+            /** @description a period it cannot read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_trend_panel_api_trends_panels__name__get: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                tz?: string;
+                run_group?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description a period it cannot read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no trend panel of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

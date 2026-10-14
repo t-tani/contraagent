@@ -12,7 +12,8 @@ A domain extends it two ways, neither touching the framework:
   them) is drawn with the monitor's own elements; any other dict is shown as
   a JSON tree. A security-scan pipeline would register "findings" or
   "targets"; a data pipeline would register "datasets". A panel of `scope`
-  "trends" is computed over the runs of a period instead (`fn(runs, period)`).
+  "trends" is computed over the runs of a period instead (`fn(runs, period)`),
+  served with the trends (`Monitor.trends`).
 * `task_detail` — `fn(run, key, rows) -> dict` (`TaskDetailFn`), merged into the
   per-task view (a task's declared inputs/outputs, the state it wrote).
 
@@ -25,7 +26,6 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -35,20 +35,9 @@ from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
-from contraagent.monitor import paths
+from contraagent.monitor import paths, trends
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
-
-
-@dataclass(frozen=True)
-class Period:
-    """The runs a trends panel is computed over: those that started from `start` up to
-    `end` (the trends view's `from` and `to`), with days counted in the time zone `tz`
-    (an IANA name, `UTC` by default)."""
-
-    start: datetime
-    end: datetime
-    tz: str = "UTC"
-
+from contraagent.monitor.trends import Period
 
 #: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`).
 PanelFn = Callable[[str], Any]
@@ -187,6 +176,7 @@ class Monitor:
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,
         groups: list[dict] | None = None,
+        keep_digests: bool = True,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
         without them each kind is a group of its own.
@@ -196,7 +186,10 @@ class Monitor:
         the one that called `register_normalizer`.
         `source` and `liveness` replace where runs are read from (default: `runs_dir`
         and this host's `/proc`); a `source` given without `liveness` has no live run.
-        `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts."""
+        `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts.
+        `keep_digests`: keep a finished run's trends digest in its directory
+        (`rundir.TRENDS`), so a restarted monitor reads it back instead of the logs;
+        it is always kept in memory."""
         self.many_hosts = many_hosts
         self.runs_dir = Path(runs_dir).resolve()
         self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
@@ -212,6 +205,10 @@ class Monitor:
         self.static_dir = Path(static_dir) if static_dir else None
         self.stream_formats = dict(stream_formats or {})
         self.group_defs = list(groups or [])
+        self.keep_digests = keep_digests
+        self._digests: dict[str, tuple[dict, dict]] = {}  # run -> (signature, digest)
+        self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
+        self._trends: tuple[tuple, dict] | None = None  # the last trends, and what they were made of
 
     def check_run(self, run: str) -> str:
         """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
@@ -788,13 +785,6 @@ class Monitor:
             raise KeyError(name)
         return panel(run)
 
-    def trends_panel(self, name: str, runs: list[str], period: Period) -> dict:
-        """Trends panel `name`'s body over `runs` (the period's run ids). KeyError: no trends panel of that name."""
-        panel = self.panels.get(name)
-        if panel is None or panel.scope != "trends":
-            raise KeyError(name)
-        return panel(runs, period)
-
     def run_panels(self) -> list[str]:
         """The names of the panels computed per run: each run's tabs, and its live feed."""
         return [n for n, p in self.panels.items() if p.scope == "run"]
@@ -804,6 +794,108 @@ class Monitor:
             {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon, "scope": p.scope}
             for n, p in sorted(self.panels.items())
         ]
+
+    # --- trends --------------------------------------------------------------
+
+    def trends(self, period: Period, *, run_group: str = "", stub: bool = False) -> dict:
+        """What the runs of `period` add up to (`monitor.trends`), with the same numbers as
+        panel bodies (`bodies`) and the trend panels on offer (`panels`). `run_group` keeps
+        the runs of one group; stub runs count only with `stub`."""
+        held = self._period_digests(period)
+        groups = self._group_of()
+        # The same period over the same runs, as they were: the same trends (a page asks again and again).
+        made_of = (period, run_group, stub, tuple(sorted(groups.items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
+        if self._trends is not None and self._trends[0] == made_of:
+            return self._trends[1]
+        digests = [dg for _, _, dg in held if (not run_group or dg["run_group"] == run_group) and (stub or not dg["stub"])]
+        view = trends.aggregate(digests, period, groups)
+        out = {
+            **view,
+            "bodies": trends.bodies(view),
+            "panels": [
+                {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon}
+                for n, p in sorted(self.panels.items())
+                if p.scope == "trends"
+            ],
+        }
+        self._trends = (made_of, out)
+        return out
+
+    def trends_panel(self, name: str, period: Period, *, run_group: str = "") -> dict:
+        """Trends panel `name`'s body: its `fn(runs, period)` over the run ids of `period`,
+        newest first. KeyError: no trends panel of that name."""
+        panel = self.panels.get(name)
+        if panel is None or panel.scope != "trends":
+            raise KeyError(name)
+        runs = [r["run"] for r in self.trends(period, run_group=run_group)["runs"]]  # newest first
+        return panel(runs, period)
+
+    def _group_of(self) -> dict[str, str]:
+        """Kind -> the label of the group it is in (`groups`); a kind in none is its own."""
+        return {k: g.get("label") or g.get("id") or k for g in self.group_defs for k in g.get("kinds") or ()}
+
+    def _period_digests(self, period: Period) -> list[tuple[str, dict, dict]]:
+        """The runs that may have worked in `period` (by `run.json`), with their signatures
+        and digests."""
+        out = []
+        live: set[str] | None = None
+
+        def is_live(run: str) -> bool:  # only for a digest made now: it scans the processes
+            nonlocal live
+            if live is None:
+                live = self.liveness.live()
+            return run in live
+
+        for run in self.source.runs():
+            info, sig = trends.run_files(self.source, run, self._infos)
+            if trends.in_period(info, period):
+                out.append((run, sig, self._digest(run, sig, is_live)))
+        return out
+
+    def digest(self, run: str) -> dict:
+        """Run `run`'s trends digest (`trends.digest`): from memory while its logs are the
+        same, else from its `trends.json` when that was made from these logs, else from the
+        logs (then kept: in memory, and in the directory of a finished run that is not live)."""
+        return self._digest(run, trends.run_files(self.source, run, self._infos)[1], lambda r: r in self.liveness.live())
+
+    def _digest(self, run: str, sig: dict, is_live: Callable[[str], bool]) -> dict:
+        held = self._digests.get(run)
+        if held is not None and held[0] == sig:
+            return held[1]
+        kept = self._kept_digest(run, sig)
+        dg = trends.restore(kept) if kept is not None else trends.digest(self.source, run)
+        if kept is None and sig.get("finished_at") and not is_live(run):
+            self._keep_digest(run, sig, trends.kept_form(dg))
+        self._digests[run] = (sig, dg)
+        return dg
+
+    def _digest_path(self, run: str) -> Path | None:
+        if not self.keep_digests or not isinstance(self.source, DirectorySource):
+            return None
+        return Path(trends.run_dir(self.source, run)) / rundir.TRENDS
+
+    def _kept_digest(self, run: str, sig: dict) -> dict | None:
+        path = self._digest_path(run)
+        if path is None:
+            return None
+        try:
+            kept = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+        if not isinstance(kept, dict) or kept.get("signature") != sig or kept.get("digest", {}).get("version") != trends.DIGEST_VERSION:
+            return None
+        return kept["digest"]
+
+    def _keep_digest(self, run: str, sig: dict, dg: dict) -> None:
+        """Write a digest to the run's `trends.json`; best effort (a read-only runs directory
+        keeps it in memory only)."""
+        path = self._digest_path(run)
+        if path is None:
+            return
+        try:
+            rundir.write_document(path, json.dumps({"signature": sig, "digest": dg}))
+        except OSError:
+            pass
 
 
 def row_extras(rows: list[dict]) -> list[str]:

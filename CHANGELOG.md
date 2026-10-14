@@ -346,6 +346,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<cae-line-chart>`, `<cae-heatmap>` and `<cae-bar-chart>`, each with a legend, a
   tooltip reached with the pointer or the keys, and a table of its values; the series
   take `--ca-series-1` to `--ca-series-6`, and past six they fold into one.
+- Trends: `/api/trends?from=&to=&tz=` (`Monitor.trends`) sums the runs of a period day
+  by day: cost by kind or group, each kind's tasks, success and time, each model's
+  spend, failures, refused tool calls, utilization, rests, deferrals and run starts,
+  with the same numbers as panel bodies. A panel whose `scope` is `"trends"` takes the
+  period's runs (`/api/trends/panels/<name>`). Each run is read through a digest of its
+  logs by 15-minute slot, kept in memory and, for a finished run, in its `trends.json`.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a
