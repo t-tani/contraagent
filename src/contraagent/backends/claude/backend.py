@@ -83,6 +83,9 @@ class ClaudeBackend(Backend):
     # `--tools ""`, `--system-prompt`, and the `--setting-sources ""` and
     # `--strict-mcp-config` every launch already gets.
     light_launch = True
+    # A resumed session's `total_cost_usd` covers the session so far (measured on 2.1.296:
+    # $0.00128, then $0.00212 for a second launch of one session).
+    cost_is_session_total = True
 
     def __init__(self, binary: str = "claude", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)

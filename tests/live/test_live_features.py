@@ -19,6 +19,10 @@ Each test runs a small flow once per coding agent:
   its input a small part of the same judgement's with the agent's tools.
 * a time box: past a flow call's own deadline its writes are deferred, its finishing kind
   still launches, and a task after the box launches.
+* the cost of a fix-up round: an attempt costs what its rounds cost, each counted once,
+  though Claude Code reports a resumed session's cost so far;
+* `unwrap`: a final message that wraps its JSON passes in one round with `unwrap=True`,
+  and takes a fix-up round without it.
 """
 
 import json
@@ -362,6 +366,111 @@ def test_output_from_the_final_message(ws, agent):
     assert got["p"].output == Answer(lines=3, word="APPLE")
     json.loads(out)  # only the document: no prose around it
     assert row["rounds"] >= 1
+
+
+# --- the cost of fix-up rounds, and unwrap -------------------------------------------
+
+
+def once(message: str):
+    """A validator that refuses the first output it sees: the task takes one fix-up round."""
+    seen: list[int] = []
+
+    def refuse_once(path, value) -> list[str]:
+        seen.append(1)
+        return [message] if len(seen) == 1 else []
+
+    return refuse_once
+
+
+def result_costs(report, key: str) -> list[float]:
+    """The cost each launch's result event reported (Claude Code's stream)."""
+    path = report.run_dir / "streams" / f"{key}.stream.jsonl"
+    out = []
+    for line in path.read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") == "result" and event.get("total_cost_usd") is not None:
+            out.append(event["total_cost_usd"])
+    return out
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_fix_up_round_is_charged_once(ws, agent):
+    note = agent_task(
+        f"note_{agent}",
+        instructions="Write the output: one short sentence about ${unit} as `note`.",
+        output=Note,
+        validators=[once("note: write it again, in other words")],
+        max_turns=6,
+        timeout_s=300,
+        **route(agent),
+    )
+    report = pipeline(ws).run(lambda: note("tea"), run_id=f"cost-{agent}")
+    show(report)
+    [row] = rows(report)
+    [launch] = [json.loads(line) for line in (report.run_dir / "launches.jsonl").read_text().splitlines()]
+    print(f"  cost {row['cost_usd']} rounds {row['rounds']} round costs {launch['round_costs']}")
+    assert report.ok, report.failed
+    assert row["rounds"] == 2 and len(launch["round_costs"]) == 2
+    assert row["cost_usd"] == pytest.approx(sum(launch["round_costs"]), abs=1e-6)
+    assert row["hops"][0]["cost_usd"] == pytest.approx(row["cost_usd"], abs=1e-6)
+    if agent == "claude":
+        reported = result_costs(report, f"note_{agent}-tea")
+        print(f"  result events: {reported}")
+        # the second round reports the session's cost so far: that is the attempt's cost
+        assert reported[-1] > reported[0] and row["cost_usd"] == pytest.approx(reported[-1], abs=1e-6)
+
+
+WRAP = (
+    "Decide whether ${unit} is a fruit. Your final message must be exactly this: first the "
+    "line `Here is the verdict.`, then the JSON document in a ```json fenced block, then the "
+    "line `Done.`"
+)
+
+
+class Fruit(BaseModel):
+    fruit: bool
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_unwrap_takes_a_wrapped_message_in_one_round(ws, agent):
+    def judge(unwrap: bool):
+        return agent_task(
+            f"judge_{agent}_{'unwrap' if unwrap else 'strict'}",
+            instructions=WRAP,
+            output=Fruit,
+            output_from="message",
+            unwrap=unwrap,
+            max_turns=4,
+            timeout_s=300,
+            **route(agent),
+        )
+
+    got = {}
+
+    def flow():
+        got["u"] = judge(True)("banana")
+        got["s"] = judge(False)("banana")
+
+    report = pipeline(ws).run(flow, run_id=f"unwrap-{agent}")
+    show(report)
+    by_kind = {r["kind"]: r for r in rows(report)}
+    unwrapped, strict = by_kind[f"judge_{agent}_unwrap"], by_kind[f"judge_{agent}_strict"]
+    message = got["u"].path.with_name(got["u"].path.name + ".message.txt").read_text()
+    print(f"  message: {message!r}\n  strict round errors: {strict['round_errors']}")
+    launched = {json.loads(line)["label"]: json.loads(line) for line in (report.run_dir / "launches.jsonl").read_text().splitlines()}
+    # Whether the model wraps its message as told varies from run to run (the call protocol
+    # asks for the document alone): each check below holds for what it did.
+    wrapped = message.strip() != got["u"].path.read_text().strip()
+    assert unwrapped["ok"] and unwrapped["rounds"] == 1 and got["u"].output == Fruit(fruit=True)
+    assert launched[unwrapped["key"]]["unwrapped"] is wrapped
+    assert strict["ok"]
+    if strict["rounds"] > 1:
+        assert "not valid JSON" in strict["round_errors"][0][0]  # the wrapped message went back
+    if not wrapped and strict["rounds"] == 1:
+        pytest.skip(f"{agent} wrote the document alone both times: nothing to unwrap in this run")
 
 
 # --- quota caps and quota_rule ------------------------------------------------

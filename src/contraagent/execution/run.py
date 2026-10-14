@@ -255,9 +255,16 @@ class Run:
         row = self.journal.append(result)
         if self._estimates is not None:
             self._estimates.observe_attempt(row.model_dump())
-        rounds = result.launch_result.rounds if result.launch_result is not None else None
+        launched = result.launch_result
+        rounds = launched.rounds if launched is not None else None
         line = f"[end] {result.task.key}: {result.stop} in {result.wall_s:.1f}s"
-        line += f", {rounds} rounds" if rounds and rounds > 1 else ""
+        if rounds and rounds > 1 and launched is not None and launched.round_errors and launched.round_errors[0]:
+            # Why the first round went back: the fix-up is otherwise only a count here.
+            first = " ".join(launched.round_errors[0][0].split())
+            line += f", {rounds} rounds (round 1: {first[:160]}{'…' if len(first) > 160 else ''})"
+        elif rounds and rounds > 1:
+            line += f", {rounds} rounds"
+        line += ", output unwrapped from the final message" if launched is not None and launched.unwrapped else ""
         line += f", on {result.route}" if len(result.hops) > 1 else ""
         self._log(logging.INFO, line)
 

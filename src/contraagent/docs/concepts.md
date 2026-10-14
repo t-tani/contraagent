@@ -41,6 +41,7 @@ documentation. No other word is used for the same thing.
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
 | **changes** | the files one attempt created, modified or deleted under the patterns its task declares, beside its output; the files a failed attempt created are removed | `agent_task(changes=)`, `TaskAdapter.changes`, `TaskResult.changes`, journal `changes` |
 | **final message** | the agent's last message of a launch; an agent task whose output is its final message has it written to its output file and checked there | `LaunchResult.result_text`; `agent_task(output_from="message")`, call file `output.from`, `OutputContract.from_message` |
+| **unwrap** | taking the JSON document out of a final message that wraps it (a sentence before it, a fence around it): the output is the document, the whole message is kept beside it | `agent_task(unwrap=True)`, `OutputContract.unwrap`, `unwrap_json`; `<output>.message.txt`; `LaunchResult.unwrapped` |
 
 ## Checking
 
@@ -80,7 +81,7 @@ documentation. No other word is used for the same thing.
 | **launch** | one run of a coding agent, and its result | `Launch`, `Backend.run`, `LaunchResult` |
 | **light launch** | the launch of an agent task declared with no tools: its role's text (or its instructions) replaces the coding agent's system prompt, its params and output schema are in the prompt, no plugin, settings or MCP server is loaded, and its final message is its output | `agent_task(tools=())`, `AgentTask.light`, `KindConfig.light`, `Backend.light_launch` |
 | **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
-| **round** | one launch within a session: the first, or a resume after contract errors | `rounds` |
+| **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |

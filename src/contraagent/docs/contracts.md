@@ -26,7 +26,11 @@ Their field descriptions reach the agent in the call file's JSON Schema.
 
 Each resume is a **round**. The journal records how many rounds a task took
 (`rounds`) and the errors each resume was sent (`round_errors`), and the monitor
-shows each round of its transcript.
+shows each round of its transcript. The run's progress line for the attempt
+names the first round's first error. The attempt's cost is its rounds' cost,
+each round counted once: Claude Code reports a resumed session's cost so far,
+omp each launch's own (`Backend.cost_is_session_total`), and `launches.jsonl`
+keeps each round's own (`round_costs`).
 
 ## An output in the final message
 
@@ -38,6 +42,15 @@ there, by the same schema and validators. A message that fails its checks goes
 back to the same session as the next round, asking for the corrected output as
 the reply. The stop hook leaves it to the runner: the message exists only after
 the turn. It saves the turn a `Write` takes, and the permission to write.
+
+By default the whole message must be the document. A model that is told so
+still puts a sentence before it now and then, or a fence around it, and each
+time costs a round. `unwrap=True` takes the document out of the message instead
+(`contracts.unwrap_json`): the last fenced block that parses, else the longest
+JSON object or array in the message. The document is the output file, the whole
+message is kept beside it (`<output>.message.txt`), and the run's progress line
+and `launches.jsonl` (`unwrapped`) say that it was taken out. A message that holds
+no document is checked as it is, and goes back as before.
 
 ::code{file="examples/review/flow.py" from="# A verdict needs no tool" to="revise = agent_task("}
 
