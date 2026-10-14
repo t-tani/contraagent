@@ -6,7 +6,7 @@ import { emit } from '../core/events.js';
 import { withDefaults } from '../core/strings.js';
 import { toneAttr, type Tone } from '../core/tone.js';
 import { RovingFocusController } from '../primitives/roving-focus.js';
-import { windowRows, type RowWindow } from '../primitives/window.js';
+import { rowOffsets, windowRowsAt, type RowWindow } from '../primitives/window.js';
 import { base } from '../styles/index.js';
 import { dataTableStyles } from './styles.js';
 import { DEFAULT_DATA_TABLE_STRINGS, isSortable, type DataColumn, type DataTableStrings, type SortState } from './types.js';
@@ -50,7 +50,8 @@ const FIRST_ROWS = 60;
  * selection when the table is not `activatable` (`cae-select`). A sortable
  * header sends `cae-sort`; the host orders the rows (`sortRows`) and sets them.
  * Above `windowAt` rows, only the rows on screen are drawn, and a spacer stands
- * for the others.
+ * for the others: as high as those rows were when drawn, or, for a row not drawn
+ * yet, as the rows drawn are on average. Rows may differ in height.
  *
  * Its look: `--cae-data-table-gap` (between the columns), `--cae-data-table-row-padding`,
  * the parts, and `cellStyles` (styles for what the cells draw, added to the
@@ -93,7 +94,7 @@ export class CaeDataTable<R = unknown> extends LitElement {
   @property({ attribute: false }) sort: SortState | null = null;
   /** Above this many rows, only the rows on screen are drawn. */
   @property({ type: Number }) windowAt = 200;
-  /** A row's height in px, until the drawn rows are measured. */
+  /** A row's height in px, until rows are measured. */
   @property({ type: Number }) rowHeight = 32;
   /** The table's caption (its accessible name). */
   @property() caption = '';
@@ -103,8 +104,10 @@ export class CaeDataTable<R = unknown> extends LitElement {
 
   /** The rows drawn, when windowed. */
   @state() private range: { from: number; to: number } = { from: 0, to: FIRST_ROWS };
-  /** The measured height of a row (0: not yet). */
-  private measured = 0;
+  /** Each drawn row's height, by its key: what stands for it while it is not drawn. */
+  private heights = new Map<string, number>();
+  /** Where each row starts (`rowOffsets`), for the rows as they are; null: to work out again. */
+  private offsets: number[] | null = null;
   /** The row that holds the tab stop. */
   private focusKey: string | null = null;
   private scroller: HTMLElement | Window | null = null;
@@ -128,17 +131,26 @@ export class CaeDataTable<R = unknown> extends LitElement {
     this.unwatch();
   }
 
+  /** Where each row starts: its measured height, else the drawn rows' average. */
+  private rowStarts(): number[] {
+    if (this.offsets) return this.offsets;
+    let sum = 0;
+    for (const h of this.heights.values()) sum += h;
+    const typical = this.heights.size ? sum / this.heights.size : this.rowHeight;
+    return (this.offsets = rowOffsets(this.rows.length, (i) => this.heights.get(this.rowKey(this.rows[i]!)) ?? typical));
+  }
+
   /** The rows on screen, from where the table's body is in its scroller. */
   private visible(): RowWindow {
-    const n = this.rows.length;
+    const starts = this.rowStarts();
     const body = this.renderRoot.querySelector('tbody');
-    const h = this.measured || this.rowHeight;
-    if (!body || !this.scroller) return windowRows(n, 0, h * FIRST_ROWS, h, 0);
+    // Before the first measure of the view: the first rows, about FIRST_ROWS of them.
+    if (!body || !this.scroller) return windowRowsAt(starts, 0, (starts.at(-1)! / Math.max(1, this.rows.length)) * FIRST_ROWS, 0);
     const view =
       this.scroller instanceof HTMLElement
         ? { top: this.scroller.getBoundingClientRect().top, height: this.scroller.clientHeight }
         : { top: 0, height: this.scroller.innerHeight };
-    return windowRows(n, view.top - body.getBoundingClientRect().top, view.height, h);
+    return windowRowsAt(starts, view.top - body.getBoundingClientRect().top, view.height);
   }
 
   /** Scrolls the body's first row (or its last, `last`) into the scroller's view. */
@@ -198,6 +210,7 @@ export class CaeDataTable<R = unknown> extends LitElement {
   }
 
   override willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('rows') || changed.has('rowHeight')) this.offsets = null;
     if (changed.has('rows') || changed.has('windowAt')) {
       if (this.windowed && this.hasUpdated) {
         const w = this.visible();
@@ -215,12 +228,22 @@ export class CaeDataTable<R = unknown> extends LitElement {
       adoptStyles(this.renderRoot, [...(this.constructor as typeof LitElement).elementStyles, ...this.cellStyles]);
     if (!this.windowed) return;
     this.watch();
-    // Measure the drawn rows: the spacers then stand for rows of their height.
-    const drawn = [...this.renderRoot.querySelectorAll<HTMLElement>('tbody tr[data-key]')];
-    const h = drawn.length ? drawn.reduce((s, r) => s + r.getBoundingClientRect().height, 0) / drawn.length : 0;
-    if (h > 0 && Math.abs(h - (this.measured || this.rowHeight)) > 0.5) this.measured = h;
+    // Measure the drawn rows: each stands for itself while it is not drawn. A row keeps its
+    // height, so the spacers settle as the rows are drawn once each.
+    let moved = false;
+    for (const tr of this.renderRoot.querySelectorAll<HTMLElement>('tbody tr[data-key]')) {
+      const h = tr.getBoundingClientRect().height;
+      const key = tr.dataset['key']!;
+      if (h > 0 && Math.abs(h - (this.heights.get(key) ?? -1)) > 0.5) {
+        this.heights.set(key, h);
+        moved = true;
+      }
+    }
+    if (moved) this.offsets = null;
     if (this.held) this.held = false;
-    else this.reframe();
+    // On the next frame, never in this update: a window that changes the measures and so
+    // the window again then gives the page a frame, and the reader's input, each time.
+    else this.onScroll();
   }
 
   /** The rows drawn now. */
@@ -318,9 +341,9 @@ export class CaeDataTable<R = unknown> extends LitElement {
     const head = this.columns.find((c) => c.rowHeader)?.id;
     const from = this.windowed ? this.range.from : 0;
     const shown = this.shown();
-    const h = this.measured || this.rowHeight;
-    const padTop = from * h;
-    const padBottom = (n - from - shown.length) * h;
+    const starts = this.windowed ? this.rowStarts() : null;
+    const padTop = starts ? starts[from]! : 0;
+    const padBottom = starts ? starts[n]! - starts[from + shown.length]! : 0;
     return html`<table part="table" role="table" class=${this.activatable ? '' : 'passive'} style="--cae-data-table-columns: ${tracks}"
       aria-rowcount=${this.windowed ? n + 1 : nothing}>
       <caption part="caption"><slot name="caption">${this.caption}</slot></caption>

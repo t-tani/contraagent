@@ -745,6 +745,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A long table (the monitor's history, its tasks) no longer hangs the page when it is
+  scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
+  heights no longer move its window back and forth, and it measures again on the next
+  frame, never within an update.
 - `contraagent plugin render` writes nothing in a skill plugin (it wrote `package.json`
   and `hooks/`, after which the plugin was no longer a skill plugin), and `plugin lint`
   names such files as what an earlier render left.

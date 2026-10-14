@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { windowRows } from './window.js';
+import { rowOffsets, windowRows, windowRowsAt } from './window.js';
 
 describe('windowRows', () => {
   it('draws the rows in view and the overscan, with pads for the rest', () => {
@@ -25,5 +25,35 @@ describe('windowRows', () => {
   it('draws every row of a short list, and none of an empty one', () => {
     expect(windowRows(10, 0, 800, 32)).toEqual({ from: 0, to: 10, padTop: 0, padBottom: 0 });
     expect(windowRows(0, 0, 800, 32)).toEqual({ from: 0, to: 0, padTop: 0, padBottom: 0 });
+  });
+});
+
+describe('windowRowsAt', () => {
+  // Rows of 20, 60, 20, 60 ... px: rows of different heights.
+  const offsets = rowOffsets(1000, (i) => (i % 2 ? 60 : 20));
+
+  it('draws the rows in view and the overscan, with pads of their own heights', () => {
+    // 2000 px down: row 50 starts at 25 * 80 = 2000.
+    const w = windowRowsAt(offsets, 2000, 160, 2);
+    // rows 50-53 fill the 160 px; row 54 starts at its bottom edge
+    expect(w).toEqual({ from: 48, to: 57, padTop: offsets[48], padBottom: offsets[1000]! - offsets[57]! });
+  });
+
+  it('keeps the total height', () => {
+    for (const top of [0, 10, 5000, 39_990, 1e9]) {
+      const w = windowRowsAt(offsets, top, 500);
+      expect(w.padTop + (offsets[w.to]! - offsets[w.from]!) + w.padBottom).toBe(offsets[1000]);
+      expect(w.from).toBeLessThanOrEqual(w.to);
+    }
+  });
+
+  it('clamps at the start and the end, and draws nothing of an empty list', () => {
+    expect(windowRowsAt(offsets, -50, 100, 0).from).toBe(0);
+    expect(windowRowsAt(offsets, 1e9, 100, 0)).toMatchObject({ to: 1000, padBottom: 0 });
+    expect(windowRowsAt(rowOffsets(0, () => 20), 0, 100)).toEqual({ from: 0, to: 0, padTop: 0, padBottom: 0 });
+  });
+
+  it('agrees with windowRows when every row is one height', () => {
+    expect(windowRowsAt(rowOffsets(1000, () => 32), 3200, 320, 5)).toEqual(windowRows(1000, 3200, 320, 32, 5));
   });
 });
