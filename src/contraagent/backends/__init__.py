@@ -6,7 +6,7 @@
 * `process.py`      the guarded subprocess loop every CLI backend shares
 * `live_processes.py`  the agent processes this interpreter started, for teardown
 * `streams.py`      raw transcript lines -> the monitor's renderable events
-* `claude/`, `omp/`, `opencode/`, `pi/`  the concrete CLIs
+* `claude/`, `omp/`, `opencode/`, `pi/`, `codex/`  the concrete CLIs
 
 The registry below is the one place a coding-agent *name* (what a config
 file, a `Route` or a journal row says) is tied to a class. Everything that
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from contraagent.backends.base import Backend, OneShotBackend
 from contraagent.backends.claude import ClaudeBackend
+from contraagent.backends.codex import CodexBackend
 from contraagent.backends.credentials import (
     AMBIENT,
     Ambient,
@@ -46,6 +47,7 @@ _REGISTRY: dict[str, type[Backend]] = {
     "omp-rpc": OmpRpcBackend,
     "opencode": OpencodeBackend,
     "pi": PiBackend,
+    "codex": CodexBackend,
 }
 
 
@@ -81,6 +83,7 @@ __all__ = [
     "Backend",
     "Bedrock",
     "ClaudeBackend",
+    "CodexBackend",
     "Credential",
     "CredentialBase",
     "CredentialBinding",

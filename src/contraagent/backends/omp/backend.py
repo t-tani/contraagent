@@ -123,9 +123,13 @@ def isolation_args() -> list[str]:
 #: The omp profile isolated launches run in: it holds no stored login.
 ISOLATED_PROFILE = "contraagent-isolated"
 #: Providers for which omp uses nothing but what the launch gives it, in a profile with no
-#: stored logins (checked against the real CLI: an anthropic login stays in its own profile;
-#: litellm without a key in the environment is not contacted at all).
-PROFILE_ISOLATED_PROVIDERS = frozenset({"anthropic", "litellm"})
+#: stored logins (checked against the real CLI: an anthropic or openai-codex login stays in its
+#: own profile; litellm without a key in the environment is not contacted at all).
+PROFILE_ISOLATED_PROVIDERS = frozenset({"anthropic", "openai-codex", "litellm"})
+#: A subscription's provider (whose login it is) to the omp provider of that login's models:
+#: a ChatGPT login (`provider = "openai"`, as for codex) is omp's `openai-codex`, its models
+#: `openai-codex/<model>`; omp's `openai` is the API platform, reached with an API key.
+LOGIN_PROVIDERS = {"openai": "openai-codex"}
 #: Providers whose key variable is not `<PROVIDER>_API_KEY` (from `omp --help`).
 _KEY_ENV = {
     "opencode-zen": "OPENCODE_API_KEY",
@@ -330,9 +334,13 @@ class OmpBackend(OneShotBackend):
         if isinstance(c, Ambient):
             return CredentialBinding(isolation="ambient: the host's environment and omp's default profile")
         provider = getattr(c, "provider", "")
+        if isinstance(c, Subscription):
+            provider = LOGIN_PROVIDERS.get(provider, provider)
         model_provider = model.split("/", 1)[0] if "/" in model else ""
         if model_provider and provider and provider != model_provider:
-            raise CredentialError(f"model {model} is a {model_provider} model; credential {c.label} is for {provider}")
+            named = getattr(c, "provider", "")
+            what = provider if named == provider else f"{provider} (its {named} login)"
+            raise CredentialError(f"model {model} is a {model_provider} model; credential {c.label} is for {what}")
 
         def secret(s: Secret) -> str:
             return s.resolve(env) if env is not None else "<unresolved>"

@@ -23,7 +23,9 @@ but it may be a typo.
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
 on omp and opencode contraagent sums the cost the agent reports for each API
-call and ends the launch (`budget`) once it passes the cap. Every key: the reference at the end.
+call and ends the launch (`budget`) once it passes the cap; Codex reports no
+cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
+Every key: the reference at the end.
 
 ## Failover
 
@@ -65,14 +67,14 @@ never written anywhere.
 
 Each coding agent says which credential types it can use:
 
-| type | claude | omp | opencode | pi |
-|---|---|---|---|---|
-| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`) |
-| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) |
-| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic |
-| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) |
-| `workload_identity`, `bedrock`, `vertex` | yes | — | — | — |
-| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same | the same |
+| type | claude | omp | opencode | pi | codex |
+|---|---|---|---|---|---|
+| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile; a ChatGPT login (`provider = "openai"`) runs `openai-codex/<model>` | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`) | the ChatGPT login in a `CODEX_HOME` (`provider = "openai"`) |
+| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) | OpenAI (`CODEX_API_KEY`) |
+| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic | — |
+| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) | a Responses-API endpoint (bearer or API key, custom headers) |
+| `workload_identity`, `bedrock`, `vertex` | yes | — | — | — | — |
+| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same | the same | the same |
 
 A **gateway** is your own endpoint: LiteLLM, a company proxy, a self-hosted
 API. Claude Code speaks the Anthropic Messages API to it; omp, opencode and pi
@@ -80,7 +82,9 @@ address it as a provider, so its models are `<provider>/<model>`
 (`litellm/<model>`; on opencode, `anthropic/<model>` with `provider =
 "anthropic"` and a `base_url` ending in `/v1`). pi speaks the OpenAI
 chat-completions API to `base_url`, and its token stays in the environment, not
-in the `models.json` that names the provider.
+in the `models.json` that names the provider. Codex speaks the OpenAI Responses
+API to it (`<base_url>/responses`, so `base_url` ends in `/v1`), as a model
+provider named after `provider`; its models are the gateway's own names.
 
 A **pool** uses several credentials as one. `in_order` uses the first member
 until it answers 429, then the next; `round_robin` turns to the next member on
@@ -125,7 +129,8 @@ monitor's overview shows them beside each account's usage: the limit on each
 window, the identity paused until when, and its rests over the run.
 
 The readings are those the coding agents report: Claude Code when a session
-starts or resumes, omp at each launch; opencode reports none. The run starts
+starts or resumes, omp at each launch, Codex with each API call of a ChatGPT
+login; opencode reports none. The run starts
 from the newest of recent runs' journals and takes each launch's as it ends, so
 tasks that start together all start before the first of them reports the cap is
 reached. A credential with no readings (a gateway, an API key, any credential on
@@ -166,12 +171,13 @@ What is guaranteed:
 - **Nothing the agent loads by itself.** Claude Code runs with empty config
   directories, so a key that does not work fails instead of falling back to a
   stored login. omp runs in a profile with no stored logins; omp keeps some
-  logins outside its profiles, so for providers other than `anthropic` and
-  `litellm` a task that requires traits is refused on omp. opencode gets no
+  logins outside its profiles, so for providers other than `anthropic`,
+  `openai-codex` and `litellm` a task that requires traits is refused on omp. opencode gets no
   stored login but the chosen one, and the chosen key in its launch config,
   over any key in the user's own opencode config; an OAuth login (which opencode
   refreshes and writes back over every stored login) is not narrowed, so a task
-  that requires traits is refused on it.
+  that requires traits is refused on it. Codex runs with an empty `CODEX_HOME`
+  and without the user's `config.toml`.
 - **What the agent says it used.** A launch whose reported credential source
   does not match its credential ends `credential_mismatch` and is not ok.
 
