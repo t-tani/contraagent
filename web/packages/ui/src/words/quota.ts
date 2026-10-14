@@ -1,20 +1,38 @@
 // Words for a subscription's utilization readings (see @contraagent/api quota.ts).
 import type { QuotaReading } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
-import { facts, fmtDur, localTime } from './format.js';
+import { facts, fmtDur, localTime, sentence } from './format.js';
 import { credentialLabel } from './credential.js';
 
 /** A utilization as a whole percent: `14%`; '—' when not reported. */
 export const pct = (v: number | null | undefined): string => (v === null || v === undefined ? '—' : `${Math.round(v)}%`);
 
-/** A reading's `status` in words; '' for `allowed` (the usual case) or none. */
-export function quotaStatusLabel(status: string | null | undefined): string {
+/** A reading's `status` in words, with the window it is about when known (`near the limit | weekly`); '' for `allowed` (the usual case) or none. */
+export function quotaStatusLabel(status: string | null | undefined, window?: string | null): string {
   if (!status || status === 'allowed') return '';
   const s = status.split(',');
-  if (s.some((x) => ['rejected', 'exhausted', 'quota', 'blocked'].includes(x))) return msg('limit reached');
-  if (s.every((x) => ['allowed_warning', 'warning'].includes(x))) return msg('near the limit');
-  return msg(str`unknown (${status})`);
+  const word = s.some((x) => ['rejected', 'exhausted', 'quota', 'blocked'].includes(x))
+    ? msg('limit reached')
+    : s.every((x) => ['allowed_warning', 'warning'].includes(x))
+      ? msg('near the limit')
+      : msg(str`unknown (${status})`);
+  return window ? facts(word, windowName(window)) : word;
 }
+
+/**
+ * A usage window's name: `5-hour`, `weekly`, and a model's own window by its model
+ * (`seven_day_opus`: `weekly (opus)`); an unknown window as it is named.
+ */
+export function windowName(window: string): string {
+  if (window === 'five_hour') return msg('5-hour');
+  if (window === 'seven_day') return msg('weekly');
+  const own = /^(five_hour|seven_day)_(.+)$/.exec(window);
+  if (own) return own[1] === 'five_hour' ? msg(str`5-hour (${own[2]})`) : msg(str`weekly (${own[2]})`);
+  return window;
+}
+
+/** An account's digest, short, as a label: `account 3f9c2a`. */
+export const accountLabel = (account: string): string => msg(str`account ${account.slice(0, 6)}`);
 
 /** When a window resets, relative to now: `resets in 2h 58m`; '' when unknown. */
 export function resetsIn(iso: string | null | undefined, now = Date.now()): string {
@@ -40,11 +58,25 @@ export function readingTip(r: QuotaReading): string {
     r.five_hour_resets_at
       ? msg(str`5-hour usage ${pct(r.five_hour_pct)} (resets ${localTime(r.five_hour_resets_at, true)})`)
       : msg(str`5-hour usage ${pct(r.five_hour_pct)}`),
+    // The windows beyond the two: a model's own (`weekly (opus)`).
+    ...Object.entries(r.windows ?? {})
+      .filter(([name]) => name !== 'five_hour' && name !== 'seven_day')
+      .map(([name, w]) => msg(str`${sentence(windowName(name))} usage ${pct(w.pct)}`)),
     msg(str`Reported ${localTime(r.observed_at, true)}`),
   ];
-  const status = quotaStatusLabel(r.status);
+  const status = quotaStatusLabel(r.status, r.status_window);
   if (status) parts.push(msg(str`Status: ${status}`));
+  if (r.threshold_pct != null) parts.push(msg(str`Warning threshold: ${pct(r.threshold_pct)}`));
+  if (r.overage_status) parts.push(msg(str`Extra usage: ${extraUsage(r.overage_status)}`));
+  if (r.account) parts.push(msg(str`Account: ${r.account}`));
   return parts.join('\n');
+}
+
+/** Whether usage past the limit is allowed (`overage_status`): `allowed`, `not allowed`, else as reported. */
+function extraUsage(status: string): string {
+  if (status === 'allowed' || status === 'allowed_warning') return msg('allowed');
+  if (status === 'rejected') return msg('not allowed');
+  return status;
 }
 
 /** A reading with its account: `weekly 41% | 5-hour 14% | default`. */

@@ -587,6 +587,12 @@
             "type": "string",
             "title": "Credential"
           },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "the account the readings are of (`QuotaReading.account`); empty when not known",
+            "default": ""
+          },
           "first": {
             "$ref": "#/components/schemas/QuotaReading"
           },
@@ -963,6 +969,11 @@
           "until": {
             "type": "string",
             "title": "Until",
+            "default": ""
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
             "default": ""
           },
           "since": {
@@ -2862,12 +2873,96 @@
             "type": "string",
             "title": "Status",
             "default": ""
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": ""
+          },
+          "status_window": {
+            "type": "string",
+            "title": "Status Window",
+            "default": ""
+          },
+          "threshold_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Pct"
+          },
+          "overage_status": {
+            "type": "string",
+            "title": "Overage Status",
+            "default": ""
+          },
+          "overage_disabled_reason": {
+            "type": "string",
+            "title": "Overage Disabled Reason",
+            "default": ""
+          },
+          "using_overage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Using Overage"
+          },
+          "windows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuotaWindow"
+            },
+            "type": "object",
+            "title": "Windows"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra"
           }
         },
         "additionalProperties": true,
         "type": "object",
         "title": "QuotaReading",
         "description": "A subscription's utilization as the coding agent reported it during an attempt\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes\nwhatever else used the same account, parallel tasks too."
+      },
+      "QuotaWindow": {
+        "properties": {
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "QuotaWindow",
+        "description": "One window of a reading: its utilization (%) and when it resets (ISO 8601)."
       },
       "ReadyMessage": {
         "additionalProperties": false,
@@ -3125,6 +3220,11 @@
           "until": {
             "type": "string",
             "title": "Until",
+            "default": ""
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
             "default": ""
           },
           "route": {

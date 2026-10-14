@@ -59,26 +59,53 @@ def feedback_errors(text: str) -> list[str]:
     return errors or [text.strip()]
 
 
+#: The fields of `rate_limit_info` a reading names; the rest go to `RateLimit.extra`.
+#: `resetsAt` and `utilization` are those of the `rateLimitType` window, in `windows`.
+_READ_FIELDS = frozenset(
+    {
+        *("status", "resetsAt", "utilization", "rateLimitType", "surpassedThreshold"),
+        *("overageStatus", "overageDisabledReason", "isUsingOverage", "unifiedWindows"),
+    }
+)
+
+
+def _share_pct(u: object) -> float | None:
+    return round(float(u) * 100, 1) if isinstance(u, (int, float)) and not isinstance(u, bool) else None
+
+
+def _at(ts: object) -> str | None:
+    return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds") if isinstance(ts, (int, float)) and ts else None
+
+
 def _rate_limit_from_event(ev: dict) -> RateLimit:
-    """Claude stream `rate_limit_event` (`unifiedWindows`) to RateLimit."""
+    """Claude stream `rate_limit_event` to RateLimit: each window of `unifiedWindows` (and
+    the `rateLimitType` window the status is about), the status and its threshold, the
+    overage fields, and what else it carries as `extra`."""
     info = ev.get("rate_limit_info") or {}
     win = info.get("unifiedWindows") or {}
-
-    def pct(k: str) -> float | None:
-        u = (win.get(k) or {}).get("utilization")
-        return round(float(u) * 100, 1) if u is not None else None
-
-    def at(k: str) -> str | None:
-        ts = (win.get(k) or {}).get("resetsAt")
-        return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds") if ts else None
-
+    windows = {
+        str(name): {"pct": _share_pct(w.get("utilization")), "resets_at": _at(w.get("resetsAt"))}
+        for name, w in win.items()
+        if isinstance(w, dict)
+    }
+    kind = str(info.get("rateLimitType") or "")
+    if kind and kind not in windows and ("utilization" in info or "resetsAt" in info):
+        windows[kind] = {"pct": _share_pct(info.get("utilization")), "resets_at": _at(info.get("resetsAt"))}
+    using = info.get("isUsingOverage")
     return RateLimit(
         observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
         status=str(info.get("status", "")),
-        five_hour_pct=pct("five_hour"),
-        five_hour_resets_at=at("five_hour"),
-        seven_day_pct=pct("seven_day"),
-        seven_day_resets_at=at("seven_day"),
+        five_hour_pct=(windows.get("five_hour") or {}).get("pct"),
+        five_hour_resets_at=(windows.get("five_hour") or {}).get("resets_at"),
+        seven_day_pct=(windows.get("seven_day") or {}).get("pct"),
+        seven_day_resets_at=(windows.get("seven_day") or {}).get("resets_at"),
+        status_window=kind,
+        threshold_pct=_share_pct(info.get("surpassedThreshold")),
+        overage_status=str(info.get("overageStatus") or ""),
+        overage_disabled_reason=str(info.get("overageDisabledReason") or ""),
+        using_overage=using if isinstance(using, bool) else None,
+        windows=windows,
+        extra={k: v for k, v in info.items() if k not in _READ_FIELDS},
     )
 
 

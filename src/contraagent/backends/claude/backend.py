@@ -43,7 +43,7 @@ from contraagent.backends.credentials import (
     WorkloadIdentity,
     child_env,
 )
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID, Launch, LaunchResult, RateLimit, Stop, account_digest
 from contraagent.backends.process import LaunchError, run_process, via_stdin
 
 # Env added to every child: no CLAUDE.md files, no auto-memory (its index in the
@@ -189,6 +189,45 @@ class ClaudeBackend(Backend):
                 out, isolated=True, isolation="empty CLAUDE_CONFIG_DIR and ANTHROPIC_CONFIG_DIR: no stored login to fall back to"
             )
         return CredentialBinding(out, isolation="the user's config dirs stay visible")
+
+    #: The variables Claude Code authenticates with, in the order it prefers them: an
+    #: ambient launch bills the first one set, else the /login of its config directory.
+    _AUTH_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
+
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """The account of a /login (its `oauthAccount.accountUuid` in the config directory's
+        `.claude.json`), or of the token or key a credential holds; '' for Bedrock, Vertex,
+        workload identity, or a secret that cannot be read."""
+        c = credential
+        try:
+            match c:
+                case Ambient():
+                    held = next((self._base_env[k] for k in self._AUTH_ENV if self._base_env.get(k)), "")
+                    if held:
+                        return account_digest(ACCOUNT_SECRET, held)
+                    return self._login_account(self._base_env.get("CLAUDE_CONFIG_DIR"))
+                case Subscription():
+                    return self._login_account(str(c.config_dir) if c.config_dir else self._base_env.get("CLAUDE_CONFIG_DIR"))
+                case ApiKey():
+                    return account_digest(ACCOUNT_SECRET, c.key.resolve(self._base_env))
+                case OAuthToken():
+                    return account_digest(ACCOUNT_SECRET, c.token.resolve(self._base_env))
+                case Gateway() if c.token is not None:
+                    return account_digest(ACCOUNT_SECRET, c.token.resolve(self._base_env))
+        except CredentialError:
+            return ""
+        return ""
+
+    @staticmethod
+    def _login_account(config_dir: str | None) -> str:
+        """The account of the /login in `config_dir` (Claude Code keeps it in `.claude.json`
+        there, or in `~/.claude.json` with none); '' with no login."""
+        path = Path(config_dir) / ".claude.json" if config_dir else Path.home() / ".claude.json"
+        try:
+            found = json.loads(path.read_text()).get("oauthAccount") or {}
+        except (OSError, ValueError, AttributeError):
+            return ""
+        return account_digest(ACCOUNT_UUID, str(found.get("accountUuid") or "")) if isinstance(found, dict) else ""
 
     #: What `apiKeySource` in claude's init event reads for each credential type
     #: (checked against the real CLI). Types not listed are not checked.

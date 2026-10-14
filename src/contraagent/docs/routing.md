@@ -117,6 +117,26 @@ recent runs' journals and takes each launch's as it ends, so tasks that start
 together all start before the first of them reports the cap is reached. A
 credential with no readings (a gateway, an API key) never rests on a quota.
 
+A reading names the **account** that reported it, so one credential's accounts
+are kept apart: `ambient` is each coding agent's own login (two accounts when
+Claude Code and omp are logged in as different users), and a credential's token
+can be replaced between runs. A hop is judged by the readings of the account a
+launch on it bills (`Backend.account`): an earlier token's 98% does not rest the
+new one. The account is a digest (`account_digest`: SHA-256 over a fixed prefix,
+the source and the value, cut to 12 hex digits), never the value: Claude Code's
+is its login's `oauthAccount.accountUuid` (in the config directory's
+`.claude.json`; for an ambient launch, a key or token in its environment first)
+or the token or key the credential holds; omp's is the account its usage report
+names. A UUID and a token of one account give two digests, so a reading counts
+for the source it came from. A reading with no account (an older journal) counts
+for every account of its credential.
+
+A reading keeps what the coding agent reported beside the two windows: every
+window by its name (`windows`, a model's own such as `seven_day_opus` too), the
+window the status is about (`status_window`), the threshold past which it warns
+(`threshold_pct`), whether usage past the limit is allowed (`overage_status`,
+`overage_disabled_reason`, `using_overage`), and any other field as `extra`.
+
 What is guaranteed:
 
 - **Before launch**, every route of every kind (failover hops and pool members

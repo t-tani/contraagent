@@ -14,8 +14,13 @@ reading names resets. The run goes on elsewhere, the way it does after a 429:
   failed: nothing was launched and nothing was spent.
 
 Readings are what the coding agents reported (`RateLimit`, a launch's
-`rate_limits`), newest per credential: those of recent runs, read when the run
-starts, then each launch's as it ends. A reading says nothing past its window's
+`rate_limits`), newest per credential and account: those of recent runs, read
+when the run starts, then each launch's as it ends. One credential may bill two
+accounts (`ambient` is each coding agent's own login; a credential's token may be
+replaced), so a hop is judged by the readings of the account it bills
+(`Backend.account`): a reading of another account, an earlier token's, does not
+rest it. A reading that names no account (one an older contraagent wrote) counts
+for every account of its credential. A reading says nothing past its window's
 reset (`five_hour_resets_at`, `seven_day_resets_at`; without one, past the
 window's length after `observed_at`). A credential with no reading (a gateway,
 an API key) never rests here: only its 429s and budgets stop it.
@@ -45,6 +50,9 @@ from contraagent.backends.launch import RateLimit
 #: `quota_rule(credential, reading)`: a reason the credential rests now, or None.
 QuotaRule = Callable[[str, RateLimit], "str | None"]
 
+#: `account(credential)`: the account a launch as the credential bills now (`Backend.account`), '' unknown.
+AccountOf = Callable[[str], str]
+
 #: The two windows of a subscription: the name a cap and a reading give each, its name in
 #: a sentence, and how long a reading of it stands when it names no reset.
 WINDOWS = ("five_hour", "seven_day")
@@ -65,7 +73,8 @@ def _time(iso: str | None) -> datetime | None:
 class Rest:
     """Why credential `credential` rests: past a cap of one window (`window`, its reading
     `pct` and its cap `cap`), or by the quota rule (`rule`, what it said). `until`: when the
-    window resets (ISO 8601); '' when unknown (a rule's rest lasts while the rule says so)."""
+    window resets (ISO 8601); '' when unknown (a rule's rest lasts while the rule says so).
+    `account`: the account whose reading it is (`RateLimit.account`), '' when unknown."""
 
     credential: str
     window: str = ""
@@ -73,6 +82,7 @@ class Rest:
     cap: float | None = None
     rule: str = ""
     until: str = ""
+    account: str = ""
 
     def text(self) -> str:
         """The rest in one line, for logs and the CLI: `personal rests: 5-hour usage 93%, max 90%`."""
@@ -131,65 +141,76 @@ class QuotaRests:
         self._now = now
         self._clock = clock
         self._lock = threading.Lock()
-        self._latest: dict[str, RateLimit] = {}
-        self._since: dict[str, float] = {}  # by credential: when it was first found resting
-        self._resting: dict[str, Rest] = {}  # by credential: the rest it began with
+        self._latest: dict[tuple[str, str], RateLimit] = {}  # by credential and account
+        self._since: dict[tuple[str, str], float] = {}  # by credential and account: when it was first found resting
+        self._resting: dict[tuple[str, str], Rest] = {}  # by credential and account: the rest it began with
 
     def observe(self, reading: RateLimit) -> None:
-        """A reading the coding agent reported for `reading.credential`; the newest one counts."""
+        """A reading the coding agent reported for `reading.credential` and `reading.account`;
+        the newest one of each account counts."""
         if not reading.credential:
             return
+        key = (reading.credential, reading.account)
         with self._lock:
-            old = self._latest.get(reading.credential)
+            old = self._latest.get(key)
             if old is None or (_time(reading.observed_at) or datetime.max.replace(tzinfo=UTC)) >= (
                 _time(old.observed_at) or datetime.min.replace(tzinfo=UTC)
             ):
-                self._latest[reading.credential] = reading
+                self._latest[key] = reading
 
-    def latest(self, name: str) -> RateLimit | None:
+    def latest(self, name: str, account: str | None = None) -> RateLimit | None:
+        """The newest reading of credential `name` for `account`: of that account, or of none
+        named. `account` '' or None (not known): the newest of any account."""
         with self._lock:
-            return self._latest.get(name)
+            found = [r for (n, a), r in self._latest.items() if n == name and (not account or a in (account, ""))]
+        return max(found, key=lambda r: _time(r.observed_at) or datetime.min.replace(tzinfo=UTC)) if found else None
 
-    def rests(self, name: str, kind: str = "") -> list[Rest]:
+    def rests(self, name: str, kind: str = "", account: AccountOf | None = None) -> list[Rest]:
         """Why credential `name` rests for a task of `kind` now: one `Rest`, or for a pool
-        one per member when every member rests; empty when it does not rest."""
+        one per member when every member rests; empty when it does not rest. `account(name)`
+        is the account a launch as that credential bills now (`Backend.account`); without
+        it, the newest reading of any account counts."""
         cred = self.credentials.get(name)
         if isinstance(cred, Pool):
-            why = [self._member_rest(m, cred, kind) for m in cred.members]
+            why = [self._member_rest(m, cred, kind, account) for m in cred.members]
             return [w for w in why if w is not None] if why and all(why) else []
-        one = self._member_rest(name, None, kind)
+        one = self._member_rest(name, None, kind, account)
         return [one] if one is not None else []
 
-    def reason(self, name: str, kind: str = "") -> str:
+    def reason(self, name: str, kind: str = "", account: AccountOf | None = None) -> str:
         """`rests` in one line; '' when it does not rest."""
-        return "; ".join(r.text() for r in self.rests(name, kind))
+        return "; ".join(r.text() for r in self.rests(name, kind, account))
 
-    def resting_members(self, pool: str, kind: str = "") -> set[str]:
+    def resting_members(self, pool: str, kind: str = "", account: AccountOf | None = None) -> set[str]:
         """The members of pool `pool` that rest for a task of `kind` now."""
         cred = self.credentials.get(pool)
         if not isinstance(cred, Pool):
             return set()
-        return {m for m in cred.members if self._member_rest(m, cred, kind) is not None}
+        return {m for m in cred.members if self._member_rest(m, cred, kind, account) is not None}
 
-    def _member_rest(self, name: str, pool: Pool | None, kind: str) -> Rest | None:
-        reading = self.latest(name)
+    def _member_rest(self, name: str, pool: Pool | None, kind: str, account: AccountOf | None) -> Rest | None:
+        with self._lock:
+            read = any(n == name for n, _ in self._latest)
+        acct = account(name) if account is not None and read else ""  # asked only of a credential with readings
+        reading = self.latest(name, acct)
         rest = None
         if reading is not None:
             rest = self._capped(name, reading, pool)
             if rest is None and self.rule is not None:
                 ruled = self.rule(name, reading)
-                rest = Rest(name, rule=str(ruled)) if ruled else None
+                rest = Rest(name, rule=str(ruled), account=reading.account) if ruled else None
         event: tuple[str, Rest] | None = None
         since = 0.0
+        key = (name, acct)
         with self._lock:
             if rest is None:
-                self._since.pop(name, None)
-                ended = self._resting.pop(name, None)
+                self._since.pop(key, None)
+                ended = self._resting.pop(key, None)
                 event = ("end", ended) if ended is not None else None
             else:
-                since = self._since.setdefault(name, self._clock())
-                if name not in self._resting:
-                    self._resting[name] = rest
+                since = self._since.setdefault(key, self._clock())
+                if key not in self._resting:
+                    self._resting[key] = rest
                     event = ("start", rest)
         if event is not None and self.on_change is not None:
             try:
@@ -219,5 +240,6 @@ class QuotaRests:
             if resets is None and observed is not None and now - observed > length:
                 continue
             until = resets if resets is not None else (observed + length if observed is not None else None)
-            return Rest(name, window=window, pct=float(pct), cap=float(cap), until=until.isoformat() if until is not None else "")
+            ends = until.isoformat() if until is not None else ""
+            return Rest(name, window=window, pct=float(pct), cap=float(cap), until=ends, account=reading.account)
         return None

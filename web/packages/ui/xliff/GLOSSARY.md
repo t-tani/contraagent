@@ -115,6 +115,10 @@ wherever the UI shows a state or a count to the reader.
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |
+| 5-hour / weekly (a usage window), weekly (`model`) (a model's own) | 5 時間枠 / 週, 週（`model`） |
+| warning threshold (the usage past which the status warns) | 警告のしきい値 |
+| extra usage (usage past the limit, billed apart) | 上限を超えた利用（「超過」「オーバーエージ」は使わない） |
+| account (the billing account a reading is of, as a digest) | アカウント |
 | a value the coding agent reported / read later | 報告した値 / 値（「報告値」「観測値」は使わない） |
 | API request sent again (the agent's own resend after an API error) | 再送（「リトライ」は新しいセッションでの再試行だけ） |
 | aborted (stop `aborted`: stopped during a tool call) | ツール実行中に中止（「中断」はトランスクリプトで途中で切れた呼び出しだけ） |
