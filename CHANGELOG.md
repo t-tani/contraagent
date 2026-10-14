@@ -789,6 +789,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A failover breaker stays open when a launch that began before it opened succeeds: such a
+  success says nothing of the limit since, and it sent the next task back to the hop that
+  had just answered 429 (the demo's test failed under load because of it).
+- The overview says "N running at once" when the run recorded no limit; it said "N of 1".
 - A pipeline graph node's notes ("3 flow calls stopped with an error") wrap at the node's
   width; they wrapped at the width of its marks, so a node with few marks grew tall.
 - An attempt with fix-up rounds on Claude Code is no longer charged its earlier rounds

@@ -9,14 +9,14 @@ const INFO = { title: 'contraagent', panels: [], api_version: '0' } as unknown a
 
 const row = (key: string, ok: boolean): JournalRow => ({ ts: '2026-10-14T00:00:05+00:00', key, kind: 'k', unit: key, stop: ok ? 'completed' : 'error', ok, reason: ok ? '' : 'boom' });
 
-function procs(running: number): Procs {
+function procs(running: number, maxWorkers: number | null = 4): Procs {
   return {
     run: 'r',
     alive: true,
     pid: 1,
     argv: [],
     started_at: '2026-10-14T00:00:00+00:00',
-    max_workers: 4,
+    max_workers: maxWorkers,
     run_group: 'r',
     tree: [],
     python_tasks: [],
@@ -81,5 +81,13 @@ describe('ca-overview', () => {
     expect(busy.querySelector('.stack')?.textContent).not.toContain('Running tasks');
     expect(busy.querySelector('.row h3')?.textContent).toContain('Running tasks');
     expect(busy.querySelector('.row ca-workers')).not.toBeNull();
+  });
+
+  it('states the limit of tasks running at once only when the run recorded one', async () => {
+    const known = await overview({ procs: procs(2) });
+    expect(known.querySelector('.row h3 .r')?.textContent?.trim()).toBe('2 of 4 running at once');
+    document.body.replaceChildren();
+    const unknown = await overview({ procs: procs(2, null) });
+    expect(unknown.querySelector('.row h3 .r')?.textContent?.trim()).toBe('2 running at once');
   });
 });

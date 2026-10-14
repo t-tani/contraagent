@@ -154,7 +154,8 @@ export class CaOverview extends LitElement {
     const s = this.state;
     const live = isRunLive(s, this.summary);
     const busy = live ? liveActivities(s.procs).length : 0;
-    const max = s.procs?.max_workers || 1;
+    /** The run's limit (`run.json` `max_workers`); null when the run did not record one. */
+    const max = s.procs?.max_workers || null;
     const panels = this.info.panels;
     // Running tasks need the width of their cards; while none runs, one line under the run's state.
     // A run that is over runs nothing: its state says so.
@@ -238,10 +239,10 @@ export class CaOverview extends LitElement {
     </div>`;
   }
 
-  private runningCard(live: boolean, busy: number, max: number) {
+  private runningCard(live: boolean, busy: number, max: number | null) {
     return html`<section class="panel enter">
       <h3 title=${msg('Limit: max_concurrent')}>${msg('Running tasks')}
-        ${live ? html`<span class="r">${msg(str`${busy} of ${max} running at once`)}</span>` : nothing}</h3>
+        ${live ? html`<span class="r">${max ? msg(str`${busy} of ${max} running at once`) : msg(str`${busy} running at once`)}</span>` : nothing}</h3>
       ${busy ? html`<ca-workers .procs=${this.state.procs} .live=${live}></ca-workers>` : html`<div class="meta">${msg('No tasks running')}</div>`}
     </section>`;
   }

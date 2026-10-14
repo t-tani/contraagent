@@ -115,6 +115,25 @@ def test_half_open_probe_returns_to_the_primary_when_it_recovers(tmp_path):
     assert any("primary recovered" in b for _, b in router.history())
 
 
+def test_a_success_begun_before_the_breaker_opened_does_not_close_it():
+    """A launch on the primary that began before another task's 429 says nothing of the
+    limit since: its success leaves the breaker open. A launch begun after it is a probe."""
+    router = chain(("claude", "m1"), ("claude", "m2"))
+    primary = router.routes[0]
+    clock[0] = 1.0
+    earlier = router.now()  # task A starts on the primary
+    clock[0] = 2.0
+    router.rate_limited(primary)  # task B: 429, the breaker opens
+    clock[0] = 3.0
+    router.succeeded(primary, started=earlier)  # A lands now
+    assert router.active().model == "m2" and router.pick().model == "m2"
+    clock[0] = 10_000  # the cool-off has passed: the next task probes the primary
+    probe = router.now()
+    assert router.pick().model == "m1"
+    router.succeeded(primary, started=probe)
+    assert router.active().model == "m1"
+
+
 def test_a_failed_probe_keeps_the_fallback(tmp_path):
     a = Agent("claude", lambda m: Stop.RATE_LIMITED if m == "m1" else Stop.COMPLETED)
     router = chain(("claude", "m1"), ("claude", "m2"))

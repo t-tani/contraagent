@@ -456,6 +456,7 @@ class AgentRunner:
             if not trail and pinned is None and route != router.routes[0]:
                 # Not this task's 429: the kind's breaker is still open after another task's.
                 _logger.info(f"[route] {task.key}: starting on {label}; {router.label_of(router.routes[0])} rests after a 429")
+            started = router.now()
             result = last = self._run_once(task, route)
             result.skipped_hops = tuple(skipped)
             trail.append(_hop(label, result))
@@ -485,7 +486,7 @@ class AgentRunner:
                 pinned = nxt_route
                 continue
             if result.stop != Stop.RATE_LIMITED:
-                router.succeeded(route)
+                router.succeeded(route, started=started)
                 result.route = label
                 if prior_reason:
                     result.reason = f"{prior_reason}; ran on {label}"

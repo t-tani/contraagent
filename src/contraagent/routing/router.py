@@ -162,6 +162,9 @@ class Router:
         self._probe_at = 0.0
         self._interval = probe_interval_s
         self._exhausted = False
+        # When the breaker last moved off a hop (`clock` time): a launch that began
+        # before it says nothing about whether the limit has passed.
+        self._opened_at = float("-inf")
         self._switches: list[tuple[str, str]] = []
 
     def _index_of(self, route: Route) -> int | None:
@@ -242,6 +245,10 @@ class Router:
                 return None
             return self.routes[self._index]
 
+    def now(self) -> float:
+        """The router's clock: pass it as `started` to `succeeded` for a launch begun now."""
+        return self._clock()
+
     @property
     def exhausted(self) -> bool:
         with self._lock:
@@ -273,15 +280,20 @@ class Router:
                 self._exhausted = True
                 return ""
             self._index += 1
+            self._opened_at = now
             self._interval = self.probe_interval_s
             self._probe_at = now + self._interval
             n = len(self.routes)
             self._switches.append((self.routes[self._index - 1].label(self._index, n), self.routes[self._index].label(self._index + 1, n)))
             return self.routes[self._index].label(self._index + 1, n)
 
-    def succeeded(self, route: Route | None) -> None:
-        """A launch landed. On a probe, that closes the breaker."""
+    def succeeded(self, route: Route | None, started: float | None = None) -> None:
+        """A launch landed. On a probe, that closes the breaker. `started` (`now()` when the
+        launch began): a launch that began before the breaker opened is no probe, so its
+        success, which says nothing of the limit since, leaves the breaker as it is."""
         with self._lock:
+            if started is not None and started < self._opened_at:
+                return
             if route is not None and route.identity == self.routes[0].identity and self._index != 0:
                 n = len(self.routes)
                 self._switches.append((self.routes[0].label(self._index, n), self.routes[0].label(1, n) + " (primary recovered)"))
