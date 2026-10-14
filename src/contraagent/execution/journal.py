@@ -30,6 +30,7 @@ def _usage(o) -> TokenUsage | None:
         cache_read=u.cache_read,
         cache_creation=u.cache_creation,
         calls=u.n_calls,
+        resident=u.resident if u.calls else None,
     )
 
 

@@ -213,3 +213,21 @@ def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
     digest = a.digest()
     (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nLong sentences.\n")
     assert a.digest() != digest  # editing the linked skill runs the task again on resume
+
+
+def test_render_leaves_a_skill_plugin_alone_and_lint_names_what_it_left(tmp_path, capsys):
+    from contraagent.cli import main
+
+    common = skill_plugin(tmp_path / "common")
+    assert main(["plugin", "render", str(common)]) == 0
+    assert "is a skill plugin: it declares no hooks, so nothing is rendered" in capsys.readouterr().out
+    assert sorted(p.name for p in common.iterdir()) == [".claude-plugin", "skills"]
+    assert Plugin.load(common).lint() == []
+    # what an older render left behind
+    (common / "package.json").write_text('{"name": "common", "version": "0.1.0"}\n')
+    (common / "hooks").mkdir()
+    (common / "hooks" / "hooks.json").write_text('{"hooks": {}}\n')
+    errs = Plugin.load(common).lint()
+    assert errs == ["hooks, package.json: written by `contraagent plugin render`, which a skill plugin does not need; remove them"]
+    with pytest.raises(PluginError, match="written by `contraagent plugin render`; remove them"):
+        agent_task("t", instructions="x", skills_from=[common])

@@ -80,6 +80,9 @@ class ClaudeBackend(Backend):
     # order when the default is overloaded. Verified on 2.1.285.
     native_model_chain = True
     drivable_model_chain = True
+    # `--tools ""`, `--system-prompt`, and the `--setting-sources ""` and
+    # `--strict-mcp-config` every launch already gets.
+    light_launch = True
 
     def __init__(self, binary: str = "claude", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)
@@ -288,7 +291,8 @@ class ClaudeBackend(Backend):
         if launch.effort:
             a += ["--effort", launch.effort]
         if launch.system_prompt is not None:
-            a += ["--system-prompt", launch.system_prompt]
+            # One element: a role's text may start with `-` (a list), which would read as a flag.
+            a.append(f"--system-prompt={launch.system_prompt}")
         if launch.append_system_prompt is not None:
             a += ["--append-system-prompt", launch.append_system_prompt]
         if launch.json_schema is not None:

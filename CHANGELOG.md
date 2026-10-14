@@ -314,6 +314,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A light launch for a judgement in one turn: `agent_task(tools=())` runs the task with
+  no tools, its role's text (or its instructions) in place of the coding agent's system
+  prompt, its params and output schema in the prompt, and no plugin, settings or MCP
+  server; it needs `output_from="message"`. Claude Code and omp both run it
+  (`--system-prompt`, `--tools ""` / `--no-tools`); a coding agent that cannot is refused
+  by routing (`Backend.light_launch`). On Haiku it is one call: on omp 658 tokens of input
+  where the same task with tools takes two calls of 12,311; on Claude Code 1,180 where a
+  role with tools takes two calls of 2,230 (16,863 with the agent's default prompt and tools).
+- `usage.resident` in a journal row: the input of the attempt's first API call. The
+  monitor shows it on the tokens of each attempt.
+- omp launches take `Launch.system_prompt`, `Launch.append_system_prompt` and
+  `Launch.tools`, which they left out before.
+- Time boxes: `yield time_box(flow, deadline_s=, grace_s=, finishing_kinds=, slack_s=)` runs a
+  flow call with a deadline of its own, counted from its start, over the tasks it and the
+  flow calls it starts create; the steps outside it are not held to it. Inside, the run's
+  deadline rules apply: past it only its finishing kinds launch, for its grace window, the
+  rest are deferred and the flow receives `TaskDeferred`. Nested boxes and the run's
+  `deadline_s` each hold, so the earliest deadline stops a task. `flow_calls.jsonl` records
+  the box, a deferral's cause names it (`flow_call`), and the monitor shows a function's
+  deadline and when each of its flow calls' falls.
 - A tutorial (`contraagent docs tutorial`): a pipeline from an empty directory, step by
   step, through a stub run, a run on a coding agent and a test; its pipeline is
   `examples/tutorial/`.
@@ -719,6 +739,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `contraagent plugin render` writes nothing in a skill plugin (it wrote `package.json`
+  and `hooks/`, after which the plugin was no longer a skill plugin), and `plugin lint`
+  names such files as what an earlier render left.
 - A skill whose directory is a symbolic link is read like any other: its files are part
   of the task's fingerprint and show in the monitor's definition (they were left out).
 - A read of a transcript on a hub no longer fails when several segments are sealed while

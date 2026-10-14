@@ -317,6 +317,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 pipeline.overrides,
                 declared={kind: spec.config for kind, spec in specs.items()},
                 requirements={kind: spec.requires for kind, spec in specs.items()},
+                light=[kind for kind, spec in specs.items() if spec.light],
             )
         except RoutingError as exc:
             report.add("routing", [f"routing: {e}" for e in exc.errors])

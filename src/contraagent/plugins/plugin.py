@@ -40,6 +40,8 @@ HOOKS_TOML = "hooks.toml"
 
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
+#: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
+RENDERED = ("hooks", "package.json", "omp")
 NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp")
 
 
@@ -112,6 +114,14 @@ class Plugin:
         """The parts it holds that act besides skills (`NOT_SKILLS`); empty for a skill plugin."""
         return [name for name in NOT_SKILLS if (self.root / name).exists()]
 
+    def render_leftovers(self) -> list[str]:
+        """The files `contraagent plugin render` writes (`RENDERED`) in a plugin that is a skill
+        plugin but for them: skills, and nothing it declares beside them. Empty otherwise."""
+        others = self.besides_skills()
+        if not (self.root / "skills").is_dir() or not others or not set(others) <= set(RENDERED):
+            return []
+        return others
+
     @property
     def skills_only(self) -> bool:
         """A skill plugin: skills and nothing else that acts."""
@@ -163,6 +173,12 @@ def markdown_under(d: Path) -> list[Path]:
         seen.add(real)
         out += [Path(top) / f for f in files if f.endswith(".md")]
     return sorted(out)
+
+
+def body(text: str) -> str:
+    """A Markdown file's text after its leading `---` frontmatter (all of it when it has none)."""
+    m = re.match(r"^---\n.*?\n---[ \t]*\n?", text, re.S)
+    return text[m.end() :] if m else text
 
 
 def frontmatter(text: str) -> dict:

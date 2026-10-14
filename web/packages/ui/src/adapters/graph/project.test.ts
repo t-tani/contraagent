@@ -118,6 +118,16 @@ describe('layerGraph: a generator flow', () => {
     expect(r).toMatchObject({ errors: 1, counts: { failed: 0 } });
   });
 
+  it('marks a function node whose flow calls have a deadline of their own, and each call with when it falls', () => {
+    const plan = reviewRun({ a: 0, b: 1 }, { calls: true });
+    const box = { started_at: '2026-10-14T01:00:00+00:00', deadline_s: 600, grace_s: 60, slack_s: 150, finishing_kinds: ['report'] };
+    const boxed = (plan.flow_calls ?? []).map((c) => (c.id === '0.2' ? { ...c, time_box: box } : c));
+    const fn = byId(layerGraph({ ...plan, flow_calls: boxed }, [RUN])).get(`flow:${LOOP}`);
+    expect(fn?.timeBox).toEqual(box);
+    expect(fn?.units.map((m) => m?.deadlineAt)).toEqual([undefined, '2026-10-14T01:10:00.000Z']);
+    expect(byId(layerGraph(plan, [RUN])).get(`flow:${LOOP}`)?.timeBox).toBeNull();
+  });
+
   it('descends into a single function node whose call returned with a failed task: the layer below shows the task', () => {
     const DOCS = 'flows.docs';
     const RL = 'flows.review_loop';

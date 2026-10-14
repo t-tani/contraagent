@@ -30,7 +30,7 @@ const none = () => msg('none', { id: 'none', desc: 'An empty value' });
 /** Why a task that never ran did not run: what stopped it, or the earlier tasks it waits for; '' when unknown. */
 function cause(t: TaskRow, ctx: TaskColumnsContext): string {
   if (t.outcome === 'not_started') return notStartedCause(t, ctx.outcomes, ctx.run);
-  if (t.outcome === 'waiting' && t.deferred) return deferredText(t.deferredCause, t.deferred);
+  if (t.outcome === 'waiting' && t.deferred) return deferredText(t.deferredCause, t.deferred, t.deferredIn);
   if (t.outcome === 'waiting') return waitCause(t.waits_for.map((k) => ctx.outcomes.get(k) ?? { kind: k }));
   return '';
 }

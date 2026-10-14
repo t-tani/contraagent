@@ -8,6 +8,7 @@ answer at the `yield`:
         results = yield [Task("scan", unit=u) for u in units]  # a batch: answers in order
         merged = yield [per_unit(u) for u in units]      # generators: flow calls, concurrently
         rest = yield from helper(res)                    # the same flow call
+        part = yield time_box(per_unit(u), deadline_s=600)  # a flow call with its own deadline
 
 A **flow call** is one generator the driver runs: the top flow passed to
 `start()` (ids `"0"`, `"1"`, ... in start order), or a generator yielded by
@@ -46,6 +47,13 @@ Rules:
 * A deferred task (`TaskResult.stop == "deferred"`) is answered like any
   other result before `past_grace()`; after it, the waiting flow call is
   closed (`GeneratorExit` at its `yield`), and so is a parent waiting on it.
+* A **time box** (`time_box(generator, deadline_s=, ...)`, yielded like the
+  generator it wraps) is a flow call with a deadline of its own, counted from
+  that flow call's start: every task created in it, or in a flow call it
+  starts, carries its `TimeBox` (`Task.time_boxes`, outermost first), and the
+  queue holds the task to it as to the run's own deadline (`WorkQueue`). A
+  task it defers is answered at its `yield` like any other deferral
+  (`TaskDeferred`), so the flow call, or its parent, goes on past it.
 * A flow call's `frontier` is the keys whose results it received when it
   was last resumed: a batch gives the union of its items (a child flow call
   contributes its own last frontier); a child starts with its parent's.
@@ -71,8 +79,8 @@ from dataclasses import dataclass, field
 from types import GeneratorType
 from typing import Any, Literal
 
-from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult
+from contraagent.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
+from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
 
 _logger = logging.getLogger(__name__)
 
@@ -113,6 +121,43 @@ def result_or_raise(item: Any, result: TaskResult) -> TaskResult:
     raise TaskFailed(result, item)
 
 
+@dataclass(frozen=True, eq=False)
+class TimeBoxed:
+    """A generator to run as a flow call with a deadline of its own. Build one with `time_box`."""
+
+    gen: GeneratorType = field(repr=False)
+    deadline_s: float
+    grace_s: float
+    slack_s: float
+    finishing_kinds: tuple[str, ...]
+
+
+def time_box(
+    flow: Generator[Any, Any, Any],
+    *,
+    deadline_s: float,
+    grace_s: float = GRACE_S,
+    finishing_kinds: Iterable[str] = (),
+    slack_s: float | None = None,
+) -> TimeBoxed:
+    """`flow`, a generator, to yield as a flow call with a deadline of its own: `deadline_s`
+    from the moment it starts, over the tasks it and the flow calls it starts create. Past
+    it only `finishing_kinds` still launch, for `grace_s`; the rest are deferred and its
+    flow receives `TaskDeferred`. From `deadline_s - slack_s` (default a quarter of
+    `deadline_s`) its tasks are ordered for the deadline. Its tasks are held to the run's
+    deadline and to every enclosing time box too, so the earliest deadline stops them."""
+    if not isinstance(flow, GeneratorType):
+        raise TypeError(f"time_box() takes a generator (a flow call), not {type(flow).__name__}")
+    if not deadline_s or deadline_s <= 0:
+        raise ValueError(f"time_box(): deadline_s must be a positive number of seconds, not {deadline_s!r}")
+    if grace_s < 0 or (slack_s is not None and slack_s < 0):
+        raise ValueError("time_box(): grace_s and slack_s are seconds, not negative")
+    if isinstance(finishing_kinds, str):
+        raise TypeError(f"time_box(): finishing_kinds is a list of kinds, not the string {finishing_kinds!r}")
+    slack = slack_s if slack_s is not None else SLACK_SHARE * deadline_s
+    return TimeBoxed(flow, float(deadline_s), float(grace_s), float(slack), tuple(finishing_kinds))
+
+
 @dataclass(eq=False)
 class FlowCall:
     """One generator the driver runs.
@@ -122,7 +167,8 @@ class FlowCall:
     parent's `(file, line)` where it was yielded; None for a top flow.
     `frontier`: the keys whose results it received when it was last resumed.
     `value`: what it returned; `error`: what it raised (or what closing it
-    raised)."""
+    raised). `time_box`: its own deadline, when it was yielded through
+    `time_box`; `started_at` (`time.time()`): when it started."""
 
     id: str
     gen: GeneratorType = field(repr=False)
@@ -133,6 +179,8 @@ class FlowCall:
     frontier: tuple[str, ...] = ()
     value: Any = field(default=None, repr=False)
     error: BaseException | None = None
+    time_box: TimeBox | None = None
+    started_at: float = field(default_factory=time.time)
     _children: itertools.count = field(default_factory=lambda: itertools.count(1), repr=False)
 
 
@@ -238,6 +286,16 @@ class FlowDriver:
         self._waiters.clear()
         self._child_slot.clear()
 
+    def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]:
+        """The time boxes over the tasks `call` creates: its own and its ancestors',
+        outermost first."""
+        boxes: list[TimeBox] = []
+        while call is not None:
+            if call.time_box is not None:
+                boxes.append(call.time_box)
+            call = call.parent
+        return tuple(reversed(boxes))
+
     @property
     def waiting(self) -> list[FlowCall]:
         """The flow calls suspended at a `yield`."""
@@ -279,7 +337,7 @@ class FlowDriver:
                     call.function,
                     elapsed,
                 )
-            self._queue(self._created())
+            self._queue(self._created(), call)
         self._wait(call, item)
 
     def _wait(self, call: FlowCall, item: Any) -> None:
@@ -292,11 +350,23 @@ class FlowDriver:
             self._resume(wait)
             return
         for slot, it in enumerate(items):
+            boxed = it if isinstance(it, TimeBoxed) else None
+            if boxed is not None:
+                it = boxed.gen
             if isinstance(it, GeneratorType):
                 if inspect.getgeneratorstate(it) != inspect.GEN_CREATED:
                     self._fill(wait, slot, error=RuntimeError(f"generator {it.__qualname__} was already started"))
                     continue
                 child = self._new_call(f"{call.id}.{next(call._children)}", it, parent=call, frontier=call.frontier, announce=False)
+                if boxed is not None:  # its clock starts now, with the flow call
+                    child.time_box = TimeBox(
+                        deadline_at=time.monotonic() + boxed.deadline_s,
+                        deadline_s=boxed.deadline_s,
+                        grace_s=boxed.grace_s,
+                        slack_s=boxed.slack_s,
+                        finishing_kinds=frozenset(boxed.finishing_kinds),
+                        flow_call=child.id,
+                    )
                 self._child_slot[child.id] = (wait, slot)
                 try:
                     self._on_flow_call("start", child)
@@ -315,11 +385,15 @@ class FlowDriver:
                 self._settle_task(wait, slot, self.done[task.key])
                 continue
             self._waiters.setdefault(task.key, []).append((wait, slot))
-            self._queue([task])
+            self._queue([task], call)
 
-    def _queue(self, tasks: Iterable[Task]) -> None:
+    def _queue(self, tasks: Iterable[Task], call: FlowCall) -> None:
+        """Queue the tasks `call` created or yielded, each held to `call`'s time boxes."""
+        boxes = self.time_boxes(call)
         for task in tasks:
             if task.key not in self._queued_keys and task.key not in self.done:
+                if boxes and not task.time_boxes:
+                    task.time_boxes = boxes
                 self._queued_keys.add(task.key)
                 self._outbox.append(task)
 
@@ -400,7 +474,7 @@ class FlowDriver:
 def _task_itself(item: Any) -> Task:
     if isinstance(item, Task):
         return item
-    raise TypeError(f"a flow yields a Task, a generator, or a list or tuple of them, not {type(item).__name__}")
+    raise TypeError(f"a flow yields a Task, a generator (or a time_box of one), or a list or tuple of them, not {type(item).__name__}")
 
 
 def _site(gen: GeneratorType) -> tuple[str, int] | None:

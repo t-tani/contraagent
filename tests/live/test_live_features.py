@@ -14,7 +14,11 @@ Each test runs a small flow once per coding agent:
 * `output_from="message"`: the final message is the output, after a tool call, and a
   message that fails its checks is corrected in the same session;
 * quota caps and `quota_rule`: a credential past one rests, its tasks take the next hop,
-  and a task with no hop left is deferred (`deferred.jsonl`).
+  and a task with no hop left is deferred (`deferred.jsonl`);
+* a light launch (`tools=()`): one call with no tools and the role as the system prompt,
+  its input a small part of the same judgement's with the agent's tools.
+* a time box: past a flow call's own deadline its writes are deferred, its finishing kind
+  still launches, and a task after the box launches.
 """
 
 import json
@@ -34,7 +38,7 @@ pytestmark = [
 
 from pydantic import BaseModel  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent_task  # noqa: E402
+from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent_task, time_box  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
 ROUTES = {"claude": ("claude", "claude-haiku-5-5"), "omp": ("omp", "anthropic/claude-haiku-5-5")}
@@ -438,3 +442,107 @@ def test_a_credential_past_its_quota_rests_and_its_tasks_fall_over(ws, agent):
     lines = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
     print(f"  deferred.jsonl: {lines}")
     assert any(d["key"] == "q_nohop-third" and f"capped_{agent} rests" in d["reason"] for d in lines)
+
+
+# --- a light launch -------------------------------------------------------------
+
+
+class Classified(BaseModel):
+    category: str
+    promo: bool
+
+
+CLASSIFIER = """---
+name: classifier
+description: Classifies one news item.
+tools: Read
+---
+
+You classify one news item: its category (`security`, `product` or `other`) and whether it
+advertises a product or a service (`promo`).
+"""
+
+ITEM = "Acme patches a critical remote code execution flaw in its VPN appliance (CVE-2026-1234)."
+
+
+def classifier_plugin(ws: Path) -> Path:
+    root = ws / "plugins" / "classifier"
+    if not root.exists():
+        new_plugin(root)
+        (root / "agents" / "worker.md").unlink()
+        (root / "agents" / "classifier.md").write_text(CLASSIFIER)
+    return root
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_light_launch_is_one_call_with_no_tools(ws, agent):
+    plugin = classifier_plugin(ws)
+    common = dict(plugin=plugin, output=Classified, output_from="message", max_turns=6, timeout_s=300, **route(agent))
+    light = agent_task(f"classify_light_{agent}", tools=(), **common)
+    full = agent_task(f"classify_full_{agent}", **common)  # the same judgement with the agent's tools
+
+    def flow():
+        light("item", title=ITEM)
+        full("item", title=ITEM)
+
+    report = pipeline(ws, max_concurrent=1).run(flow, run_id=f"light-{agent}")
+    show(report)
+    assert report.ok, report.failed
+    by_key = {r["key"]: r for r in rows(report)}
+    lit, heavy = by_key[f"classify_light_{agent}-item"], by_key[f"classify_full_{agent}-item"]
+    launches = {r["label"]: r for r in map(json.loads, (report.run_dir / "launches.jsonl").read_text().splitlines())}
+    argv = launches[f"classify_light_{agent}-item"]["argv"]
+    print(f"  light: resident={lit['usage']['resident']} calls={lit['usage']['calls']} rounds={lit['rounds']}")
+    print(f"  full:  resident={heavy['usage']['resident']} calls={heavy['usage']['calls']} rounds={heavy['rounds']}")
+    print(f"  light argv: {argv}")
+    assert lit["rounds"] == 1 and lit["usage"]["calls"] == 1  # one turn: no tool to call
+    assert heavy["usage"]["calls"] >= 2  # with tools, the call file is read first
+    # Less input on its one call than the same role with tools. On Claude Code the role already
+    # replaces the default system prompt (`--agent`, `tools: Read`), so the gap is narrower there.
+    assert lit["usage"]["resident"] < heavy["usage"]["resident"]
+    assert any(a.startswith("--system-prompt=You classify one news item") for a in argv)
+    assert "--plugin-dir" not in argv and "--agent" not in argv
+    if agent == "claude":
+        assert "--tools" in argv and "--strict-mcp-config" in argv and "--setting-sources" in argv
+    else:
+        assert "--no-tools" in argv and "--no-lsp" in argv
+
+
+# --- a time box ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
+    say = "Write the output: one short sentence about ${unit} as `note`."
+    jot = agent_task(f"jot_{agent}", instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
+    wrap = agent_task(f"wrap_{agent}", instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
+    after = agent_task(f"after_{agent}", instructions=say, output=Note, max_turns=6, timeout_s=300, **route(agent))
+
+    def work(topics):
+        done = []
+        for topic in topics:
+            try:
+                yield jot(topic)
+            except TaskDeferred:
+                break
+            done.append(topic)
+        yield wrap("all")  # a finishing kind: launches past the deadline, in the grace window
+        return done
+
+    def flow():
+        box = time_box(work([f"t{i}" for i in range(6)]), deadline_s=12, grace_s=120, finishing_kinds=[f"wrap_{agent}"])
+        done = yield box
+        yield after("next")  # outside the box: its deadline does not hold here
+        return done
+
+    report = pipeline(ws).run(flow, run_id=f"time-box-{agent}")
+    show(report)
+    by_key = {r["key"]: r for r in rows(report)}
+    deferred = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
+    print(f"  done in the box: {report.value}\n  deferred.jsonl: {deferred}")
+    assert report.value and len(report.value) < 6  # some writes ran, the rest were cut
+    assert [d["cause"] for d in deferred] == [{"cause": "deadline", "flow_call": "0.1"}]
+    assert by_key[f"wrap_{agent}-all"]["ok"] and by_key[f"after_{agent}-next"]["ok"]
+    calls = [json.loads(line) for line in (report.run_dir / "flow_calls.jsonl").read_text().splitlines()]
+    [boxed] = [c for c in calls if "time_box" in c]
+    assert boxed["id"] == "0.1" and boxed["time_box"]["deadline_s"] == 12

@@ -80,9 +80,11 @@ from contraagent.dispatch import (
     TaskFailed,
     TaskResult,
     TaskScope,
+    TimeBox,
     WorkQueue,
     kind_name,
     make_python_task,
+    time_box,
 )
 from contraagent.errors import ContraagentError
 from contraagent.execution import (
@@ -168,6 +170,7 @@ __all__ = [
     "TaskFailed",
     "TaskResult",
     "TaskScope",
+    "TimeBox",
     "TooManyPasses",
     "Vertex",
     "WorkQueue",
@@ -185,4 +188,5 @@ __all__ = [
     "register_normalizer",
     "require_budgets",
     "run_until_valid",
+    "time_box",
 ]

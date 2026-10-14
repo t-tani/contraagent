@@ -26,6 +26,8 @@ def lint_plugin(plugin: Plugin) -> list[str]:
     errs += lint_skills(plugin)
     if plugin.skills_only:
         return errs
+    if leftovers := plugin.render_leftovers():
+        return errs + [f"{', '.join(leftovers)}: written by `contraagent plugin render`, which a skill plugin does not need; remove them"]
     if not plugin.roles:
         errs.append("agents/: no role (agents/<role>.md) — the task has no procedure")
     for role in plugin.roles:

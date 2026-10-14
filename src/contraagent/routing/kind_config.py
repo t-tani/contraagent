@@ -46,6 +46,8 @@ class KindConfig:
     credential: str = "ambient"
     #: Traits its credential must carry (`agent_task(requires=...)`), e.g. ("zdr",).
     requires: tuple[str, ...] = ()
+    #: A light launch (`agent_task(tools=())`): every route's coding agent must run one (`Backend.light_launch`).
+    light: bool = False
     # Retry policy for a dispatch that comes back without progress (see
     # `RetryingRunner`): attempts, and the base of the exponential backoff.
     retries: int = 3

@@ -85,6 +85,16 @@ class TaskAdapter:
         """`--mcp-config` path. Default: `.mcp.json` in the first plugin dir that has one."""
         return _first_in_plugins(self.plugin_dirs(task), ".mcp.json")
 
+    def tools(self, task: Task) -> tuple[str, ...] | None:
+        """The agent's tools: None, the coding agent's own (as its role and settings allow);
+        `()`, none: a light launch (`Backend.light_launch`)."""
+        return None
+
+    def system_prompt(self, task: Task) -> str | None:
+        """Text that replaces the coding agent's own system prompt; None keeps it. A light
+        launch's: its role's text."""
+        return None
+
 
 def _first_in_plugins(plugin_dirs: Sequence[str], name: str) -> str | None:
     for plug in plugin_dirs:

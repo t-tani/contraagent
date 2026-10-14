@@ -29,6 +29,14 @@ export interface TaskOutcome {
   deferred: string;
   /** The same as data, for words of a reader's language; null when it was not deferred, or the run recorded no cause. */
   deferredCause: DeferralCause | null;
+  /** For a task deferred by a flow call's own deadline (`time_box`): that flow call's function (`module.qualname`); '' otherwise. */
+  deferredIn: string;
+}
+
+/** The function of the flow call whose own deadline (`time_box`) deferred a task (`cause.flow_call`); '' for the run's deadline or another cause. */
+export function deferredIn(plan: Pick<Plan, 'flow_calls'> | null | undefined, cause: DeferralCause | null | undefined): string {
+  const id = cause?.flow_call;
+  return id ? (plan?.flow_calls?.find((c) => c.id === id)?.function ?? '') : '';
 }
 
 const isOk = (r: JournalRow) => r.ok;
@@ -115,6 +123,7 @@ export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<st
       cause: null,
       deferred: node?.deferred ?? '',
       deferredCause: node?.deferred_cause ?? null,
+      deferredIn: deferredIn(plan, node?.deferred_cause),
     });
   }
   // A task that did not start: follow what it waits for to the task that actually failed.

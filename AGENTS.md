@@ -57,6 +57,8 @@ there: one word, one meaning, on every screen. Japanese follows
 | the agent's own resend of an API request (`auto_retry_start`) | API request sent again | 再送 |
 | `cost_usd` (reported by the coding agent) | cost | 料金 |
 | `usage` (input, output, cache_read, cache_creation, calls) | tokens: input, output, cache read, cache write, API calls | トークン: 入力, 出力, キャッシュ読み込み, キャッシュ書き込み, API 呼び出し |
+| `usage.resident` | input of the first API call (a tooltip on an attempt's tokens) | 最初の API 呼び出しの入力 |
+| a light launch (`TaskDefinition.tools` `[]`) | Tools: none (a task definition's fact) | ツール: なし |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
 | `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
@@ -75,6 +77,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | a node above 200 marks (`asBar`) | a bar of its counts, its failed units by name, +N for the rest | 件数のバー, 失敗したユニット名, +N |
 | the graph's key hints | Tab: next node \| Arrow keys: marks \| Shift + arrow keys: earlier and later tasks \| Enter: open \| Esc: up a level | Tab: 次のノード \| 矢印キー: マーク \| Shift + 矢印キー: 依存先タスク・後続タスク \| Enter: 開く \| Esc: 1 つ上の階層 |
 | `after` (an edge) | waits for output | 出力を待つ |
+| a time box (`time_box`, `FlowCallNode.time_box`): a flow call's own deadline | Deadline (a function node's and a flow call's row); deferred: Past the deadline of `function`; tooltip: A deadline of its own (time_box) | 締め切り; `function` の締め切りを過ぎた |
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
 | a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |

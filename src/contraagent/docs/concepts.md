@@ -78,6 +78,8 @@ documentation. No other word is used for the same thing.
 | Word | Means | In code |
 |---|---|---|
 | **launch** | one run of a coding agent, and its result | `Launch`, `Backend.run`, `LaunchResult` |
+| **light launch** | the launch of an agent task declared with no tools: its role's text (or its instructions) replaces the coding agent's system prompt, its params and output schema are in the prompt, no plugin, settings or MCP server is loaded, and its final message is its output | `agent_task(tools=())`, `AgentTask.light`, `KindConfig.light`, `Backend.light_launch` |
+| **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
 | **round** | one launch within a session: the first, or a resume after contract errors | `rounds` |
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
@@ -100,6 +102,7 @@ documentation. No other word is used for the same thing.
 | **bottom level** | a queued task's estimate plus the longer of its known dependents' path and its tail: the queue's priority | `WorkQueue._blevel` |
 | **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes the last place it needs on a name it claims or under its kind's cap (the starvation guard) | `WorkQueue(overdue_s=)` |
 | **slack** | the time before the deadline from which the queue orders for the deadline: shortest remaining work first, deferring what cannot finish | `WorkQueue(slack_s=)` |
+| **time box** | a deadline over part of a run: the run's own (`deadline_s`), or a flow call's, counted from its start, over the tasks it and the flow calls it starts create; past it only its finishing kinds launch, for its grace window; a task is held to every time box it is in | `time_box(flow, deadline_s=, grace_s=, finishing_kinds=, slack_s=)`, `TimeBox`, `Task.time_boxes`; `flow_calls.jsonl` and monitor `FlowCallNode.time_box`; a deferral's cause `flow_call` |
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
@@ -109,11 +112,11 @@ documentation. No other word is used for the same thing.
 
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.
-A task not launched by the deadline, whose remaining work cannot finish
-before it, or with every hop on a resting credential, finishes `deferred`, and
+A task not launched by the deadline (of a time box it is in), whose remaining
+work cannot finish before it, or with every hop on a resting credential, finishes `deferred`, and
 `deferred.jsonl` records why: a `Deferral`, its reason in one line and its cause
-as data (`deadline`, `grace_window`, `cannot_finish`, `dependency_not_queued`,
-`rest`; `AgentRunner.deferral`); a follow-up task the
+as data (`deadline`, `grace_window`, `cannot_finish`, each with the `flow_call`
+whose time box it was, `dependency_not_queued`, `rest`; `AgentRunner.deferral`); a follow-up task the
 queue refuses because its key is in flight finishes `duplicate_key`. A task a
 flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a

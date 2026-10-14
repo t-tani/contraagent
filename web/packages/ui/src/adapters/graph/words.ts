@@ -86,7 +86,8 @@ export function executorWord(n: Pick<GraphNode, 'executor'>): string {
 
 /** A node's tooltip: what it is, and its tasks done. */
 export function nodeTip(n: GraphNode): string {
-  return n.type === 'flow' ? facts(msg(str`Function ${n.name}`), doneOf(n.counts)) : facts(n.label, executorWord(n), doneOf(n.counts));
+  if (n.type !== 'flow') return facts(n.label, executorWord(n), doneOf(n.counts));
+  return facts(msg(str`Function ${n.name}`), n.timeBox ? msg(str`Deadline ${fmtDur(n.timeBox.deadline_s)}`) : '', doneOf(n.counts));
 }
 
 /** The names of the nodes `n` waits for, was created after, and feeds. */
