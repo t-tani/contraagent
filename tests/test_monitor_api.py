@@ -14,7 +14,7 @@ pytest.importorskip("sse_starlette")
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from contraagent.backends.streams import normalize_stream_event
+from contraagent.backends.streams import normalize_stream_line
 from contraagent.monitor import Monitor, Panel, api, procs, server
 from contraagent.monitor.paths import BadName, check_name
 
@@ -130,7 +130,7 @@ CLAUDE = [
 
 @pytest.mark.parametrize("format,raw_event,model", [("omp", e, m) for e, m in OMP] + [("claude", e, m) for e, m in CLAUDE])
 def test_each_normalized_event_has_its_model(format, raw_event, model):
-    ev = normalize_stream_event(format, json.dumps(raw_event))
+    [ev] = normalize_stream_line(format, json.dumps(raw_event))
     page = TypeAdapter(api.StreamPage)
     parsed = page.validate_python({"events": [ev], "total": 1, "behind": 0})
     assert type(parsed.events[0]) is model
@@ -138,7 +138,7 @@ def test_each_normalized_event_has_its_model(format, raw_event, model):
 
 
 def test_plain_text_and_custom_events_pass_through():
-    text = normalize_stream_event("omp", "plain narration")
+    [text] = normalize_stream_line("omp", "plain narration")
     odd = {"type": "message_update", "delta": None, "mine": 1}  # a custom normalizer's own idea
     parsed = TypeAdapter(api.StreamPage).validate_python({"events": [text, odd], "total": 2, "behind": 0})
     assert type(parsed.events[0]) is api.MessageUpdateEvent and type(parsed.events[1]) is api.OtherEvent

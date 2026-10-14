@@ -240,6 +240,11 @@ class OneShotBackend(Backend):
         Default: none."""
         return None
 
+    def watch_stderr(self, launch: Launch) -> Sink | None:
+        """The same for stderr, one line at a time, for a CLI that reports something only
+        there (opencode's log of a refusal it keeps retrying). Default: none."""
+        return None
+
     def run(self, launch: Launch) -> LaunchResult:
         """Run one launch to completion and return its LaunchResult."""
         t0 = time.monotonic()
@@ -266,7 +271,9 @@ class OneShotBackend(Backend):
                 stderr_tail=f"{self.binary} not on PATH",
             )
         try:
-            out, err, exit_code, killed = run_process(argv, self.env(launch), launch, sink=self.watch(launch))
+            out, err, exit_code, killed = run_process(
+                argv, self.env(launch), launch, sink=self.watch(launch), stderr_sink=self.watch_stderr(launch)
+            )
         except LaunchError as exc:
             return LaunchResult(
                 label=launch.label,

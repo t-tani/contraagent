@@ -61,7 +61,8 @@ description: How to write a task's output file so it passes its checks. Use when
 """,
     "hooks.toml": """# Hooks, declared once for every coding agent. `contraagent plugin render` writes
 # from this file hooks/hooks.json (Claude Code) and package.json (omp), and for a
-# pre_tool or post_tool hook omp/index.ts, the extension that runs it in omp.
+# pre_tool or post_tool hook omp/index.ts and opencode/index.js, which run it in omp
+# and opencode.
 
 # The output check, inside the session: the agent fixes its file before it stops.
 [[hooks]]

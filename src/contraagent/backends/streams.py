@@ -1,15 +1,16 @@
 """Stream-event normalizer, dispatching on the stream format.
 
-All three backends (`claude`, `omp`, `omp-rpc`) write raw
-per-launch lines to `launch.stream_path`, in two distinct wire
+Every backend (`claude`, `omp`, `omp-rpc`, `opencode`) writes raw
+per-launch lines to `launch.stream_path`, in three distinct wire
 vocabularies: omp's/omp-rpc's `--mode json`/RPC shapes
-(`assistantMessageEvent`/`toolCall`/`toolResult`/...) and claude's own
-`--output-format stream-json` shapes (Anthropic Messages API events).
-This module gives all three a single call site: look up the stream format's own
+(`assistantMessageEvent`/`toolCall`/`toolResult`/...), claude's own
+`--output-format stream-json` shapes (Anthropic Messages API events), and
+opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...).
+This module gives them a single call site: look up the stream format's own
 `normalize_event`, in its own module (`backends/claude/stream.py`,
-`backends/omp/trace.py`), and use its output as-is.
+`backends/omp/trace.py`, `backends/opencode/wire.py`), and use its output as-is.
 
-Both per-backend `normalize_event` functions emit the *same* renderable
+Every per-backend `normalize_event` emits the *same* renderable
 shape (`message_update`/`tool_execution_start`/`notice`/...) that
 a monitor UI already understands, so adding a backend
 here needs no frontend change.
@@ -19,7 +20,7 @@ real tasks run without it and their stdout is plain text.
 `_PLAINTEXT_FALLBACK` wraps such a line into the same renderable shape, so
 a non-JSON line is shown rather than dropped.
 
-Nothing in `backends/claude/stream.py` or `backends/omp/trace.py` imports this
+Nothing in `backends/claude/stream.py`, `backends/omp/trace.py` or `backends/opencode/wire.py` imports this
 module back — they are leaves this module depends on, never the reverse.
 """
 
@@ -29,6 +30,7 @@ import json
 
 from contraagent.backends.claude import stream as claude_stream
 from contraagent.backends.omp import trace as omp_trace
+from contraagent.backends.opencode import wire as opencode_wire
 
 _NORMALIZERS = {
     "claude": claude_stream.normalize_event,
@@ -46,6 +48,7 @@ _NORMALIZERS = {
     # state carried across calls, which this one-line-at-a-time
     # normalizer does not keep.
     "omp-rpc": omp_trace.normalize_event,
+    "opencode": opencode_wire.normalize_event,
 }
 
 # Backends that can run with trace off (omp's --mode json defaults on
@@ -63,8 +66,8 @@ def register_normalizer(format: str, normalize_event, plaintext=None) -> None:
     """Teach the monitor to render a custom `Backend`'s stream, as stream format `format`
     (usually the coding agent's name).
 
-    `normalize_event(dict) -> dict | None` maps one parsed JSON event to the
-    renderable shape (`message_update` / `tool_execution_start` / `notice` ...),
+    `normalize_event(dict) -> dict | list[dict] | None` maps one parsed JSON event to the
+    renderable shape (a list when one line holds several) (`message_update` / `tool_execution_start` / `notice` ...),
     or `{"type": "skip"}`. `plaintext(str) -> dict | None` handles a line that
     is not JSON (an agent that narrates in plain text); omit it to drop those.
     """
@@ -117,39 +120,38 @@ def _launch_event(ev: dict) -> dict:
     return out
 
 
-def normalize_stream_event(format: str, raw_line: str) -> dict | None:
-    """One normalized event dict (today's monitor `_slim()` output shape,
-    used verbatim so an existing consumer needs zero changes), or
-    `None` to drop the line.
+def normalize_stream_line(format: str, raw_line: str) -> list[dict]:
+    """The renderable events of one stream line, in order: none, one, or (a format whose
+    one line holds a tool call and its result, opencode's) several.
 
-    Dropping happens for: an unrecognized `format` name, a blank
-    `raw_line`, unparsable input in a format with no plaintext
-    fallback, or an event the format's own `normalize_event` marks as
-    `{"type": "skip"}` (its forward-set membership check, or an event
-    shape it has nothing renderable to say about).
+    A line gives none for: an unrecognized `format` name, a blank `raw_line`,
+    unparsable input in a format with no plaintext fallback, or an event the
+    format's own `normalize_event` marks as `{"type": "skip"}` (its
+    forward-set membership check, or an event shape it has nothing renderable
+    to say about).
     """
     normalize = _NORMALIZERS.get(format)
     if normalize is None:
-        return None
+        return []
     line = raw_line.strip()
     if not line:
-        return None
+        return []
     try:
         ev = json.loads(line)
     except ValueError:
         ev = None
     if not isinstance(ev, dict):
         fallback = _PLAINTEXT_FALLBACK.get(format)
-        return fallback(line) if fallback else None
+        shown = fallback(line) if fallback else None
+        return [shown] if shown else []
     # The launch marker is shared across backends (`run_process` writes it for
-    # all three), so it is handled here rather than in a per-backend
+    # all of them), so it is handled here rather than in a per-backend
     # normalizer, which would see an unknown `type` and skip it.
     if ev.get("type") == "launch":
-        return _launch_event(ev)
+        return [_launch_event(ev)]
     out = normalize(ev)
-    if out is None or out.get("type") == "skip":
-        return None
-    return out
+    events = out if isinstance(out, list) else [out]
+    return [e for e in events if e is not None and e.get("type") != "skip"]
 
 
 def read_stream(format: str, stream_path, start: int = 0):
@@ -168,6 +170,5 @@ def read_stream(format: str, stream_path, start: int = 0):
             if not raw.endswith(b"\n"):
                 return
             offset += len(raw)
-            ev = normalize_stream_event(format, raw.decode("utf-8", "replace").rstrip("\n"))
-            if ev is not None:
+            for ev in normalize_stream_line(format, raw.decode("utf-8", "replace").rstrip("\n")):
                 yield offset, ev

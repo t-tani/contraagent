@@ -15,7 +15,9 @@ agent_task (interface) ──► call file ──► coding agent + plugin (impl
 
 ## Layout
 
-A plugin is a directory Claude Code and omp load natively (`--plugin-dir`); the
+A plugin is a directory Claude Code and omp load natively (`--plugin-dir`);
+opencode gets its parts as config (its role as `instructions`, its skills as
+`skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`). The
 docstring of `contraagent/plugins/plugin.py` lists its parts. The demo's:
 
 ```
@@ -35,10 +37,12 @@ examples/demo/plugins/docs/
 ## Roles
 
 A role is a named agent definition. Claude Code gets `--agent <role>`; omp,
-which has no named-agent flag, gets the role's file attached. The plugin's
-`settings.json` (what the agent may do) is Claude Code's; omp runs with
-`--approval-mode yolo`, so on omp a role is held to its procedure, not to
-permissions. A role reads its
+which has no named-agent flag, gets the role's file attached; opencode gets it
+added to its own system prompt (`instructions`: opencode's free models refuse a
+session whose system prompt is replaced). The plugin's `settings.json` (what the
+agent may do) is Claude Code's; omp runs with `--approval-mode yolo`, so on omp
+a role is held to its procedure, not to permissions. opencode allows the tools
+the role's `tools:` lists and denies the others. A role reads its
 call file, does the work, writes the output as the call describes, and stops:
 
 ::code{file="examples/demo/plugins/docs/agents/summarizer.md"}
@@ -60,24 +64,26 @@ where the task is declared, since it would act on every task that loads it.
 `plugin lint` checks a skill plugin's skills only, and `contraagent check` lints
 every plugin a task loads. A skill plugin declares no hooks, so `plugin render`
 writes nothing in it; files an earlier render left there (`package.json`,
-`hooks/`, `omp/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
+`hooks/`, `omp/`, `opencode/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
 as its role file is: a resume runs a task again after its skills changed.
 
 ## What a task agent sees
 
-A task agent's instructions come from its plugin and its call file. Both coding
-agents would also take on what they find in the task's working directory and the
+A task agent's instructions come from its plugin and its call file. Every coding
+agent would also take on what it finds in the task's working directory and the
 user's home; every launch keeps that out, and keeps what the agent itself can do:
 
 | | kept out | kept |
 |---|---|---|
 | Claude Code | the user's, the project's and local settings files (their hooks, skills, commands, agents, plugins, permissions), CLAUDE.md files, auto-memory, skills synced from the account | its built-in tools, skills, subagents and plugins; the task's plugin (roles, skills, hooks, `settings.json`, `.mcp.json`) and the skills of its `skills_from` |
 | omp | AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` and other tools' context files, skills, rules, hooks, tools and MCP servers; the user's installed Claude Code plugins | its built-in tools and subagents; the task's plugin and the skills of its `skills_from` |
+| opencode | the project's AGENTS.md, `opencode.json` and `.opencode/`; the user's `~/.claude/` (CLAUDE.md, skills) and `~/.agents/` skills; the user's opencode database (a session is kept in memory, or in its own directory when it may be resumed) | its built-in tools, skills and agents; the user's own opencode config (`~/.config/opencode`); the task's plugin and the skills of its `skills_from` |
 
 A launch also leaves out the variables that tie it to a Claude Code session the
 pipeline was started from. A skill, a hook, a permission or an MCP server a task
 needs belongs in its plugin. omp's part is the overlay
-`contraagent/backends/omp/isolation/config.yml`.
+`contraagent/backends/omp/isolation/config.yml`; opencode's, the variables in
+`DEFAULT_ENV` of `contraagent/backends/opencode/backend.py`.
 
 A task declared with no tools (`agent_task(tools=())`, a light launch) keeps less
 still: no tool, no plugin, and its role's text in place of the coding agent's own
@@ -92,11 +98,12 @@ part of it:
 |---|---|---|
 | Claude Code | the role's `tools:` frontmatter lists it, and the plugin's `settings.json` allows it; a call nothing allows is denied (the launch's `denied` in `launches.jsonl`) | `WebSearch` and `WebFetch` in `tools:`, and `"allow": ["WebSearch", "WebFetch(domain:docs.python.org)"]` with both left out of `deny` |
 | omp | every built-in tool is on; it runs `--approval-mode yolo` and reads neither `tools:` nor `settings.json` | the built-in `web_search` (`web_search.enabled`, on by default), with the search provider configured in omp; a page is read with `read` and its URL (`fetch.enabled`) |
+| opencode | the role's `tools:` lists it (Claude Code's names, as opencode's permissions); with no `tools:`, every built-in tool is on. It runs `--auto` and does not read `settings.json` | `websearch` (opencode's own search, where opencode offers it) and `webfetch` |
 
 `contraagent plugin new` denies `WebFetch` and `WebSearch` so that a Claude
 Code task stays on its inputs; a task that searches removes them from `deny`.
-The queries a launch made are in its journal row (`web_queries`), for both
-coding agents.
+The queries a launch made are in its journal row (`web_queries`), for every
+coding agent.
 
 ## Hooks
 
@@ -105,14 +112,15 @@ own hook system, so they run inside the agent:
 
 ::code{file="examples/demo/plugins/docs/hooks.toml"}
 
-| event | claude | omp |
-|---|---|---|
-| `pre_tool` | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` |
-| `post_tool` | `PostToolUse` | `tool_result` event |
-| `stop` | the agent checks its own file and carries on in the same turn | none: `omp -p` cannot continue a session from it; the runner's check resumes the session instead |
+| event | claude | omp | opencode |
+|---|---|---|---|
+| `pre_tool` | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
+| `post_tool` | `PostToolUse` | `tool_result` event | `tool.execute.after` |
+| `stop` | the agent checks its own file and carries on in the same turn | none: `omp -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
 
-Hook scripts read the JSON Claude Code sends hooks; the omp extension builds the
-same payload, so one script serves both.
+Hook scripts read the JSON Claude Code sends hooks; the omp extension
+(`omp/index.ts`) and the opencode plugin (`opencode/index.js`) build the same
+payload, so one script serves every agent.
 
 ## Commands
 
