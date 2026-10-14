@@ -25,8 +25,8 @@ gpu = 4                             # claims=["gpu"]: four at a time across the 
 # The failover chain every kind without its own shares; block order is hop order.
 [[defaults.fallbacks]]
 agent = "omp"
-model = "opencode-go/glm-5.3"
-credential = "ambient"
+model = "opencode-go/glm-5.3"       # OpenCode Go: its 5-hour, weekly and monthly usage is read at each launch
+credential = "ambient"              # the OPENCODE_API_KEY omp finds: the environment, else its .env files (~/.env)
 
 # --- one table per kind of task ---------------------------------------------
 

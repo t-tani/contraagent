@@ -18,6 +18,8 @@ from pathlib import Path
 
 from contraagent.backends.base import PARENT_SESSION_ENV, OneShotBackend
 from contraagent.backends.credentials import (
+    SECRET_NAME_RE,
+    SENSITIVE,
     Ambient,
     ApiKey,
     CredentialBase,
@@ -28,6 +30,7 @@ from contraagent.backends.credentials import (
     Secret,
     Subscription,
     child_env,
+    scrubbed,
 )
 from contraagent.backends.launch import ACCOUNT_UUID, Launch, LaunchResult, RateLimit, Stop, account_digest
 from contraagent.backends.omp.classify import classify_text_result
@@ -38,6 +41,7 @@ from contraagent.backends.omp.config import (
     parse_models,
 )
 from contraagent.backends.omp.trace import is_rate_limited, message_usage, parse_retry_after, parse_trace
+from contraagent.backends.opencode import login as opencode_login
 from contraagent.backends.process import Sink, via_stdin
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
@@ -148,6 +152,41 @@ def provider_base_url_env(provider: str) -> str:
 def provider_key_env(provider: str) -> str:
     """The variable omp reads a provider's API key from."""
     return _KEY_ENV.get(provider) or provider.upper().replace("-", "_").replace(".", "_") + "_API_KEY"
+
+
+def omp_dotenv_files(env: dict[str, str], args: tuple[str, ...] = (), cwd: Path | None = None) -> list[Path]:
+    """The `.env` files omp loads at start, in the order it reads them; each one sets only the
+    variables the launch's environment leaves unset or empty (omp's `pi-utils/src/env.ts`):
+    the working directory's, then its agent directory's and its config root's (those of the
+    profile `--profile` names), then `~/.env`."""
+    home = Path(env.get("HOME") or Path.home())
+    root = home / (env.get("PI_CONFIG_DIR") or ".omp")
+    profile = args[args.index("--profile") + 1] if "--profile" in args and args.index("--profile") + 1 < len(args) else ""
+    if profile:
+        root = root / "profiles" / profile
+    agent = Path(env["PI_CODING_AGENT_DIR"]).expanduser() if env.get("PI_CODING_AGENT_DIR") and not profile else root / "agent"
+    return [(cwd or Path.cwd()) / ".env", agent / ".env", root / ".env", home / ".env"]
+
+
+def provider_vars(provider: str) -> frozenset[str]:
+    """The variables omp reads `provider`'s key and endpoint from (`omp --help`)."""
+    own = {provider_key_env(provider), provider_base_url_env(provider)}
+    if provider == "anthropic":
+        own |= {"ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS"}
+    return frozenset(own)
+
+
+def dotenv_credentials(env: dict[str, str], args: tuple[str, ...] = (), names: frozenset[str] | None = None) -> dict[str, Path]:
+    """The variables omp would take from a `.env` file because the launch's environment
+    leaves them unset, each with the file it comes from: `names`, or by default every
+    credential variable (those `scrubbed` removes)."""
+    found: dict[str, Path] = {}
+    for f in omp_dotenv_files(env, args):
+        for name, value in opencode_login.dotenv(f).items():
+            wanted = name in names if names is not None else (name in SENSITIVE or SECRET_NAME_RE.search(name))
+            if wanted and value and not env.get(name) and name not in found:
+                found[name] = f
+    return found
 
 
 def plugin_extension_args(plugin_dirs) -> list[str]:
@@ -281,7 +320,11 @@ class OmpBackend(OneShotBackend):
             env = child_env(self._base_env, launch.credential, binding, {})
         except CredentialError:
             return None
-        return _usage_reading([self.binary, *binding.args, "usage", "--json", "--provider", provider], env, provider)
+        reading = _usage_reading([self.binary, *binding.args, "usage", "--json", "--provider", provider], env, provider)
+        if reading is not None and opencode_login.is_opencode(provider):
+            # omp names no account for an OpenCode key: the key itself does.
+            reading.account = reading.account or opencode_login.account_of_key(self._opencode_key(binding, env))
+        return reading
 
     def account(self, credential: CredentialBase, model: str = "") -> str:
         """The account omp's usage report names for the model's provider (`metadata.accountId`,
@@ -290,11 +333,28 @@ class OmpBackend(OneShotBackend):
         provider = model.split("/", 1)[0] if "/" in model else ""
         if not provider:
             return ""
+        if opencode_login.is_opencode(provider):
+            # Read locally, as opencode and pi read it: the key omp would send (`_opencode_key`).
+            try:
+                binding = self.bind_credential(credential, model, env=self._base_env)
+                env = child_env(self._base_env, credential, binding, {})
+            except CredentialError:
+                return ""
+            return opencode_login.account_of_key(self._opencode_key(binding, env))
         key = (credential.label, provider)
         if key not in self._accounts:
             reading = self.usage_reading(Launch(prompt="", label=f"account-{credential.label}", model=model, credential=credential))
             self._accounts[key] = reading.account if reading is not None else ""
         return self._accounts[key]
+
+    def _opencode_key(self, binding: CredentialBinding, env: dict[str, str]) -> str:
+        """The OpenCode key omp sends: `OPENCODE_API_KEY` of the launch's environment, else the
+        first of omp's `.env` files that sets it (`omp_dotenv_files`). A login stored in omp's
+        own profile is not read here ('' then)."""
+        return opencode_login.env_key(env) or next(
+            (v for f in omp_dotenv_files(env, binding.args) if (v := opencode_login.dotenv(f).get(opencode_login.KEY_VAR, "").strip())),
+            "",
+        )
 
     def model_chains(self, cwd: Path | None = None) -> OmpModelChains:
         """omp's configured `retry:` block, read once per backend.
@@ -348,9 +408,12 @@ class OmpBackend(OneShotBackend):
         match c:
             case Subscription():
                 args = ("--profile", c.profile) if c.profile else ()
-                return CredentialBinding(
-                    args=args, isolated=c.isolate, isolation=f"the {provider} login in omp profile {c.profile or 'default'}"
-                )
+                isolation = f"the {provider} login in omp profile {c.profile or 'default'}"
+                # A key omp fills in from a .env file outranks the stored login.
+                back = dotenv_credentials(scrubbed(env or self._base_env), args, provider_vars(provider)) if c.isolate else {}
+                if back:
+                    isolation += "; omp reads " + ", ".join(f"{n} from {f}" for n, f in sorted(back.items()))
+                return CredentialBinding(args=args, isolated=c.isolate and not back, isolation=isolation)
             case ApiKey():
                 out = {provider_key_env(provider): secret(c.key)}
             case Gateway():
@@ -373,16 +436,19 @@ class OmpBackend(OneShotBackend):
         if not c.isolate:
             return CredentialBinding(out, isolation="omp's default profile stays visible")
         verified = provider in PROFILE_ISOLATED_PROVIDERS
-        return CredentialBinding(
-            out,
-            args=("--profile", ISOLATED_PROFILE),
-            isolated=verified,
-            isolation=(
-                f"omp profile {ISOLATED_PROFILE}: no stored logins"
-                if verified
-                else f"omp profile {ISOLATED_PROFILE}, but omp may still use a {provider} login it keeps outside its profiles"
-            ),
+        args = ("--profile", ISOLATED_PROFILE)
+        isolation = (
+            f"omp profile {ISOLATED_PROFILE}: no stored logins"
+            if verified
+            else f"omp profile {ISOLATED_PROFILE}, but omp may still use a {provider} login it keeps outside its profiles"
         )
+        # omp fills an unset variable from its `.env` files: a key there comes back.
+        # Names only, so it holds for a check (`env` None) too: no secret is read.
+        back = dotenv_credentials({**scrubbed(env or self._base_env), **out}, args, provider_vars(provider))
+        if back:
+            verified = False
+            isolation += "; omp reads " + ", ".join(f"{n} from {f}" for n, f in sorted(back.items()))
+        return CredentialBinding(out, args=args, isolated=verified, isolation=isolation)
 
     def catalogue(self) -> set[str] | None:
         """Model ids from `omp models`, or None when it cannot be read.

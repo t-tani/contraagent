@@ -69,7 +69,7 @@ Each coding agent says which credential types it can use:
 
 | type | claude | omp | opencode | pi | codex |
 |---|---|---|---|---|---|
-| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile; a ChatGPT login (`provider = "openai"`) runs `openai-codex/<model>` | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`) | the ChatGPT login in a `CODEX_HOME` (`provider = "openai"`) |
+| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile; a ChatGPT login (`provider = "openai"`) runs `openai-codex/<model>`; an OpenCode one is `OPENCODE_API_KEY`, which omp also reads from its `.env` files | the provider's stored login (`opencode providers login`) | the `/login` in a pi agent directory (`config_dir`, by default `~/.pi/agent`); for `opencode` and `opencode-go` with no such login there, opencode's stored login | the ChatGPT login in a `CODEX_HOME` (`provider = "openai"`) |
 | `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider | any provider (`<PROVIDER>_API_KEY`) | OpenAI (`CODEX_API_KEY`) |
 | `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — | Anthropic | — |
 | `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible | an OpenAI-compatible endpoint (`litellm` by default, custom headers) | a Responses-API endpoint (bearer or API key, custom headers) |
@@ -130,11 +130,14 @@ window, the identity paused until when, and its rests over the run.
 
 The readings are those the coding agents report: Claude Code when a session
 starts or resumes, omp at each launch, Codex with each API call of a ChatGPT
-login; opencode reports none. The run starts
+login. opencode and pi report none, so for an `opencode-go` model contraagent reads
+the OpenCode Go subscription's usage itself at each launch, from the route OpenCode's
+console serves (`<base>/v1/usage` with the key; omp reads the same): the 5-hour and
+weekly windows, and the monthly one by name in `windows`. The run starts
 from the newest of recent runs' journals and takes each launch's as it ends, so
 tasks that start together all start before the first of them reports the cap is
-reached. A credential with no readings (a gateway, an API key, any credential on
-opencode) never rests on a quota. A quota opencode is refused on ends the launch
+reached. A credential with no readings (a gateway, an API key, an OpenCode Zen model)
+never rests on a quota. A quota opencode is refused on ends the launch
 `rate_limited` at once: opencode itself would wait as long as the provider asks.
 
 A reading names the **account** that reported it, so one credential's accounts
@@ -147,7 +150,10 @@ the source and the value, cut to 12 hex digits), never the value: Claude Code's
 is its login's `oauthAccount.accountUuid` (in the config directory's
 `.claude.json`; for an ambient launch, a key or token in its environment first)
 or the token or key the credential holds; omp's is the account its usage report
-names. A UUID and a token of one account give two digests, so a reading counts
+names. An OpenCode key is its own account on every agent: the digest of the key
+opencode, pi or omp would send (on omp, `OPENCODE_API_KEY` of the launch's
+environment, else of omp's `.env` files), so one login used on all three is one
+account, and a rest on one of them holds on the others. A UUID and a token of one account give two digests, so a reading counts
 for the source it came from. A reading with no account (an older journal) counts
 for every account of its credential.
 
@@ -172,7 +178,12 @@ What is guaranteed:
   directories, so a key that does not work fails instead of falling back to a
   stored login. omp runs in a profile with no stored logins; omp keeps some
   logins outside its profiles, so for providers other than `anthropic`,
-  `openai-codex` and `litellm` a task that requires traits is refused on omp. opencode gets no
+  `openai-codex` and `litellm` a task that requires traits is refused on omp.
+  omp also reads `.env` files at start (its working directory's, its agent
+  directory's, its config root's and `~/.env`), and fills from them every
+  variable the launch's environment leaves unset: when one of them sets the key
+  or endpoint variable of the launch's provider and the credential does not, the
+  binding says which file, and a task that requires traits is refused on omp. opencode gets no
   stored login but the chosen one, and the chosen key in its launch config,
   over any key in the user's own opencode config; an OAuth login (which opencode
   refreshes and writes back over every stored login) is not narrowed, so a task
