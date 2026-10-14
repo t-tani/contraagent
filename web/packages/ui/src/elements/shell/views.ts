@@ -43,7 +43,8 @@ export function tabView({ snap, route, derived, q, client, baseUrl }: TabViewDat
     case 'tasks':
       return html`<ca-task-table .run=${route.run} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q} ?live=${live}></ca-task-table>`;
     case 'journal':
-      return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .plan=${state.plan} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}></ca-journal-table>`;
+      return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .plan=${state.plan} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}
+        .extras=${summary?.row_extras ?? []}></ca-journal-table>`;
     case 'outputs':
       return html`<ca-contracts .run=${route.run} .outputs=${state.outputs} .journal=${state.journal} .plan=${state.plan}></ca-contracts>`;
     case 'definitions':

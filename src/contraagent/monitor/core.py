@@ -27,6 +27,7 @@ from pathlib import Path
 from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
 from contraagent.execution.cursor import parse_cursor
+from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import paths
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 
@@ -182,8 +183,10 @@ class Monitor:
             last = ""
             run_group = info.get("run_group", "")
             kinds: dict[str, int] = {}
+            extras: dict[str, None] = {}
             for e in self._read_journal(run):
                 n += 1
+                extras.update(dict.fromkeys(row_extras([e])))
                 ok += bool(e.get("ok"))
                 not_run += e.get("stop") in ("invalid_input", "skipped")
                 if e.get("cost_usd") is not None:
@@ -224,6 +227,7 @@ class Monitor:
                     "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
                     "stub": info.get("stub") is True,
+                    "row_extras": list(extras),
                 }
             )
         out.sort(key=lambda r: r["last_ts"], reverse=True)
@@ -485,6 +489,7 @@ class Monitor:
             "definition": defs.get(kind),
             "io": self.task_io(run, key),
             "stream": key if self.source.size(run, rundir.stream(key)) >= 0 else None,
+            "row_extras": row_extras(rows),
         }
         if self.task_detail_fn is not None:
             try:
@@ -726,3 +731,13 @@ class Monitor:
 
     def panel_info(self) -> list[dict]:
         return [{"name": n, "title": p.title or n, "description": p.description, "icon": p.icon} for n, p in sorted(self.panels.items())]
+
+
+def row_extras(rows: list[dict]) -> list[str]:
+    """The columns of journal rows that are a pipeline's own (`Run(row_extras=)`): keys
+    `JournalRow` does not name, in the order they first appear."""
+    known = JournalRow.model_fields
+    out: dict[str, None] = {}
+    for row in rows:
+        out.update(dict.fromkeys(k for k in row if k not in known))
+    return list(out)

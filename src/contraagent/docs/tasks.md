@@ -242,8 +242,10 @@ in the pattern, or keep them from running at once (one unit, a tag).
 A scope (`TaskScope`) is a context manager around it, every hop included; an
 enricher (`ResultEnricher`) sees the task before and the result after, after the
 changes are recorded, and may add a `payload` or change `ok` and `stop`;
-`row_extras(result)` adds columns to the journal row. Here an enricher names what
-each attempt did to its topic:
+`row_extras(result)` adds columns to the journal row. The monitor shows each such
+column under its own name, in the history and in the task's attempts (the API names
+them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
+topic:
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
 

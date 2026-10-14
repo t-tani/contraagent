@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor shows a pipeline's own journal columns (`row_extras`): a column each in the
+  history, under its name as written, and the values of each attempt in the task's
+  detail. `RunSummary.row_extras` and `TaskDetail.row_extras` name them.
 - `agent_task(skills_from=[...])`: skill plugins whose skills a task loads after its own
   plugin's, so tasks with different roles share skills. A skill plugin holds skills only;
   one that holds agents, commands, settings, MCP servers or hooks is refused where the

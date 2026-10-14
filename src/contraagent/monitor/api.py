@@ -129,6 +129,10 @@ class RunSummary(Closed):
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
     stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
+    row_extras: list[str] = Field(
+        default_factory=list,
+        description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
+    )
 
 
 class HostSummary(Closed):
@@ -557,6 +561,10 @@ class TaskDetail(Open):
     definition: TaskDefinition | None
     io: TaskIO
     stream: str | None = Field(description="the transcript's task key for /stream and /events/stream, null when it has none")
+    row_extras: list[str] = Field(
+        default_factory=list,
+        description="the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
+    )
     task_detail_error: str | None = None
 
 

@@ -2936,6 +2936,14 @@
             "title": "Stub",
             "description": "a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
             "default": false
+          },
+          "row_extras": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Row Extras",
+            "description": "the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear"
           }
         },
         "additionalProperties": false,
@@ -3413,6 +3421,14 @@
             ],
             "title": "Stream",
             "description": "the transcript's task key for /stream and /events/stream, null when it has none"
+          },
+          "row_extras": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Row Extras",
+            "description": "the columns of `rows` that are the pipeline's own (`Run(row_extras=)`), in the order they first appear"
           },
           "task_detail_error": {
             "anyOf": [

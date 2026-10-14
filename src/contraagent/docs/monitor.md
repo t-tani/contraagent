@@ -15,7 +15,8 @@ It reads `runs/<id>/` and shows, live, one tab each:
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
   key: each task of the plan (`plan.jsonl`) joined with its journal rows, so
   the passes of a loop over one unit (`review-gamma`, `review-gamma~2`) are two
-  tasks, and a task that never ran is one too;
+  tasks, and a task that never ran is one too. The journal columns a pipeline
+  adds (`row_extras`) are columns of the history under their own names;
 - **Outputs**: every checked file (`OutputContract`, `InputContract`), field
   by field against the file;
 - **Definitions**: each kind's interface and its plugin's files;

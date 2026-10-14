@@ -2512,6 +2512,10 @@
   <source>Limits: <x id="0" equiv-text="${parts}"/></source>
   <target>上限: <x id="0" equiv-text="${parts}"/></target>
 </trans-unit>
+<trans-unit id="s76d0878052a529e9">
+  <source>Custom column (row_extras)</source>
+  <target>カスタム列（row_extras）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

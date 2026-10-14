@@ -105,6 +105,7 @@ documentation. No other word is used for the same thing.
 | **stage** | a run phase | cursor `stage` |
 | **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
 | **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |
+| **row extras** | a pipeline's own columns of a journal row, named by the pipeline: what `row_extras(result)` adds | `Pipeline(row_extras=)`, `Run(row_extras=)`; monitor `RunSummary.row_extras`, `TaskDetail.row_extras` |
 
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.

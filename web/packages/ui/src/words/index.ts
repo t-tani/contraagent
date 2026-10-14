@@ -19,3 +19,4 @@ export * from './table.js';
 export * from './changes.js';
 export * from './units.js';
 export * from './rests.js';
+export * from './row-extras.js';
