@@ -217,6 +217,8 @@ def render(plugin: Plugin, agents=None) -> Rendered:
     """Every agent's hook files for `plugin` (`agents`: default the plugin's own, else all)."""
     files: dict[str, str] = {}
     notes: list[str] = []
+    if plugin.skills_only or plugin.render_leftovers():
+        return files, [f"{plugin.name} is a skill plugin: it declares no hooks, so nothing is rendered"]
     for agent in agents or plugin.agents or sorted(RENDERERS):
         f, n = RENDERERS[agent](plugin)
         files.update(f)

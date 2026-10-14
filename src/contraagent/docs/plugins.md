@@ -58,7 +58,9 @@ from the task's plugin alone. Claude Code names a skill `<plugin name>:<skill>`
 (`house-style:house-style`). A skill plugin that holds anything else is refused
 where the task is declared, since it would act on every task that loads it.
 `plugin lint` checks a skill plugin's skills only, and `contraagent check` lints
-every plugin a task loads. The skills' text is part of each task's fingerprint,
+every plugin a task loads. A skill plugin declares no hooks, so `plugin render`
+writes nothing in it; files an earlier render left there (`package.json`,
+`hooks/`, `omp/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
 as its role file is: a resume runs a task again after its skills changed.
 
 ## What a task agent sees
