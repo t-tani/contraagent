@@ -745,6 +745,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A pipeline graph node's notes ("3 flow calls stopped with an error") wrap at the node's
+  width; they wrapped at the width of its marks, so a node with few marks grew tall.
 - A long table (the monitor's history, its tasks) no longer hangs the page when it is
   scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
   heights no longer move its window back and forth, and it measures again on the next
