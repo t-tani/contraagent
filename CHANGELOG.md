@@ -719,6 +719,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `contraagent plugin render` writes nothing in a skill plugin (it wrote `package.json`
+  and `hooks/`, after which the plugin was no longer a skill plugin), and `plugin lint`
+  names such files as what an earlier render left.
 - A skill whose directory is a symbolic link is read like any other: its files are part
   of the task's fingerprint and show in the monitor's definition (they were left out).
 - A read of a transcript on a hub no longer fails when several segments are sealed while

@@ -212,7 +212,8 @@ def agent_task[Out](
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
     for p in shared:
         if others := p.besides_skills():
-            raise PluginError(f"agent_task({kind!r}): skills_from {p.root} holds {', '.join(others)}; a plugin it names holds skills only")
+            why = "written by `contraagent plugin render`; remove them" if p.render_leftovers() else "a plugin it names holds skills only"
+            raise PluginError(f"agent_task({kind!r}): skills_from {p.root} holds {', '.join(others)}; {why}")
     resolved_role = loaded.resolve_role(role) if loaded is not None else role
     return AgentTask(
         kind=kind,

@@ -40,6 +40,8 @@ HOOKS_TOML = "hooks.toml"
 
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
+#: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
+RENDERED = ("hooks", "package.json", "omp")
 NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp")
 
 
@@ -111,6 +113,14 @@ class Plugin:
     def besides_skills(self) -> list[str]:
         """The parts it holds that act besides skills (`NOT_SKILLS`); empty for a skill plugin."""
         return [name for name in NOT_SKILLS if (self.root / name).exists()]
+
+    def render_leftovers(self) -> list[str]:
+        """The files `contraagent plugin render` writes (`RENDERED`) in a plugin that is a skill
+        plugin but for them: skills, and nothing it declares beside them. Empty otherwise."""
+        others = self.besides_skills()
+        if not (self.root / "skills").is_dir() or not others or not set(others) <= set(RENDERED):
+            return []
+        return others
 
     @property
     def skills_only(self) -> bool:
