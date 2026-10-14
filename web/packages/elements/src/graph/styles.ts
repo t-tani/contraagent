@@ -80,8 +80,8 @@ export const graphStyles = css`
   .name:hover { text-decoration: underline; }
   .name:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; border-radius: 3px; }
   .count { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ex { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 11px; line-height: 1.5;
-    max-width: max(98px, calc(var(--cols) * var(--m) + (var(--cols) - 1) * var(--g))); }
+  /* The notes wrap at the node's width, which its header and marks set: they never widen it. */
+  .ex { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: 11px; line-height: 1.5; contain: inline-size; }
   :is(.ex, .st) .err { color: var(--status-failed); }
   :is(.ex, .st) .warn { color: var(--status-attention); }
   :is(.ex, .st) .live { color: var(--status-running); }
