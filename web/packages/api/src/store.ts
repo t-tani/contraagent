@@ -2,9 +2,10 @@
 // `RunState`, and a change notification. No UI framework: a Lit controller, a
 // React hook or plain code can subscribe alike.
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
+import type { RunFeedOpener } from './export.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
-import type { Hosts, Info, JournalRow, RunSummary } from './types.js';
+import type { Hosts, Info, JournalRow, RunFeedMessage, RunSummary } from './types.js';
 
 export interface MonitorSnapshot {
   info: Info;
@@ -28,7 +29,9 @@ export interface StoreOptions {
   baseUrl?: string;
   client?: MonitorClient;
   feed?: FeedOptions;
-  /** How often the run list (and on a hub, the host list) is refreshed. */
+  /** Opens a run's feed instead of the server's `/events` (an export's: `openExportFeed`). */
+  openRunFeed?: RunFeedOpener;
+  /** How often the run list (and on a hub, the host list) is refreshed; 0: never (an export). */
   runsEveryMs?: number;
   /** Feed messages are folded in batches this far apart. */
   batchMs?: number;
@@ -97,7 +100,7 @@ export class MonitorStore {
   async start(): Promise<void> {
     this.stopped = false;
     await this.refresh();
-    if (!this.stopped) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
+    if (!this.stopped && this.opts.runsEveryMs > 0) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
   }
 
   private async refresh(): Promise<void> {
@@ -161,19 +164,18 @@ export class MonitorStore {
     this.queue = [];
     this.set({ run, state: emptyRunState(), connected: false, fresh: new Set() });
     if (!run) return;
-    this.closeFeed = openRunFeed(
-      run,
-      this.snap.info.panels.map((p) => p.name),
-      {
-        open: () => {
-          this.push({ event: 'connected' });
-          this.set({ connected: true });
-        },
-        error: () => this.set({ connected: false }),
-        message: (msg) => this.push(msg),
+    const panels = this.snap.info.panels.map((p) => p.name);
+    const on = {
+      open: () => {
+        this.push({ event: 'connected' });
+        this.set({ connected: true });
       },
-      { ...(this.opts.baseUrl === undefined ? {} : { baseUrl: this.opts.baseUrl }), ...this.opts.feed },
-    );
+      error: () => this.set({ connected: false }),
+      message: (msg: RunFeedMessage) => this.push(msg),
+    };
+    this.closeFeed = this.opts.openRunFeed
+      ? this.opts.openRunFeed(run, panels, on)
+      : openRunFeed(run, panels, on, { ...(this.opts.baseUrl === undefined ? {} : { baseUrl: this.opts.baseUrl }), ...this.opts.feed });
   }
 
   /** Close the feed and stop refreshing; an answer that arrives later is dropped. */

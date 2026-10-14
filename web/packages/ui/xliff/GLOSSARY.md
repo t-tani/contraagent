@@ -50,6 +50,7 @@ unit names, stop values such as `completed`, model and role names).
 | wall time | 所要時間 |
 | snapshot | スナップショット |
 | stub agent (a coding agent with scripted replies instead of a model; a stub run's mark) | スタブエージェント |
+| export (the monitor's views written as files, read with no server; `contraagent monitor export`) | 書き出し（「エクスポート」と書かない）; `time` 時点の書き出し |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
 | final message (the agent's last message of a session; an output taken from it) | 最後のメッセージ |

@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, Validatio
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.2.0"
+API_VERSION = "3.3.0"
 
 
 class Closed(BaseModel):
@@ -66,6 +66,18 @@ class PanelInfo(Closed):
     icon: str
 
 
+class ExportInfo(Closed):
+    """What an export holds (`contraagent monitor export`): the monitor's views of some
+    runs, written as files and read without a server."""
+
+    exported_at: str = Field(description="when it was written, ISO 8601")
+    runs: list[str] = Field(description="the runs it holds, newest activity first")
+    left_out: list[str] = Field(description="the views it does not hold: `transcripts`, `processes`")
+    redacted: list[str] = Field(
+        description="what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude"
+    )
+
+
 class Info(Closed):
     """What the UI shows before a run is picked: the title, the panel tabs to offer,
     and the version of this contract."""
@@ -74,6 +86,7 @@ class Info(Closed):
     panels: list[PanelInfo]
     api_version: str = Field(description="Version of this API contract (semver)")
     hosts: bool = Field(False, description="the runs come from many hosts (a hub): `/api/hosts` lists them")
+    export: ExportInfo | None = Field(None, description="set only in an export: what it holds; a server never sends it")
 
 
 # --- /api/runs -------------------------------------------------------------

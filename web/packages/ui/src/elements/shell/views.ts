@@ -51,10 +51,12 @@ export function tabView({ snap, route, derived, q, client, baseUrl }: TabViewDat
       return html`<ca-definitions .client=${client} .run=${route.run} .journal=${state.journal} .plan=${state.plan} .live=${live}
         .selected=${route.def}></ca-definitions>`;
     case 'procs':
-      return html`<ca-procs-view .procs=${state.procs} ?unresponsive=${runActivity(summary, !!state.procs?.alive) === 'unresponsive'}></ca-procs-view>`;
+      return html`<ca-procs-view .procs=${state.procs} ?unresponsive=${runActivity(summary, !!state.procs?.alive) === 'unresponsive'}
+        ?exported=${!!snap.info.export}></ca-procs-view>`;
     case 'stream':
       return html`<ca-task-view .client=${client} .journal=${state.journal} .plan=${state.plan} base-url=${baseUrl} .run=${route.run}
-        .taskKey=${route.key ?? latestTask(derived.rows)} .view=${route.view} .round=${route.round} .live=${live}></ca-task-view>`;
+        .taskKey=${route.key ?? latestTask(derived.rows)} .view=${route.view} .round=${route.round} .live=${live}
+        ?exported=${!!snap.info.export}></ca-task-view>`;
     default: {
       const name = route.tab.slice('panel:'.length);
       const info = snap.info.panels.find((p) => p.name === name);

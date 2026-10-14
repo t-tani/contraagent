@@ -1,6 +1,7 @@
 """`contraagent` command line.
 
 contraagent monitor [--runs-dir runs] [--port 8787]
+contraagent monitor export --out site/stats [--runs 10]   # the monitor as files, served with no server
 contraagent plugin new plugins/summarize [--name N]
 contraagent plugin lint plugins          # a plugin, or a directory of plugins
 contraagent plugin render <plugin>       # hooks.toml -> each coding agent's native hooks

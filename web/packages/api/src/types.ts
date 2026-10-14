@@ -10,6 +10,8 @@ export type { components, paths } from './schema.js';
 export type JsonObject = Record<string, unknown>;
 
 export type Info = S['Info'];
+/** What an export holds (`Info.export`): set only when the monitor reads one. */
+export type ExportInfo = S['ExportInfo'];
 export type PanelInfo = S['PanelInfo'];
 export type RunSummary = S['RunSummary'];
 export type Hosts = S['Hosts'];

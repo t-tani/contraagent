@@ -423,6 +423,11 @@ def serve(
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["export"]:  # needs no server, so not the `monitor` extra
+        from contraagent.monitor.export import main as export_main
+
+        return export_main(argv[1:])
     ap = argparse.ArgumentParser(prog="contraagent monitor", description="Live monitor for contraagent pipeline runs")
     ap.add_argument("--runs-dir", default="runs", help="directory holding runs/<run-id>/ (default: ./runs)")
     ap.add_argument("--port", type=int, default=8787)

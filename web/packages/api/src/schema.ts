@@ -587,6 +587,33 @@ export type components = {
              */
             executor: "agent" | "python";
         };
+        /**
+         * ExportInfo
+         * @description What an export holds (`contraagent monitor export`): the monitor's views of some
+         *     runs, written as files and read without a server.
+         */
+        ExportInfo: {
+            /**
+             * Exported At
+             * @description when it was written, ISO 8601
+             */
+            exported_at: string;
+            /**
+             * Runs
+             * @description the runs it holds, newest activity first
+             */
+            runs: string[];
+            /**
+             * Left Out
+             * @description the views it does not hold: `transcripts`, `processes`
+             */
+            left_out: string[];
+            /**
+             * Redacted
+             * @description what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude
+             */
+            redacted: string[];
+        };
         /** FeedReady */
         FeedReady: {
             /**
@@ -832,6 +859,8 @@ export type components = {
              * @default false
              */
             hosts?: boolean;
+            /** @description set only in an export: what it holds; a server never sends it */
+            export?: components["schemas"]["ExportInfo"] | null;
         };
         /**
          * JournalMessage

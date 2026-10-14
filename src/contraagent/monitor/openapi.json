@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.2.0"
+    "version": "3.3.0"
   },
   "paths": {
     "/api/info": {
@@ -1187,6 +1187,49 @@
         ],
         "title": "DownstreamTask"
       },
+      "ExportInfo": {
+        "properties": {
+          "exported_at": {
+            "type": "string",
+            "title": "Exported At",
+            "description": "when it was written, ISO 8601"
+          },
+          "runs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "the runs it holds, newest activity first"
+          },
+          "left_out": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Out",
+            "description": "the views it does not hold: `transcripts`, `processes`"
+          },
+          "redacted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redacted",
+            "description": "what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "exported_at",
+          "runs",
+          "left_out",
+          "redacted"
+        ],
+        "title": "ExportInfo",
+        "description": "What an export holds (`contraagent monitor export`): the monitor's views of some\nruns, written as files and read without a server."
+      },
       "FeedReady": {
         "additionalProperties": false,
         "properties": {
@@ -1590,6 +1633,17 @@
             "title": "Hosts",
             "description": "the runs come from many hosts (a hub): `/api/hosts` lists them",
             "default": false
+          },
+          "export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "set only in an export: what it holds; a server never sends it"
           }
         },
         "additionalProperties": false,
