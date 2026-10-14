@@ -650,7 +650,9 @@ def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
     deferred = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
     print(f"  done in the box: {report.value}\n  deferred.jsonl: {deferred}")
     assert report.value and len(report.value) < 6  # some writes ran, the rest were cut
-    assert [d["cause"] for d in deferred] == [{"cause": "deadline", "flow_call": "0.1"}]
+    # Deferred by the box: at its deadline, or before it when the queue's estimate says the
+    # task cannot finish in the time left (faster sessions learn the estimate in time).
+    assert deferred and all(d["cause"]["cause"] in ("deadline", "cannot_finish") and d["cause"]["flow_call"] == "0.1" for d in deferred)
     assert by_key[f"wrap_{agent}-all"]["ok"] and by_key[f"after_{agent}-next"]["ok"]
     calls = [json.loads(line) for line in (report.run_dir / "flow_calls.jsonl").read_text().splitlines()]
     [boxed] = [c for c in calls if "time_box" in c]
