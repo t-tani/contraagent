@@ -24,7 +24,7 @@ from typing import Any, Literal, TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
-from contraagent.pipeline.graph import Pending, current_graph
+from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.validators import Validator, validator_name
@@ -46,7 +46,7 @@ class AgentTask[Out]:
     validators: tuple[Validator, ...]
     output_name: str
     requires: tuple[str, ...] = ()
-    tags: tuple[str, ...] = ()
+    claims: tuple[str, ...] = ()
     #: Plugins whose skills the task loads too, after its own plugin (`agent_task(skills_from=)`).
     skills_from: tuple[Plugin, ...] = ()
     changes: tuple[str, ...] = ()
@@ -80,7 +80,7 @@ class AgentTask[Out]:
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `skills_from`, `config`, `requires`, `tags` and `output_name`. None:
+        digest, the plugin, `skills_from`, `config`, `requires`, `claims` and `output_name`. None:
         one kind, declared twice the same way."""
         if other is self:
             return []
@@ -90,7 +90,7 @@ class AgentTask[Out]:
             parts.append("plugin")
         if [p.root for p in self.skills_from] != [p.root for p in other.skills_from]:
             parts.append("skills_from")
-        return parts + [name for name in ("config", "requires", "tags", "output_name") if getattr(self, name) != getattr(other, name)]
+        return parts + [name for name in ("config", "requires", "claims", "output_name") if getattr(self, name) != getattr(other, name)]
 
     def _defined(self) -> dict[str, Any]:
         role = ""
@@ -116,16 +116,12 @@ class AgentTask[Out]:
         *,
         key: str | None = None,
         after: Sequence[Pending | str] = (),
-        extra_units: Sequence[str] = (),
         **params: Any,
     ) -> Pending[Out]:
-        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
-        `extra_units`: further units it locks while it runs, as it locks `unit` (no task of
-        another kind on any of them runs at the same time); its output and its name stay
-        its `unit`'s."""
+        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(self, unit=unit, key=key, after=after, params=params, extra_units=extra_units)
+        return current_graph().add(self, unit=unit, key=key, after=after, params=params)
 
 
 def agent_task[Out](
@@ -141,7 +137,7 @@ def agent_task[Out](
     output_name: str | None = None,
     output_from: Literal["file", "message"] = "file",
     requires: Sequence[str] = (),
-    tags: Sequence[str] = (),
+    claims: Sequence[str] = (),
     changes: Sequence[str] = (),
     **config: Any,
 ) -> AgentTask[Out]:
@@ -163,12 +159,13 @@ def agent_task[Out](
     task whose data may only go to a zero-data-retention organization). Which
     credential that is, is the config's to say; a route that does not satisfy
     it, failover hops included, is refused before anything launches.
-    `tags`: named resources each of its tasks holds while it runs (`["heavy"]`);
-    `Pipeline(tag_capacity={"heavy": 1})` caps how many run at once. A tag is a template:
-    `{unit}`, `{key}` and `{kind}` as in `output_name`, and a tag naming `{unit}` is held
-    once per unit the task locks (its unit and its `extra_units`), so `["topic:{unit}"]`
-    with `tag_capacity={"topic:*": 1}` runs one task at a time on each topic, whatever
-    its kind.
+    `claims`: the names each of its tasks holds while it runs; one task holds a name at
+    a time, unless `claim_capacity` (`Pipeline(claim_capacity=)`, `[defaults.claim_capacity]`)
+    allows more. A claim is a template: `{unit}`, `{key}` and `{kind}` as in `output_name`,
+    and `{params.<name>}`, a parameter of the call (a list gives one name per element). So
+    `["topic:{unit}"]` runs one task at a time on each topic, whatever its kind, and
+    `["topic:{params.topics}"]` holds every topic a task names. A task that claims nothing
+    runs beside any other.
     `changes`: `Path.glob` patterns, relative to the working directory, of the files its
     tasks may change beside their output (`["topics/{unit}/**"]`; `{unit}`, `{key}` and
     `{kind}` as in `output_name`; a pattern that matches a directory covers everything
@@ -208,7 +205,7 @@ def agent_task[Out](
     changes = tuple(changes)
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
-    checked_tags = _checked_tags(f"agent_task({kind!r})", tags)
+    checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
     base = _caller_dir()
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
@@ -226,7 +223,7 @@ def agent_task[Out](
         config=dict(config),
         validators=tuple(validators),
         requires=tuple(requires),
-        tags=checked_tags,
+        claims=checked_claims,
         skills_from=shared,
         changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
@@ -242,7 +239,7 @@ class PythonTask[Out]:
     name: str
     output_schema: type[BaseModel] | None
     validators: tuple[Validator, ...]
-    tags: tuple[str, ...] = ()
+    claims: tuple[str, ...] = ()
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -262,13 +259,11 @@ class PythonTask[Out]:
         *,
         key: str | None = None,
         after: Sequence[Pending | str] = (),
-        extra_units: Sequence[str] = (),
         **kwargs: Any,
     ) -> Pending[Out]:
         """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
-        A function with a `unit` parameter is given the unit too. `extra_units`, as for an
-        agent task: further units it locks while it runs."""
-        return current_graph().add(self, unit=unit, key=key, after=after, params=kwargs, extra_units=extra_units)
+        A function with a `unit` parameter is given the unit too."""
+        return current_graph().add(self, unit=unit, key=key, after=after, params=kwargs)
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the
@@ -332,7 +327,7 @@ class PythonTask[Out]:
 def python_task[Out](fn: Callable[..., Out], /) -> PythonTask[Out]: ...
 @overload
 def python_task(
-    *, name: str | None = None, validators: Sequence[Validator] = (), tags: Sequence[str] = ()
+    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = ()
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -342,17 +337,17 @@ def python_task(
     *,
     name: str | None = None,
     validators: Sequence[Validator] = (),
-    tags: Sequence[str] = (),
+    claims: Sequence[str] = (),
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
-    any JSON-able type (kept as a JSON file), or None (no output). `tags` (templates), as for
-    `agent_task`: resources each of its tasks holds while it runs."""
+    any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
+    `agent_task`: the names each of its tasks holds while it runs."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
-        checked = _checked_tags(f"python_task({kind!r})", tags)
-        return PythonTask(fn=f, name=kind, output_schema=_output_schema_of(f), validators=tuple(validators), tags=checked)
+        checked = _checked_claims(f"python_task({kind!r})", claims)
+        return PythonTask(fn=f, name=kind, output_schema=_output_schema_of(f), validators=tuple(validators), claims=checked)
 
     return wrap(fn) if fn is not None else wrap
 
@@ -400,22 +395,26 @@ def _type_name(t: type) -> str:
     return t.__name__
 
 
-def _checked_tags(owner: str, tags: Sequence[str]) -> tuple[str, ...]:
-    """`tags` as declared, checked: each a non-empty template naming only `{unit}`, `{key}`
-    and `{kind}`."""
-    if isinstance(tags, str):
-        raise TypeError(f"{owner}: tags must be a list of tags, not the string {tags!r}")
-    out = tuple(tags)
-    for tag in out:
-        if not isinstance(tag, str) or not tag:
-            raise TypeError(f"{owner}: tags holds {tag!r}; each tag is a non-empty string")
+def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
+    """`claims` as declared, checked: each a non-empty template naming only `{unit}`, `{key}`,
+    `{kind}` and `{params.<name>}`."""
+    if isinstance(claims, str):
+        raise TypeError(f"{owner}: claims must be a list of names, not the string {claims!r}")
+    out = tuple(claims)
+    for claim in out:
+        if not isinstance(claim, str) or not claim:
+            raise TypeError(f"{owner}: claims holds {claim!r}; each claim is a non-empty string")
         try:
-            fields = {f for _, f, _, _ in string.Formatter().parse(tag) if f is not None}
+            parts = list(string.Formatter().parse(claim))
         except ValueError as exc:
-            raise ValueError(f"{owner}: tag {tag!r}: {exc}") from None
-        unknown = sorted(fields - {"unit", "key", "kind"})
-        if unknown:
-            raise ValueError(f"{owner}: tag {tag!r} names {', '.join(unknown)}; it may name unit, key and kind")
+            raise ValueError(f"{owner}: claim {claim!r}: {exc}") from None
+        for _, field, spec, conversion in parts:
+            if field is None:
+                continue
+            if spec or conversion:
+                raise ValueError(f"{owner}: claim {claim!r}: {{{field}}} takes no format or conversion")
+            if field not in ("unit", "key", "kind") and not CLAIM_PARAM.fullmatch(field):
+                raise ValueError(f"{owner}: claim {claim!r} names {field}; it may name unit, key, kind and params.<name>")
     return out
 
 

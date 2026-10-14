@@ -553,7 +553,7 @@ def test_a_resumed_chain_of_skipped_tasks_uses_no_recursion(tmp_path):
 _running: list[int] = [0, 0]  # now, most at once
 
 
-@python_task(tags=["heavy"])
+@python_task(claims=["heavy"])
 def heavy(unit: str) -> int:
     _running[0] += 1
     _running[1] = max(_running[1], _running[0])
@@ -562,14 +562,14 @@ def heavy(unit: str) -> int:
     return 1
 
 
-def test_a_tagged_kind_runs_within_its_tag_capacity(tmp_path):
+def test_a_claiming_kind_runs_within_its_claim_capacity(tmp_path):
     def flow():
         return (yield [heavy(u) for u in "abcd"])
 
     _running[:] = [0, 0]
-    rep = pipeline(tmp_path, StubAgent(), tag_capacity={"heavy": 1}).run(flow)
+    rep = pipeline(tmp_path, StubAgent()).run(flow)
     assert rep.ok and rep.value == [1, 1, 1, 1]
     assert _running[1] == 1  # four ready at once, one at a time
     _running[:] = [0, 0]
-    assert pipeline(tmp_path, StubAgent()).run(flow, run_id="free").ok
-    assert _running[1] > 1  # without a capacity they overlap
+    assert pipeline(tmp_path, StubAgent(), claim_capacity={"heavy": 4}).run(flow, run_id="free").ok
+    assert _running[1] > 1  # a capacity of 4: they overlap

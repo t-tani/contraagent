@@ -9,13 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Tags are templates: `agent_task(tags=["topic:{unit}"])` and `@python_task(tags=...)` fill
-  in `{unit}`, `{key}` and `{kind}` for each task, a tag naming `{unit}` once per unit the
-  task locks (its extra units too). A `tag_capacity` key may be an `fnmatch` pattern
-  (`{"topic:*": 1}`) that gives each tag it matches a capacity of its own, and the config
-  holds them as `[defaults.tag_capacity]`. So tasks of any kind, one kind on one unit
-  included, write one topic at a time. The plan records each task's tags
-  (`PlanNode.tags`), and the monitor shows them in the task's detail ("Tags").
+- Claims: `agent_task(claims=[...])` and `@python_task(claims=...)` name what each task
+  holds while it runs, and one task at a time holds a name, whatever its kind. A claim
+  is a template: `{unit}`, `{key}`, `{kind}` and `{params.<name>}` (a list gives one name
+  per element), so `["topic:{unit}"]` writes one topic at a time and
+  `["topic:{params.topics}"]` holds every topic a task names. `claim_capacity` (a
+  `Pipeline` argument, and `[defaults.claim_capacity]` in the config) lets more tasks
+  hold a name, by the name or by an `fnmatch` pattern that gives each name it matches a
+  capacity of its own. The plan records each task's claims (`PlanNode.claims`), and the
+  monitor shows them in the task's detail and finds tasks by them.
 - The monitor shows a pipeline's own journal columns (`row_extras`): a column each in the
   history, under its name as written, and the values of each attempt in the task's
   detail. `RunSummary.row_extras` and `TaskDetail.row_extras` name them.
@@ -40,10 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows each window's limit, an identity paused and until when, its rests over the run
   and the usage rule (`Plan.quota_caps`, `.rests`, `.quota_rule`); a model switch names
   a hop passed over as "(identity paused)".
-- A task call takes `extra_units=[...]`: further units the task locks while it runs, as it
-  locks its own (no task of another kind on any of them runs at the same time). Its key,
-  output file and place in the monitor stay its own unit's; `plan.jsonl` records them, and
-  the task's detail in the monitor shows them ("Also locks").
 - `agent_task(changes=["topics/{unit}/**"])`: the files a task may change beside its
   output. Each attempt's journal row records what it created, modified and deleted under
   them (`changes`), and the files a failed attempt created are removed. The monitor's task
@@ -318,9 +316,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   graph reads them from the plan.
 - `RoutingPlan.build(all_kinds=False)`: a plan of some kinds only, which does not
   log the task tables naming other kinds.
-- `agent_task(tags=)` and `python_task(tags=)`: named resources each of a kind's
-  tasks holds while it runs; `Pipeline(tag_capacity={...})` caps how many run at
-  once (the `WorkQueue`'s existing per-tag capacity).
 - The overview's pipeline graph is drawn by layer of the flow: a node per kind
   for the tasks a function created itself, a node per function it called as a
   flow call (its marks are the flow calls), and the nodes one loop created in a
@@ -540,6 +535,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A unit locks nothing: tasks of different kinds on one unit run together unless they
+  claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
+  must not overlap on a unit.
 - `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
   `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
   `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when

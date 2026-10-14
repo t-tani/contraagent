@@ -42,6 +42,8 @@ import glob
 import hashlib
 import inspect
 import json
+import re
+import string
 from collections.abc import Callable, Iterator, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -156,12 +158,12 @@ class Node:
     params: dict[str, Any]
     after: tuple[str, ...]
     output_path: Path | None
-    extra_units: tuple[str, ...] = ()
     upstream: list[Pending] = field(default_factory=list)
     #: Its `changes` patterns, with `{unit}`, `{key}` and `{kind}` filled in.
     changes: tuple[str, ...] = ()
-    #: Its tags, with `{unit}` (once per unit it locks), `{key}` and `{kind}` filled in.
-    tags: tuple[str, ...] = ()
+    #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
+    #: `{params.<name>}` filled in.
+    claims: tuple[str, ...] = ()
     origin: Origin | None = None
     fingerprint: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -243,9 +245,7 @@ class Graph:
         key: str | None,
         after: Sequence[Pending | str],
         params: dict[str, Any],
-        extra_units: Sequence[str] = (),
     ) -> Pending:
-        extras = _extra_units(spec.kind, unit, extra_units)
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
         stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
@@ -262,6 +262,7 @@ class Graph:
         self.check_passes(frames, base, call_id)
         self.declare(spec)
         self._bases[base] = (call_id, n)
+        claims = _expand_claims(spec, unit, base, params)
         received: set[str] = set()
         params = {name: self._dependency(v, received) for name, v in params.items()}
         upstream = list(_pendings(params.values()))
@@ -283,11 +284,10 @@ class Graph:
             params=params,
             after=tuple(dict.fromkeys(deps)),
             output_path=out,
-            extra_units=extras,
             upstream=upstream,
             origin=origin,
             changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
-            tags=_expand_tags(spec, unit, extras, base),
+            claims=claims,
         )
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)
@@ -454,13 +454,12 @@ class Graph:
         task = Task(
             kind=node.spec.kind,
             unit=node.unit or node.key,
-            extra_units=node.extra_units,
             key=node.key,
             after=node.after,
             params={k: v for k, v in node.params.items() if isinstance(v, (str, int, float, bool))},
             origin=node.origin,
             fingerprint=node.fingerprint,
-            tags=node.tags,
+            claims=node.claims,
             payload=node,
         )
         if self.tail is not None:
@@ -496,36 +495,47 @@ class Graph:
         )
 
 
-def _expand_tags(spec: Any, unit: str, extras: tuple[str, ...], key: str) -> tuple[str, ...]:
-    """A task's tags: each of its kind's templates filled in, one tag per unit the task locks
-    for a template naming `{unit}`, in order and once each. A task with no unit has no unit
-    to name: a template naming `{unit}` raises at its call."""
+#: A claim's `{params.<name>}` field.
+CLAIM_PARAM = re.compile(r"params\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _expand_claims(spec: Any, unit: str, key: str, params: dict[str, Any]) -> tuple[str, ...]:
+    """The names a task claims: each of its kind's templates filled in. `{params.<name>}` is
+    a parameter of the call: a list gives one name per element (several lists, every
+    combination). In order and once each. Raises at the task call for a `{unit}` of a task
+    with no unit, a missing parameter, an output not received yet, or a value that is not
+    a string or a number."""
     out: list[str] = []
-    for template in getattr(spec, "tags", ()):
-        if "{unit}" in template:
-            if not unit:
-                raise ValueError(f"{spec.kind}(): tag {template!r} names {{unit}}, and the task has no unit")
-            out += [template.format(unit=u, key=key, kind=spec.kind) for u in (unit, *extras)]
-        else:
-            out.append(template.format(unit=unit, key=key, kind=spec.kind))
+    for template in getattr(spec, "claims", ()):
+        names = [""]
+        for literal, field_name, _, _ in string.Formatter().parse(template):
+            names = [n + literal for n in names]
+            if field_name is not None:
+                values = _claim_values(spec.kind, template, field_name, unit, key, params)
+                names = [n + v for n in names for v in values]
+        out += names
     return tuple(dict.fromkeys(out))
 
 
-def _extra_units(kind: str, unit: str, extra_units: Sequence[str]) -> tuple[str, ...]:
-    """`extra_units` as a task call gave them, checked: each a non-empty `str`, none twice,
-    none the task's own `unit`."""
-    if isinstance(extra_units, str):
-        raise TypeError(f"{kind}(): extra_units must be a list of units, not the string {extra_units!r}")
-    extras = tuple(extra_units)
-    for u in extras:
-        if not isinstance(u, str) or not u:
-            raise ValueError(f"{kind}(): extra_units holds {u!r}; each extra unit is a non-empty string")
-    if unit and unit in extras:
-        raise ValueError(f"{kind}(): extra_units holds the task's own unit {unit!r}")
-    twice = sorted({u for u in extras if extras.count(u) > 1})
-    if twice:
-        raise ValueError(f"{kind}(): extra_units holds {', '.join(map(repr, twice))} more than once")
-    return extras
+def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str, params: dict[str, Any]) -> list[str]:
+    if field_name == "unit":
+        if not unit:
+            raise ValueError(f"{kind}(): claim {template!r} names {{unit}}, and the task has no unit")
+        return [unit]
+    if field_name in ("key", "kind"):
+        return [key if field_name == "key" else kind]
+    m = CLAIM_PARAM.fullmatch(field_name)
+    name = m.group(1) if m else field_name
+    if name not in params:
+        raise ValueError(f"{kind}(): claim {template!r} names params.{name}, and the call gives no {name}")
+    value = params[name]
+    items = list(value) if isinstance(value, (list, tuple)) else [value]
+    for v in items:
+        if isinstance(v, Pending):
+            raise TypeError(f"{kind}(): claim {template!r} names params.{name}, an output not received yet; yield it first")
+        if isinstance(v, bool) or not isinstance(v, (str, int, float)):
+            raise TypeError(f"{kind}(): claim {template!r} names params.{name}, which holds {v!r}; a claim takes strings and numbers")
+    return [str(v) for v in items]
 
 
 def _file_digest(path: Path) -> str:

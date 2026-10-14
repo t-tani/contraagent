@@ -50,8 +50,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |
-| `extra_units` (further units a task locks) | Also locks (before the units; tooltip: extra_units) | 併せてロックするユニット |
-| `tags` (resources a task holds while it runs) | Tags (before the tags; tooltip: Resources this task holds while it runs (tags)) | タグ |
+| `claims` (names a task holds while it runs) | Locks (before the names; tooltip: Names this task holds while it runs (claims)) | ロック; tooltip: 実行中にこのタスクが占有する名前（claims） |
 | `model` (the LLM a session ran on) | model (never "LLM") | モデル |
 | `thinking` (the model's reasoning in a transcript) | reasoning | 思考 |
 | upstream / downstream tasks | earlier tasks / later tasks | 依存先タスク / 後続タスク |

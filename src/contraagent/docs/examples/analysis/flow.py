@@ -6,8 +6,7 @@ parsed by the kind its format needs (CSV or JSON), its top columns are ranked,
 and each column's meaning is proposed and refined until `verify` accepts it.
 One report per bundle, one summary over all of them.
 
-The parsers are tagged `heavy`: `Pipeline(tag_capacity={"heavy": 1})` runs one
-at a time, however many files are ready.
+The parsers claim `heavy`: one runs at a time, however many files are ready.
 """
 
 from __future__ import annotations
@@ -74,7 +73,12 @@ classify = agent_task(
     "classify", instructions="Classify params.file: its format and whether it holds table data.", output=Class, max_turns=6, timeout_s=120
 )
 parse_csv = agent_task(
-    "parse_csv", instructions="Parse the CSV named by params.file into columns.", output=Table, max_turns=10, timeout_s=300, tags=["heavy"]
+    "parse_csv",
+    instructions="Parse the CSV named by params.file into columns.",
+    output=Table,
+    max_turns=10,
+    timeout_s=300,
+    claims=["heavy"],
 )
 parse_json = agent_task(
     "parse_json",
@@ -82,7 +86,7 @@ parse_json = agent_task(
     output=Table,
     max_turns=10,
     timeout_s=300,
-    tags=["heavy"],
+    claims=["heavy"],
 )
 propose = agent_task("propose", instructions="Propose what params.column means.", output=Meaning, max_turns=6, timeout_s=120)
 refine = agent_task("refine", instructions="Revise params.meaning as params.check.note says.", output=Meaning, max_turns=6, timeout_s=120)

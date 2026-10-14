@@ -153,56 +153,28 @@ def starts_of(**options):
     return q, starts
 
 
-def two_tags(overdue_s: float) -> list[str]:
-    """`head` needs two tags; `heavy` is held when it arrives, `net` is free, and three
-    lower `fillers` want `net` (the P1 probe of the scheduling report)."""
-    q, starts = starts_of(max_concurrent=4, tag_capacity={"heavy": 1, "net": 1}, overdue_s=overdue_s)
-    q.add(Task("hold", key="hold", tags=("heavy",), params={"sleep": 0.2}))
+def two_claims(overdue_s: float) -> list[str]:
+    """`head` claims two names; `heavy` is held when it arrives, `net` is free, and three
+    lower `fillers` claim `net` (the P1 probe of the scheduling report)."""
+    q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
+    q.add(Task("hold", key="hold", claims=("heavy",), params={"sleep": 0.2}))
     q.add(Task("kick", key="kick"))
 
     def follow_up(res: TaskResult) -> list[Task]:
         if res.task.key != "kick":
             return []
-        head = Task("head", key="head", tags=("heavy", "net"), estimate_s=5000)
-        return [head] + [Task("filler", key=f"net{i}", tags=("net",), estimate_s=10, params={"sleep": 0.1}) for i in range(3)]
+        head = Task("head", key="head", claims=("heavy", "net"), estimate_s=5000)
+        return [head] + [Task("filler", key=f"net{i}", claims=("net",), estimate_s=10, params={"sleep": 0.1}) for i in range(3)]
 
     q.follow_up = follow_up
     q.run()
     return starts
 
 
-def test_an_overdue_task_that_needs_two_tags_keeps_the_free_one():
-    assert two_tags(overdue_s=0.0) == ["hold", "kick", "head", "net0", "net1", "net2"]
-    starts = two_tags(overdue_s=60.0)  # not overdue yet: greedy, the fillers take `net`
+def test_an_overdue_task_that_claims_two_names_keeps_the_free_one():
+    assert two_claims(overdue_s=0.0) == ["hold", "kick", "head", "net0", "net1", "net2"]
+    starts = two_claims(overdue_s=60.0)  # not overdue yet: greedy, the fillers take `net`
     assert starts.index("net0") < starts.index("head")
-
-
-def one_unit(overdue_s: float) -> list[str]:
-    """`b` waits for unit `u` while tasks of kind `A` keep arriving on it (the P2 probe)."""
-    q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
-    q.add(Task("A", key="a0", unit="u", params={"sleep": 0.1}))
-    # a1 holds the unit until the chain a2..a5 is done: between two of those, no A task would
-    # hold it, and b, with the higher level, would take it however long it waited
-    q.add(Task("A", key="a1", unit="u", params={"sleep": 0.6}))
-    n = [1]
-
-    def follow_up(res: TaskResult) -> list[Task]:
-        out = []
-        if res.task.key == "a0":
-            out.append(Task("B", key="b", unit="u", estimate_s=10_000))
-        if res.task.kind == "A" and n[0] < 5:
-            n[0] += 1
-            out.append(Task("A", key=f"a{n[0]}", unit="u", params={"sleep": 0.1}))
-        return out
-
-    q.follow_up = follow_up
-    q.run()
-    return starts
-
-
-def test_an_overdue_task_of_another_kind_gets_the_unit_once_it_is_free():
-    assert one_unit(overdue_s=0.0)[:3] == ["a0", "a1", "b"]
-    assert one_unit(overdue_s=60.0)[-1] == "b"  # the A tasks keep the unit: b starts last
 
 
 def test_an_overdue_task_of_a_capped_kind_keeps_its_place_under_the_cap():
@@ -213,12 +185,11 @@ def test_an_overdue_task_of_a_capped_kind_keeps_its_place_under_the_cap():
     starts: list[str] = []
     q = WorkQueue(
         Capped(),
-        tag_capacity={"heavy": 1},
         overdue_s=0.0,
         on_event=lambda event, task, **f: starts.append(task.key) if event == "start" else None,
     )
-    q.add(Task("hold", key="hold", tags=("heavy",), estimate_s=5000, params={"sleep": 0.2}))
-    q.add(Task("k", key="head", tags=("heavy",), estimate_s=1000))
+    q.add(Task("hold", key="hold", claims=("heavy",), estimate_s=5000, params={"sleep": 0.2}))
+    q.add(Task("k", key="head", claims=("heavy",), estimate_s=1000))
     q.add(Task("k", key="low", estimate_s=1))
     q.run()
     assert starts == ["hold", "head", "low"]  # `low` would have taken kind k's one place
@@ -281,60 +252,3 @@ class Spans(Runner):
     def overlap(self, a: str, b: str) -> bool:
         (a0, a1), (b0, b1) = self.spans[a], self.spans[b]
         return a0 < b1 and b0 < a1
-
-
-def test_a_task_locks_its_extra_units_against_tasks_of_other_kinds():
-    runner = Spans()
-    q = WorkQueue(runner, max_concurrent=4)
-    q.add(Task("audit", key="audit", unit="alpha", extra_units=("beta",), params={"sleep": 0.2}))
-    q.add(Task("write", key="write-beta", unit="beta", params={"sleep": 0.1}))
-    q.add(Task("write", key="write-alpha", unit="alpha", params={"sleep": 0.1}))
-    q.add(Task("write", key="write-gamma", unit="gamma", params={"sleep": 0.1}))
-    q.run()
-    assert not runner.overlap("audit", "write-beta") and not runner.overlap("audit", "write-alpha")
-    assert runner.overlap("audit", "write-gamma")
-
-
-def test_a_task_waits_for_another_kind_holding_one_of_its_extra_units():
-    runner = Spans()
-    q = WorkQueue(runner, max_concurrent=4)
-    q.add(Task("write", key="write-beta", unit="beta", params={"sleep": 0.2}))
-    q.add(Task("audit", key="audit", unit="alpha", extra_units=("beta",), params={"sleep": 0.1}))
-    q.run()
-    assert runner.launched == ["write-beta", "audit"] and not runner.overlap("audit", "write-beta")
-    assert q._running_unit_kind == {} and q._running_unit_count == {}  # every unit released
-
-
-def test_tasks_of_one_kind_share_their_extra_units():
-    runner = Spans()
-    q = WorkQueue(runner, max_concurrent=4)
-    q.add(Task("audit", key="a-b", unit="alpha", extra_units=("beta",), params={"sleep": 0.2}))
-    q.add(Task("audit", key="b-c", unit="beta", extra_units=("gamma",), params={"sleep": 0.2}))
-    q.run()
-    assert runner.overlap("a-b", "b-c")
-
-
-def test_an_overdue_task_gets_its_extra_unit_once_it_is_free():
-    """`audit` (unit `x`, extra unit `u`) waits while tasks of kind `A` keep arriving on `u`."""
-
-    def order(overdue_s: float) -> list[str]:
-        q, starts = starts_of(max_concurrent=4, overdue_s=overdue_s)
-        q.add(Task("A", key="a0", unit="u", params={"sleep": 0.1}))
-        q.add(Task("A", key="a1", unit="u", params={"sleep": 0.6}))
-        n = [1]
-
-        def follow_up(res: TaskResult) -> list[Task]:
-            out = []
-            if res.task.key == "a0":
-                out.append(Task("audit", key="audit", unit="x", extra_units=("u",), estimate_s=10_000))
-            if res.task.kind == "A" and n[0] < 5:
-                n[0] += 1
-                out.append(Task("A", key=f"a{n[0]}", unit="u", params={"sleep": 0.1}))
-            return out
-
-        q.follow_up = follow_up
-        q.run()
-        return starts
-
-    assert order(overdue_s=0.0)[:3] == ["a0", "a1", "audit"]
-    assert order(overdue_s=60.0)[-1] == "audit"

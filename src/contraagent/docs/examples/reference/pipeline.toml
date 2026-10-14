@@ -15,12 +15,12 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
 # max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
 
-# How many running tasks may hold each tag (agent_task(tags=...)), by its name or an fnmatch
-# pattern that gives each tag it matches a capacity of its own. Pipeline(tag_capacity=)
-# outranks it key by key; a tag that no entry names has no limit.
-[defaults.tag_capacity]
-"topic:*" = 1                       # tags=["topic:{unit}"]: one task at a time on each topic
-heavy = 2                           # tags=["heavy"]: two at a time across the run
+# How many running tasks may hold each claimed name (agent_task(claims=...)) at once, by the
+# name or an fnmatch pattern that gives each name it matches a capacity of its own.
+# Pipeline(claim_capacity=) outranks it key by key; a name that no entry gives: one at a time.
+[defaults.claim_capacity]
+"heavy:*" = 2                       # claims=["heavy:{kind}"]: two at a time of each kind
+gpu = 4                             # claims=["gpu"]: four at a time across the run
 
 # The failover chain every kind without its own shares; block order is hop order.
 [[defaults.fallbacks]]

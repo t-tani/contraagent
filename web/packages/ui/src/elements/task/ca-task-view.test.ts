@@ -65,20 +65,19 @@ async function view(props: Partial<CaTaskView>): Promise<CaTaskView> {
 const root = (el: CaTaskView) => el.shadowRoot!;
 
 describe('ca-task-view', () => {
-  it('shows the extra units the task locks and the tags it holds', async () => {
+  it('shows the names the task claims as its locks', async () => {
     const node = {
-      key: 'review-a', kind: 'review', unit: 'a', extra_units: ['b'], tags: ['topic:a', 'topic:b'], after: [],
+      key: 'review-a', kind: 'review', unit: 'a', claims: ['topic:a', 'topic:b'], after: [],
       executor: 'agent', flow: [], created_from: [], flow_call: '0', ts: '', state: 'done', group: 0, row: 0,
     };
     const plan = { nodes: [node], groups: [] } as unknown as Plan;
     const { client } = fakeClient({ 'review-a': review });
     const el = await view({ client, taskKey: 'review-a', plan });
     const metas = [...root(el).querySelectorAll('.taskmeta .meta')];
-    const tags = metas.find((m) => text(m).startsWith('Tags'));
-    expect(text(tags)).toBe('Tags topic:atopic:b');
-    expect([...tags!.children].map(text)).toEqual(['topic:a', 'topic:b']);
-    expect(tags!.getAttribute('title')).toBe('Resources this task holds while it runs (tags)');
-    expect(metas.some((m) => text(m) === 'Also locks b')).toBe(true);
+    const locks = metas.find((m) => text(m).startsWith('Locks'));
+    expect(text(locks)).toBe('Locks topic:atopic:b');
+    expect([...locks!.children].map(text)).toEqual(['topic:a', 'topic:b']);
+    expect(locks!.getAttribute('title')).toBe('Names this task holds while it runs (claims)');
     el.remove();
   });
 

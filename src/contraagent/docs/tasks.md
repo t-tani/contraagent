@@ -204,46 +204,44 @@ columns and, inside that, revises each until `verify` accepts it.
 
 ::code{file="examples/analysis/flow.py" from="def analyse("}
 
-The parsers carry `tags=["heavy"]`; `Pipeline(tag_capacity={"heavy": 1})` runs
-one at a time. The monitor draws each flow call as a node that opens its own
+The parsers claim `heavy` (`claims=["heavy"]`), so one runs at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
 
-## Units and locks
+## Claims: one task at a time on a name
 
-A task's unit is also its lock: tasks of different kinds on one unit never run at
-the same time, and tasks of one kind on one unit may. A task that reads or changes
-more than its own unit names the others at its call, `extra_units=[...]`. It locks
-them as it locks its unit; its key, its output file and its place in the monitor
-stay its own unit's.
+Tasks run together unless something keeps them apart: their kind and their
+unit lock nothing. A task that must have something to itself while it runs, a
+topic's file, a heavy tool, claims it by name: `claims=[...]` on its
+declaration. One task at a time holds a name, whatever its kind and wherever
+the flow created it; a task that claims nothing runs beside any other.
 
-::code{file="examples/units/flow.py" from="def topics("}
+A claim is a template, filled in when the task is created: `{unit}`, `{key}`
+and `{kind}` as in `output_name`, and `{params.<name>}`, a parameter of the
+task call. A parameter that holds a list gives one name per element, so a task
+over several topics claims each of them.
 
-A `compare` of `alpha` and `beta` waits while a `write` of either runs, and no
-`write` of them starts while it runs. Two `compare` tasks may share a topic: they are
-one kind. `extra_units` is not part of the fingerprint, since it changes when a task
-runs, not what it does. An extra unit that is the task's own unit, or one named
-twice, raises at the task call.
+::code{file="examples/claims/flow.py" from="style = agent_task(" to="def topics("}
 
-### Tags: one task at a time on a resource
+::code{file="examples/claims/flow.py" from="def topics("}
 
-The unit lock leaves tasks of one kind free to share a unit. When they must not,
-or when tasks of any kind share something that is not a unit, give their kinds a
-tag and the tag a capacity. A tag is a template, filled in like `output_name`
-(`{unit}`, `{key}`, `{kind}`), and a tag that names `{unit}` is held once per unit
-the task locks, its extra units included. A `tag_capacity` key is a tag's name or
-an `fnmatch` pattern: `{"topic:*": 1}` gives every `topic:` tag a capacity of 1,
-each its own, so each topic is written by one task at a time and two topics by two.
-A tag's name outranks a pattern, and the longest matching pattern outranks the
-others; a tag that no entry names has no limit. The config holds them as
-`[defaults.tag_capacity]`, and `Pipeline(tag_capacity=)` outranks it key by key.
+No two of `style`, `terms` and `merge` write one topic at once; `merge` names both
+topics and claims both, so it waits while a write of either runs. `triage` claims
+nothing and runs beside the writes of its topic. Two topics are two names, so their
+writes run together.
 
-::code{file="examples/tags/flow.py" from="draft = agent_task(" to="def pipeline("}
+`claim_capacity` lets more than one task hold a name: a key is a name or an
+`fnmatch` pattern, and a pattern gives each name it matches a capacity of its own
+(`{"heavy:*": 2}`: two tasks at a time on each `heavy:` name). A name's own entry
+outranks a pattern, and the longest matching pattern outranks the others; a
+capacity of 0 starts no task that claims the name. The config holds them as
+`[defaults.claim_capacity]`, and `Pipeline(claim_capacity=)` outranks it key by
+key.
 
-No two of `draft`, `fix-<topic>-style` and `fix-<topic>-terms` write a topic at
-once; the two `triage` tasks of a topic hold no tag and run together. A tag that
-names `{unit}` on a task with no unit raises at the task call. Tags are not part of
-the fingerprint. The plan records each task's tags, and the monitor shows them in
-the task's detail.
+A claim that names `{unit}` on a task with no unit, or a parameter the call does
+not give, raises at the task call; so does a parameter that is an output not
+received yet (yield it first). Claims are not part of the fingerprint: they change
+when a task runs, not what it does. The plan records each task's claims, and the
+monitor shows them in the task's detail.
 
 ## Files a task changes
 
@@ -257,7 +255,7 @@ directories it created for them (`removed`). A modified file is not restored.
 
 A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
-in the pattern, or keep them from running at once (one unit, a tag).
+in the pattern, or keep them from running at once (a claim).
 
 `Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of an agent task.
 A scope (`TaskScope`) is a context manager around it, every hop included; an
@@ -289,7 +287,7 @@ and receive `TaskResult`s.
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
-| `WorkQueue` | per-unit locks (a task's unit and its extra units), caps, tags, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
 | `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |

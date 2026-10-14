@@ -11,7 +11,7 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `docs/`       the documentation, installed with the package: Markdown topics and the
                 examples they quote; `contraagent docs`
 * `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
-                `WorkQueue` (locks, caps, retry, throttle, deadline, bottom level)
+                `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level)
                 and `FlowDriver` (generator flows over it); `make_python_task`
 * `backends/`   one coding-agent CLI behind `Backend`: one `Launch` in, one `LaunchResult` out
 * `contracts`   `OutputContract`/`InputContract`: files checked by pydantic and

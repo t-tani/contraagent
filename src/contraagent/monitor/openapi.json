@@ -2303,21 +2303,13 @@
             "title": "Unit",
             "default": ""
           },
-          "extra_units": {
+          "claims": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Extra Units",
-            "description": "further units it locks while it runs, besides `unit`"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags",
-            "description": "the tags it holds while it runs, its kind's templates filled in"
+            "title": "Claims",
+            "description": "the names it holds while it runs, its kind's `claims` filled in"
           },
           "after": {
             "items": {
