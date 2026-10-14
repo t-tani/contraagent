@@ -194,6 +194,8 @@ class Monitor:
         self.group_defs = list(groups or [])
         self.keep_digests = keep_digests
         self._digests: dict[str, tuple[dict, dict]] = {}  # run -> (signature, digest)
+        self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
+        self._trends: tuple[tuple, dict] | None = None  # the last trends, and what they were made of
 
     def check_run(self, run: str) -> str:
         """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
@@ -786,9 +788,15 @@ class Monitor:
         """What the runs of `period` add up to (`monitor.trends`), with the same numbers as
         panel bodies (`bodies`) and the trend panels on offer (`panels`). `run_group` keeps
         the runs of one group; stub runs count only with `stub`."""
-        digests = [d for d in self._period_digests(period) if (not run_group or d["run_group"] == run_group) and (stub or not d["stub"])]
-        view = trends.aggregate(digests, period, self._group_of())
-        return {
+        held = self._period_digests(period)
+        groups = self._group_of()
+        # The same period over the same runs, as they were: the same trends (a page asks again and again).
+        made_of = (period, run_group, stub, tuple(sorted(groups.items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
+        if self._trends is not None and self._trends[0] == made_of:
+            return self._trends[1]
+        digests = [dg for _, _, dg in held if (not run_group or dg["run_group"] == run_group) and (stub or not dg["stub"])]
+        view = trends.aggregate(digests, period, groups)
+        out = {
             **view,
             "bodies": trends.bodies(view),
             "panels": [
@@ -797,6 +805,8 @@ class Monitor:
                 if _scope(p) == "trends"
             ],
         }
+        self._trends = (made_of, out)
+        return out
 
     def trend_panel(self, name: str, period: Period, *, run_group: str = "") -> dict:
         """A trend panel's body: its `fn(runs, period)` over the runs of `period`, newest
@@ -804,42 +814,52 @@ class Monitor:
         panel = self.panels.get(name)
         if panel is None or _scope(panel) != "trends":
             raise KeyError(name)
-        runs = [r["run"] for r in self.trends(period, run_group=run_group)["runs"]]
+        runs = [r["run"] for r in self.trends(period, run_group=run_group)["runs"]]  # newest first
         return panel.fn(runs, period)  # type: ignore[call-arg]
 
     def _group_of(self) -> dict[str, str]:
         """Kind -> the label of the group it is in (`groups`); a kind in none is its own."""
         return {k: g.get("label") or g.get("id") or k for g in self.group_defs for k in g.get("kinds") or ()}
 
-    def _period_digests(self, period: Period) -> list[dict]:
-        """The digests of the runs that may have worked in `period` (by `run.json`)."""
+    def _period_digests(self, period: Period) -> list[tuple[str, dict, dict]]:
+        """The runs that may have worked in `period` (by `run.json`), with their signatures
+        and digests."""
         out = []
-        live = self.liveness.live()
+        live: set[str] | None = None
+
+        def is_live(run: str) -> bool:  # only for a digest made now: it scans the processes
+            nonlocal live
+            if live is None:
+                live = self.liveness.live()
+            return run in live
+
         for run in self.source.runs():
-            info = self.source.info(run) or {}
+            info, sig = trends.run_files(self.source, run, self._infos)
             if trends.in_period(info, period):
-                out.append(self.digest(run, live=run in live))
+                out.append((run, sig, self._digest(run, sig, is_live)))
         return out
 
-    def digest(self, run: str, *, live: bool | None = None) -> dict:
+    def digest(self, run: str) -> dict:
         """Run `run`'s trends digest (`trends.digest`): from memory while its logs are the
         same, else from its `trends.json` when that was made from these logs, else from the
-        logs (then kept: in memory, and in the directory of a finished run)."""
-        sig = trends.signature(self.source, run)
+        logs (then kept: in memory, and in the directory of a finished run that is not live)."""
+        return self._digest(run, trends.run_files(self.source, run, self._infos)[1], lambda r: r in self.liveness.live())
+
+    def _digest(self, run: str, sig: dict, is_live: Callable[[str], bool]) -> dict:
         held = self._digests.get(run)
         if held is not None and held[0] == sig:
             return held[1]
         kept = self._kept_digest(run, sig)
-        dg = kept if kept is not None else trends.digest(self.source, run)
-        if kept is None:
-            self._keep_digest(run, sig, dg, live=run in self.liveness.live() if live is None else live)
+        dg = trends.restore(kept) if kept is not None else trends.digest(self.source, run)
+        if kept is None and sig.get("finished_at") and not is_live(run):
+            self._keep_digest(run, sig, trends.kept_form(dg))
         self._digests[run] = (sig, dg)
         return dg
 
     def _digest_path(self, run: str) -> Path | None:
         if not self.keep_digests or not isinstance(self.source, DirectorySource):
             return None
-        return self.source.path(run, rundir.TRENDS)
+        return Path(trends.run_dir(self.source, run)) / rundir.TRENDS
 
     def _kept_digest(self, run: str, sig: dict) -> dict | None:
         path = self._digest_path(run)
@@ -853,11 +873,11 @@ class Monitor:
             return None
         return kept["digest"]
 
-    def _keep_digest(self, run: str, sig: dict, dg: dict, *, live: bool) -> None:
-        """Write the digest of a finished run that is not live; best effort (a read-only
-        runs directory keeps it in memory only)."""
+    def _keep_digest(self, run: str, sig: dict, dg: dict) -> None:
+        """Write a digest to the run's `trends.json`; best effort (a read-only runs directory
+        keeps it in memory only)."""
         path = self._digest_path(run)
-        if path is None or not sig.get("finished_at") or live:
+        if path is None:
             return
         try:
             rundir.write_document(path, json.dumps({"signature": sig, "digest": dg}))

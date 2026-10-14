@@ -223,18 +223,15 @@ class TrendDenial(Closed):
     kinds: dict[str, int]
 
 
-class TrendQuotaPoint(Closed):
-    at: str
-    pct: float
-
-
 class TrendQuota(Closed):
-    """One account's utilization of one window over the period: each day's highest reading, and every reading."""
+    """One account's utilization of one window over the period: each day's and each hour's highest reading."""
 
     credential: str
     window: Literal["five_hour", "seven_day"]
     daily_peak: list[float | None] = Field(description="per day of `period.days`; null when no reading arrived that day")
-    points: list[TrendQuotaPoint]
+    hourly_peak: list[float | None] = Field(
+        description="per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
+    )
 
 
 class TrendRest(Open):

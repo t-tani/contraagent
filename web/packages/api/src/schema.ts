@@ -2171,7 +2171,7 @@ export type components = {
         };
         /**
          * TrendQuota
-         * @description One account's utilization of one window over the period: each day's highest reading, and every reading.
+         * @description One account's utilization of one window over the period: each day's and each hour's highest reading.
          */
         TrendQuota: {
             /** Credential */
@@ -2186,15 +2186,11 @@ export type components = {
              * @description per day of `period.days`; null when no reading arrived that day
              */
             daily_peak: (number | null)[];
-            /** Points */
-            points: components["schemas"]["TrendQuotaPoint"][];
-        };
-        /** TrendQuotaPoint */
-        TrendQuotaPoint: {
-            /** At */
-            at: string;
-            /** Pct */
-            pct: number;
+            /**
+             * Hourly Peak
+             * @description per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it
+             */
+            hourly_peak: (number | null)[];
         };
         /**
          * TrendRest

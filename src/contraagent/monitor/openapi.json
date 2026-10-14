@@ -4490,12 +4490,20 @@
             "title": "Daily Peak",
             "description": "per day of `period.days`; null when no reading arrived that day"
           },
-          "points": {
+          "hourly_peak": {
             "items": {
-              "$ref": "#/components/schemas/TrendQuotaPoint"
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": "array",
-            "title": "Points"
+            "title": "Hourly Peak",
+            "description": "per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
           }
         },
         "additionalProperties": false,
@@ -4504,29 +4512,10 @@
           "credential",
           "window",
           "daily_peak",
-          "points"
+          "hourly_peak"
         ],
         "title": "TrendQuota",
-        "description": "One account's utilization of one window over the period: each day's highest reading, and every reading."
-      },
-      "TrendQuotaPoint": {
-        "properties": {
-          "at": {
-            "type": "string",
-            "title": "At"
-          },
-          "pct": {
-            "type": "number",
-            "title": "Pct"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "at",
-          "pct"
-        ],
-        "title": "TrendQuotaPoint"
+        "description": "One account's utilization of one window over the period: each day's and each hour's highest reading."
       },
       "TrendRest": {
         "properties": {

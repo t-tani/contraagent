@@ -175,7 +175,10 @@ def test_failures_refusals_utilization_rests_deferrals_and_starts(runs):
     assert [(s["stop"], s["attempts"]) for s in v["stops"]] == [("completed", 6), ("timeout", 1)]
     assert {d["tool"]: d["kinds"] for d in v["denials"]} == {"Bash": {"write": 1}, "WebFetch": {"write": 1}}
     five = next(q for q in v["quota"] if q["window"] == "five_hour")
-    assert five["credential"] == "sub" and five["daily_peak"] == [None, 55, None] and len(five["points"]) == 2
+    assert five["credential"] == "sub" and five["daily_peak"] == [None, 55, None]
+    # Hours from Oct 1 00:00 in Tokyo (Sep 30 15:00 UTC): 03:00 and 04:00 UTC on Oct 2 are hours 36 and 37.
+    hourly = five["hourly_peak"]
+    assert len(hourly) == 72 and (hourly[36], hourly[37]) == (40, 55) and sum(p is not None for p in hourly) == 2
     assert [r["credential"] for r in v["rests"]] == ["sub"] and v["rests"][0]["run"] == "r1"
     assert v["deferred_causes"] == {"rest": 1} and v["deferred"][0]["key"] == "write-c"
     # r1 started 09:00 UTC = 18:00 Thursday in Tokyo; r2 11:00 UTC = 20:00 Friday.
@@ -275,6 +278,113 @@ def test_hundreds_of_runs_are_summed_quickly_and_read_back_without_their_logs(tm
     assert Monitor(root).trends(period) == v  # a new monitor: every digest from trends.json
 
 
+def same(a, b, where="") -> None:
+    """`a` equals `b`, numbers to 1e-6 (sums made in another order round apart in the last digit)."""
+    if isinstance(a, float) or isinstance(b, float):
+        assert a == pytest.approx(b, rel=1e-9, abs=1e-6), where
+    elif isinstance(a, dict):
+        assert isinstance(b, dict) and a.keys() == b.keys(), (where, a.keys(), b.keys() if isinstance(b, dict) else b)
+        for k in a:
+            same(a[k], b[k], f"{where}.{k}")
+    elif isinstance(a, list):
+        assert isinstance(b, list) and len(a) == len(b), (where, len(a), len(b) if isinstance(b, list) else b)
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
+            same(x, y, f"{where}[{i}]")
+    else:
+        assert a == b, (where, a, b)
+
+
+def many_runs(root: Path, seed: int = 7) -> None:
+    """Runs over Oct 30 .. Nov 2, 2026 (New York leaves daylight saving time on Nov 1), with
+    retries across slots, two models, reports with no cost, readings and refused calls."""
+    import random
+
+    rnd = random.Random(seed)
+    for i in range(8):
+        start = 1793318400 + i * 9 * 3600 + rnd.randrange(3600)  # 2026-10-30T00:00Z + i * 9 h
+        rows, launches, t = [], [], start
+        for _ in range(30):
+            t += rnd.randrange(60, 2400)
+            ts = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(t))
+            kind = rnd.choice(["write", "research", "classify", "report"])
+            key = f"{kind}-u{rnd.randrange(8)}"
+            stop = rnd.choice(["completed"] * 5 + ["timeout", "invalid_output"])
+            hops = [
+                {
+                    "agent": a,
+                    "model": m,
+                    "cost_usd": round(rnd.random() / 10, 6),
+                    "wall_s": round(rnd.random() * 90, 1),
+                    "usage": {"input": rnd.randrange(900), "output": rnd.randrange(90), "calls": 1},
+                }
+                for a, m in rnd.sample([("claude", "sonnet"), ("omp", "glm"), ("claude", "haiku")], rnd.choice([1, 1, 2]))
+            ]
+            quota = (
+                [
+                    {
+                        "observed_at": ts,
+                        "credential": rnd.choice(["sub", "team"]),
+                        "five_hour_pct": rnd.randrange(100),
+                        "seven_day_pct": rnd.randrange(100),
+                    }
+                ]
+                if rnd.random() < 0.4
+                else []
+            )
+            executor = "python" if kind == "report" else "agent"
+            rows.append(
+                {
+                    **row(
+                        ts,
+                        key,
+                        kind,
+                        ok=stop == "completed",
+                        stop=stop,
+                        wall=round(rnd.random() * 120, 1),
+                        cost=round(rnd.random() / 5, 6),
+                        hops=hops,
+                        quota=quota,
+                        executor=executor,
+                        tokens=rnd.randrange(5000),
+                    )
+                }
+            )
+            if rnd.random() < 0.2:
+                launches.append({"ts": ts, "label": key, "denied": [{"tool": rnd.choice(["Bash", "WebFetch"]), "input": "{}"}]})
+        fmt = "%Y-%m-%dT%H:%M:%S+00:00"
+        write_run(
+            root,
+            f"run{i}",
+            rows,
+            started=time.strftime(fmt, time.gmtime(start)),
+            finished=time.strftime(fmt, time.gmtime(t + 60)),
+            launches=launches,
+        )
+
+
+@pytest.mark.parametrize(
+    "start,end,tz",
+    [
+        ("2026-10-30", "2026-11-03", "UTC"),
+        ("2026-10-30", "2026-11-03", "Asia/Kolkata"),  # +05:30
+        ("2026-10-31", "2026-11-01", "Asia/Kathmandu"),  # +05:45; cuts runs at both ends
+        ("2026-10-30", "2026-11-03", "America/New_York"),  # Nov 1 has 25 hours
+        ("2026-11-01", "2026-11-01", "America/New_York"),
+    ],
+)
+def test_slot_digests_sum_to_what_the_attempts_sum_to(tmp_path, start, end, tz):
+    import trends_reference as reference
+    from contraagent.monitor import trends
+
+    many_runs(tmp_path)
+    source = DirectorySource(tmp_path)
+    groups = {"classify": "Judging", "research": "Judging"}
+    got = trends.aggregate([trends.digest(source, r) for r in source.runs()], Period.parse(start, end, tz), groups)
+    want = reference.aggregate([reference.digest(source, r) for r in source.runs()], reference.Period.parse(start, end, tz), groups)
+    assert got["totals"]["attempts"] > 0 and any(q["hourly_peak"] for q in got["quota"])
+    same(got, want)
+
+
 def test_a_source_other_than_a_directory_is_summed_the_same_and_keeps_nothing_on_disk(runs, tmp_path):
     from contraagent.monitor.source import MemorySource
 
@@ -288,3 +398,51 @@ def test_a_source_other_than_a_directory_is_summed_the_same_and_keeps_nothing_on
     hub_like = Monitor(tmp_path / "nowhere", source=MemorySource(records))
     assert hub_like.trends(utc()) == Monitor(runs).trends(utc())
     assert not (tmp_path / "nowhere").exists()
+
+
+@pytest.mark.perf
+def test_thirty_days_of_hourly_runs_sum_within_their_budgets(tmp_path):
+    """720 runs (one an hour for 30 days) of 421 attempts each, one journal hard-linked into
+    every run: a cold call once, then within budget: again over the same runs (reused), over
+    another period and time zone (summed again), and from the digests a new monitor reads back."""
+    import os
+    import random
+
+    rnd = random.Random(3)
+    base = 1789862400  # 2026-09-20T00:00Z
+    journal = tmp_path / "journal.jsonl"
+    rows = []
+    for j in range(421):
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(base + 30 * j))
+        kind = rnd.choice(["writer", "researcher", "triage", "lint_fixer", "jp_reviewer", "classify"])
+        reading = {"observed_at": ts, "credential": "sub", "five_hour_pct": rnd.randrange(100), "seven_day_pct": 98}
+        wall, cost = round(rnd.random() * 90, 1), round(rnd.random() / 10, 6)
+        rows.append(row(ts, f"{kind}-u{j}", kind, wall=wall, cost=cost, tokens=rnd.randrange(9000), quota=[reading]))
+    journal.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    root = tmp_path / "runs"
+    for i in range(720):
+        d = root / f"cycle-{i:04d}"
+        d.mkdir(parents=True)
+        os.link(journal, d / "journal.jsonl")
+        started = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(base - 30 * 86400 + 3600 * i))
+        (d / "run.json").write_text(json.dumps({"run_id": d.name, "started_at": started, "finished_at": started}))
+    p30 = Period.parse("2026-08-21", "2026-09-20", "Asia/Tokyo")
+    p29 = Period.parse("2026-08-22", "2026-09-20", "Asia/Kolkata")
+
+    def timed(fn):
+        t0 = time.perf_counter()
+        v = fn()
+        return v, time.perf_counter() - t0
+
+    m = Monitor(root)
+    view, cold = timed(lambda: m.trends(p30))
+    _, again = timed(lambda: m.trends(p30))
+    _, other = timed(lambda: m.trends(p29))
+    _, disk = timed(lambda: Monitor(root).trends(p30))
+    size = len(json.dumps(view))
+    print(
+        f"\n  720 runs, {view['totals']['attempts']} attempts: cold {cold:.1f} s | same period {again * 1000:.0f} ms"
+        f" | another period {other * 1000:.0f} ms | a new monitor from disk {disk * 1000:.0f} ms | response {size // 1024} KiB"
+    )
+    assert view["totals"]["attempts"] == 720 * 421 and len(view["runs"]) == 720
+    assert again < 0.3 and other < 0.3 and disk < 1.5 and size < 300_000

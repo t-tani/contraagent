@@ -8,33 +8,43 @@ each account's utilization, the rests and deferrals, and when runs start.
 
 It works in two steps, so that any period, time zone or grouping costs little:
 
-* `digest(source, run)`: the few fields of a run's logs the trends need (one per
-  journal row, utilization reading, refused tool call, rest and deferral). A
-  digest depends only on the run's files, so it is kept: in memory, keyed by the
-  run's `signature`, and, for a finished run in a runs directory, in the run's
-  `trends.json` (`rundir.TRENDS`), so a restarted monitor reads it back.
+* `digest(source, run)`: what a run did, summed by 15-minute slot of UTC (`SLOT_S`):
+  per kind its attempts, passes, time, cost, tokens and outcomes, with every wall time,
+  so a median stays exact; per model its spend; each account's
+  highest reading. Every time zone's offset is a multiple of 15 minutes, so a slot
+  lies in one day and one hour of any period: a digest answers any period exactly. It
+  depends only on the run's files, so it is kept: in memory, keyed by the run's
+  `signature`, and, for a finished run in a runs directory, in the run's `trends.json`
+  (`rundir.TRENDS`), so a restarted monitor reads it back.
 * `aggregate(digests, period, groups)`: the trends of a period over digests,
   with `bodies(view)`, the same numbers as panel bodies (`{"type": "blocks", ...}`)
   for a page that draws them without words of its own.
 
 A journal row counts on the day of its `ts` (when the attempt ended) in the
-period's time zone; a reading on the day it was received; a run start on the
-day and hour of `run.json`'s `started_at` (the latest start of a resumed run).
+period's time zone; a reading on the day and the hour it was received (each day's
+and each hour's highest, not every reading); a run start on the day and hour of
+`run.json`'s `started_at` (the latest start of a resumed run).
 """
 
 from __future__ import annotations
 
 import json
-import statistics
+import os
+import stat
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from contraagent import rundir
+from contraagent.monitor import paths
+from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 1
+DIGEST_VERSION = 6
+
+#: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
+BODY_RUNS = 50
 
 #: The longest period, in days.
 MAX_DAYS = 366
@@ -140,15 +150,62 @@ def _parse(lines: Iterable[str]) -> list[dict]:
 
 # --- a run's digest --------------------------------------------------------------------
 
+#: A digest's time unit: 15 minutes of UTC. Every time zone's offset is a multiple of it,
+#: so a slot lies in one day and one hour of any period's time zone.
+SLOT_S = 900
 
-def signature(source, run: str) -> dict:
-    """What a run's digest depends on: its logs' sizes, and when it started and finished."""
-    info = source.info(run) or {}
-    return {
-        **{log: source.size(run, log) for log in DIGEST_LOGS},
-        "started_at": info.get("started_at", ""),
-        "finished_at": info.get("finished_at", ""),
-    }
+
+def _slot(ts: object) -> int | None:
+    t = when(ts)
+    return int(t.timestamp() // SLOT_S) if t is not None else None
+
+
+def run_dir(source: DirectorySource, run: str) -> str:
+    """The run's directory, checked: a plain name that is no symbolic link, under the runs
+    directory (which `DirectorySource` resolved), is inside it, one `lstat` for what
+    `source.path` (every part resolved) would say; a link takes that full check."""
+    base = os.path.join(source.root, paths.check_name(run, "run id"))
+    try:
+        if not stat.S_ISLNK(os.lstat(base).st_mode):
+            return base
+    except OSError:
+        pass
+    return str(source.path(run))
+
+
+def run_files(source, run: str, infos: dict | None = None) -> tuple[dict, dict]:
+    """A run's `run.json` and its `signature`: what its digest depends on (its logs' sizes,
+    and when it started and finished). In a runs directory the run's directory is checked
+    once, and `run.json` and each log are opened by name in it, not each path checked
+    again: a period over hundreds of runs asks for thousands. `infos` keeps each run's
+    `run.json` by its `stat`, so an unchanged one is not read again."""
+    if isinstance(source, DirectorySource):
+        base = run_dir(source, run)
+        info = None
+        try:
+            path = os.path.join(base, rundir.RUN_INFO)
+            st = os.stat(path)
+            held = (infos or {}).get(run)
+            if held is not None and held[0] == (st.st_mtime_ns, st.st_size):
+                info = held[1]
+            else:
+                with open(path, encoding="utf-8") as f:
+                    info = json.loads(f.read())
+                if infos is not None:
+                    infos[run] = ((st.st_mtime_ns, st.st_size), info)
+        except (OSError, ValueError):
+            pass
+        sizes = {}
+        for log in DIGEST_LOGS:
+            try:
+                sizes[log] = os.stat(os.path.join(base, log)).st_size
+            except OSError:
+                sizes[log] = -1
+    else:
+        info = source.info(run)
+        sizes = {log: source.size(run, log) for log in DIGEST_LOGS}
+    info = info if isinstance(info, dict) else {}
+    return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
 
 
 def _usage(v: object) -> dict | None:
@@ -158,53 +215,107 @@ def _usage(v: object) -> dict | None:
 
 
 def digest(source, run: str) -> dict:
-    """The fields of run `run`'s logs the trends need (see the module docstring)."""
+    """What a run did, by 15-minute slot of UTC (`SLOT_S`), as much as its trends need.
+
+    `slots`: `[slot, {"last_ts", "kinds": {kind: {n, ok, wall, cost, tokens, stops, walls}},
+    "models": [...]}]`, oldest first: per kind its attempts, how many passed, their wall
+    time, cost (null when none reported one), tokens (`_TOKENS` order), outcomes, and their
+    wall times, sorted (a median over a period stays exact, and joining runs is a list's
+    `extend` and one sort); per model what its hops spent (`model_usage`, in order of first use).
+    `kinds`: per kind its executor, and its tasks and the tasks whose last attempt passed,
+    over the whole run; `tasks`: per kind, per task, its attempts as `slot, ok, slot, ok ...`
+    (each slot counted from `span[0]`; the last attempt of a slot), for a period that cuts
+    the run. `span`: the first and last slot
+    of an attempt; `total`: the slots summed, in the same shape, for a period that holds
+    the whole run within one of its days (most runs: a period then adds one entry per run,
+    not one per slot). `quota`: `[slot, credential, window, highest pct]`; `denied`: `[slot,
+    tool, kind, count]`; `rests` and `deferred`: their rows."""
+    from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
+
     info = source.info(run) or {}
-    rows = []
-    kinds: dict[str, str] = {}
-    quota = []
+    slots: dict[int, dict] = {}
+    rows_of: dict[int, list[dict]] = {}
+    kinds: dict[str, dict] = {}
+    key_kind: dict[str, str] = {}
+    attempts: dict[str, dict[str, list[int]]] = {}
+    peaks: dict[tuple[int, str, str], float] = {}
     for e in _parse(source.lines(run, rundir.JOURNAL)[0]):
-        kinds[str(e.get("key", ""))] = str(e.get("kind", "?"))
-        rows.append(
-            {
-                "ts": e.get("ts", ""),
-                "key": e.get("key", ""),
-                "kind": e.get("kind", "?"),
-                "executor": e.get("executor") or "agent",
-                "agent": e.get("agent", ""),
-                "ok": bool(e.get("ok")),
-                "stop": str(e.get("stop", "")),
-                "wall_s": _num(e.get("wall_s")) or 0.0,
-                "cost_usd": _num(e.get("cost_usd")),
-                "usage": _usage(e.get("usage")),
-                "hops": [
-                    {
-                        "agent": h.get("agent", ""),
-                        "model": h.get("model", ""),
-                        "cost_usd": _num(h.get("cost_usd")),
-                        "wall_s": _num(h.get("wall_s")) or 0.0,
-                        "usage": _usage(h.get("usage")),
-                    }
-                    for h in e.get("hops") or ()
-                    if isinstance(h, dict)
-                ],
-            }
-        )
+        key, kind = str(e.get("key", "")), str(e.get("kind", "?"))
+        key_kind[key] = kind
+        slot = _slot(e.get("ts"))
         for q in e.get("quota") or ():
-            if isinstance(q, dict) and q.get("observed_at"):
-                quota.append(
-                    {
-                        "observed_at": q["observed_at"],
-                        "credential": q.get("credential", ""),
-                        **{f"{w}_pct": _num(q.get(f"{w}_pct")) for w in _WINDOWS},
-                    }
-                )
-    denied = []
+            qs = _slot(q.get("observed_at")) if isinstance(q, dict) else None
+            if qs is None:
+                continue
+            for w in _WINDOWS:
+                pct = _num(q.get(f"{w}_pct"))
+                if pct is not None:
+                    at = (qs, str(q.get("credential", "")), w)
+                    peaks[at] = max(peaks.get(at, 0.0), pct)
+        if slot is None:
+            continue
+        ok, wall, cost, usage = bool(e.get("ok")), _num(e.get("wall_s")) or 0.0, _num(e.get("cost_usd")), _usage(e.get("usage"))
+        executor = e.get("executor") or "agent"
+        s = slots.setdefault(slot, {"last_ts": "", "kinds": {}})
+        s["last_ts"] = max(s["last_ts"], str(e.get("ts", "")))
+        k = s["kinds"].setdefault(
+            kind, {"n": 0, "ok": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+        )
+        k["n"] += 1
+        k["ok"] += ok
+        k["wall"] += wall
+        if cost is not None:
+            k["cost"] = (k["cost"] or 0.0) + cost
+        for i, name in enumerate(_TOKENS):
+            k["tokens"][i] += int((usage or {}).get(name, 0))
+        stop = str(e.get("stop", ""))
+        k["stops"][stop] = k["stops"].get(stop, 0) + 1
+        k["walls"].append(wall)
+        kinds.setdefault(kind, {"executor": executor, "tasks": 0, "tasks_ok": 0})
+        pairs = attempts.setdefault(kind, {}).setdefault(key, [])
+        if pairs and pairs[-2] == slot:
+            pairs[-1] = int(ok)
+        else:
+            pairs += [slot, int(ok)]
+        hops = [
+            {"agent": h.get("agent", ""), "model": h.get("model", ""), "cost_usd": _num(h.get("cost_usd")),
+             "wall_s": _num(h.get("wall_s")) or 0.0, "usage": _usage(h.get("usage"))}
+            for h in e.get("hops") or () if isinstance(h, dict)
+        ]  # fmt: skip
+        rows_of.setdefault(slot, []).append({"executor": executor, "agent": e.get("agent", ""), "usage": usage, "hops": hops})
+    for kind, keys in attempts.items():
+        kinds[kind]["tasks"] = len(keys)
+        kinds[kind]["tasks_ok"] = sum(pairs[-1] for pairs in keys.values())
+    total: dict = {"last_ts": "", "kinds": {}, "models": model_usage([r for slot in sorted(rows_of) for r in rows_of[slot]])}
+    for slot in sorted(slots):
+        s = slots[slot]
+        total["last_ts"] = max(total["last_ts"], s["last_ts"])
+        for kind, k in s["kinds"].items():
+            k["walls"].sort()
+            t = total["kinds"].setdefault(
+                kind, {"n": 0, "ok": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+            )
+            t["n"] += k["n"]
+            t["ok"] += k["ok"]
+            t["wall"] += k["wall"]
+            if k["cost"] is not None:
+                t["cost"] = (t["cost"] or 0.0) + k["cost"]
+            t["tokens"] = [a + b for a, b in zip(t["tokens"], k["tokens"], strict=True)]
+            for stop, c in k["stops"].items():
+                t["stops"][stop] = t["stops"].get(stop, 0) + c
+            t["walls"] += k["walls"]
+        s["models"] = model_usage(rows_of[slot])
+    for t in total["kinds"].values():
+        t["walls"].sort()
+    denied: dict[tuple[int, str, str], int] = {}
     for launch in _parse(source.lines(run, rundir.LAUNCHES)[0]):
+        slot = _slot(launch.get("ts"))
+        if slot is None:
+            continue
         for d in launch.get("denied") or ():
             if isinstance(d, dict) and d.get("tool"):
-                key = str(launch.get("label", ""))
-                denied.append({"ts": launch.get("ts", ""), "key": key, "kind": kinds.get(key, ""), "tool": str(d["tool"])})
+                at = (slot, str(d["tool"]), key_kind.get(str(launch.get("label", "")), ""))
+                denied[at] = denied.get(at, 0) + 1
     rests = [
         {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until")}
         for r in _parse(source.lines(run, rundir.RESTS)[0])
@@ -221,6 +332,7 @@ def digest(source, run: str) -> dict:
                 "reason": str(d.get("reason") or "")[:240],
             }
         )
+    first = min(slots) if slots else 0
     return {
         "version": DIGEST_VERSION,
         "run": run,
@@ -229,12 +341,34 @@ def digest(source, run: str) -> dict:
         "started_at": info.get("started_at", ""),
         "finished_at": info.get("finished_at", ""),
         "stub": info.get("stub") is True,
-        "rows": rows,
-        "quota": quota,
-        "denied": denied,
+        "span": [min(slots), max(slots)] if slots else None,
+        "slots": [[slot, slots[slot]] for slot in sorted(slots)],
+        "total": total,
+        "kinds": kinds,
+        "tasks": {kind: [[v - first if i % 2 == 0 else v for i, v in enumerate(p)] for p in ks.values()] for kind, ks in attempts.items()},
+        "quota": [[slot, credential, window, pct] for (slot, credential, window), pct in sorted(peaks.items())],
+        "denied": [[slot, tool, kind, n] for (slot, tool, kind), n in sorted(denied.items())],
         "rests": rests,
         "deferred": deferred,
     }
+
+
+def kept_form(dg: dict) -> dict:
+    """A digest as `trends.json` keeps it: its total without the wall times its slots hold
+    (`restore` puts them back), so a file holds each one once."""
+    total = {**dg["total"], "kinds": {k: {f: v for f, v in t.items() if f != "walls"} for k, t in dg["total"]["kinds"].items()}}
+    return {**dg, "total": total}
+
+
+def restore(dg: dict) -> dict:
+    """A digest read from `trends.json` (`kept_form`) made whole again: its total's wall times."""
+    walls: dict[str, list[float]] = {}
+    for _, s in dg["slots"]:
+        for kind, k in s["kinds"].items():
+            walls.setdefault(kind, []).extend(k["walls"])
+    for kind, t in dg["total"]["kinds"].items():
+        t["walls"] = sorted(walls.get(kind, []))
+    return dg
 
 
 def in_period(info: Mapping, period: Period) -> bool:
@@ -249,36 +383,84 @@ def in_period(info: Mapping, period: Period) -> bool:
 # --- the trends of a period ------------------------------------------------------------
 
 
-def _add_usage(into: dict, usage: dict | None) -> None:
-    for k in _TOKENS:
-        into[k] = into.get(k, 0) + int((usage or {}).get(k, 0))
-
-
 def _round(v: float | None, n: int = 6) -> float | None:
     return round(v, n) if v is not None else None
+
+
+def _median(walls: list[float]) -> float:
+    """The median of `walls`, sorted (`statistics.median`, without sorting again)."""
+    n = len(walls)
+    if not n:
+        return 0.0
+    return walls[n // 2] if n % 2 else (walls[n // 2 - 1] + walls[n // 2]) / 2
+
+
+def _add_model(models: dict[tuple[str, str], dict], m: Mapping) -> None:
+    """Add one slot's spend on a model (`model_usage`) to `models`, in order of first use."""
+    into = models.get((m["agent"], m["model"]))
+    if into is None:
+        models[(m["agent"], m["model"])] = dict(m)
+        return
+    for f, v in m.items():
+        if f in ("agent", "model") or v is None:
+            continue
+        if f == "cost_usd":
+            into[f] = round((into[f] or 0.0) + v, 6)
+        elif f == "wall_s":
+            into[f] = round(into[f] + v, 1)
+        else:
+            into[f] += v
+
+
+class _Slots:
+    """The day and the hour of each slot in a period, worked out once each."""
+
+    def __init__(self, period: Period) -> None:
+        self.period = period
+        self.first = int(period.opens.timestamp()) // SLOT_S
+        self.end = int(period.closes.timestamp()) // SLOT_S
+        self._days: dict[int, int] = {}
+
+    def holds(self, slot: int) -> bool:
+        return self.first <= slot < self.end
+
+    def day(self, slot: int) -> int:
+        """The slot's day, as an index of the period's days."""
+        d = self._days.get(slot)
+        if d is None:
+            local = datetime.fromtimestamp(slot * SLOT_S, self.period.zone).date()
+            d = self._days[slot] = (local - self.period.start).days
+        return d
+
+    def hour(self, slot: int) -> int:
+        """The slot's hour, counted from the period's first instant."""
+        return (slot - self.first) * SLOT_S // 3600
 
 
 def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
     group it is counted in (the monitor's `groups`), each other kind being its own."""
-    from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
-
     group_of = dict(groups or {})
+    at = _Slots(period)
     days = [d.isoformat() for d in period.days]
-    daily = {d: {"day": d, "cost_usd": {}, "attempts": 0, "ok": 0} for d in days}
+    hours = (at.end - at.first) * SLOT_S // 3600
+    daily = [{"day": d, "cost_usd": {}, "attempts": 0, "ok": 0} for d in days]
     kinds: dict[str, dict] = {}
     walls: dict[str, list[float]] = {}
-    tasks: dict[str, dict[tuple[str, str], bool]] = {}
     stops: dict[str, dict] = {}
     denied: dict[str, dict] = {}
-    peaks: dict[tuple[str, str, str], float] = {}
-    readings: dict[tuple[str, str], list[dict]] = {}
-    rests, deferred, runs, rows_in = [], [], [], []
+    models: dict[tuple[str, str], dict] = {}
+    peaks: dict[tuple[str, str], dict] = {}
+    rests, deferred, runs = [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
     totals = {"runs": 0, "attempts": 0, "ok": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
     for dg in digests:
         run = dg["run"]
-        mine = [r for r in dg["rows"] if period.day_of(r["ts"]) is not None]
+        span = dg["span"]
+        if span is not None and at.holds(span[0]) and at.holds(span[1]) and at.day(span[0]) == at.day(span[1]):
+            mine = [(span[0], dg["total"])]  # the whole run on one day: its sums, not its slots
+        else:
+            mine = [(slot, s) for slot, s in dg["slots"] if at.holds(slot)]
         started = period.day_of(dg.get("started_at"))
         if not mine and started is None:
             continue
@@ -286,69 +468,79 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             t = when(dg["started_at"]).astimezone(period.zone)  # type: ignore[union-attr]
             starts[t.weekday()][t.hour] += 1
         cost: float | None = None
-        for r in mine:
-            day = period.day_of(r["ts"]).isoformat()  # type: ignore[union-attr]
-            kind = r["kind"]
-            group = group_of.get(kind, kind)
-            d = daily[day]
-            d["attempts"] += 1
-            d["ok"] += r["ok"]
-            if r["cost_usd"] is not None:
-                d["cost_usd"][group] = round(d["cost_usd"].get(group, 0.0) + r["cost_usd"], 6)
-                cost = (cost or 0.0) + r["cost_usd"]
-            k = kinds.setdefault(
-                kind,
-                {
-                    "kind": kind,
-                    "group": group,
-                    "executor": r["executor"],
-                    "tasks": 0,
-                    "tasks_ok": 0,
-                    "attempts": 0,
-                    "ok": 0,
-                    "wall_s": 0.0,
-                    "wall_s_median": 0.0,
-                    "cost_usd": None,
-                    "tokens": dict.fromkeys(_TOKENS, 0),
-                },
-            )
-            k["attempts"] += 1
-            k["ok"] += r["ok"]
-            k["wall_s"] += r["wall_s"]
-            walls.setdefault(kind, []).append(r["wall_s"])
-            if r["cost_usd"] is not None:
-                k["cost_usd"] = (k["cost_usd"] or 0.0) + r["cost_usd"]
-            _add_usage(k["tokens"], r["usage"])
-            _add_usage(totals["tokens"], r["usage"])
-            # A task is one key of one run; its last attempt in the period says how it ended.
-            tasks.setdefault(kind, {})[(run, r["key"])] = r["ok"]
-            s = stops.setdefault(r["stop"], {"stop": r["stop"], "attempts": 0, "kinds": {}})
-            s["attempts"] += 1
-            s["kinds"][kind] = s["kinds"].get(kind, 0) + 1
-            totals["attempts"] += 1
-            totals["ok"] += r["ok"]
-            totals["wall_s"] += r["wall_s"]
-            rows_in.append(r)
+        n = ok = 0
+        wall = 0.0
+        last = ""
+        for slot, s in mine:
+            d = daily[at.day(slot)]
+            last = max(last, s["last_ts"])
+            for kind, k in s["kinds"].items():
+                group = group_of.get(kind, kind)
+                d["attempts"] += k["n"]
+                d["ok"] += k["ok"]
+                if k["cost"] is not None:
+                    d["cost_usd"][group] = round(d["cost_usd"].get(group, 0.0) + k["cost"], 6)
+                    cost = (cost or 0.0) + k["cost"]
+                into = kinds.setdefault(
+                    kind,
+                    {"kind": kind, "group": group, "executor": dg["kinds"][kind]["executor"], "tasks": 0, "tasks_ok": 0,
+                     "attempts": 0, "ok": 0, "wall_s": 0.0, "wall_s_median": 0.0, "cost_usd": None,
+                     "tokens": dict.fromkeys(_TOKENS, 0)},
+                )  # fmt: skip
+                into["attempts"] += k["n"]
+                into["ok"] += k["ok"]
+                into["wall_s"] += k["wall"]
+                if k["cost"] is not None:
+                    into["cost_usd"] = (into["cost_usd"] or 0.0) + k["cost"]
+                for i, name in enumerate(_TOKENS):
+                    into["tokens"][name] += k["tokens"][i]
+                    totals["tokens"][name] += k["tokens"][i]
+                walls.setdefault(kind, []).extend(k["walls"])
+                for stop, c in k["stops"].items():
+                    st = stops.setdefault(stop, {"stop": stop, "attempts": 0, "kinds": {}})
+                    st["attempts"] += c
+                    st["kinds"][kind] = st["kinds"].get(kind, 0) + c
+                n += k["n"]
+                ok += k["ok"]
+                wall += k["wall"]
+            for m in s["models"]:
+                _add_model(models, m)
+        # A task is one key of one run: its last attempt in the period says how it ended.
+        whole = dg["span"] is not None and at.holds(dg["span"][0]) and at.holds(dg["span"][1])
+        for kind, keys in dg["tasks"].items():
+            if whole:
+                counted, passed = dg["kinds"][kind]["tasks"], dg["kinds"][kind]["tasks_ok"]
+            else:
+                counted = passed = 0
+                first = dg["span"][0] if dg["span"] is not None else 0
+                for pairs in keys:
+                    last_ok = None
+                    for i in range(0, len(pairs), 2):
+                        if at.holds(first + pairs[i]):
+                            last_ok = pairs[i + 1]
+                    if last_ok is not None:
+                        counted += 1
+                        passed += last_ok
+            if counted and kind in kinds:
+                kinds[kind]["tasks"] += counted
+                kinds[kind]["tasks_ok"] += passed
         if cost is not None:
             totals["cost_usd"] = (totals["cost_usd"] or 0.0) + cost
-        for q in dg["quota"]:
-            day = period.day_of(q["observed_at"])
-            if day is None:
-                continue
-            for w in _WINDOWS:
-                pct = q.get(f"{w}_pct")
-                if pct is None:
-                    continue
-                readings.setdefault((q["credential"], w), []).append({"at": q["observed_at"], "pct": pct})
-                key = (q["credential"], w, day.isoformat())
-                peaks[key] = max(peaks.get(key, 0.0), pct)
-        for x in dg["denied"]:
-            if period.day_of(x["ts"]) is None:
-                continue
-            t = denied.setdefault(x["tool"], {"tool": x["tool"], "count": 0, "kinds": {}})
-            t["count"] += 1
-            if x["kind"]:
-                t["kinds"][x["kind"]] = t["kinds"].get(x["kind"], 0) + 1
+        totals["attempts"] += n
+        totals["ok"] += ok
+        totals["wall_s"] += wall
+        for slot, credential, window, pct in dg["quota"]:
+            if at.holds(slot):
+                p = peaks.setdefault((credential, window), {"daily": {}, "hourly": {}})
+                day, hour = at.day(slot), at.hour(slot)
+                p["daily"][day] = max(p["daily"].get(day, 0.0), pct)
+                p["hourly"][hour] = max(p["hourly"].get(hour, 0.0), pct)
+        for slot, tool, kind, c in dg["denied"]:
+            if at.holds(slot):
+                t = denied.setdefault(tool, {"tool": tool, "count": 0, "kinds": {}})
+                t["count"] += c
+                if kind:
+                    t["kinds"][kind] = t["kinds"].get(kind, 0) + c
         rests += [{**x, "run": run} for x in dg["rests"] if period.day_of(x.get("ts")) is not None]
         deferred += [{**x, "run": run} for x in dg["deferred"] if period.day_of(x.get("ts")) is not None]
         totals["runs"] += 1
@@ -359,19 +551,17 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 "host_id": dg["host_id"],
                 "started_at": dg["started_at"],
                 "finished_at": dg["finished_at"],
-                "last_ts": max((r["ts"] for r in mine), default=""),
-                "attempts": len(mine),
-                "ok": sum(r["ok"] for r in mine),
+                "last_ts": last,
+                "attempts": n,
+                "ok": ok,
                 "cost_usd": _round(cost),
-                "wall_s": round(sum(r["wall_s"] for r in mine), 1),
+                "wall_s": round(wall, 1),
                 "stub": dg["stub"],
             }
         )
     for kind, k in kinds.items():
-        ended = tasks.get(kind, {})
-        k["tasks"], k["tasks_ok"] = len(ended), sum(ended.values())
         k["wall_s"] = round(k["wall_s"], 1)
-        k["wall_s_median"] = round(statistics.median(walls[kind]), 1) if walls.get(kind) else 0.0
+        k["wall_s_median"] = round(_median(sorted(walls.get(kind, []))), 1)
         k["cost_usd"] = _round(k["cost_usd"])
     totals["cost_usd"] = _round(totals["cost_usd"])
     totals["wall_s"] = round(totals["wall_s"], 1)
@@ -381,23 +571,21 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     causes: dict[str, int] = {}
     for d in deferred:
         causes[d["cause"]] = causes.get(d["cause"], 0) + 1
-    quota = []
-    for (credential, window), points in sorted(readings.items()):
-        points.sort(key=lambda p: p["at"])
-        quota.append(
-            {
-                "credential": credential,
-                "window": window,
-                "daily_peak": [peaks.get((credential, window, d)) for d in days],
-                "points": points,
-            }
-        )
+    quota = [
+        {
+            "credential": credential,
+            "window": window,
+            "daily_peak": [p["daily"].get(i) for i in range(len(days))],
+            "hourly_peak": [p["hourly"].get(h) for h in range(hours)],
+        }
+        for (credential, window), p in sorted(peaks.items())
+    ]
     return {
         "period": period.as_dict(),
         "totals": totals,
-        "daily": [{**daily[d], "cost_usd": dict(sorted(daily[d]["cost_usd"].items()))} for d in days],
+        "daily": [{**d, "cost_usd": dict(sorted(d["cost_usd"].items()))} for d in daily],
         "kinds": sorted(kinds.values(), key=lambda k: (-(k["cost_usd"] or 0.0), k["kind"])),
-        "models": model_usage(rows_in),
+        "models": list(models.values()),
         "stops": sorted(stops.values(), key=lambda s: (-s["attempts"], s["stop"])),
         "denials": sorted(denied.values(), key=lambda t: (-t["count"], t["tool"])),
         "quota": quota,
@@ -574,7 +762,7 @@ def bodies(view: dict) -> dict[str, dict]:
                 "cost": r["cost_usd"],
                 "wall": r["wall_s"],
             }
-            for r in view["runs"]
+            for r in view["runs"][:BODY_RUNS]
         ],
     }
     return {
