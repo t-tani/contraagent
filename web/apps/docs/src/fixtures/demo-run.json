@@ -2,7 +2,7 @@
  "run": "docs",
  "journal": [
   {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-beta",
@@ -35,40 +35,7 @@
    "flow_call": "0.2"
   },
   {
-   "ts": "2026-10-14T09:47:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:prepare-gamma",
-   "attempt": 0,
-   "kind": "prepare",
-   "executor": "python",
-   "unit": "gamma",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "1f6c98bb1e60402f2c89e0809bf9054ee99ef91b2eb1a56baac5c10fe2c9dbe1",
-   "flow_call": "0.3"
-  },
-  {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-alpha",
@@ -101,7 +68,40 @@
    "flow_call": "0.1"
   },
   {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-gamma",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "gamma",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "1f6c98bb1e60402f2c89e0809bf9054ee99ef91b2eb1a56baac5c10fe2c9dbe1",
+   "flow_call": "0.3"
+  },
+  {
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-delta",
@@ -134,7 +134,7 @@
    "flow_call": "0.4"
   },
   {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-epsilon",
@@ -167,7 +167,7 @@
    "flow_call": "0.5"
   },
   {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-zeta",
@@ -200,65 +200,7 @@
    "flow_call": "0.6"
   },
   {
-   "ts": "2026-10-14T09:47:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "summarize-alpha",
-   "attempt": 0,
-   "kind": "summarize",
-   "executor": "agent",
-   "unit": "alpha",
-   "agent": "stub",
-   "model": "primary-model",
-   "credential": "ambient",
-   "route": "hop 1/2 stub/primary-model",
-   "hops": [
-    {
-     "route": "hop 1/2 stub/primary-model",
-     "model": "primary-model",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.019012
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 1938,
-    "output": 691,
-    "cache_read": 9444,
-    "cache_creation": 0,
-    "calls": 1
-   },
-   "cost_usd": 0.019012,
-   "quota": [
-    {
-     "observed_at": "2026-10-14T09:47:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 14.3,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.4,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "e675bae24458bcf47df1082d6923d23af05cbc62c27628ea2fd0382654001fb8",
-   "flow_call": "0.1"
-  },
-  {
-   "ts": "2026-10-14T09:47:43+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-gamma",
@@ -277,7 +219,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.018994
+     "cost_usd": 0.020421
     }
    ],
    "skipped_hops": [],
@@ -291,21 +233,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3940,
-    "output": 172,
-    "cache_read": 8414,
-    "cache_creation": 552,
-    "calls": 1
+    "input": 1538,
+    "output": 487,
+    "cache_read": 16353,
+    "cache_creation": 959,
+    "calls": 1,
+    "resident": 18850
    },
-   "cost_usd": 0.018994,
+   "cost_usd": 0.020421,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:43+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 13.5,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.4,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 12.6,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.3,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -316,40 +259,7 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:score-alpha",
-   "attempt": 0,
-   "kind": "score",
-   "executor": "python",
-   "unit": "alpha",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "1c7f5d099b9d175f1c457c29ee3d80b819cfba3eece30bc3caf68fb0ff48a927",
-   "flow_call": "0.1"
-  },
-  {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-gamma",
@@ -382,14 +292,14 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "summarize-delta",
+   "key": "summarize-alpha",
    "attempt": 0,
    "kind": "summarize",
    "executor": "agent",
-   "unit": "delta",
+   "unit": "alpha",
    "agent": "stub",
    "model": "primary-model",
    "credential": "ambient",
@@ -400,129 +310,55 @@
      "model": "primary-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.2,
-     "cost_usd": 0.039226
+     "wall_s": 0.1,
+     "cost_usd": 0.019844
     }
    ],
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.2,
+   "wall_s": 0.1,
    "exit_code": null,
    "signal": null,
    "reason": "",
-   "rounds": 2,
-   "round_errors": [
-    [
-     "/work/demo-runs/docs/out/summarize/delta.json: [three_points] points: exactly three expected, got 2"
-    ]
-   ],
-   "hook_errors": [],
-   "usage": {
-    "input": 5563,
-    "output": 895,
-    "cache_read": 22650,
-    "cache_creation": 618,
-    "calls": 2
-   },
-   "cost_usd": 0.039226,
-   "quota": [
-    {
-     "observed_at": "2026-10-14T09:47:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 12.0,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.2,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    },
-    {
-     "observed_at": "2026-10-14T09:47:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 15.1,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.5,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "9d9f613b6f34aff9043c25498bdfbe60acd043ff31063ce00eae05363650208c",
-   "flow_call": "0.4"
-  },
-  {
-   "ts": "2026-10-14T09:47:44+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "review-gamma",
-   "attempt": 0,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "gamma",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "error",
-     "wall_s": 0.0,
-     "cost_usd": 0.033414
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "error",
-   "ok": false,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "tool crashed",
    "rounds": 1,
-   "round_errors": [
-    [
-     "/work/demo-runs/docs/out/review/gamma.json: file was not written"
-    ]
-   ],
+   "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2972,
-    "output": 873,
-    "cache_read": 19246,
-    "cache_creation": 1501,
-    "calls": 1
+    "input": 3165,
+    "output": 330,
+    "cache_read": 8670,
+    "cache_creation": 746,
+    "calls": 1,
+    "resident": 12581
    },
-   "cost_usd": 0.033414,
+   "cost_usd": 0.019844,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 15.9,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.6,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 13.4,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.3,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "fa5696f0258eeb2385c5efd5ae7ae46f297edd8a2bceba71f1f10fc6a068649c",
-   "flow_call": "0.3"
+   "fingerprint": "e675bae24458bcf47df1082d6923d23af05cbc62c27628ea2fd0382654001fb8",
+   "flow_call": "0.1"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:38+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "python:score-delta",
+   "key": "python:score-alpha",
    "attempt": 0,
    "kind": "score",
    "executor": "python",
-   "unit": "delta",
+   "unit": "alpha",
    "agent": "",
    "model": "",
    "credential": "",
@@ -544,11 +380,11 @@
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "eb5a5b5c9da6313f1e6f35554c3695e71238acb786213c3e921eb4d6e7acdde9",
-   "flow_call": "0.4"
+   "fingerprint": "1c7f5d099b9d175f1c457c29ee3d80b819cfba3eece30bc3caf68fb0ff48a927",
+   "flow_call": "0.1"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-beta",
@@ -567,7 +403,7 @@
      "credential": "ambient",
      "stop": "rate_limited",
      "wall_s": 0.1,
-     "cost_usd": 0.021026
+     "cost_usd": 0.015406
     },
     {
      "route": "hop 2/2 stub/fallback-model",
@@ -575,7 +411,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.024115
+     "cost_usd": 0.034254
     }
    ],
    "skipped_hops": [],
@@ -589,30 +425,31 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 5963,
-    "output": 218,
-    "cache_read": 24103,
-    "cache_creation": 4467,
-    "calls": 2
+    "input": 5734,
+    "output": 606,
+    "cache_read": 34768,
+    "cache_creation": 3450,
+    "calls": 2,
+    "resident": 21218
    },
-   "cost_usd": 0.045141,
+   "cost_usd": 0.04966,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:43+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 12.7,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.3,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 12.0,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.2,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     },
     {
-     "observed_at": "2026-10-14T09:47:43+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 17.3,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.7,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 15.3,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.5,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -623,7 +460,70 @@
    "flow_call": "0.2"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-gamma",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "gamma",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "error",
+     "wall_s": 0.0,
+     "cost_usd": 0.018301
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "error",
+   "ok": false,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "tool crashed",
+   "rounds": 1,
+   "round_errors": [
+    [
+     "/work/demo-runs/docs/out/review/gamma.json: file was not written"
+    ]
+   ],
+   "hook_errors": [],
+   "usage": {
+    "input": 1951,
+    "output": 268,
+    "cache_read": 14744,
+    "cache_creation": 1068,
+    "calls": 1,
+    "resident": 17763
+   },
+   "cost_usd": 0.018301,
+   "quota": [
+    {
+     "observed_at": "2026-10-14T09:59:38+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 16.6,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.7,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "fa5696f0258eeb2385c5efd5ae7ae46f297edd8a2bceba71f1f10fc6a068649c",
+   "flow_call": "0.3"
+  },
+  {
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-beta",
@@ -656,7 +556,7 @@
    "flow_call": "0.2"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-alpha",
@@ -675,7 +575,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.022315
+     "cost_usd": 0.018979
     }
    ],
    "skipped_hops": [],
@@ -689,21 +589,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3400,
-    "output": 279,
-    "cache_read": 8735,
-    "cache_creation": 1416,
-    "calls": 1
+    "input": 1534,
+    "output": 557,
+    "cache_read": 13025,
+    "cache_creation": 564,
+    "calls": 1,
+    "resident": 15123
    },
-   "cost_usd": 0.022315,
+   "cost_usd": 0.018979,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 18.2,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
+     "five_hour_pct": 18.4,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
      "seven_day_pct": 41.8,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -714,65 +615,112 @@
    "flow_call": "0.1"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "review-delta",
+   "key": "summarize-delta",
    "attempt": 0,
-   "kind": "review",
+   "kind": "summarize",
    "executor": "agent",
    "unit": "delta",
    "agent": "stub",
-   "model": "",
+   "model": "primary-model",
    "credential": "ambient",
-   "route": "hop 1/1 stub",
+   "route": "hop 1/2 stub/primary-model",
    "hops": [
     {
-     "route": "hop 1/1 stub",
-     "model": "",
+     "route": "hop 1/2 stub/primary-model",
+     "model": "primary-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.028455
+     "wall_s": 0.2,
+     "cost_usd": 0.052916000000000005
     }
    ],
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 0.2,
    "exit_code": null,
    "signal": null,
    "reason": "",
-   "rounds": 1,
-   "round_errors": [],
+   "rounds": 2,
+   "round_errors": [
+    [
+     "/work/demo-runs/docs/out/summarize/delta.json: [three_points] points: exactly three expected, got 2"
+    ]
+   ],
    "hook_errors": [],
    "usage": {
-    "input": 2966,
-    "output": 746,
-    "cache_read": 12764,
-    "cache_creation": 1210,
-    "calls": 1
+    "input": 7053,
+    "output": 1329,
+    "cache_read": 18069,
+    "cache_creation": 1707,
+    "calls": 2,
+    "resident": 14047
    },
-   "cost_usd": 0.028455,
+   "cost_usd": 0.052916,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:38+00:00",
      "credential": "ambient",
-     "five_hour_pct": 19.1,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 41.9,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 14.2,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.4,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    },
+    {
+     "observed_at": "2026-10-14T09:59:38+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 17.4,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.7,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "a0d85be64c518636ad8edae4da3f68551c239ecdac3fee7fed459084ecddbacb",
+   "fingerprint": "9d9f613b6f34aff9043c25498bdfbe60acd043ff31063ce00eae05363650208c",
    "flow_call": "0.4"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:score-delta",
+   "attempt": 0,
+   "kind": "score",
+   "executor": "python",
+   "unit": "delta",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "eb5a5b5c9da6313f1e6f35554c3695e71238acb786213c3e921eb4d6e7acdde9",
+   "flow_call": "0.4"
+  },
+  {
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-beta",
@@ -791,7 +739,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.022727
+     "cost_usd": 0.021102
     }
    ],
    "skipped_hops": [],
@@ -805,21 +753,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3209,
-    "output": 378,
-    "cache_read": 8830,
-    "cache_creation": 1275,
-    "calls": 1
+    "input": 1511,
+    "output": 328,
+    "cache_read": 17129,
+    "cache_creation": 1736,
+    "calls": 1,
+    "resident": 20376
    },
-   "cost_usd": 0.022727,
+   "cost_usd": 0.021102,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 20.3,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.0,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 19.2,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 41.9,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -830,65 +779,7 @@
    "flow_call": "0.2"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "write_note-delta",
-   "attempt": 0,
-   "kind": "write_note",
-   "executor": "agent",
-   "unit": "delta",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.024817
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 1698,
-    "output": 850,
-    "cache_read": 11920,
-    "cache_creation": 906,
-    "calls": 1
-   },
-   "cost_usd": 0.024817,
-   "quota": [
-    {
-     "observed_at": "2026-10-14T09:47:44+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 23.1,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.3,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "3984d940717318ea98c70d3484c4ec8cbf86082bb8e5358c916ae5715b6de4fb",
-   "flow_call": "0.4"
-  },
-  {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-epsilon",
@@ -907,7 +798,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.02031
+     "cost_usd": 0.023268
     }
    ],
    "skipped_hops": [],
@@ -921,21 +812,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 1734,
-    "output": 514,
-    "cache_read": 9748,
-    "cache_creation": 1193,
-    "calls": 1
+    "input": 3674,
+    "output": 585,
+    "cache_read": 10107,
+    "cache_creation": 117,
+    "calls": 1,
+    "resident": 13898
    },
-   "cost_usd": 0.02031,
+   "cost_usd": 0.023268,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 24.1,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.4,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 21.1,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.1,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -946,7 +838,7 @@
    "flow_call": "0.5"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-epsilon",
@@ -979,65 +871,7 @@
    "flow_call": "0.5"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "review-epsilon",
-   "attempt": 0,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "epsilon",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.031696
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 3762,
-    "output": 826,
-    "cache_read": 15184,
-    "cache_creation": 924,
-    "calls": 1
-   },
-   "cost_usd": 0.031696,
-   "quota": [
-    {
-     "observed_at": "2026-10-14T09:47:44+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 24.9,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.5,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "46a347c67f58c0f01b6c5b8f29c7bd797f6065dff414f1c09525e606febf8a07",
-   "flow_call": "0.5"
-  },
-  {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-zeta",
@@ -1070,7 +904,66 @@
    "flow_call": "0.6"
   },
   {
-   "ts": "2026-10-14T09:47:44+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-delta",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "delta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 0.1,
+     "cost_usd": 0.024075
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.1,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3011,
+    "output": 241,
+    "cache_read": 14014,
+    "cache_creation": 1926,
+    "calls": 1,
+    "resident": 18951
+   },
+   "cost_usd": 0.024075,
+   "quota": [
+    {
+     "observed_at": "2026-10-14T09:59:39+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 23.3,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.3,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "a0d85be64c518636ad8edae4da3f68551c239ecdac3fee7fed459084ecddbacb",
+   "flow_call": "0.4"
+  },
+  {
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-beta",
@@ -1089,7 +982,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.027821
+     "cost_usd": 0.031837
     }
    ],
    "skipped_hops": [],
@@ -1103,32 +996,92 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2828,
-    "output": 698,
-    "cache_read": 18308,
-    "cache_creation": 900,
-    "calls": 1
+    "input": 3000,
+    "output": 435,
+    "cache_read": 19625,
+    "cache_creation": 2780,
+    "calls": 1,
+    "resident": 25405
    },
-   "cost_usd": 0.027821,
+   "cost_usd": 0.031837,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
      "five_hour_pct": 22.0,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
      "seven_day_pct": 42.2,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "49e129987922a7d9466c6b998510530e9d530982fbd1d0818bfbe202a478b20a",
+   "fingerprint": "a14930d93d831424dc3a07fb8934217bbf9cb933c05af8b6f361c0069e728a44",
    "flow_call": "0.2"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-delta",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "delta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 0.1,
+     "cost_usd": 0.015359
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.1,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2582,
+    "output": 230,
+    "cache_read": 8677,
+    "cache_creation": 416,
+    "calls": 1,
+    "resident": 11675
+   },
+   "cost_usd": 0.015359,
+   "quota": [
+    {
+     "observed_at": "2026-10-14T09:59:39+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 24.2,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.4,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "e84cb7258dbac67df57abffb18acf0245b0bee585c6789e0c69a41f7a93eb437",
+   "flow_call": "0.4"
+  },
+  {
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-gamma",
@@ -1146,14 +1099,14 @@
      "model": "",
      "credential": "ambient",
      "stop": "error",
-     "wall_s": 0.0,
-     "cost_usd": 0.02728
+     "wall_s": 0.1,
+     "cost_usd": 0.03005
     }
    ],
    "skipped_hops": [],
    "stop": "error",
    "ok": false,
-   "wall_s": 0.0,
+   "wall_s": 0.1,
    "exit_code": null,
    "signal": null,
    "reason": "tool crashed",
@@ -1165,21 +1118,22 @@
    ],
    "hook_errors": [],
    "usage": {
-    "input": 1516,
-    "output": 600,
-    "cache_read": 11422,
-    "cache_creation": 2748,
-    "calls": 1
+    "input": 3689,
+    "output": 694,
+    "cache_read": 18315,
+    "cache_creation": 821,
+    "calls": 1,
+    "resident": 22825
    },
-   "cost_usd": 0.02728,
+   "cost_usd": 0.03005,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:45+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 28.5,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.8,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 26.2,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.6,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -1190,7 +1144,66 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:39+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-epsilon",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "epsilon",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 0.1,
+     "cost_usd": 0.027855
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.1,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2082,
+    "output": 613,
+    "cache_read": 15079,
+    "cache_creation": 2104,
+    "calls": 1,
+    "resident": 19265
+   },
+   "cost_usd": 0.027855,
+   "quota": [
+    {
+     "observed_at": "2026-10-14T09:59:39+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 27.4,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.7,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "46a347c67f58c0f01b6c5b8f29c7bd797f6065dff414f1c09525e606febf8a07",
+   "flow_call": "0.5"
+  },
+  {
+   "ts": "2026-10-14T09:59:39+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-gamma",
@@ -1209,7 +1222,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.022981
+     "cost_usd": 0.020201
     }
    ],
    "skipped_hops": [],
@@ -1223,21 +1236,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2597,
-    "output": 361,
-    "cache_read": 11109,
-    "cache_creation": 1718,
-    "calls": 1
+    "input": 2297,
+    "output": 210,
+    "cache_read": 8617,
+    "cache_creation": 2020,
+    "calls": 1,
+    "resident": 12934
    },
-   "cost_usd": 0.022981,
+   "cost_usd": 0.020201,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:45+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 29.5,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 43.0,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 29.3,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.9,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -1248,65 +1262,7 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "write_note-epsilon",
-   "attempt": 0,
-   "kind": "write_note",
-   "executor": "agent",
-   "unit": "epsilon",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.024403
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 2427,
-    "output": 665,
-    "cache_read": 15798,
-    "cache_creation": 642,
-    "calls": 1
-   },
-   "cost_usd": 0.024403,
-   "quota": [
-    {
-     "observed_at": "2026-10-14T09:47:44+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 27.5,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.7,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
-     "status": "allowed"
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "fingerprint": "898a25f1c0f35a6a93960534109436c337e841fd148a68b74fbd5146d00e158f",
-   "flow_call": "0.5"
-  },
-  {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "revise-gamma",
@@ -1325,7 +1281,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.029931
+     "cost_usd": 0.034381
     }
    ],
    "skipped_hops": [],
@@ -1339,21 +1295,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3548,
-    "output": 418,
-    "cache_read": 10389,
-    "cache_creation": 2640,
-    "calls": 1
+    "input": 3680,
+    "output": 685,
+    "cache_read": 16454,
+    "cache_creation": 2168,
+    "calls": 1,
+    "resident": 22302
    },
-   "cost_usd": 0.029931,
+   "cost_usd": 0.034381,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:45+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 30.5,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
+     "five_hour_pct": 30.1,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
      "seven_day_pct": 43.0,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -1364,7 +1321,7 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-gamma~2",
@@ -1397,7 +1354,7 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-alpha",
@@ -1416,7 +1373,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.2,
-     "cost_usd": 0.053022
+     "cost_usd": 0.058448
     }
    ],
    "skipped_hops": [],
@@ -1435,41 +1392,42 @@
    ],
    "hook_errors": [],
    "usage": {
-    "input": 5031,
-    "output": 1001,
-    "cache_read": 31956,
-    "cache_creation": 3554,
-    "calls": 2
+    "input": 5912,
+    "output": 1353,
+    "cache_read": 28006,
+    "cache_creation": 3204,
+    "calls": 2,
+    "resident": 16246
    },
-   "cost_usd": 0.053022,
+   "cost_usd": 0.058448,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 21.2,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.1,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 20.0,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.0,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     },
     {
-     "observed_at": "2026-10-14T09:47:44+00:00",
+     "observed_at": "2026-10-14T09:59:39+00:00",
      "credential": "ambient",
-     "five_hour_pct": 26.2,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 42.6,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 24.9,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.5,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "addc797fe17f8c8967486e4edb24134beddd52bc2f7f6b8d15802ef844c0c3e4",
+   "fingerprint": "556b4e438861d91ba788d1246c7b214b2707d27e1de5ccd7e88eb779cffee6df",
    "flow_call": "0.1"
   },
   {
-   "ts": "2026-10-14T09:47:45+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-gamma~2",
@@ -1488,7 +1446,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.029067
+     "cost_usd": 0.034069
     }
    ],
    "skipped_hops": [],
@@ -1502,21 +1460,22 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3862,
-    "output": 698,
-    "cache_read": 19834,
-    "cache_creation": 283,
-    "calls": 1
+    "input": 3270,
+    "output": 809,
+    "cache_read": 13388,
+    "cache_creation": 2162,
+    "calls": 1,
+    "resident": 18820
    },
-   "cost_usd": 0.029067,
+   "cost_usd": 0.034069,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:45+00:00",
+     "observed_at": "2026-10-14T09:59:40+00:00",
      "credential": "ambient",
-     "five_hour_pct": 31.7,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
-     "seven_day_pct": 43.2,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "five_hour_pct": 31.4,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 43.1,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
@@ -1527,7 +1486,66 @@
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:46+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-epsilon",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "epsilon",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 0.1,
+     "cost_usd": 0.019505
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.1,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 1570,
+    "output": 506,
+    "cache_read": 10267,
+    "cache_creation": 1100,
+    "calls": 1,
+    "resident": 12937
+   },
+   "cost_usd": 0.019505,
+   "quota": [
+    {
+     "observed_at": "2026-10-14T09:59:39+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 28.5,
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
+     "seven_day_pct": 42.8,
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
+     "status": "allowed"
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "fingerprint": "6db2f5e8c0a6ec8b4b793ca3f1f3af0377c2916140899ee705cfb950b4a363c4",
+   "flow_call": "0.5"
+  },
+  {
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-gamma",
@@ -1546,7 +1564,7 @@
      "credential": "ambient",
      "stop": "completed",
      "wall_s": 0.1,
-     "cost_usd": 0.025721
+     "cost_usd": 0.017783
     }
    ],
    "skipped_hops": [],
@@ -1560,32 +1578,33 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3947,
-    "output": 532,
-    "cache_read": 17290,
-    "cache_creation": 190,
-    "calls": 1
+    "input": 2220,
+    "output": 152,
+    "cache_read": 8578,
+    "cache_creation": 1672,
+    "calls": 1,
+    "resident": 12470
    },
-   "cost_usd": 0.025721,
+   "cost_usd": 0.017783,
    "quota": [
     {
-     "observed_at": "2026-10-14T09:47:45+00:00",
+     "observed_at": "2026-10-14T09:59:40+00:00",
      "credential": "ambient",
      "five_hour_pct": 32.8,
-     "five_hour_resets_at": "2026-10-14T12:47:42+00:00",
+     "five_hour_resets_at": "2026-10-14T12:59:37+00:00",
      "seven_day_pct": 43.3,
-     "seven_day_resets_at": "2026-10-19T11:47:42+00:00",
+     "seven_day_resets_at": "2026-10-19T11:59:37+00:00",
      "status": "allowed"
     }
    ],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
-   "fingerprint": "4222b44b91f76417847adbeec0a469cb5761b5cc1177f95f9ccb72717fed41a2",
+   "fingerprint": "6f203fa86eb3b6db2f63292b2d2b1f42ad5103a8782a361b607d24c904fde6f2",
    "flow_call": "0.3"
   },
   {
-   "ts": "2026-10-14T09:47:46+00:00",
+   "ts": "2026-10-14T09:59:40+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:report",
@@ -1621,7 +1640,7 @@
  "plan": {
   "nodes": [
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-alpha",
     "kind": "prepare",
     "unit": "alpha",
@@ -1653,7 +1672,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-alpha",
     "kind": "summarize",
     "unit": "alpha",
@@ -1687,7 +1706,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-beta",
     "kind": "prepare",
     "unit": "beta",
@@ -1719,7 +1738,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-beta",
     "kind": "summarize",
     "unit": "beta",
@@ -1753,7 +1772,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-gamma",
     "kind": "prepare",
     "unit": "gamma",
@@ -1785,7 +1804,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-gamma",
     "kind": "summarize",
     "unit": "gamma",
@@ -1819,7 +1838,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-delta",
     "kind": "prepare",
     "unit": "delta",
@@ -1851,7 +1870,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-delta",
     "kind": "summarize",
     "unit": "delta",
@@ -1885,7 +1904,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-epsilon",
     "kind": "prepare",
     "unit": "epsilon",
@@ -1917,7 +1936,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-epsilon",
     "kind": "summarize",
     "unit": "epsilon",
@@ -1951,7 +1970,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:prepare-zeta",
     "kind": "prepare",
     "unit": "zeta",
@@ -1983,7 +2002,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "summarize-zeta",
     "kind": "summarize",
     "unit": "zeta",
@@ -2017,48 +2036,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-14T09:47:43+00:00",
-    "key": "python:score-alpha",
-    "kind": "score",
-    "unit": "alpha",
-    "claims": [],
-    "after": [
-     "summarize-alpha"
-    ],
-    "executor": "python",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 142,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
-      "loops": [
-       {
-        "line": 130,
-        "pass": 1
-       }
-      ]
-     }
-    ],
-    "created_from": [
-     "summarize-alpha"
-    ],
-    "flow_call": "0.1",
-    "state": "done",
-    "wall_s": 0.0,
-    "stop": "completed",
-    "route": "",
-    "attempts": 1,
-    "level": 2,
-    "group": "score"
-   },
-   {
-    "ts": "2026-10-14T09:47:43+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "python:score-gamma",
     "kind": "score",
     "unit": "gamma",
@@ -2099,49 +2077,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
-    "key": "review-alpha",
-    "kind": "review",
-    "unit": "alpha",
-    "claims": [],
-    "after": [
-     "summarize-alpha",
-     "python:score-alpha"
-    ],
-    "executor": "agent",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 142,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 132,
-      "loops": [
-       {
-        "line": 130,
-        "pass": 1
-       }
-      ]
-     }
-    ],
-    "created_from": [
-     "python:score-alpha"
-    ],
-    "flow_call": "0.1",
-    "state": "done",
-    "wall_s": 0.1,
-    "stop": "completed",
-    "route": "hop 1/1 stub",
-    "attempts": 1,
-    "level": 3,
-    "group": "review"
-   },
-   {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:38+00:00",
     "key": "review-gamma",
     "kind": "review",
     "unit": "gamma",
@@ -2183,13 +2119,13 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
-    "key": "python:score-delta",
+    "ts": "2026-10-14T09:59:38+00:00",
+    "key": "python:score-alpha",
     "kind": "score",
-    "unit": "delta",
+    "unit": "alpha",
     "claims": [],
     "after": [
-     "summarize-delta"
+     "summarize-alpha"
     ],
     "executor": "python",
     "flow": [
@@ -2212,9 +2148,9 @@
      }
     ],
     "created_from": [
-     "summarize-delta"
+     "summarize-alpha"
     ],
-    "flow_call": "0.4",
+    "flow_call": "0.1",
     "state": "done",
     "wall_s": 0.0,
     "stop": "completed",
@@ -2224,14 +2160,14 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
-    "key": "review-delta",
+    "ts": "2026-10-14T09:59:38+00:00",
+    "key": "review-alpha",
     "kind": "review",
-    "unit": "delta",
+    "unit": "alpha",
     "claims": [],
     "after": [
-     "summarize-delta",
-     "python:score-delta"
+     "summarize-alpha",
+     "python:score-alpha"
     ],
     "executor": "agent",
     "flow": [
@@ -2254,9 +2190,9 @@
      }
     ],
     "created_from": [
-     "python:score-delta"
+     "python:score-alpha"
     ],
-    "flow_call": "0.4",
+    "flow_call": "0.1",
     "state": "done",
     "wall_s": 0.1,
     "stop": "completed",
@@ -2266,7 +2202,7 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "python:score-beta",
     "kind": "score",
     "unit": "beta",
@@ -2307,7 +2243,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "review-beta",
     "kind": "review",
     "unit": "beta",
@@ -2349,7 +2285,48 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
+    "key": "python:score-delta",
+    "kind": "score",
+    "unit": "delta",
+    "claims": [],
+    "after": [
+     "summarize-delta"
+    ],
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 142,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 131,
+      "loops": [
+       {
+        "line": 130,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "summarize-delta"
+    ],
+    "flow_call": "0.4",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 2,
+    "group": "score"
+   },
+   {
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "write_note-alpha",
     "kind": "write_note",
     "unit": "alpha",
@@ -2385,13 +2362,14 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
-    "key": "write_note-delta",
-    "kind": "write_note",
+    "ts": "2026-10-14T09:59:39+00:00",
+    "key": "review-delta",
+    "kind": "review",
     "unit": "delta",
     "claims": [],
     "after": [
-     "summarize-delta"
+     "summarize-delta",
+     "python:score-delta"
     ],
     "executor": "agent",
     "flow": [
@@ -2404,12 +2382,17 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
-      "loops": []
+      "line": 132,
+      "loops": [
+       {
+        "line": 130,
+        "pass": 1
+       }
+      ]
      }
     ],
     "created_from": [
-     "review-delta"
+     "python:score-delta"
     ],
     "flow_call": "0.4",
     "state": "done",
@@ -2417,11 +2400,11 @@
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
-    "level": 2,
-    "group": "write_note"
+    "level": 3,
+    "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "write_note-beta",
     "kind": "write_note",
     "unit": "beta",
@@ -2457,7 +2440,7 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "python:score-epsilon",
     "kind": "score",
     "unit": "epsilon",
@@ -2498,7 +2481,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "review-epsilon",
     "kind": "review",
     "unit": "epsilon",
@@ -2540,7 +2523,43 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:44+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
+    "key": "write_note-delta",
+    "kind": "write_note",
+    "unit": "delta",
+    "claims": [],
+    "after": [
+     "summarize-delta"
+    ],
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 142,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 136,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-delta"
+    ],
+    "flow_call": "0.4",
+    "state": "done",
+    "wall_s": 0.1,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "write_note-epsilon",
     "kind": "write_note",
     "unit": "epsilon",
@@ -2576,7 +2595,7 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-14T09:47:45+00:00",
+    "ts": "2026-10-14T09:59:39+00:00",
     "key": "revise-gamma",
     "kind": "revise",
     "unit": "gamma",
@@ -2618,7 +2637,7 @@
     "group": "revise"
    },
    {
-    "ts": "2026-10-14T09:47:45+00:00",
+    "ts": "2026-10-14T09:59:40+00:00",
     "key": "python:score-gamma~2",
     "kind": "score",
     "unit": "gamma",
@@ -2659,7 +2678,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-14T09:47:45+00:00",
+    "ts": "2026-10-14T09:59:40+00:00",
     "key": "review-gamma~2",
     "kind": "review",
     "unit": "gamma",
@@ -2701,7 +2720,7 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-14T09:47:45+00:00",
+    "ts": "2026-10-14T09:59:40+00:00",
     "key": "write_note-gamma",
     "kind": "write_note",
     "unit": "gamma",
@@ -2737,7 +2756,7 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-14T09:47:46+00:00",
+    "ts": "2026-10-14T09:59:40+00:00",
     "key": "python:report",
     "kind": "report",
     "unit": "",
@@ -2986,7 +3005,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -3036,7 +3055,7 @@
       "file": {
        "exists": true,
        "size": 63,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -3086,7 +3105,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -3136,7 +3155,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -3186,7 +3205,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -3278,7 +3297,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:46+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": "alpha: 3 points\nbeta: 3 points\ngamma: 3 points\ndelta: 3 points\nepsilon: 3 points"
       },
@@ -3300,7 +3319,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -3335,7 +3354,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -3370,7 +3389,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -3405,7 +3424,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -3440,7 +3459,7 @@
       "file": {
        "exists": true,
        "size": 89,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -3484,7 +3503,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3520,7 +3539,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -3564,7 +3583,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3600,7 +3619,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -3644,7 +3663,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3680,7 +3699,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -3724,7 +3743,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3760,7 +3779,7 @@
       "file": {
        "exists": true,
        "size": 89,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -3804,7 +3823,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3840,7 +3859,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -3884,7 +3903,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -3920,7 +3939,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -3964,7 +3983,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4000,7 +4019,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -4035,7 +4054,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4075,7 +4094,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4111,7 +4130,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4146,7 +4165,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4186,7 +4205,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4222,7 +4241,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -4257,7 +4276,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4297,7 +4316,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4333,7 +4352,7 @@
       "file": {
        "exists": true,
        "size": 89,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -4368,7 +4387,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4408,7 +4427,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": false,
@@ -4444,7 +4463,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4479,7 +4498,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4519,7 +4538,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4555,7 +4574,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4590,7 +4609,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4632,7 +4651,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4672,7 +4691,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4707,7 +4726,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "approved": false,
@@ -4750,7 +4769,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -4790,7 +4809,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -4839,7 +4858,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4879,7 +4898,7 @@
       "file": {
        "exists": true,
        "size": 63,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4928,7 +4947,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -4968,7 +4987,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -5017,7 +5036,7 @@
       "file": {
        "exists": true,
        "size": 89,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -5057,7 +5076,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -5106,7 +5125,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5146,7 +5165,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5267,7 +5286,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": "# alpha\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5289,7 +5308,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:43+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -5336,7 +5355,7 @@
       "file": {
        "exists": true,
        "size": 68,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": "# beta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5358,7 +5377,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:38+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -5405,7 +5424,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": "# delta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5427,7 +5446,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -5474,7 +5493,7 @@
       "file": {
        "exists": true,
        "size": 71,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": "# epsilon\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5496,7 +5515,7 @@
       "file": {
        "exists": true,
        "size": 89,
-       "mtime": "2026-10-14T09:47:44+00:00",
+       "mtime": "2026-10-14T09:59:39+00:00",
        "truncated": false,
        "content": {
         "unit": "epsilon",
@@ -5543,7 +5562,7 @@
       "file": {
        "exists": true,
        "size": 76,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": "# gamma\n\nparses a config file (TOML)。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5565,7 +5584,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-14T09:47:45+00:00",
+       "mtime": "2026-10-14T09:59:40+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5604,7 +5623,7 @@
  "transcript": [
   {
    "type": "launch",
-   "ts": 1791971263.8948753,
+   "ts": 1791971978.8808634,
    "argv": [
     "stub",
     "-p",
@@ -5626,28 +5645,28 @@
    "tool": "read",
    "cmd": "/work/demo-runs/docs/calls/summarize-delta.json",
    "intent": "",
-   "call": "summarize-delta-645314"
+   "call": "summarize-delta-485808"
   },
   {
    "type": "tool_execution_end",
    "tool": "read",
    "out": "{\"prepared\": {\"unit\": \"delta\", \"path\": \"inputs/delta.md\", \"words\": 14}}",
    "err": false,
-   "call": "summarize-delta-645314"
+   "call": "summarize-delta-485808"
   },
   {
    "type": "tool_execution_start",
    "tool": "write",
    "cmd": "/work/demo-runs/docs/out/summarize/delta.json",
    "intent": "",
-   "call": "summarize-delta-963460"
+   "call": "summarize-delta-186921"
   },
   {
    "type": "tool_execution_end",
    "tool": "write",
    "out": "ok",
    "err": false,
-   "call": "summarize-delta-963460"
+   "call": "summarize-delta-186921"
   },
   {
    "type": "message_update",
@@ -5656,7 +5675,7 @@
   },
   {
    "type": "launch",
-   "ts": 1791971263.971515,
+   "ts": 1791971978.9710932,
    "argv": [
     "stub",
     "-p",
@@ -5678,28 +5697,28 @@
    "tool": "read",
    "cmd": "/work/demo-runs/docs/calls/summarize-delta.json",
    "intent": "",
-   "call": "summarize-delta-745959"
+   "call": "summarize-delta-782179"
   },
   {
    "type": "tool_execution_end",
    "tool": "read",
    "out": "{\"prepared\": {\"unit\": \"delta\", \"path\": \"inputs/delta.md\", \"words\": 14}}",
    "err": false,
-   "call": "summarize-delta-745959"
+   "call": "summarize-delta-782179"
   },
   {
    "type": "tool_execution_start",
    "tool": "write",
    "cmd": "/work/demo-runs/docs/out/summarize/delta.json",
    "intent": "",
-   "call": "summarize-delta-817620"
+   "call": "summarize-delta-47362"
   },
   {
    "type": "tool_execution_end",
    "tool": "write",
    "out": "ok",
    "err": false,
-   "call": "summarize-delta-817620"
+   "call": "summarize-delta-47362"
   },
   {
    "type": "message_update",
