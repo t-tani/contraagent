@@ -67,7 +67,10 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 def finished_before(row: dict | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
-    task's fingerprint. What a resume skips."""
+    task's fingerprint. What a resume skips; never a task that reruns on resume
+    (`Task.rerun_on_resume`)."""
+    if task.rerun_on_resume:
+        return False
     return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 
@@ -143,6 +146,7 @@ class Run:
         self._torn_down = False
         self._teardown_lock = threading.Lock()
         self._teardown_callbacks: list[Callable[[], None]] = []
+        self._restore_signals: Callable[[], None] | None = None
         if lock:
             self._acquire()
         rundir.write_document(
@@ -187,7 +191,11 @@ class Run:
         self._lock_fd = fd
 
     def close(self) -> None:
-        """Release the run lock (process exit releases it too)."""
+        """Release the run lock (process exit releases it too), and put back the signal
+        handlers `stop_on_signals` replaced."""
+        if self._restore_signals is not None:
+            self._restore_signals()
+            self._restore_signals = None
         if self._lock_fd is not None:
             os.close(self._lock_fd)
             self._lock_fd = None
@@ -239,6 +247,13 @@ class Run:
         finally:
             self._teardown_lock.release()
         _teardown.run(*self._teardown_callbacks)
+
+    def stop_on_signals(self) -> None:
+        """Run `teardown` on SIGTERM and SIGINT until `close()`: an interrupted run stops its
+        agents, whose sessions of their own a terminal's Ctrl-C does not reach. Only on the
+        main thread (Python's signal handlers live there); elsewhere it does nothing."""
+        if threading.current_thread() is threading.main_thread() and self._restore_signals is None:
+            self._restore_signals = _teardown.install_signal_handlers(self.teardown)
 
     def install_signal_handlers(self) -> None:
         """Run `teardown` on SIGTERM/SIGINT and at interpreter exit."""

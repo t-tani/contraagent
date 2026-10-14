@@ -25,8 +25,10 @@ _logger = logging.getLogger(__name__)
 _Handler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
 
 
-def install_signal_handlers(teardown_fn: Callable[[], None]) -> None:
-    """Make `teardown_fn` run on SIGTERM and SIGINT.
+def install_signal_handlers(teardown_fn: Callable[[], None]) -> Callable[[], None]:
+    """Make `teardown_fn` run on SIGTERM and SIGINT. Returns a function that puts back the
+    handlers each signal had, where ours is still the one installed (a no-op off the main
+    thread, where nothing was installed).
 
     SIGINT is handled rather than re-raised, so Ctrl-C produces the orderly
     stop and a second Ctrl-C forces the issue. The handler puts back the
@@ -58,6 +60,16 @@ def install_signal_handlers(teardown_fn: Callable[[], None]) -> None:
             # Not the main thread, or no such signal here; the atexit
             # registration still covers an ordinary exit.
             pass
+
+    def restore() -> None:
+        for sig, prior in previous.items():
+            try:
+                if signal.getsignal(sig) is _on_signal:
+                    signal.signal(sig, signal.SIG_DFL if prior is None else prior)
+            except (ValueError, OSError):
+                pass
+
+    return restore
 
 
 def run(*callbacks: Callable[[], None]) -> None:

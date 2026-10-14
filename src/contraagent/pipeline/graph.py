@@ -467,6 +467,7 @@ class Graph:
             origin=node.origin,
             fingerprint=node.fingerprint,
             claims=node.claims,
+            rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             payload=node,
         )
         if self.tail is not None:

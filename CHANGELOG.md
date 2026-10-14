@@ -365,6 +365,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `openExportFeed`). It holds no transcripts and no processes; this machine's paths
   are made relative or taken out and its host name left blank (`--keep`, `--exclude`),
   and the page's header says when it was written (`Info.export`).
+- `rerun_on_resume=True` on `agent_task` and `@python_task`: a resume runs the task again
+  even when an earlier attempt finished it, for a final step that reports or publishes the
+  state of the work (a site, statistics, a commit) and takes no output of the tasks before it.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a
@@ -816,6 +819,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Backend.cost_is_session_total`: Claude Code the session's, omp each launch's), the
   hops' costs in the journal and the monitor's model shares follow, `num_turns` counts
   every round's turns, and `launches.jsonl` keeps each round's own cost (`round_costs`).
+- A coding agent no longer outlives the pipeline that launched it. `Pipeline.run`
+  stops its agents on SIGTERM and Ctrl-C (agents run in sessions of their own, which a
+  terminal's Ctrl-C does not reach), and a watchdog process stops them when the pipeline's
+  process is killed outright (SIGKILL, out of memory).
+- A task queued while the queue was starting tasks (a rest's or a time box's deferral
+  answered by a follow-up, such as a finishing task) launches: when nothing else ran, the
+  queue deferred it as never queued (`no launchable task (dependency never queued)`)
+  without having looked at it.
 - A long table (the monitor's history, its tasks) no longer hangs the page when it is
   scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
   heights no longer move its window back and forth, and it measures again on the next

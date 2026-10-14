@@ -127,6 +127,8 @@ class Task:
     name at once than its capacity (WorkQueue's `claim_capacity`; 1 by default).
     `time_boxes`: the time boxes of the flow calls that created it, outermost
     first (`TimeBox`); the queue holds it to each of them, beside its own deadline.
+    `rerun_on_resume`: a resume runs it again even when an earlier attempt of the run
+    finished it (a final step that reports or publishes the state of the work).
     `estimate_s`: expected wall time, used to order the ready set.
     `tail_s`: expected wall time of the work that follows this task but is
     not queued yet (a flow creates it from this task's result); the queue's
@@ -151,6 +153,7 @@ class Task:
     fn: Callable[[], None] | None = None
     claims: tuple[str, ...] = ()
     time_boxes: tuple[TimeBox, ...] = ()
+    rerun_on_resume: bool = False
     estimate_s: float | None = None
     tail_s: float | None = None
     params: dict = field(default_factory=dict)

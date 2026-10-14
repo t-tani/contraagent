@@ -253,6 +253,75 @@ def test_host_handler_is_restored_and_called(restore_signals):
 # --- run -----------------------------------------------------------------
 
 
+#: A pipeline whose coding agent sleeps, launched by `run_process` as any agent is, with a
+#: token on its command line to find it by.
+_DRIVER = """
+import sys
+from contraagent import Pipeline, agent_task
+from contraagent.backends.base import OneShotBackend
+from contraagent.backends.launch import LaunchResult, Stop
+
+token, runs = sys.argv[1], sys.argv[2]
+
+
+class Sleeper(OneShotBackend):
+    name = "sleeper"
+    binary = sys.executable
+
+    def argv(self, launch):
+        return [sys.executable, "-c", "import time; time.sleep(300)", token]
+
+    def env(self, launch):
+        return {"PATH": "/usr/bin:/bin"}
+
+    def parse(self, launch, stdout, exit_code, killed):
+        return LaunchResult(label=launch.label, agent=self.name, stop=Stop.COMPLETED, ok=True)
+
+
+work = agent_task("work", instructions="x", max_turns=1, timeout_s=600, agent="sleeper")
+Pipeline(backends={"sleeper": Sleeper()}, runs_dir=runs).run(lambda: work("a"), run_id="sleep")
+"""
+
+
+def _with_token(token: str) -> list[int]:
+    """The pids whose command line holds `token`."""
+    out = []
+    for d in Path("/proc").iterdir():
+        if d.name.isdigit():
+            try:
+                if token.encode() in (d / "cmdline").read_bytes():
+                    out.append(int(d.name))
+            except OSError:
+                pass
+    return out
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGKILL])
+def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, sig):
+    """SIGTERM and Ctrl-C reach the run's teardown; SIGKILL, which runs nothing, leaves
+    the watchdog to stop the agent. Either way no agent outlives its pipeline."""
+    token = f"contraagent-test-{os.getpid()}-{sig.name}-{time.monotonic_ns()}"
+    script = tmp_path / "driver.py"
+    script.write_text(_DRIVER)
+    driver = subprocess.Popen([sys.executable, str(script), token, str(tmp_path / "runs")], stderr=subprocess.PIPE)
+    try:
+        agents = lambda: [pid for pid in _with_token(token) if pid != driver.pid]
+        deadline = time.monotonic() + 30
+        while not agents() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        [agent] = agents()
+        os.kill(driver.pid, sig)
+        driver.wait(timeout=20)
+        deadline = time.monotonic() + 15
+        while _alive(agent) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert not _alive(agent), f"the agent outlived its pipeline ({sig.name})"
+    finally:
+        driver.kill()
+        for pid in _with_token(token):
+            os.kill(pid, signal.SIGKILL)
+
+
 def test_run_lock_is_not_world_writable(tmp_path):
     run = Run("r", tmp_path)
     try:

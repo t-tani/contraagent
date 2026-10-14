@@ -26,7 +26,7 @@ documentation. No other word is used for the same thing.
 | **loop** | a `for` or `while` statement in a generator of flow code, named by its first line; a call site's loops are those whose pass it is in, outermost first; a comprehension is not a loop | `Loop.line`, `Frame.loops`; `flow[].loops[].line` |
 | **pass** | one iteration of one loop, numbered from 1 each time the loop is entered; never an attempt, never the `~n` of a key | `Loop.pass_`, `flow[].loops[].pass`; `max_passes` (the passes a `while` loop may make; a `for` loop has no limit), `TooManyPasses` |
 | **created from** | the keys whose results a flow call had received when it created a task | `Origin.created_from` |
-| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
+| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint, but not a task declared `rerun_on_resume` | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
 
 ## Definition
 
