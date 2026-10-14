@@ -128,6 +128,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 |---|---|---|
 | **group** | a column of the plan | `Monitor(groups=)` |
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
+| **panel** / **panel body** | a view a pipeline adds to the monitor: computed per run (`scope="run"`, a tab of each run) or over the runs of a period (`scope="trends"`, `fn(runs, period)`) / what it returns: a typed body (`tiles`, `table`, `columns`, `lines`, `heatmap`, `hbars`, `blocks` of them) the monitor draws, or any other JSON object, shown as a JSON tree | `monitor.Panel`, `Period`; `api.PanelBody`; `contraagent monitor --panels` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |
 | **element** | a web component: `ca-*` in `@contraagent/ui`, `cae-*` in `@contraagent/elements` | `CaMonitor`, `CaTranscript`, `CaeSegmented`, ... |

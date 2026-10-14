@@ -2601,6 +2601,41 @@
   <source>The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.</source>
   <target>エージェントのセッションを、動いたモデルごとに集計したもの。モデル切り替えがあれば、切り替えの前後をそれぞれのモデルで数える。Python タスクはモデルを使わない。</target>
 </trans-unit>
+<trans-unit id="s5f40c8d75226c663">
+  <source>No rows</source>
+  <target>行なし</target>
+</trans-unit>
+<trans-unit id="s5cfa1889ee16f534">
+  <source>No values</source>
+  <target>値なし</target>
+</trans-unit>
+<trans-unit id="s88be8b2eafea1028">
+  <source>Show table</source>
+  <target>表で表示</target>
+</trans-unit>
+<trans-unit id="seb0e083918cf70dc">
+  <source>Show chart</source>
+  <target>グラフで表示</target>
+</trans-unit>
+<trans-unit id="sed8ec5e3c64fa25d">
+  <source>Total</source>
+  <target>合計</target>
+</trans-unit>
+<trans-unit id="sfa251e3af0f9c14c">
+  <source><x id="0" equiv-text="${low}"/> to <x id="1" equiv-text="${high}"/></source>
+  <target><x id="0" equiv-text="${low}"/> 〜 <x id="1" equiv-text="${high}"/></target>
+  <note from="lit-localize">A heatmap's colour scale: its lowest and highest value</note>
+</trans-unit>
+<trans-unit id="s5590dbf7e425789d">
+  <source>Label</source>
+  <target>項目</target>
+  <note from="lit-localize">Column of a chart's table view: the label of each point or bar</note>
+</trans-unit>
+<trans-unit id="sc9e494c8346b7cb5">
+  <source>Other</source>
+  <target>その他</target>
+  <note from="lit-localize">The series of a chart past the sixth, summed into one</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

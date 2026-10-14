@@ -98,7 +98,7 @@ _OUTPUTS = TypeAdapter(api.Outputs)
 # `Optional`, not `X | None`: outside an annotation that is a `UnionType`
 # value, which type checkers do not accept as a TypeAdapter's type.
 _CURSOR = TypeAdapter(Optional[api.CursorView])  # noqa: UP045
-_PANEL = TypeAdapter(api.JsonObject)
+_PANEL = TypeAdapter(api.PanelBody)
 _STREAM = TypeAdapter(api.StreamPage)
 _READY = TypeAdapter(api.FeedReady)
 
@@ -147,9 +147,11 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
         if sig != sigs.get("procs"):
             sigs["procs"] = sig
             yield {"event": "procs", "data": _json(_PROCS, procs)}
-        for name in monitor.panels:
+        for name in monitor.run_panels():
             try:
-                body = json.dumps(monitor.panel(name, run), default=str)
+                value = monitor.panel(name, run)
+                _PANEL.validate_python(value)  # a typed body that does not validate is an error, not a JSON tree
+                body = json.dumps(value, default=str)
             except Exception as exc:  # one bad panel must not stop the feed
                 body = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
             if body != sigs.get(name):
@@ -307,9 +309,14 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         page, total = monitor.stream(run, key, since)
         return {**page, "total": total}
 
-    @app.get("/api/runs/{run}/panels/{name}", response_model=api.JsonObject, responses={404: {"description": "no panel of that name"}})
+    @app.get(
+        "/api/runs/{run}/panels/{name}",
+        response_model=api.PanelBody,
+        response_model_exclude_unset=True,
+        responses={404: {"description": "no run panel of that name"}},
+    )
     def api_panel(run: str, name: str) -> dict:
-        """One registered panel's body: a JSON object whose shape the domain chooses."""
+        """One run panel's body: a typed body (tiles, a table, charts), or any JSON object."""
         monitor.check_run(run)
         try:
             return monitor.panel(name, run)
@@ -420,6 +427,31 @@ def serve(
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
+def load_attr(spec: str) -> Any:
+    """What `path/to/file.py:attr` or `package.module:attr` names. A file is loaded from
+    its path, under its own name, with its directory on `sys.path` (so it imports its
+    neighbours); a module is imported, the working directory on `sys.path`."""
+    target, _, name = spec.rpartition(":")
+    if not target or not name:
+        raise ValueError(f"{spec}: expected path/to/file.py:attr or package.module:attr")
+    if target.endswith(".py"):
+        path = Path(target).resolve()
+        if not path.is_file():
+            raise OSError(f"{spec}: no file {path}")
+        if str(path.parent) not in sys.path:
+            sys.path.insert(0, str(path.parent))
+        found = importlib.util.spec_from_file_location(path.stem, path)
+        if found is None or found.loader is None:
+            raise ImportError(f"{spec}: cannot load {path}")
+        module = importlib.util.module_from_spec(found)
+        sys.modules[path.stem] = module
+        found.loader.exec_module(module)
+        return getattr(module, name)
+    if str(Path.cwd()) not in sys.path:
+        sys.path.insert(0, str(Path.cwd()))
+    return getattr(importlib.import_module(target), name)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -449,6 +481,21 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ORIGIN",
         help="let a page from this origin read the API, e.g. http://localhost:5173 for a UI dev server",
     )
+    ap.add_argument(
+        "--panels",
+        metavar="MODULE:ATTR",
+        help="the pipeline's own views: a dict of name -> Panel (or a callable), as path/to/views.py:PANELS or package.module:PANELS",
+    )
+    ap.add_argument(
+        "--groups",
+        metavar="MODULE:ATTR",
+        help='the plan\'s columns: a list of {"id", "label", "kinds"}, as path/to/views.py:GROUPS or package.module:GROUPS',
+    )
+    ap.add_argument(
+        "--task-detail",
+        metavar="MODULE:ATTR",
+        help="fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail or package.module:detail",
+    )
     ap.add_argument("--docs", action="store_true", help="serve interactive API docs at /api/docs")
     ap.add_argument(
         "--openapi",
@@ -474,8 +521,13 @@ def main(argv: list[str] | None = None) -> int:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     formats = dict(item.split("=", 1) for item in args.stream_format if "=" in item)
+    try:
+        extensions = {name: load_attr(getattr(args, name)) for name in ("panels", "groups", "task_detail") if getattr(args, name)}
+    except (ImportError, AttributeError, OSError, ValueError) as exc:
+        sys.stderr.write(f"contraagent monitor: {exc}\n")
+        return 2
     serve(
-        Monitor(args.runs_dir, title=args.title, stream_formats=formats),
+        Monitor(args.runs_dir, title=args.title, stream_formats=formats, **extensions),
         args.host,
         args.port,
         allowed_hosts=args.allow_host,

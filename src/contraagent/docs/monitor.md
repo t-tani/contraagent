@@ -129,8 +129,31 @@ store; the layout of a run's records is `contraagent/rundir.py`.
 
 ## Your own views: panels
 
-A pipeline adds tabs of its own with `monitor.Panel`: a function of the run id
-that returns any JSON object, sent live whenever it changes.
+A pipeline adds views of its own with `monitor.Panel`: a function that returns
+the view's body, sent live whenever it changes. A typed body is drawn with the
+monitor's own elements: `tiles` (figures), a `table` (columns, each with a
+format: `usd`, `pct` (a fraction), `duration` (seconds), `tokens`, `datetime`,
+`number`; `bar` draws a bar in its cells, and a row's `_tone` is its status),
+`columns` (vertical bars, `stacked` or side by side), `lines`, a `heatmap`,
+`hbars` (horizontal bars), and `blocks` of them one under another, each with an
+optional `title` and folded when `collapsed`. The models are in
+`contraagent.monitor.api` (`PanelBody`); a panel returns one, or a dict with its
+`type`. Any other dict is shown as a JSON tree. A typed body that does not
+validate is an error, never a JSON tree.
+
+::code{file="examples/panels/views.py" from="def spend(" to="def cost_by_day("}
+
+A panel's `scope` says what it is computed over: `run` (the default), `fn(run)`,
+a tab of each run; `trends`, `fn(runs, period)`, over the run ids of a period
+(`Period`: its `start`, `end` and the time zone `tz` its days are counted in),
+for a view of many runs.
+
+::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
+
+`contraagent monitor --panels views.py:PANELS` loads them from a file or a
+module (`package.module:PANELS`), a dict of name to `Panel`; `--groups`
+(the plan's columns) and `--task-detail` (`fn(run, key, rows)`, merged into a
+task's detail) take the same form. From Python, `Monitor(panels=...)`:
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
 

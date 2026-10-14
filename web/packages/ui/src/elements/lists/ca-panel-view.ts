@@ -1,11 +1,12 @@
-import type { JsonObject, PanelInfo } from '@contraagent/api';
+import { typedBody, type PanelBody, type PanelInfo } from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { base } from '@contraagent/elements/styles';
 import '@contraagent/elements/json-tree/define';
+import './ca-panel-body.js';
 
-/** A view the pipeline added (`monitor.Panel`): its body as a JSON tree, updating live. */
+/** A view the pipeline added (`monitor.Panel`), updating live: a typed body as tiles, a table and charts, any other as a JSON tree. */
 @customElement('ca-panel-view')
 @localized()
 export class CaPanelView extends LitElement {
@@ -23,7 +24,7 @@ export class CaPanelView extends LitElement {
   /** Its title, description and icon from `/api/info`. */
   @property({ attribute: false }) panel: PanelInfo | undefined;
   /** Its body; undefined until the feed has sent it. */
-  @property({ attribute: false }) data: JsonObject | undefined;
+  @property({ attribute: false }) data: PanelBody | undefined;
 
   override render() {
     if (this.data === undefined) {
@@ -37,7 +38,7 @@ export class CaPanelView extends LitElement {
       <h3><span class="tab-ic" aria-hidden="true">${info?.icon || '▤'}</span>${info?.title || this.name}
         <span class="r">${msg('Custom view')}</span></h3>
       ${info?.description ? html`<div class="meta desc">${info.description}</div>` : nothing}
-      <cae-json-tree .value=${this.data}></cae-json-tree>
+      ${typedBody(this.data) ? html`<ca-panel-body .body=${this.data}></ca-panel-body>` : html`<cae-json-tree .value=${this.data}></cae-json-tree>`}
     </section>`;
   }
 }

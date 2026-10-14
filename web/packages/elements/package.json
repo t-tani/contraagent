@@ -1,7 +1,7 @@
 {
   "name": "@contraagent/elements",
   "version": "0.1.0",
-  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, a check table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, charts (columns, lines, a heatmap, horizontal bars), a check table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -65,6 +65,11 @@
       "types": "./dist/lanes/index.d.ts",
       "default": "./dist/lanes/index.js"
     },
+    "./charts": {
+      "source": "./src/charts/index.ts",
+      "types": "./dist/charts/index.d.ts",
+      "default": "./dist/charts/index.js"
+    },
     "./check-table": {
       "source": "./src/checks/index.ts",
       "types": "./dist/checks/index.d.ts",
@@ -125,6 +130,11 @@
       "types": "./dist/define/lanes.d.ts",
       "default": "./dist/define/lanes.js"
     },
+    "./charts/define": {
+      "source": "./src/define/charts.ts",
+      "types": "./dist/define/charts.d.ts",
+      "default": "./dist/define/charts.js"
+    },
     "./check-table/define": {
       "source": "./src/define/check-table.ts",
       "types": "./dist/define/check-table.d.ts",
@@ -149,7 +159,7 @@
     "./src/define/*.ts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/*/{segmented,data-table,layered-graph,mark-matrix,stat-tiles,lanes,check-table,transcript,json-tree,cae-markdown,count,elapsed}.ts'",
+    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/*/{segmented,data-table,layered-graph,mark-matrix,stat-tiles,lanes,column-chart,line-chart,heatmap,bar-chart,check-table,transcript,json-tree,cae-markdown,count,elapsed}.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs"
   },
   "peerDependencies": {

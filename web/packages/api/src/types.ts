@@ -1,6 +1,7 @@
 // Names for the generated schema types. `schema.ts` is generated from the
 // monitor's OpenAPI document (`pnpm gen`); everything here is an alias of it.
 import type { components } from './schema.js';
+import type { PanelBody } from './panels.js';
 
 type S = components['schemas'];
 
@@ -135,7 +136,7 @@ export type PanelEventName = `panel:${string}`;
 /** A panel's message, with its event name typed. */
 export interface PanelMessage {
   event: PanelEventName;
-  data: JsonObject;
+  data: PanelBody;
 }
 /** A run feed message with every `event` name a literal (or `panel:<name>`). */
 export type RunFeedMessage = FixedRunMessage | PanelMessage;

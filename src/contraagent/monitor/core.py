@@ -7,9 +7,12 @@ a test can use the same views.
 A domain extends it two ways, neither touching the framework:
 
 * `panels` — named callables `fn(run) -> dict`. Each shows up as its own
-  tab in the web UI (rendered as a JSON tree) and is pushed over the live
-  feed whenever its value changes. A security-scan pipeline would register
-  "findings" or "targets"; a data pipeline would register "datasets".
+  tab in the web UI and is pushed over the live feed whenever its value
+  changes. A typed body (`api.PanelBody`: tiles, a table, charts, blocks of
+  them) is drawn with the monitor's own elements; any other dict is shown as
+  a JSON tree. A security-scan pipeline would register "findings" or
+  "targets"; a data pipeline would register "datasets". A panel of `scope`
+  "trends" is computed over the runs of a period instead (`fn(runs, period)`).
 * `task_detail` — `fn(run, key, rows) -> dict` (`TaskDetailFn`), merged into the
   per-task view (a task's declared inputs/outputs, the state it wrote).
 
@@ -22,7 +25,11 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
@@ -31,24 +38,51 @@ from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import paths
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 
-PanelFn = Callable[[str], dict]
+
+@dataclass(frozen=True)
+class Period:
+    """The runs a trends panel is computed over: those that started from `start` up to
+    `end` (the trends view's `from` and `to`), with days counted in the time zone `tz`
+    (an IANA name, `UTC` by default)."""
+
+    start: datetime
+    end: datetime
+    tz: str = "UTC"
+
+
+#: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`).
+PanelFn = Callable[[str], Any]
+#: A trends panel: `fn(runs, period) -> body`, over the run ids of the period, oldest first.
+TrendsPanelFn = Callable[[list[str], Period], Any]
 
 
 @dataclass
 class Panel:
-    """A named view a domain adds to the monitor: `fn(run) -> dict`.
+    """A named view a domain adds to the monitor.
 
-    `title` and `description` label its tab and say what it shows; `icon` is a
-    short glyph. A bare callable works too (the dict key becomes the title).
+    `fn` returns its body: a typed body (`api.PanelBody`, as a model or as a dict with
+    its `type`) drawn as tiles, a table or charts, or any other dict, shown as a JSON
+    tree. `scope` says what it is computed over: `run`, `fn(run)`, a tab of each run;
+    `trends`, `fn(runs, period)`, a view of the runs of a period. `title` and
+    `description` label it and say what it shows; `icon` is a short glyph. A bare
+    callable works too, as a run panel (the dict key becomes the title).
     """
 
-    fn: PanelFn
+    fn: PanelFn | TrendsPanelFn
     title: str = ""
     description: str = ""
     icon: str = "▤"
+    scope: Literal["run", "trends"] = "run"
 
-    def __call__(self, run: str) -> dict:
-        return self.fn(run)
+    def __call__(self, *args: Any) -> dict:
+        return panel_body(self.fn(*args))
+
+
+def panel_body(value: Any) -> dict:
+    """A panel's return value as JSON data: a typed body given as a model, dumped."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_none=True)
+    return value
 
 
 #: The `task_detail` callback: `fn(run, key, rows) -> dict`, merged into `Monitor.task_detail`.
@@ -747,13 +781,28 @@ class Monitor:
     # --- panels ------------------------------------------------------------
 
     def panel(self, name: str, run: str) -> dict:
+        """Run panel `name`'s body for `run`. KeyError: no run panel of that name."""
         panel = self.panels.get(name)
-        if panel is None:
+        if panel is None or panel.scope != "run":
             raise KeyError(name)
         return panel(run)
 
+    def trends_panel(self, name: str, runs: list[str], period: Period) -> dict:
+        """Trends panel `name`'s body over `runs` (the period's run ids). KeyError: no trends panel of that name."""
+        panel = self.panels.get(name)
+        if panel is None or panel.scope != "trends":
+            raise KeyError(name)
+        return panel(runs, period)
+
+    def run_panels(self) -> list[str]:
+        """The names of the panels computed per run: each run's tabs, and its live feed."""
+        return [n for n, p in self.panels.items() if p.scope == "run"]
+
     def panel_info(self) -> list[dict]:
-        return [{"name": n, "title": p.title or n, "description": p.description, "icon": p.icon} for n, p in sorted(self.panels.items())]
+        return [
+            {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon, "scope": p.scope}
+            for n, p in sorted(self.panels.items())
+        ]
 
 
 def row_extras(rows: list[dict]) -> list[str]:

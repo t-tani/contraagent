@@ -4,6 +4,7 @@
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
+import { isRunPanel } from './panels.js';
 import type { Hosts, Info, JournalRow, RunSummary } from './types.js';
 
 export interface MonitorSnapshot {
@@ -142,7 +143,7 @@ export class MonitorStore {
   }
 
   private panelNames(): string {
-    return this.snap.info.panels.map((p) => p.name).join('\n');
+    return this.snap.info.panels.filter(isRunPanel).map((p) => p.name).join('\n');
   }
 
   /** Open the current run's feed again (the server replays it from the start). */
@@ -163,7 +164,7 @@ export class MonitorStore {
     if (!run) return;
     this.closeFeed = openRunFeed(
       run,
-      this.snap.info.panels.map((p) => p.name),
+      this.snap.info.panels.filter(isRunPanel).map((p) => p.name),
       {
         open: () => {
           this.push({ event: 'connected' });

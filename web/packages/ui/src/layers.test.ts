@@ -179,7 +179,7 @@ const ELEMENTS_LAYERS: readonly (readonly string[])[] = [
   ['themes'],
   ['styles'],
   ['primitives'],
-  ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count'],
+  ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count', 'charts'],
   ['graph'],
   ['define'],
 ];

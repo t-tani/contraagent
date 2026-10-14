@@ -46,6 +46,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | run not live | not running / finished | 実行中ではありません / 終了 |
 | TaskAdapter (a kind without a plugin) | defined in Python code | Python コードで定義 |
 | panel (`monitor.Panel`) | custom view | カスタムビュー |
+| a panel body's charts (`columns`, `lines`, `heatmap`, `hbars`): the switch, the sum of a stacked bar, the series past the sixth, a chart's table column of labels, a heatmap's scale | Show table / Show chart; Total; Other; Label; `low` to `high` | 表で表示 / グラフで表示; 合計; その他; 項目; `low` 〜 `high` |
 | a pipeline's own journal column (`row_extras`; `RunSummary.row_extras`, `TaskDetail.row_extras` name them) | a column headed by its name as written; tooltip: custom column (row_extras) | カスタム列 |
 | `Plan.models` (`ModelUsage`: what the agent sessions spent on each model, each hop on its own; the measures cost, tokens, time, agent sessions) | Models; Share; Measure; Other models (past six); the measures in their own words (Cost, Tokens, Time, Agent sessions) | モデル別の内訳; 割合; 指標; その他のモデル |
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |

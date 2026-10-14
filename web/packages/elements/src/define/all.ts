@@ -10,3 +10,4 @@ import './check-table.js';
 import './matrix.js';
 import './graph.js';
 import './transcript.js';
+import './charts.js';
