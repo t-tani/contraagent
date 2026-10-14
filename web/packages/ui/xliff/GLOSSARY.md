@@ -50,6 +50,7 @@ unit names, stop values such as `completed`, model and role names).
 | wall time | 所要時間 |
 | snapshot | スナップショット |
 | stub agent (a coding agent with scripted replies instead of a model; a stub run's mark) | スタブエージェント |
+| export (the monitor's views written as files, read with no server; `contraagent monitor export`) | 書き出し（「エクスポート」と書かない）; `time` 時点の書き出し |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
 | final message (the agent's last message of a session; an output taken from it) | 最後のメッセージ |
@@ -96,6 +97,10 @@ wherever the UI shows a state or a count to the reader.
 | finished with errors (a run with failed or not-started tasks) | エラーで終了 |
 | defined in Python code | Python コードで定義 |
 | custom view (a `monitor.Panel`: an extra view the pipeline's code adds) | カスタムビュー |
+| Show table / Show chart (a chart's switch to a table of its values, and back) | 表で表示 / グラフで表示 |
+| Total (the sum of a stacked bar) / Other (series past the sixth, summed) / Label (a chart table's first column) | 合計 / その他 / 項目 |
+| `low` to `high` (a heatmap's colour scale) | `low` 〜 `high` |
+| No values (a chart with nothing to draw) / No rows (a table with no rows) | 値なし / 行なし |
 | custom column (`row_extras`: a journal column the pipeline's code adds; its name is the pipeline's, shown as written) | カスタム列 |
 | Models (a run's use of each model, `Plan.models`), Share, Measure, Other models (the models past the sixth colour, folded into one part of the bar) | モデル別の内訳, 割合, 指標, その他のモデル |
 | identity (the credential an attempt authenticated as) | 認証情報 |
@@ -115,6 +120,10 @@ wherever the UI shows a state or a count to the reader.
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |
 | 5-hour / weekly usage (a subscription's utilization) | 5 時間枠 / 週の利用率 |
+| 5-hour / weekly (a usage window), weekly (`model`) (a model's own) | 5 時間枠 / 週, 週（`model`） |
+| warning threshold (the usage past which the status warns) | 警告のしきい値 |
+| extra usage (usage past the limit, billed apart) | 上限を超えた利用（「超過」「オーバーエージ」は使わない） |
+| account (the billing account a reading is of, as a digest) | アカウント |
 | a value the coding agent reported / read later | 報告した値 / 値（「報告値」「観測値」は使わない） |
 | API request sent again (the agent's own resend after an API error) | 再送（「リトライ」は新しいセッションでの再試行だけ） |
 | aborted (stop `aborted`: stopped during a tool call) | ツール実行中に中止（「中断」はトランスクリプトで途中で切れた呼び出しだけ） |
@@ -128,6 +137,10 @@ wherever the UI shows a state or a count to the reader.
 | 1 pass: 4 \| 2 passes: 1 (how many units ran each number of passes; tooltip: units by number of passes) | 1 周: 4 \| 2 周: 1（ツールチップ: ユニットごとの周回数） |
 | next pass (a loop box's dotted return from its last layer to its first) | 次の周 |
 | has an inner view (a function node's layer, a loop box's passes; the legend of their two-card mark) | 内部の表示あり |
+| Show inside / Hide inside (a function drawn open as a box of its layer, or closed as a node; not "open", which goes into a layer) | 中を表示 / 中を隠す |
+| Show all inside / Hide all inside | すべての中を表示 / すべての中を隠す |
+| Outline of the flow (the tree of functions and loops beside the graph) | フローの構成 |
+| Fold / Unfold (an outline item) | 折りたたむ / 展開 |
 | Selected item / Clear selection (the inspector beside the pipeline graph) | 選択中の項目 / 選択を解除 |
 | Task detail / Tasks of review / Inside review_loop / Passes of the loop at flow.py:130 (the inspector's links: where each goes) | タスク詳細 / review のタスク / review_loop の内部 / flow.py:130 のループの各周 |
 | No layer X in this run (a link to a layer the run does not have) | この実行には階層 X がありません |
@@ -162,6 +175,9 @@ wherever the UI shows a state or a count to the reader.
 | no report from host (a run whose host stopped reporting while it ran: neither running nor finished) / 1 with no report from host | ホストからの報告なし / ホストからの報告なし 1 件 |
 | last activity (the time of a run's last record, while its host is not reporting) | 最終更新 |
 | 2 runs / 2 hosts / 1 with no report (hosts) | 実行 2 件 / ホスト 2 台 / 報告なし 1 台（ホストは「台」で数える） |
+| Trends (the page of what the runs of a period add up to) | 推移 |
+| Period; N days; Dates (the trends' period) | 期間; N 日間; 日付指定 |
+| Run starts (by weekday and hour) | 実行の開始時刻 |
 
 ## Style
 

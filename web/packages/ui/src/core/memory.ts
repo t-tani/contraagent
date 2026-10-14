@@ -133,6 +133,16 @@ export class RememberedSet {
     else items.delete(x);
     this.memory.remember(this.id, [...items]);
   }
+  /** Every id in the set. */
+  values(): string[] {
+    return [...this.loaded];
+  }
+  /** Empty the set. */
+  clear(): void {
+    if (!this.loaded.size) return;
+    this.loaded.clear();
+    this.memory.remember(this.id, []);
+  }
 }
 
 /**

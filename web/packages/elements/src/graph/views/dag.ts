@@ -6,7 +6,7 @@ import { toneAttr, type Tone } from '../../core/tone.js';
 import { stateCount } from '../../primitives/states.js';
 import { isPoint } from '../arrange.js';
 import { BAR_LIST, firstMark, gridOf, hlKeyOf, slotsOf, type GraphHost, type MarkGroup, type Slot } from '../host.js';
-import { cycleIcon, innerIcon } from '../icons.js';
+import { cycleIcon, innerIcon, toggleIcon } from '../icons.js';
 import type { Rect } from '../layout.js';
 import { asBar, barParts } from '../marks.js';
 import { alongEdge } from '../nav.js';
@@ -94,6 +94,33 @@ function onNameKey(h: GraphHost, e: KeyboardEvent, id: string): void {
   h.act(id);
 }
 
+/** The control that opens or closes an item drawn closed or open (`toggle`), named with the item. */
+function toggleControl(h: GraphHost, id: string, label: string, open: boolean) {
+  const word = open ? h.words.close : h.words.open;
+  return html`<button type="button" class="tog" part="toggle" aria-expanded=${open} aria-label=${`${word}: ${label}`} title=${word}
+    @click=${(e: MouseEvent) => {
+      e.stopPropagation();
+      h.toggle(id, !open);
+    }}
+    @dblclick=${(e: MouseEvent) => e.stopPropagation()}>${toggleIcon(open)}</button>`;
+}
+
+/** A cluster's name: its label, or the parts of its path, each after the first a link to its own inner view. */
+function clusterName(h: GraphHost, b: GraphClusterInput, sel: boolean) {
+  const first = b.path?.[0];
+  const name = html`<button type="button" class="name" title=${(first?.tip ?? b.tip) || nothing} aria-pressed=${sel}
+    @focus=${() => h.focusSelect(b.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, b.id)}>${b.cycle ? cycleIcon() : nothing}${first?.label ?? b.label}</button>`;
+  if (!b.path || b.path.length < 2) return name;
+  return html`${name}${b.path.slice(1).map(
+    (p) => html`<span class="psep" aria-hidden="true">›</span><button type="button" class="part" title=${p.tip || nothing}
+      @click=${(e: MouseEvent) => {
+        e.stopPropagation();
+        h.drill(p.id);
+      }}
+      @dblclick=${(e: MouseEvent) => e.stopPropagation()}>${p.label}</button>`,
+  )}`;
+}
+
 function cluster(h: GraphHost, b: GraphClusterInput, parent: Rect | null, item: (id: string, r: Rect | null) => unknown) {
   const r = h.lay?.at[b.id] ?? null;
   const kids = (h.arr.slots[b.id] ?? []).flat().filter((id) => !isPoint(id));
@@ -104,13 +131,16 @@ function cluster(h: GraphHost, b: GraphClusterInput, parent: Rect | null, item: 
       @click=${(e: MouseEvent) => onItemClick(h, e, b.id)} @dblclick=${(e: MouseEvent) => onItemDblClick(h, e, b.id)}>
     <div class="hd" part="cluster-label" data-id=${`lbl:${b.id}`}>
       <span class="line">
-        <button type="button" class="name" title=${b.tip ?? nothing} aria-pressed=${sel}
-          @focus=${() => h.focusSelect(b.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, b.id)}>${b.cycle ? cycleIcon() : nothing}${b.label}</button>
+        ${clusterName(h, b, sel)}
         ${b.note ? html`<span class="count">${b.note}</span>` : nothing}
       </span>
       ${b.detail ? html`<span class="spread" title=${b.detailTip ?? nothing}>${b.detail}</span>` : nothing}
     </div>
-    ${b.drill ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>` : nothing}
+    ${b.toggle
+      ? html`<span class="cue">${toggleControl(h, b.id, b.path?.map((p) => p.label).join(' › ') ?? b.label, true)}</span>`
+      : b.drill
+        ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
+        : nothing}
     <div class="in">${repeat(kids, (id) => id, (id) => item(id, r))}</div>
   </section>`;
 }
@@ -136,9 +166,11 @@ function node(h: GraphHost, n: GraphNode, parent: Rect | null) {
     <div class="hd" part="node-header">
       <span class="nm">${icons}<button type="button" class="name" part="node-name" title=${n.tip ?? nothing} aria-pressed=${sel}
         @focus=${() => h.focusSelect(n.id)} @keydown=${(e: KeyboardEvent) => onNameKey(h, e, n.id)}>${n.label}</button></span>
-      <span class="right"><span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>${n.drill
-        ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
-        : nothing}</span>
+      <span class="right"><span class="count" aria-hidden="true" title=${n.progress.label}>${n.progress.done}/${n.progress.total}</span>${n.toggle
+        ? toggleControl(h, n.id, n.label, false)
+        : n.drill
+          ? html`<span class="cue" aria-hidden="true">${innerIcon()}</span>`
+          : nothing}</span>
     </div>
     ${bar ? statusBar(h, n, group) : marks(h, group)}
     ${n.notes?.length ? html`<div class="ex" aria-hidden="true">${notes(n)}</div>` : nothing}

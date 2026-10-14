@@ -6,7 +6,7 @@ import { defineElement } from '../core/define.js';
 import { CaeMarkMatrix } from '../matrix/mark-matrix.js';
 import { CaeSegmented } from '../primitives/segmented.js';
 import type { StateStyles } from '../primitives/states.js';
-import { arrange } from './arrange.js';
+import { arrange, extentOf } from './arrange.js';
 import { CaeLayeredGraph } from './layered-graph.js';
 import type { GraphInput, GraphNodeInput } from './types.js';
 
@@ -133,5 +133,50 @@ describe('cae-layered-graph', () => {
     await el.updateComplete;
     expect(sent.at(-1)?.detail).toEqual({ view: 'table' });
     expect([...root.querySelectorAll('table.list tbody tr')].map((r) => r.getAttribute('data-id'))).toEqual(['a', 'b', 'd']);
+  });
+
+  it("draws an item's open and close control, which sends cae-toggle, and a cluster named by a path whose later parts drill", async () => {
+    const open: GraphInput = {
+      ...graph,
+      nodes: [{ ...node('a', null, ['ok', 'ok']), toggle: 'closed' }, node('b', 'f', ['ok', 'bad']), node('d', 'f', ['ok', 'ok'])],
+      clusters: [{ id: 'f', parent: null, label: 'outer › inner', cycle: false, drill: true, toggle: 'open', path: [{ id: 'f', label: 'outer' }, { id: 'f2', label: 'inner', tip: 'mod.inner' }] }],
+    };
+    const { el, root, sent } = await drawn({ graph: open });
+    const toggles: CustomEvent<unknown>[] = [];
+    el.addEventListener('cae-toggle', (e) => toggles.push(e as CustomEvent<unknown>));
+    const show = root.querySelector<HTMLButtonElement>('.node[data-id="a"] .tog')!;
+    expect(show.getAttribute('aria-expanded')).toBe('false');
+    expect(show.getAttribute('aria-label')).toBe('Show inside: a');
+    show.click();
+    expect(toggles.map((e) => e.detail)).toEqual([{ id: 'a', open: true }]);
+    const hide = root.querySelector<HTMLButtonElement>('.cluster[data-cluster="f"] > .cue .tog')!;
+    expect(hide.getAttribute('aria-label')).toBe('Hide inside: outer › inner');
+    hide.click();
+    expect(toggles.at(-1)?.detail).toEqual({ id: 'f', open: false });
+    // The cluster's name: its first part selects it; a later part goes into its own view.
+    expect(root.querySelector('.cluster[data-cluster="f"] > .hd .name')?.textContent?.trim()).toBe('outer');
+    root.querySelector<HTMLButtonElement>('.cluster[data-cluster="f"] > .hd .part')!.click();
+    expect(sent.at(-1)?.type).toBe('cae-drill');
+    expect(sent.at(-1)?.detail).toEqual({ id: 'f2' });
+    // A toggle is no selection.
+    expect(sent.filter((e) => e.type === 'cae-select')).toEqual([]);
+  });
+});
+
+describe('extentOf', () => {
+  it('counts a cluster as what it holds: layers along the flow, items across it', () => {
+    const shape = {
+      nodes: [{ id: 'a', cluster: null }, { id: 'b', cluster: 'c' }, { id: 'd', cluster: 'c' }, { id: 'e', cluster: null }, { id: 'x', cluster: null }],
+      clusters: [{ id: 'c', parent: null, cycle: false }],
+      edges: [
+        { from: 'a', to: 'b', style: 'solid' as const, ranks: true },
+        { from: 'b', to: 'd', style: 'solid' as const, ranks: true },
+        { from: 'd', to: 'e', style: 'solid' as const, ranks: true },
+        { from: 'a', to: 'x', style: 'solid' as const, ranks: true },
+      ],
+      stubs: [],
+    };
+    // a, then the cluster (b, d: two layers) beside x, then e.
+    expect(extentOf(arrange(shape))).toEqual({ span: 4, stack: 2 });
   });
 });

@@ -170,8 +170,16 @@ export interface Projection {
 /** The layer `path` of the plan, as the plan has it: its nodes, loop boxes, edges and stubs, not yet arranged. */
 export function project(plan: Plan, path: readonly string[]): Projection {
   const ix = indexOf(plan);
+  return projectTasks(ix, path, ix.tasks.filter((t) => startsWith(t.path, path)));
+}
+
+/**
+ * The layer `path` of the tasks `inside` (each with that prefix): its nodes, loop boxes,
+ * edges and stubs, as `project` has them. A function drawn open (`compound.ts`) is the
+ * layer of the tasks of its node alone.
+ */
+export function projectTasks(ix: FlowIndex, path: readonly string[], inside: readonly FlowTask[]): Projection {
   const d = path.length;
-  const inside = ix.tasks.filter((t) => startsWith(t.path, path));
   const drafts = new Map<string, Draft>();
   const nodeOfKey = new Map<string, string>();
   for (const t of inside) {
@@ -270,6 +278,8 @@ export function project(plan: Plan, path: readonly string[]): Projection {
     for (const [u, ran] of boxRan.get(id) ?? []) if (u) spread.set(ran.size, (spread.get(ran.size) ?? 0) + 1);
     return {
       id,
+      local: id,
+      layer: [...path],
       loop: Number(id.slice(LOOP_SEGMENT.length).split('.').pop()),
       file: inside[0]?.frames[d - 1]?.file ?? '',
       parent: boxParent.get(id) ?? null,
@@ -287,6 +297,7 @@ export function project(plan: Plan, path: readonly string[]): Projection {
       type: x.type,
       name: x.name,
       label: x.type === 'kind' ? (ix.labels.get(x.name) ?? x.name) : shortName(x.name),
+      layer: [...path],
       kinds: [...new Set(x.tasks.map((t) => t.n.kind))],
       executor: x.type === 'flow' ? null : executorOf(x.tasks.map((t) => t.n)),
       box: boxOf.get(x.id) ?? null,
@@ -304,6 +315,7 @@ export function project(plan: Plan, path: readonly string[]): Projection {
       path: [...path],
       nodes: [...drafts.values()].map(nodeOf),
       boxes,
+      fns: [],
       edges: all.map((e) => ({ from: e.from, to: e.to, tasks: e.tasks.size, type: e.type, samePass: e.samePass, back: false })),
       stubs: stubList.map((s) => ({ id: s.id, label: s.label, to: s.to, tasks: s.tasks.size, type: s.type })),
       units,
@@ -320,7 +332,10 @@ export const edgeStyle = (type: 'after' | 'created'): EdgeStyle => (type === 'af
 export function shapeOf(m: LayerModel): GraphShape {
   return {
     nodes: m.nodes.map((n) => ({ id: n.id, cluster: n.box })),
-    clusters: m.boxes.map((b) => ({ id: b.id, parent: b.parent, cycle: true })),
+    clusters: [
+      ...m.boxes.map((b) => ({ id: b.id, parent: b.parent, cycle: true })),
+      ...m.fns.map((f) => ({ id: f.id, parent: f.parent, cycle: false })),
+    ],
     edges: m.edges.map((e) => ({ from: e.from, to: e.to, style: edgeStyle(e.type), ranks: e.samePass })),
     stubs: m.stubs.map((s) => ({ id: s.id, to: s.to, style: edgeStyle(s.type) })),
   };
@@ -335,6 +350,7 @@ export function arranged(m: LayerModel, a: Arrangement): LayerGraph {
     path: m.path,
     nodes: a.drawn.map((id) => nodes.get(id) as GraphNode),
     boxes: m.boxes.map((b) => ({ ...b, layers: layersOf.get(b.id) ?? [] })),
+    fns: m.fns,
     edges: m.edges.map((e, i) => ({ ...e, back: a.back[i] ?? false })),
     stubs: m.stubs,
     units: m.units,

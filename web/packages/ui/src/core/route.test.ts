@@ -71,4 +71,15 @@ describe('route', () => {
     expect(isNewPlace(r, { ...r, tab: 'tasks' })).toBe(true);
     expect(isNewPlace({ ...r, tab: 'stream' }, { ...r, tab: 'stream', view: 'input' })).toBe(true);
   });
+
+  it('names the trends page with its period, and no run', () => {
+    const r = { ...DEFAULT_ROUTE, page: 'trends' as const };
+    expect(formatRoute(r)).toBe('?page=trends');
+    expect(formatRoute({ ...r, days: 30, tz: 'Asia/Tokyo', group: 'nightly', run: 'x' })).toBe('?page=trends&days=30&tz=Asia%2FTokyo&group=nightly');
+    expect(formatRoute({ ...r, days: 0, from: '2026-10-01', to: '2026-10-14' })).toBe('?page=trends&from=2026-10-01&to=2026-10-14');
+    expect(parseRoute('?page=trends&run=x')).toEqual(r);
+    expect(parseRoute('?page=trends&from=2026-10-01&to=2026-10-14')).toMatchObject({ days: 0, from: '2026-10-01', to: '2026-10-14' });
+    expect(parseRoute('?page=trends&days=9')).toMatchObject({ days: 14 }); // a length it does not offer
+    expect(parseRoute('?page=trends&from=10/01&to=x')).toMatchObject({ days: 14, from: '', to: '' });
+  });
 });

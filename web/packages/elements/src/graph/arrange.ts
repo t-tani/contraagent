@@ -369,3 +369,31 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
     order: { layers: real(slots[''] ?? []), clusters: Object.fromEntries(clusters.map((c) => [c.id, real(slots[c.id] ?? [])])) },
   };
 }
+
+/**
+ * How many layers the drawing spans along its flow, and how many items it stacks across
+ * it at most, counting a cluster as what it holds: an estimate of the drawing's shape,
+ * before it is measured (`span` items wide left to right, `stack` items high).
+ */
+export function extentOf(a: Pick<Arrangement, 'layers' | 'clusters'>): { span: number; stack: number } {
+  const byId = new Map(a.clusters.map((c) => [c.id, c]));
+  const memo = new Map<string, { span: number; stack: number }>();
+  const of = (layers: readonly string[][]): { span: number; stack: number } => {
+    let span = 0;
+    let stack = 0;
+    for (const row of layers) {
+      let deep = 0;
+      let across = 0;
+      for (const id of row) {
+        const c = byId.get(id);
+        const e = c ? (memo.get(id) ?? memo.set(id, of(c.layers)).get(id) ?? { span: 1, stack: 1 }) : { span: 1, stack: 1 };
+        deep = Math.max(deep, e.span);
+        across += e.stack;
+      }
+      span += deep;
+      stack = Math.max(stack, across);
+    }
+    return { span, stack };
+  };
+  return of(a.layers);
+}

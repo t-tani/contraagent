@@ -19,7 +19,7 @@ a new value.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -88,13 +88,40 @@ class QuotaReading(BaseModel):
     seven_day_pct: float | None = None
     seven_day_resets_at: str | None = None
     status: str = ""
+    #: Which account reported it: a 12-hex-digit digest that tells accounts apart and reveals
+    #: none (`backends.launch.account_digest`); '' when not known. Readings of one credential
+    #: but different accounts (`ambient` on two coding agents, a replaced token) do not compare.
+    account: str = ""
+    #: The window `status` and `threshold_pct` are about (`five_hour`, `seven_day`, ...).
+    status_window: str = ""
+    #: The utilization (%) past which `status` warns.
+    threshold_pct: float | None = None
+    #: Usage past the limit, billed as extra: its status, why it is off, whether this request used it.
+    overage_status: str = ""
+    overage_disabled_reason: str = ""
+    using_overage: bool | None = None
+    #: Every window the reading names, by its name (`five_hour`, `seven_day`, a model's own
+    #: such as `seven_day_opus`): its utilization (%) and its reset.
+    windows: dict[str, QuotaWindow] = Field(default_factory=dict)
+    #: What else the coding agent sent with the reading, by its own name.
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuotaWindow(BaseModel):
+    """One window of a reading: its utilization (%) and when it resets (ISO 8601)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    pct: float | None = None
+    resets_at: str | None = None
 
 
 class QuotaRest(BaseModel):
     """Why a credential rests (`routing.quota.Rest`): past the cap of one window (`window`
     `five_hour` or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule
-    (`rule`, what it said; `window` empty). `until`: when the window resets, ISO 8601;
-    empty when unknown (a rule's rest)."""
+    (`rule`, what it said, `reading`, the reading it judged; `window` empty). `until`, ISO
+    8601: when the window resets, for a cap; for the rule, when the reading it judged
+    stops standing (its earliest reset); empty when unknown."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -104,6 +131,11 @@ class QuotaRest(BaseModel):
     cap: float | None = None
     rule: str = ""
     until: str = ""
+    #: The account whose reading it is (`QuotaReading.account`); '' when not known.
+    account: str = ""
+    #: The reading the quota rule judged: `{observed_at, windows: {<window>: {pct, resets_at}}}`;
+    #: None for a cap's rest.
+    reading: dict | None = None
 
 
 class SkippedHop(QuotaRest):

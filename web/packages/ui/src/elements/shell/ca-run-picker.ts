@@ -3,6 +3,8 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
+import type { Page } from '../../core/route.js';
+import { trendsTitle, trendsTip } from '../../words/trends.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
 import { stateCount, stubLabel, stubTip } from '../../words/index.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
@@ -29,12 +31,13 @@ const ago = (r: RunSummary) => {
  * (`aria-activedescendant`). Sends `ca-select-run` for a pick and `ca-close`
  * when it should be closed (Escape, or a pick); the host returns the focus.
  *
- * On a hub (`hub`), the runs are grouped by host instead, each group headed by
- * its host's state; a host filter (a select, the dialog's second Tab stop)
- * shows one host's runs, and the first option is the hosts page.
+ * While nothing is searched, the first options are the pages of no run: the
+ * trends, and on a hub the hosts. On a hub (`hub`), the runs are grouped by host,
+ * each group headed by its host's state; a host filter (a select, the dialog's
+ * second Tab stop) shows one host's runs.
  *
  * @fires ca-select-run - `{run}`: a run was picked
- * @fires ca-navigate - `{page: 'hosts', run: ''}`: the hosts page was picked (a hub only)
+ * @fires ca-navigate - `{page, run: ''}`: a page of no run was picked (`trends`, or on a hub `hosts`)
  * @fires ca-close - the picker should close
  */
 @customElement('ca-run-picker')
@@ -83,8 +86,8 @@ export class CaRunPicker extends LitElement {
   @property({ type: Boolean }) hub = false;
   /** The host list (a hub). */
   @property({ attribute: false }) hosts: HostSummary[] = [];
-  /** The hosts page is shown now (it is the current option). */
-  @property({ type: Boolean }) hostsPage = false;
+  /** The page of no run shown now (`trends`, `hosts`; it is the current option); '' while a run is shown. */
+  @property() page: Page = '';
   @state() private q = '';
   /** A hub: only this host's runs; '' for every host. */
   @state() private host = '';
@@ -140,12 +143,12 @@ export class CaRunPicker extends LitElement {
     ).map(([name, rs]) => [name, html`${name} <span class="n">${rs.length}</span>`, rs]);
   }
 
-  /** A run, or the hosts page (null). */
-  private pick(r: RunSummary | null): void {
+  /** A run, or a page of no run. */
+  private pick(r: Option): void {
     this.close();
-    if (!r) {
-      if (!this.hostsPage) emit(this, 'ca-navigate', { page: 'hosts', run: '' });
-    } else if (r.run !== this.current || this.hostsPage) emit(this, 'ca-select-run', { run: r.run });
+    if (typeof r === 'string') {
+      if (r !== this.page) emit(this, 'ca-navigate', { page: r, run: '' });
+    } else if (r.run !== this.current || this.page) emit(this, 'ca-select-run', { run: r.run });
   }
 
   private close(): void {
@@ -162,7 +165,7 @@ export class CaRunPicker extends LitElement {
   }
 
   /** The search field's keys: the arrow keys move through the options, Enter picks one. */
-  private onKey(e: KeyboardEvent, opts: (RunSummary | null)[]): void {
+  private onKey(e: KeyboardEvent, opts: Option[]): void {
     if (e.key === 'ArrowDown') this.kb = Math.min(opts.length - 1, this.kb + 1);
     else if (e.key === 'ArrowUp') this.kb = Math.max(0, this.kb - 1);
     else if (e.key === 'Enter') {
@@ -179,8 +182,9 @@ export class CaRunPicker extends LitElement {
   override render() {
     const groups = this.groups().filter((g) => g[2].length);
     const rows = groups.flatMap((g) => g[2]);
-    // On a hub, the hosts page (null) is the first option while nothing is searched.
-    const opts = this.hub && !this.q.trim() ? [null, ...rows] : rows;
+    // While nothing is searched, the pages of no run come first: the trends, and on a hub the hosts.
+    const pages: Exclude<Page, ''>[] = this.q.trim() ? [] : this.hub ? ['trends', 'hosts'] : ['trends'];
+    const opts: Option[] = [...pages, ...rows];
     const active = opts[this.kb] !== undefined ? optionId(this.kb) : nothing;
     const search = html`<input placeholder=${msg('Search runs')} aria-label=${msg('Search runs')} autocomplete="off" .value=${this.q}
       role="combobox" aria-expanded=${opts.length ? 'true' : 'false'} aria-controls="runs" aria-autocomplete="list" aria-activedescendant=${active}
@@ -194,7 +198,7 @@ export class CaRunPicker extends LitElement {
       <div class="list" @mousedown=${(e: MouseEvent) => e.preventDefault()}>
         ${opts.length
           ? html`<div id="runs" role="listbox" aria-label=${msg('Runs')}>
-              ${opts[0] === null ? this.item(null, i++) : nothing}
+              ${pages.map((p) => this.item(p, i++))}
               ${groups.map(
                 ([name, head, rs]) => html`<div role="group" aria-label=${name}>
                   <div class="group${this.hub ? ' host' : ''}" aria-hidden="true">${head}</div>
@@ -224,6 +228,7 @@ export class CaRunPicker extends LitElement {
     if (t.skipped) parts.push(stateCount('skipped', t.skipped));
     if (t.running) parts.push(stateCount('running', t.running));
     if (t.waiting) parts.push(stateCount('waiting', t.waiting));
+    if (t.not_run) parts.push(stateCount('not_run', t.not_run));
     const s = took(r);
     if (s != null) parts.push(msg(str`took ${fmtDur(s)}`));
     if (r.cost_usd !== null && r.cost_usd !== undefined) parts.push(usd(r.cost_usd));
@@ -242,24 +247,30 @@ export class CaRunPicker extends LitElement {
       >${a === 'running' ? msg('running') : quiet ? noReportLabel() : relAgo(r.last_ts)}</span>`;
   }
 
-  /** An option: a run, or (null) the hosts page. */
-  private item(r: RunSummary | null, i: number) {
-    const cur = r ? r.run === this.current && !this.hostsPage : this.hostsPage;
+  /** An option: a run, or a page of no run. */
+  private item(r: Option, i: number) {
+    const page = typeof r === 'string' ? r : null;
+    const cur = page ? page === this.page : !this.page && (r as RunSummary).run === this.current;
     const cls = `item${cur ? ' cur' : ''}${i === this.kb ? ' kb' : ''}`;
     // An option of the listbox: the search field keeps the focus and names the active option (`aria-activedescendant`).
     return html`<div class=${cls} id=${optionId(i)} role="option" aria-selected=${i === this.kb ? 'true' : 'false'}
-      aria-current=${cur ? (r ? 'true' : 'page') : nothing} @click=${() => this.pick(r)}>
-      ${r
+      aria-current=${cur ? (page ? 'page' : 'true') : nothing} @click=${() => this.pick(r)}>
+      ${typeof r !== 'string'
         ? html`<span class="dot" data-tone=${toneAttr(runTone(runActivity(r), r.tasks))} aria-hidden="true"></span><span class="nm"
               title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}${r.stub ? html` ${pill({ text: stubLabel(), tone: 'muted', title: stubTip() })}` : nothing}</span>
             ${this.when(r)}
             <span class="sub">
               ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
             </span>`
-        : html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`}
+        : page === 'hosts'
+          ? html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`
+          : html`<span aria-hidden="true">▥</span><span class="nm">${trendsTitle()}</span><span class="when">${trendsTip()}</span>`}
     </div>`;
   }
 }
+
+/** An option of the list: a run, or a page of no run. */
+type Option = RunSummary | Exclude<Page, ''>;
 
 declare global {
   interface HTMLElementTagNameMap {

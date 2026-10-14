@@ -28,27 +28,31 @@ export function runReadings(journal: readonly JournalRow[]): SourcedReading[] {
   return out.sort((a, b) => at(a.reading) - at(b.reading));
 }
 
-/** One account's utilization over the run (readings belong to the credential that reported them). */
+/** One account's utilization over the run: the credential that reported it, and the account (`account`, a digest; '' when not known). */
 export interface AccountUsage {
   credential: string;
+  account?: string;
   first: QuotaReading;
   last: QuotaReading;
 }
+
+/** The account a reading is of: its credential and its account digest. `ambient` on two coding agents is two accounts. */
+export const accountKey = (r: { credential?: string | null; account?: string | null }): string => `${r.credential ?? ''}\u0000${r.account ?? ''}`;
 
 /** Per account, the run's first and last reading; the account with the highest weekly use first. */
 export function runAccounts(journal: readonly JournalRow[]): AccountUsage[] {
   const by = new Map<string, QuotaReading[]>();
   for (const { reading } of runReadings(journal)) {
-    const c = reading.credential ?? '';
-    let list = by.get(c);
-    if (!list) by.set(c, (list = []));
+    const k = accountKey(reading);
+    let list = by.get(k);
+    if (!list) by.set(k, (list = []));
     list.push(reading);
   }
   const out: AccountUsage[] = [];
-  for (const [credential, list] of by) {
+  for (const list of by.values()) {
     const first = list[0];
     const last = list[list.length - 1];
-    if (first && last) out.push({ credential, first, last });
+    if (first && last) out.push({ credential: last.credential ?? '', account: last.account ?? '', first, last });
   }
   return out.sort((a, b) => (b.last.seven_day_pct ?? 0) - (a.last.seven_day_pct ?? 0));
 }
@@ -65,10 +69,10 @@ export function tryQuota(row: JournalRow, readings: readonly SourcedReading[]): 
   const own = (row.quota ?? []).filter(usable).sort((a, b) => at(a) - at(b));
   const ended = Date.parse(row.ts);
   const start = own[0] ?? null;
-  const account = start?.credential ?? '';
+  const account = start === null ? '' : accountKey(start);
   const next =
     start === null || Number.isNaN(ended)
       ? undefined
-      : readings.find((r) => at(r.reading) > ended && (r.reading.credential ?? '') === account);
+      : readings.find((r) => at(r.reading) > ended && accountKey(r.reading) === account);
   return { start, next: next?.reading ?? null };
 }

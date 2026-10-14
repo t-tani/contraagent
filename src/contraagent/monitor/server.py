@@ -5,6 +5,8 @@ Endpoints (all GET; response models in `api.py`):
   /api/info                          Info: title, the panel names the UI should offer, the contract version
   /api/runs                          list[RunSummary]
   /api/hosts                         Hosts: the hosts that drive the runs, and accounts' utilization over every run
+  /api/trends?from=&to=&tz=&run_group=  Trends: what the runs of a period add up to, day by day
+  /api/trends/panels/<name>?from=...    one trend panel a domain registered (`Panel(scope="trends")`)
   /api/runs/<run>/journal?since=N    JournalPage: journal rows after line offset N
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
@@ -49,7 +51,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from pydantic import TypeAdapter
 
 try:
-    from fastapi import FastAPI, HTTPException, Request
+    from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.middleware.trustedhost import TrustedHostMiddleware
     from fastapi.openapi.utils import get_openapi
@@ -65,6 +67,7 @@ except ModuleNotFoundError:
 from contraagent.monitor import api
 from contraagent.monitor.core import Monitor
 from contraagent.monitor.paths import BadName
+from contraagent.monitor.trends import Period, PeriodError
 
 log = logging.getLogger(__name__)
 
@@ -98,7 +101,7 @@ _OUTPUTS = TypeAdapter(api.Outputs)
 # `Optional`, not `X | None`: outside an annotation that is a `UnionType`
 # value, which type checkers do not accept as a TypeAdapter's type.
 _CURSOR = TypeAdapter(Optional[api.CursorView])  # noqa: UP045
-_PANEL = TypeAdapter(api.JsonObject)
+_PANEL = TypeAdapter(api.PanelBody)
 _STREAM = TypeAdapter(api.StreamPage)
 _READY = TypeAdapter(api.FeedReady)
 
@@ -147,9 +150,11 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
         if sig != sigs.get("procs"):
             sigs["procs"] = sig
             yield {"event": "procs", "data": _json(_PROCS, procs)}
-        for name in monitor.panels:
+        for name in monitor.run_panels():
             try:
-                body = json.dumps(monitor.panel(name, run), default=str)
+                value = monitor.panel(name, run)
+                _PANEL.validate_python(value)  # a typed body that does not validate is an error, not a JSON tree
+                body = json.dumps(value, default=str)
             except Exception as exc:  # one bad panel must not stop the feed
                 body = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
             if body != sigs.get(name):
@@ -265,6 +270,46 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         """The hosts that drive the runs, and each account's utilization over every run."""
         return monitor.hosts()
 
+    def period_of(start: str, end: str, tz: str) -> Period:
+        try:
+            return Period.parse(start, end, tz)
+        except PeriodError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.get(
+        "/api/trends",
+        response_model=api.Trends,
+        response_model_exclude_unset=True,
+        responses={400: {"description": "a period it cannot read"}},
+    )
+    def api_trends(
+        start: str = Query("", alias="from", description="the first day, YYYY-MM-DD (default: 13 days before `to`)"),
+        end: str = Query("", alias="to", description="the last day, YYYY-MM-DD (default: today in `tz`)"),
+        tz: str = Query("", description="the time zone the days are in, an IANA name (default UTC)"),
+        run_group: str = Query("", description="only the runs of this run group"),
+        stub: bool = Query(False, description="count stub runs too"),
+    ) -> dict:
+        """What the runs of a period add up to, day by day."""
+        return monitor.trends(period_of(start, end, tz), run_group=run_group, stub=stub)
+
+    @app.get(
+        "/api/trends/panels/{name}",
+        response_model=api.JsonObject,
+        responses={400: {"description": "a period it cannot read"}, 404: {"description": "no trend panel of that name"}},
+    )
+    def api_trend_panel(
+        name: str,
+        start: str = Query("", alias="from"),
+        end: str = Query("", alias="to"),
+        tz: str = Query(""),
+        run_group: str = Query(""),
+    ) -> dict:
+        """One trend panel's body: its `fn(runs, period)` over the runs of the period."""
+        try:
+            return monitor.trends_panel(name, period_of(start, end, tz), run_group=run_group)
+        except KeyError:
+            raise HTTPException(404, f"no trend panel {name!r}") from None
+
     @route("/api/runs/{run}/journal", api.JournalPage)
     def api_journal(run: str, since: int = 0) -> dict:
         """Journal rows after line offset `since`; `total` is the next offset."""
@@ -307,9 +352,14 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         page, total = monitor.stream(run, key, since)
         return {**page, "total": total}
 
-    @app.get("/api/runs/{run}/panels/{name}", response_model=api.JsonObject, responses={404: {"description": "no panel of that name"}})
+    @app.get(
+        "/api/runs/{run}/panels/{name}",
+        response_model=api.PanelBody,
+        response_model_exclude_unset=True,
+        responses={404: {"description": "no run panel of that name"}},
+    )
     def api_panel(run: str, name: str) -> dict:
-        """One registered panel's body: a JSON object whose shape the domain chooses."""
+        """One run panel's body: a typed body (tiles, a table, charts), or any JSON object."""
         monitor.check_run(run)
         try:
             return monitor.panel(name, run)
@@ -420,9 +470,39 @@ def serve(
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
+def load_attr(spec: str) -> Any:
+    """What `path/to/file.py:attr` or `package.module:attr` names. A file is loaded from
+    its path, under its own name, with its directory on `sys.path` (so it imports its
+    neighbours); a module is imported, the working directory on `sys.path`."""
+    target, _, name = spec.rpartition(":")
+    if not target or not name:
+        raise ValueError(f"{spec}: expected path/to/file.py:attr or package.module:attr")
+    if target.endswith(".py"):
+        path = Path(target).resolve()
+        if not path.is_file():
+            raise OSError(f"{spec}: no file {path}")
+        if str(path.parent) not in sys.path:
+            sys.path.insert(0, str(path.parent))
+        found = importlib.util.spec_from_file_location(path.stem, path)
+        if found is None or found.loader is None:
+            raise ImportError(f"{spec}: cannot load {path}")
+        module = importlib.util.module_from_spec(found)
+        sys.modules[path.stem] = module
+        found.loader.exec_module(module)
+        return getattr(module, name)
+    if str(Path.cwd()) not in sys.path:
+        sys.path.insert(0, str(Path.cwd()))
+    return getattr(importlib.import_module(target), name)
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["export"]:  # needs no server, so not the `monitor` extra
+        from contraagent.monitor.export import main as export_main
+
+        return export_main(argv[1:])
     ap = argparse.ArgumentParser(prog="contraagent monitor", description="Live monitor for contraagent pipeline runs")
     ap.add_argument("--runs-dir", default="runs", help="directory holding runs/<run-id>/ (default: ./runs)")
     ap.add_argument("--port", type=int, default=8787)
@@ -449,6 +529,21 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ORIGIN",
         help="let a page from this origin read the API, e.g. http://localhost:5173 for a UI dev server",
     )
+    ap.add_argument(
+        "--panels",
+        metavar="MODULE:ATTR",
+        help="the pipeline's own views: a dict of name -> Panel (or a callable), as path/to/views.py:PANELS or package.module:PANELS",
+    )
+    ap.add_argument(
+        "--groups",
+        metavar="MODULE:ATTR",
+        help='the plan\'s columns: a list of {"id", "label", "kinds"}, as path/to/views.py:GROUPS or package.module:GROUPS',
+    )
+    ap.add_argument(
+        "--task-detail",
+        metavar="MODULE:ATTR",
+        help="fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail or package.module:detail",
+    )
     ap.add_argument("--docs", action="store_true", help="serve interactive API docs at /api/docs")
     ap.add_argument(
         "--openapi",
@@ -474,8 +569,13 @@ def main(argv: list[str] | None = None) -> int:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     formats = dict(item.split("=", 1) for item in args.stream_format if "=" in item)
+    try:
+        extensions = {name: load_attr(getattr(args, name)) for name in ("panels", "groups", "task_detail") if getattr(args, name)}
+    except (ImportError, AttributeError, OSError, ValueError) as exc:
+        sys.stderr.write(f"contraagent monitor: {exc}\n")
+        return 2
     serve(
-        Monitor(args.runs_dir, title=args.title, stream_formats=formats),
+        Monitor(args.runs_dir, title=args.title, stream_formats=formats, **extensions),
         args.host,
         args.port,
         allowed_hosts=args.allow_host,

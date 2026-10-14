@@ -50,6 +50,35 @@ export const graphStyles = [
     .switch { all: unset; cursor: pointer; font-size: 11.5px; color: var(--text-2); padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); }
     .switch:hover { color: var(--text); border-color: var(--line2); }
     .switch:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
+    .switch[aria-pressed='true'] { color: var(--text); background: var(--accent-bg); border-color: var(--accent); }
+    .opens { display: inline-flex; gap: 6px; margin-left: auto; }
+
+    /* The outline: a column beside the graph, or a part above it on a narrow frame. */
+    .whole { display: grid; grid-template-columns: minmax(200px, 282px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .whole > .g { min-width: 0; }
+    .outline { font-size: 12px; max-height: 70vh; overflow: auto; padding: 2px 6px 2px 0; border-right: 1px solid var(--line); }
+    .otree, .otree ul { list-style: none; margin: 0; padding: 0; }
+    .otree ul { padding-left: 10px; }
+    .orow { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; border-radius: 6px; }
+    .orow.sel { background: var(--accent-bg); }
+    .orow.cur .ol { font-weight: 600; color: var(--text); }
+    .odisc { all: unset; cursor: pointer; width: 16px; text-align: center; color: var(--text-muted); font-size: 10px; line-height: 22px; }
+    .odisc:focus-visible, .oname:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; border-radius: 4px; }
+    .oname { all: unset; cursor: pointer; display: flex; align-items: flex-start; gap: 6px; min-width: 0; padding: 3px 6px 3px 2px; border-radius: 6px; color: var(--text-2); }
+    .oname:hover { background: var(--raise); color: var(--text); }
+    .oname .loop-ic { flex: none; color: var(--text-muted); }
+    .ol { flex: 1; min-width: 0; overflow-wrap: break-word; font-family: var(--mono); line-height: 1.35; }
+    .obar { flex: none; width: 32px; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--track); overflow: hidden; }
+    .obar i { display: block; height: 100%; background: var(--meter); }
+    .ocount { flex: none; font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .onote { grid-column: 2; display: flex; flex-wrap: wrap; gap: 0 8px; padding: 0 6px 2px 2px; font-size: 11px; }
+    .onote .err { color: var(--status-failed); }
+    .onote .warn { color: var(--status-attention); }
+    .onote .live { color: var(--status-running); }
+    .onote .mut { color: var(--text-muted); }
+    .odet { margin-bottom: 8px; }
+    .odet > summary { cursor: pointer; font-size: 12px; color: var(--text-2); padding: 2px 0; }
+    .odet .outline { border-right: none; max-height: 50vh; }
   `,
 ];
 

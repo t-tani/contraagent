@@ -79,7 +79,7 @@ export class CaHosts extends LitElement {
         ? html`<section class="panel c12 enter">
             <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
               ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
-            <ca-quota .accounts=${quota}></ca-quota>
+            <ca-quota .accounts=${quota} .rests=${quota.flatMap((a) => a.rests ?? [])} live></ca-quota>
           </section>`
         : nothing}
     </div>`;

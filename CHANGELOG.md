@@ -9,9 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A quota reading names its account (`account`, a 12-hex-digit digest of the login's UUID
+  or the credential's secret, never the value), and a credential's rests are judged by
+  the readings of the account a launch as it bills (`Backend.account`): a token replaced
+  since the last run no longer rests on the old account's reading, and `ambient` on
+  Claude Code and omp, logged in as two users, is two accounts. A reading also keeps
+  every window it names (`windows`, a model's own too), the window its status is about
+  (`status_window`), the warning threshold (`threshold_pct`), the extra-usage fields
+  (`overage_status`, `overage_disabled_reason`, `using_overage`) and any other field
+  (`extra`). The monitor names the window beside a status, lists the other windows,
+  the threshold, extra usage and the account in a reading's tooltip, and tells two
+  accounts of one identity apart.
+- The pipeline graph draws the layer shown with its functions open: a function drawn
+  open is a box of its own layer, nested as deep as it goes, joined by the edges of the
+  tasks across boxes, and a chain of single functions is one box named by its path (each
+  part a link into its layer). Functions with agent tasks, a failure, running work, work
+  not run, or the selection open on their own, the most interesting first, while the
+  drawing holds about 40 nodes and spans about one screen; a function's control shows or
+  hides inside, "Show all inside" and "Hide all inside" set every one, and the choice is
+  kept for the page. A drawing too long to read left to right is drawn top to bottom.
+  The outline of the flow lists every function and loop with its progress, beside the
+  graph on a wide frame (above it, folded, on a narrower one): a click shows an item in
+  the graph, Enter goes into it. `<cae-layered-graph>`: `toggle` on a node or a cluster
+  (`cae-toggle`), a cluster's `path`, `focusToggle()`; `extentOf` in
+  `@contraagent/elements/graph`.
 - A unit locks nothing: tasks of different kinds on one unit run together unless they
   claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
   must not overlap on a unit.
+- The monitor's overview is laid out by what each card holds: the run's state, its problems
+  and its outputs share the first row (the running tasks take a row of their own while
+  some run), the breakdowns of tokens, cost, models and subscription usage share two
+  columns, and only the pipeline graph, the totals and the timeline take the whole
+  width. An empty state is one line ("✓ No problems"); bars end near their figures; a
+  finished run shows no "Running tasks" card, since its state says it runs nothing.
 - `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
   `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
   `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when
@@ -314,6 +344,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor's **Trends** page (`?page=trends`, the run picker's first entry): what the
+  runs of the last 7, 14 or 30 days (or two dates) add up to, in a time zone and for a
+  run group: totals, cost by day stacked by kind, kinds, models, subscription usage,
+  attempts that did not complete, refused tool calls, tasks not run, paused identities,
+  run starts by weekday and hour, the runs, and the pipeline's trend panels. An export
+  holds the trends of its period (`contraagent monitor export --days`, `--from`, `--to`,
+  `--tz`) and its page shows them.
+- `agent_task(output_from="message", unwrap=True)`: a final message that wraps its JSON
+  output (a sentence before it, a fence around it) gives the document as the output
+  instead of a fix-up round; the whole message is kept beside the output file. The
+  progress line of an attempt with fix-up rounds names the first round's first error.
+- Typed panel bodies: a `monitor.Panel` may return tiles, a table, charts (`columns`,
+  `lines`, `heatmap`, `hbars`) or `blocks` of them (`contraagent.monitor.api.PanelBody`,
+  as models or dicts with their `type`), which the monitor draws with its own elements;
+  any other dict is still a JSON tree. `Panel(scope="trends")` is a view over the runs
+  of a period (`fn(runs, period)`, `Period`); it is not a run's tab.
+- `contraagent monitor --panels views.py:PANELS` (also `--groups` and `--task-detail`):
+  a pipeline's own views from a file or a module, with no script of its own.
+- `@contraagent/elements/charts`: `<cae-column-chart>` (stacked or side by side),
+  `<cae-line-chart>`, `<cae-heatmap>` and `<cae-bar-chart>`, each with a legend, a
+  tooltip reached with the pointer or the keys, and a table of its values; the series
+  take `--ca-series-1` to `--ca-series-6`, and past six they fold into one.
+- Trends: `/api/trends?from=&to=&tz=` (`Monitor.trends`) sums the runs of a period day
+  by day: cost by kind or group, each kind's tasks, success and time, each model's
+  spend, failures, refused tool calls, utilization, rests, deferrals and run starts,
+  with the same numbers as panel bodies. A panel whose `scope` is `"trends"` takes the
+  period's runs (`/api/trends/panels/<name>`). Each run is read through a digest of its
+  logs by 15-minute slot, kept in memory and, for a finished run, in its `trends.json`.
+- `contraagent monitor export`: the monitor's views of the newest runs written as files
+  (the page and `data/`, the JSON each route answers) that a static server or a site
+  serves with no monitor running (`<ca-monitor export="data/">`, `createExportClient`,
+  `openExportFeed`). It holds no transcripts and no processes; this machine's paths
+  are made relative or taken out and its host name left blank (`--keep`, `--exclude`),
+  and the page's header says when it was written (`Info.export`).
+- `rerun_on_resume=True` on `agent_task` and `@python_task`: a resume runs the task again
+  even when an earlier attempt finished it, for a final step that reports or publishes the
+  state of the work (a site, statistics, a commit) and takes no output of the tasks before it.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a
@@ -745,6 +812,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The run list counts a deferred task, and a task still queued in a run that is no longer
+  live, as `not_run` (`TaskCounts.not_run`, "not run" in the run line and the run
+  picker); `waiting` is a live run's queued tasks only. The hosts view's subscription
+  usage shows each account's rests in force (`AccountQuota.rests`).
+- A rest by `quota_rule` records the reading the rule judged (`reading`: when it arrived,
+  each window's usage and reset) and ends when that reading is out of date, at its
+  earliest reset: it recorded no reading and never ended, since nothing launches on a
+  resting credential to bring a newer one.
+- A failover breaker stays open when a launch that began before it opened succeeds: such a
+  success says nothing of the limit since, and it sent the next task back to the hop that
+  had just answered 429 (the demo's test failed under load because of it).
+- The overview says "N running at once" when the run recorded no limit; it said "N of 1".
+- A pipeline graph node's notes ("3 flow calls stopped with an error") wrap at the node's
+  width; they wrapped at the width of its marks, so a node with few marks grew tall.
+- An attempt with fix-up rounds on Claude Code is no longer charged its earlier rounds
+  twice: a resumed session reports its cost so far, which the runner added to the rounds
+  before it (on one run, 29 % more than spent). Each coding agent says how it reports
+  (`Backend.cost_is_session_total`: Claude Code the session's, omp each launch's), the
+  hops' costs in the journal and the monitor's model shares follow, `num_turns` counts
+  every round's turns, and `launches.jsonl` keeps each round's own cost (`round_costs`).
+- A coding agent no longer outlives the pipeline that launched it. `Pipeline.run`
+  stops its agents on SIGTERM and Ctrl-C (agents run in sessions of their own, which a
+  terminal's Ctrl-C does not reach), and a watchdog process stops them when the pipeline's
+  process is killed outright (SIGKILL, out of memory).
+- A task queued while the queue was starting tasks (a rest's or a time box's deferral
+  answered by a follow-up, such as a finishing task) launches: when nothing else ran, the
+  queue deferred it as never queued (`no launchable task (dependency never queued)`)
+  without having looked at it.
 - A long table (the monitor's history, its tasks) no longer hangs the page when it is
   scrolled fast: `<cae-data-table>` keeps each drawn row's height, so rows of different
   heights no longer move its window back and forth, and it measures again on the next

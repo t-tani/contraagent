@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, Validatio
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.2.0"
+API_VERSION = "3.3.0"
 
 
 class Closed(BaseModel):
@@ -58,12 +58,26 @@ JsonObject = dict[str, Any]
 
 
 class PanelInfo(Closed):
-    """A panel a domain registered: its tab label, tooltip and glyph."""
+    """A panel a domain registered: its tab label, tooltip and glyph, and what it is
+    computed over (`run`: one run, a tab of the run; `trends`: the runs of a period)."""
 
     name: str
     title: str
     description: str
     icon: str
+    scope: Literal["run", "trends"] = "run"
+
+
+class ExportInfo(Closed):
+    """What an export holds (`contraagent monitor export`): the monitor's views of some
+    runs, written as files and read without a server."""
+
+    exported_at: str = Field(description="when it was written, ISO 8601")
+    runs: list[str] = Field(description="the runs it holds, newest activity first")
+    left_out: list[str] = Field(description="the views it does not hold: `transcripts`, `processes`")
+    redacted: list[str] = Field(
+        description="what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude"
+    )
 
 
 class Info(Closed):
@@ -74,6 +88,7 @@ class Info(Closed):
     panels: list[PanelInfo]
     api_version: str = Field(description="Version of this API contract (semver)")
     hosts: bool = Field(False, description="the runs come from many hosts (a hub): `/api/hosts` lists them")
+    export: ExportInfo | None = Field(None, description="set only in an export: what it holds; a server never sends it")
 
 
 # --- /api/runs -------------------------------------------------------------
@@ -86,7 +101,8 @@ Executor = Literal["agent", "python"]
 class TaskCounts(Closed):
     """A run's tasks (not attempts) by how they ended. `not_started`: refused for
     an input, or waiting behind a task that failed; `running`: running now (in a
-    live run); `waiting`: queued."""
+    live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
+    run that is no longer live (it will not run)."""
 
     total: int
     done: int
@@ -94,6 +110,7 @@ class TaskCounts(Closed):
     not_started: int
     running: int = 0
     waiting: int
+    not_run: int = 0
     skipped: int
 
 
@@ -102,8 +119,13 @@ class AccountQuota(Closed):
     account's last session started, so it leaves out that session's own use."""
 
     credential: str
+    account: str = Field("", description="the account the readings are of (`QuotaReading.account`); empty when not known")
     first: QuotaReading
     last: QuotaReading
+    rests: list[CredentialRest] = Field(
+        default_factory=list,
+        description="its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`",
+    )
 
 
 class RunSummary(Closed):
@@ -155,6 +177,149 @@ class Hosts(Closed):
         default_factory=list,
         description="per credential (account): its first and last utilization reading over every run; highest weekly use first",
     )
+
+
+# --- /api/trends -------------------------------------------------------------
+
+
+class TrendPeriod(Closed):
+    """The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name)."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    from_: str = Field(alias="from", description="the first day, YYYY-MM-DD")
+    to: str = Field(description="the last day, YYYY-MM-DD")
+    tz: str
+    days: list[str] = Field(description="every day of the period, in order")
+
+
+class TrendTotals(Closed):
+    """The period's runs and attempts, summed."""
+
+    runs: int = Field(description="runs with an attempt in the period, or started in it")
+    attempts: int
+    ok: int
+    cost_usd: float | None = Field(description="what the coding agents reported; null when no attempt reported a cost")
+    wall_s: float
+    tokens: TokenUsage
+
+
+class TrendDay(Closed):
+    """One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own)."""
+
+    day: str
+    cost_usd: dict[str, float] = Field(description="group -> cost, USD; a group with no cost reported is absent")
+    attempts: int
+    ok: int
+
+
+class TrendKind(Closed):
+    """One kind over the period. A task is one key of one run; its last attempt in the period says how it ended."""
+
+    kind: str
+    group: str
+    executor: Executor
+    tasks: int
+    tasks_ok: int
+    attempts: int
+    ok: int
+    wall_s: float = Field(description="every attempt's wall time, summed")
+    wall_s_median: float = Field(description="the median attempt's wall time")
+    cost_usd: float | None
+    tokens: TokenUsage
+
+
+class TrendStop(Closed):
+    """Attempts that ended on one `stop`, and by which kinds."""
+
+    stop: str
+    attempts: int
+    kinds: dict[str, int]
+
+
+class TrendDenial(Closed):
+    """Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`)."""
+
+    tool: str
+    count: int
+    kinds: dict[str, int]
+
+
+class TrendQuota(Closed):
+    """One account's utilization of one window over the period: each day's and each hour's highest reading."""
+
+    credential: str
+    window: Literal["five_hour", "seven_day"]
+    daily_peak: list[float | None] = Field(description="per day of `period.days`; null when no reading arrived that day")
+    hourly_peak: list[float | None] = Field(
+        description="per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
+    )
+
+
+class TrendRest(Open):
+    """A start or end of a credential's rest (`rests.jsonl`), with its run."""
+
+    run: str
+    ts: str | None = None
+    event: str | None = None
+    credential: str | None = None
+
+
+class TrendDeferral(Closed):
+    """A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`."""
+
+    run: str
+    ts: str
+    key: str
+    kind: str
+    cause: str
+    reason: str
+
+
+class TrendRun(Closed):
+    """One run of the period: its attempts in the period."""
+
+    run: str
+    run_group: str
+    host_id: str
+    started_at: str
+    finished_at: str
+    last_ts: str = Field(description="when its last attempt in the period ended; empty when it has none")
+    attempts: int
+    ok: int
+    cost_usd: float | None
+    wall_s: float
+    stub: bool
+
+
+class TrendStarts(Closed):
+    """Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`."""
+
+    weekdays: list[str]
+    hours: list[int]
+    counts: list[list[int]]
+
+
+class Trends(Closed):
+    """What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as
+    panel bodies (`{"type": "blocks", ...}`), in English, for a page with no words of its own;
+    `panels`: the trend panels a domain registered (`Panel(scope="trends")`)."""
+
+    period: TrendPeriod
+    totals: TrendTotals
+    daily: list[TrendDay]
+    kinds: list[TrendKind]
+    models: list[ModelUsage]
+    stops: list[TrendStop]
+    denials: list[TrendDenial]
+    quota: list[TrendQuota]
+    rests: list[TrendRest]
+    deferred: list[TrendDeferral]
+    deferred_causes: dict[str, int]
+    runs: list[TrendRun]
+    starts: TrendStarts
+    bodies: dict[str, JsonObject]
+    panels: list[PanelInfo]
 
 
 # --- journal ---------------------------------------------------------------
@@ -781,6 +946,140 @@ class StreamPage(Closed):
     behind: int
 
 
+# --- panel bodies ------------------------------------------------------------
+#
+# What a panel returns: a typed body, drawn with the monitor's tiles, table and
+# charts, or any other JSON object, shown as a JSON tree. A body is typed by its
+# `type`; one of these types that does not validate is an error, never a JSON tree.
+
+#: A status a value or a row is in: the monitor's status colours (`Tone` in the UI).
+Tone = Literal["failed", "attention", "done", "running", "muted", "neutral"]
+
+#: How a number is written. `usd`: dollars; `pct`: a fraction (0.97 is 97%); `duration`:
+#: seconds; `tokens`: a count of tokens (1.2k); `datetime`: an ISO 8601 time; `number`: as is.
+ValueFormat = Literal["usd", "pct", "duration", "tokens", "datetime", "number"]
+
+
+class _Body(Closed):
+    title: str | None = Field(default=None, description="a heading over the body")
+    collapsed: bool = Field(default=False, description="shown folded, under its title")
+
+
+class PanelTile(Closed):
+    """A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts."""
+
+    id: str
+    label: str
+    value: float | str
+    tone: Tone | None = None
+    tip: str | None = None
+    sub: list[list[str]] = Field(default_factory=list)
+
+
+class TilesBody(_Body):
+    type: Literal["tiles"] = "tiles"
+    tiles: list[PanelTile]
+
+
+class TableColumn(Closed):
+    """A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
+    the cell, as long as the value against the column's largest."""
+
+    id: str
+    label: str
+    align: Literal["start", "end"] | None = None
+    format: ValueFormat | None = None
+    bar: bool = False
+    tip: str | None = None
+
+
+class TableBody(_Body):
+    """Rows of values, one key per column; a row's `_tone` is its status."""
+
+    type: Literal["table"] = "table"
+    columns: list[TableColumn]
+    rows: list[dict[str, Any]]
+
+
+class ChartSeries(Closed):
+    """One series: a value per label of the chart's `x`; null where it has none."""
+
+    name: str
+    values: list[float | None]
+
+
+class ColumnsBody(_Body):
+    """Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar."""
+
+    type: Literal["columns"] = "columns"
+    x: list[str]
+    series: list[ChartSeries]
+    unit: ValueFormat | None = None
+    stacked: bool = False
+
+
+class LinesBody(_Body):
+    type: Literal["lines"] = "lines"
+    x: list[str]
+    series: list[ChartSeries]
+    unit: ValueFormat | None = None
+
+
+class HeatmapBody(_Body):
+    """A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none."""
+
+    type: Literal["heatmap"] = "heatmap"
+    x: list[str]
+    y: list[str]
+    values: list[list[float | None]]
+    unit: ValueFormat | None = None
+
+
+class HBar(Closed):
+    label: str
+    value: float
+    tone: Tone | None = None
+
+
+class HBarsBody(_Body):
+    """Horizontal bars, one per label, in the order given."""
+
+    type: Literal["hbars"] = "hbars"
+    bars: list[HBar]
+    unit: ValueFormat | None = None
+
+
+class BlocksBody(_Body):
+    """Bodies one under another: a panel of several parts."""
+
+    type: Literal["blocks"] = "blocks"
+    blocks: list[PanelBody]
+
+
+#: The `type` of each typed body.
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "blocks")
+
+
+def _panel_kind(v: Any) -> str:
+    t = v.get("type") if isinstance(v, dict) else getattr(v, "type", None)
+    return t if t in PANEL_TYPES else "untyped"
+
+
+#: What a panel returns: a typed body, or any JSON object (shown as a JSON tree).
+PanelBody = Annotated[
+    Annotated[TilesBody, Tag("tiles")]
+    | Annotated[TableBody, Tag("table")]
+    | Annotated[ColumnsBody, Tag("columns")]
+    | Annotated[LinesBody, Tag("lines")]
+    | Annotated[HeatmapBody, Tag("heatmap")]
+    | Annotated[HBarsBody, Tag("hbars")]
+    | Annotated[BlocksBody, Tag("blocks")]
+    | Annotated[JsonObject, Tag("untyped")],
+    Discriminator(_panel_kind),
+]
+BlocksBody.model_rebuild()
+
+
 # --- live feeds (Server-Sent Events) -------------------------------------
 #
 # `/events?run=` and `/events/stream?run=&key=` send `text/event-stream`
@@ -820,11 +1119,11 @@ class CursorMessage(Closed):
 
 
 class PanelMessage(Closed):
-    """A domain panel's body (any JSON object), sent when it changed. `{"error": ...}`
+    """A domain panel's body (`PanelBody`), sent when it changed. `{"error": ...}`
     when the panel raised."""
 
-    event: str = Field(pattern=r"^panel:.+$", description="`panel:<name>`, one per name in /api/info `panels`")
-    data: JsonObject
+    event: str = Field(pattern=r"^panel:.+$", description="`panel:<name>`, one per run panel in /api/info `panels`")
+    data: PanelBody
 
 
 class FeedReady(Closed):
@@ -850,3 +1149,4 @@ class StreamMessage(Closed):
 
 #: One message of `/events?run=`.
 RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage
+AccountQuota.model_rebuild()

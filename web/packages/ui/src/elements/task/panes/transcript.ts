@@ -3,7 +3,7 @@
 import { msg } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import { facts, kindUnit } from '../../../words/format.js';
-import { outcomeLabel, taskStatusLabel } from '../../../words/index.js';
+import { notInExport, outcomeLabel, taskStatusLabel } from '../../../words/index.js';
 import { taskChip } from '../../shared/task-chip.js';
 import { culprit, hadSession, stateOf, type TaskContext } from '../context.js';
 
@@ -16,6 +16,9 @@ export function noTranscript(c: TaskContext): TemplateResult {
     const up = culprit(c);
     return html`<div class="blank notrans"><span class="ic" aria-hidden="true">⊘</span><b>${facts(msg('No transcript'), outcomeLabel(state))}</b>
       ${up ? html`<span>${msg(html`Earlier task ${taskChip(c.host, kindUnit(up), up)}`)}</span>` : nothing}</div>`;
+  }
+  if (c.exported && hadSession(d)) {
+    return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${facts(msg('No transcript'), notInExport())}</b></div>`;
   }
   if (hadSession(d)) {
     return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${msg('No transcript')}</b>

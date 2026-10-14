@@ -2,9 +2,11 @@
 // `RunState`, and a change notification. No UI framework: a Lit controller, a
 // React hook or plain code can subscribe alike.
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
+import type { RunFeedOpener } from './export.js';
 import { openRunFeed, type FeedOptions, type Unsubscribe } from './feed.js';
 import { emptyRunState, reduceRun, rowId, type RunAction, type RunState } from './run-state.js';
-import type { Hosts, Info, JournalRow, RunSummary } from './types.js';
+import { isRunPanel } from './panels.js';
+import type { Hosts, Info, JournalRow, JsonObject, RunFeedMessage, RunSummary, Trends, TrendsQuery } from './types.js';
 
 export interface MonitorSnapshot {
   info: Info;
@@ -22,13 +24,29 @@ export interface MonitorSnapshot {
   runsLoaded: boolean;
   /** Why the last request for `info`, `runs` or (on a hub) `hosts` got no answer; null while all are answered. */
   error: ApiError | null;
+  /** The trends of the period last asked for (`loadTrends`); null until one is asked for. */
+  trends: TrendsView | null;
+}
+
+/** The trends of one period, and the trend panels' bodies over it. */
+export interface TrendsView {
+  query: TrendsQuery;
+  /** null until the first answer for this query. */
+  data: Trends | null;
+  /** Each trend panel's body (`Panel(scope="trends")`), by name, as it arrives. */
+  panels: Readonly<Record<string, JsonObject>>;
+  loading: boolean;
+  /** Why the last request for the trends got no answer. */
+  error: ApiError | null;
 }
 
 export interface StoreOptions {
   baseUrl?: string;
   client?: MonitorClient;
   feed?: FeedOptions;
-  /** How often the run list (and on a hub, the host list) is refreshed. */
+  /** Opens a run's feed instead of the server's `/events` (an export's: `openExportFeed`). */
+  openRunFeed?: RunFeedOpener;
+  /** How often the run list (and on a hub, the host list) is refreshed; 0: never (an export). */
   runsEveryMs?: number;
   /** Feed messages are folded in batches this far apart. */
   batchMs?: number;
@@ -53,7 +71,12 @@ export class MonitorStore {
     fresh: new Set(),
     runsLoaded: false,
     error: null,
+    trends: null,
   };
+  /** The trends asked for last (`loadTrends`), kept fresh with the run list; null: none. */
+  private trendsQuery: TrendsQuery | null = null;
+  /** Counts the trend requests: an answer to an older one is dropped. */
+  private trendsAsked = 0;
   /** Why the last request for `info`, for `runs`, and for `hosts` got no answer. */
   private infoError: ApiError | null = null;
   private runsError: ApiError | null = null;
@@ -97,12 +120,51 @@ export class MonitorStore {
   async start(): Promise<void> {
     this.stopped = false;
     await this.refresh();
-    if (!this.stopped) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
+    if (!this.stopped && this.opts.runsEveryMs > 0) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
   }
 
   private async refresh(): Promise<void> {
     if (!this.infoLoaded) await this.loadInfo();
     await this.refreshRuns();
+    if (this.trendsQuery) await this.fetchTrends(this.trendsQuery);
+  }
+
+  /**
+   * Load the trends of `query` (`/api/trends`) and the trend panels over it, and keep them
+   * fresh with the run list until `closeTrends`. The trends of another query stay shown
+   * until the new ones arrive (`loading`).
+   */
+  async loadTrends(query: TrendsQuery): Promise<void> {
+    const same = this.snap.trends && JSON.stringify(this.snap.trends.query) === JSON.stringify(query);
+    this.trendsQuery = query;
+    this.set({ trends: { query, data: same ? this.snap.trends!.data : (this.snap.trends?.data ?? null), panels: same ? this.snap.trends!.panels : {}, loading: true, error: null } });
+    await this.fetchTrends(query);
+  }
+
+  /** Stop keeping the trends fresh (the page left them). */
+  closeTrends(): void {
+    this.trendsQuery = null;
+  }
+
+  private async fetchTrends(query: TrendsQuery): Promise<void> {
+    const asked = ++this.trendsAsked;
+    const names = this.snap.info.panels.filter((p) => p.scope === 'trends').map((p) => p.name);
+    const [trends, ...bodies] = await Promise.allSettled([
+      this.client.trends(query),
+      ...names.map((n) => this.client.trendsPanel(n, query)),
+    ]);
+    if (asked !== this.trendsAsked || this.stopped) return;
+    const panels: Record<string, JsonObject> = {};
+    bodies.forEach((b, i) => (panels[names[i]!] = b.status === 'fulfilled' ? b.value : { error: String(b.reason) }));
+    this.set({
+      trends: {
+        query,
+        data: trends.status === 'fulfilled' ? trends.value : (this.snap.trends?.data ?? null),
+        panels,
+        loading: false,
+        error: trends.status === 'fulfilled' ? null : asApiError(trends.reason, `${this.client.baseUrl}/api/trends`),
+      },
+    });
   }
 
   private async loadInfo(): Promise<void> {
@@ -142,7 +204,7 @@ export class MonitorStore {
   }
 
   private panelNames(): string {
-    return this.snap.info.panels.map((p) => p.name).join('\n');
+    return this.snap.info.panels.filter(isRunPanel).map((p) => p.name).join('\n');
   }
 
   /** Open the current run's feed again (the server replays it from the start). */
@@ -161,19 +223,18 @@ export class MonitorStore {
     this.queue = [];
     this.set({ run, state: emptyRunState(), connected: false, fresh: new Set() });
     if (!run) return;
-    this.closeFeed = openRunFeed(
-      run,
-      this.snap.info.panels.map((p) => p.name),
-      {
-        open: () => {
-          this.push({ event: 'connected' });
-          this.set({ connected: true });
-        },
-        error: () => this.set({ connected: false }),
-        message: (msg) => this.push(msg),
+    const panels = this.snap.info.panels.filter(isRunPanel).map((p) => p.name);
+    const on = {
+      open: () => {
+        this.push({ event: 'connected' });
+        this.set({ connected: true });
       },
-      { ...(this.opts.baseUrl === undefined ? {} : { baseUrl: this.opts.baseUrl }), ...this.opts.feed },
-    );
+      error: () => this.set({ connected: false }),
+      message: (msg: RunFeedMessage) => this.push(msg),
+    };
+    this.closeFeed = this.opts.openRunFeed
+      ? this.opts.openRunFeed(run, panels, on)
+      : openRunFeed(run, panels, on, { ...(this.opts.baseUrl === undefined ? {} : { baseUrl: this.opts.baseUrl }), ...this.opts.feed });
   }
 
   /** Close the feed and stop refreshing; an answer that arrives later is dropped. */

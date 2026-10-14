@@ -5,7 +5,7 @@ import threading
 import time
 from types import SimpleNamespace
 
-from contraagent.dispatch import Task, TaskResult, WorkQueue
+from contraagent.dispatch import Deferral, Task, TaskResult, WorkQueue
 
 
 class Runner:
@@ -252,3 +252,67 @@ class Spans(Runner):
     def overlap(self, a: str, b: str) -> bool:
         (a0, a1), (b0, b1) = self.spans[a], self.spans[b]
         return a0 < b1 and b0 < a1
+
+
+# --- what a deferral queues during a pass ---------------------------------------------
+
+
+class Resting(Runner):
+    """A runner whose credential rests for `resting` kinds: it defers them (`deferral`)."""
+
+    def __init__(self, resting: set[str]) -> None:
+        super().__init__()
+        self.resting = resting
+
+    def deferral(self, task: Task) -> Deferral | None:
+        return Deferral("personal rests", {"cause": "rest"}) if task.kind in self.resting else None
+
+
+def finishes_after(deferred_key: str, *follow: Task):
+    """A follow-up that answers `deferred_key`'s deferral with `follow`; `seen`: how each task ended."""
+    seen: dict[str, str] = {}
+
+    def follow_up(res: TaskResult) -> list[Task]:
+        seen[res.task.key] = res.stop
+        return list(follow) if res.task.key == deferred_key and res.stop == "deferred" else []
+
+    return follow_up, seen
+
+
+def test_a_task_a_rest_s_follow_up_queues_launches():
+    """The H1 shape: a rest defers the only task, nothing runs, and its follow-up queues a
+    finishing Python task in the same pass. It launches (it was deferred as never queued)."""
+    runner = Resting({"write"})
+    follow_up, seen = finishes_after("write", Task("lint_check", key="lint_check"))
+    q = WorkQueue(runner, follow_up=follow_up, finishing_kinds=("lint_check",))
+    q.add(Task("write", key="write"))
+    summary = q.run()
+    assert runner.launched == ["lint_check"]
+    assert seen == {"write": "deferred", "lint_check": "completed"}
+    assert summary["deferred"] == ["write"]
+
+
+def test_a_task_queued_after_a_late_deferral_or_a_closed_box_launches():
+    # Late: its bottom level does not fit in the time left.
+    runner = Runner()
+    follow_up, seen = finishes_after("huge", Task("report", key="report"))
+    q = WorkQueue(runner, follow_up=follow_up, deadline_s=30, slack_s=30, finishing_kinds=("report",))
+    q.add(Task("a", key="huge", estimate_s=100))
+    q.run()
+    assert runner.launched == ["report"] and seen["huge"] == "deferred"
+    # Closed: past the deadline, only the finishing kinds launch.
+    runner = Runner()
+    follow_up, seen = finishes_after("scan", Task("report", key="report"))
+    q = WorkQueue(runner, follow_up=follow_up, deadline_s=0.001, finishing_kinds=("report",))
+    q.add(Task("scan", key="scan"))
+    time.sleep(0.01)
+    q.run()
+    assert runner.launched == ["report"] and seen["scan"] == "deferred"
+
+
+def test_a_dependency_that_never_comes_still_ends_deferred():
+    seen: dict[str, str] = {}
+    q = WorkQueue(Runner(), follow_up=lambda res: seen.update({res.task.key: res.stop}) or [])
+    q.add(Task("b", key="b", after=("never",)))
+    summary = q.run()
+    assert seen == {"b": "deferred"} and summary["deferred"] == ["b"]

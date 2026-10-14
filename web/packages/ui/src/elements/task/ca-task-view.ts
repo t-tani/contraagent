@@ -55,6 +55,8 @@ export class CaTaskView extends LitElement {
   @property({ attribute: false }) journal: JournalRow[] = [];
   /** The run's plan: whether a task with no attempt is waiting or not started, and which earlier task stopped it. Optional. */
   @property({ attribute: false }) plan: Plan | null = null;
+  /** Read from an export (`Info.export`): it holds no transcript. */
+  @property({ type: Boolean }) exported = false;
 
   private readonly detail = new TaskDetailController(this);
   @query('ca-transcript') private transcriptEl?: CaTranscript;
@@ -102,6 +104,7 @@ export class CaTaskView extends LitElement {
       launches: this.launches,
       shownRound: this.shownRound,
       rounds: this.rounds,
+      exported: this.exported,
     };
     const view = this.shownView(d);
     return html`${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth))} ${this.renderViews(d, view)}

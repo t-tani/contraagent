@@ -13,6 +13,10 @@ Documents (a whole JSON file, replaced atomically): `RUN_INFO`, `CURSOR`, and
 one file per entry in the folders `CONTRACTS`, `DEFINITIONS`, `CALLS` and
 `INFLIGHT`. Every writer of a document goes through `write_document`.
 
+`TRENDS` is the one document a reader writes: the monitor's digest of a finished
+run for its trends (`monitor.trends`), made again from the logs whenever they
+change. Nothing else reads it, and a relay does not ship it.
+
 `RUN_INFO` (`run.json`) also says which run this is across hosts: `run_uid`, an id
 no other run has, kept when the run is resumed, and `host_id`, the host that
 drives it (`CONTRAAGENT_HOST_ID`, else the host name).
@@ -33,6 +37,7 @@ FLOW_CALLS = "flow_calls.jsonl"
 DEFERRED = "deferred.jsonl"
 RESTS = "rests.jsonl"
 CURSOR = "cursor.json"
+TRENDS = "trends.json"
 STREAMS = "streams"
 CONTRACTS = "contracts"
 DEFINITIONS = "definitions"

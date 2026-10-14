@@ -53,8 +53,12 @@ class AgentTask[Out]:
     changes: tuple[str, ...] = ()
     #: Where the output arrives: `file` (the agent writes it) or `message` (its final message is it).
     output_from: str = "file"
+    #: The final message may wrap the JSON output: it is taken out of the message (`unwrap_json`).
+    unwrap: bool = False
     #: The agent's tools: None, those its role and settings allow; `()`, none (a light launch).
     tools: tuple[str, ...] | None = None
+    #: A resume runs its tasks again even when an earlier attempt finished them.
+    rerun_on_resume: bool = False
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -98,7 +102,8 @@ class AgentTask[Out]:
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `skills_from`, `config`, `requires`, `claims` and `output_name`. None:
+        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name` and
+        `rerun_on_resume`. None:
         one kind, declared twice the same way."""
         if other is self:
             return []
@@ -108,7 +113,11 @@ class AgentTask[Out]:
             parts.append("plugin")
         if [p.root for p in self.skills_from] != [p.root for p in other.skills_from]:
             parts.append("skills_from")
-        return parts + [name for name in ("config", "requires", "claims", "output_name") if getattr(self, name) != getattr(other, name)]
+        return parts + [
+            name
+            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume")
+            if getattr(self, name) != getattr(other, name)
+        ]
 
     def _defined(self) -> dict[str, Any]:
         role = ""
@@ -126,6 +135,7 @@ class AgentTask[Out]:
             "params": _schema(self.params) if self.params is not None else None,
             "changes": list(self.changes),
             "output_from": self.output_from,
+            **({"unwrap": True} if self.unwrap else {}),
             **({"tools": list(self.tools)} if self.tools is not None else {}),
         }
 
@@ -155,10 +165,12 @@ def agent_task[Out](
     validators: Sequence[Validator] = (),
     output_name: str | None = None,
     output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
     requires: Sequence[str] = (),
     claims: Sequence[str] = (),
     changes: Sequence[str] = (),
     tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
     **config: Any,
 ) -> AgentTask[Out]:
     """Declare an agent task.
@@ -202,6 +214,10 @@ def agent_task[Out](
     final message is the output: the runner writes it to the output file and checks it
     there, and a message that fails its checks goes back to the same session. For a task
     that needs no tool (a classification in one turn), it saves the turn the `Write` takes.
+    `unwrap`: with `output_from="message"` and a JSON output, the message may wrap the
+    document (a sentence before it, a fenced block): the runner takes the document out of it
+    (`contracts.unwrap_json`) and keeps the whole message beside the output file
+    (`<output>.message.txt`). By default the whole message must be the document.
     `tools`: None (default), the tools its role and settings allow; `()`, none: a **light
     launch**, for a judgement in one turn. The role's text (without its frontmatter), or for a
     task with no plugin `instructions`, replaces the coding agent's own system prompt; the
@@ -209,6 +225,10 @@ def agent_task[Out](
     no plugin, settings, skill, hook or MCP server is loaded. It needs `output_from="message"`.
     Tool names are each coding agent's own, so a list of them is not taken here: a role names
     its tools in its frontmatter, a plugin's `settings.json` what they may do.
+    `rerun_on_resume`: a resume (`Pipeline.run(resume=True)`) runs its tasks again even when
+    an earlier attempt of the run finished them, for a final step that reports or publishes
+    the state of the work. A task that takes the output of a task that ran again already
+    runs again, through its fingerprint.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
@@ -224,6 +244,10 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
+    if unwrap and (output_from != "message" or output is str):
+        raise TypeError(
+            f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
+        )
     checked_tools = _checked_tools(kind, tools)
     if checked_tools == () and output_from != "message":
         raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
@@ -264,7 +288,9 @@ def agent_task[Out](
         changes=changes,
         output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
         output_from=output_from,
+        unwrap=bool(unwrap),
         tools=checked_tools,
+        rerun_on_resume=bool(rerun_on_resume),
     )
 
 
@@ -292,6 +318,8 @@ class PythonTask[Out]:
     output_schema: type[BaseModel] | None
     validators: tuple[Validator, ...]
     claims: tuple[str, ...] = ()
+    #: A resume runs its tasks again even when an earlier attempt finished them.
+    rerun_on_resume: bool = False
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -379,7 +407,7 @@ class PythonTask[Out]:
 def python_task[Out](fn: Callable[..., Out], /) -> PythonTask[Out]: ...
 @overload
 def python_task(
-    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = ()
+    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = (), rerun_on_resume: bool = False
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -390,16 +418,25 @@ def python_task(
     name: str | None = None,
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
+    rerun_on_resume: bool = False,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
-    `agent_task`: the names each of its tasks holds while it runs."""
+    `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
+    `agent_task`: a resume runs its tasks again (a step that publishes the work's state)."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
         checked = _checked_claims(f"python_task({kind!r})", claims)
-        return PythonTask(fn=f, name=kind, output_schema=_output_schema_of(f), validators=tuple(validators), claims=checked)
+        return PythonTask(
+            fn=f,
+            name=kind,
+            output_schema=_output_schema_of(f),
+            validators=tuple(validators),
+            claims=checked,
+            rerun_on_resume=bool(rerun_on_resume),
+        )
 
     return wrap(fn) if fn is not None else wrap
 

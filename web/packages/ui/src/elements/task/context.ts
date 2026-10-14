@@ -37,6 +37,8 @@ export interface TaskContext {
   launches: (LaunchEvent | null)[];
   shownRound: number;
   rounds: RoundInfo[];
+  /** Read from an export (`Info.export`): it holds no transcript. */
+  exported?: boolean;
 }
 
 /** A Python task: it runs in the pipeline's process, so it has no agent session and no transcript. */

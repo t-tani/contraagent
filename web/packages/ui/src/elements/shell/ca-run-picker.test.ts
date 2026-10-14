@@ -17,7 +17,9 @@ describe('ca-run-picker', () => {
     Object.assign(el, { runs: [run('docs-stub', { stub: true }), run('docs')], current: 'docs' });
     document.body.append(el);
     await el.updateComplete;
-    const names = [...el.shadowRoot!.querySelectorAll('.item .nm')];
+    const items = [...el.shadowRoot!.querySelectorAll('.item')];
+    expect(items[0]!.textContent).toContain('Trends'); // the pages of no run come first
+    const names = items.slice(1).map((i) => i.querySelector('.nm')!);
     expect(names.map((n) => n.querySelector('.pill')?.textContent ?? '')).toEqual(['stub agent', '']);
     expect(names[0]!.querySelector('.pill')!.getAttribute('title')).toBe('A run whose tasks the stub agent played with scripted replies, not a model (stub)');
     el.remove();

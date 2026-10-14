@@ -60,7 +60,8 @@ test.describe('a hub', () => {
     await expect(picker(page).getByRole('group')).toHaveAccessibleName(/^h2 /);
     await page.keyboard.press('Tab');
     expect((await focused(page))?.role).toBe('combobox');
-    // the first option is the hosts page; then h2's runs, the running and quiet one first
+    // the first options are the trends and the hosts pages; then h2's runs, the running and quiet one first
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
@@ -85,6 +86,8 @@ test.describe('a hub', () => {
   test('the hosts page lists the hosts and each account over every run, and has its own URL', async ({ page }) => {
     await page.goto(`${HUB}/?run=docs@h1`);
     await openPicker(page);
+    await page.keyboard.press('ArrowDown');
+    await expect(picker(page).getByRole('listbox').getByRole('option', { selected: true })).toContainText('Trends');
     await page.keyboard.press('ArrowDown');
     await expect(picker(page).getByRole('listbox').getByRole('option', { selected: true })).toContainText('Hosts');
     await page.keyboard.press('Enter');

@@ -102,6 +102,48 @@ def test_a_credential_without_caps_or_reading_never_rests(tmp_path):
     assert r.reason("gateway") == ""  # unknown, no reading
 
 
+def test_a_rule_s_rest_records_its_reading_and_ends_when_that_reading_is_out_of_date(tmp_path):
+    """Nothing launches on a resting credential, so no new reading comes: the rule's rest
+    lasts until the reading it judged is out of date (its earliest reset), then the stale
+    reading counts no more, and the next launch brings a fresh one."""
+    clock = [NOW]
+    events: list[tuple[str, dict]] = []
+    r = QuotaRests(
+        config(tmp_path).credentials(),
+        lambda cred, rd: "pace" if (rd.seven_day_pct or 0) > 50 else None,
+        now=lambda: clock[0],
+        on_change=lambda event, rest: events.append((event, rest.to_dict())),
+    )
+    r.observe(reading("sub-b", five=10, week=60))  # 5-hour resets at NOW + 2h, weekly in 3 days
+    [rest] = r.rests("sub-b")
+    assert rest.rule == "pace" and rest.until == iso(NOW + timedelta(hours=2))
+    assert rest.reading == {
+        "observed_at": iso(NOW),
+        "windows": {
+            "five_hour": {"pct": 10, "resets_at": iso(NOW + timedelta(hours=2))},
+            "seven_day": {"pct": 60, "resets_at": iso(NOW + timedelta(days=3))},
+        },
+    }
+    assert events == [("start", rest.to_dict())] and events[0][1]["reading"] == rest.reading
+    clock[0] = NOW + timedelta(hours=1, minutes=59)
+    assert r.reason("sub-b") == "sub-b rests: pace"  # the reading still stands
+    clock[0] = NOW + timedelta(hours=2, seconds=1)
+    assert r.reason("sub-b") == ""  # out of date: no rest on it
+    assert [e for e, _ in events] == ["start", "end"]
+    r.observe(reading("sub-b", five=20, week=40, observed=clock[0], resets=clock[0] + timedelta(hours=5)))
+    assert r.reason("sub-b") == ""  # the fresh reading, judged anew
+
+
+def test_a_rule_s_rest_on_a_reading_with_no_reset_lasts_its_window_s_length(tmp_path):
+    clock = [NOW]
+    r = QuotaRests(config(tmp_path).credentials(), lambda cred, rd: "pace", now=lambda: clock[0])
+    r.observe(reading("sub-b", five=10, resets=None))
+    # five_hour names no reset: it stands 5 hours after it was observed; seven_day resets in 3 days.
+    assert r.rests("sub-b")[0].until == iso(NOW + timedelta(hours=5))
+    clock[0] = NOW + timedelta(hours=5, seconds=1)
+    assert r.rests("sub-b") == []
+
+
 def test_a_quota_rule_rests_a_credential_by_its_reading(tmp_path):
     r = rests(tmp_path, rule=lambda cred, rd: f"pace {rd.seven_day_pct:.0f}%" if (rd.seven_day_pct or 0) > 50 else None)
     r.observe(reading("sub-b", week=60))
@@ -219,6 +261,7 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
         "cap": 90.0,
         "rule": "",
         "until": "",
+        "account": "",
     }
     assert rest["until"] == iso(NOW + timedelta(hours=2))  # the window's reset
     res = r.run(Task("k", key="t2"))
@@ -342,6 +385,23 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
     [rest] = plan["rests"]
     assert rest["credential"] == "personal" and rest["window"] == "five_hour" and rest["since"] and rest["ended"] == ""
     api.Plan.model_validate(plan)
+    # The run list counts them as not run: they were deferred, nothing waits for them.
+    [summary] = [s for s in Monitor(tmp_path / "runs").runs() if s["run"] == report.run_id]
+    assert summary["tasks"]["not_run"] == 2 and summary["tasks"]["waiting"] == 0
+
+
+def test_a_queued_task_waits_only_in_a_live_run(tmp_path):
+    from contraagent.monitor.source import DirectorySource, StaticLiveness
+
+    run = tmp_path / "runs" / "r"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text(json.dumps({"run_id": "r", "started_at": iso(NOW)}))
+    (run / "plan.jsonl").write_text(json.dumps({"key": "note-a", "kind": "note", "unit": "a", "after": []}) + "\n")
+    source = DirectorySource(tmp_path / "runs")
+    live = Monitor(source=source, liveness=StaticLiveness(source, live=["r"])).runs()[0]["tasks"]
+    over = Monitor(source=source, liveness=StaticLiveness(source)).runs()[0]["tasks"]
+    assert (live["waiting"], live["not_run"]) == (1, 0)
+    assert (over["waiting"], over["not_run"]) == (0, 1)
 
 
 def test_the_run_records_its_rule_and_each_rest_as_it_begins_and_ends(tmp_path):
@@ -400,3 +460,27 @@ def test_the_queue_records_its_own_causes(tmp_path):
 def test_a_cap_is_a_percentage(tmp_path, bad):
     with pytest.raises(Exception, match="max_five_hour_pct"):
         config(tmp_path, f'\n[credentials.bad]\ntype = "subscription"\nmax_five_hour_pct = {bad}\n').credentials()
+
+
+def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
+    from contraagent.monitor.source import DirectorySource, StaticLiveness
+
+    def run(name: str, rests: list[dict]) -> None:
+        d = tmp_path / "runs" / name
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({"run_id": name, "host_id": "h1", "started_at": iso(NOW)}))
+        reading_row = {"observed_at": iso(NOW), "credential": "personal", "five_hour_pct": 93.0, "seven_day_pct": 40.0}
+        row = {"ts": iso(NOW), "key": "k", "kind": "k", "stop": "completed", "ok": True, "quota": [reading_row]}
+        (d / "journal.jsonl").write_text(json.dumps(row) + "\n")
+        (d / "rests.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rests))
+
+    later = iso(datetime.now(UTC) + timedelta(hours=2))
+    start = {"ts": iso(NOW), "event": "start", "credential": "personal", "window": "five_hour", "pct": 93.0, "cap": 90.0, "until": later}
+    run("live", [start])
+    run("ended", [start, {**start, "event": "end"}])
+    run("over", [start])  # not live: its rest says nothing of now
+    source = DirectorySource(tmp_path / "runs")
+    hosts = Monitor(source=source, liveness=StaticLiveness(source, live=["live", "ended"])).hosts()
+    api.Hosts.model_validate(hosts)
+    [account] = hosts["quota"]
+    assert [(r["credential"], r["window"], r["until"]) for r in account["rests"]] == [("personal", "five_hour", later)]

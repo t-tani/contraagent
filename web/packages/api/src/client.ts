@@ -8,6 +8,8 @@ import type {
   StreamPage,
   TaskDefinition,
   TaskDetail,
+  Trends,
+  TrendsQuery,
   paths,
 } from './types.js';
 
@@ -58,6 +60,10 @@ export interface MonitorClient {
   task(run: string, key: string): Promise<TaskDetail>;
   stream(run: string, key: string, since?: number): Promise<StreamPage>;
   panel(run: string, name: string): Promise<JsonObject>;
+  /** What the runs of a period add up to. */
+  trends(query?: TrendsQuery): Promise<Trends>;
+  /** A trend panel's body over the runs of a period (`Panel(scope="trends")`). */
+  trendsPanel(name: string, query?: TrendsQuery): Promise<JsonObject>;
 }
 
 /** The monitor's GET routes. */
@@ -107,5 +113,7 @@ export function createMonitorClient(options: ClientOptions = {}): MonitorClient 
     task: (run, key) => get('/api/runs/{run}/task/{key}', { path: { run, key } }),
     stream: (run, key, since = 0) => get('/api/runs/{run}/stream/{key}', { path: { run, key }, query: { since } }),
     panel: (run, name) => get('/api/runs/{run}/panels/{name}', { path: { run, name } }),
+    trends: (query = {}) => get('/api/trends', { query: { ...query } }),
+    trendsPanel: (name, query = {}) => get('/api/trends/panels/{name}', { path: { name }, query: { ...query } }),
   };
 }

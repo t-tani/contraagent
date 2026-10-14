@@ -7,6 +7,7 @@ import { emit } from '../../core/events.js';
 import { starts } from '@contraagent/elements';
 import { facts, kindUnit } from '../../words/format.js';
 import { noReportLabel } from '../../words/hosts.js';
+import { notInExport } from '../../words/export.js';
 import { base } from '@contraagent/elements/styles';
 import '@contraagent/elements/count/define';
 import './ca-proc-tree.js';
@@ -31,6 +32,8 @@ export class CaProcsView extends LitElement {
   @property({ attribute: false }) procs: Procs | null = null;
   /** The run's host stopped reporting (a hub): whether it runs is not known. */
   @property({ type: Boolean }) unresponsive = false;
+  /** Read from an export (`Info.export`): it holds no processes. */
+  @property({ type: Boolean }) exported = false;
 
   /** Open a launch's task. A launch's row opens it on a click; its name is the button for the keyboard. */
   private open(key: string): void {
@@ -41,7 +44,8 @@ export class CaProcsView extends LitElement {
   override render() {
     const p = this.procs;
     if (!p?.alive) {
-      return html`<div class="blank"><span class="ic" aria-hidden="true">⚙</span><b>${facts(msg('No processes'), this.unresponsive ? noReportLabel() : msg('run not running'))}</b></div>`;
+      const why = this.exported ? notInExport() : this.unresponsive ? noReportLabel() : msg('run not running');
+      return html`<div class="blank"><span class="ic" aria-hidden="true">⚙</span><b>${facts(msg('No processes'), why)}</b></div>`;
     }
     const pys = p.python_tasks;
     return html`<div class="g12">

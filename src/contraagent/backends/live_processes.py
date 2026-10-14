@@ -16,13 +16,26 @@ the teardown should not have to know which was in flight to clean up.
 The kill is by process group, not by pid. The CLI spawns its own children —
 hooks, the model client — and killing the leader alone leaves those running
 with the port they inherited.
+
+A teardown needs this interpreter to run it. One killed outright (SIGKILL, the
+OOM killer) runs nothing, so a **watchdog** outlives it: one small process per
+interpreter, in a session of its own, started with the first agent. It holds
+one end of a socket pair and is told each agent group as it starts and ends;
+when this interpreter is gone, however it went, the kernel closes the other
+end, and the watchdog stops the groups still listed and exits. One per
+interpreter rather than one per launch, and no `PR_SET_PDEATHSIG`: that fires
+when the *thread* that forked exits (launches fork from worker threads), and it
+would need a `preexec_fn`, which is unsafe in a process with threads. The
+agent itself is started as before, so its pid and exit status are its own.
 """
 
 from __future__ import annotations
 
 import os
 import signal
+import socket
 import subprocess
+import sys
 import threading
 import time
 
@@ -43,6 +56,81 @@ _stopping = 0
 #: for the CLI to write its own farewell and release its ports, short enough
 #: that a teardown does not feel like a hang.
 _TERM_GRACE_S = 5.0
+
+
+#: The watchdog: lines `+<pgid>` and `-<pgid>` on its stdin, a socket; at its end of
+#: file (this interpreter is gone) it stops the groups still listed, as `_kill_group` does.
+_WATCHDOG = r"""
+import os, signal, time
+groups, buf = set(), b""
+while True:
+    try:
+        data = os.read(0, 4096)
+    except InterruptedError:
+        continue
+    except OSError:
+        data = b""
+    if not data:
+        break
+    buf += data
+    *lines, buf = buf.split(b"\n")
+    for line in lines:
+        if line[:1] == b"+":
+            groups.add(int(line[1:]))
+        elif line[:1] == b"-":
+            groups.discard(int(line[1:]))
+def alive(g):
+    try:
+        os.killpg(g, 0)
+        return True
+    except OSError:
+        return False
+for g in list(groups):
+    try:
+        os.killpg(g, signal.SIGTERM)
+    except OSError:
+        groups.discard(g)
+end = time.monotonic() + 5.0
+while groups and time.monotonic() < end:
+    time.sleep(0.1)
+    groups = {g for g in groups if alive(g)}
+for g in groups:
+    try:
+        os.killpg(g, signal.SIGKILL)
+    except OSError:
+        pass
+"""
+
+_watchdog: subprocess.Popen | None = None
+_watch: socket.socket | None = None
+#: The pid that started the watchdog: a forked child of this interpreter starts its own.
+_watch_pid = 0
+
+
+def _tell_watchdog(line: str) -> None:
+    """Tell the watchdog an agent group started (`+pgid`) or ended (`-pgid`), starting it
+    first when there is none. Never raises: an agent runs whether or not it is watched."""
+    global _watchdog, _watch, _watch_pid
+    with _lock:
+        try:
+            if _watch is None or _watch_pid != os.getpid() or (_watchdog is not None and _watchdog.poll() is not None):
+                if line.startswith("-"):
+                    return  # nothing to forget in a watchdog that does not know it
+                ours, theirs = socket.socketpair()
+                _watchdog = subprocess.Popen(
+                    [sys.executable, "-I", "-c", _WATCHDOG],
+                    stdin=theirs.fileno(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                theirs.close()
+                _watch, _watch_pid = ours, os.getpid()
+            # MSG_NOSIGNAL: a watchdog that is gone is an error here, never a SIGPIPE
+            # (the command line restores SIGPIPE's default, which would end the run).
+            _watch.sendall(f"{line}\n".encode(), socket.MSG_NOSIGNAL)
+        except OSError:
+            pass
 
 
 def epoch() -> int:
@@ -72,6 +160,8 @@ def register(proc: subprocess.Popen, since: int | None = None) -> subprocess.Pop
             _live.append(proc)
     if late:
         _kill_group(proc)
+    else:
+        _tell_watchdog(f"+{proc.pid}")
     return proc
 
 
@@ -95,7 +185,8 @@ def unregister(proc: subprocess.Popen) -> None:
         try:
             _live.remove(proc)
         except ValueError:
-            pass
+            return
+    _tell_watchdog(f"-{proc.pid}")
 
 
 def live_count() -> int:

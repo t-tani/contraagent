@@ -88,7 +88,7 @@ describe('ca-monitor', () => {
     const d = deriveRun(journal, plan);
     expect(badge(el, 'Tasks')).toBe(String(d.counts.total));
     expect(badge(el, 'History')).toBe(String(d.tries.tries));
-    expect(text(root(el).querySelector('header .rs'))).toBe(`${d.counts.doneTotal} of ${d.counts.total} tasks done | took 1m 05s`);
+    expect(text(root(el).querySelector('header .rs'))).toBe(`${d.counts.doneTotal} of ${d.counts.total} tasks done | 1 not run | took 1m 05s`);
     // The custom view comes after the built-in tabs, behind a separator.
     expect(root(el).querySelector('nav .tab-sep + .tab.panel-tab')?.textContent).toContain('Notes');
     el.remove();

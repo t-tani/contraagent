@@ -46,6 +46,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | run not live | not running / finished | 実行中ではありません / 終了 |
 | TaskAdapter (a kind without a plugin) | defined in Python code | Python コードで定義 |
 | panel (`monitor.Panel`) | custom view | カスタムビュー |
+| a panel body's charts (`columns`, `lines`, `heatmap`, `hbars`): the switch, the sum of a stacked bar, the series past the sixth, a chart's table column of labels, a heatmap's scale | Show table / Show chart; Total; Other; Label; `low` to `high` | 表で表示 / グラフで表示; 合計; その他; 項目; `low` 〜 `high` |
 | a pipeline's own journal column (`row_extras`; `RunSummary.row_extras`, `TaskDetail.row_extras` name them) | a column headed by its name as written; tooltip: custom column (row_extras) | カスタム列 |
 | `Plan.models` (`ModelUsage`: what the agent sessions spent on each model, each hop on its own; the measures cost, tokens, time, agent sessions) | Models; Share; Measure; Other models (past six); the measures in their own words (Cost, Tokens, Time, Agent sessions) | モデル別の内訳; 割合; 指標; その他のモデル |
 | credential (`JournalRow.credential`, per hop) | identity | 認証情報 |
@@ -65,8 +66,12 @@ there: one word, one meaning, on every screen. Japanese follows
 | `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
 | `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
+| an export (`Info.export`), the header's mark in place of the connection; a view it does not hold | Exported `time`; tooltip: Not in this export: transcripts and processes; not in this export | `time` 時点の書き出し; この書き出しに含まれないもの; 書き出しに含まれない |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
+| a reading's windows (`status_window`, `windows`: `five_hour`, `seven_day`, `seven_day_<model>`) | 5-hour, weekly, weekly (`model`); a status with its window: near the limit \| weekly | 5 時間枠, 週, 週（`model`） |
+| `threshold_pct`, `overage_status` of a reading | Warning threshold; Extra usage: allowed / not allowed | 警告のしきい値; 上限を超えた利用: 可 / 不可 |
+| account (`QuotaReading.account`, a digest), shown when one identity has two | account `3f9c2a`; Account: `digest` (tooltip) | アカウント |
 | a layer of the flow path (the pipeline graph's level) | Pipeline › `function` › loop (breadcrumb) | パイプライン › `function` › ループ |
 | a function node (tasks created in a function the flow called) | the function's name; function (tooltip) | 関数 |
 | flow call | flow call (tooltip only) | フロー呼び出し |
@@ -82,6 +87,9 @@ there: one word, one meaning, on every screen. Japanese follows
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
 | a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |
+| a function drawn open (`FlowBox`), its control; every function's | Show inside / Hide inside; Show all inside / Hide all inside | 中を表示 / 中を隠す; すべての中を表示 / すべての中を隠す |
+| a chain of functions in one box (`FlowBox.parts`) | `a › b › c` (each part a link to its layer) | `a › b › c` |
+| the outline (`outlineTree`); an item folded or unfolded | Outline of the flow; Fold `x` / Unfold `x` | フローの構成; `x` を折りたたむ / `x` を展開 |
 | `executor` of a kind node | agent task / Python task | エージェントタスク / Python タスク |
 | selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
 | an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |
@@ -92,6 +100,8 @@ there: one word, one meaning, on every screen. Japanese follows
 | `RunSummary.unresponsive`, `RunActivity` `unresponsive` (its host stopped reporting while the run was alive) | no report from host; N with no report from host (a count) | ホストからの報告なし; ホストからの報告なし N 件 |
 | a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
 | a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
+| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
+| a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
 
 The UI states facts about the run; it never narrates what the monitor or
 contraagent does, will do, or lets the reader do. No "checked once", "the agent

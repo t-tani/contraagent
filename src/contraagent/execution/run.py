@@ -67,7 +67,10 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 def finished_before(row: dict | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
-    task's fingerprint. What a resume skips."""
+    task's fingerprint. What a resume skips; never a task that reruns on resume
+    (`Task.rerun_on_resume`)."""
+    if task.rerun_on_resume:
+        return False
     return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 
@@ -143,6 +146,7 @@ class Run:
         self._torn_down = False
         self._teardown_lock = threading.Lock()
         self._teardown_callbacks: list[Callable[[], None]] = []
+        self._restore_signals: Callable[[], None] | None = None
         if lock:
             self._acquire()
         rundir.write_document(
@@ -187,7 +191,11 @@ class Run:
         self._lock_fd = fd
 
     def close(self) -> None:
-        """Release the run lock (process exit releases it too)."""
+        """Release the run lock (process exit releases it too), and put back the signal
+        handlers `stop_on_signals` replaced."""
+        if self._restore_signals is not None:
+            self._restore_signals()
+            self._restore_signals = None
         if self._lock_fd is not None:
             os.close(self._lock_fd)
             self._lock_fd = None
@@ -240,6 +248,13 @@ class Run:
             self._teardown_lock.release()
         _teardown.run(*self._teardown_callbacks)
 
+    def stop_on_signals(self) -> None:
+        """Run `teardown` on SIGTERM and SIGINT until `close()`: an interrupted run stops its
+        agents, whose sessions of their own a terminal's Ctrl-C does not reach. Only on the
+        main thread (Python's signal handlers live there); elsewhere it does nothing."""
+        if threading.current_thread() is threading.main_thread() and self._restore_signals is None:
+            self._restore_signals = _teardown.install_signal_handlers(self.teardown)
+
     def install_signal_handlers(self) -> None:
         """Run `teardown` on SIGTERM/SIGINT and at interpreter exit."""
         import atexit
@@ -255,9 +270,19 @@ class Run:
         row = self.journal.append(result)
         if self._estimates is not None:
             self._estimates.observe_attempt(row.model_dump())
-        rounds = result.launch_result.rounds if result.launch_result is not None else None
+        launched = result.launch_result
+        rounds = launched.rounds if launched is not None else None
         line = f"[end] {result.task.key}: {result.stop} in {result.wall_s:.1f}s"
-        line += f", {rounds} rounds" if rounds and rounds > 1 else ""
+        if rounds and rounds > 1 and launched is not None and launched.round_errors and launched.round_errors[0]:
+            # Why the first round went back: the fix-up is otherwise only a count here.
+            first = " ".join(launched.round_errors[0][0].split())
+            # A path in the run's directory as the run names it, so the cause fits in the line.
+            for root in (str(self.dir.resolve()) + os.sep, str(self.dir) + os.sep):
+                first = first.replace(root, "")
+            line += f", {rounds} rounds (round 1: {first[:160]}{'…' if len(first) > 160 else ''})"
+        elif rounds and rounds > 1:
+            line += f", {rounds} rounds"
+        line += ", output unwrapped from the final message" if launched is not None and launched.unwrapped else ""
         line += f", on {result.route}" if len(result.hops) > 1 else ""
         self._log(logging.INFO, line)
 

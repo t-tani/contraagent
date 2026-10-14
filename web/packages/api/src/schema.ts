@@ -61,6 +61,46 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Trends
+         * @description What the runs of a period add up to, day by day.
+         */
+        get: operations["api_trends_api_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trends/panels/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Trend Panel
+         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period.
+         */
+        get: operations["api_trend_panel_api_trends_panels__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run}/journal": {
         parameters: {
             query?: never;
@@ -230,7 +270,7 @@ export type paths = {
         };
         /**
          * Api Panel
-         * @description One registered panel's body: a JSON object whose shape the domain chooses.
+         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object.
          */
         get: operations["api_panel_api_runs__run__panels__name__get"];
         put?: never;
@@ -293,8 +333,19 @@ export type components = {
         AccountQuota: {
             /** Credential */
             credential: string;
+            /**
+             * Account
+             * @description the account the readings are of (`QuotaReading.account`); empty when not known
+             * @default
+             */
+            account?: string;
             first: components["schemas"]["QuotaReading"];
             last: components["schemas"]["QuotaReading"];
+            /**
+             * Rests
+             * @description its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`
+             */
+            rests?: components["schemas"]["CredentialRest"][];
         };
         /**
          * AgentProcess
@@ -334,6 +385,33 @@ export type components = {
             plugin: string;
         };
         /**
+         * BlocksBody
+         * @description Bodies one under another: a panel of several parts.
+         */
+        BlocksBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default blocks
+             * @constant
+             */
+            type?: "blocks";
+            /** Blocks */
+            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
+                [key: string]: unknown;
+            })[];
+        };
+        /**
          * Changes
          * @description The files one attempt changed under its task's `changes` patterns, relative to
          *     the working directory (`dispatch.Changes`).
@@ -349,6 +427,50 @@ export type components = {
             removed?: string[];
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * ChartSeries
+         * @description One series: a value per label of the chart's `x`; null where it has none.
+         */
+        ChartSeries: {
+            /** Name */
+            name: string;
+            /** Values */
+            values: (number | null)[];
+        };
+        /**
+         * ColumnsBody
+         * @description Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar.
+         */
+        ColumnsBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default columns
+             * @constant
+             */
+            type?: "columns";
+            /** X */
+            x: string[];
+            /** Series */
+            series: components["schemas"]["ChartSeries"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+            /**
+             * Stacked
+             * @default false
+             */
+            stacked?: boolean;
         };
         /**
          * ContractField
@@ -472,6 +594,15 @@ export type components = {
              */
             until?: string;
             /**
+             * Account
+             * @default
+             */
+            account?: string;
+            /** Reading */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
+            /**
              * Since
              * @description when it began resting, ISO 8601
              */
@@ -587,6 +718,33 @@ export type components = {
              */
             executor: "agent" | "python";
         };
+        /**
+         * ExportInfo
+         * @description What an export holds (`contraagent monitor export`): the monitor's views of some
+         *     runs, written as files and read without a server.
+         */
+        ExportInfo: {
+            /**
+             * Exported At
+             * @description when it was written, ISO 8601
+             */
+            exported_at: string;
+            /**
+             * Runs
+             * @description the runs it holds, newest activity first
+             */
+            runs: string[];
+            /**
+             * Left Out
+             * @description the views it does not hold: `transcripts`, `processes`
+             */
+            left_out: string[];
+            /**
+             * Redacted
+             * @description what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude
+             */
+            redacted: string[];
+        };
         /** FeedReady */
         FeedReady: {
             /**
@@ -698,10 +856,77 @@ export type components = {
              */
             pass: number | null;
         };
+        /** HBar */
+        HBar: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /** Tone */
+            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
+        };
+        /**
+         * HBarsBody
+         * @description Horizontal bars, one per label, in the order given.
+         */
+        HBarsBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default hbars
+             * @constant
+             */
+            type?: "hbars";
+            /** Bars */
+            bars: components["schemas"]["HBar"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HeatmapBody
+         * @description A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none.
+         */
+        HeatmapBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default heatmap
+             * @constant
+             */
+            type?: "heatmap";
+            /** X */
+            x: string[];
+            /** Y */
+            y: string[];
+            /** Values */
+            values: (number | null)[][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
         };
         /**
          * Hop
@@ -832,6 +1057,8 @@ export type components = {
              * @default false
              */
             hosts?: boolean;
+            /** @description set only in an export: what it holds; a server never sends it */
+            export?: components["schemas"]["ExportInfo"] | null;
         };
         /**
          * JournalMessage
@@ -1000,6 +1227,32 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /** LinesBody */
+        LinesBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default lines
+             * @constant
+             */
+            type?: "lines";
+            /** X */
+            x: string[];
+            /** Series */
+            series: components["schemas"]["ChartSeries"][];
+            /** Unit */
+            unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+        };
         /**
          * MessageEvent
          * @description omp: a whole message or a turn's closing thinking. Either `role` + `text`, or `thinking`.
@@ -1149,7 +1402,8 @@ export type components = {
         };
         /**
          * PanelInfo
-         * @description A panel a domain registered: its tab label, tooltip and glyph.
+         * @description A panel a domain registered: its tab label, tooltip and glyph, and what it is
+         *     computed over (`run`: one run, a tab of the run; `trends`: the runs of a period).
          */
         PanelInfo: {
             /** Name */
@@ -1160,22 +1414,46 @@ export type components = {
             description: string;
             /** Icon */
             icon: string;
+            /**
+             * Scope
+             * @default run
+             * @enum {string}
+             */
+            scope?: "run" | "trends";
         };
         /**
          * PanelMessage
-         * @description A domain panel's body (any JSON object), sent when it changed. `{"error": ...}`
+         * @description A domain panel's body (`PanelBody`), sent when it changed. `{"error": ...}`
          *     when the panel raised.
          */
         PanelMessage: {
             /**
              * Event
-             * @description `panel:<name>`, one per name in /api/info `panels`
+             * @description `panel:<name>`, one per run panel in /api/info `panels`
              */
             event: string;
             /** Data */
-            data: {
+            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * PanelTile
+         * @description A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts.
+         */
+        PanelTile: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number | string;
+            /** Tone */
+            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
+            /** Tip */
+            tip?: string | null;
+            /** Sub */
+            sub?: string[][];
         };
         /**
          * Plan
@@ -1457,6 +1735,50 @@ export type components = {
              * @default
              */
             status?: string;
+            /**
+             * Account
+             * @default
+             */
+            account?: string;
+            /**
+             * Status Window
+             * @default
+             */
+            status_window?: string;
+            /** Threshold Pct */
+            threshold_pct?: number | null;
+            /**
+             * Overage Status
+             * @default
+             */
+            overage_status?: string;
+            /**
+             * Overage Disabled Reason
+             * @default
+             */
+            overage_disabled_reason?: string;
+            /** Using Overage */
+            using_overage?: boolean | null;
+            /** Windows */
+            windows?: {
+                [key: string]: components["schemas"]["QuotaWindow"];
+            };
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * QuotaWindow
+         * @description One window of a reading: its utilization (%) and when it resets (ISO 8601).
+         */
+        QuotaWindow: {
+            /** Pct */
+            pct?: number | null;
+            /** Resets At */
+            resets_at?: string | null;
         } & {
             [key: string]: unknown;
         };
@@ -1620,6 +1942,15 @@ export type components = {
              */
             until?: string;
             /**
+             * Account
+             * @default
+             */
+            account?: string;
+            /** Reading */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
+            /**
              * Route
              * @default
              */
@@ -1667,10 +1998,62 @@ export type components = {
             behind: number;
         };
         /**
+         * TableBody
+         * @description Rows of values, one key per column; a row's `_tone` is its status.
+         */
+        TableBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default table
+             * @constant
+             */
+            type?: "table";
+            /** Columns */
+            columns: components["schemas"]["TableColumn"][];
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * TableColumn
+         * @description A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
+         *     the cell, as long as the value against the column's largest.
+         */
+        TableColumn: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Align */
+            align?: ("start" | "end") | null;
+            /** Format */
+            format?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+            /**
+             * Bar
+             * @default false
+             */
+            bar?: boolean;
+            /** Tip */
+            tip?: string | null;
+        };
+        /**
          * TaskCounts
          * @description A run's tasks (not attempts) by how they ended. `not_started`: refused for
          *     an input, or waiting behind a task that failed; `running`: running now (in a
-         *     live run); `waiting`: queued.
+         *     live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
+         *     run that is no longer live (it will not run).
          */
         TaskCounts: {
             /** Total */
@@ -1688,6 +2071,11 @@ export type components = {
             running?: number;
             /** Waiting */
             waiting: number;
+            /**
+             * Not Run
+             * @default 0
+             */
+            not_run?: number;
             /** Skipped */
             skipped: number;
         };
@@ -1844,6 +2232,28 @@ export type components = {
              * @description the full command line, cut at 600 characters
              */
             cmd: string;
+        };
+        /** TilesBody */
+        TilesBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Type
+             * @default tiles
+             * @constant
+             */
+            type?: "tiles";
+            /** Tiles */
+            tiles: components["schemas"]["PanelTile"][];
         };
         /**
          * TimeBoxInfo
@@ -2020,6 +2430,276 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * TrendDay
+         * @description One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own).
+         */
+        TrendDay: {
+            /** Day */
+            day: string;
+            /**
+             * Cost Usd
+             * @description group -> cost, USD; a group with no cost reported is absent
+             */
+            cost_usd: {
+                [key: string]: number;
+            };
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+        };
+        /**
+         * TrendDeferral
+         * @description A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`.
+         */
+        TrendDeferral: {
+            /** Run */
+            run: string;
+            /** Ts */
+            ts: string;
+            /** Key */
+            key: string;
+            /** Kind */
+            kind: string;
+            /** Cause */
+            cause: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * TrendDenial
+         * @description Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`).
+         */
+        TrendDenial: {
+            /** Tool */
+            tool: string;
+            /** Count */
+            count: number;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * TrendKind
+         * @description One kind over the period. A task is one key of one run; its last attempt in the period says how it ended.
+         */
+        TrendKind: {
+            /** Kind */
+            kind: string;
+            /** Group */
+            group: string;
+            /**
+             * Executor
+             * @enum {string}
+             */
+            executor: "agent" | "python";
+            /** Tasks */
+            tasks: number;
+            /** Tasks Ok */
+            tasks_ok: number;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /**
+             * Wall S
+             * @description every attempt's wall time, summed
+             */
+            wall_s: number;
+            /**
+             * Wall S Median
+             * @description the median attempt's wall time
+             */
+            wall_s_median: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            tokens: components["schemas"]["TokenUsage"];
+        };
+        /**
+         * TrendPeriod
+         * @description The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name).
+         */
+        TrendPeriod: {
+            /**
+             * From
+             * @description the first day, YYYY-MM-DD
+             */
+            from: string;
+            /**
+             * To
+             * @description the last day, YYYY-MM-DD
+             */
+            to: string;
+            /** Tz */
+            tz: string;
+            /**
+             * Days
+             * @description every day of the period, in order
+             */
+            days: string[];
+        };
+        /**
+         * TrendQuota
+         * @description One account's utilization of one window over the period: each day's and each hour's highest reading.
+         */
+        TrendQuota: {
+            /** Credential */
+            credential: string;
+            /**
+             * Window
+             * @enum {string}
+             */
+            window: "five_hour" | "seven_day";
+            /**
+             * Daily Peak
+             * @description per day of `period.days`; null when no reading arrived that day
+             */
+            daily_peak: (number | null)[];
+            /**
+             * Hourly Peak
+             * @description per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it
+             */
+            hourly_peak: (number | null)[];
+        };
+        /**
+         * TrendRest
+         * @description A start or end of a credential's rest (`rests.jsonl`), with its run.
+         */
+        TrendRest: {
+            /** Run */
+            run: string;
+            /** Ts */
+            ts?: string | null;
+            /** Event */
+            event?: string | null;
+            /** Credential */
+            credential?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * TrendRun
+         * @description One run of the period: its attempts in the period.
+         */
+        TrendRun: {
+            /** Run */
+            run: string;
+            /** Run Group */
+            run_group: string;
+            /** Host Id */
+            host_id: string;
+            /** Started At */
+            started_at: string;
+            /** Finished At */
+            finished_at: string;
+            /**
+             * Last Ts
+             * @description when its last attempt in the period ended; empty when it has none
+             */
+            last_ts: string;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Wall S */
+            wall_s: number;
+            /** Stub */
+            stub: boolean;
+        };
+        /**
+         * TrendStarts
+         * @description Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`.
+         */
+        TrendStarts: {
+            /** Weekdays */
+            weekdays: string[];
+            /** Hours */
+            hours: number[];
+            /** Counts */
+            counts: number[][];
+        };
+        /**
+         * TrendStop
+         * @description Attempts that ended on one `stop`, and by which kinds.
+         */
+        TrendStop: {
+            /** Stop */
+            stop: string;
+            /** Attempts */
+            attempts: number;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * TrendTotals
+         * @description The period's runs and attempts, summed.
+         */
+        TrendTotals: {
+            /**
+             * Runs
+             * @description runs with an attempt in the period, or started in it
+             */
+            runs: number;
+            /** Attempts */
+            attempts: number;
+            /** Ok */
+            ok: number;
+            /**
+             * Cost Usd
+             * @description what the coding agents reported; null when no attempt reported a cost
+             */
+            cost_usd: number | null;
+            /** Wall S */
+            wall_s: number;
+            tokens: components["schemas"]["TokenUsage"];
+        };
+        /**
+         * Trends
+         * @description What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as
+         *     panel bodies (`{"type": "blocks", ...}`), in English, for a page with no words of its own;
+         *     `panels`: the trend panels a domain registered (`Panel(scope="trends")`).
+         */
+        Trends: {
+            period: components["schemas"]["TrendPeriod"];
+            totals: components["schemas"]["TrendTotals"];
+            /** Daily */
+            daily: components["schemas"]["TrendDay"][];
+            /** Kinds */
+            kinds: components["schemas"]["TrendKind"][];
+            /** Models */
+            models: components["schemas"]["ModelUsage"][];
+            /** Stops */
+            stops: components["schemas"]["TrendStop"][];
+            /** Denials */
+            denials: components["schemas"]["TrendDenial"][];
+            /** Quota */
+            quota: components["schemas"]["TrendQuota"][];
+            /** Rests */
+            rests: components["schemas"]["TrendRest"][];
+            /** Deferred */
+            deferred: components["schemas"]["TrendDeferral"][];
+            /** Deferred Causes */
+            deferred_causes: {
+                [key: string]: number;
+            };
+            /** Runs */
+            runs: components["schemas"]["TrendRun"][];
+            starts: components["schemas"]["TrendStarts"];
+            /** Bodies */
+            bodies: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Panels */
+            panels: components["schemas"]["PanelInfo"][];
+        };
+        /**
          * UnitPosition
          * @description One unit's place in the per-unit step sequence; `inflight` are the work
          *     items dispatched but not yet recorded.
@@ -2130,6 +2810,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Hosts"];
+                };
+            };
+        };
+    };
+    api_trends_api_trends_get: {
+        parameters: {
+            query?: {
+                /** @description the first day, YYYY-MM-DD (default: 13 days before `to`) */
+                from?: string;
+                /** @description the last day, YYYY-MM-DD (default: today in `tz`) */
+                to?: string;
+                /** @description the time zone the days are in, an IANA name (default UTC) */
+                tz?: string;
+                /** @description only the runs of this run group */
+                run_group?: string;
+                /** @description count stub runs too */
+                stub?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trends"];
+                };
+            };
+            /** @description a period it cannot read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_trend_panel_api_trends_panels__name__get: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                tz?: string;
+                run_group?: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description a period it cannot read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no trend panel of that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2406,12 +3185,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };
             };
-            /** @description no panel of that name */
+            /** @description no run panel of that name */
             404: {
                 headers: {
                     [name: string]: unknown;

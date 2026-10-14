@@ -8,10 +8,13 @@ contraagent monitor --runs-dir runs          # http://127.0.0.1:8787; --help for
 
 It reads `runs/<id>/` and shows, live, one tab each:
 
-- **Overview**: the run's state, the tasks running at once, progress by kind,
-  the scheduled tasks as a layered graph, totals, each model's share of the
-  agent sessions (by cost, tokens, time or sessions; a failover's hops count on
-  their own models), problems with their causes, outputs, and a timeline;
+- **Overview**: in the order a reader checks a run: its state, problems with
+  their causes and outputs side by side, the tasks running at once (while it
+  runs), the scheduled tasks as a layered graph, totals, then where the tokens,
+  the cost and the subscription went (by kind, and each model's share of the
+  agent sessions by cost, tokens, time or sessions; a failover's hops count on
+  their own models), and a timeline. Each card is as wide as its content needs;
+  the graph, the totals and the timeline take the whole width;
 - **Tasks** and **History**: every task (`kind · unit`) with its status, and
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
   key: each task of the plan (`plan.jsonl`) joined with its journal rows, so
@@ -41,7 +44,7 @@ The graph is drawn from `plan.jsonl` and `flow_calls.jsonl`, so tasks that have
 not started are in it too. A layer holds a node per kind (or per group,
 `Monitor(groups=)`) for the tasks its flow function created itself, and a node
 per function it called as a flow call, which holds that function's own layer;
-while a layer holds a single node, the graph opens it, and stops at a node whose
+while a layer holds a single node, the graph goes into it, and stops at a node whose
 flow call raised, where that failure shows. Each node has one mark per unit: a
 task in a kind node, a flow call in a function node; above 200 marks, a bar of
 its counts and its failed units by name. A mark that stands for several tasks
@@ -59,6 +62,30 @@ it is at, so a loop and the loop inside it are told apart. A solid edge is a dep
 one joins a task to a result its flow call had received when it created the task
 (`created_from`), drawn only where the task does not also wait for that output.
 A flow that does not yield is one layer: its kinds.
+
+The layer shown is drawn with some of its functions open: a function drawn open
+is a box that holds its own layer (its kinds, its loops, the functions it called,
+drawn open or closed in turn), joined by the same edges to what is outside it, so
+the whole flow reads in one drawing. A chain of functions, each the only function
+in the layer of the one before (outside any loop), is one box named by its path
+(`topic_work › write_batches › write_batch`), each part of the name a link into
+that function's layer. Which functions open is chosen by interest: one that holds
+agent tasks, a failure, running work, work that did not run, or the selection,
+the more of these and the more tasks the sooner, and the nearer the layer shown
+the sooner; a function of finished Python steps stays a node, whose count says it
+all. They open while the drawing holds about 40 nodes (fewer in a narrower frame)
+and spans about one screen of layers; what would make it longer stays closed. A
+function's control opens or closes it (Show inside, Hide inside), and "Show all
+inside" and "Hide all inside" set every one; the reader's choices outrank the
+graph's and are kept for the page, a reload included. A drawing too long to read
+left to right in its frame is drawn top to bottom, where the frame grows with it.
+
+Beside the graph (above it, in a part that opens, on a frame narrower than 1500
+px) the outline lists every function of the flow and the loops they are in, a
+chain as one item, each with a bar of its tasks done and what is not done, the
+layer shown marked and the selection's item highlighted. A click shows its item
+in the graph, selected, opening the functions around it; a double click or Enter
+goes into its layer (a loop's: its passes).
 
 The nodes created inside one loop are drawn in a box, a nested loop's box inside
 it. A pass is one iteration of one loop (`flow[].loops[].pass`, see
@@ -129,10 +156,106 @@ store; the layout of a run's records is `contraagent/rundir.py`.
 
 ## Your own views: panels
 
-A pipeline adds tabs of its own with `monitor.Panel`: a function of the run id
-that returns any JSON object, sent live whenever it changes.
+A pipeline adds views of its own with `monitor.Panel`: a function that returns
+the view's body, sent live whenever it changes. A typed body is drawn with the
+monitor's own elements: `tiles` (figures), a `table` (columns, each with a
+format: `usd`, `pct` (a fraction), `duration` (seconds), `tokens`, `datetime`,
+`number`; `bar` draws a bar in its cells, and a row's `_tone` is its status),
+`columns` (vertical bars, `stacked` or side by side), `lines`, a `heatmap`,
+`hbars` (horizontal bars), and `blocks` of them one under another, each with an
+optional `title` and folded when `collapsed`. The models are in
+`contraagent.monitor.api` (`PanelBody`); a panel returns one, or a dict with its
+`type`. Any other dict is shown as a JSON tree. A typed body that does not
+validate is an error, never a JSON tree.
+
+::code{file="examples/panels/views.py" from="def spend(" to="def cost_by_day("}
+
+A panel's `scope` says what it is computed over: `run` (the default), `fn(run)`,
+a tab of each run; `trends`, `fn(runs, period)`, over the run ids of a period
+(`Period`: its `start`, `end` and the time zone `tz` its days are counted in),
+for a view of many runs.
+
+::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
+
+`contraagent monitor --panels views.py:PANELS` loads them from a file or a
+module (`package.module:PANELS`), a dict of name to `Panel`; `--groups`
+(the plan's columns) and `--task-detail` (`fn(run, key, rows)`, merged into a
+task's detail) take the same form. From Python, `Monitor(panels=...)`:
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
+
+## Over many runs: trends
+
+A run's page says what one run did. The trends say what the runs of a
+**period** did together (`/api/trends?from=2026-10-01&to=2026-10-14&tz=Asia/Tokyo`;
+by default the last 14 days in UTC): the cost of each day by kind, or by group
+when the monitor has groups (`Monitor(groups=)`); each kind's tasks, how many
+passed, its attempts and their median time, tokens and cost; what each model was
+spent on; the outcomes that were not `completed`; the tool calls the coding
+agent's permissions refused; each account's utilization, by its highest reading
+of each day and of each hour; the rests and deferrals; the runs; and when runs start, by weekday
+and hour. An attempt counts on the day it ended, in the period's time zone; a
+stub run counts only with `stub=true`, and `run_group=` keeps one group's runs.
+
+The page shows them as **Trends**, the first entry of the run picker
+(`?page=trends`): the last 7, 14 or 30 days or two dates, counted in the browser's
+time zone unless the page names another (`&tz=`), and one run group or all. It draws
+each fact in its own form: the totals as figures, the cost of each day as stacked
+columns by kind, each kind's and each model's numbers as tables, the subscription
+usage as a line per identity and window, when runs start as a weekday by hour grid;
+then the pipeline's own trend panels.
+
+`Trends.bodies` holds the same numbers as panel bodies (`{"type": "blocks", ...}`),
+in English, for a page that draws them without words of its own. A pipeline adds
+its own numbers over a period as a panel whose `scope` is `"trends"`: its function
+takes the period's run ids and the `Period`, and it is served at
+`/api/trends/panels/<name>`.
+
+The monitor reads only the runs that started before the period ends and did not
+finish before it begins, and of each, only a digest of its logs: what it did per
+15 minutes of UTC and per kind (attempts, passes, time, cost, tokens, outcomes, each
+model's spend, each account's highest reading), with every wall time, so a median
+is exact. Every time zone's offset is a multiple of 15 minutes, so a digest answers
+any period in any time zone exactly. The monitor keeps a digest in memory while the
+logs stay the same and, for a finished run that is not live, as `trends.json` in the
+run's directory, so a restarted monitor reads that instead of the logs
+(`Monitor(keep_digests=False)` keeps none on disk); a `trends.json` made from other
+logs or by another version is made again. The same period over unchanged runs gives
+back the trends it gave before. Thirty days of hourly runs (720 runs, 300,000
+attempts) are summed in about 0.2 s from memory and 1 s from their `trends.json`;
+reading their logs the first time takes about half a minute
+(`uv run pytest -m perf` measures it).
+
+## Without a server: an export
+
+`contraagent monitor export` writes the monitor's views of the newest runs as files a
+static server or a site serves, with no monitor running: the page (`index.html`,
+`app.js`, `ja.js`) and `data/`, the JSON each route of the API would answer
+(`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
+cursor, each task and each panel), and the trends of a period over every run with
+its trend panels (`--days 14`, or `--from` and `--to`; `--tz`, default UTC). The
+export's Trends page shows that period and offers no other.
+
+```
+contraagent monitor export --runs-dir runs --out site/stats --runs 14 --days 30 --tz Asia/Tokyo --panels mypipeline.panels:PANELS
+python -m http.server --directory site/stats    # or put site/stats on any static site
+```
+
+An export holds no transcripts and no process trees, and none of the launches running
+when it was written; its page says so where those views would be, and its header
+shows when it was written. It takes out what says where it ran: a path under the
+run's directory, the run's working directory or the runs directory is made relative
+to it and one under the home directory starts with `~`, everywhere; outside a
+document's contents, any other path of a person's or a temporary directory is
+`<path>` (a system path such as `/etc/hosts` stays), and the host's name is left
+blank. `--keep paths` or `--keep host` puts either back, `--exclude <key>` takes a key
+out wherever it appears (`--exclude params`), and `Info.export.redacted` lists what was
+taken out. Written again, the export holds only the runs chosen then.
+
+In another page, `<ca-monitor export="data/">` reads an export, and
+`createExportClient` with `openExportFeed` (in `@contraagent/api`) give a
+`MonitorStore` the same data; `export(monitor, out, ...)` in
+`contraagent.monitor.export` writes one from Python.
 
 ## Its API and its page
 

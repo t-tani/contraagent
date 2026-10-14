@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -88,6 +89,14 @@ class OutputContract(_FileContract):
     #: The output is the agent's final message, not a file it writes: `run_until_valid`
     #: writes each round's final message to `path`, then checks it there.
     from_message: bool = False
+    #: With `from_message`: the message may wrap the JSON document (`unwrap_json`); the
+    #: document is written to `path`, the whole message beside it (`message_path`).
+    unwrap: bool = False
+
+    def message_path(self, cwd: Path) -> Path:
+        """Where an unwrapped output's whole final message is kept: `<output>.message.txt`."""
+        path = self.resolve(cwd)
+        return path.with_name(path.name + ".message.txt")
 
     def check(self, cwd: Path, before: tuple[int, int] | None = None) -> Check:
         """This contract's verdict on its file now (`before`: its stamp ahead of the launch)."""
@@ -311,13 +320,23 @@ def record_contracts(
         pass
 
 
-def fold_spend(total: LaunchResult | None, nxt: LaunchResult) -> LaunchResult:
-    """Carry the spend, the web searches and the unread events across rounds; everything else is the last round's."""
+def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
+    """Carry the spend, the web searches and the unread events from `total` into `nxt`, the
+    launch after it; everything else is `nxt`'s.
+
+    `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
+    own (a failover hop, a pool member). The costs add up, but a resumed launch whose
+    coding agent reports the session's cost so far (`session_total`,
+    `Backend.cost_is_session_total`) already holds the earlier rounds', so it stands. The
+    turns of a resumed session's rounds add up (`num_turns`); tokens and API calls are
+    each launch's own and always add up."""
     if total is None:
         return nxt
     nxt.wall_s += total.wall_s
-    if total.cost_usd is not None:
+    if total.cost_usd is not None and not (resumed and session_total and nxt.cost_usd is not None):
         nxt.cost_usd = (nxt.cost_usd or 0.0) + total.cost_usd
+    if resumed and total.num_turns is not None:
+        nxt.num_turns = total.num_turns + (nxt.num_turns or 0)
     nxt.usage.calls = total.usage.calls + nxt.usage.calls
     nxt.usage.output_total += total.usage.output_total
     nxt.rate_limits = total.rate_limits + nxt.rate_limits
@@ -337,8 +356,10 @@ def run_until_valid(
     """Run `launch`, then resume its session until every contract holds.
 
     Returns the last round's `LaunchResult` with spend (wall, cost, usage,
-    tool use) summed over all rounds, `rounds` set to the number of
-    launches, and `round_errors` holding each failed round's errors. A
+    tool use, turns) over all rounds (`fold_spend`: a coding agent that reports a
+    resumed session's cost so far is not counted twice), `round_costs` each
+    round's own cost, `rounds` set to the number of launches, and
+    `round_errors` holding each failed round's errors. A
     run that exhausts `max_resumes`, or whose session cannot be resumed,
     ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
     its own stop.
@@ -367,11 +388,20 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
     total: LaunchResult | None = None
     rounds = 0
     found: list[list[str]] = []  # each failed round's errors
+    costs: list[float | None] = []  # each round's own cost
+    session_total = bool(getattr(backend, "cost_is_session_total", False))
     while True:
         rounds += 1
-        total = fold_spend(total, backend.run(launch))
+        ran = backend.run(launch)
+        so_far = total.cost_usd if total is not None else None
+        own = ran.cost_usd
+        if own is not None and so_far is not None and session_total:
+            own = max(0.0, own - so_far)  # the session's cost so far, the earlier rounds' included
+        costs.append(round(own, 6) if own is not None else None)
+        total = fold_spend(total, ran, resumed=rounds > 1, session_total=session_total)
+        total.round_costs = list(costs)
         if total.stop is Stop.COMPLETED:
-            _write_messages(contracts, launch.cwd, total.result_text)
+            total.unwrapped = _write_messages(contracts, launch.cwd, total.result_text)
         checks = check_all(contracts, launch.cwd, before)
         if total.stop is Stop.COMPLETED and not total.result_text.strip():
             for c, chk in zip(contracts, checks, strict=True):
@@ -401,16 +431,70 @@ def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract],
         launch = nxt
 
 
-def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str) -> None:
+def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str) -> bool:
     """Write the final message to the file of each contract that takes its output from it,
-    in one replace: the check then reads it as it reads a file the agent wrote."""
+    in one replace: the check then reads it as it reads a file the agent wrote. A contract
+    that `unwrap`s gets the JSON document taken out of the message, when there is one, and
+    the whole message beside it. True when a document was taken out of a longer message."""
     if not message.strip():
-        return
+        return False
+    unwrapped = False
     for c in contracts:
-        if c.from_message:
-            path = c.resolve(cwd)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            rundir.write_document(path, message)
+        if not c.from_message:
+            continue
+        path = c.resolve(cwd)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = message
+        if c.unwrap:
+            rundir.write_document(c.message_path(cwd), message)
+            document = unwrap_json(message)
+            if document is not None:
+                unwrapped = unwrapped or document != message.strip()
+                text = document
+        rundir.write_document(path, text)
+    return unwrapped
+
+
+_FENCE = re.compile(r"```[ \t]*([A-Za-z0-9_+-]*)[ \t]*\n(.*?)\n?[ \t]*```", re.S)
+
+
+def unwrap_json(message: str) -> str | None:
+    """The JSON document a final message wraps; None when it holds none.
+
+    The last fenced block (`` ```json `` or unlabeled) whose content parses; else the
+    longest JSON object or array in the message that parses (of two as long, the later),
+    taken whole: never a value inside it, nor a `[1]` in a sentence after it. A sentence before or after the document, or a fence
+    around it, is what this takes off; a message that is only the document is returned as
+    it is."""
+    for label, body in reversed(_FENCE.findall(message)):
+        if label.lower() not in ("", "json"):
+            continue
+        if _parses(body):
+            return body.strip()
+    decoder = json.JSONDecoder()
+    found: tuple[int, int] | None = None
+    i = 0
+    while i < len(message):
+        if message[i] in "{[":
+            try:
+                _, end = decoder.raw_decode(message, i)
+            except ValueError:
+                i += 1
+                continue
+            if found is None or end - i >= found[1] - found[0]:
+                found = (i, end)  # the longest; of two as long, the later
+            i = end  # what is inside it is not a document of its own
+            continue
+        i += 1
+    return message[found[0] : found[1]] if found is not None else None
+
+
+def _parses(text: str) -> bool:
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
 
 
 def smallest(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:

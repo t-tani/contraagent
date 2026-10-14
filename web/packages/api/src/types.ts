@@ -1,6 +1,7 @@
 // Names for the generated schema types. `schema.ts` is generated from the
 // monitor's OpenAPI document (`pnpm gen`); everything here is an alias of it.
 import type { components } from './schema.js';
+import type { PanelBody } from './panels.js';
 
 type S = components['schemas'];
 
@@ -10,11 +11,25 @@ export type { components, paths } from './schema.js';
 export type JsonObject = Record<string, unknown>;
 
 export type Info = S['Info'];
+/** What an export holds (`Info.export`): set only when the monitor reads one. */
+export type ExportInfo = S['ExportInfo'];
 export type PanelInfo = S['PanelInfo'];
 export type RunSummary = S['RunSummary'];
 export type Hosts = S['Hosts'];
 export type HostSummary = S['HostSummary'];
 export type AccountQuota = S['AccountQuota'];
+/** What the runs of a period add up to (`/api/trends`). */
+export type Trends = S['Trends'];
+export type TrendKind = S['TrendKind'];
+export type TrendQuota = S['TrendQuota'];
+export type TrendRun = S['TrendRun'];
+/** Which runs `/api/trends` sums: days `from` to `to` (YYYY-MM-DD) in the time zone `tz`, of one `run_group`. */
+export interface TrendsQuery {
+  from?: string;
+  to?: string;
+  tz?: string;
+  run_group?: string;
+}
 
 export type JournalRow = S['JournalRow'];
 /** How one attempt ended (`JournalRow.stop`): a `Stop` of the Python package, or `skipped`. */
@@ -135,7 +150,7 @@ export type PanelEventName = `panel:${string}`;
 /** A panel's message, with its event name typed. */
 export interface PanelMessage {
   event: PanelEventName;
-  data: JsonObject;
+  data: PanelBody;
 }
 /** A run feed message with every `event` name a literal (or `panel:<name>`). */
 export type RunFeedMessage = FixedRunMessage | PanelMessage;

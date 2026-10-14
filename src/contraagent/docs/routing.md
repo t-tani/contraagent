@@ -105,9 +105,18 @@ monitor ("not run" and the cause). A task of `finishing_kinds` still launches
 on a resting credential for `grace_s` after the rest began, as it does past a
 deadline.
 
+A rest by the rule lasts while the reading it judged stands: until the earliest
+reset among that reading's windows (a window that names no reset stands for its
+length after the reading arrived). Nothing launches on a resting credential, so no
+newer reading comes; after that time the stale reading no longer counts, the
+credential does not rest, and the next launch brings a reading for the rule to
+judge again. The rest records the reading it judged (`reading`: when it arrived,
+each window's usage and reset) and that time (`until`).
+
 `run.json` records the run's caps (`quota_caps`) and the rule's name
 (`quota_rule`), and `rests.jsonl` each rest as it begins and ends: the window,
-the reading, the cap (or what the rule said) and when the window resets. The
+the reading, the cap (or what the rule said and the reading it judged) and when it
+ends. The
 monitor's overview shows them beside each account's usage: the limit on each
 window, the identity paused until when, and its rests over the run.
 
@@ -116,6 +125,26 @@ starts or resumes, omp at each launch. The run starts from the newest of
 recent runs' journals and takes each launch's as it ends, so tasks that start
 together all start before the first of them reports the cap is reached. A
 credential with no readings (a gateway, an API key) never rests on a quota.
+
+A reading names the **account** that reported it, so one credential's accounts
+are kept apart: `ambient` is each coding agent's own login (two accounts when
+Claude Code and omp are logged in as different users), and a credential's token
+can be replaced between runs. A hop is judged by the readings of the account a
+launch on it bills (`Backend.account`): an earlier token's 98% does not rest the
+new one. The account is a digest (`account_digest`: SHA-256 over a fixed prefix,
+the source and the value, cut to 12 hex digits), never the value: Claude Code's
+is its login's `oauthAccount.accountUuid` (in the config directory's
+`.claude.json`; for an ambient launch, a key or token in its environment first)
+or the token or key the credential holds; omp's is the account its usage report
+names. A UUID and a token of one account give two digests, so a reading counts
+for the source it came from. A reading with no account (an older journal) counts
+for every account of its credential.
+
+A reading keeps what the coding agent reported beside the two windows: every
+window by its name (`windows`, a model's own such as `seven_day_opus` too), the
+window the status is about (`status_window`), the threshold past which it warns
+(`threshold_pct`), whether usage past the limit is allowed (`overage_status`,
+`overage_disabled_reason`, `using_overage`), and any other field as `extra`.
 
 What is guaranteed:
 

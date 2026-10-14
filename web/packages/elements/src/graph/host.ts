@@ -52,6 +52,8 @@ export interface GraphHost extends ReactiveControllerHost, HTMLElement {
   act(id: string): void;
   /** Enter a cluster's inner view. */
   drill(id: string): void;
+  /** Open (`open`) or close an item that can be drawn open. */
+  toggle(id: string, open: boolean): void;
   /** The view switch. */
   showView(view: 'graph' | 'table'): void;
 }

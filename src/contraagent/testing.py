@@ -85,7 +85,10 @@ class Reply:
 
 
 def writes(value: Any, *, cost_usd: float | None = None) -> Reply:
-    """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is."""
+    """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
+    `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
+    session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
+    running total, as the agent does."""
     return Reply(output=value, cost_usd=cost_usd)
 
 
@@ -184,6 +187,8 @@ class StubAgent(Backend):
         #: Every Python task a stub run played, in the order they ran.
         self.played: list[StubTask] = []
         self._counts: dict[tuple[str, str], int] = {}
+        #: Each session's cost so far, for a name whose coding agent reports that on a resume.
+        self._session_costs: dict[str, float] = {}
         self._lock = threading.Lock()
 
     def backends(self, names: Iterable[str] | None = None) -> dict[str, StubAgent]:
@@ -199,6 +204,7 @@ class StubAgent(Backend):
         cls = backend_class(name)
         if cls is not None:
             view.light_launch = cls.light_launch
+            view.cost_is_session_total = cls.cost_is_session_total
         return view
 
     def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]:
@@ -394,6 +400,12 @@ class StubAgent(Backend):
             f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def _result(self, launch: Launch, started: float, reply: Reply) -> LaunchResult:
+        session = launch.resume or f"stub-{launch.label}-{time.monotonic_ns()}"
+        cost = reply.cost_usd
+        if cost is not None and self.cost_is_session_total:
+            # As the coding agent it plays reports it: a resumed session's cost so far.
+            with self._lock:
+                cost = self._session_costs[session] = self._session_costs.get(session, 0.0) + cost
         return LaunchResult(
             label=launch.label,
             agent=self.name,
@@ -402,8 +414,8 @@ class StubAgent(Backend):
             model=launch.model,
             credential=launch.credential.label,
             wall_s=round(time.monotonic() - started, 3),
-            session_id=launch.resume or f"stub-{launch.label}-{time.monotonic_ns()}",
-            cost_usd=reply.cost_usd,
+            session_id=session,
+            cost_usd=cost,
             rate_limit=reply.rate_limit,
             stderr_tail=reply.reason,
         )

@@ -189,10 +189,17 @@ class Pipeline:
         `run_id` defaults to the flow's name (`<flow>-stub` in a stub run). A run id that already holds a run is
         refused (`RunExists`) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
-        fingerprint, reading its output from the run directory.
+        fingerprint, reading its output from the run directory (a task declared
+        `rerun_on_resume` runs again).
+
+        On the main thread, SIGTERM and SIGINT (Ctrl-C) stop the run's agents while it
+        runs, then end the process as they would have; the handlers in place before are
+        put back when it returns. An agent of a process killed outright (SIGKILL) is
+        stopped by a watchdog (`backends/live_processes.py`): no agent outlives its run.
         """
         run_id = run_id or (f"{flow.__name__}-stub" if self.stub is not None else flow.__name__)
         with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras) as run:
+            run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             if self.stub is not None:
                 run.update_info(stub=True)
             if not resume and run.rows():

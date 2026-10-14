@@ -1,4 +1,17 @@
-import { deriveRun, isRunLive, liveActivities, MonitorStore, hostOf, runActivity, runIdOf, runRow, type MonitorSnapshot, type RunDerived } from '@contraagent/api';
+import {
+  createExportClient,
+  deriveRun,
+  isRunLive,
+  liveActivities,
+  MonitorStore,
+  hostOf,
+  openExportFeed,
+  runActivity,
+  runIdOf,
+  runRow,
+  type MonitorSnapshot,
+  type RunDerived,
+} from '@contraagent/api';
 import { localized, msg, str } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
@@ -13,6 +26,7 @@ import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../
 import { ThemeController } from '../../controllers/theme.js';
 import { runLine, runLineAccounts, triesLine } from '../../words/index.js';
 import { stubLabel, stubTip } from '../../words/run-line.js';
+import { exportTip, exportedLabel } from '../../words/export.js';
 import { apiErrorLine } from '../../words/api-error.js';
 import { accountsTip } from '../../words/quota.js';
 import { hostFact, hostsLine, lastReport, noReportLabel } from '../../words/hosts.js';
@@ -32,6 +46,9 @@ import './ca-hosts.js';
 import './ca-run-picker.js';
 import './ca-toasts.js';
 import './ca-theme-switch.js';
+import '../trends/ca-trends.js';
+import { browserZone, runGroups, trendsQuery } from '../../lib/trends.js';
+import { trendsTip, trendsTitle } from '../../words/trends.js';
 
 /** Applies a typed filter to the URL after the reader stops typing, so the history is not written per key. */
 const Q_DEBOUNCE_MS = 250;
@@ -57,6 +74,13 @@ export class CaMonitor extends LitElement {
    * with its URL and cause, and written to the console.
    */
   @property({ attribute: 'base-url' }) baseUrl = '';
+  /**
+   * An export to read instead of a server (`contraagent monitor export`): its `data/`
+   * directory, relative to the page (`export="data/"`) or absolute. The monitor then
+   * makes no request to an API and opens no feed: it reads the export's files, which
+   * hold no transcripts and no processes. Set, it outranks `base-url`.
+   */
+  @property({ attribute: 'export' }) exportUrl = '';
   /**
    * `url`: the monitor is the page. The route lives in the address bar (Back
    * and reload return to it), and the monitor sets the page's title, `lang` and
@@ -179,10 +203,18 @@ export class CaMonitor extends LitElement {
     });
   }
 
-  /** A store for `baseUrl`, shown and listened to; not started. */
+  /** Where the store reads: an export's files, else the server at `baseUrl`. */
+  private get source(): string {
+    return this.exportUrl ? `export:${this.exportUrl}` : this.baseUrl;
+  }
+
+  /** A store for the export, else for `baseUrl`, shown and listened to; not started. */
   private openStore(): void {
-    this.storeBase = this.baseUrl;
-    this.store = new MonitorStore({ baseUrl: this.baseUrl });
+    this.storeBase = this.source;
+    if (this.exportUrl) {
+      const client = createExportClient(new URL(this.exportUrl, this.ownerDocument.baseURI).href);
+      this.store = new MonitorStore({ client, openRunFeed: openExportFeed(client), runsEveryMs: 0 });
+    } else this.store = new MonitorStore({ baseUrl: this.baseUrl });
     this.show(this.store.snapshot);
     this.storeCleanups.push(
       this.store.subscribe((s) => {
@@ -217,7 +249,7 @@ export class CaMonitor extends LitElement {
    */
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (!this.isConnected || !this.store) return;
-    if (this.baseUrl !== this.storeBase) {
+    if (this.source !== this.storeBase) {
       this.closeStore();
       this.openStore();
       this.navigate({ run: this.run }, { replace: true });
@@ -275,6 +307,8 @@ export class CaMonitor extends LitElement {
     this.route = route;
     if (cause !== 'replace') this.qDraft = null;
     this.store.selectRun(route.run);
+    if (route.page === 'trends') void this.store.loadTrends(trendsQuery(route));
+    else this.store.closeTrends();
     this.pickDefaultRun();
     if (cause !== 'replace') this.pendingScroll = cause;
   }
@@ -285,6 +319,7 @@ export class CaMonitor extends LitElement {
    */
   private pickDefaultRun(): void {
     const { info, runs } = this.snap;
+    if (this.route.page === 'trends') return;
     if (this.route.page === 'hosts') {
       if (!info.api_version || info.hosts) return;
       this.navigate({ page: '' }, { replace: true });
@@ -300,7 +335,7 @@ export class CaMonitor extends LitElement {
     } else if (e.key === '/') {
       e.preventDefault();
       this.renderRoot.querySelector<HTMLInputElement>('.bar input')?.focus();
-    } else if (/^[1-9]$/.test(e.key) && this.route.page !== 'hosts') {
+    } else if (/^[1-9]$/.test(e.key) && !this.route.page) {
       const tab = monitorTabs(this.snap.info.panels)[Number(e.key) - 1];
       if (tab) this.navigate({ tab: tab.id });
     }
@@ -371,12 +406,13 @@ export class CaMonitor extends LitElement {
     const keys = this.shortcutScope !== 'off';
     const hub = !!snap.info.hosts;
     const hostsPage = route.page === 'hosts';
+    const trendsPage = route.page === 'trends';
     return html`
       <header>
         ${brand(snap.info.title)}
         <button type="button" class="runbtn" title=${keys ? msg('Switch run (r)') : msg('Switch run')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'}
           @click=${() => (this.pickerOpen = !this.pickerOpen)}>
-          ${hostsPage ? this.hostsLabel() : this.runLabel(hub, derived)}
+          ${hostsPage ? this.hostsLabel() : trendsPage ? this.trendsLabel() : this.runLabel(hub, derived)}
           <span class="chev" aria-hidden="true">▾</span>
         </button>
         <div class="hdr-right">
@@ -387,14 +423,20 @@ export class CaMonitor extends LitElement {
                 .options=${allLocales.map((l) => ({ value: l, label: LOCALE_NAMES[l], lang: l }))}
                 @cae-change=${(e: CustomEvent<{ value: string }>) => isLocale(e.detail.value) && this.pickLocale(e.detail.value)}></cae-segmented>`
             : nothing}
-          ${connection(snap.connected)}
+          ${snap.info.export
+            ? pill({ text: exportedLabel(snap.info.export), tone: 'muted', title: exportTip(snap.info.export) })
+            : connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
-        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} ?hostsPage=${hostsPage}
+        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} page=${route.page}
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${hostsPage
         ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
+        : trendsPage
+        ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${route.days} from=${route.from} to=${route.to}
+            tz=${route.tz || browserZone()} group=${route.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
+            ?exported=${!!snap.info.export}></ca-trends></main>`
         : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
             <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
               >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
@@ -419,6 +461,11 @@ export class CaMonitor extends LitElement {
       ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
       ${summary?.stub ? pill({ text: stubLabel(), tone: 'muted', title: stubTip() }) : nothing}
       <span class="rs" title=${summary ? accountsTip(runLineAccounts(snap.state, summary)) : ''}>${summary ? runLine(snap.state, summary, derived) : ''}</span>`;
+  }
+
+  /** The run button's label on the trends page: its name, and what it shows. */
+  private trendsLabel() {
+    return html`<span class="dot" data-tone="neutral" aria-hidden="true"></span><span class="rn">${trendsTitle()}</span><span class="rs">${trendsTip()}</span>`;
   }
 
   /** The run button's label on the hosts page: the hosts in one line, attention while a host has no report. */

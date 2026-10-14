@@ -176,6 +176,31 @@ def test_resume_skips_finished_work_and_still_reads_its_output(tmp_path, plugin_
     assert handles["s"].output.points == ["a", "b"] and handles["r"].output.approved
 
 
+def test_a_task_that_reruns_on_resume_runs_again_and_the_others_are_skipped(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    published: list[str] = []
+
+    @python_task(rerun_on_resume=True)
+    def publish(unit: str) -> None:
+        published.append(unit)
+
+    publish_agent = agent_task("publish_agent", instructions="Publish.", output=str, rerun_on_resume=True, max_turns=3, timeout_s=60)
+
+    def flow():
+        summarize("u", path="x")
+        publish("u")
+        publish_agent("u")
+
+    agent = StubAgent({"summarize": good_answer, "publish_agent": "published"})
+    pipeline(tmp_path, agent).run(flow)
+    agent.launches.clear()
+    rep = pipeline(tmp_path, agent).run(flow, resume=True)
+    assert published == ["u", "u"] and [launch.key for launch in agent.launches] == ["publish_agent-u"]
+    stops = {r.task.key: r.stop for r in rep.results.values()}
+    assert stops == {"summarize-u": "skipped", "python:publish-u": "completed", "publish_agent-u": "completed"}
+    assert agent_task("x", instructions="x", rerun_on_resume=True).differences(agent_task("x", instructions="x")) == ["rerun_on_resume"]
+
+
 def test_the_stop_hook_checks_the_call_inside_the_session(tmp_path, plugin_dir):
     summarize, _ = declare(plugin_dir)
     agent = StubAgent({"summarize": writes_nothing()})  # the runner sees invalid_output

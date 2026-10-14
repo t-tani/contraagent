@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.2.0"
+    "version": "3.3.0"
   },
   "paths": {
     "/api/info": {
@@ -60,6 +60,188 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Hosts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trends": {
+      "get": {
+        "summary": "Api Trends",
+        "description": "What the runs of a period add up to, day by day.",
+        "operationId": "api_trends_api_trends_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the first day, YYYY-MM-DD (default: 13 days before `to`)",
+              "default": "",
+              "title": "From"
+            },
+            "description": "the first day, YYYY-MM-DD (default: 13 days before `to`)"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the last day, YYYY-MM-DD (default: today in `tz`)",
+              "default": "",
+              "title": "To"
+            },
+            "description": "the last day, YYYY-MM-DD (default: today in `tz`)"
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the time zone the days are in, an IANA name (default UTC)",
+              "default": "",
+              "title": "Tz"
+            },
+            "description": "the time zone the days are in, an IANA name (default UTC)"
+          },
+          {
+            "name": "run_group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "only the runs of this run group",
+              "default": "",
+              "title": "Run Group"
+            },
+            "description": "only the runs of this run group"
+          },
+          {
+            "name": "stub",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "count stub runs too",
+              "default": false,
+              "title": "Stub"
+            },
+            "description": "count stub runs too"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trends"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a period it cannot read"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trends/panels/{name}": {
+      "get": {
+        "summary": "Api Trend Panel",
+        "description": "One trend panel's body: its `fn(runs, period)` over the runs of the period.",
+        "operationId": "api_trend_panel_api_trends_panels__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "To"
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Tz"
+            }
+          },
+          {
+            "name": "run_group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Run Group"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Api Trend Panel Api Trends Panels  Name  Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "a period it cannot read"
+          },
+          "404": {
+            "description": "no trend panel of that name"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -432,7 +614,7 @@
     "/api/runs/{run}/panels/{name}": {
       "get": {
         "summary": "Api Panel",
-        "description": "One registered panel's body: a JSON object whose shape the domain chooses.",
+        "description": "One run panel's body: a typed body (tiles, a table, charts), or any JSON object.",
         "operationId": "api_panel_api_runs__run__panels__name__get",
         "parameters": [
           {
@@ -460,15 +642,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TilesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TableBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ColumnsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LinesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HeatmapBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HBarsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlocksBody"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ],
                   "title": "Response Api Panel Api Runs  Run  Panels  Name  Get"
                 }
               }
             }
           },
           "404": {
-            "description": "no panel of that name"
+            "description": "no run panel of that name"
           },
           "422": {
             "description": "Validation Error",
@@ -587,11 +794,25 @@
             "type": "string",
             "title": "Credential"
           },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "the account the readings are of (`QuotaReading.account`); empty when not known",
+            "default": ""
+          },
           "first": {
             "$ref": "#/components/schemas/QuotaReading"
           },
           "last": {
             "$ref": "#/components/schemas/QuotaReading"
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/CredentialRest"
+            },
+            "type": "array",
+            "title": "Rests",
+            "description": "its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`"
           }
         },
         "additionalProperties": false,
@@ -673,6 +894,74 @@
         "title": "AgentProcess",
         "description": "One live agent launch: the topmost process of a coding-agent CLI, found by its\n`CONTRAAGENT_*` environment; or, for an agent behind a library-call backend (no\nchild process), the run's own process, from its in-flight marker, with empty\n`cmd`, `full_cmd`, `role`, `model` and `plugin`."
       },
+      "BlocksBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "blocks",
+            "title": "Type",
+            "default": "blocks"
+          },
+          "blocks": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/TilesBody"
+                },
+                {
+                  "$ref": "#/components/schemas/TableBody"
+                },
+                {
+                  "$ref": "#/components/schemas/ColumnsBody"
+                },
+                {
+                  "$ref": "#/components/schemas/LinesBody"
+                },
+                {
+                  "$ref": "#/components/schemas/HeatmapBody"
+                },
+                {
+                  "$ref": "#/components/schemas/HBarsBody"
+                },
+                {
+                  "$ref": "#/components/schemas/BlocksBody"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Blocks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "blocks"
+        ],
+        "title": "BlocksBody",
+        "description": "Bodies one under another: a panel of several parts."
+      },
       "Changes": {
         "properties": {
           "created": {
@@ -708,6 +997,110 @@
         "type": "object",
         "title": "Changes",
         "description": "The files one attempt changed under its task's `changes` patterns, relative to\nthe working directory (`dispatch.Changes`)."
+      },
+      "ChartSeries": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "values"
+        ],
+        "title": "ChartSeries",
+        "description": "One series: a value per label of the chart's `x`; null where it has none."
+      },
+      "ColumnsBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "columns",
+            "title": "Type",
+            "default": "columns"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ChartSeries"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "stacked": {
+            "type": "boolean",
+            "title": "Stacked",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "series"
+        ],
+        "title": "ColumnsBody",
+        "description": "Vertical bars, one group per label of `x`; `stacked` puts the series of a label on one bar."
       },
       "ContractField": {
         "properties": {
@@ -965,6 +1358,23 @@
             "title": "Until",
             "default": ""
           },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": ""
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading"
+          },
           "since": {
             "type": "string",
             "title": "Since",
@@ -1187,6 +1597,49 @@
         ],
         "title": "DownstreamTask"
       },
+      "ExportInfo": {
+        "properties": {
+          "exported_at": {
+            "type": "string",
+            "title": "Exported At",
+            "description": "when it was written, ISO 8601"
+          },
+          "runs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "the runs it holds, newest activity first"
+          },
+          "left_out": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Out",
+            "description": "the views it does not hold: `transcripts`, `processes`"
+          },
+          "redacted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redacted",
+            "description": "what was taken out of the views: `paths` (made relative, else `<path>`), `host`, and each key named with --exclude"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "exported_at",
+          "runs",
+          "left_out",
+          "redacted"
+        ],
+        "title": "ExportInfo",
+        "description": "What an export holds (`contraagent monitor export`): the monitor's views of some\nruns, written as files and read without a server."
+      },
       "FeedReady": {
         "additionalProperties": false,
         "properties": {
@@ -1376,6 +1829,105 @@
         "title": "FlowLoop",
         "description": "A loop of a generator around a call site, and the pass the call site was in."
       },
+      "HBar": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "HBar"
+      },
+      "HBarsBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "hbars",
+            "title": "Type",
+            "default": "hbars"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/HBar"
+            },
+            "type": "array",
+            "title": "Bars"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bars"
+        ],
+        "title": "HBarsBody",
+        "description": "Horizontal bars, one per label, in the order given."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1388,6 +1940,93 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HeatmapBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "heatmap",
+            "title": "Type",
+            "default": "heatmap"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Y"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "values"
+        ],
+        "title": "HeatmapBody",
+        "description": "A value per row (`y`) and column (`x`): `values[row][column]`, null where there is none."
       },
       "Hop": {
         "properties": {
@@ -1590,6 +2229,17 @@
             "title": "Hosts",
             "description": "the runs come from many hosts (a hub): `/api/hosts` lists them",
             "default": false
+          },
+          "export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "set only in an export: what it holds; a server never sends it"
           }
         },
         "additionalProperties": false,
@@ -1948,6 +2598,74 @@
         "title": "LaunchEvent",
         "description": "Head of one invocation: the exact argv, cwd and the submitted prompt."
       },
+      "LinesBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "lines",
+            "title": "Type",
+            "default": "lines"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/ChartSeries"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "series"
+        ],
+        "title": "LinesBody"
+      },
       "MessageEvent": {
         "properties": {
           "type": {
@@ -2229,6 +2947,15 @@
           "icon": {
             "type": "string",
             "title": "Icon"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "run",
+              "trends"
+            ],
+            "title": "Scope",
+            "default": "run"
           }
         },
         "additionalProperties": false,
@@ -2240,22 +2967,47 @@
           "icon"
         ],
         "title": "PanelInfo",
-        "description": "A panel a domain registered: its tab label, tooltip and glyph."
+        "description": "A panel a domain registered: its tab label, tooltip and glyph, and what it is\ncomputed over (`run`: one run, a tab of the run; `trends`: the runs of a period)."
       },
       "PanelMessage": {
         "additionalProperties": false,
-        "description": "A domain panel's body (any JSON object), sent when it changed. `{\"error\": ...}`\nwhen the panel raised.",
+        "description": "A domain panel's body (`PanelBody`), sent when it changed. `{\"error\": ...}`\nwhen the panel raised.",
         "properties": {
           "event": {
-            "description": "`panel:<name>`, one per name in /api/info `panels`",
+            "description": "`panel:<name>`, one per run panel in /api/info `panels`",
             "pattern": "^panel:.+$",
             "title": "Event",
             "type": "string"
           },
           "data": {
-            "additionalProperties": true,
-            "title": "Data",
-            "type": "object"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TilesBody"
+              },
+              {
+                "$ref": "#/components/schemas/TableBody"
+              },
+              {
+                "$ref": "#/components/schemas/ColumnsBody"
+              },
+              {
+                "$ref": "#/components/schemas/LinesBody"
+              },
+              {
+                "$ref": "#/components/schemas/HeatmapBody"
+              },
+              {
+                "$ref": "#/components/schemas/HBarsBody"
+              },
+              {
+                "$ref": "#/components/schemas/BlocksBody"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Data"
           }
         },
         "required": [
@@ -2264,6 +3016,78 @@
         ],
         "title": "PanelMessage",
         "type": "object"
+      },
+      "PanelTile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          },
+          "tip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tip"
+          },
+          "sub": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Sub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "value"
+        ],
+        "title": "PanelTile",
+        "description": "A figure as a tile (`cae-stat-tiles`). `sub`: lines under the value, each a row of facts."
       },
       "Plan": {
         "properties": {
@@ -2862,12 +3686,96 @@
             "type": "string",
             "title": "Status",
             "default": ""
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": ""
+          },
+          "status_window": {
+            "type": "string",
+            "title": "Status Window",
+            "default": ""
+          },
+          "threshold_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Pct"
+          },
+          "overage_status": {
+            "type": "string",
+            "title": "Overage Status",
+            "default": ""
+          },
+          "overage_disabled_reason": {
+            "type": "string",
+            "title": "Overage Disabled Reason",
+            "default": ""
+          },
+          "using_overage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Using Overage"
+          },
+          "windows": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QuotaWindow"
+            },
+            "type": "object",
+            "title": "Windows"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra"
           }
         },
         "additionalProperties": true,
         "type": "object",
         "title": "QuotaReading",
         "description": "A subscription's utilization as the coding agent reported it during an attempt\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes\nwhatever else used the same account, parallel tasks too."
+      },
+      "QuotaWindow": {
+        "properties": {
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          },
+          "resets_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resets At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "QuotaWindow",
+        "description": "One window of a reading: its utilization (%) and when it resets (ISO 8601)."
       },
       "ReadyMessage": {
         "additionalProperties": false,
@@ -3127,6 +4035,23 @@
             "title": "Until",
             "default": ""
           },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "default": ""
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading"
+          },
           "route": {
             "type": "string",
             "title": "Route",
@@ -3245,6 +4170,127 @@
         "title": "StreamPage",
         "description": "A page of one transcript. `total` is the file's line count: pass it back as\n`since` for the next page. The first page (`since=0`) is the tail; `behind`\nlines precede it, fetched by asking again with a smaller `since`."
       },
+      "TableBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "table",
+            "title": "Type",
+            "default": "table"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TableColumn"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "columns",
+          "rows"
+        ],
+        "title": "TableBody",
+        "description": "Rows of values, one key per column; a row's `_tone` is its status."
+      },
+      "TableColumn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "align": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "end"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Align"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "usd",
+                  "pct",
+                  "duration",
+                  "tokens",
+                  "datetime",
+                  "number"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "bar": {
+            "type": "boolean",
+            "title": "Bar",
+            "default": false
+          },
+          "tip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tip"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "TableColumn",
+        "description": "A column of a table body: `id` names the key of each row it shows. `bar`: a bar in\nthe cell, as long as the value against the column's largest."
+      },
       "TaskCounts": {
         "properties": {
           "total": {
@@ -3272,6 +4318,11 @@
             "type": "integer",
             "title": "Waiting"
           },
+          "not_run": {
+            "type": "integer",
+            "title": "Not Run",
+            "default": 0
+          },
           "skipped": {
             "type": "integer",
             "title": "Skipped"
@@ -3288,7 +4339,7 @@
           "skipped"
         ],
         "title": "TaskCounts",
-        "description": "A run's tasks (not attempts) by how they ended. `not_started`: refused for\nan input, or waiting behind a task that failed; `running`: running now (in a\nlive run); `waiting`: queued."
+        "description": "A run's tasks (not attempts) by how they ended. `not_started`: refused for\nan input, or waiting behind a task that failed; `running`: running now (in a\nlive run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a\nrun that is no longer live (it will not run)."
       },
       "TaskDefinition": {
         "properties": {
@@ -3754,6 +4805,47 @@
         "title": "TaskLaunch",
         "description": "A live launch of the task (a child process, or an in-process marker with empty plugin/model/role/cmd)."
       },
+      "TilesBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "tiles",
+            "title": "Type",
+            "default": "tiles"
+          },
+          "tiles": {
+            "items": {
+              "$ref": "#/components/schemas/PanelTile"
+            },
+            "type": "array",
+            "title": "Tiles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tiles"
+        ],
+        "title": "TilesBody"
+      },
       "TimeBoxInfo": {
         "properties": {
           "started_at": {
@@ -4063,6 +5155,630 @@
         ],
         "title": "ToolStartEvent",
         "description": "A tool call starting (or omp's progress update for it). `call` pairs it with its end event."
+      },
+      "TrendDay": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "title": "Day"
+          },
+          "cost_usd": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Cost Usd",
+            "description": "group -> cost, USD; a group with no cost reported is absent"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "day",
+          "cost_usd",
+          "attempts",
+          "ok"
+        ],
+        "title": "TrendDay",
+        "description": "One day: its attempts (by when they ended), and its cost per group (`Monitor(groups=)`; a kind in none is its own)."
+      },
+      "TrendDeferral": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "cause": {
+            "type": "string",
+            "title": "Cause"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "ts",
+          "key",
+          "kind",
+          "cause",
+          "reason"
+        ],
+        "title": "TrendDeferral",
+        "description": "A deferred task (`deferred.jsonl`), with its run; `cause` is `DeferralCause.cause`."
+      },
+      "TrendDenial": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tool",
+          "count",
+          "kinds"
+        ],
+        "title": "TrendDenial",
+        "description": "Tool calls the coding agent's permissions refused, of one tool (`launches.jsonl` `denied`)."
+      },
+      "TrendKind": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "executor": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "python"
+            ],
+            "title": "Executor"
+          },
+          "tasks": {
+            "type": "integer",
+            "title": "Tasks"
+          },
+          "tasks_ok": {
+            "type": "integer",
+            "title": "Tasks Ok"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S",
+            "description": "every attempt's wall time, summed"
+          },
+          "wall_s_median": {
+            "type": "number",
+            "title": "Wall S Median",
+            "description": "the median attempt's wall time"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "group",
+          "executor",
+          "tasks",
+          "tasks_ok",
+          "attempts",
+          "ok",
+          "wall_s",
+          "wall_s_median",
+          "cost_usd",
+          "tokens"
+        ],
+        "title": "TrendKind",
+        "description": "One kind over the period. A task is one key of one run; its last attempt in the period says how it ended."
+      },
+      "TrendPeriod": {
+        "properties": {
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "the first day, YYYY-MM-DD"
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "the last day, YYYY-MM-DD"
+          },
+          "tz": {
+            "type": "string",
+            "title": "Tz"
+          },
+          "days": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "every day of the period, in order"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "tz",
+          "days"
+        ],
+        "title": "TrendPeriod",
+        "description": "The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name)."
+      },
+      "TrendQuota": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "five_hour",
+              "seven_day"
+            ],
+            "title": "Window"
+          },
+          "daily_peak": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Daily Peak",
+            "description": "per day of `period.days`; null when no reading arrived that day"
+          },
+          "hourly_peak": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Hourly Peak",
+            "description": "per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential",
+          "window",
+          "daily_peak",
+          "hourly_peak"
+        ],
+        "title": "TrendQuota",
+        "description": "One account's utilization of one window over the period: each day's and each hour's highest reading."
+      },
+      "TrendRest": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event"
+          },
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "run"
+        ],
+        "title": "TrendRest",
+        "description": "A start or end of a credential's rest (`rests.jsonl`), with its run."
+      },
+      "TrendRun": {
+        "properties": {
+          "run": {
+            "type": "string",
+            "title": "Run"
+          },
+          "run_group": {
+            "type": "string",
+            "title": "Run Group"
+          },
+          "host_id": {
+            "type": "string",
+            "title": "Host Id"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "finished_at": {
+            "type": "string",
+            "title": "Finished At"
+          },
+          "last_ts": {
+            "type": "string",
+            "title": "Last Ts",
+            "description": "when its last attempt in the period ended; empty when it has none"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S"
+          },
+          "stub": {
+            "type": "boolean",
+            "title": "Stub"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "run_group",
+          "host_id",
+          "started_at",
+          "finished_at",
+          "last_ts",
+          "attempts",
+          "ok",
+          "cost_usd",
+          "wall_s",
+          "stub"
+        ],
+        "title": "TrendRun",
+        "description": "One run of the period: its attempts in the period."
+      },
+      "TrendStarts": {
+        "properties": {
+          "weekdays": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weekdays"
+          },
+          "hours": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Hours"
+          },
+          "counts": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Counts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "weekdays",
+          "hours",
+          "counts"
+        ],
+        "title": "TrendStarts",
+        "description": "Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`."
+      },
+      "TrendStop": {
+        "properties": {
+          "stop": {
+            "type": "string",
+            "title": "Stop"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stop",
+          "attempts",
+          "kinds"
+        ],
+        "title": "TrendStop",
+        "description": "Attempts that ended on one `stop`, and by which kinds."
+      },
+      "TrendTotals": {
+        "properties": {
+          "runs": {
+            "type": "integer",
+            "title": "Runs",
+            "description": "runs with an attempt in the period, or started in it"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd",
+            "description": "what the coding agents reported; null when no attempt reported a cost"
+          },
+          "wall_s": {
+            "type": "number",
+            "title": "Wall S"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "runs",
+          "attempts",
+          "ok",
+          "cost_usd",
+          "wall_s",
+          "tokens"
+        ],
+        "title": "TrendTotals",
+        "description": "The period's runs and attempts, summed."
+      },
+      "Trends": {
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/TrendPeriod"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TrendTotals"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDay"
+            },
+            "type": "array",
+            "title": "Daily"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/TrendKind"
+            },
+            "type": "array",
+            "title": "Kinds"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelUsage"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/TrendStop"
+            },
+            "type": "array",
+            "title": "Stops"
+          },
+          "denials": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDenial"
+            },
+            "type": "array",
+            "title": "Denials"
+          },
+          "quota": {
+            "items": {
+              "$ref": "#/components/schemas/TrendQuota"
+            },
+            "type": "array",
+            "title": "Quota"
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/TrendRest"
+            },
+            "type": "array",
+            "title": "Rests"
+          },
+          "deferred": {
+            "items": {
+              "$ref": "#/components/schemas/TrendDeferral"
+            },
+            "type": "array",
+            "title": "Deferred"
+          },
+          "deferred_causes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Deferred Causes"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/TrendRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "starts": {
+            "$ref": "#/components/schemas/TrendStarts"
+          },
+          "bodies": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Bodies"
+          },
+          "panels": {
+            "items": {
+              "$ref": "#/components/schemas/PanelInfo"
+            },
+            "type": "array",
+            "title": "Panels"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period",
+          "totals",
+          "daily",
+          "kinds",
+          "models",
+          "stops",
+          "denials",
+          "quota",
+          "rests",
+          "deferred",
+          "deferred_causes",
+          "runs",
+          "starts",
+          "bodies",
+          "panels"
+        ],
+        "title": "Trends",
+        "description": "What the runs of a period add up to (`Monitor.trends`). `bodies`: the same numbers as\npanel bodies (`{\"type\": \"blocks\", ...}`), in English, for a page with no words of its own;\n`panels`: the trend panels a domain registered (`Panel(scope=\"trends\")`)."
       },
       "UnitPosition": {
         "properties": {

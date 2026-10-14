@@ -14,3 +14,10 @@ export const innerIcon = () =>
     <rect x="3.4" y="0.7" width="7.9" height="7.9" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.2"></rect>
     <path d="M0.7,3.6 V9.7 Q0.7,11.3 2.3,11.3 H8.4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
   </svg>`;
+
+/** Show inside (a plus) or hide inside (a minus), in a square: the control of an item that can be drawn open. */
+export const toggleIcon = (open: boolean) =>
+  html`<svg class="ic tog-ic" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+    <rect x="0.7" y="0.7" width="10.6" height="10.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.2"></rect>
+    <path d=${open ? 'M3.5,6 H8.5' : 'M3.5,6 H8.5 M6,3.5 V8.5'} fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path>
+  </svg>`;

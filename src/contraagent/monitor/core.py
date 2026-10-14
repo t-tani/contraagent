@@ -7,9 +7,13 @@ a test can use the same views.
 A domain extends it two ways, neither touching the framework:
 
 * `panels` — named callables `fn(run) -> dict`. Each shows up as its own
-  tab in the web UI (rendered as a JSON tree) and is pushed over the live
-  feed whenever its value changes. A security-scan pipeline would register
-  "findings" or "targets"; a data pipeline would register "datasets".
+  tab in the web UI and is pushed over the live feed whenever its value
+  changes. A typed body (`api.PanelBody`: tiles, a table, charts, blocks of
+  them) is drawn with the monitor's own elements; any other dict is shown as
+  a JSON tree. A security-scan pipeline would register "findings" or
+  "targets"; a data pipeline would register "datasets". A panel of `scope`
+  "trends" is computed over the runs of a period instead (`fn(runs, period)`),
+  served with the trends (`Monitor.trends`).
 * `task_detail` — `fn(run, key, rows) -> dict` (`TaskDetailFn`), merged into the
   per-task view (a task's declared inputs/outputs, the state it wrote).
 
@@ -22,33 +26,53 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_event, resolve_format
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
-from contraagent.monitor import paths
+from contraagent.monitor import paths, trends
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
+from contraagent.monitor.trends import Period
 
-PanelFn = Callable[[str], dict]
+#: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`).
+PanelFn = Callable[[str], Any]
+#: A trends panel: `fn(runs, period) -> body`, over the run ids of the period, oldest first.
+TrendsPanelFn = Callable[[list[str], Period], Any]
 
 
 @dataclass
 class Panel:
-    """A named view a domain adds to the monitor: `fn(run) -> dict`.
+    """A named view a domain adds to the monitor.
 
-    `title` and `description` label its tab and say what it shows; `icon` is a
-    short glyph. A bare callable works too (the dict key becomes the title).
+    `fn` returns its body: a typed body (`api.PanelBody`, as a model or as a dict with
+    its `type`) drawn as tiles, a table or charts, or any other dict, shown as a JSON
+    tree. `scope` says what it is computed over: `run`, `fn(run)`, a tab of each run;
+    `trends`, `fn(runs, period)`, a view of the runs of a period. `title` and
+    `description` label it and say what it shows; `icon` is a short glyph. A bare
+    callable works too, as a run panel (the dict key becomes the title).
     """
 
-    fn: PanelFn
+    fn: PanelFn | TrendsPanelFn
     title: str = ""
     description: str = ""
     icon: str = "▤"
+    scope: Literal["run", "trends"] = "run"
 
-    def __call__(self, run: str) -> dict:
-        return self.fn(run)
+    def __call__(self, *args: Any) -> dict:
+        return panel_body(self.fn(*args))
+
+
+def panel_body(value: Any) -> dict:
+    """A panel's return value as JSON data: a typed body given as a model, dumped."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_none=True)
+    return value
 
 
 #: The `task_detail` callback: `fn(run, key, rows) -> dict`, merged into `Monitor.task_detail`.
@@ -61,14 +85,26 @@ def _running_keys(snap: dict) -> set:
 
 
 def _first_last(readings: list[dict]) -> dict:
-    """Per credential (account), the run's first and last utilization reading, by when
-    they were received; the account with the highest weekly utilization first."""
-    by: dict[str, list[dict]] = {}
+    """Per credential and account (`QuotaReading.account`: `ambient` on two coding agents is
+    two accounts), the run's first and last utilization reading, by when they were
+    received; the account with the highest weekly utilization first."""
+    by: dict[tuple[str, str], list[dict]] = {}
     for q in sorted((q for q in readings if q.get("observed_at")), key=lambda q: q["observed_at"]):
-        by.setdefault(q.get("credential") or "", []).append(q)
-    accounts = [{"credential": c, "first": qs[0], "last": qs[-1]} for c, qs in by.items()]
+        by.setdefault((q.get("credential") or "", q.get("account") or ""), []).append(q)
+    accounts = [{"credential": c, "account": a, "first": qs[0], "last": qs[-1]} for (c, a), qs in by.items()]
     accounts.sort(key=lambda a: -(a["last"].get("seven_day_pct") or 0))
     return {"quota": accounts}
+
+
+def _when(iso: object) -> datetime | None:
+    """An ISO 8601 time, read as UTC when it names no zone; None for anything else."""
+    if not isinstance(iso, str) or not iso:
+        return None
+    try:
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
 def _number(v: object) -> float | None:
@@ -152,6 +188,7 @@ class Monitor:
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,
         groups: list[dict] | None = None,
+        keep_digests: bool = True,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
         without them each kind is a group of its own.
@@ -161,7 +198,10 @@ class Monitor:
         the one that called `register_normalizer`.
         `source` and `liveness` replace where runs are read from (default: `runs_dir`
         and this host's `/proc`); a `source` given without `liveness` has no live run.
-        `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts."""
+        `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts.
+        `keep_digests`: keep a finished run's trends digest in its directory
+        (`rundir.TRENDS`), so a restarted monitor reads it back instead of the logs;
+        it is always kept in memory."""
         self.many_hosts = many_hosts
         self.runs_dir = Path(runs_dir).resolve()
         self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
@@ -177,6 +217,10 @@ class Monitor:
         self.static_dir = Path(static_dir) if static_dir else None
         self.stream_formats = dict(stream_formats or {})
         self.group_defs = list(groups or [])
+        self.keep_digests = keep_digests
+        self._digests: dict[str, tuple[dict, dict]] = {}  # run -> (signature, digest)
+        self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
+        self._trends: tuple[tuple, dict] | None = None  # the last trends, and what they were made of
 
     def check_run(self, run: str) -> str:
         """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
@@ -271,19 +315,41 @@ class Monitor:
                 }
             )
         readings = [q for row in rows for a in row["quota"] for q in (a["first"], a["last"])]
-        return {"hosts": hosts, **_first_last(readings)}
+        out = {"hosts": hosts, **_first_last(readings)}
+        # The rests in force now: begun by a live run, not ended, not past their end.
+        now = datetime.now(UTC)
+        current = [
+            r
+            for row in rows
+            if row["running"]
+            for r in self._quota(row["run"])["rests"]
+            if not r.get("ended") and not ((end := _when(r.get("until"))) is not None and end <= now)
+        ]
+        for a in out["quota"]:
+            a["rests"] = [
+                r
+                for r in current
+                if r["credential"] == a["credential"] and (not r.get("account") or not a["account"] or r["account"] == a["account"])
+            ]
+        return out
 
     def _task_counts(self, run: str, live: bool = False) -> dict:
         """Tasks (not attempts) by how they ended, from the plan's states: the
         same numbers the run's own page shows. Running tasks are looked up only
-        for a run that is `live`."""
-        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "skipped": 0}
+        for a run that is `live`; a task deferred, or queued in a run that is not
+        live, is `not_run` (it will not run), and only a live run's queued tasks wait."""
+        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "not_run": 0, "skipped": 0}
         name = {"done": "done", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
         running = _running_keys(self.liveness.snapshot(run)) if live else set()
         for n in self.plan(run, live={})["nodes"]:
             counts["total"] += 1
             state = name.get(n["state"], "waiting")
-            counts["running" if state == "waiting" and n.get("key") in running else state] += 1
+            if state == "waiting" and n.get("key") in running:
+                state = "running"
+            elif state == "waiting" and (n.get("deferred") or not live):
+                # Deferred, or queued in a run that is over: it will not run.
+                state = "not_run"
+            counts[state] += 1
         return counts
 
     # --- journal -----------------------------------------------------------
@@ -299,6 +365,10 @@ class Monitor:
         return _parse(lines), total
 
     # --- plan (the pipeline, including work that has not started) ---------
+
+    def plan_rows(self, run: str) -> list[dict]:
+        """The run's `plan.jsonl`, one row per key: the first, as it was queued."""
+        return self._read_plan(run)
 
     def _read_plan(self, run: str) -> list[dict]:
         out, seen = [], set()
@@ -421,14 +491,14 @@ class Monitor:
             if isinstance(v, dict)
         ]
         rests: list[dict] = []
-        open_: dict[str, dict] = {}
+        open_: dict[tuple[str, str], dict] = {}
         for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
             if not isinstance(row, dict) or not isinstance(row.get("credential"), str):
                 continue
-            name = row["credential"]
+            name = (row["credential"], row.get("account") or "")
             if row.get("event") == "start":
-                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until")}
-                rest = {**rest, "window": rest["window"] or "", "rule": rest["rule"] or "", "until": rest["until"] or ""}
+                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until", "account", "reading")}
+                rest = {**rest, **{k: rest[k] or "" for k in ("window", "rule", "until", "account")}}
                 open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
                 rests.append(open_[name])
             elif row.get("event") == "end" and name in open_:
@@ -669,18 +739,19 @@ class Monitor:
         """What defined each kind of task in this run (`definitions/<kind>.json`)."""
         return _parse(self.source.folder(run, rundir.DEFINITIONS))
 
-    def task_io(self, run: str, key: str) -> dict:
+    def task_io(self, run: str, key: str, *, outputs: dict | None = None, plan_rows: list[dict] | None = None) -> dict:
         """One task's input and output: its params, the files it read, the files
         it left behind with the contract verdict, and how data flows around it.
 
         `upstream` are the output files of the tasks this one waits for (`after=`): for a task
         that declares no `InputContract`, they are what it actually reads. `downstream` are the
-        tasks that wait for this one.
+        tasks that wait for this one. `outputs` and `plan_rows`, when given, are the run's
+        (`outputs(run)`, its plan rows), read once for many tasks.
         """
-        outs = self.outputs(run)
+        outs = outputs if outputs is not None else self.outputs(run)
         by_key = {c.get("key"): c for c in outs["contracts"]}
         rec = by_key.get(key) or {}
-        plan = {n["key"]: n for n in self._read_plan(run)}
+        plan = {n["key"]: n for n in (plan_rows if plan_rows is not None else self._read_plan(run))}
         node = plan.get(key, {})
         upstream = []
         for dep in node.get("after", []):
@@ -747,13 +818,123 @@ class Monitor:
     # --- panels ------------------------------------------------------------
 
     def panel(self, name: str, run: str) -> dict:
+        """Run panel `name`'s body for `run`. KeyError: no run panel of that name."""
         panel = self.panels.get(name)
-        if panel is None:
+        if panel is None or panel.scope != "run":
             raise KeyError(name)
         return panel(run)
 
+    def run_panels(self) -> list[str]:
+        """The names of the panels computed per run: each run's tabs, and its live feed."""
+        return [n for n, p in self.panels.items() if p.scope == "run"]
+
     def panel_info(self) -> list[dict]:
-        return [{"name": n, "title": p.title or n, "description": p.description, "icon": p.icon} for n, p in sorted(self.panels.items())]
+        return [
+            {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon, "scope": p.scope}
+            for n, p in sorted(self.panels.items())
+        ]
+
+    # --- trends --------------------------------------------------------------
+
+    def trends(self, period: Period, *, run_group: str = "", stub: bool = False) -> dict:
+        """What the runs of `period` add up to (`monitor.trends`), with the same numbers as
+        panel bodies (`bodies`) and the trend panels on offer (`panels`). `run_group` keeps
+        the runs of one group; stub runs count only with `stub`."""
+        held = self._period_digests(period)
+        groups = self._group_of()
+        # The same period over the same runs, as they were: the same trends (a page asks again and again).
+        made_of = (period, run_group, stub, tuple(sorted(groups.items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
+        if self._trends is not None and self._trends[0] == made_of:
+            return self._trends[1]
+        digests = [dg for _, _, dg in held if (not run_group or dg["run_group"] == run_group) and (stub or not dg["stub"])]
+        view = trends.aggregate(digests, period, groups)
+        out = {
+            **view,
+            "bodies": trends.bodies(view),
+            "panels": [
+                {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon}
+                for n, p in sorted(self.panels.items())
+                if p.scope == "trends"
+            ],
+        }
+        self._trends = (made_of, out)
+        return out
+
+    def trends_panel(self, name: str, period: Period, *, run_group: str = "") -> dict:
+        """Trends panel `name`'s body: its `fn(runs, period)` over the run ids of `period`,
+        newest first. KeyError: no trends panel of that name."""
+        panel = self.panels.get(name)
+        if panel is None or panel.scope != "trends":
+            raise KeyError(name)
+        runs = [r["run"] for r in self.trends(period, run_group=run_group)["runs"]]  # newest first
+        return panel(runs, period)
+
+    def _group_of(self) -> dict[str, str]:
+        """Kind -> the label of the group it is in (`groups`); a kind in none is its own."""
+        return {k: g.get("label") or g.get("id") or k for g in self.group_defs for k in g.get("kinds") or ()}
+
+    def _period_digests(self, period: Period) -> list[tuple[str, dict, dict]]:
+        """The runs that may have worked in `period` (by `run.json`), with their signatures
+        and digests."""
+        out = []
+        live: set[str] | None = None
+
+        def is_live(run: str) -> bool:  # only for a digest made now: it scans the processes
+            nonlocal live
+            if live is None:
+                live = self.liveness.live()
+            return run in live
+
+        for run in self.source.runs():
+            info, sig = trends.run_files(self.source, run, self._infos)
+            if trends.in_period(info, period):
+                out.append((run, sig, self._digest(run, sig, is_live)))
+        return out
+
+    def digest(self, run: str) -> dict:
+        """Run `run`'s trends digest (`trends.digest`): from memory while its logs are the
+        same, else from its `trends.json` when that was made from these logs, else from the
+        logs (then kept: in memory, and in the directory of a finished run that is not live)."""
+        return self._digest(run, trends.run_files(self.source, run, self._infos)[1], lambda r: r in self.liveness.live())
+
+    def _digest(self, run: str, sig: dict, is_live: Callable[[str], bool]) -> dict:
+        held = self._digests.get(run)
+        if held is not None and held[0] == sig:
+            return held[1]
+        kept = self._kept_digest(run, sig)
+        dg = trends.restore(kept) if kept is not None else trends.digest(self.source, run)
+        if kept is None and sig.get("finished_at") and not is_live(run):
+            self._keep_digest(run, sig, trends.kept_form(dg))
+        self._digests[run] = (sig, dg)
+        return dg
+
+    def _digest_path(self, run: str) -> Path | None:
+        if not self.keep_digests or not isinstance(self.source, DirectorySource):
+            return None
+        return Path(trends.run_dir(self.source, run)) / rundir.TRENDS
+
+    def _kept_digest(self, run: str, sig: dict) -> dict | None:
+        path = self._digest_path(run)
+        if path is None:
+            return None
+        try:
+            kept = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+        if not isinstance(kept, dict) or kept.get("signature") != sig or kept.get("digest", {}).get("version") != trends.DIGEST_VERSION:
+            return None
+        return kept["digest"]
+
+    def _keep_digest(self, run: str, sig: dict, dg: dict) -> None:
+        """Write a digest to the run's `trends.json`; best effort (a read-only runs directory
+        keeps it in memory only)."""
+        path = self._digest_path(run)
+        if path is None:
+            return
+        try:
+            rundir.write_document(path, json.dumps({"signature": sig, "digest": dg}))
+        except OSError:
+            pass
 
 
 def row_extras(rows: list[dict]) -> list[str]:

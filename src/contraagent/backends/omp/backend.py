@@ -29,7 +29,7 @@ from contraagent.backends.credentials import (
     Subscription,
     child_env,
 )
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import ACCOUNT_UUID, Launch, LaunchResult, RateLimit, Stop, account_digest
 from contraagent.backends.omp.classify import classify_text_result
 from contraagent.backends.omp.config import (
     CATALOGUE_TIMEOUT_S,
@@ -60,35 +60,44 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> RateL
         return None
     if len(reports) != 1:
         return None
-    windows: dict[str, dict] = {}
+    account: dict[str, dict] = {}  # the account's own windows, by omp's window id
+    windows: dict[str, dict] = {}  # every window, by the name a Claude Code reading gives it
     statuses: set[str] = set()
     for limit in reports[0].get("limits", []):
         scope = limit.get("scope") or {}
-        if scope.get("tier") or not isinstance(limit.get("amount"), dict):
-            continue  # a per-model window, not the account's own
-        windows[str(scope.get("windowId") or "")] = limit
-        statuses.add(str(limit.get("status") or ""))
-
-    def pct(window: str) -> float | None:
-        amount = (windows.get(window) or {}).get("amount") or {}
-        fraction = amount.get("usedFraction")
-        return round(float(fraction) * 100, 1) if isinstance(fraction, (int, float)) else None
-
-    def resets(window: str) -> str | None:
-        at = ((windows.get(window) or {}).get("window") or {}).get("resetsAt")
-        return _iso(at) if isinstance(at, (int, float)) else None
-
-    if not windows:
+        if not isinstance(limit.get("amount"), dict):
+            continue
+        window_id = str(scope.get("windowId") or "")
+        name = _OMP_WINDOWS.get(window_id, window_id)
+        if scope.get("tier"):  # a model's own window: named, not the account's
+            name = f"{name}_{scope['tier']}"
+        else:
+            account[window_id] = limit
+            statuses.add(str(limit.get("status") or ""))
+        fraction = limit["amount"].get("usedFraction")
+        at = (limit.get("window") or {}).get("resetsAt")
+        windows[name] = {
+            "pct": round(float(fraction) * 100, 1) if isinstance(fraction, (int, float)) else None,
+            "resets_at": _iso(at) if isinstance(at, (int, float)) else None,
+        }
+    if not account:
         return None
-    seen = (reports[0].get("metadata") or {}).get("headersUpdatedAt") or reports[0].get("fetchedAt")  # when a request reported it
+    meta = reports[0].get("metadata") or {}
+    seen = meta.get("headersUpdatedAt") or reports[0].get("fetchedAt")  # when a request reported it
     return RateLimit(
         status="allowed" if statuses <= {"ok"} else ",".join(sorted(statuses - {"ok"})),
-        five_hour_pct=pct("5h"),
-        five_hour_resets_at=resets("5h"),
-        seven_day_pct=pct("7d"),
-        seven_day_resets_at=resets("7d"),
+        five_hour_pct=(windows.get("five_hour") or {}).get("pct"),
+        five_hour_resets_at=(windows.get("five_hour") or {}).get("resets_at"),
+        seven_day_pct=(windows.get("seven_day") or {}).get("pct"),
+        seven_day_resets_at=(windows.get("seven_day") or {}).get("resets_at"),
         observed_at=_iso(seen) if isinstance(seen, (int, float)) else None,
+        account=account_digest(ACCOUNT_UUID, str(meta.get("accountId") or "")),
+        windows=windows,
     )
+
+
+#: omp's window ids, as Claude Code's readings name the windows.
+_OMP_WINDOWS = {"5h": "five_hour", "7d": "seven_day"}
 
 
 def _iso(ms: float) -> str:
@@ -225,6 +234,7 @@ class OmpBackend(OneShotBackend):
         self.thinking = thinking
         self.trace = trace
         self._chains: OmpModelChains | None = None
+        self._accounts: dict[tuple[str, str], str] = {}  # (credential, provider) -> its account
 
     def run(self, launch: Launch) -> LaunchResult:
         """One launch, with the account's usage at its start, as Claude Code reports it: what
@@ -268,6 +278,19 @@ class OmpBackend(OneShotBackend):
         except CredentialError:
             return None
         return _usage_reading([self.binary, *binding.args, "usage", "--json", "--provider", provider], env, provider)
+
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """The account omp's usage report names for the model's provider (`metadata.accountId`,
+        from `omp usage --json`, which reads what omp kept of the account's last response).
+        Asked once per credential and provider in this process; '' when omp reports none."""
+        provider = model.split("/", 1)[0] if "/" in model else ""
+        if not provider:
+            return ""
+        key = (credential.label, provider)
+        if key not in self._accounts:
+            reading = self.usage_reading(Launch(prompt="", label=f"account-{credential.label}", model=model, credential=credential))
+            self._accounts[key] = reading.account if reading is not None else ""
+        return self._accounts[key]
 
     def model_chains(self, cwd: Path | None = None) -> OmpModelChains:
         """omp's configured `retry:` block, read once per backend.

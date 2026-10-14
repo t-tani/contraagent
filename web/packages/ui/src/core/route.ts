@@ -10,8 +10,11 @@ export type Tab = BuiltinTab | `panel:${string}`;
 export const TASK_VIEWS = ['transcript', 'input', 'output', 'definition'] as const;
 export type TaskView = (typeof TASK_VIEWS)[number];
 
-/** A page that is not one run's: `hosts`, the hosts behind a hub's runs. */
-export type Page = '' | 'hosts';
+/** A page that is not one run's: `hosts`, the hosts behind a hub's runs; `trends`, the runs of a period. */
+export type Page = '' | 'hosts' | 'trends';
+
+/** The lengths of a period the trends page offers, in days, ending today. */
+export const TREND_DAYS = [7, 14, 30] as const;
 
 export interface Route {
   /** '' for a run's views; `hosts` for the hosts (on a hub), with no run. */
@@ -39,6 +42,14 @@ export interface Route {
   unit: string;
   /** overview tab: what is selected in the pipeline graph's layer (a node, a loop box or a mark; '' for nothing). */
   sel: string;
+  /** trends page: the period, the last `days` days (0: the days `from` to `to`, YYYY-MM-DD). */
+  days: number;
+  from: string;
+  to: string;
+  /** trends page: the time zone its days are counted in ('': the browser's). */
+  tz: string;
+  /** trends page: only the runs of this run group. */
+  group: string;
 }
 
 export type RoutePatch = Partial<Route>;
@@ -57,6 +68,11 @@ export const DEFAULT_ROUTE: Route = {
   layer: '',
   unit: '',
   sel: '',
+  days: 14,
+  from: '',
+  to: '',
+  tz: '',
+  group: '',
 };
 
 const isTab = (t: string): t is Tab => (BUILTIN_TABS as readonly string[]).includes(t) || /^panel:.+/.test(t);
@@ -67,11 +83,15 @@ export function parseRoute(search: string): Route {
   const tab = p.get('tab') ?? '';
   const view = p.get('view') ?? '';
   const round = Number(p.get('round'));
-  const hosts = p.get('page') === 'hosts';
+  const page: Page = p.get('page') === 'hosts' ? 'hosts' : p.get('page') === 'trends' ? 'trends' : '';
+  const from = p.get('from') ?? '';
+  const to = p.get('to') ?? '';
+  const range = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to);
+  const days = Number(p.get('days'));
   return {
-    page: hosts ? 'hosts' : '',
-    // The hosts page belongs to no run.
-    run: hosts ? '' : (p.get('run') ?? ''),
+    page,
+    // A page of no run names none.
+    run: page ? '' : (p.get('run') ?? ''),
     tab: isTab(tab) ? tab : 'overview',
     key: p.get('key') || null,
     view: isTaskView(view) ? view : 'transcript',
@@ -83,12 +103,27 @@ export function parseRoute(search: string): Route {
     layer: p.get('layer') ?? '',
     unit: p.get('unit') ?? '',
     sel: p.get('sel') ?? '',
+    days: range ? 0 : (TREND_DAYS as readonly number[]).includes(days) ? days : DEFAULT_ROUTE.days,
+    from: range ? from : '',
+    to: range ? to : '',
+    tz: p.get('tz') ?? '',
+    group: p.get('group') ?? '',
   };
 }
 
 /** The query string for a route: only what differs from the defaults, and only what its tab uses. */
 export function formatRoute(r: Route): string {
   if (r.page === 'hosts') return '?page=hosts';
+  if (r.page === 'trends') {
+    const p = new URLSearchParams({ page: 'trends' });
+    if (r.days === 0 && r.from && r.to) {
+      p.set('from', r.from);
+      p.set('to', r.to);
+    } else if (r.days !== DEFAULT_ROUTE.days) p.set('days', String(r.days));
+    if (r.tz) p.set('tz', r.tz);
+    if (r.group) p.set('group', r.group);
+    return `?${p.toString()}`;
+  }
   const p = new URLSearchParams();
   if (r.run) p.set('run', r.run);
   if (r.tab !== 'overview') p.set('tab', r.tab);

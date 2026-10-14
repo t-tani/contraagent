@@ -12,6 +12,7 @@ accounting, the stop taxonomy, and the telemetry record.
 from __future__ import annotations
 
 import enum
+import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -209,6 +210,23 @@ class Usage:
         }
 
 
+#: The sources of an account digest: an Anthropic account's UUID (a Claude Code login,
+#: omp's usage report), or the secret a credential authenticates with (a token, a key).
+ACCOUNT_UUID = "anthropic-account"
+ACCOUNT_SECRET = "secret"
+
+
+def account_digest(kind: str, value: str) -> str:
+    """A short digest that tells an account apart and cannot be turned back into `value`:
+    SHA-256 over a fixed prefix, the source's `kind` (`ACCOUNT_UUID`, `ACCOUNT_SECRET`) and
+    the value, cut to 12 hex digits. A UUID and a token of one account give different
+    digests: an account is compared only with one from the same source. '' for an empty
+    value."""
+    if not value:
+        return ""
+    return hashlib.sha256(f"contraagent account\0{kind}\0{value}".encode()).hexdigest()[:12]
+
+
 @dataclass
 class RateLimit:
     """5-hour and weekly utilization (%) with reset times (UTC ISO8601)."""
@@ -228,6 +246,29 @@ class RateLimit:
     #: The `[credentials.<name>]` of the session that reported it: whose account the
     #: utilization is. Filled in by the runner, which knows the credential.
     credential: str = ""
+    #: Which account reported it, as a digest that tells accounts apart and reveals none
+    #: (`account_digest`); '' when it is not known. One credential can stand for two
+    #: accounts: `ambient` is each coding agent's own login, and a credential's token can
+    #: be replaced between runs.
+    account: str = ""
+    #: The window `status` and `threshold_pct` are about (`five_hour`, `seven_day`, ...):
+    #: Claude Code's `rateLimitType`.
+    status_window: str = ""
+    #: The utilization (%) past which `status` warns (Claude Code's `surpassedThreshold`).
+    threshold_pct: float | None = None
+    #: Usage past the limit, billed as extra: its status (`allowed`, `rejected`, ...), why it
+    #: is off, and whether this request used it (Claude Code's `overageStatus`,
+    #: `overageDisabledReason`, `isUsingOverage`).
+    overage_status: str = ""
+    overage_disabled_reason: str = ""
+    using_overage: bool | None = None
+    #: Every window the reading names, by its name (`five_hour`, `seven_day`, a model's own
+    #: such as `seven_day_opus`): `{"pct": ..., "resets_at": ...}`. `five_hour_pct` and
+    #: `seven_day_pct` are two of them.
+    windows: dict[str, dict] = field(default_factory=dict)
+    #: What else the coding agent sent with the reading, by its own name: a newer field
+    #: this reader does not name yet.
+    extra: dict = field(default_factory=dict)
 
 
 #: Web search queries kept per launch (`LaunchResult.web_queries`).
@@ -305,6 +346,12 @@ class LaunchResult:
     # ended `INVALID_OUTPUT` the last is what still stood.
     rounds: int | None = None
     round_errors: list[list[str]] = field(default_factory=list)
+    #: What each round cost on its own, in order (None for a round that reported no cost):
+    #: `cost_usd` is their sum. Empty without a contract.
+    round_costs: list[float | None] = field(default_factory=list)
+    #: True when the output was taken out of a final message that wrapped it
+    #: (`OutputContract.unwrap`); the whole message is kept beside the output file.
+    unwrapped: bool = False
     #: What the plugin's stop hook sent back within the launch, before the agent
     #: ended its turn (Claude Code): one list of errors per time it objected.
     hook_errors: list[list[str]] = field(default_factory=list)
@@ -357,6 +404,8 @@ class LaunchResult:
             "stderr_tail": self.stderr_tail[-300:],
             "rounds": self.rounds,
             "round_errors": [errors[:10] for errors in self.round_errors],
+            "round_costs": list(self.round_costs),
+            "unwrapped": self.unwrapped,
             "hook_errors": [errors[:10] for errors in self.hook_errors],
         }
         return d

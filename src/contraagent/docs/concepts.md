@@ -26,7 +26,7 @@ documentation. No other word is used for the same thing.
 | **loop** | a `for` or `while` statement in a generator of flow code, named by its first line; a call site's loops are those whose pass it is in, outermost first; a comprehension is not a loop | `Loop.line`, `Frame.loops`; `flow[].loops[].line` |
 | **pass** | one iteration of one loop, numbered from 1 each time the loop is entered; never an attempt, never the `~n` of a key | `Loop.pass_`, `flow[].loops[].pass`; `max_passes` (the passes a `while` loop may make; a `for` loop has no limit), `TooManyPasses` |
 | **created from** | the keys whose results a flow call had received when it created a task | `Origin.created_from` |
-| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
+| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint, but not a task declared `rerun_on_resume` | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
 
 ## Definition
 
@@ -41,6 +41,7 @@ documentation. No other word is used for the same thing.
 | **call file** | the params and output contract handed to one agent task | `CallFile`, `runs/<run>/calls/<key>.json` |
 | **changes** | the files one attempt created, modified or deleted under the patterns its task declares, beside its output; the files a failed attempt created are removed | `agent_task(changes=)`, `TaskAdapter.changes`, `TaskResult.changes`, journal `changes` |
 | **final message** | the agent's last message of a launch; an agent task whose output is its final message has it written to its output file and checked there | `LaunchResult.result_text`; `agent_task(output_from="message")`, call file `output.from`, `OutputContract.from_message` |
+| **unwrap** | taking the JSON document out of a final message that wraps it (a sentence before it, a fence around it): the output is the document, the whole message is kept beside it | `agent_task(unwrap=True)`, `OutputContract.unwrap`, `unwrap_json`; `<output>.message.txt`; `LaunchResult.unwrapped` |
 
 ## Checking
 
@@ -68,7 +69,8 @@ documentation. No other word is used for the same thing.
 | **trait** | a label on a credential that a task may require (`zdr`) | `traits`, `agent_task(requires=)` |
 | **pool** / **gateway** | several credentials used as one / your own endpoint (LiteLLM, a proxy) | `Pool`, `Gateway` |
 | **ambient** | the built-in credential: the host's own setup, untouched | `AMBIENT` |
-| **quota** | a subscription's utilization of its 5-hour and weekly windows, as the coding agent reports it: account-wide | `RateLimit`, `LaunchResult.rate_limits`; journal `quota` (`QuotaReading`) |
+| **quota** | a subscription's utilization of its 5-hour and weekly windows (and a model's own windows), as the coding agent reports it: account-wide | `RateLimit`, `LaunchResult.rate_limits`; journal `quota` (`QuotaReading`, `windows`) |
+| **account** | the billing account a quota reading is of, as a 12-hex-digit digest of its login's UUID or of the credential's secret, never the value itself; one credential can stand for two (`ambient` on two coding agents, a token replaced between runs), and a credential's rests are judged by the readings of the account a launch as it bills | `RateLimit.account`, `QuotaReading.account`, `Backend.account`, `account_digest` |
 | **quota cap** / **quota rule** | the utilization past which a credential rests / a domain's own test of a credential's latest quota reading | `max_five_hour_pct`, `max_seven_day_pct` / `Pipeline(quota_rule=)` |
 | **rest** | not launched on for a time: a hop or a pool member after a 429, a credential past a quota cap or rule until its window resets; a task takes the next hop; with none left it ends `rate_limited` after 429s, and is deferred (never launched) when its credentials rest on their quota. A quota rest is recorded as data (`Rest`: window, reading, cap, or what the rule said, and until when) as it begins and ends | `Router`, `CredentialPool`, `QuotaRests`, `Rest`; `rests.jsonl` |
 | **skipped hop** | a hop an attempt passed over without a launch because its credential rested on its quota; not one of the attempt's hops, which are launches | `TaskResult.skipped_hops`, journal `skipped_hops` (`SkippedHop`) |
@@ -80,7 +82,7 @@ documentation. No other word is used for the same thing.
 | **launch** | one run of a coding agent, and its result | `Launch`, `Backend.run`, `LaunchResult` |
 | **light launch** | the launch of an agent task declared with no tools: its role's text (or its instructions) replaces the coding agent's system prompt, its params and output schema are in the prompt, no plugin, settings or MCP server is loaded, and its final message is its output | `agent_task(tools=())`, `AgentTask.light`, `KindConfig.light`, `Backend.light_launch` |
 | **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
-| **round** | one launch within a session: the first, or a resume after contract errors | `rounds` |
+| **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |
@@ -127,7 +129,13 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | Word | Means | In code |
 |---|---|---|
 | **group** | a column of the plan | `Monitor(groups=)` |
+| **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=` |
+| **trends** | what the runs of a period add up to, day by day: cost by kind (or group), each kind's tasks, success and time, each model's spend, failures, refused tool calls, utilization, rests, deferrals, run starts; read from each run's digest, kept in a finished run's `trends.json` | `Monitor.trends`, `/api/trends`, `Trends`; `Panel(scope="trends")` |
+| **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
+| **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |
+| **outline** | the pipeline graph's list of every function of the flow and the loops they are in, as a tree | `outlineTree`, `nav.outline` |
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
+| **panel** / **panel body** | a view a pipeline adds to the monitor: computed per run (`scope="run"`, a tab of each run) or over the runs of a period (`scope="trends"`, `fn(runs, period)`) / what it returns: a typed body (`tiles`, `table`, `columns`, `lines`, `heatmap`, `hbars`, `blocks` of them) the monitor draws, or any other JSON object, shown as a JSON tree | `monitor.Panel`, `Period`; `api.PanelBody`; `contraagent monitor --panels` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
 | **route** | where the reader is, kept in the URL | `Route`, `Router` in `@contraagent/ui` |
 | **element** | a web component: `ca-*` in `@contraagent/ui`, `cae-*` in `@contraagent/elements` | `CaMonitor`, `CaTranscript`, `CaeSegmented`, ... |
@@ -139,6 +147,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **adapter** | a function in `@contraagent/ui/adapters` that turns run data into a generic element's model | `graphFromPlan`, `matrixFromPlan`, `kpiTiles`, ... |
 | **wrapper** | a `ca-*` element that feeds a `cae-*` element through an adapter and turns its `cae-*` events into `ca-*` events | `ca-pipeline-graph`, `ca-kpis`, ... |
 | **run start** | one start of a run over its directory: the first, or a resume; a task numbers its attempts from 0 in each | `run.json` `started_at` (the latest), `runStarts` |
+| **export** | the monitor's views of some runs written as files (the page and the JSON each route answers), read with no server; it holds no transcripts and no processes, and this machine's paths and name are taken out | `contraagent monitor export`, `monitor/export.py`; `Info.export` (`ExportInfo`); `createExportClient`, `openExportFeed`, `<ca-monitor export="data/">` |
 
 The monitor's screens show some of these in the words of engineers who use
 coding agents (a round after contract errors is a "correction", a task's

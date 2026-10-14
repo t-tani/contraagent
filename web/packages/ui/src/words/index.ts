@@ -22,3 +22,6 @@ export * from './rests.js';
 export * from './time-box.js';
 export * from './row-extras.js';
 export * from './models.js';
+export * from './panels.js';
+export * from './export.js';
+export * from './trends.js';
