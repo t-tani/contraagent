@@ -1,8 +1,8 @@
 """Stream-event normalizer, dispatching on the stream format.
 
-Every backend (`claude`, `omp`, `omp-rpc`, `opencode`) writes raw
+Every backend (`claude`, `omp`, `omp-rpc`, `opencode`, `pi`) writes raw
 per-launch lines to `launch.stream_path`, in three distinct wire
-vocabularies: omp's/omp-rpc's `--mode json`/RPC shapes
+vocabularies: omp's/omp-rpc's/pi's `--mode json`/RPC shapes
 (`assistantMessageEvent`/`toolCall`/`toolResult`/...), claude's own
 `--output-format stream-json` shapes (Anthropic Messages API events), and
 opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...).
@@ -49,6 +49,8 @@ _NORMALIZERS = {
     # normalizer does not keep.
     "omp-rpc": omp_trace.normalize_event,
     "opencode": opencode_wire.normalize_event,
+    # pi sends the agent events omp was forked from (`backends/pi/wire.py`).
+    "pi": omp_trace.normalize_event,
 }
 
 # Backends that can run with trace off (omp's --mode json defaults on

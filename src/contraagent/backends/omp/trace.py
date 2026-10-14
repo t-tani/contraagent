@@ -16,7 +16,7 @@ from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLim
 from contraagent.backends.omp.classify import classify_text_result
 
 _logger = logging.getLogger(__name__)
-_warned: set[str] = set()  # unread event types already logged by this process
+_warned: set[tuple[str, str]] = set()  # (agent, unread event type) already logged by this process
 
 # omp surfaces a provider quota as a nonzero exit with a message, not as a
 # structured status. Both the text path and the trace path need it, and
@@ -318,6 +318,12 @@ class TraceReader:
     executions when no call was seen.
     """
 
+    #: The coding agent whose wire this is, in the warning about an unread event.
+    agent = "omp"
+    #: The event types and `message_update` kinds this reader knows (`unread_events`: the rest).
+    known_events = KNOWN_EVENTS
+    known_updates = KNOWN_UPDATES
+
     def __init__(self) -> None:
         self.saw_any = False
         self.session_id = ""
@@ -335,7 +341,7 @@ class TraceReader:
 
     def feed(self, ev: dict) -> None:
         typ = str(ev.get("type") or "")
-        if typ not in KNOWN_EVENTS:
+        if typ not in self.known_events:
             self.unread[typ or "<untyped>"] += 1
             return
         self.saw_any = True
@@ -355,7 +361,7 @@ class TraceReader:
 
     def _update(self, upd: dict) -> None:
         kind = str(upd.get("type") or "")
-        if kind not in KNOWN_UPDATES:
+        if kind not in self.known_updates:
             self.unread[f"message_update/{kind}"] += 1
         elif kind == "toolcall_end":
             call = upd.get("toolCall") or {}
@@ -409,6 +415,16 @@ class TraceReader:
         except (TypeError, ValueError):
             pass
 
+    def classify(self, text: str, *, exit_code: int | None, killed: Stop | None) -> Stop:
+        """How the launch ended, from its final text, its exit and what the provider said."""
+        # Rate limit before the text/exit-code shape: a 429 is terminal. The status is
+        # authoritative when present; the message is the fallback for providers that
+        # only say "quota".
+        rate_limited = self.api_status is None and is_rate_limited(self.api_error)
+        return classify_text_result(
+            text, saw_any=self.saw_any, exit_code=exit_code, killed=killed, rate_limited=rate_limited, api_status=self.api_status
+        )
+
     def usage(self) -> tuple[Usage, float | None]:
         """The tokens of every API call and their summed cost (None when none reported one)."""
         return Usage(calls=list(self.calls), output_total=sum(c.output for c in self.calls)), (
@@ -421,16 +437,12 @@ class TraceReader:
         """How the launch ended, and everything read on the way. `exit_code` None: no
         process exit to weigh (the RPC wire)."""
         text = "\n".join(t for t in self.texts if t).strip()
-        # Rate limit before the text/exit-code shape: a 429 is terminal. The status is
-        # authoritative when present; the message is the fallback for providers that
-        # only say "quota".
-        rate_limited = self.api_status is None and is_rate_limited(self.api_error)
-        stop = classify_text_result(
-            text, saw_any=self.saw_any, exit_code=exit_code, killed=killed, rate_limited=rate_limited, api_status=self.api_status
-        )
-        for typ in sorted(set(self.unread) - _warned):
-            _warned.add(typ)
-            _logger.warning(f"[omp] event {typ!r} is not one this contraagent reads; a newer omp? (LaunchResult.unread_events)")
+        stop = self.classify(text, exit_code=exit_code, killed=killed)
+        for typ in sorted(t for t in self.unread if (self.agent, t) not in _warned):
+            _warned.add((self.agent, typ))
+            _logger.warning(
+                f"[{self.agent}] event {typ!r} is not one this contraagent reads; a newer {self.agent}? (LaunchResult.unread_events)"
+            )
         usage, cost = self.usage()
         result_text = text
         if stop is Stop.RATE_LIMITED:

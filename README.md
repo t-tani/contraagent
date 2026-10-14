@@ -1,6 +1,6 @@
 # contraagent
 
-Run coding-agent CLIs (`claude -p`, `omp -p`) as typed, supervised, observable
+Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`, `pi -p`) as typed, supervised, observable
 tasks.
 
 This repository holds four packages, each with its documentation:

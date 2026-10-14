@@ -138,10 +138,11 @@ class Ambient(CredentialBase, frozen=True):
 
 
 class Subscription(CredentialBase, frozen=True):
-    """A stored login (Claude Pro/Max/Team/Enterprise, an omp provider login).
+    """A stored login (Claude Pro/Max/Team/Enterprise, an omp or pi provider login).
 
-    `config_dir`: Claude Code's `CLAUDE_CONFIG_DIR` holding that login (default:
-    the user's own). `profile`: omp's profile holding it (default: the default profile).
+    `config_dir`: the directory holding that login: Claude Code's `CLAUDE_CONFIG_DIR`,
+    pi's agent directory (default: the user's own). `profile`: omp's profile holding it
+    (default: the default profile).
     """
 
     type: Literal["subscription"] = "subscription"
@@ -173,7 +174,8 @@ class Gateway(CredentialBase, frozen=True):
     as a bearer token (`auth = "bearer"`) or as an API key (`auth = "api_key"`).
     omp addresses it as provider `provider` (models are `<provider>/<model>`;
     `litellm` by default), with `<PROVIDER>_BASE_URL` and the provider's key
-    variable. `headers` go on every request (Anthropic-API endpoints only).
+    variable; pi as a provider of that name speaking the OpenAI chat-completions
+    API to `base_url`. `headers` go on every request (Anthropic-API endpoints only).
     `base_url` may be `env:NAME` too, read when the launch is made.
     """
 
@@ -352,6 +354,7 @@ SENSITIVE = (
     "OPENCODE_CONFIG",
     "OPENCODE_CONFIG_CONTENT",
     "OPENCODE_CONFIG_DIR",
+    "PI_CODING_AGENT_DIR",
     # other providers omp can use
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",

@@ -8,7 +8,7 @@
 # --- run-wide defaults --------------------------------------------------------
 
 [defaults]
-agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc, opencode
+agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc, opencode, pi
 effort = "medium"                   # checked against the agent's CLI (Backend.effort_levels)
 credential = "personal"             # without it: "ambient", the host's own setup
 # model = "claude-sonnet-5-5"       # without it: the agent's default model

@@ -7,8 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `pi` (pi.dev) as a coding agent: `agent = "pi"`, `PiBackend`. A launch runs
+  `pi --mode json -p` with an agent directory of contraagent's own that links
+  the user's pi logins and nothing else of theirs, and with pi's discovery of
+  context files, settings, extensions, skills and MCP servers turned off. Its
+  plugin's skills, hooks (`pi/index.ts`, rendered from `hooks.toml`) and
+  `.mcp.json` reach it by flag. Credentials: `ambient`, `subscription` (a pi
+  agent directory's `/login`, `config_dir`), `api_key`, `oauth_token`
+  (Anthropic) and `gateway` (an OpenAI-compatible endpoint such as LiteLLM).
+  A provider's refusal, which pi reports in its last message with exit status
+  0, ends the launch `rate_limited` (a 429, or a spent quota under any status),
+  `auth_failed` (401, 403) or `api_error`.
+
 ### Changed
 
+- `contraagent plugin render` writes one `package.json` for omp and pi: each
+  renderer's own key is set or removed, the others are kept.
 - A quota reading names its account (`account`, a 12-hex-digit digest of the login's UUID
   or the credential's secret, never the value), and a credential's rests are judged by
   the readings of the account a launch as it bills (`Backend.account`): a token replaced
