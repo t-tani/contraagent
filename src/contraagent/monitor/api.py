@@ -770,9 +770,9 @@ class TaskDetail(Open):
 
 # --- transcript ------------------------------------------------------------
 #
-# What `contraagent.backends.streams.normalize_stream_event` emits: one
-# renderable event per transcript line, the same vocabulary for every backend
-# (`backends/claude/stream.py`, `backends/omp/trace.py`). Fields are as wide as
+# What `contraagent.backends.streams.normalize_stream_line` emits: the
+# renderable events of each transcript line, the same vocabulary for every backend
+# (`backends/claude/stream.py`, `backends/omp/trace.py`, `backends/opencode/wire.py`). Fields are as wide as
 # the normalizers make them (a tool name the agent did not send is null).
 
 

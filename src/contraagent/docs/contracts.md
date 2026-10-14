@@ -87,6 +87,7 @@ shows it on the tokens of each attempt. Each coding agent does it with its own f
 |---|---|---|---|
 | Claude Code | `--system-prompt` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
 | omp | `--system-prompt`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
+| opencode | an agent of its own (`--agent`) whose `prompt` it is; opencode's free models refuse such a session | that agent's `permission` denies every tool | the user's opencode config is not read either (an empty `XDG_CONFIG_HOME`: with no tool, nothing else reads it); no plugin |
 
 A coding agent that cannot launch so is refused for a kind with `tools=()`, on
 every route of the kind, failover hops included (`Backend.light_launch`). The

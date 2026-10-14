@@ -91,6 +91,9 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 - On omp no stop hook can keep a session going: the runner's check and its
   session resume enforce the output instead. omp's credential isolation is
   verified for the `anthropic` and `litellm` providers only.
+- opencode is the same on stop hooks. It reports no 5-hour or weekly usage, so
+  a credential used on opencode never rests on a quota; a launch it runs sees
+  the user's own opencode config (`~/.config/opencode`), except a light launch.
 - `workload_identity`, `bedrock` and `vertex` follow Claude Code's
   documentation and are not yet checked against the real CLI.
 

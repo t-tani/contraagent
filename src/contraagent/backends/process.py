@@ -70,12 +70,26 @@ def _feed(pipe, text: str) -> None:
             pass
 
 
-def _drain(pipe, buf: list[str]) -> None:
-    try:
-        data = pipe.read()
-    except OSError:
+def _drain(pipe, buf: list[str], sink: Sink | None = None, stops: list[Stop] | None = None) -> None:
+    """Read stderr to its end into `buf`; with a `sink`, line by line, its first `Stop` in `stops`."""
+    if sink is None:
+        try:
+            data = pipe.read()
+        except OSError:
+            return
+        buf.append(data.decode("utf-8", "replace") if isinstance(data, bytes) else data)
         return
-    buf.append(data.decode("utf-8", "replace") if isinstance(data, bytes) else data)
+    try:
+        for raw in iter(pipe.readline, b""):
+            buf.append(raw.decode("utf-8", "replace"))
+            if len(buf) > 200:  # only the tail is returned
+                del buf[:100]
+            if stops is not None and not stops:
+                stop = sink(raw.rstrip(b"\n"))
+                if stop is not None:
+                    stops.append(stop)
+    except (OSError, ValueError):
+        return
 
 
 def _terminate(proc: subprocess.Popen) -> None:
@@ -132,7 +146,7 @@ def write_launch_marker(argv: list[str], launch: Launch) -> None:
 
 
 def run_process(
-    argv: list[str], env: dict[str, str], launch: Launch, sink: Sink | None = None
+    argv: list[str], env: dict[str, str], launch: Launch, sink: Sink | None = None, stderr_sink: Sink | None = None
 ) -> tuple[bytes, str, int | None, Stop | None]:
     """Run argv to completion under the launch's `Limits`. Returns stdout, stderr tail, exit, kill reason.
 
@@ -143,6 +157,11 @@ def run_process(
     boundaries are tracked in a buffer kept separate from `stream_path`'s
     own writes, which stay exactly the raw bytes read off the fd — the
     sink's bookkeeping never touches what lands on disk.
+
+    `stderr_sink` is the same for stderr, for a CLI that reports something
+    only there (opencode logs a provider's refusal it keeps retrying, and
+    prints nothing on stdout while it waits). Its `Stop` ends the run
+    within a second.
     """
     started_wall = time.monotonic()
     since = live_processes.epoch()
@@ -161,13 +180,13 @@ def run_process(
         raise LaunchError(str(exc)) from exc
     live_processes.register(proc, since=since)
     try:
-        return _supervise(proc, argv, launch, sink, started_wall)
+        return _supervise(proc, argv, launch, sink, started_wall, stderr_sink)
     finally:
         live_processes.unregister(proc)
 
 
 def _supervise(
-    proc: subprocess.Popen, argv: list[str], launch: Launch, sink: Sink | None, started_wall: float
+    proc: subprocess.Popen, argv: list[str], launch: Launch, sink: Sink | None, started_wall: float, stderr_sink: Sink | None = None
 ) -> tuple[bytes, str, int | None, Stop | None]:
     # Head of this invocation's stream append: the as-is argv + submitted
     # prompt, before any of the child's own output lands. Written once per
@@ -177,8 +196,9 @@ def _supervise(
     if via_stdin(launch):
         threading.Thread(target=_feed, args=(proc.stdin, launch.prompt), daemon=True).start()
     stderr_buf: list[str] = []
+    stderr_stops: list[Stop] = []
     assert proc.stderr is not None
-    th = threading.Thread(target=_drain, args=(proc.stderr, stderr_buf), daemon=True)
+    th = threading.Thread(target=_drain, args=(proc.stderr, stderr_buf, stderr_sink, stderr_stops), daemon=True)
     th.start()
     assert proc.stdout is not None
     fd = proc.stdout.fileno()
@@ -203,6 +223,9 @@ def _supervise(
                 break
             if stall_s and now - last_line > stall_s:
                 killed = Stop.STALLED
+                break
+            if stderr_stops:
+                killed = stderr_stops[0]
                 break
             # Wake no later than the stall check is due, so a short stall_s
             # is enforced at its own resolution rather than the 1s poll's.

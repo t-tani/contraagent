@@ -8,7 +8,7 @@
 # --- run-wide defaults --------------------------------------------------------
 
 [defaults]
-agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc
+agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc, opencode
 effort = "medium"                   # checked against the agent's CLI (Backend.effort_levels)
 credential = "personal"             # without it: "ambient", the host's own setup
 # model = "claude-sonnet-5-5"       # without it: the agent's default model
@@ -71,7 +71,7 @@ credential = "company-gateway"
 # Secrets are references, read in the launching process: env:NAME or file:/path.
 # `traits` are labels a task's `requires` is matched against.
 
-[credentials.personal]              # a /login (Claude Code) or a profile login (omp)
+[credentials.personal]              # a /login (Claude Code), a profile login (omp) or a stored login (opencode)
 type = "subscription"
 max_five_hour_pct = 90              # quota caps: past them the credential rests until the window resets,
 max_seven_day_pct = 95              # and its tasks take the next hop (or are deferred with none left)
@@ -89,7 +89,7 @@ type = "gateway"
 base_url = "env:LITELLM_BASE_URL"   # or a literal URL
 token = "env:LITELLM_API_TOKEN"
 # auth = "bearer"                   # or "api_key" (sent as x-api-key; Claude Code only)
-# provider = "litellm"              # how omp addresses it: models are litellm/<model>
+# provider = "litellm"              # how omp and opencode address it: models are litellm/<model>
 # headers = { X-Team = "research" } # Anthropic-API endpoints only
 
 [credentials.token-a]               # long-lived OAuth tokens (claude setup-token)

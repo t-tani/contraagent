@@ -33,7 +33,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from contraagent import rundir
-from contraagent.backends.streams import normalize_stream_event, resolve_format
+from contraagent.backends.streams import normalize_stream_line, resolve_format
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import paths, trends
@@ -649,15 +649,14 @@ class Monitor:
         end = start
         for line in lines:
             end += 1
-            ev = normalize_stream_event(fmt, line)
-            if ev is not None:
+            for ev in normalize_stream_line(fmt, line):
                 if ev.get("type") == "tool_execution_start" and ev.get("call"):
                     tools[ev["call"]] = ev.get("tool") or ""
                 elif ev.get("type") == "tool_execution_end" and not ev.get("tool"):
                     ev["tool"] = tools.get(ev.get("call") or "", "")
                 out.append(ev)
-                if len(out) >= limit:
-                    break
+            if len(out) >= limit:
+                break
         return {"events": out, "total": total, "behind": behind}, end
 
     # --- contracts: the files tasks must leave behind ----------------------

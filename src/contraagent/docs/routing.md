@@ -22,8 +22,8 @@ but it may be a typo.
 
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
-on omp contraagent sums the cost omp reports for each API call and ends the
-launch (`budget`) once it passes the cap. Every key: the reference at the end.
+on omp and opencode contraagent sums the cost the agent reports for each API
+call and ends the launch (`budget`) once it passes the cap. Every key: the reference at the end.
 
 ## Failover
 
@@ -65,18 +65,20 @@ never written anywhere.
 
 Each coding agent says which credential types it can use:
 
-| type | claude | omp |
-|---|---|---|
-| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile |
-| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) |
-| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic |
-| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) |
-| `workload_identity`, `bedrock`, `vertex` | yes | — |
-| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same |
+| type | claude | omp | opencode |
+|---|---|---|---|
+| `subscription` | the `/login` in a `CLAUDE_CONFIG_DIR` | the login in an omp profile | the provider's stored login (`opencode providers login`) |
+| `api_key` | Anthropic | any provider (`<PROVIDER>_API_KEY`) | any provider |
+| `oauth_token` | `CLAUDE_CODE_OAUTH_TOKEN` | Anthropic | — |
+| `gateway` | an Anthropic-API endpoint (bearer or API key, custom headers) | a provider endpoint (`litellm` by default) | a provider endpoint: a provider opencode knows (`anthropic`, `openai`, ...) keeps its own API, another name is OpenAI-compatible |
+| `workload_identity`, `bedrock`, `vertex` | yes | — | — |
+| `pool` | several of the above used as one (`in_order`, `round_robin`) | the same | the same |
 
 A **gateway** is your own endpoint: LiteLLM, a company proxy, a self-hosted
-API. Claude Code speaks the Anthropic Messages API to it; omp addresses it as a
-provider, so its models are `litellm/<model>`.
+API. Claude Code speaks the Anthropic Messages API to it; omp and opencode
+address it as a provider, so its models are `<provider>/<model>`
+(`litellm/<model>`; on opencode, `anthropic/<model>` with `provider =
+"anthropic"` and a `base_url` ending in `/v1`).
 
 A **pool** uses several credentials as one. `in_order` uses the first member
 until it answers 429, then the next; `round_robin` turns to the next member on
@@ -121,10 +123,12 @@ monitor's overview shows them beside each account's usage: the limit on each
 window, the identity paused until when, and its rests over the run.
 
 The readings are those the coding agents report: Claude Code when a session
-starts or resumes, omp at each launch. The run starts from the newest of
-recent runs' journals and takes each launch's as it ends, so tasks that start
-together all start before the first of them reports the cap is reached. A
-credential with no readings (a gateway, an API key) never rests on a quota.
+starts or resumes, omp at each launch; opencode reports none. The run starts
+from the newest of recent runs' journals and takes each launch's as it ends, so
+tasks that start together all start before the first of them reports the cap is
+reached. A credential with no readings (a gateway, an API key, any credential on
+opencode) never rests on a quota. A quota opencode is refused on ends the launch
+`rate_limited` at once: opencode itself would wait as long as the provider asks.
 
 A reading names the **account** that reported it, so one credential's accounts
 are kept apart: `ambient` is each coding agent's own login (two accounts when
@@ -161,7 +165,11 @@ What is guaranteed:
   directories, so a key that does not work fails instead of falling back to a
   stored login. omp runs in a profile with no stored logins; omp keeps some
   logins outside its profiles, so for providers other than `anthropic` and
-  `litellm` a task that requires traits is refused on omp.
+  `litellm` a task that requires traits is refused on omp. opencode gets no
+  stored login but the chosen one, and the chosen key in its launch config,
+  over any key in the user's own opencode config; an OAuth login (which opencode
+  refreshes and writes back over every stored login) is not narrowed, so a task
+  that requires traits is refused on it.
 - **What the agent says it used.** A launch whose reported credential source
   does not match its credential ends `credential_mismatch` and is not ok.
 

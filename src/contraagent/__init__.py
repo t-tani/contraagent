@@ -1,6 +1,6 @@
 """contraagent: run coding-agent CLIs as typed, supervised, observable tasks.
 
-Think pydantic-ai for coding agents (`claude -p`, `omp -p`): the agent is
+Think pydantic-ai for coding agents (`claude -p`, `omp -p`, `opencode run`): the agent is
 a subprocess, its contract with you is a set of files it must leave
 behind, and everything around it — scheduling, failover, resume, live
 monitoring — is the framework's job.
@@ -59,6 +59,7 @@ from contraagent.backends import (
     OAuthToken,
     OmpBackend,
     OmpRpcBackend,
+    OpencodeBackend,
     Pool,
     RateLimit,
     Secret,
@@ -69,7 +70,7 @@ from contraagent.backends import (
     create_backend,
     register_backend,
 )
-from contraagent.backends.streams import normalize_stream_event, read_stream, register_normalizer
+from contraagent.backends.streams import normalize_stream_line, read_stream, register_normalizer
 from contraagent.calls import CallFile
 from contraagent.contracts import InputContract, OutputContract, check_input, run_until_valid
 from contraagent.dispatch import (
@@ -141,6 +142,7 @@ __all__ = [
     "OAuthToken",
     "OmpBackend",
     "OmpRpcBackend",
+    "OpencodeBackend",
     "OutputContract",
     "Overrides",
     "Pending",
@@ -181,7 +183,7 @@ __all__ = [
     "create_backend",
     "kind_name",
     "make_python_task",
-    "normalize_stream_event",
+    "normalize_stream_line",
     "python_task",
     "read_stream",
     "register_backend",

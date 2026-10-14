@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the graph, Enter goes into it. `<cae-layered-graph>`: `toggle` on a node or a cluster
   (`cae-toggle`), a cluster's `path`, `focusToggle()`; `extentOf` in
   `@contraagent/elements/graph`.
+- `normalize_stream_event` is `normalize_stream_line`, and returns the list of events
+  one stream line holds: a stream format's `normalize_event` may return several (a
+  tool call and its result, which opencode prints as one line).
 - A unit locks nothing: tasks of different kinds on one unit run together unless they
   claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
   must not overlap on a unit.
@@ -381,6 +384,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rerun_on_resume=True` on `agent_task` and `@python_task`: a resume runs the task again
   even when an earlier attempt finished it, for a final step that reports or publishes the
   state of the work (a site, statistics, a commit) and takes no output of the tasks before it.
+- opencode as a coding agent (`agent = "opencode"`, `OpencodeBackend`): `opencode run
+  --format json`, with models as `provider/model`. A task's plugin reaches it as config:
+  its role is added to opencode's system prompt, its skills, MCP servers and rendered
+  hooks (`contraagent plugin render` writes `opencode/index.js`) are loaded, and the
+  role's `tools:` are the tools it may use. Credentials: a stored login, an API key or a
+  gateway, each the only one the launch sees; a light launch; resume after failed
+  checks; cost caps; and a provider's quota refusal ends the launch `rate_limited` at
+  once (opencode would wait days for a weekly quota, printing nothing). The project's
+  AGENTS.md, `opencode.json` and `.opencode/`, and the user's `~/.claude/`, are kept out,
+  and sessions stay out of the user's opencode database. The monitor shows its
+  transcripts. Recorded wire: `tests/fixtures/opencode/record.py`.
+- `CONTRAAGENT_LIVE_AGENTS` runs the live tests of some coding agents only
+  (`CONTRAAGENT_LIVE_AGENTS=opencode`).
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a

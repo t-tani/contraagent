@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Plugin, PluginError, agent_task
+from contraagent import Launch, OpencodeBackend, Plugin, PluginError, agent_task
 from contraagent.backends.omp.backend import plugin_extension_args
 from contraagent.pipeline.adapter import SpecAdapter
 from contraagent.pipeline.graph import Graph
@@ -78,6 +78,11 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert json.loads((plugin / "package.json").read_text())["omp"] == {"extensions": ["./omp/index.ts"]}
     assert any("stop hook cannot continue" in n for n in notes)  # the difference is stated, not hidden
     assert plugin_extension_args([str(plugin)]) == ["-e", str(plugin.resolve() / "omp" / "index.ts")]
+    opencode = (plugin / "opencode" / "index.js").read_text()
+    assert '"tool.execute.before"' in opencode and '"tool.execute.after"' in opencode and '"match": "update-finding"' in opencode
+    assert any(n.startswith("opencode: a stop hook") for n in notes)
+    launch = Launch(prompt="x", plugin_dirs=(str(plugin),))
+    assert OpencodeBackend(base_env={}).config(launch)["plugin"] == [f"file://{plugin.resolve()}/opencode/index.js"]
 
 
 def test_a_new_agent_registers_its_own_renderer(plugin):

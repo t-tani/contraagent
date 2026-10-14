@@ -348,6 +348,10 @@ SENSITIVE = (
     # where a coding agent keeps its own logins
     "CLAUDE_CONFIG_DIR",
     "OMP_PROFILE",
+    "OPENCODE_AUTH_CONTENT",
+    "OPENCODE_CONFIG",
+    "OPENCODE_CONFIG_CONTENT",
+    "OPENCODE_CONFIG_DIR",
     # other providers omp can use
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",

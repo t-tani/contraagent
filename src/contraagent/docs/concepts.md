@@ -8,7 +8,7 @@ documentation. No other word is used for the same thing.
 
 | Word | Means | In code |
 |---|---|---|
-| **coding agent** | the CLI program that does the work (`claude`, `omp`) | `agent` in config, routes, journal and monitor; `Backend` is its Python adapter |
+| **coding agent** | the CLI program that does the work (`claude`, `omp`, `opencode`) | `agent` in config, routes, journal and monitor; `Backend` is its Python adapter |
 | **LLM** | the language model the coding agent runs on, nothing else | `model` |
 | **agent task** / **Python task** | a task a coding agent executes / one this process executes | `agent_task`, `@python_task`; on disk `executor: "agent" \| "python"` |
 | **kind** | the class of work (`summarize`); a Python task's kind is its own name | `Task.kind` |
@@ -98,15 +98,15 @@ documentation. No other word is used for the same thing.
 | **active transcript** | a transcript whose task is running or whose file grew in the last seconds; a relay ships it between its full passes | `Relay.fast_once` |
 | **journal** / **plan** | the finished attempts / the queued tasks | `journal.jsonl` / `plan.jsonl` |
 | **unread event** | an event type a coding agent sent that its reader in this contraagent does not know: a newer coding agent | `LaunchResult.unread_events`, `JournalRow.unread_events` |
-| **web fetch** | the coding agent reading a web page by its URL (Claude Code `WebFetch`, omp `read` of a URL) | a transcript's tool call `web_fetch` |
-| **web search** | a search of the web by the coding agent's own tool (Claude Code `WebSearch`, omp `web_search`); its query is recorded | `LaunchResult.web_queries`, `JournalRow.web_queries`; a transcript's tool call `web_query` |
+| **web fetch** | the coding agent reading a web page by its URL (Claude Code `WebFetch`, omp `read` of a URL, opencode `webfetch`) | a transcript's tool call `web_fetch` |
+| **web search** | a search of the web by the coding agent's own tool (Claude Code `WebSearch`, omp `web_search`, opencode `websearch`); its query is recorded | `LaunchResult.web_queries`, `JournalRow.web_queries`; a transcript's tool call `web_query` |
 | **tail** | the expected wall time of the work a flow creates after a task, not queued when the task is: the median, over tasks with the same flow path's function names, kind and loop passes (capped) in recent runs and in this one, of the longest complete chain of wall times after them along `after` and created from | `Task.tail_s`, `JournalEstimates.tail`, `TailKey` |
 | **bottom level** | a queued task's estimate plus the longer of its known dependents' path and its tail: the queue's priority | `WorkQueue._blevel` |
 | **overdue** | a queued task startable for longer than `overdue_s`: it goes before the others, and while it is the first that cannot start, no later task takes the last place it needs on a name it claims or under its kind's cap (the starvation guard) | `WorkQueue(overdue_s=)` |
 | **slack** | the time before the deadline from which the queue orders for the deadline: shortest remaining work first, deferring what cannot finish | `WorkQueue(slack_s=)` |
 | **time box** | a deadline over part of a run: the run's own (`deadline_s`), or a flow call's, counted from its start, over the tasks it and the flow calls it starts create; past it only its finishing kinds launch, for its grace window; a task is held to every time box it is in | `time_box(flow, deadline_s=, grace_s=, finishing_kinds=, slack_s=)`, `TimeBox`, `Task.time_boxes`; `flow_calls.jsonl` and monitor `FlowCallNode.time_box`; a deferral's cause `flow_call` |
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
-| **stream format** | how a stream file is parsed (`claude`, `omp`) | `normalize_stream_event(format, ...)` |
+| **stream format** | how a stream file is parsed (`claude`, `omp`, `opencode`) | `normalize_stream_line(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
 | **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
 | **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |

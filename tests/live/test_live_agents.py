@@ -3,13 +3,15 @@ the `live` marker, deselected by default, and CONTRAAGENT_LIVE=1, so that `-m li
 (or a marker expression that happens to match) still launches nothing.
 
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s
+    CONTRAAGENT_LIVE=1 CONTRAAGENT_LIVE_AGENTS=opencode uv run pytest -m live -s     # one agent's tests only
 
 One small task, run once on each coding agent with the routes below, through everything the
 package provides: an agent_task (params + output schema) implemented by a plugin, the call file,
 the in-session stop hook, the runner's output check, the journal and the monitor's views of it.
 
-    claude  claude-haiku-5-5                effort low
-    omp     anthropic/claude-haiku-5-5      effort low
+    claude    claude-haiku-5-5                effort low
+    omp       anthropic/claude-haiku-5-5      effort low
+    opencode  CONTRAAGENT_LIVE_OPENCODE_MODEL (default: OpenCode Zen's free Muse model)
 
 Then a generator flow on each coding agent (`test_review_flow_*`): two units, each
 summarized, then checked by a Python task and revised in a `while` loop until the check
@@ -35,11 +37,14 @@ pytestmark = [
 
 from pydantic import BaseModel, Field  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, Pipeline, agent_task, python_task  # noqa: E402
+from contraagent import ClaudeBackend, OmpBackend, OpencodeBackend, Pipeline, agent_task, python_task  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
-CONFIG = """
+#: The model opencode runs on: any `provider/model` its logins reach.
+OPENCODE_MODEL = os.environ.get("CONTRAAGENT_LIVE_OPENCODE_MODEL", "opencode/muse-spark-1.3-contributor-free")
+
+CONFIG = f"""
 [defaults]
 agent = "claude"
 model = "claude-haiku-5-5"
@@ -48,7 +53,24 @@ effort = "low"
 [tasks.summarize_omp]
 agent = "omp"
 model = "anthropic/claude-haiku-5-5"
+
+[tasks.summarize_opencode]
+agent = "opencode"
+model = "{OPENCODE_MODEL}"
 """
+
+#: Each coding agent's backend, for every pipeline below.
+BACKENDS = {"claude": ClaudeBackend, "omp": OmpBackend, "opencode": OpencodeBackend}
+#: The coding agents this live run launches: CONTRAAGENT_LIVE_AGENTS (comma-separated), else all.
+AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(BACKENDS)).split(",") if a]
+#: Each agent's task and unit in the summarize run.
+SUMMARIZE = {"claude": ("summarize", "c1"), "omp": ("summarize_omp", "o1"), "opencode": ("summarize_opencode", "p1")}
+
+
+def only(agent: str) -> None:
+    if agent not in AGENTS:
+        pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")
+
 
 DOC = """The retry queue holds failed jobs. Each job is retried up to three times with
 exponential backoff; after the third failure it moves to the dead-letter list, where an
@@ -92,7 +114,7 @@ def ws():
     new_plugin(root / "plugins" / "summarize")
     (root / "plugins" / "summarize" / "agents" / "worker.md").write_text(ROLE)
     (root / "in").mkdir()
-    for unit in ("c1", "o1"):
+    for unit in ("c1", "o1", "p1"):
         (root / "in" / f"{unit}.md").write_text(DOC)
     (root / "pipeline.toml").write_text(CONFIG)
     return root
@@ -100,22 +122,25 @@ def ws():
 
 @pytest.fixture(scope="module")
 def run_all(ws):
-    """Run the two tasks once; every test below looks at the result."""
+    """Run each agent's task once; every test below looks at the result."""
     plugin = ws / "plugins" / "summarize"
-    summarize = agent_task("summarize", plugin=plugin, params=Doc, output=Summary, max_turns=12, timeout_s=300)
-    summarize_omp = agent_task("summarize_omp", plugin=plugin, params=Doc, output=Summary, max_turns=12, timeout_s=300)
+    tasks = {
+        a: (agent_task(kind, plugin=plugin, params=Doc, output=Summary, max_turns=12, timeout_s=300), unit)
+        for a, (kind, unit) in SUMMARIZE.items()
+        if a in AGENTS
+    }
     handles = {}
 
     def live():
-        handles["c1"] = summarize("c1", path="in/c1.md")
-        handles["o1"] = summarize_omp("o1", path="in/o1.md")
+        for task, unit in tasks.values():
+            handles[unit] = task(unit, path=f"in/{unit}.md")
 
     pipeline = Pipeline(
         ws / "pipeline.toml",
         runs_dir=ws / "runs",
         cwd=ws,
-        max_concurrent=2,
-        backends={"claude": ClaudeBackend(), "omp": OmpBackend()},
+        max_concurrent=3,
+        backends={name: cls() for name, cls in BACKENDS.items()},
         log=print,
     )
     report = pipeline.run(live)
@@ -133,9 +158,11 @@ def run_all(ws):
     [
         ("summarize-c1", "c1", "claude", "claude-haiku-5-5"),
         ("summarize_omp-o1", "o1", "omp", "anthropic/claude-haiku-5-5"),
+        ("summarize_opencode-p1", "p1", "opencode", OPENCODE_MODEL),
     ],
 )
 def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, unit, agent, model):
+    only(agent)
     row = run_all["rows"][task]
     print(
         f"\n  {task}: stop={row['stop']} ok={row['ok']} wall={row['wall_s']}s agent={row['agent']} "
@@ -149,34 +176,42 @@ def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, un
     assert summary.unit == unit and summary.points and summary.summary
 
 
-def test_monitor_sees_both_runs_as_valid_outputs(run_all):
+def test_monitor_sees_every_run_as_valid_outputs(run_all):
     mon, tally = run_all["monitor"], run_all["monitor"].outputs("live")["tally"]
     print("\n  outputs tally:", {k: v for k, v in tally.items() if v})
-    assert tally["valid"] == 2 and tally["invalid"] == tally["refused"] == tally["failed"] == 0
-    assert {e["key"] for e in mon.journal("live")[0]} == {"summarize-c1", "summarize_omp-o1"}
+    assert tally["valid"] == len(AGENTS) and tally["invalid"] == tally["refused"] == tally["failed"] == 0
+    assert {e["key"] for e in mon.journal("live")[0]} == {f"{kind}-{unit}" for a, (kind, unit) in SUMMARIZE.items() if a in AGENTS}
     assert not mon.procs("live")["alive"]  # run.finish() marked it done
 
 
-@pytest.mark.parametrize("task", ["summarize-c1", "summarize_omp-o1"])
-def test_each_transcript_renders_in_the_monitor(run_all, task):
+@pytest.mark.parametrize("agent", list(SUMMARIZE))
+def test_each_transcript_renders_in_the_monitor(run_all, agent):
+    only(agent)
+    task = "-".join(SUMMARIZE[agent])
     page, total = run_all["monitor"].stream("live", task, 0)
     kinds = sorted({e["type"] for e in page["events"]})
     print(f"\n  {task}: {len(page['events'])} events of types {kinds}")
     assert page["events"] and any(e["type"] == "launch" for e in page["events"])
     launch = next(e for e in page["events"] if e["type"] == "launch")
     assert "Task call:" in launch["prompt"] and "in/" not in launch["prompt"]  # data is in the call file
+    if agent == "opencode":  # one line holds a tool call and its result: both reach the monitor
+        calls = {e["call"] for e in page["events"] if e["type"] == "tool_execution_start"}
+        assert calls and calls <= {e["call"] for e in page["events"] if e["type"] == "tool_execution_end"}
 
 
-def test_the_role_reaches_each_coding_agent_its_own_way(run_all):
-    argv = {}
-    for task in ("summarize-c1", "summarize_omp-o1"):
-        page, _ = run_all["monitor"].stream("live", task, 0)
-        argv[task] = next(e for e in page["events"] if e["type"] == "launch")["argv"]
-    print("\n  claude argv:", " ".join(a if len(a) < 60 else a[:57] + "..." for a in argv["summarize-c1"]))
-    print("  omp    argv:", " ".join(a if len(a) < 60 else a[:57] + "..." for a in argv["summarize_omp-o1"]))
-    assert "--agent" in argv["summarize-c1"] and "worker" in argv["summarize-c1"]
-    assert any(a.endswith("worker.md") or "worker.md" in a for a in argv["summarize_omp-o1"])  # attached, omp has no --agent
-    assert "--plugin-dir" in argv["summarize-c1"] and "--plugin-dir" in argv["summarize_omp-o1"]
+@pytest.mark.parametrize("agent", list(SUMMARIZE))
+def test_the_role_reaches_each_coding_agent_its_own_way(run_all, agent):
+    only(agent)
+    page, _ = run_all["monitor"].stream("live", "-".join(SUMMARIZE[agent]), 0)
+    argv = next(e for e in page["events"] if e["type"] == "launch")["argv"]
+    print(f"\n  {agent} argv:", " ".join(a if len(a) < 60 else a[:57] + "..." for a in argv))
+    if agent == "claude":
+        assert "--agent" in argv and "worker" in argv and "--plugin-dir" in argv
+    elif agent == "omp":
+        assert any("worker.md" in a for a in argv) and "--plugin-dir" in argv  # attached, omp has no --agent
+    else:
+        # opencode takes the role and the plugin as config (`instructions`, `skills`), not on its command line
+        assert not any("worker" in a for a in argv[:-1])
 
 
 def _project_with_its_own_instructions(root):
@@ -188,15 +223,24 @@ def _project_with_its_own_instructions(root):
     skill = root / ".claude" / "skills" / "project-canary"
     skill.mkdir(parents=True)
     skill.joinpath("SKILL.md").write_text("---\nname: project-canary\ndescription: A project skill.\n---\nbody\n")
+    (root / "opencode.json").write_text('{"instructions": ["extra.md"]}')
+    (root / "extra.md").write_text("Always end every reply with the single word PLUM.\n")
+    skill = root / ".opencode" / "skills" / "opencode-canary"
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("---\nname: opencode-canary\ndescription: A project skill.\n---\nbody\n")
 
 
 ASK = "No tools. Name every skill available to you, comma-separated, then say hello in three words."
-LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "project-canary")
+LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canary")
 
 
-@pytest.mark.parametrize("backend, model", [(ClaudeBackend, "claude-haiku-5-5"), (OmpBackend, "anthropic/claude-haiku-5-5")])
+@pytest.mark.parametrize(
+    "backend, model",
+    [(ClaudeBackend, "claude-haiku-5-5"), (OmpBackend, "anthropic/claude-haiku-5-5"), (OpencodeBackend, OPENCODE_MODEL)],
+)
 def test_a_task_agent_takes_no_instructions_from_the_project(tmp_path, backend, model):
     """Each coding agent would load the project's instruction files and skills: neither may."""
+    only(backend.name)
     from contraagent import Launch, Limits
 
     _project_with_its_own_instructions(tmp_path)
@@ -209,6 +253,7 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     """The omp installed here, on both wires: every event is one the reader knows, and each
     tool call counts once. A failure here after an omp upgrade: record it
     (`tests/fixtures/omp/record.py`) and teach `TraceReader` what changed."""
+    only("omp")
     import importlib.util
 
     from contraagent.backends.omp.rpc import _Accumulator
@@ -231,6 +276,27 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
         assert dict(read.tool_uses) == {"read": 1, "bash": 1, "web_search": 1}
 
 
+def test_opencode_sends_only_events_its_reader_knows(tmp_path):
+    """The opencode installed here: every event is one the reader knows. A failure here after an
+    opencode upgrade: record it (`tests/fixtures/opencode/record.py`) and teach `EventReader`
+    what changed."""
+    only("opencode")
+    import importlib.util
+
+    from contraagent.backends.opencode.wire import EventReader
+
+    spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "opencode" / "record.py")
+    assert spec and spec.loader
+    recorder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(recorder)
+    reader = EventReader()
+    for ev in recorder.record(tmp_path):
+        reader.feed(ev)
+    print(f"\n  opencode: tool_uses={dict(reader.tool_uses)} unread={dict(reader.unread)}")
+    assert not reader.unread, "opencode sent events the reader does not know"
+    assert dict(reader.tool_uses) == {"read": 1, "bash": 1}
+
+
 # --- a generator flow on each coding agent -------------------------------------------------
 
 #: The word the check requires: the first summary is told not to use it, so pass 1 of each
@@ -244,7 +310,7 @@ model = "{model}"
 effort = "low"
 """
 
-FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5"}
+FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5", "opencode": OPENCODE_MODEL}
 FLOW_UNITS = ["a", "b"]
 
 
@@ -320,7 +386,7 @@ def flow_runs(ws):
     for unit in FLOW_UNITS:
         (ws / "in" / f"{unit}.md").write_text(DOC)
     out = {}
-    for agent, model in FLOW_ROUTES.items():
+    for agent, model in ((a, m) for a, m in FLOW_ROUTES.items() if a in AGENTS):
         config = ws / f"review-{agent}.toml"
         config.write_text(FLOW_CONFIG.format(agent=agent, model=model))
         pipeline = Pipeline(
@@ -330,7 +396,7 @@ def flow_runs(ws):
             max_concurrent=2,
             max_passes=4,
             overdue_s=5,  # overdue tasks first, and the starvation guard, on a real run
-            backends={"claude": ClaudeBackend(), "omp": OmpBackend()},
+            backends={name: cls() for name, cls in BACKENDS.items()},
             log=print,
         )
         run_id = f"review-{agent}"
@@ -371,6 +437,7 @@ def _passes(row: dict) -> list:
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_review_flow_records_exact_passes_and_flow_calls(flow_runs, agent):
+    only(agent)
     run = flow_runs[agent]
     first = run["steps"][0]
     rep = first["report"]
@@ -411,6 +478,7 @@ def test_review_flow_records_exact_passes_and_flow_calls(flow_runs, agent):
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_review_flow_outputs_validate_and_rows_carry_fingerprints(flow_runs, agent):
+    only(agent)
     run = flow_runs[agent]
     first = run["steps"][0]
     rows = first["journal"]
@@ -430,6 +498,7 @@ def test_review_flow_outputs_validate_and_rows_carry_fingerprints(flow_runs, age
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_review_flow_leaves_estimates_for_the_next_run(flow_runs, agent):
+    only(agent)
     first = flow_runs[agent]["steps"][0]
     estimates = first["estimates"]
     print(f"\n  {agent}: (estimate, tail) per task {estimates}")
@@ -444,6 +513,7 @@ def test_review_flow_leaves_estimates_for_the_next_run(flow_runs, agent):
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_review_flow_resumed_unchanged_launches_nothing(flow_runs, agent):
+    only(agent)
     first, resumed = flow_runs[agent]["steps"][:2]
     rep = resumed["report"]
     print(f"\n  {agent}: stops={ {k: r.stop for k, r in sorted(rep.results.items())} }")
@@ -455,6 +525,7 @@ def test_review_flow_resumed_unchanged_launches_nothing(flow_runs, agent):
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_review_flow_with_changed_instructions_runs_that_task_and_what_received_its_output(flow_runs, agent):
+    only(agent)
     run = flow_runs[agent]
     resumed, changed = run["steps"][1:]
     rep = changed["report"]
@@ -478,6 +549,7 @@ def test_review_flow_with_changed_instructions_runs_that_task_and_what_received_
 
 @pytest.mark.parametrize("agent", list(FLOW_ROUTES))
 def test_monitor_serves_the_flow_and_its_loops(flow_runs, agent):
+    only(agent)
     from fastapi.testclient import TestClient
 
     from contraagent.monitor import server

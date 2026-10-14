@@ -41,8 +41,8 @@ HOOKS_TOML = "hooks.toml"
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
 #: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
-RENDERED = ("hooks", "package.json", "omp")
-NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp")
+RENDERED = ("hooks", "package.json", "omp", "opencode")
+NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp", "opencode")
 
 
 class PluginError(ContraagentError):
