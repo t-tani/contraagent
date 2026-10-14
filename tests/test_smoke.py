@@ -7,7 +7,7 @@ from contraagent.routing import Route, Router, load_fallbacks
 
 def test_create_backend():
     assert type(contraagent.create_backend("claude")).__name__ == "ClaudeBackend"
-    assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi")
+    assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi", "codex")
     assert type(contraagent.create_backend("opencode")).__name__ == "OpencodeBackend"
     with pytest.raises(KeyError):
         contraagent.create_backend("nope")

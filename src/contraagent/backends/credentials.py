@@ -355,6 +355,10 @@ SENSITIVE = (
     "OPENCODE_CONFIG_CONTENT",
     "OPENCODE_CONFIG_DIR",
     "PI_CODING_AGENT_DIR",
+    "CODEX_HOME",
+    # Codex
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
     # other providers omp can use
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",

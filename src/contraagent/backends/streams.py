@@ -1,14 +1,16 @@
 """Stream-event normalizer, dispatching on the stream format.
 
-Every backend (`claude`, `omp`, `omp-rpc`, `opencode`, `pi`) writes raw
-per-launch lines to `launch.stream_path`, in three distinct wire
+Every backend (`claude`, `omp`, `omp-rpc`, `opencode`, `pi`, `codex`) writes raw
+per-launch lines to `launch.stream_path`, in four distinct wire
 vocabularies: omp's/omp-rpc's/pi's `--mode json`/RPC shapes
 (`assistantMessageEvent`/`toolCall`/`toolResult`/...), claude's own
-`--output-format stream-json` shapes (Anthropic Messages API events), and
-opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...).
+`--output-format stream-json` shapes (Anthropic Messages API events),
+opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...) and
+codex's `exec --json` items.
 This module gives them a single call site: look up the stream format's own
 `normalize_event`, in its own module (`backends/claude/stream.py`,
-`backends/omp/trace.py`, `backends/opencode/wire.py`), and use its output as-is.
+`backends/omp/trace.py`, `backends/opencode/wire.py`, `backends/codex/wire.py`),
+and use its output as-is.
 
 Every per-backend `normalize_event` emits the *same* renderable
 shape (`message_update`/`tool_execution_start`/`notice`/...) that
@@ -20,7 +22,8 @@ real tasks run without it and their stdout is plain text.
 `_PLAINTEXT_FALLBACK` wraps such a line into the same renderable shape, so
 a non-JSON line is shown rather than dropped.
 
-Nothing in `backends/claude/stream.py`, `backends/omp/trace.py` or `backends/opencode/wire.py` imports this
+Nothing in `backends/claude/stream.py`, `backends/omp/trace.py`, `backends/opencode/wire.py`
+or `backends/codex/wire.py` imports this
 module back — they are leaves this module depends on, never the reverse.
 """
 
@@ -29,6 +32,7 @@ from __future__ import annotations
 import json
 
 from contraagent.backends.claude import stream as claude_stream
+from contraagent.backends.codex import wire as codex_wire
 from contraagent.backends.omp import trace as omp_trace
 from contraagent.backends.opencode import wire as opencode_wire
 
@@ -51,6 +55,8 @@ _NORMALIZERS = {
     "opencode": opencode_wire.normalize_event,
     # pi sends the agent events omp was forked from (`backends/pi/wire.py`).
     "pi": omp_trace.normalize_event,
+    # `codex exec --json`: always JSON, so no plain-text fallback.
+    "codex": codex_wire.normalize_event,
 }
 
 # Backends that can run with trace off (omp's --mode json defaults on

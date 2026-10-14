@@ -413,6 +413,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transcripts. Recorded wire: `tests/fixtures/opencode/record.py`.
 - `CONTRAAGENT_LIVE_AGENTS` runs the live tests of some coding agents only
   (`CONTRAAGENT_LIVE_AGENTS=opencode`).
+- Codex CLI as a coding agent: `agent = "codex"` runs `codex exec --json`, with
+  `subscription` (ChatGPT login), `api_key` (OpenAI) and `gateway` (a Responses-API
+  endpoint such as LiteLLM) credentials, session resume, `--output-schema`, per-call
+  tokens and plan usage from the session's rollout file, and its transcript in the monitor.
+  A task's role, skills (and those of its `skills_from`) and `.mcp.json` reach it;
+  the user's own skills do not.
+- A ChatGPT login is one credential for codex and omp: `type = "subscription"`,
+  `provider = "openai"`. On omp it runs the `openai-codex/<model>` models, and its
+  5-hour and weekly usage is read at each launch.
 - The monitor's overview shows each model's share of a run's agent sessions, by cost,
   tokens, time or sessions, as one bar and a table of every model (`Plan.models`). Each
   journal hop records its coding agent and its own tokens (`Hop.agent`, `Hop.usage`), so a

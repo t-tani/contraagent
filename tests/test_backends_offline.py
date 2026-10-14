@@ -268,3 +268,18 @@ def test_omp_rpc_reads_its_session_id_past_frames_that_come_first(tmp_path):
     backend = OmpRpcBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
     result = backend.run(Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
     assert result.ok and result.result_text == "done" and result.session_id == "s-42"
+
+
+def test_a_chatgpt_login_is_one_credential_for_omp_and_codex():
+    """`provider = "openai"` names whose login it is; omp runs that login's models as `openai-codex/`."""
+    import pytest
+
+    from contraagent import CodexBackend, Subscription
+    from contraagent.backends import CredentialError
+
+    sub = Subscription(name="chatgpt", provider="openai")
+    binding = OmpBackend(base_env={}).bind_credential(sub, "openai-codex/gpt-5.6-luna")
+    assert binding.isolated and "openai-codex login" in binding.isolation
+    with pytest.raises(CredentialError, match="openai-codex \\(its openai login\\)"):
+        OmpBackend(base_env={}).bind_credential(sub, "openai/gpt-5.6-luna")  # omp's openai is the API platform
+    assert CodexBackend(base_env={}).bind_credential(sub, "gpt-5.6-luna").isolated
