@@ -311,6 +311,12 @@ after every fix-up round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.Stop`, each with its meaning in `contraagent/backends/launch.py`.
 
+A run that is stopped stops its agents. Each agent runs in a session of its own, so
+a terminal's Ctrl-C does not reach it: `Pipeline.run` (on the main thread) stops the
+agents on SIGTERM and SIGINT before the process ends. A process killed outright
+(SIGKILL, out of memory) runs nothing, so a watchdog process, started with the
+first agent, stops the agents still running once that process is gone.
+
 ## The engine underneath
 
 The parts under `Pipeline` work on their own; their docstrings describe them.

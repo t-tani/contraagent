@@ -748,6 +748,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A coding agent no longer outlives the pipeline that launched it. `Pipeline.run`
+  stops its agents on SIGTERM and Ctrl-C (agents run in sessions of their own, which a
+  terminal's Ctrl-C does not reach), and a watchdog process stops them when the pipeline's
+  process is killed outright (SIGKILL, out of memory).
 - A task queued while the queue was starting tasks (a rest's or a time box's deferral
   answered by a follow-up, such as a finishing task) launches: when nothing else ran, the
   queue deferred it as never queued (`no launchable task (dependency never queued)`)
