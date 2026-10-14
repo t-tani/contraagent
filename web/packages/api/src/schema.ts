@@ -549,6 +549,11 @@ export type components = {
              */
             left_s?: number | null;
             /**
+             * Flow Call
+             * @description `deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline
+             */
+            flow_call?: string | null;
+            /**
              * Rests
              * @description `rest`: each hop passed over and why its credential rests
              */
@@ -651,6 +656,8 @@ export type components = {
              * @description `<type>: <message>` of what it raised (or what closing it raised); else null
              */
             error?: string | null;
+            /** @description its own deadline, for a flow call yielded through `time_box`; else null */
+            time_box?: components["schemas"]["TimeBoxInfo"] | null;
         };
         /**
          * FlowFrame
@@ -1773,6 +1780,37 @@ export type components = {
              * @description the full command line, cut at 600 characters
              */
             cmd: string;
+        };
+        /**
+         * TimeBoxInfo
+         * @description A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it.
+         */
+        TimeBoxInfo: {
+            /**
+             * Started At
+             * @description when the flow call started, where its deadline counts from (UTC ISO 8601)
+             */
+            started_at: string;
+            /**
+             * Deadline S
+             * @description seconds from `started_at` to the deadline
+             */
+            deadline_s: number;
+            /**
+             * Grace S
+             * @description seconds past the deadline its `finishing_kinds` still launch
+             */
+            grace_s: number;
+            /**
+             * Slack S
+             * @description seconds before the deadline from which its tasks are ordered for it
+             */
+            slack_s: number;
+            /**
+             * Finishing Kinds
+             * @description the kinds that still launch past the deadline
+             */
+            finishing_kinds?: string[];
         };
         /**
          * TokenUsage

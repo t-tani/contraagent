@@ -38,18 +38,21 @@ function byIdentity<T extends QuotaRest>(rests: readonly T[]): T[] {
 }
 
 /**
- * Why the queue deferred a task, in words: `Past the deadline`, `Identity personal paused | ...`.
- * `recorded`: the run's own sentence, for a cause these words do not name. '' for none.
+ * Why the queue deferred a task, in words: `Past the deadline`, `Past the deadline of topic_work`,
+ * `Identity personal paused | ...`. `recorded`: the run's own sentence, for a cause these words do
+ * not name. `fn`: the function (`module.qualname`) of the flow call whose own deadline it was
+ * (`deferredIn`); '' for the run's. '' for none.
  */
-export function deferredText(cause: DeferralCause | null | undefined, recorded = ''): string {
+export function deferredText(cause: DeferralCause | null | undefined, recorded = '', fn = ''): string {
+  const own = fn ? fn.slice(fn.lastIndexOf('.') + 1) : '';
   switch (cause?.cause) {
     case 'deadline':
-      return msg('Past the deadline');
+      return own ? msg(str`Past the deadline of ${own}`) : msg('Past the deadline');
     case 'grace_window':
-      return msg('Past the deadline and its finishing time');
+      return own ? msg(str`Past the deadline of ${own} and its finishing time`) : msg('Past the deadline and its finishing time');
     case 'cannot_finish':
       return facts(
-        msg('Cannot finish before the deadline'),
+        own ? msg(str`Cannot finish before the deadline of ${own}`) : msg('Cannot finish before the deadline'),
         cause.need_s != null ? msg(str`needs ${fmtDur(cause.need_s)}`) : '',
         cause.left_s != null ? msg(str`${fmtDur(cause.left_s)} left`) : '',
       );

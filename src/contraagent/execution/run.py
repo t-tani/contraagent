@@ -39,6 +39,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent import procfs, rundir
@@ -46,7 +47,7 @@ from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.task import Frame, Task, TaskResult, kind_name
+from contraagent.dispatch.task import Frame, Task, TaskResult, TimeBox, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
@@ -443,15 +444,30 @@ class Run:
         flow: Sequence[Frame] = (),
         state: str = "",
         error: BaseException | None = None,
+        time_box: TimeBox | None = None,
+        started_at: float | None = None,
     ) -> None:
         """One line of `flow_calls.jsonl`. `event` "start": `{ts, id, parent, function,
         flow}`, where `flow` is the flow path where the parent yielded it (the parent's
-        frames, with their loops' passes, as in `plan.jsonl`; empty for a top flow call);
+        frames, with their loops' passes, as in `plan.jsonl`; empty for a top flow call),
+        and for a flow call yielded through `time_box`, `time_box`: `{started_at,
+        deadline_s, grace_s, slack_s, finishing_kinds}` (`started_at`: when the flow
+        call started, where its deadline counts from);
         "end": `{ts, id, state, error}`, where `state` is `returned`, `raised` or `closed`
         and `error` is `"<type>: <message>"` or null."""
         row: dict = {"ts": utcnow_iso(), "id": call_id, "event": event}
         if event == "start":
             row |= {"parent": parent, "function": function, "flow": frames_row(flow)}
+            if time_box is not None:
+                row["time_box"] = {
+                    "started_at": (
+                        datetime.fromtimestamp(started_at, UTC).isoformat(timespec="seconds") if started_at is not None else row["ts"]
+                    ),
+                    "deadline_s": time_box.deadline_s,
+                    "grace_s": time_box.grace_s,
+                    "slack_s": time_box.slack_s,
+                    "finishing_kinds": sorted(time_box.finishing_kinds),
+                }
         else:
             row |= {"state": state, "error": f"{type(error).__name__}: {error}" if error is not None else None}
         self._append(rundir.FLOW_CALLS, row)

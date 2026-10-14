@@ -61,6 +61,8 @@ unit names, stop values such as `completed`, model and role names).
 | limit (a quota cap) | 上限 |
 | usage rule (the quota rule) | 利用率のルール |
 | deadline / finishing time (the grace window after it) | 締め切り / 仕上げの猶予 |
+| a flow call's own deadline (time box): Past the deadline of `fn` | `fn` の締め切りを過ぎた (a time box is a deadline too: no other word) |
+| finishing kinds (the kinds that still launch past a deadline) | 仕上げの種別 |
 
 Tabs: overview 概要, tasks タスク, journal 実行履歴, outputs 出力, definitions
 定義, processes プロセス, stream タスク詳細. The tab list as a whole (its

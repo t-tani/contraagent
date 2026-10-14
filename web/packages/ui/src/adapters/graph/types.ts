@@ -1,6 +1,6 @@
 // The pipeline graph's model: one layer of the run's flow, as `project` reads it
 // from the plan and `layerGraph` gives it arranged (`arrange` of @contraagent/elements).
-import type { PlanGroup, TaskState } from '@contraagent/api';
+import type { PlanGroup, TaskState, TimeBoxInfo } from '@contraagent/api';
 import type { Arrangement } from '@contraagent/elements/graph';
 
 /** A layer segment that enters a loop box: `loop:<line>`, `loop:<outer>.<inner>` for a nested one. */
@@ -23,6 +23,8 @@ export interface LayerMark {
   counts?: NodeCounts;
   /** A function node's mark whose flow call raised or was closed: what it raised (`<type>: <message>`), '' when not recorded. */
   error?: string;
+  /** A function node's mark whose flow call has a deadline of its own (`time_box`): when it falls (UTC ISO 8601). */
+  deadlineAt?: string;
 }
 
 export type NodeCounts = Pick<PlanGroup, 'total' | 'done' | 'failed' | 'running' | 'pending' | 'skipped' | 'blocked'>;
@@ -52,6 +54,8 @@ export interface GraphNode {
   calls: number;
   /** A function node: those of its flow calls that raised or were closed. */
   errors: number;
+  /** A function node whose flow calls have a deadline of their own (`time_box`): the first one's; null otherwise. */
+  timeBox: TimeBoxInfo | null;
 }
 
 /** The nodes created by one loop of the layer's function; a nested loop is a box inside it. */

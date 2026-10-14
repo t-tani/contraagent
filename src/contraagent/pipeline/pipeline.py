@@ -209,7 +209,8 @@ class Pipeline:
                 if event == "start":
                     flow = graph.flow_call_started(call)
                     parent = call.parent.id if call.parent is not None else None
-                    run.record_flow_call("start", call.id, parent=parent, function=call.function, flow=flow)
+                    box = {"time_box": call.time_box, "started_at": call.started_at}
+                    run.record_flow_call("start", call.id, parent=parent, function=call.function, flow=flow, **box)
                     graph.check_passes(flow, f"flow call {call.id} ({call.function})", call.id)
                 else:
                     graph.flow_call_ended(call)

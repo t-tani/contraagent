@@ -38,6 +38,14 @@ describe('deferredText', () => {
     expect(c({ cause: 'cannot_finish', need_s: 720, left_s: 190 })).toBe('Cannot finish before the deadline | needs 12m 00s | 3m 10s left');
     expect(c({ cause: 'dependency_not_queued' })).toBe('An earlier task was never scheduled');
   });
+  it('names the function whose own deadline (a time box) it was', () => {
+    const fn = 'flows.topic_work';
+    expect(deferredText({ cause: 'deadline', flow_call: '0.1' }, '', fn)).toBe('Past the deadline of topic_work');
+    expect(deferredText({ cause: 'grace_window', flow_call: '0.1' }, '', fn)).toBe('Past the deadline of topic_work and its finishing time');
+    expect(deferredText({ cause: 'cannot_finish', need_s: 60, left_s: 10, flow_call: '0.1' }, '', fn)).toBe(
+      'Cannot finish before the deadline of topic_work | needs 1m 00s | 10s left',
+    );
+  });
   it('names a paused identity once, and counts the others', () => {
     const one: DeferralCause = { cause: 'rest', rests: [capped(), { ...capped(), route: 'hop 2/2 x' }] };
     expect(deferredText(one)).toBe(restLine(capped()));

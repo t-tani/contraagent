@@ -326,6 +326,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   monitor shows it on the tokens of each attempt.
 - omp launches take `Launch.system_prompt`, `Launch.append_system_prompt` and
   `Launch.tools`, which they left out before.
+- Time boxes: `yield time_box(flow, deadline_s=, grace_s=, finishing_kinds=, slack_s=)` runs a
+  flow call with a deadline of its own, counted from its start, over the tasks it and the
+  flow calls it starts create; the steps outside it are not held to it. Inside, the run's
+  deadline rules apply: past it only its finishing kinds launch, for its grace window, the
+  rest are deferred and the flow receives `TaskDeferred`. Nested boxes and the run's
+  `deadline_s` each hold, so the earliest deadline stops a task. `flow_calls.jsonl` records
+  the box, a deferral's cause names it (`flow_call`), and the monitor shows a function's
+  deadline and when each of its flow calls' falls.
 - A tutorial (`contraagent docs tutorial`): a pipeline from an empty directory, step by
   step, through a stub run, a run on a coding agent and a test; its pipeline is
   `examples/tutorial/`.

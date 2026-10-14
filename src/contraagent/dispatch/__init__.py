@@ -11,11 +11,11 @@ A domain builds on this by putting its own types in `Task.payload`.
 
 from __future__ import annotations
 
-from contraagent.dispatch.flow import FlowCall, FlowDriver, TaskDeferred, TaskFailed, result_or_raise
+from contraagent.dispatch.flow import FlowCall, FlowDriver, TaskDeferred, TaskFailed, TimeBoxed, result_or_raise, time_box
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import PythonTaskPayload, make_python_task
 from contraagent.dispatch.queue import TaskRunner, WorkQueue
-from contraagent.dispatch.task import PYTHON_KEY_PREFIX, Changes, Deferral, Frame, Loop, Origin, Task, TaskResult, kind_name
+from contraagent.dispatch.task import PYTHON_KEY_PREFIX, Changes, Deferral, Frame, Loop, Origin, Task, TaskResult, TimeBox, kind_name
 
 __all__ = [
     "PYTHON_KEY_PREFIX",
@@ -34,8 +34,11 @@ __all__ = [
     "TaskResult",
     "TaskRunner",
     "TaskScope",
+    "TimeBox",
+    "TimeBoxed",
     "WorkQueue",
     "kind_name",
     "make_python_task",
     "result_or_raise",
+    "time_box",
 ]

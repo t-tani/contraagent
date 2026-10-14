@@ -2525,6 +2525,38 @@
   <target>ツール</target>
   <note from="lit-localize">The coding agent's tools in a task definition</note>
 </trans-unit>
+<trans-unit id="sd058b78d70eb7f23">
+  <source>Deadline <x id="0" equiv-text="${fmtDur(n.timeBox.deadline_s)}"/></source>
+  <target>締め切り <x id="0" equiv-text="${fmtDur(n.timeBox.deadline_s)}"/></target>
+</trans-unit>
+<trans-unit id="s479f9f4e24bb9a55">
+  <source>Deadline</source>
+  <target>締め切り</target>
+</trans-unit>
+<trans-unit id="sc54183a104e8da25">
+  <source>Past the deadline of <x id="0" equiv-text="${own}"/></source>
+  <target><x id="0" equiv-text="${own}"/> の締め切りを過ぎた</target>
+</trans-unit>
+<trans-unit id="s52cce0c30a5db40c">
+  <source>Past the deadline of <x id="0" equiv-text="${own}"/> and its finishing time</source>
+  <target><x id="0" equiv-text="${own}"/> の締め切りと仕上げの猶予を過ぎた</target>
+</trans-unit>
+<trans-unit id="sa24de5df07476150">
+  <source>Cannot finish before the deadline of <x id="0" equiv-text="${own}"/></source>
+  <target><x id="0" equiv-text="${own}"/> の締め切りまでに終わらない</target>
+</trans-unit>
+<trans-unit id="s68d5849bad94a91d">
+  <source>finishing time <x id="0" equiv-text="${fmtDur(box.grace_s)}"/></source>
+  <target>仕上げの猶予 <x id="0" equiv-text="${fmtDur(box.grace_s)}"/></target>
+</trans-unit>
+<trans-unit id="s9b1a9a1aec8c5703">
+  <source>finishing kinds: <x id="0" equiv-text="${listText(kinds)}"/></source>
+  <target>仕上げの種別: <x id="0" equiv-text="${listText(kinds)}"/></target>
+</trans-unit>
+<trans-unit id="s5bd56661dc3d893f">
+  <source>A deadline of its own (time_box)</source>
+  <target>フロー呼び出しごとの締め切り（time_box）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>
