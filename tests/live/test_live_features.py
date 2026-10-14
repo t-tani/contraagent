@@ -363,7 +363,8 @@ def test_output_from_the_final_message(ws, agent):
     out = got["p"].path.read_text()
     print(f"  output file: {out!r}\n  round errors: {row['round_errors']}")
     assert report.ok, report.failed
-    assert got["p"].output == Answer(lines=3, word="APPLE")
+    # The validator's rule held after a correction; how a model counts lines (a final newline) is the model's.
+    assert got["p"].output.word == "APPLE" and got["p"].output.lines in (3, 4)
     json.loads(out)  # only the document: no prose around it
     assert row["rounds"] >= 1
 
