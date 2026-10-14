@@ -66,6 +66,8 @@ export interface GraphNodeInput {
   notes?: readonly Fact[];
   /** Its frame's tone: failed, running or done. */
   look?: Tone;
+  /** It can be drawn open, as a cluster of what is inside it: a control in its header sends `cae-toggle` (`closed`: it is drawn closed now). */
+  toggle?: 'closed';
 }
 
 /** A node as the graph draws it: its input with the defaults filled in (`fillNode`). */
@@ -99,6 +101,20 @@ export interface GraphClusterInput {
   drill?: boolean;
   /** Its content repeats: it draws a return from its last layer to its first. */
   cycle: boolean;
+  /** It is an item drawn open: a control in its header closes it (`cae-toggle`). */
+  toggle?: 'open';
+  /**
+   * Its name as a path of parts, outermost first ("a › b › c"): the first part is its
+   * name; each later part is a link to its own inner view (`cae-drill` with the part's id).
+   */
+  path?: readonly ClusterPathPart[];
+}
+
+/** A part of a cluster's name (`GraphClusterInput.path`). */
+export interface ClusterPathPart {
+  id: string;
+  label: string;
+  tip?: string;
 }
 
 export interface GraphEdgeInput {

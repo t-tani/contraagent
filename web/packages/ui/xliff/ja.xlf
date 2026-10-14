@@ -2079,7 +2079,7 @@
   <target>フロー呼び出し</target>
 </trans-unit>
 <trans-unit id="s9f92162e244d030b">
-  <source>Inside <x id="0" equiv-text="${n.label}"/></source>
+  <source>Inside <x id="0" equiv-text="${label}"/></source>
   <target><x id="0" equiv-text="${n.label}"/> の内部</target>
 </trans-unit>
 <trans-unit id="sff83af1548f682c0">
@@ -2882,6 +2882,34 @@
   <source>Runs</source>
   <target>実行</target>
   <note from="lit-localize">How many runs worked in the trends period</note>
+</trans-unit>
+<trans-unit id="s9c77b049b9f43ad5">
+  <source>Show all inside</source>
+  <target>すべての中を表示</target>
+</trans-unit>
+<trans-unit id="s7975cad0458a3b12">
+  <source>Hide all inside</source>
+  <target>すべての中を隠す</target>
+</trans-unit>
+<trans-unit id="s94fdbc90b7a9cbe0">
+  <source>Fold <x id="0" equiv-text="${it.label}"/></source>
+  <target><x id="0" equiv-text="${it.label}"/> を折りたたむ</target>
+</trans-unit>
+<trans-unit id="s3841eba6a1c038af">
+  <source>Unfold <x id="0" equiv-text="${it.label}"/></source>
+  <target><x id="0" equiv-text="${it.label}"/> を展開</target>
+</trans-unit>
+<trans-unit id="s27d5ef7cf527424b">
+  <source>Outline of the flow</source>
+  <target>フローの構成</target>
+</trans-unit>
+<trans-unit id="s06bff69a662d11b0">
+  <source>Show inside</source>
+  <target>中を表示</target>
+</trans-unit>
+<trans-unit id="sd960119bd12f06d7">
+  <source>Hide inside</source>
+  <target>中を隠す</target>
 </trans-unit>
 </body>
 </file>

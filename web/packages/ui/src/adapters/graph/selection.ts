@@ -26,7 +26,10 @@ export function parseSelection(g: LayerGraph, matrix: PassMatrix | null, sel: st
     const node = g.nodes.find((n) => n.id === sel);
     if (node) return { type: 'node', id: sel, node };
     const box = g.boxes.find((b) => b.id === sel);
-    return box ? { type: 'box', id: sel, box } : null;
+    if (box) return { type: 'box', id: sel, box };
+    // A function drawn open, or a part of its path: its node, as it is drawn closed.
+    const part = g.fns.flatMap((f) => f.parts).find((p) => p.id === sel);
+    return part ? { type: 'node', id: sel, node: part.node } : null;
   }
   const [nodeId = '', pass] = sel.slice(0, hash).split('|');
   const who = sel.slice(hash + 1);

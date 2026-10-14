@@ -87,6 +87,9 @@ there: one word, one meaning, on every screen. Japanese follows
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
 | a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |
+| a function drawn open (`FlowBox`), its control; every function's | Show inside / Hide inside; Show all inside / Hide all inside | 中を表示 / 中を隠す; すべての中を表示 / すべての中を隠す |
+| a chain of functions in one box (`FlowBox.parts`) | `a › b › c` (each part a link to its layer) | `a › b › c` |
+| the outline (`outlineTree`); an item folded or unfolded | Outline of the flow; Fold `x` / Unfold `x` | フローの構成; `x` を折りたたむ / `x` を展開 |
 | `executor` of a kind node | agent task / Python task | エージェントタスク / Python タスク |
 | selection, inspector | selected item; links: Task detail, Tasks of `kind`, Inside `function`, Passes of the loop | 選択中の項目; タスク詳細, `kind` のタスク, `function` の内部, ループの各周 |
 | an attempt of a later run start (`runStarts`) | attempt N \| resumed run | N 回目 \| 再開後 |

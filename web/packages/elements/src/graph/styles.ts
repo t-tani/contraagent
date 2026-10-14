@@ -67,6 +67,16 @@ export const graphStyles = css`
   /* The mark of an inner view: at the top right of a node and of a cluster alike. */
   .cue { display: block; line-height: 0; }
   .cluster > .cue { position: absolute; top: 9px; right: 10px; }
+  /* The open and close control: the inner view's mark, turned into a button. */
+  .tog { all: unset; cursor: pointer; display: inline-flex; line-height: 0; padding: 2px; margin: -2px; border-radius: 4px; color: var(--text-2); }
+  .tog:hover { color: var(--text); background: var(--raise); }
+  .tog:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 1px; }
+  /* A cluster named by a path: its later parts are links to their own inner views. */
+  .cluster > .hd .psep { color: var(--text-muted); font-size: 11px; }
+  .cluster > .hd .part { all: unset; cursor: pointer; font-family: var(--mono); font-weight: 600; font-size: 12.5px; color: var(--text-2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .cluster > .hd .part:hover { color: var(--text); text-decoration: underline; }
+  .cluster > .hd .part:focus-visible { outline: var(--focus-width) solid var(--focus); outline-offset: 2px; border-radius: 3px; }
   .node.sel { outline: var(--focus-width) solid var(--accent); outline-offset: 2px; }
   .node.drill { box-shadow: 4px 4px 0 -1px var(--card), 4px 4px 0 0 var(--line2); }
   .node[data-look='running'] { border-color: var(--status-running); }

@@ -21,18 +21,18 @@ export function tasksOf(h: PipelineHost, n: GraphNode): void {
   emit(h.el, 'ca-navigate', { tab: 'tasks', kind: n.kinds.length === 1 ? n.kinds[0] : '' });
 }
 
-/** Open a mark: a task (on its input when it did not start, a Python task on its output), or a flow call's function. */
-export function open(h: PipelineHost, m: LayerMark): void {
-  if (m.flow) return go(h, [...h.graph.path, m.flow], m.unit || h.unit);
+/** Open a mark of `node`: a task (on its input when it did not start, a Python task on its output), or a flow call's function. */
+export function open(h: PipelineHost, m: LayerMark, node?: GraphNode): void {
+  if (m.flow) return go(h, [...(node?.layer ?? h.graph.path), m.flow], m.unit || h.unit);
   const t = h.links.byKey.get(m.key);
   emit(h.el, 'ca-open-task', m.state === 'blocked' ? { key: m.key, view: 'input' } : t?.executor === 'python' ? { key: m.key, view: 'output' } : { key: m.key });
 }
 
 /** What a double click or Enter does: a mark opens its task (or its flow call's function), a function node or a loop box opens inside, a kind node its tasks. */
 export function primary(h: PipelineHost, s: Selected): void {
-  if (s.type === 'mark') return open(h, s.mark);
-  if (s.type === 'box') return go(h, [...h.segments, s.box.id]);
-  if (s.node.type === 'flow') return go(h, [...h.graph.path, s.node.name]);
+  if (s.type === 'mark') return open(h, s.mark, s.node);
+  if (s.type === 'box') return go(h, [...s.box.layer, s.box.local]);
+  if (s.node.type === 'flow') return go(h, [...s.node.layer, s.node.name]);
   tasksOf(h, s.node);
 }
 

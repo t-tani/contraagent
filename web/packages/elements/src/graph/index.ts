@@ -1,7 +1,7 @@
 // A layered graph: `@contraagent/elements/graph`. `CaeLayeredGraph` is registered
 // by `@contraagent/elements/graph/define` (with the elements it renders).
 export * from './types.js';
-export { arrange, isPoint, orderRows, rankLayers, type GraphShape } from './arrange.js';
+export { arrange, extentOf, isPoint, orderRows, rankLayers, type GraphShape } from './arrange.js';
 export * from './layout.js';
 export * from './paths.js';
 export * from './view.js';

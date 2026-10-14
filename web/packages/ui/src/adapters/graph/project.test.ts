@@ -143,7 +143,9 @@ describe('layerGraph: a generator flow', () => {
   it('draws a loop known at pass 1 as a box that stays the same after pass 2', () => {
     const first = layerGraph(reviewRun({ a: 0, b: 1 }), [RUN, LOOP]);
     const box = `loop:${AT}`;
-    expect(first.boxes).toEqual([{ id: box, loop: AT, file: 'flow.py', parent: null, passes: 1, spread: [[1, 1]], layers: [[`kind:fix@${AT}`], [`kind:score@${AT}`], [`kind:check@${AT}`]] }]);
+    expect(first.boxes).toEqual([
+      { id: box, local: box, layer: [RUN, LOOP], loop: AT, file: 'flow.py', parent: null, passes: 1, spread: [[1, 1]], layers: [[`kind:fix@${AT}`], [`kind:score@${AT}`], [`kind:check@${AT}`]] },
+    ]);
     expect(rows(first)).toEqual([['kind:summarize'], ['kind:check'], [box]]);
     expect(byId(first).get(`kind:fix@${AT}`)?.box).toBe(box);
     const second = layerGraph(reviewRun({ a: 0, b: 2 }), [RUN, LOOP], first.order);

@@ -69,7 +69,8 @@ const EMPTY: GraphInput = { series: [], nodes: [], clusters: [], edges: [], stub
  * @tagname cae-layered-graph
  * @fires cae-select - `{id}`: a mark, a node, a cluster or a table row was selected; `{id: null}`: the selection was cleared
  * @fires cae-activate - `{id}`: an item's action (a double click or Enter)
- * @fires cae-drill - `{id}`: an item's inner view (a double click or Enter on an item with `drill`, a cluster's chip in the table)
+ * @fires cae-drill - `{id}`: an item's inner view (a double click or Enter on an item with `drill`, a cluster's chip in the table, a later part of a cluster's `path`)
+ * @fires cae-toggle - `{id, open}`: an item's open or close control (`toggle`) was used
  * @fires cae-view-change - `{view}`: "Graph" or "Table" was chosen
  * @slot inspector - the selected item's card: its first heading and its `[data-status]` name it to a screen reader
  * @slot crumbs - a line above the frame (where the graph is)
@@ -244,6 +245,20 @@ export class CaeLayeredGraph extends LitElement {
    * name) or a cluster (its name); with null, or when it is not drawn, on the first
    * thing to focus (in the `crumbs` slot, else the first node).
    */
+  /** Put the focus on an item's open or close control (`toggle`), else on the item: where it was after the item was drawn again. */
+  focusToggle(id: string, tries = 4): void {
+    const root = this.renderRoot;
+    // A drawing of a new structure is first drawn hidden, to be measured: focus it once it is placed.
+    if (root.querySelector('.dag.unplaced') && tries > 0) {
+      void this.updateComplete.then(() => requestAnimationFrame(() => this.focusToggle(id, tries - 1)));
+      return;
+    }
+    const sel = this.clusters.has(id) ? `.cluster[data-cluster="${CSS.escape(id)}"] > .cue .tog` : `.node[data-id="${CSS.escape(id)}"] .tog`;
+    const el = root.querySelector<HTMLElement>(sel);
+    if (el) this.card.focusQuietly(el);
+    else this.focusItem(id);
+  }
+
   focusItem(id: string | null): void {
     const root = this.renderRoot;
     let el: HTMLElement | null = null;
@@ -380,6 +395,10 @@ export class CaeLayeredGraph extends LitElement {
 
   protected drill(id: string): void {
     emit(this, 'cae-drill', { id });
+  }
+
+  protected toggle(id: string, open: boolean): void {
+    emit(this, 'cae-toggle', { id, open });
   }
 
   protected showView(v: 'graph' | 'table'): void {

@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`extra`). The monitor names the window beside a status, lists the other windows,
   the threshold, extra usage and the account in a reading's tooltip, and tells two
   accounts of one identity apart.
+- The pipeline graph draws the layer shown with its functions open: a function drawn
+  open is a box of its own layer, nested as deep as it goes, joined by the edges of the
+  tasks across boxes, and a chain of single functions is one box named by its path (each
+  part a link into its layer). Functions with agent tasks, a failure, running work, work
+  not run, or the selection open on their own, the most interesting first, while the
+  drawing holds about 40 nodes and spans about one screen; a function's control shows or
+  hides inside, "Show all inside" and "Hide all inside" set every one, and the choice is
+  kept for the page. A drawing too long to read left to right is drawn top to bottom.
+  The outline of the flow lists every function and loop with its progress, beside the
+  graph on a wide frame (above it, folded, on a narrower one): a click shows an item in
+  the graph, Enter goes into it. `<cae-layered-graph>`: `toggle` on a node or a cluster
+  (`cae-toggle`), a cluster's `path`, `focusToggle()`; `extentOf` in
+  `@contraagent/elements/graph`.
 - A unit locks nothing: tasks of different kinds on one unit run together unless they
   claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
   must not overlap on a unit.

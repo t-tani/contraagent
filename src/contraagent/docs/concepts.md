@@ -131,6 +131,9 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **group** | a column of the plan | `Monitor(groups=)` |
 | **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=` |
 | **trends** | what the runs of a period add up to, day by day: cost by kind (or group), each kind's tasks, success and time, each model's spend, failures, refused tool calls, utilization, rests, deferrals, run starts; read from each run's digest, kept in a finished run's `trends.json` | `Monitor.trends`, `/api/trends`, `Trends`; `Panel(scope="trends")` |
+| **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
+| **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |
+| **outline** | the pipeline graph's list of every function of the flow and the loops they are in, as a tree | `outlineTree`, `nav.outline` |
 | **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
 | **panel** / **panel body** | a view a pipeline adds to the monitor: computed per run (`scope="run"`, a tab of each run) or over the runs of a period (`scope="trends"`, `fn(runs, period)`) / what it returns: a typed body (`tiles`, `table`, `columns`, `lines`, `heatmap`, `hbars`, `blocks` of them) the monitor draws, or any other JSON object, shown as a JSON tree | `monitor.Panel`, `Period`; `api.PanelBody`; `contraagent monitor --panels` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
