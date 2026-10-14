@@ -41,4 +41,19 @@ describe('quota', () => {
     expect(tryQuota(two[0]!, all).next).toMatchObject({ credential: 'sub-a', five_hour_pct: 12 });
     expect(tryQuota(two[1]!, all).next).toMatchObject({ credential: 'sub-b', five_hour_pct: 55 });
   });
+
+  it('keeps two accounts of one credential apart: `ambient` on two coding agents', () => {
+    const on = (r: QuotaReading, account: string): QuotaReading => ({ ...r, account });
+    const mixed = [
+      row('c', '03', [on(q('01', 10, 11, 'ambient'), 'claude-login')]),
+      row('o', '04', [on(q('02', 6, 98, 'ambient'), 'omp-login')]),
+      row('c2', '08', [on(q('05', 12, 12, 'ambient'), 'claude-login')]),
+    ];
+    expect(runAccounts(mixed).map((a) => [a.credential, a.account, a.first.seven_day_pct, a.last.seven_day_pct])).toEqual([
+      ['ambient', 'omp-login', 98, 98],
+      ['ambient', 'claude-login', 11, 12],
+    ]);
+    const all = runReadings(mixed);
+    expect(tryQuota(mixed[0]!, all).next).toMatchObject({ account: 'claude-login', seven_day_pct: 12 }); // not omp's 98%
+  });
 });

@@ -2601,6 +2601,50 @@
   <source>The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.</source>
   <target>エージェントのセッションを、動いたモデルごとに集計したもの。モデル切り替えがあれば、切り替えの前後をそれぞれのモデルで数える。Python タスクはモデルを使わない。</target>
 </trans-unit>
+<trans-unit id="s59159edc6e9654d1">
+  <source>5-hour</source>
+  <target>5 時間枠</target>
+</trans-unit>
+<trans-unit id="s366ce84377cc68ee">
+  <source>weekly</source>
+  <target>週</target>
+</trans-unit>
+<trans-unit id="sb945184259a5d73c">
+  <source>5-hour (<x id="0" equiv-text="${own[2]}"/>)</source>
+  <target>5 時間枠（<x id="0" equiv-text="${own[2]}"/>）</target>
+</trans-unit>
+<trans-unit id="sbe920e285458a813">
+  <source>weekly (<x id="0" equiv-text="${own[2]}"/>)</source>
+  <target>週（<x id="0" equiv-text="${own[2]}"/>）</target>
+</trans-unit>
+<trans-unit id="sde88e8c24887ecfe">
+  <source>account <x id="0" equiv-text="${account.slice(0, 6)}"/></source>
+  <target>アカウント <x id="0" equiv-text="${account.slice(0, 6)}"/></target>
+</trans-unit>
+<trans-unit id="secfa490760169198">
+  <source><x id="0" equiv-text="${sentence(windowName(name))}"/> usage <x id="1" equiv-text="${pct(w.pct)}"/></source>
+  <target><x id="0" equiv-text="${sentence(windowName(name))}"/>の利用率 <x id="1" equiv-text="${pct(w.pct)}"/></target>
+</trans-unit>
+<trans-unit id="sc87aeec9d4d28b7c">
+  <source>Warning threshold: <x id="0" equiv-text="${pct(r.threshold_pct)}"/></source>
+  <target>警告のしきい値: <x id="0" equiv-text="${pct(r.threshold_pct)}"/></target>
+</trans-unit>
+<trans-unit id="s9c325e901c43f27a">
+  <source>Extra usage: <x id="0" equiv-text="${extraUsage(r.overage_status)}"/></source>
+  <target>上限を超えた利用: <x id="0" equiv-text="${extraUsage(r.overage_status)}"/></target>
+</trans-unit>
+<trans-unit id="s02f936d07f478eb8">
+  <source>Account: <x id="0" equiv-text="${r.account}"/></source>
+  <target>アカウント: <x id="0" equiv-text="${r.account}"/></target>
+</trans-unit>
+<trans-unit id="sacc7621b51cc2743">
+  <source>allowed</source>
+  <target>可</target>
+</trans-unit>
+<trans-unit id="s53c8c76220414382">
+  <source>not allowed</source>
+  <target>不可</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

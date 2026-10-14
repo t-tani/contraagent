@@ -654,5 +654,16 @@
 'view-graph': `グラフ`,
 'view-output': `出力`,
 'view-table': `表`,
+'s59159edc6e9654d1': `5-hour`,
+'s366ce84377cc68ee': `weekly`,
+'sb945184259a5d73c': str`5-hour (${0})`,
+'sbe920e285458a813': str`weekly (${0})`,
+'sde88e8c24887ecfe': str`account ${0}`,
+'secfa490760169198': str`${0} usage ${1}`,
+'sc87aeec9d4d28b7c': str`Warning threshold: ${0}`,
+'s9c325e901c43f27a': str`Extra usage: ${0}`,
+'s02f936d07f478eb8': str`Account: ${0}`,
+'sacc7621b51cc2743': `allowed`,
+'s53c8c76220414382': `not allowed`,
     };
   

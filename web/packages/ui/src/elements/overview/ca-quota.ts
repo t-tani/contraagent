@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { ClockController } from '@contraagent/elements';
 import { localTime } from '../../words/format.js';
 import { capLabel, capsLine, credentialLabel, restFacts, restSpan } from '../../words/index.js';
-import { pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
+import { accountLabel, pct, quotaStatusLabel, resetsIn } from '../../words/quota.js';
 import { pill } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
 
@@ -110,11 +110,15 @@ export class CaQuota extends LitElement {
     return html`${this.rule
         ? html`<div class="rule" title="quota_rule">${msg('Usage rule')} <code>${this.rule}</code></div>`
         : nothing}${accounts.map((a) => {
-      const status = quotaStatusLabel(a.last.status);
+      const status = quotaStatusLabel(a.last.status, a.last.status_window);
       const cap = caps.get(a.credential);
-      const rests = this.rests.filter((r) => r.credential === a.credential);
+      const rests = this.rests.filter((r) => r.credential === a.credential && (!r.account || !a.account || r.account === a.account));
+      // One identity on two accounts (`default` on two coding agents, a replaced token): each named.
+      const twice = !!a.account && accounts.some((o) => o !== a && o.credential === a.credential);
       return html`<div class="acct">
-        <div class="acct-h"><i>${msg('Identity')}</i><b>${credentialLabel(a.credential) || '—'}</b>${status
+        <div class="acct-h"><i>${msg('Identity')}</i><b>${credentialLabel(a.credential) || '—'}</b>${twice
+            ? html`<i title=${msg(str`Account: ${a.account ?? ''}`)}>${accountLabel(a.account ?? '')}</i>`
+            : nothing}${status
             ? pill({ text: status, tone: 'attention', title: a.last.status, mark: null })
             : nothing}${this.paused(rests)}${cap ? html`<i title="max_five_hour_pct, max_seven_day_pct">${capsLine(cap)}</i>` : nothing}</div>
         <div class="rows">

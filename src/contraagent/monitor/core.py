@@ -61,12 +61,13 @@ def _running_keys(snap: dict) -> set:
 
 
 def _first_last(readings: list[dict]) -> dict:
-    """Per credential (account), the run's first and last utilization reading, by when
-    they were received; the account with the highest weekly utilization first."""
-    by: dict[str, list[dict]] = {}
+    """Per credential and account (`QuotaReading.account`: `ambient` on two coding agents is
+    two accounts), the run's first and last utilization reading, by when they were
+    received; the account with the highest weekly utilization first."""
+    by: dict[tuple[str, str], list[dict]] = {}
     for q in sorted((q for q in readings if q.get("observed_at")), key=lambda q: q["observed_at"]):
-        by.setdefault(q.get("credential") or "", []).append(q)
-    accounts = [{"credential": c, "first": qs[0], "last": qs[-1]} for c, qs in by.items()]
+        by.setdefault((q.get("credential") or "", q.get("account") or ""), []).append(q)
+    accounts = [{"credential": c, "account": a, "first": qs[0], "last": qs[-1]} for (c, a), qs in by.items()]
     accounts.sort(key=lambda a: -(a["last"].get("seven_day_pct") or 0))
     return {"quota": accounts}
 
@@ -421,14 +422,14 @@ class Monitor:
             if isinstance(v, dict)
         ]
         rests: list[dict] = []
-        open_: dict[str, dict] = {}
+        open_: dict[tuple[str, str], dict] = {}
         for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
             if not isinstance(row, dict) or not isinstance(row.get("credential"), str):
                 continue
-            name = row["credential"]
+            name = (row["credential"], row.get("account") or "")
             if row.get("event") == "start":
-                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until")}
-                rest = {**rest, "window": rest["window"] or "", "rule": rest["rule"] or "", "until": rest["until"] or ""}
+                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until", "account")}
+                rest = {**rest, **{k: rest[k] or "" for k in ("window", "rule", "until", "account")}}
                 open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
                 rests.append(open_[name])
             elif row.get("event") == "end" and name in open_:

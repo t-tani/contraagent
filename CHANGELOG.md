@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A quota reading names its account (`account`, a 12-hex-digit digest of the login's UUID
+  or the credential's secret, never the value), and a credential's rests are judged by
+  the readings of the account a launch as it bills (`Backend.account`): a token replaced
+  since the last run no longer rests on the old account's reading, and `ambient` on
+  Claude Code and omp, logged in as two users, is two accounts. A reading also keeps
+  every window it names (`windows`, a model's own too), the window its status is about
+  (`status_window`), the warning threshold (`threshold_pct`), the extra-usage fields
+  (`overage_status`, `overage_disabled_reason`, `using_overage`) and any other field
+  (`extra`). The monitor names the window beside a status, lists the other windows,
+  the threshold, extra usage and the account in a reading's tooltip, and tells two
+  accounts of one identity apart.
 - A unit locks nothing: tasks of different kinds on one unit run together unless they
   claim a name they share (`claims=`). Write `claims=["topic:{unit}"]` on the kinds that
   must not overlap on a unit.

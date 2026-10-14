@@ -67,6 +67,9 @@ there: one word, one meaning, on every screen. Japanese follows
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |
+| a reading's windows (`status_window`, `windows`: `five_hour`, `seven_day`, `seven_day_<model>`) | 5-hour, weekly, weekly (`model`); a status with its window: near the limit \| weekly | 5 時間枠, 週, 週（`model`） |
+| `threshold_pct`, `overage_status` of a reading | Warning threshold; Extra usage: allowed / not allowed | 警告のしきい値; 上限を超えた利用: 可 / 不可 |
+| account (`QuotaReading.account`, a digest), shown when one identity has two | account `3f9c2a`; Account: `digest` (tooltip) | アカウント |
 | a layer of the flow path (the pipeline graph's level) | Pipeline › `function` › loop (breadcrumb) | パイプライン › `function` › ループ |
 | a function node (tasks created in a function the flow called) | the function's name; function (tooltip) | 関数 |
 | flow call | flow call (tooltip only) | フロー呼び出し |

@@ -19,6 +19,7 @@ import logging
 import random
 import signal
 import sys
+import threading
 import time
 import traceback
 from collections.abc import Callable, Mapping, Sequence
@@ -178,6 +179,9 @@ class AgentRunner:
         self.rests = rests
         self._changes = ChangesEnricher(self.adapter.changes, self.cwd)
         self._defined: set[str] = set()
+        # The account each coding agent bills as each credential for a model, asked once a run.
+        self._accounts: dict[tuple[str, str, str], str] = {}
+        self._accounts_lock = threading.Lock()
 
     # --- configuration -----------------------------------------------------
 
@@ -264,11 +268,37 @@ class AgentRunner:
     def _credential_name(self, task: Task, route: Route | None) -> str:
         return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
 
+    def account_of(self, backend: Backend, credential: CredentialBase, model: str) -> str:
+        """The account `backend` bills as `credential` for `model` (`Backend.account`), asked
+        once a run; '' when it cannot tell."""
+        key = (backend.name, credential.label, model)
+        with self._accounts_lock:
+            if key in self._accounts:
+                return self._accounts[key]
+        try:
+            found = backend.account(credential, model)
+        except Exception:  # an account that cannot be told only loses the distinction
+            found = ""
+        with self._accounts_lock:
+            return self._accounts.setdefault(key, found)
+
+    def _accounts_on(self, task: Task, route: Route | None) -> Callable[[str], str]:
+        """`account(credential)` for a launch of this task on `route` (`QuotaRests.rests`)."""
+        backend = self.backend_for_route(task, route)
+        model = (route.model if route is not None and route.model else "") or self.config(task).model or self.model
+
+        def account(name: str) -> str:
+            cred = self.credentials.get(name)
+            return self.account_of(backend, cred, model) if cred is not None else ""
+
+        return account
+
     def _rest(self, task: Task, route: Route | None) -> list[Rest]:
-        """Why `route`'s credential rests for this task now (`QuotaRests`); empty when it does not."""
+        """Why `route`'s credential rests for this task now (`QuotaRests`), judged by the
+        readings of the account a launch on it bills; empty when it does not."""
         if self.rests is None:
             return []
-        return self.rests.rests(self._credential_name(task, route), kind_name(task.kind))
+        return self.rests.rests(self._credential_name(task, route), kind_name(task.kind), self._accounts_on(task, route))
 
     def _usable(self, task: Task, route: Route, router: Router, skipped: list[dict]) -> Route | None:
         """`route`, or the first hop after it whose credential does not rest; None when every
@@ -500,7 +530,9 @@ class AgentRunner:
         spent = 0.0  # time on members that were rate limited, counted in the result
         model = (route.model if route is not None and route.model else "") or self.config(task).model or self.model
         # Members resting on their quota are passed over like those that answered 429.
-        resting = self.rests.resting_members(pool.name, kind_name(task.kind)) if self.rests is not None else set()
+        resting = (
+            self.rests.resting_members(pool.name, kind_name(task.kind), self._accounts_on(task, route)) if self.rests is not None else set()
+        )
         while True:
             member = pool.pick(model, exclude=[*tried, *resting])
             if member is None:
@@ -535,6 +567,7 @@ class AgentRunner:
         launch_result = run_until_valid(backend, launch, contracts) if contracts else backend.run(launch)
         for reading in launch_result.rate_limits:  # whose account each utilization reading is
             reading.credential = reading.credential or launch_result.credential or credential.label
+            reading.account = reading.account or self.account_of(backend, credential, launch.model)
             if self.rests is not None:
                 self.rests.observe(reading)
         warn = self.config(task).context_warn

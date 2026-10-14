@@ -126,6 +126,14 @@ class Backend(abc.ABC):
             return CredentialBinding(isolation="ambient: whatever the agent loads by default")
         raise CredentialError(f"{self.name} cannot use {credential.type} credentials")
 
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """The account a launch of `model` as `credential` bills, as `account_digest`: the
+        same value for the same account, never the secret or anything it can be turned
+        back into. '' when this agent cannot tell (the default). Read from local state only
+        (a login file, the credential's own secret), except where the agent offers no other
+        way; cheap enough to ask once per credential per run."""
+        return ""
+
     def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None:
         """After a launch: a reason when the agent reports using a different credential than
         `credential`, else None. Default: the agent reports nothing to check against."""

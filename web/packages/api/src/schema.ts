@@ -293,6 +293,12 @@ export type components = {
         AccountQuota: {
             /** Credential */
             credential: string;
+            /**
+             * Account
+             * @description the account the readings are of (`QuotaReading.account`); empty when not known
+             * @default
+             */
+            account?: string;
             first: components["schemas"]["QuotaReading"];
             last: components["schemas"]["QuotaReading"];
         };
@@ -471,6 +477,11 @@ export type components = {
              * @default
              */
             until?: string;
+            /**
+             * Account
+             * @default
+             */
+            account?: string;
             /**
              * Since
              * @description when it began resting, ISO 8601
@@ -1457,6 +1468,50 @@ export type components = {
              * @default
              */
             status?: string;
+            /**
+             * Account
+             * @default
+             */
+            account?: string;
+            /**
+             * Status Window
+             * @default
+             */
+            status_window?: string;
+            /** Threshold Pct */
+            threshold_pct?: number | null;
+            /**
+             * Overage Status
+             * @default
+             */
+            overage_status?: string;
+            /**
+             * Overage Disabled Reason
+             * @default
+             */
+            overage_disabled_reason?: string;
+            /** Using Overage */
+            using_overage?: boolean | null;
+            /** Windows */
+            windows?: {
+                [key: string]: components["schemas"]["QuotaWindow"];
+            };
+            /** Extra */
+            extra?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * QuotaWindow
+         * @description One window of a reading: its utilization (%) and when it resets (ISO 8601).
+         */
+        QuotaWindow: {
+            /** Pct */
+            pct?: number | null;
+            /** Resets At */
+            resets_at?: string | null;
         } & {
             [key: string]: unknown;
         };
@@ -1619,6 +1674,11 @@ export type components = {
              * @default
              */
             until?: string;
+            /**
+             * Account
+             * @default
+             */
+            account?: string;
             /**
              * Route
              * @default

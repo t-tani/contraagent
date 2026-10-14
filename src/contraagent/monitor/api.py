@@ -102,6 +102,7 @@ class AccountQuota(Closed):
     account's last session started, so it leaves out that session's own use."""
 
     credential: str
+    account: str = Field("", description="the account the readings are of (`QuotaReading.account`); empty when not known")
     first: QuotaReading
     last: QuotaReading
 

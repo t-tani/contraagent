@@ -219,6 +219,7 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
         "cap": 90.0,
         "rule": "",
         "until": "",
+        "account": "",
     }
     assert rest["until"] == iso(NOW + timedelta(hours=2))  # the window's reset
     res = r.run(Task("k", key="t2"))

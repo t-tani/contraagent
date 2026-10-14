@@ -546,3 +546,37 @@ def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
     calls = [json.loads(line) for line in (report.run_dir / "flow_calls.jsonl").read_text().splitlines()]
     [boxed] = [c for c in calls if "time_box" in c]
     assert boxed["id"] == "0.1" and boxed["time_box"]["deadline_s"] == 12
+
+
+# --- the account a reading is of ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_each_reading_names_its_account_alike_across_launches(ws, agent):
+    """Two launches as `ambient`: each reading names the account, the same both times and the
+    one the coding agent's `account` names before any launch."""
+    from contraagent.backends import AMBIENT
+
+    say = agent_task(
+        f"acct_{agent}",
+        instructions="Write the output: one short sentence about ${unit} as `note`.",
+        output=Note,
+        max_turns=6,
+        timeout_s=300,
+        **route(agent),
+    )
+
+    def flow():
+        yield say("one")
+        yield say("two")
+
+    p = pipeline(ws)
+    expected = p.backends[ROUTES[agent][0]].account(AMBIENT, ROUTES[agent][1])
+    report = p.run(flow, run_id=f"account-{agent}")
+    show(report)
+    readings = [q for r in rows(report) for q in r["quota"]]
+    print(f"  accounts {[q.get('account') for q in readings]}, expected {expected!r}; windows {[sorted(q['windows']) for q in readings]}")
+    assert report.ok and len(readings) >= 2
+    assert expected and len(expected) == 12
+    assert {q["account"] for q in readings} == {expected}
+    assert all(q["windows"] and q["status"] for q in readings)
