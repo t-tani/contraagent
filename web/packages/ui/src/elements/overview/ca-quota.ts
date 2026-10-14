@@ -26,8 +26,9 @@ export class CaQuota extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
-      .rows { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content max-content; gap: 10px 14px; align-items: center; }
+      :host { display: block; container-type: inline-size; }
+      /* the bar keeps a width of its own, and ends near its figures on a wide card */
+      .rows { display: grid; grid-template-columns: max-content minmax(70px, 420px) max-content max-content; justify-content: start; gap: 10px 14px; align-items: center; }
       .name { font-size: 12px; color: var(--text-2); white-space: nowrap; }
       .bar { position: relative; height: 12px; border-radius: 4px; background: var(--track); overflow: hidden; }
       .bar i { position: absolute; top: 0; bottom: 0; }
@@ -42,6 +43,11 @@ export class CaQuota extends LitElement {
       .val b { color: var(--text); }
       .val .lim { color: var(--text-muted); }
       .reset { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+      /* a narrow card: the reset time goes under its bar */
+      @container (max-width: 460px) {
+        .rows { grid-template-columns: max-content minmax(70px, 1fr) max-content; row-gap: 2px; }
+        .reset { grid-column: 2 / -1; margin-bottom: 6px; }
+      }
       .status { margin-top: 8px; }
       .acct { padding: 10px 0; border-top: 1px solid var(--line); }
       .acct:first-child { border-top: 0; padding-top: 0; }

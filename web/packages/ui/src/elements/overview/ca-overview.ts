@@ -56,10 +56,12 @@ function peek(v: unknown): string {
 }
 
 /**
- * The run on one page: whether it runs, what runs now, the pipeline graph
- * (every task, by layer of the flow), the figures, the tasks with a problem (causes first),
- * outputs, the resume cursor, the pipeline's own panels, the process tree
- * (while running) and a timeline. Sends `ca-open-task` and `ca-navigate`.
+ * The run on one page, in the order a reader checks it: whether it runs, what runs
+ * now, the tasks with a problem (causes first) and the outputs; the pipeline graph
+ * (every task, by layer of the flow) and the figures; where the tokens, the cost and
+ * the subscription went, the process tree (while running), the resume cursor and the
+ * pipeline's own panels; then a timeline. A card takes the width its content needs.
+ * Sends `ca-open-task` and `ca-navigate`.
  *
  * @fires ca-navigate - `{tab, stop?}`: a link to another tab or a panel; `{layer, unit, sel}`: a layer of the pipeline graph, or what is selected in it
  * @fires ca-open-task - `{key, view?}`: a task with a problem was clicked
@@ -70,7 +72,37 @@ export class CaOverview extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
+      /* The overview is a column of bands. A band's cards take the width their content
+         needs: the state of the run (with the running tasks while none runs), the
+         problems and the outputs share a row; the breakdowns share two columns; only
+         what is wide by nature (the running tasks' cards, the pipeline graph, the
+         totals' tiles, the timeline) runs the whole width. */
+      :host { display: block; container-type: inline-size; }
+      .ov { display: flex; flex-direction: column; gap: 14px; }
+      .band.status { display: grid; gap: 14px; align-items: start; }
+      .stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+      /* the breakdowns flow in columns, so cards of different heights fill them */
+      .band.parts { columns: 2 440px; column-gap: 14px; }
+      .band.parts > .panel { break-inside: avoid; margin-bottom: 14px; display: block; }
+      .band.parts > .panel:last-child { margin-bottom: 0; }
+      .stack { grid-area: stack; }
+      .problems { grid-area: problems; }
+      .outputs { grid-area: outputs; }
+      .row { grid-area: running; }
+      .band.status { grid-template-areas: 'stack' 'problems' 'outputs' 'running'; }
+      @container (min-width: 760px) {
+        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.7fr); grid-template-areas: 'stack problems' 'outputs outputs' 'running running'; }
+      }
+      @container (min-width: 1100px) {
+        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.7fr) minmax(0, 1.5fr); grid-template-areas: 'stack problems outputs' 'running running running'; }
+      }
+      .ok { display: flex; align-items: baseline; gap: 6px; color: var(--text-2); }
+      .ok span[aria-hidden] { color: var(--status-done); }
+      /* a failed output: its status and its task on one line, what it is and where under them */
+      .ofl { grid-template-columns: max-content minmax(0, 1fr); }
+      .ofl > .jstop { white-space: nowrap; }
+      .ofl > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ofl > .meta { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; }
       .ct-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
       .pcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
       .pcard { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 14px; border-radius: 10px;
@@ -124,80 +156,94 @@ export class CaOverview extends LitElement {
     const busy = live ? liveActivities(s.procs).length : 0;
     const max = s.procs?.max_workers || 1;
     const panels = this.info.panels;
-    return html`<div class="g12">
-      <section class="panel c5 enter">
-        <h3>${msg('Run')}</h3>
-        <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan} .host=${this.host}></ca-run-driver>
-      </section>
-      <section class="panel c7 enter">
-        <h3 title=${msg('Limit: max_concurrent')}>${msg('Running tasks')}
-          ${live ? html`<span class="r">${msg(str`${busy} of ${max} running at once`)}</span>` : nothing}</h3>
-        ${live ? html`<ca-workers .procs=${s.procs} .live=${live}></ca-workers>` : html`<div class="meta">${msg('No tasks running')}</div>`}
-      </section>
-      <section class="panel c12 enter">
+    // Running tasks need the width of their cards; while none runs, one line under the run's state.
+    // A run that is over runs nothing: its state says so.
+    const running = live && busy > 0;
+    return html`<div class="ov">
+      <div class="band status">
+        <div class="stack">
+          <section class="panel enter">
+            <h3>${msg('Run')}</h3>
+            <ca-run-driver .procs=${s.procs} .summary=${this.summary} .plan=${s.plan} .host=${this.host}></ca-run-driver>
+          </section>
+          ${live && !running ? this.runningCard(live, busy, max) : nothing}
+        </div>
+        <section class="panel enter problems">
+          <h3>${msg('Problems')}
+            <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => emit(this, 'ca-navigate', { tab: 'journal', stop: 'bad' }))}>${msg('Failed attempts in history')}</a></span></h3>
+          ${this.problems(live)}
+        </section>
+        <section class="panel enter outputs">
+          <h3 title=${msg('Checked files (OutputContract, InputContract)')}>${msg('Outputs')}
+            <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => this.go('outputs'))}>${msg('All outputs')}</a></span></h3>
+          ${this.outputs()}
+        </section>
+        ${running ? html`<div class="row">${this.runningCard(live, busy, max)}</div>` : nothing}
+      </div>
+      <section class="panel enter">
         <h3 title=${msg('Every task the run scheduled, by kind (plan.jsonl)')}>${msg('Pipeline')}
           <span class="r">${this.progressLine(live)}</span></h3>
         <ca-pipeline-graph .plan=${s.plan} .journal=${s.journal} .run=${this.run} .layer=${this.layer} .unit=${this.unit} .sel=${this.sel} ?live=${live}></ca-pipeline-graph>
       </section>
-      <section class="panel c12 enter">
+      <section class="panel enter">
         <h3 title=${msg('Counted from every finished attempt (journal.jsonl)')}>${msg('Totals')}</h3>
         <ca-kpis .journal=${s.journal} .plan=${s.plan}></ca-kpis>
       </section>
-      ${spendOf(s.journal)
-        ? html`<section class="panel c12 enter">
-            <h3 title=${msg('Reported by the coding agents')}>${msg('Tokens and cost by kind')}</h3>
-            <ca-spend-breakdown .journal=${s.journal}></ca-spend-breakdown>
-          </section>`
-        : nothing}
-      ${s.plan.models?.length
-        ? html`<section class="panel c12 enter">
-            <h3 title=${msg('The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.')}>${msg('Models')}
-              <span class="r">${s.plan.models.length === 1 ? msg('1 model') : msg(str`${s.plan.models.length} models`)}</span></h3>
-            <ca-model-usage .models=${s.plan.models}></ca-model-usage>
-          </section>`
-        : nothing}
-      ${runAccounts(s.journal).length || s.plan.rests?.length
-        ? html`<section class="panel c12 enter">
-            <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
-              ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
-            <ca-quota .journal=${s.journal} .caps=${s.plan.quota_caps ?? []} .rests=${s.plan.rests ?? []} .rule=${s.plan.quota_rule ?? ''} ?live=${live}></ca-quota>
-          </section>`
-        : nothing}
-      <section class="panel ${live ? 'c5' : 'c12'} enter">
-        <h3>${msg('Problems')}
-          <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => emit(this, 'ca-navigate', { tab: 'journal', stop: 'bad' }))}>${msg('Failed attempts in history')}</a></span></h3>
-        ${this.problems(live)}
-      </section>
-      ${live
-        ? html`<section class="panel c7 enter">
-            <h3>${msg('Process tree')}
-              <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => this.go('procs'))}>${msg('All processes')}</a></span></h3>
-            <ca-proc-tree .procs=${s.procs}></ca-proc-tree>
-          </section>`
-        : nothing}
-      <section class="panel c12 enter">
-        <h3 title=${msg('Checked files (OutputContract, InputContract)')}>${msg('Outputs')}
-          <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => this.go('outputs'))}>${msg('All outputs')}</a></span></h3>
-        ${this.outputs()}
-      </section>
-      ${s.cursor
-        ? html`<section class="panel c12 enter">
-            <h3 title=${msg('Stage and step per unit (CursorStore)')}>${msg('Resume cursor')}</h3>
-            ${this.cursor()}
-          </section>`
-        : nothing}
-      ${panels.length
-        ? html`<section class="panel c12 enter">
-            <h3 title=${msg('monitor.Panel')}>${msg('Custom views')}</h3>
-            ${this.panelCards()}
-          </section>`
-        : nothing}
-      <section class="panel c12 enter">
+      <div class="band parts">
+        ${live
+          ? html`<section class="panel enter">
+              <h3>${msg('Process tree')}
+                <span class="r"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => this.go('procs'))}>${msg('All processes')}</a></span></h3>
+              <ca-proc-tree .procs=${s.procs}></ca-proc-tree>
+            </section>`
+          : nothing}
+        ${spendOf(s.journal)
+          ? html`<section class="panel enter">
+              <h3 title=${msg('Reported by the coding agents')}>${msg('Tokens and cost by kind')}</h3>
+              <ca-spend-breakdown .journal=${s.journal}></ca-spend-breakdown>
+            </section>`
+          : nothing}
+        ${s.plan.models?.length
+          ? html`<section class="panel enter">
+              <h3 title=${msg('The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.')}>${msg('Models')}
+                <span class="r">${s.plan.models.length === 1 ? msg('1 model') : msg(str`${s.plan.models.length} models`)}</span></h3>
+              <ca-model-usage .models=${s.plan.models}></ca-model-usage>
+            </section>`
+          : nothing}
+        ${runAccounts(s.journal).length || s.plan.rests?.length
+          ? html`<section class="panel enter">
+              <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
+                ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
+              <ca-quota .journal=${s.journal} .caps=${s.plan.quota_caps ?? []} .rests=${s.plan.rests ?? []} .rule=${s.plan.quota_rule ?? ''} ?live=${live}></ca-quota>
+            </section>`
+          : nothing}
+        ${s.cursor
+          ? html`<section class="panel enter">
+              <h3 title=${msg('Stage and step per unit (CursorStore)')}>${msg('Resume cursor')}</h3>
+              ${this.cursor()}
+            </section>`
+          : nothing}
+        ${panels.length
+          ? html`<section class="panel enter">
+              <h3 title=${msg('monitor.Panel')}>${msg('Custom views')}</h3>
+              ${this.panelCards()}
+            </section>`
+          : nothing}
+      </div>
+      <section class="panel enter">
         <h3>${msg('Timeline')}
           <span class="r">${this.triesLine()}</span></h3>
         <ca-timeline .journal=${s.journal} .plan=${s.plan} .procs=${s.procs} .live=${live} .run=${this.run}></ca-timeline>
       </section>
     </div>`;
+  }
+
+  private runningCard(live: boolean, busy: number, max: number) {
+    return html`<section class="panel enter">
+      <h3 title=${msg('Limit: max_concurrent')}>${msg('Running tasks')}
+        ${live ? html`<span class="r">${msg(str`${busy} of ${max} running at once`)}</span>` : nothing}</h3>
+      ${busy ? html`<ca-workers .procs=${this.state.procs} .live=${live}></ca-workers>` : html`<div class="meta">${msg('No tasks running')}</div>`}
+    </section>`;
   }
 
   // ---- contracts: the files tasks must leave behind (OutputContract) and read (InputContract) ----
@@ -219,7 +265,7 @@ export class CaOverview extends LitElement {
           : html`<span class="meta">${msg('No checked files')}</span>`}
       </div>
       ${shown.map(
-        ([c, o]) => html`<button type="button" class="fl" @click=${() => this.go('outputs')}>
+        ([c, o]) => html`<button type="button" class="fl ofl" @click=${() => this.go('outputs')}>
           ${statusWord({ text: o.status ? contractStatusLabel(o.status) : '—', tone: contractTone(o.status), title: o.status ? contractStatusWhy(o.status) : null })}
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
@@ -332,7 +378,7 @@ export class CaOverview extends LitElement {
     const { outcomes, problems } = deriveRun(this.state.journal, this.state.plan);
     const { failed, notStarted, recovered } = problems;
     if (!failed.length && !notStarted.length && !recovered.length) {
-      return html`<div class="blank" style="padding:22px"><span class="ic" aria-hidden="true">✓</span>${msg('No problems')}</div>`;
+      return html`<div class="ok"><span aria-hidden="true">✓</span>${msg('No problems')}</div>`;
     }
     const reason = (t: TaskOutcome) => runRelative(t.attempts[t.attempts.length - 1]?.reason || '—', this.run).slice(0, 200);
     const stoppedLine = (stopped: TaskOutcome[]) =>
