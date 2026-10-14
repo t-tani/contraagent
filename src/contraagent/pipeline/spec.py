@@ -161,8 +161,9 @@ def agent_task[Out](
     it, failover hops included, is refused before anything launches.
     `claims`: the names each of its tasks holds while it runs; one task holds a name at
     a time, unless `claim_capacity` (`Pipeline(claim_capacity=)`, `[defaults.claim_capacity]`)
-    allows more. A claim is a template: `{unit}`, `{key}` and `{kind}` as in `output_name`,
-    and `{params.<name>}`, a parameter of the call (a list gives one name per element). So
+    allows more. A claim is a template: `{unit}`, `{kind}`, `{key}` (the task's key, `~n`
+    included) and `{params.<name>}`, a parameter of the call (a list gives one name per
+    element; an empty list raises at the call). So
     `["topic:{unit}"]` runs one task at a time on each topic, whatever its kind, and
     `["topic:{params.topics}"]` holds every topic a task names. A task that claims nothing
     runs beside any other.

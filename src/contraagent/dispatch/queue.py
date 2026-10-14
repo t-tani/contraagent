@@ -26,8 +26,9 @@ The order:
   waiting first (a task's wait is bounded however high the levels of later
   arrivals are);
 * the **starvation guard**: when the first task in the order that cannot start
-  is overdue, a later task may not take what it still needs: a name it claims,
-  or a place under its kind's cap (a task of its kind). So a task that claims
+  is overdue, a later task may not take the last place it still needs: on a
+  name it claims, or under its kind's cap (a task of its kind); a name or a cap
+  with room for both is shared. So a task that claims
   two names, or a name that a stream of tasks keeps busy, starts once what
   holds them ends.
 
@@ -294,11 +295,15 @@ class WorkQueue:
         return (cap is None or cap > 0) and all(self.capacity(name) > 0 for name in task.claims)
 
     def _takes(self, task: Task, head: Task) -> bool:
-        """Whether starting `task` takes what `head` still needs: a name both claim, or a
-        place under its kind's cap."""
-        if set(task.claims) & set(head.claims):
+        """Whether starting `task` takes what `head` still needs: the last place on a name
+        both claim, or the last place under their kind's cap. A name or a cap with room for
+        both is not taken."""
+        if any(self._held.get(name, 0) + 1 >= self.capacity(name) for name in set(task.claims) & set(head.claims)):
             return True
-        return task.kind == head.kind and self.runner.config(head).max_concurrent is not None
+        cap = self.runner.config(head).max_concurrent
+        if task.kind != head.kind or cap is None:
+            return False
+        return sum(1 for t in self._running.values() if t.kind == head.kind) + 1 >= cap
 
     # --- progress -----------------------------------------------------------
 

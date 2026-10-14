@@ -118,6 +118,35 @@ def test_an_overdue_task_keeps_a_name_it_still_needs():
     assert starts == ["hold", "kick", "head", "b0", "b1", "b2"]
 
 
+def test_an_overdue_task_leaves_a_name_with_room_for_both_to_others():
+    """The starvation guard takes no place a later task leaves room for: `heavy` holds two,
+    so while an overdue `head` waits for `x`, a filler may hold the other place of `heavy`,
+    one at a time, never the last one."""
+    runner = Spans()
+    starts: list[str] = []
+    q = WorkQueue(
+        runner,
+        max_concurrent=4,
+        overdue_s=0.0,
+        claim_capacity={"heavy": 2},
+        on_event=lambda event, task, **f: starts.append(task.key) if event == "start" else None,
+    )
+    q.add(Task("hold", key="hold", claims=("x",), params={"sleep": 0.3}))
+    q.add(Task("kick", key="kick"))
+
+    def follow_up(res: TaskResult) -> list[Task]:
+        if res.task.key != "kick":
+            return []
+        head = Task("head", key="head", claims=("x", "heavy"), estimate_s=5000)
+        return [head] + [Task("filler", key=f"f{i}", claims=("heavy",), estimate_s=10, params={"sleep": 0.05}) for i in range(4)]
+
+    q.follow_up = follow_up
+    q.run()
+    assert starts.index("f0") < starts.index("head")  # `heavy` had room for both
+    before = [k for k in starts[: starts.index("head")] if k.startswith("f")]
+    assert not any(runner.overlap(a, b) for a in before for b in before if a < b)  # never the last place
+
+
 # --- declarations: templates filled in per task --------------------------------------
 
 
@@ -172,6 +201,21 @@ def test_claim_templates_are_checked_where_they_are_declared_and_called(tmp_path
         run(tmp_path / "2", lambda: by_param("a"), StubAgent({"by_param": written}))
     with pytest.raises(TypeError, match="a claim takes strings and numbers"):
         run(tmp_path / "3", lambda: by_param("a", topic={"x": 1}), StubAgent({"by_param": written}))
+    with pytest.raises(ValueError, match="an empty list; the task would claim nothing"):
+        run(tmp_path / "4", lambda: by_param("a", topic=[]), StubAgent({"by_param": written}))
+
+
+def test_a_claim_of_the_key_names_each_task_of_one_key_apart(tmp_path):
+    own = agent_task("own", instructions="x", output=Written, claims=["{key}"], max_turns=1, timeout_s=1)
+
+    def flow():
+        own("a")
+        own("a")
+
+    report = run(tmp_path, flow, StubAgent({"own": written}))
+    assert report.ok, report.failed
+    rows = plan_rows(report)
+    assert rows["own-a"]["claims"] == ["own-a"] and rows["own-a~2"]["claims"] == ["own-a~2"]
 
 
 def test_claims_leave_the_fingerprint_alone(tmp_path):
