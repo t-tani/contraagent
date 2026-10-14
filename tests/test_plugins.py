@@ -193,3 +193,23 @@ def test_the_example_shares_one_skill_plugin(tmp_path):
     style = str(Path(tasks.__file__).parent / "plugins" / "house-style")
     assert {launch.kind: launch.launch.plugin_dirs[-1] for launch in agent.launches} == {"summarize": style, "write_note": style}
     assert {launch.role for launch in agent.launches} == {"summarizer", "writer"}
+
+
+def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
+    """A skill directory that is a symbolic link is read like any other: its files are in
+    the digest and the definition, and a link back up the tree is read once."""
+    elsewhere = tmp_path / "shared" / "s1"
+    (elsewhere / "refs").mkdir(parents=True)
+    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nShort sentences.\n")
+    (elsewhere / "refs" / "terms.md").write_text("terms\n")
+    (plugin / "skills" / "s1").symlink_to(elsewhere, target_is_directory=True)
+    (elsewhere / "loop").symlink_to(plugin / "skills", target_is_directory=True)  # a cycle
+    p = Plugin.load(plugin)
+    paths = [path for path, _ in p.skill_files()]
+    assert "skills/s1/SKILL.md" in paths and "skills/s1/refs/terms.md" in paths
+    assert len(paths) == len(set(paths))
+    assert "skills/s1/SKILL.md" in [f["path"] for f in p.definition("worker")["files"]]
+    a = agent_task("summarize", plugin=plugin)
+    digest = a.digest()
+    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nLong sentences.\n")
+    assert a.digest() != digest  # editing the linked skill runs the task again on resume
