@@ -228,6 +228,7 @@ export class CaRunPicker extends LitElement {
     if (t.skipped) parts.push(stateCount('skipped', t.skipped));
     if (t.running) parts.push(stateCount('running', t.running));
     if (t.waiting) parts.push(stateCount('waiting', t.waiting));
+    if (t.not_run) parts.push(stateCount('not_run', t.not_run));
     const s = took(r);
     if (s != null) parts.push(msg(str`took ${fmtDur(s)}`));
     if (r.cost_usd !== null && r.cost_usd !== undefined) parts.push(usd(r.cost_usd));

@@ -101,7 +101,8 @@ Executor = Literal["agent", "python"]
 class TaskCounts(Closed):
     """A run's tasks (not attempts) by how they ended. `not_started`: refused for
     an input, or waiting behind a task that failed; `running`: running now (in a
-    live run); `waiting`: queued."""
+    live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
+    run that is no longer live (it will not run)."""
 
     total: int
     done: int
@@ -109,6 +110,7 @@ class TaskCounts(Closed):
     not_started: int
     running: int = 0
     waiting: int
+    not_run: int = 0
     skipped: int
 
 
@@ -120,6 +122,10 @@ class AccountQuota(Closed):
     account: str = Field("", description="the account the readings are of (`QuotaReading.account`); empty when not known")
     first: QuotaReading
     last: QuotaReading
+    rests: list[CredentialRest] = Field(
+        default_factory=list,
+        description="its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`",
+    )
 
 
 class RunSummary(Closed):
@@ -1143,3 +1149,4 @@ class StreamMessage(Closed):
 
 #: One message of `/events?run=`.
 RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage
+AccountQuota.model_rebuild()

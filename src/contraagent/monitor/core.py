@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -93,6 +94,17 @@ def _first_last(readings: list[dict]) -> dict:
     accounts = [{"credential": c, "account": a, "first": qs[0], "last": qs[-1]} for (c, a), qs in by.items()]
     accounts.sort(key=lambda a: -(a["last"].get("seven_day_pct") or 0))
     return {"quota": accounts}
+
+
+def _when(iso: object) -> datetime | None:
+    """An ISO 8601 time, read as UTC when it names no zone; None for anything else."""
+    if not isinstance(iso, str) or not iso:
+        return None
+    try:
+        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
 def _number(v: object) -> float | None:
@@ -303,19 +315,41 @@ class Monitor:
                 }
             )
         readings = [q for row in rows for a in row["quota"] for q in (a["first"], a["last"])]
-        return {"hosts": hosts, **_first_last(readings)}
+        out = {"hosts": hosts, **_first_last(readings)}
+        # The rests in force now: begun by a live run, not ended, not past their end.
+        now = datetime.now(UTC)
+        current = [
+            r
+            for row in rows
+            if row["running"]
+            for r in self._quota(row["run"])["rests"]
+            if not r.get("ended") and not ((end := _when(r.get("until"))) is not None and end <= now)
+        ]
+        for a in out["quota"]:
+            a["rests"] = [
+                r
+                for r in current
+                if r["credential"] == a["credential"] and (not r.get("account") or not a["account"] or r["account"] == a["account"])
+            ]
+        return out
 
     def _task_counts(self, run: str, live: bool = False) -> dict:
         """Tasks (not attempts) by how they ended, from the plan's states: the
         same numbers the run's own page shows. Running tasks are looked up only
-        for a run that is `live`."""
-        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "skipped": 0}
+        for a run that is `live`; a task deferred, or queued in a run that is not
+        live, is `not_run` (it will not run), and only a live run's queued tasks wait."""
+        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "not_run": 0, "skipped": 0}
         name = {"done": "done", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
         running = _running_keys(self.liveness.snapshot(run)) if live else set()
         for n in self.plan(run, live={})["nodes"]:
             counts["total"] += 1
             state = name.get(n["state"], "waiting")
-            counts["running" if state == "waiting" and n.get("key") in running else state] += 1
+            if state == "waiting" and n.get("key") in running:
+                state = "running"
+            elif state == "waiting" and (n.get("deferred") or not live):
+                # Deferred, or queued in a run that is over: it will not run.
+                state = "not_run"
+            counts[state] += 1
         return counts
 
     # --- journal -----------------------------------------------------------

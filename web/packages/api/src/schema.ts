@@ -341,6 +341,11 @@ export type components = {
             account?: string;
             first: components["schemas"]["QuotaReading"];
             last: components["schemas"]["QuotaReading"];
+            /**
+             * Rests
+             * @description its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`
+             */
+            rests?: components["schemas"]["CredentialRest"][];
         };
         /**
          * AgentProcess
@@ -2047,7 +2052,8 @@ export type components = {
          * TaskCounts
          * @description A run's tasks (not attempts) by how they ended. `not_started`: refused for
          *     an input, or waiting behind a task that failed; `running`: running now (in a
-         *     live run); `waiting`: queued.
+         *     live run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a
+         *     run that is no longer live (it will not run).
          */
         TaskCounts: {
             /** Total */
@@ -2065,6 +2071,11 @@ export type components = {
             running?: number;
             /** Waiting */
             waiting: number;
+            /**
+             * Not Run
+             * @default 0
+             */
+            not_run?: number;
             /** Skipped */
             skipped: number;
         };

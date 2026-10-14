@@ -12,7 +12,7 @@ export const runLineAccounts = (state: RunState, summary: RunSummary) =>
 
 /**
  * The header's run line: tasks that ended well out of all tasks (not attempts),
- * how long the run took, its cost and usage, running. Before the feed has
+ * the tasks that will not run, how long the run took, its cost and usage, running. Before the feed has
  * replayed, no count: the run list's figures only.
  */
 export function runLine(state: RunState, summary: RunSummary, derived: RunDerived = deriveRun(state.journal, state.plan)): string {
@@ -24,7 +24,9 @@ export function runLine(state: RunState, summary: RunSummary, derived: RunDerive
   const tail = facts(took == null ? '' : msg(str`took ${fmtDur(took)}`), cost, usage, summary.running ? msg('running') : '');
   if (!state.ready) return tail; // the feed is still replaying: no count yet rather than a wrong one
   const c = derived.counts;
-  return facts(msg(str`${c.doneTotal} of ${c.total} tasks done`), tail);
+  // Tasks deferred, or queued when the run ended: they will not run (the run list counts them).
+  const notRun = summary.tasks.not_run ? stateCount('not_run', summary.tasks.not_run) : '';
+  return facts(msg(str`${c.doneTotal} of ${c.total} tasks done`), notRun, tail);
 }
 
 /** The history bar's count, as the overview counts: "23 attempts | 4 not started". */

@@ -385,6 +385,23 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
     [rest] = plan["rests"]
     assert rest["credential"] == "personal" and rest["window"] == "five_hour" and rest["since"] and rest["ended"] == ""
     api.Plan.model_validate(plan)
+    # The run list counts them as not run: they were deferred, nothing waits for them.
+    [summary] = [s for s in Monitor(tmp_path / "runs").runs() if s["run"] == report.run_id]
+    assert summary["tasks"]["not_run"] == 2 and summary["tasks"]["waiting"] == 0
+
+
+def test_a_queued_task_waits_only_in_a_live_run(tmp_path):
+    from contraagent.monitor.source import DirectorySource, StaticLiveness
+
+    run = tmp_path / "runs" / "r"
+    run.mkdir(parents=True)
+    (run / "run.json").write_text(json.dumps({"run_id": "r", "started_at": iso(NOW)}))
+    (run / "plan.jsonl").write_text(json.dumps({"key": "note-a", "kind": "note", "unit": "a", "after": []}) + "\n")
+    source = DirectorySource(tmp_path / "runs")
+    live = Monitor(source=source, liveness=StaticLiveness(source, live=["r"])).runs()[0]["tasks"]
+    over = Monitor(source=source, liveness=StaticLiveness(source)).runs()[0]["tasks"]
+    assert (live["waiting"], live["not_run"]) == (1, 0)
+    assert (over["waiting"], over["not_run"]) == (0, 1)
 
 
 def test_the_run_records_its_rule_and_each_rest_as_it_begins_and_ends(tmp_path):
@@ -443,3 +460,28 @@ def test_the_queue_records_its_own_causes(tmp_path):
 def test_a_cap_is_a_percentage(tmp_path, bad):
     with pytest.raises(Exception, match="max_five_hour_pct"):
         config(tmp_path, f'\n[credentials.bad]\ntype = "subscription"\nmax_five_hour_pct = {bad}\n').credentials()
+
+
+def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
+    from contraagent.monitor.source import DirectorySource, StaticLiveness
+
+    def run(name: str, rests: list[dict]) -> None:
+        d = tmp_path / "runs" / name
+        d.mkdir(parents=True)
+        (d / "run.json").write_text(json.dumps({"run_id": name, "host_id": "h1", "started_at": iso(NOW)}))
+        reading_row = {"observed_at": iso(NOW), "credential": "personal", "five_hour_pct": 93.0, "seven_day_pct": 40.0}
+        row = {"ts": iso(NOW), "key": "k", "kind": "k", "stop": "completed", "ok": True, "quota": [reading_row]}
+        (d / "journal.jsonl").write_text(json.dumps(row) + "\n")
+        (d / "rests.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rests))
+
+    later = iso(datetime.now(UTC) + timedelta(hours=2))
+    start = {"ts": iso(NOW), "event": "start", "credential": "personal", "window": "five_hour", "pct": 93.0, "cap": 90.0, "until": later}
+    run("live", [start])
+    run("ended", [start, {**start, "event": "end"}])
+    run("over", [start])  # not live: its rest says nothing of now
+    source = DirectorySource(tmp_path / "runs")
+    hosts = Monitor(source=source, liveness=StaticLiveness(source, live=["live", "ended"])).hosts()
+    api.Hosts.model_validate(hosts)
+    [account] = hosts["quota"]
+    assert [(r["credential"], r["window"], r["until"]) for r in account["rests"]] == [("personal", "five_hour", later)]
+

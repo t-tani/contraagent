@@ -796,6 +796,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The run list counts a deferred task, and a task still queued in a run that is no longer
+  live, as `not_run` (`TaskCounts.not_run`, "not run" in the run line and the run
+  picker); `waiting` is a live run's queued tasks only. The hosts view's subscription
+  usage shows each account's rests in force (`AccountQuota.rests`).
 - A rest by `quota_rule` records the reading the rule judged (`reading`: when it arrived,
   each window's usage and reset) and ends when that reading is out of date, at its
   earliest reset: it recorded no reading and never ended, since nothing launches on a

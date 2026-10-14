@@ -805,6 +805,14 @@
           },
           "last": {
             "$ref": "#/components/schemas/QuotaReading"
+          },
+          "rests": {
+            "items": {
+              "$ref": "#/components/schemas/CredentialRest"
+            },
+            "type": "array",
+            "title": "Rests",
+            "description": "its rests now (`/api/hosts`): those a live run began and that have not ended, nor passed their `until`"
           }
         },
         "additionalProperties": false,
@@ -4310,6 +4318,11 @@
             "type": "integer",
             "title": "Waiting"
           },
+          "not_run": {
+            "type": "integer",
+            "title": "Not Run",
+            "default": 0
+          },
           "skipped": {
             "type": "integer",
             "title": "Skipped"
@@ -4326,7 +4339,7 @@
           "skipped"
         ],
         "title": "TaskCounts",
-        "description": "A run's tasks (not attempts) by how they ended. `not_started`: refused for\nan input, or waiting behind a task that failed; `running`: running now (in a\nlive run); `waiting`: queued."
+        "description": "A run's tasks (not attempts) by how they ended. `not_started`: refused for\nan input, or waiting behind a task that failed; `running`: running now (in a\nlive run); `waiting`: queued in a live run; `not_run`: deferred, or queued in a\nrun that is no longer live (it will not run)."
       },
       "TaskDefinition": {
         "properties": {
