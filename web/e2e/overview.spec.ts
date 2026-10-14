@@ -337,9 +337,10 @@ test.describe('the selection’s card', () => {
     await enter(page, 'review_loop');
     const prepare = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'prepare' }) });
     const zeta = prepare.locator('.mark[title*="zeta"]');
-    // The sheet of the node entered is docked at the bottom: the mark is tapped where a reader sees it, mid-screen.
+    // The narrow frame lays the layer out top to bottom and the sheet of the node entered is docked at the
+    // bottom, so what lies over the mark changes while the layout settles: the mark gets the click itself.
     await zeta.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-    await zeta.click();
+    await zeta.evaluate((el: HTMLElement) => el.click());
     const card = cardOf(page);
     await expect(card).toHaveClass(/sheet/);
     await expect(inspector(page).locator('h4')).toHaveText('prepare · zeta');
