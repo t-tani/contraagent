@@ -484,4 +484,3 @@ def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
     api.Hosts.model_validate(hosts)
     [account] = hosts["quota"]
     assert [(r["credential"], r["window"], r["until"]) for r in account["rests"]] == [("personal", "five_hour", later)]
-
