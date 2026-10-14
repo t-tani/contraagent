@@ -1,6 +1,6 @@
 // The top of `ca-task-view`: the task's name and status, who ran it, what it
 // spent, and a chip per finished attempt.
-import { isLaunched, runReadings, runRelative, spendOf, tryQuota, type JournalRow, type Spend } from '@contraagent/api';
+import { deferredIn, isLaunched, runReadings, runRelative, spendOf, tryQuota, type JournalRow, type Spend } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
@@ -35,7 +35,7 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       return [msg('Running'), 'neutral'];
     case 'waiting': {
       const node = c.plan?.nodes.find((n) => n.key === c.detail.key);
-      const why = node?.deferred ? deferredText(node.deferred_cause, node.deferred) : '';
+      const why = node?.deferred ? deferredText(node.deferred_cause, node.deferred, deferredIn(c.plan, node.deferred_cause)) : '';
       return why ? [msg(str`Not run: ${why}`), 'attention'] : [msg('Waiting'), 'muted'];
     }
     case 'skipped':

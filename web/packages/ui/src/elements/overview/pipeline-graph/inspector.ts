@@ -11,7 +11,7 @@ import type { Selected } from '../../../adapters/graph/selection.js';
 import { doneOf, exceptions, executorWord, neighbours, notDone, stateWord, taskStateStyles, where } from '../../../adapters/graph/words.js';
 import { executorIcon } from '../../../words/executor.js';
 import { fmtDur, kindUnit, listText, usd } from '../../../words/format.js';
-import { passCount, passLabel, passSpread, passesRan } from '../../../words/index.js';
+import { deadlineAtText, passCount, passLabel, passSpread, passesRan, timeBoxFacts, timeBoxTip } from '../../../words/index.js';
 import { primary, select, tasksOf } from './actions.js';
 import type { PipelineHost } from './host.js';
 
@@ -46,6 +46,7 @@ function inspect(h: PipelineHost, s: Selected) {
         <div class="sub">${msg('Function')}</div>
         <dl>
           ${row(msg('Flow calls'), n.calls)}
+          ${n.timeBox ? row(msg('Deadline'), html`<span title=${timeBoxTip()}>${timeBoxFacts(n.timeBox)}</span>`) : nothing}
           ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${states}`)}
           ${row(msg('Waits for'), list(waits))}
           ${after.length ? row(msg('Created after'), list(after)) : nothing}
@@ -76,6 +77,7 @@ function inspect(h: PipelineHost, s: Selected) {
       <dl>
         ${row(msg('Status', { id: 'status', desc: 'The status of a task: done, failed, not started' }), status)}
         ${pass ? row(msg('Pass'), pass) : nothing}
+        ${m.deadlineAt ? row(msg('Deadline'), html`<span title=${timeBoxTip()}>${deadlineAtText(m.deadlineAt)}</span>`) : nothing}
         ${c ? row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${notDone(c, h.live).map((t) => html`<div>${t}</div>`)}`) : nothing}
         ${m.error !== undefined ? row(msg('Error'), html`<span class="err">${m.error || msg('Flow call stopped with an error')}</span>`) : nothing}
       </dl>

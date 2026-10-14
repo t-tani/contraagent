@@ -15,7 +15,7 @@
 //
 // The drawing's order is `arrange` (@contraagent/elements): a loop box is a
 // cluster, an edge back to a loop's next pass does not set the layers.
-import { isPython, type FlowCallNode, type Plan, type PlanNode, type TaskState } from '@contraagent/api';
+import { isPython, type FlowCallNode, type Plan, type PlanNode, type TaskState, type TimeBoxInfo } from '@contraagent/api';
 import type { Arrangement, EdgeStyle, GraphShape } from '@contraagent/elements/graph';
 import { boxChain, cmpPasses, indexOf, instanceOf, loopsAt, passesAt, placeOf, push, shortName, startsWith, type FlowIndex, type FlowTask } from './flow-index.js';
 import { worstOf, worstState } from './states.js';
@@ -44,6 +44,8 @@ export interface Marks {
   /** A function node's flow calls, and those that raised or were closed. */
   calls?: number;
   errors?: number;
+  /** A function node's first own flow call with a deadline of its own (`time_box`), else null. */
+  timeBox?: TimeBoxInfo | null;
 }
 
 /** A kind node's marks: one per unit, and one per task without a unit. */
@@ -97,7 +99,10 @@ export function flowMarks(ts: readonly FlowTask[], d: number, name: string, call
     const last = xs.find((_, i) => states[i] === 'running') ?? xs[xs.length - 1];
     const failed = own.find(callFailed);
     const mark: LayerMark = { key: last?.id ?? '', unit, state: worstOf(states), count: keys.length, keys, flow: name, counts: taskCounts(tasks) };
-    return failed ? { ...mark, error: failed.error ?? '' } : mark;
+    const box = last?.own ? calls?.get(last.id)?.time_box : null;
+    const deadlineAt = box ? deadlineOf(box) : '';
+    const withBox = deadlineAt ? { ...mark, deadlineAt } : mark;
+    return failed ? { ...withBox, error: failed.error ?? '' } : withBox;
   };
   const byUnit = new Map<string, Instance[]>();
   const single: LayerMark[] = [];
@@ -107,7 +112,14 @@ export function flowMarks(ts: readonly FlowTask[], d: number, name: string, call
     else single.push(markOf([x], ''));
   }
   const errors = calls ? xs.filter((x) => x.own && callFailed(calls.get(x.id))).length : 0;
-  return { byUnit: new Map([...byUnit].map(([u, ys]) => [u, markOf(ys, u)])), single, calls: xs.length, errors };
+  const timeBox = xs.map((x) => (x.own ? calls?.get(x.id)?.time_box : null)).find((b) => b) ?? null;
+  return { byUnit: new Map([...byUnit].map(([u, ys]) => [u, markOf(ys, u)])), single, calls: xs.length, errors, timeBox };
+}
+
+/** When a flow call's own deadline falls: its start plus `deadline_s` (UTC ISO 8601); '' when its start is not known. */
+export function deadlineOf(box: TimeBoxInfo): string {
+  const t = Date.parse(box.started_at);
+  return Number.isNaN(t) ? '' : new Date(t + box.deadline_s * 1000).toISOString();
 }
 
 /** Tasks by state. */
@@ -284,6 +296,7 @@ export function project(plan: Plan, path: readonly string[]): Projection {
       counts: taskCounts(shownOf.get(x.id) ?? []),
       calls: m.calls ?? 0,
       errors: m.errors ?? 0,
+      timeBox: m.timeBox ?? null,
     };
   };
   return {

@@ -32,14 +32,20 @@ The order:
   two names, or a name that a stream of tasks keeps busy, starts once what
   holds them ends.
 
-With a deadline (`deadline_s`), from `deadline - slack_s` on the objective is
-the work finished by the deadline, not the makespan: tasks of `finishing_kinds`
-come first, then the smallest bottom level first, and a task whose own
-estimate is known and whose bottom level is longer than the time left is
-deferred at once (a flow may answer the deferral). Past the deadline only
-`finishing_kinds` still launch, for a grace window (`grace_s`). On top sit one
-retry for the stop values in `retry_on`, and throttling (two `throttle_on`
-results in a row halve the slots for `throttle_s`).
+A deadline is a **time box** (`TimeBox`): the run's own (`deadline_s`, with
+`grace_s`, `slack_s` and `finishing_kinds`), over every task, and a flow call's
+(`Task.time_boxes`), over the tasks it and its child flow calls created. A task
+is held to every box it is in. From a box's `deadline - slack_s` on, the
+objective for its tasks is the work finished by the deadline, not the makespan:
+they come before the others, its `finishing_kinds` first, then the smallest
+bottom level first, and one whose own estimate is known and whose bottom level
+is longer than the time left is deferred at once (a flow may answer the
+deferral). Past the deadline only the box's `finishing_kinds` still launch, for
+its grace window (`grace_s`); every other task in it is deferred. So the
+earliest deadline of a task's boxes stops it, and a finishing kind launches
+past a deadline only while each box it is in lets it. On top sit one retry for
+the stop values in `retry_on`, and throttling (two `throttle_on` results in a
+row halve the slots for `throttle_s`).
 
 Every `Task` carries two identities (`dispatch/task.py`): `.id`, fresh per
 object and used only for this queue's bookkeeping, and `.key`, the stable
@@ -89,11 +95,9 @@ from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Protocol
 
-from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult
+from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
 
-#: The queue's own deferrals (`Deferral.cause` names each).
-_DEADLINE = Deferral("deadline", {"cause": "deadline"})
-_GRACE_WINDOW = Deferral("grace window exhausted", {"cause": "grace_window"})
+#: The queue's own deferral with no deadline in it (`Deferral.cause` names it).
 _NOT_QUEUED = Deferral("no launchable task (dependency never queued)", {"cause": "dependency_not_queued"})
 
 #: Used when a task carries no estimate and the `estimate` callback has none: about one
@@ -115,6 +119,11 @@ GRACE_S = 900.0
 OnEvent = Callable[..., None]  # on_event(event: str, task: Task | None, **fields)
 FollowUp = Callable[[TaskResult], list[Task]]
 OnResult = Callable[[TaskResult, int], None]  # on_result(result, attempt)
+
+
+def _named(reason: str, box: TimeBox) -> str:
+    """A deferral's reason, naming the flow call whose time box it is (none: the run's)."""
+    return f"{reason} (time box of flow call {box.flow_call})" if box.flow_call is not None else reason
 
 
 def _is_pattern(name: str) -> bool:
@@ -176,6 +185,12 @@ class WorkQueue:
         self.grace_s = grace_s
         self.hard_stop_at = (self.deadline_at + grace_s) if self.deadline_at is not None else None
         self.finishing_kinds = tuple(finishing_kinds)
+        #: The run's own time box, over every task; None without a deadline.
+        self.time_box = (
+            TimeBox(self.deadline_at, float(deadline_s), grace_s, self.slack_s, frozenset(self.finishing_kinds))
+            if self.deadline_at is not None and deadline_s
+            else None
+        )
         self.claim_capacity: dict[str, int] = dict(claim_capacity or {})
         # Patterns, the longest first: the first that matches a name no exact entry names wins.
         self._claim_patterns = sorted((k for k in self.claim_capacity if _is_pattern(k)), key=len, reverse=True)
@@ -268,9 +283,25 @@ class WorkQueue:
         """From `deadline - slack_s` on: ordered for the deadline (the module docstring)."""
         return self.deadline_at is not None and time.monotonic() >= self.deadline_at - self.slack_s
 
-    def _finishing(self, task: Task) -> bool:
-        """A short finishing task: still launches inside the grace window."""
-        return task.kind in self.finishing_kinds
+    def _boxes(self, task: Task) -> tuple[TimeBox, ...]:
+        """Every time box `task` is held to: its flow calls' and the run's."""
+        return task.time_boxes + ((self.time_box,) if self.time_box is not None else ())
+
+    def _closed(self, task: Task, now: float) -> Deferral | None:
+        """Why a box `task` is in no longer lets it launch: past the box's grace window,
+        or past its deadline for a kind that is not one of its finishing kinds."""
+        for box in self._boxes(task):
+            if now >= box.deadline_at + box.grace_s:
+                return Deferral(_named("grace window exhausted", box), box.cause("grace_window"))
+            if now >= box.deadline_at and task.kind not in box.finishing_kinds:
+                return Deferral(_named("deadline", box), box.cause("deadline"))
+        return None
+
+    def _endgame_box(self, task: Task, now: float) -> TimeBox | None:
+        """The box, of those `task` is in, whose endgame it is in (from `deadline -
+        slack_s`) with the earliest deadline; None outside every endgame."""
+        boxes = [b for b in self._boxes(task) if now >= b.deadline_at - b.slack_s]
+        return min(boxes, key=lambda b: b.deadline_at) if boxes else None
 
     def slots(self) -> int:
         """Current concurrency cap. Halved right after back-to-back 429s."""
@@ -316,17 +347,9 @@ class WorkQueue:
                 if not self._running:
                     if not self._queued:
                         break
-                    # Each branch below either launches nothing new or defers
-                    # what is queued; a deferral's follow-ups may queue more
-                    # work, which the next pass handles.
-                    if self.past_hard_stop():
-                        self._defer_all(_GRACE_WINDOW)
-                        continue
-                    if self.past_deadline():
-                        if self._drop_openers():  # finishing tasks stay; loop to launch them
-                            continue
-                        self._defer_all(_DEADLINE)
-                        continue
+                    # Nothing runs and nothing started: what is queued waits for a
+                    # retry, or for a task that will never come. A deferral's
+                    # follow-ups may queue more work, which the next pass handles.
                     if self._sleep_until_retry():
                         continue
                     self._defer_all(_NOT_QUEUED)
@@ -338,15 +361,15 @@ class WorkQueue:
                     self._on_done(task, fut)
         return self._summary(time.monotonic() - t0)
 
-    def _drop_openers(self) -> bool:
-        """Past the deadline: defer openers, keep short finishing tasks. Returns
-        True when tasks remain to launch (finishing tasks, or what the deferrals'
-        follow-ups queued)."""
-        openers = [t for t in self._queued if not self._finishing(t)]
-        self._queued = [t for t in self._queued if self._finishing(t)]
-        for t in openers:
-            self._defer(t, _DEADLINE)
-        return bool(self._queued)
+    def _defer_closed(self, now: float) -> None:
+        """Defer every queued task a time box no longer lets launch (`_closed`)."""
+        closed = [(t, why) for t in self._queued if (why := self._closed(t, now)) is not None]
+        if not closed:
+            return
+        ids = {t.id for t, _ in closed}
+        self._queued = [t for t in self._queued if t.id not in ids]
+        for t, why in closed:
+            self._defer(t, why)
 
     def _known_est(self, task: Task) -> float | None:
         if task.estimate_s is not None:
@@ -382,19 +405,21 @@ class WorkQueue:
         since = self._ready_since.get(task.id)
         return since is not None and now - since >= self.overdue_s
 
-    def _order(self, tasks: list[Task], memo: dict[str, float], now: float, endgame: bool) -> list[Task]:
-        """The launch order (the module docstring). Before the endgame: overdue tasks
-        first, the longest waiting first (tasks that became startable together: the
-        highest bottom level first), then the highest bottom level, then arrival.
-        In it: finishing tasks first, then the smallest bottom level, then arrival."""
+    def _order(self, tasks: list[Task], memo: dict[str, float], now: float) -> list[Task]:
+        """The launch order (the module docstring). First the tasks in a time box's
+        endgame: its finishing kinds first, then the smallest bottom level, then
+        arrival. Then overdue tasks, the longest waiting first (tasks that became
+        startable together: the highest bottom level first); then the highest bottom
+        level, then arrival."""
 
         def key(t: Task) -> tuple:
             seq = self._seq.get(t.id, 0)
-            if endgame:
-                return (0 if self._finishing(t) else 1, self._blevel(t, memo), seq)
+            box = self._endgame_box(t, now)
+            if box is not None:
+                return (0, 0 if t.kind in box.finishing_kinds else 1, self._blevel(t, memo), seq)
             if self._overdue(t, now):
-                return (0, self._ready_since[t.id], -self._blevel(t, memo), seq)
-            return (1, 0.0, -self._blevel(t, memo), seq)
+                return (1, self._ready_since[t.id], -self._blevel(t, memo), seq)
+            return (2, 0.0, -self._blevel(t, memo), seq)
 
         return sorted(tasks, key=key)
 
@@ -409,26 +434,20 @@ class WorkQueue:
         return 1
 
     def _start_ready(self, pool: ThreadPoolExecutor) -> None:
-        if self.past_hard_stop():
-            return
-        if self.past_deadline():
-            self._drop_openers()
         now = time.monotonic()
+        self._defer_closed(now)
         for t in self._queued:  # each task's wait starts when it could start but for resources
             if t.id not in self._ready_since and self._startable(t, now):
                 self._ready_since[t.id] = now
         memo: dict[str, float] = {}
-        past_deadline = self.past_deadline()
-        endgame = self.in_endgame()
-        if endgame and not past_deadline:
-            self._defer_late(memo, now)
+        if self._defer_late(memo, now):
             memo = {}  # the deferrals' follow-ups may have queued more
         head: Task | None = None  # the first task in the order that cannot start
         guarded = False
-        for task in self._order(self._queued, memo, now, endgame):
+        for task in self._order(self._queued, memo, now):
             if len(self._running) >= self.slots():
                 break
-            if past_deadline and not self._finishing(task):
+            if self._closed(task, now) is not None:
                 continue  # queued by a deferral's follow-up; deferred on the next pass
             if not self._startable(task, now):
                 continue
@@ -452,26 +471,31 @@ class WorkQueue:
             self._occupy(task)
             self._running[pool.submit(self.runner.run, task)] = task
 
-    def _defer_late(self, memo: dict[str, float], now: float) -> None:
-        """In the endgame: defer each task that could start but whose work cannot finish
-        before the deadline, its own estimate known and its bottom level longer than the
-        time left. Finishing tasks are kept: they have the grace window."""
-        assert self.deadline_at is not None
-        left = self.deadline_at - now
-        late: list[tuple[Task, float]] = []
+    def _defer_late(self, memo: dict[str, float], now: float) -> bool:
+        """In a time box's endgame, before its deadline: defer each task that could start
+        but whose work cannot finish before the deadline, its own estimate known and its
+        bottom level longer than the time left. The box's finishing kinds are kept: they
+        have its grace window. Whether it deferred any."""
+        late: list[tuple[Task, Deferral]] = []
         for t in self._queued:
-            if self._finishing(t) or not self._startable(t, now) or self._known_est(t) is None:
+            if not self._startable(t, now) or self._known_est(t) is None:
                 continue
-            need = self._blevel(t, memo)
-            if need > left:
-                late.append((t, need))
+            for box in self._boxes(t):
+                left = box.deadline_at - now
+                if left <= 0 or now < box.deadline_at - box.slack_s or t.kind in box.finishing_kinds:
+                    continue
+                need = self._blevel(t, memo)
+                if need > left:
+                    reason = _named(f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left", box)
+                    late.append((t, Deferral(reason, box.cause("cannot_finish", need_s=round(need), left_s=round(left)))))
+                    break
         if not late:
-            return
+            return False
         ids = {t.id for t, _ in late}
         self._queued = [t for t in self._queued if t.id not in ids]
-        for t, need in late:
-            reason = f"cannot finish before the deadline: needs {need:.0f}s, {left:.0f}s left"
-            self._defer(t, Deferral(reason, {"cause": "cannot_finish", "need_s": round(need), "left_s": round(left)}))
+        for t, why in late:
+            self._defer(t, why)
+        return True
 
     def _occupy(self, task: Task) -> None:
         for name in set(task.claims):
@@ -518,7 +542,8 @@ class WorkQueue:
         else:
             self._consec_throttled = 0
 
-        if res.stop in self.retry_on and self._attempt.get(task.id, 1) < 2 and not self.past_deadline():
+        past_a_deadline = any(time.monotonic() >= box.deadline_at for box in self._boxes(task))
+        if res.stop in self.retry_on and self._attempt.get(task.id, 1) < 2 and not past_a_deadline:
             # Full jitter (AWS's "Exponential Backoff and Jitter"): with a
             # fixed wait, every task that failed in the same outage would
             # retry at the same instant.

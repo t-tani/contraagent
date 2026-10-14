@@ -88,6 +88,26 @@ class Origin:
     flow_call: str = "0"
 
 
+@dataclass(frozen=True)
+class TimeBox:
+    """A deadline over the tasks of one flow call and of the flow calls it starts: from
+    `deadline_at` (`time.monotonic()`), only `finishing_kinds` still launch, for `grace_s`;
+    from `deadline_at - slack_s` the queue orders them for the deadline. `flow_call`: the
+    flow call it bounds, None for the queue's own deadline over the whole run.
+    `deadline_s`: its length, counted from its flow call's start."""
+
+    deadline_at: float
+    deadline_s: float
+    grace_s: float
+    slack_s: float = 0.0
+    finishing_kinds: frozenset[str] = frozenset()
+    flow_call: str | None = None
+
+    def cause(self, name: str, **fields: Any) -> dict:
+        """A deferral's cause (`Deferral.cause`) under this box: `flow_call` names it."""
+        return {"cause": name, **fields, **({"flow_call": self.flow_call} if self.flow_call is not None else {})}
+
+
 @dataclass
 class Task:
     """One schedulable unit of work.
@@ -105,6 +125,8 @@ class Task:
     a coding-agent launch. None for an agent task.
     `claims`: the names this task holds while it runs; no more tasks hold one
     name at once than its capacity (WorkQueue's `claim_capacity`; 1 by default).
+    `time_boxes`: the time boxes of the flow calls that created it, outermost
+    first (`TimeBox`); the queue holds it to each of them, beside its own deadline.
     `estimate_s`: expected wall time, used to order the ready set.
     `tail_s`: expected wall time of the work that follows this task but is
     not queued yet (a flow creates it from this task's result); the queue's
@@ -128,6 +150,7 @@ class Task:
     after: tuple[str, ...] = ()
     fn: Callable[[], None] | None = None
     claims: tuple[str, ...] = ()
+    time_boxes: tuple[TimeBox, ...] = ()
     estimate_s: float | None = None
     tail_s: float | None = None
     params: dict = field(default_factory=dict)
@@ -178,8 +201,9 @@ class Deferral:
     """Why a task is not launched: `reason` in one line (logs, the CLI), and `cause`, the
     same as data for a reader that words it itself (the monitor): `{"cause": <name>, ...}`.
     The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
-    `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; a runner adds its own
-    (`rest`: `routing.quota`)."""
+    `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; the first three name
+    the time box's `flow_call` when the deadline is one's (`TimeBox`), not the run's. A
+    runner adds its own (`rest`: `routing.quota`)."""
 
     reason: str
     cause: dict = field(default_factory=dict)

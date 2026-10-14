@@ -207,6 +207,34 @@ columns and, inside that, revises each until `verify` accepts it.
 The parsers claim `heavy` (`claims=["heavy"]`), so one runs at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
 
+## A deadline over part of a flow: time boxes
+
+`Pipeline(deadline_s=)` is a deadline over the whole run. When only one part of a
+flow must end in time, and the steps after it must run however it went, put that
+part in a **time box**: yield its generator through `time_box(...)`. Its deadline
+counts from the moment that flow call starts, and holds over the tasks it and the
+flow calls it starts create; nothing outside it is held to it.
+
+::code{file="examples/time_box/flow.py" from="def topic_work("}
+
+Inside, the rules are the run's deadline's: from `deadline_s - slack_s` (default a
+quarter of `deadline_s`) its tasks go before the others, its `finishing_kinds`
+first, and one whose known remaining work cannot finish in time is deferred at
+once; past the deadline only its `finishing_kinds` launch, for `grace_s`; every
+other task it creates is deferred, and the flow receives `TaskDeferred` at its
+`yield`. A box whose flow does not catch it raises it to the flow call that
+yielded the box, which may catch it and go on.
+
+A task is held to every time box it is in: the run's and each enclosing box. So
+the earliest deadline stops it, and a finishing kind launches past a deadline only
+while every box it is in still lets it (that box's grace window, or a later
+deadline). `deferred.jsonl` names the box (`cause.flow_call`), and the monitor shows
+a function whose flow calls have a deadline of their own, and when each one's falls.
+
+On resume (`resume=True`) a time box counts from its flow call's start in this
+run start: the tasks an earlier attempt finished are skipped at once, so the
+time goes to the work that is left.
+
 ## Claims: one task at a time on a name
 
 Tasks run together unless something keeps them apart: their kind and their

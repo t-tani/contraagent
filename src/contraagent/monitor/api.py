@@ -202,6 +202,16 @@ class FlowFrame(Closed):
     )
 
 
+class TimeBoxInfo(Closed):
+    """A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it."""
+
+    started_at: str = Field(description="when the flow call started, where its deadline counts from (UTC ISO 8601)")
+    deadline_s: float = Field(description="seconds from `started_at` to the deadline")
+    grace_s: float = Field(description="seconds past the deadline its `finishing_kinds` still launch")
+    slack_s: float = Field(description="seconds before the deadline from which its tasks are ordered for it")
+    finishing_kinds: list[str] = Field(default_factory=list, description="the kinds that still launch past the deadline")
+
+
 class FlowCallNode(Closed):
     """One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself."""
 
@@ -213,6 +223,7 @@ class FlowCallNode(Closed):
     )
     state: FlowCallState
     error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what closing it raised); else null")
+    time_box: TimeBoxInfo | None = Field(None, description="its own deadline, for a flow call yielded through `time_box`; else null")
 
 
 class DeferralCause(Closed):
@@ -224,6 +235,9 @@ class DeferralCause(Closed):
     cause: str
     need_s: float | None = Field(None, description="`cannot_finish`: the work it needed, in seconds")
     left_s: float | None = Field(None, description="`cannot_finish`: the time left before the deadline, in seconds")
+    flow_call: str | None = Field(
+        None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline"
+    )
     rests: list[SkippedHop] = Field(default_factory=list, description="`rest`: each hop passed over and why its credential rests")
 
 

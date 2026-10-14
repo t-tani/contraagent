@@ -40,6 +40,7 @@ export type FlowFrame = S['FlowFrame'];
 export type FlowLoop = S['FlowLoop'];
 export type FlowCallNode = S['FlowCallNode'];
 export type FlowCallState = FlowCallNode['state'];
+export type TimeBoxInfo = S['TimeBoxInfo'];
 
 export type Outputs = S['Outputs'];
 export type OutputTally = S['OutputTally'];

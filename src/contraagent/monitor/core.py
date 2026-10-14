@@ -83,7 +83,23 @@ def _deferral_cause(cause: dict) -> dict:
         "cause": str(cause.get("cause")),
         "need_s": _number(cause.get("need_s")),
         "left_s": _number(cause.get("left_s")),
+        "flow_call": cause["flow_call"] if isinstance(cause.get("flow_call"), str) else None,
         "rests": [{**r, "window": r.get("window") or "", "rule": r.get("rule") or "", "until": r.get("until") or ""} for r in rests],
+    }
+
+
+def _time_box(box: object) -> dict | None:
+    """A flow call's time box as `flow_calls.jsonl` records it (`TimeBoxInfo`); None
+    for a flow call with none."""
+    if not isinstance(box, dict) or _number(box.get("deadline_s")) is None:
+        return None
+    kinds = box.get("finishing_kinds")
+    return {
+        "started_at": str(box.get("started_at") or ""),
+        "deadline_s": _number(box.get("deadline_s")),
+        "grace_s": _number(box.get("grace_s")) or 0.0,
+        "slack_s": _number(box.get("slack_s")) or 0.0,
+        "finishing_kinds": [k for k in kinds if isinstance(k, str)] if isinstance(kinds, list) else [],
     }
 
 
@@ -436,6 +452,7 @@ class Monitor:
                     "flow": _shown_flow(flow, cwd) if isinstance(flow, list) else [],
                     "state": "running",
                     "error": None,
+                    "time_box": _time_box(row.get("time_box")),
                 }
             elif row.get("event") == "end" and cid in calls:
                 calls[cid].update(state=row.get("state") or "closed", error=row.get("error"))

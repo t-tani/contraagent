@@ -1100,6 +1100,18 @@
             "title": "Left S",
             "description": "`cannot_finish`: the time left before the deadline, in seconds"
           },
+          "flow_call": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow Call",
+            "description": "`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline"
+          },
           "rests": {
             "items": {
               "$ref": "#/components/schemas/SkippedHop"
@@ -1276,6 +1288,17 @@
             ],
             "title": "Error",
             "description": "`<type>: <message>` of what it raised (or what closing it raised); else null"
+          },
+          "time_box": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeBoxInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "its own deadline, for a flow call yielded through `time_box`; else null"
           }
         },
         "additionalProperties": false,
@@ -3623,6 +3646,48 @@
         ],
         "title": "TaskLaunch",
         "description": "A live launch of the task (a child process, or an in-process marker with empty plugin/model/role/cmd)."
+      },
+      "TimeBoxInfo": {
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "description": "when the flow call started, where its deadline counts from (UTC ISO 8601)"
+          },
+          "deadline_s": {
+            "type": "number",
+            "title": "Deadline S",
+            "description": "seconds from `started_at` to the deadline"
+          },
+          "grace_s": {
+            "type": "number",
+            "title": "Grace S",
+            "description": "seconds past the deadline its `finishing_kinds` still launch"
+          },
+          "slack_s": {
+            "type": "number",
+            "title": "Slack S",
+            "description": "seconds before the deadline from which its tasks are ordered for it"
+          },
+          "finishing_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Finishing Kinds",
+            "description": "the kinds that still launch past the deadline"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "started_at",
+          "deadline_s",
+          "grace_s",
+          "slack_s"
+        ],
+        "title": "TimeBoxInfo",
+        "description": "A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it."
       },
       "TokenUsage": {
         "properties": {
