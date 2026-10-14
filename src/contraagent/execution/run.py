@@ -13,6 +13,8 @@ A `Run` owns `runs/<run-id>/`:
     flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
                             (`state`, `error`)
     deferred.jsonl          one row per deferred task: its key and why it was not launched
+                            (`reason`, and `cause` as data: `Deferral`)
+    rests.jsonl             each start and end of a credential's quota rest (`routing.quota`)
     inflight/<key>.json     one marker per running task
     contracts/, definitions/  what each task declared, for the monitor
 
@@ -52,7 +54,7 @@ from contraagent.execution.estimates import JournalEstimates, journal_rows, rece
 from contraagent.execution.journal import Journal, utcnow_iso
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
-from contraagent.routing.quota import QuotaRests, QuotaRule
+from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
 
 _logger = logging.getLogger(__name__)
 
@@ -66,6 +68,13 @@ def finished_before(row: dict | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
     task's fingerprint. What a resume skips."""
     return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+
+
+def _name_of(fn: Callable) -> str:
+    """A callable's `module.qualname`, as `run.json` names a quota rule."""
+    fn = getattr(fn, "__func__", fn)
+    qualname = getattr(fn, "__qualname__", "") or type(fn).__qualname__
+    return f"{getattr(fn, '__module__', '') or ''}.{qualname}".lstrip(".")
 
 
 def frames_row(frames: Sequence[Frame]) -> list[dict]:
@@ -277,8 +286,11 @@ class Run:
     def quota_rests(self, credentials: Mapping, rule: QuotaRule | None = None, **kwargs) -> QuotaRests:
         """The run's quota rests (`routing.quota`) over `credentials`, told the utilization
         readings of the recent runs' journals (this run's included, when resumed): an
-        account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`."""
-        rests = QuotaRests(credentials, rule, **kwargs)
+        account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`.
+        `run.json` records the caps (`quota_caps`, by credential) and the rule's name
+        (`quota_rule`, '' for none); `rests.jsonl` each start and end of a rest."""
+        rests = QuotaRests(credentials, rule, on_change=self._record_rest, **kwargs)
+        self.update_info(quota_caps=caps_of(credentials), quota_rule=_name_of(rule) if rule is not None else "")
         fields = {f.name for f in dataclasses.fields(RateLimit)}
         for path in recent_journals(self.runs_dir):
             for row in journal_rows(path):
@@ -354,7 +366,8 @@ class Run:
             elif fields.get("stop") == "skipped":
                 self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
         if event == "deferred" and task is not None:
-            self._record_deferral(task, str(fields.get("reason") or ""))
+            cause = fields.get("cause")
+            self._record_deferral(task, str(fields.get("reason") or ""), cause if isinstance(cause, dict) else {})
         if event == "duplicate_key_refused":
             self._log(logging.WARNING, f"[refused] {fields.get('key')}: already in flight")
         elif event == "retry" and task is not None:
@@ -394,16 +407,31 @@ class Run:
         if self._estimates is not None:
             self._estimates.observe_plan(row)
 
-    def _record_deferral(self, task: Task, reason: str) -> None:
-        """Record a task the queue deferred in `deferred.jsonl` (`{ts, key, kind, unit, reason}`):
-        the monitor names the reason it did not run. A task deferred after it started (its
-        runner found no way to launch it) loses its running marker too."""
+    def _record_deferral(self, task: Task, reason: str, cause: dict) -> None:
+        """Record a task the queue deferred in `deferred.jsonl` (`{ts, key, kind, unit, reason,
+        cause}`: `cause` is `Deferral.cause`): the monitor names why it did not run. A task
+        deferred after it started (its runner found no way to launch it) loses its running
+        marker too."""
         self._mark_inflight(task, running=False)
         self._append(
             rundir.DEFERRED,
-            {"ts": utcnow_iso(), "key": task.key, "kind": kind_name(task.kind), "unit": self._unit_of(task), "reason": reason},
+            {
+                "ts": utcnow_iso(),
+                "key": task.key,
+                "kind": kind_name(task.kind),
+                "unit": self._unit_of(task),
+                "reason": reason,
+                "cause": cause,
+            },
         )
         self._log(logging.INFO, f"[deferred] {task.key}: {reason}")
+
+    def _record_rest(self, event: str, rest: Rest) -> None:
+        """One line of `rests.jsonl`: `{ts, event, credential, window, pct, cap, rule, until}`,
+        `event` `start` when the credential began resting, `end` when it was found not
+        resting again (with the rest that ended)."""
+        self._append(rundir.RESTS, {"ts": utcnow_iso(), "event": event, **rest.to_dict()})
+        self._log(logging.INFO, f"[rest] {rest.text()}" if event == "start" else f"[rest] {rest.credential} rests no more")
 
     def record_flow_call(
         self,

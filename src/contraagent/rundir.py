@@ -6,7 +6,7 @@ it (the monitor's `DirectorySource`, `JournalEstimates`). They name each file
 through this module, so the layout is written down once.
 
 Append-only logs (one JSON object per line, never rewritten; a reader keeps a
-line offset): `JOURNAL`, `LAUNCHES`, `PLAN`, `FLOW_CALLS`, `DEFERRED`, and one transcript
+line offset): `JOURNAL`, `LAUNCHES`, `PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, and one transcript
 per task, `stream(key)`.
 
 Documents (a whole JSON file, replaced atomically): `RUN_INFO`, `CURSOR`, and
@@ -31,6 +31,7 @@ LAUNCHES = "launches.jsonl"
 PLAN = "plan.jsonl"
 FLOW_CALLS = "flow_calls.jsonl"
 DEFERRED = "deferred.jsonl"
+RESTS = "rests.jsonl"
 CURSOR = "cursor.json"
 STREAMS = "streams"
 CONTRACTS = "contracts"
@@ -39,7 +40,7 @@ CALLS = "calls"
 INFLIGHT = "inflight"
 
 #: The append-only logs every run has, by name (a task's transcript is `stream(key)`).
-LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED)
+LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED, RESTS)
 
 #: Names the host that drives a run in `run.json` (`host_id`); unset, the host name.
 HOST_ID_ENV = "CONTRAAGENT_HOST_ID"

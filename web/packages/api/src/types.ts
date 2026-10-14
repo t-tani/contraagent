@@ -20,6 +20,9 @@ export type JournalRow = S['JournalRow'];
 /** How one attempt ended (`JournalRow.stop`): a `Stop` of the Python package, or `skipped`. */
 export type Stop = JournalRow['stop'];
 export type Hop = S['Hop'];
+export type SkippedHop = S['SkippedHop'];
+/** Why a credential rests (a cap or the quota rule): what a `SkippedHop` and a `CredentialRest` share. */
+export type QuotaRest = Pick<S['SkippedHop'], 'credential' | 'window' | 'pct' | 'cap' | 'rule' | 'until'>;
 export type TokenUsage = S['TokenUsage'];
 export type QuotaReading = S['QuotaReading'];
 export type JournalPage = S['JournalPage'];
@@ -29,6 +32,9 @@ export type Executor = NonNullable<S['PlanNode']['executor']>;
 export type Plan = S['Plan'];
 export type PlanNode = S['PlanNode'];
 export type PlanGroup = S['PlanGroup'];
+export type DeferralCause = S['DeferralCause'];
+export type QuotaCap = S['QuotaCap'];
+export type CredentialRest = S['CredentialRest'];
 export type TaskState = PlanNode['state'];
 export type FlowFrame = S['FlowFrame'];
 export type FlowLoop = S['FlowLoop'];

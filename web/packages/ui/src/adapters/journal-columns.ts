@@ -60,7 +60,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
    */
   const reason = (e: JournalRow) => {
     const ran = isLaunched(e);
-    const sw = modelSwitch(e.hops);
+    const sw = modelSwitch(e.hops, null, e.skipped_hops);
     const run = ctx.run || e.run_id || '';
     const own = ctx.outcomes.get(e.key);
     const cause = e.stop === 'invalid_input' && own ? notStartedCause({ attempts: [e], cause: null }, ctx.outcomes, run) : '';
@@ -111,7 +111,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       header: msg('Agent, model, identity'),
       width: 'minmax(150px,1fr)',
       cell: (e) =>
-        html`<span class="jmono jdim two" title=${facts(e.route, modelSwitch(e.hops)) || nothing}>${isLaunched(e)
+        html`<span class="jmono jdim two" title=${facts(e.route, modelSwitch(e.hops, null, e.skipped_hops)) || nothing}>${isLaunched(e)
           ? html`<span>${[e.agent, e.model].filter(Boolean).join(' / ') || '—'}</span>${identity(e)}`
           : '—'}</span>`,
     },
