@@ -37,7 +37,7 @@ const seg = encodeURIComponent;
  * A view the export does not hold (a transcript, the hosts) answers `ApiError` 404.
  * A route of no run is a file under `data/` (`trends.json`, `trends/panels/<name>.json`):
  * a new route is one method here, `file<T>('<its file>')`, beside its entry in the
- * Python `ROUTES` or `SITE_ROUTES` (`contraagent/monitor/export.py`).
+ * Python `VIEWS` (`contraagent/monitor/views.py`) or `SITE_FILES` (`contraagent/monitor/export.py`).
  */
 export function createExportClient(baseUrl: string, options: ExportClientOptions = {}): ExportClient {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
