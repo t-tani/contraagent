@@ -11,10 +11,13 @@ nested in it: inner functions, lambdas, comprehensions) uses, an attribute
 of a module it uses by one of those names (`tasks.review`), the values its
 closure holds, and its default arguments. Each value found is followed the
 same way when it is a function of flow code (`origin.flow_code`), a bound
-method, a `functools.partial`, an object whose class defines `__call__` in
-flow code, a list, tuple, set or dict (its items), or an `Implementations` (each
-of its agent tasks). A Python task's own
-function is not followed: it runs as a task and creates none.
+method, a `functools.partial`, a class of flow code (the values its body
+defines: methods, static and class methods, a property's functions, nested
+classes, class attributes; and its bases of flow code), an instance of such a
+class (its class), a list, tuple, set or dict (its items), or an
+`Implementations` (each of its agent tasks). A class of any other code is not
+followed. A Python task's own function is not followed: it runs as a task and
+creates none.
 
 A task declared while the flow runs (inside the flow's body) is not reached;
 `Pipeline` routes it when it is created. What is reached is what the flow can
@@ -26,6 +29,7 @@ declaration its caller passes instead are both reached (`Graph.reached`,
 from __future__ import annotations
 
 import functools
+import sys
 from collections import deque
 from collections.abc import Iterable
 from types import BuiltinFunctionType, CodeType, FunctionType, MethodType, ModuleType
@@ -61,8 +65,15 @@ def reachable(*roots: Any) -> list[AgentTask | PythonTask]:
             work.extend(obj.values())
         elif isinstance(obj, (list, tuple, set, frozenset)):
             work.extend(obj)
-        elif not isinstance(obj, (type, ModuleType, BuiltinFunctionType, str, bytes, int, float)) and _own_call(obj):
-            work.append(type(obj).__call__)
+        elif isinstance(obj, type):
+            if _flow_class(obj):
+                work.extend(_class_refs(obj))
+        elif isinstance(obj, (staticmethod, classmethod)):
+            work.append(obj.__func__)
+        elif isinstance(obj, property):
+            work.extend(f for f in (obj.fget, obj.fset, obj.fdel) if f is not None)
+        elif not isinstance(obj, (ModuleType, BuiltinFunctionType, str, bytes, int, float)) and _flow_class(type(obj)):
+            work.append(type(obj))
     return found
 
 
@@ -114,7 +125,26 @@ def _filled(cell: Any) -> bool:
     return True
 
 
-def _own_call(obj: Any) -> bool:
-    """An instance whose class defines `__call__` in flow code."""
-    call = getattr(type(obj), "__call__", None)  # noqa: B004 (the class's, not the instance's)
-    return isinstance(call, FunctionType) and flow_code(call.__code__.co_filename)
+def _class_refs(cls: type) -> list[Any]:
+    """What a class of flow code defines (its body's values) and its bases."""
+    return [*vars(cls).values(), *cls.__bases__]
+
+
+def _flow_class(cls: type) -> bool:
+    """A class defined in flow code: its module's file is, or, for a module with no
+    file (`__main__` of `python -c`), one of the functions its body defines is."""
+    module = sys.modules.get(cls.__module__)
+    file = getattr(module, "__file__", None)
+    if isinstance(file, str):
+        return flow_code(file)
+    if cls.__module__ == "builtins":
+        return False
+    return any(isinstance(f, FunctionType) and flow_code(f.__code__.co_filename) for f in map(_unwrap, vars(cls).values()))
+
+
+def _unwrap(value: Any) -> Any:
+    if isinstance(value, (staticmethod, classmethod)):
+        return value.__func__
+    if isinstance(value, property):
+        return value.fget
+    return value

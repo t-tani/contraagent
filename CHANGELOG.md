@@ -1036,6 +1036,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A kind a generator flow reaches only through a class of flow code (a method, static or
+  class method, property or base of a class the flow's code refers to, or of the class of an
+  instance it refers to) is a reachable kind: it is checked, routed and probed before the
+  first launch, and its `[tasks.<kind>]` table is no longer reported as naming no kind of the
+  run. A class of any other code is not followed. The warning for such a table ends
+  "ignored (a typo?)" when no close kind name is known.
 - `PipelineConfig.table(name)` returned a top-level table that every check refused as
   unknown; it reads `[pipeline.<name>]`, and an unknown top-level table's message names
   `[pipeline.<name>]` as the place for a pipeline's own table.
