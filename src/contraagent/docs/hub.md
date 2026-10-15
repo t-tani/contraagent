@@ -44,8 +44,8 @@ to anyone who reaches the port.
 CONTRAAGENT_HUB_TOKEN=... contraagent relay --runs-dir runs --hub http://hub.lan:8790
 ```
 
-It ships each run's records as they are written, the contents of the files its
-contracts name, and a heartbeat with the run's live processes every few seconds. Where
+It ships each run's records as they are written (the pipeline's own logs and documents
+among them), the contents of the files its contracts name, and a heartbeat with the run's live processes every few seconds. Where
 it is up to is kept in a progress file next to the runs directory
 (`<runs-dir>.relay.json`), so a restarted relay continues; the hub's answers correct it
 when the hub holds less (a new hub, lost data). A run is named on the hub

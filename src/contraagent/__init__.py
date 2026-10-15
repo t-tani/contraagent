@@ -93,12 +93,15 @@ from contraagent.errors import ContraagentError
 from contraagent.execution import (
     AgentRunner,
     CursorStore,
+    NoCurrentRun,
     PythonTaskRunner,
     RetryingRunner,
     Run,
     RunExists,
     RunLocked,
     TaskAdapter,
+    log,
+    save,
 )
 from contraagent.pipeline import CheckReport, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
 from contraagent.plugins import Plugin, PluginError
@@ -142,6 +145,7 @@ __all__ = [
     "LaunchError",
     "LaunchResult",
     "Limits",
+    "NoCurrentRun",
     "OAuthToken",
     "OmpBackend",
     "OmpRpcBackend",
@@ -186,6 +190,7 @@ __all__ = [
     "configs_from_tables",
     "create_backend",
     "kind_name",
+    "log",
     "make_python_task",
     "normalize_stream_line",
     "python_task",
@@ -194,5 +199,6 @@ __all__ = [
     "register_normalizer",
     "require_budgets",
     "run_until_valid",
+    "save",
     "time_box",
 ]

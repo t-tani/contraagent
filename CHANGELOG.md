@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and is not part of the fingerprint. `plan.jsonl` and the monitor's plan nodes record it. A
   params field or a Python task's parameter named `priority`, `key` or `after` is refused
   where the task is declared.
+- A pipeline's own records in its run: `contraagent.log(name, row)` appends a row to the
+  pipeline log `runs/<id>/pipeline/<name>.jsonl`, `contraagent.save(name, value)` writes the
+  pipeline document `runs/<id>/pipeline/<name>.json`, from flow code and from Python tasks
+  (`NoCurrentRun` anywhere else). A relay ships them to a hub, and a prune removes them with
+  their run. A run panel's function is given the run's records (`RunRecords`: `id`, `info()`,
+  `journal()`, `records(log)`, `log(name)`, `document(name)`, `dir()`) in place of its id, so it
+  reads the same on one host and on a hub; `PeriodRuns` has the same methods for each run
+  (`log(run, name)`, `document(run, name)`, `run(run)`). An export reads a run's `cwd` through
+  the monitor's run source.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).
