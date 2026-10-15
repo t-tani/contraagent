@@ -1,4 +1,4 @@
-"""Throwaway Postgres and MinIO containers for the hub's tests.
+"""Throwaway Postgres and RustFS containers for the hub's tests.
 
 `postgres_dsn()` and `s3_url()` start their container on first use (once per session) and
 give each caller a fresh database or a fresh prefix; they skip the test when docker is not
@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 POSTGRES_IMAGE = "postgres:16.4"
-MINIO_IMAGE = "minio/minio:RELEASE.2025-04-03T14-56-28Z"
+RUSTFS_IMAGE = "rustfs/rustfs:1.0.0"
 LABEL = "contraagent-test=hub"
 #: The pytest process a container belongs to (the xdist controller, or the process itself):
 #: a container whose owner is gone was left by a run that was killed before `atexit` ran.
@@ -38,7 +38,7 @@ OWNER = "contraagent-test-owner"
 #: A container from before the owner label is left alone while younger than this.
 _UNOWNED_GRACE_S = 3600
 
-MINIO_USER, MINIO_PASSWORD, MINIO_BUCKET = "contraagent", "contraagent-secret", "hub"
+RUSTFS_USER, RUSTFS_PASSWORD, RUSTFS_BUCKET = "contraagent", "contraagent-secret", "hub"
 
 _lock = threading.Lock()
 _containers: list[str] = []
@@ -121,7 +121,7 @@ def _shared_file(controller: int | None = None) -> Path | None:
 
 @contextmanager
 def _shared_state() -> Iterator[dict | None]:
-    """What the workers have started (`{"postgres": dsn, "minio": endpoint, "containers": [...]}`),
+    """What the workers have started (`{"postgres": dsn, "rustfs": endpoint, "containers": [...]}`),
     held under a lock and written back; None when this process is not an xdist worker."""
     path = _shared_file()
     if path is None:
@@ -252,39 +252,41 @@ def postgres_dsn() -> str:
     return admin.rsplit("/", 1)[0] + "/" + db
 
 
-def _minio_server() -> str:
-    """The endpoint of the session's MinIO server, with its bucket made."""
+def _rustfs_server() -> str:
+    """The endpoint of the session's RustFS server, with its bucket made."""
     with _lock:
-        if "minio" not in _started:
+        if "rustfs" not in _started:
             _require_docker()
             # This process's own S3 clients read their credentials from the environment.
-            for k, v in {"AWS_ACCESS_KEY_ID": MINIO_USER, "AWS_SECRET_ACCESS_KEY": MINIO_PASSWORD}.items():
+            for k, v in {"AWS_ACCESS_KEY_ID": RUSTFS_USER, "AWS_SECRET_ACCESS_KEY": RUSTFS_PASSWORD}.items():
                 _env_before.setdefault(k, os.environ.get(k))
                 os.environ[k] = v
             for k in ("AWS_SESSION_TOKEN", "AWS_PROFILE"):
                 _env_before.setdefault(k, os.environ.get(k))
                 os.environ.pop(k, None)
             with _shared_state() as shared:
-                if shared is not None and "minio" in shared:
-                    _started["minio"] = shared["minio"]
-                    return _started["minio"]
-                env = {"MINIO_ROOT_USER": MINIO_USER, "MINIO_ROOT_PASSWORD": MINIO_PASSWORD}
-                _, port = _run(MINIO_IMAGE, 9000, "server", "/data", env=env, shared=shared)
+                if shared is not None and "rustfs" in shared:
+                    _started["rustfs"] = shared["rustfs"]
+                    return _started["rustfs"]
+                env = {"RUSTFS_ACCESS_KEY": RUSTFS_USER, "RUSTFS_SECRET_KEY": RUSTFS_PASSWORD}
+                _, port = _run(RUSTFS_IMAGE, 9000, env=env, shared=shared)
                 endpoint = f"http://127.0.0.1:{port}"
-                _wait(lambda: urllib.request.urlopen(f"{endpoint}/minio/health/live", timeout=2).status == 200, MINIO_IMAGE)
+                _wait(lambda: urllib.request.urlopen(f"{endpoint}/health", timeout=2).status == 200, RUSTFS_IMAGE)
                 import boto3
 
-                boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1").create_bucket(Bucket=MINIO_BUCKET)
-                _started["minio"] = endpoint
+                s3 = boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1")
+                # /health answers before every part of the server does: the bucket is made once it can be.
+                _wait(lambda: s3.create_bucket(Bucket=RUSTFS_BUCKET) is not None, f"{RUSTFS_IMAGE} bucket")
+                _started["rustfs"] = endpoint
                 if shared is not None:
-                    shared["minio"] = endpoint
-        return _started["minio"]
+                    shared["rustfs"] = endpoint
+        return _started["rustfs"]
 
 
 def s3_url() -> str:
-    """An `S3Blobs` URL of a new, empty prefix in the session's MinIO bucket."""
-    endpoint = _minio_server()
-    return f"s3://{MINIO_BUCKET}/t-{uuid.uuid4().hex[:16]}?endpoint={endpoint}&region=us-east-1"
+    """An `S3Blobs` URL of a new, empty prefix in the session's RustFS bucket."""
+    endpoint = _rustfs_server()
+    return f"s3://{RUSTFS_BUCKET}/t-{uuid.uuid4().hex[:16]}?endpoint={endpoint}&region=us-east-1"
 
 
 @pytest.fixture(scope="session")

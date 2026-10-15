@@ -27,7 +27,7 @@ def pytest_collection_modifyitems(config, items) -> None:
 
 
 def pytest_sessionfinish(session) -> None:
-    """Under pytest-xdist the controller removes the Postgres and MinIO containers its workers
+    """Under pytest-xdist the controller removes the Postgres and RustFS containers its workers
     shared (`hub_services`); a worker leaves them to it."""
     if not hasattr(session.config, "workerinput"):
         from hub_services import stop_shared
