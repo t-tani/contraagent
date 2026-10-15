@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Pipeline tables: a pipeline keeps its own settings in the config file under
+  `[pipeline.<name>]`, read with `PipelineConfig.table(name)` (an empty table when absent);
+  contraagent never checks their keys, and a `pipeline.<name>` that is not a table is refused.
+
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history
   tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak
@@ -970,6 +974,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `StreamController` that tails the stream feed.
 
 ### Fixed
+
+- `PipelineConfig.table(name)` returned a top-level table that every check refused as
+  unknown; it reads `[pipeline.<name>]`, and an unknown top-level table's message names
+  `[pipeline.<name>]` as the place for a pipeline's own table.
 
 - opencode: a `Bash(...)` pattern in `disallowed_tools` replaced the role's `bash` allow, so
   every command was denied; a pattern is now added after the rule the tool had

@@ -38,8 +38,9 @@ class ConfigError(ContraagentError, ValueError):
     """A config file exists but cannot be read or is malformed."""
 
 
-#: The top-level tables of a pipeline config.
-TABLES = ("defaults", "tasks", "credentials", "_comment")
+#: The top-level tables of a pipeline config. `[pipeline.<name>]` are the pipeline tables:
+#: a pipeline's own, read by its code (`PipelineConfig.table`), their keys never checked.
+TABLES = ("defaults", "tasks", "credentials", "pipeline", "_comment")
 
 
 def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, ...] = ()) -> str:
@@ -141,11 +142,22 @@ class PipelineConfig:
         return str(self.path) if self.path else "<config>"
 
     def unknown_tables(self, errors: list[str] | None = None) -> None:
-        """A top-level table this file does not define (`[defaults]`, `[tasks.*]`, `[credentials.*]`)
+        """A top-level table this file does not define (`[defaults]`, `[tasks.*]`,
+        `[credentials.*]`, `[pipeline.*]`), or a value under `pipeline` that is not a table,
         raises, or with `errors` is appended there."""
         unknown = set(self.raw) - set(TABLES)
         if unknown:
-            _problem(errors, f"{self.source}: {_unknown_keys('the file', unknown, TABLES)}")
+            found = _unknown_keys("the file", unknown, TABLES)
+            _problem(errors, f"{self.source}: {found}; a pipeline's own table goes under [pipeline.<name>]")
+        if "pipeline" not in self.raw:
+            return
+        tables = self.raw["pipeline"]
+        if not isinstance(tables, dict):
+            _problem(errors, f"{self.source}: pipeline = {tables!r} is not a table; write [pipeline.<name>]")
+            return
+        for name, value in tables.items():
+            if not isinstance(value, dict):
+                _problem(errors, f"{self.source}: pipeline.{name} = {value!r} is not a table; write [pipeline.{name}]")
 
     def defaults(self, errors: list[str] | None = None) -> dict:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
@@ -308,5 +320,10 @@ class PipelineConfig:
             raise ConfigError(f"{self.source}: {exc}") from None
 
     def table(self, name: str) -> dict:
-        """Any other top-level table a domain keeps in the same file."""
-        return _section(self.raw, name)
+        """`[pipeline.<name>]`: a pipeline table, the pipeline's own settings in this file,
+        as parsed; contraagent never checks its keys. Empty when the file has none; a
+        `pipeline.<name>` that is not a table raises `ConfigError`."""
+        value = _section(self.raw, "pipeline").get(name, {})
+        if not isinstance(value, dict):
+            raise ConfigError(f"{self.source}: pipeline.{name} = {value!r} is not a table; write [pipeline.{name}]")
+        return value
