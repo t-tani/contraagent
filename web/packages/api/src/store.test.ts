@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { MonitorStore } from './store.js';
 import type { Info } from './types.js';
@@ -129,5 +129,80 @@ describe('MonitorStore', () => {
     expect(store.snapshot.trends).toMatchObject({ loading: false, error: null, data: { period: { from: '2026-10-01' } }, panels: { q: { panel: 'q' } } });
     expect(Object.keys(store.snapshot.trends!.panels)).toEqual(['q']); // a run panel is no trend panel
     store.stop();
+  });
+});
+
+describe('MonitorStore refreshes', () => {
+  const info: Info = { title: 't', panels: [{ name: 'q', title: 'q', description: '', icon: '', scope: 'trends' }], api_version: '1' };
+  const run = (last_ts: string) => ({ run: 'r1', last_ts, attempts: 1 });
+
+  it('starts the next refresh only after the last one ended, however slow the answer', async () => {
+    vi.useFakeTimers();
+    let open = 0;
+    let most = 0;
+    let release: () => void = () => {};
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => {
+        open += 1;
+        most = Math.max(most, open);
+        return new Promise((r) => {
+          release = () => {
+            open -= 1;
+            r([]);
+          };
+        });
+      },
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 1000 });
+    const started = store.start();
+    await vi.advanceTimersByTimeAsync(0);
+    release(); // the first answer
+    await started;
+    await vi.advanceTimersByTimeAsync(10_000); // the second refresh is asked, and stays unanswered for 10 s
+    expect(most).toBe(1);
+    release();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(most).toBe(1);
+    store.stop();
+    vi.useRealTimers();
+  });
+
+  it('asks for the trends and their panels again only when the runs changed, and shows each answer as it arrives', async () => {
+    vi.useFakeTimers();
+    let runs = [run('2026-10-15T01:00:00Z')];
+    const trends: unknown[] = [];
+    const panels: unknown[] = [];
+    let slowPanel: (v: unknown) => void = () => {};
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.resolve(runs),
+      trends: (q: unknown) => {
+        trends.push(q);
+        return Promise.resolve({ period: q });
+      },
+      trendsPanel: (name: string) => {
+        panels.push(name);
+        return new Promise((r) => (slowPanel = r));
+      },
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 1000 });
+    await store.start();
+    void store.loadTrends({ from: '2026-10-01', to: '2026-10-14', tz: 'UTC' });
+    await vi.advanceTimersByTimeAsync(0);
+    // The trends are shown while the panel is still on its way.
+    expect(store.snapshot.trends).toMatchObject({ loading: false, data: { period: { from: '2026-10-01' } }, panels: {} });
+    await vi.advanceTimersByTimeAsync(5000); // five refreshes: the runs did not change
+    expect([trends.length, panels.length]).toEqual([1, 1]);
+    slowPanel({ panel: 'q' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.snapshot.trends!.panels).toEqual({ q: { panel: 'q' } });
+    runs = [run('2026-10-15T01:05:00Z')]; // a new record
+    await vi.advanceTimersByTimeAsync(1000);
+    expect([trends.length, panels.length]).toEqual([2, 2]);
+    store.stop();
+    vi.useRealTimers();
   });
 });
