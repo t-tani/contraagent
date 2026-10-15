@@ -5,17 +5,15 @@ route of the API would answer, one file per route:
 
     data/info.json                       /api/info, with `export` (`api.ExportInfo`)
     data/runs.json                       /api/runs: the runs it holds
-    data/runs/<run>/journal.json         /api/runs/<run>/journal (every row)
-    data/runs/<run>/plan.json            /api/runs/<run>/plan
-    data/runs/<run>/outputs.json         /api/runs/<run>/outputs
-    data/runs/<run>/definitions.json     /api/runs/<run>/definitions
-    data/runs/<run>/cursor.json          /api/runs/<run>/cursor
+    data/runs/<run>/<view>.json          /api/runs/<run>/<view>, for each view of `VIEWS` an
+                                         export holds: journal (every row), plan, outputs,
+                                         definitions, cursor
     data/runs/<run>/tasks/<key>.json     /api/runs/<run>/task/<key>, without its `rows` and
                                          `definition` (journal.json and definitions.json hold
                                          them; the export client puts them back)
     data/runs/<run>/panels/<name>.json   /api/runs/<run>/panels/<name>
     data/trends/panels/<name>.json       /api/trends/panels/<name>: a panel of `scope="trends"`
-    data/<file>                          each route of no run in `SITE_ROUTES` (`trends.json`)
+    data/<file>                          each file of no run in `SITE_FILES` (`trends.json`)
 
 The page reads them with no server (`<ca-monitor export="data/">`, `createExportClient`
 in `@contraagent/api`): any static file server, or a site, serves an export.
@@ -31,27 +29,30 @@ running at the time (a task's `launches`). What it takes out by default (`REDACT
 * `host`: `host_id`, the host's name.
 
 `keep` puts either back; `exclude` takes out a key wherever it appears (`params`, say).
-A new route of the API is one entry here (`ROUTES` for a run's, `SITE_ROUTES` for one of
-no run) and one method in `createExportClient`.
+A new view of a run is one entry in `VIEWS` (`views.py`), a new route of no run one entry
+in `SITE_FILES`; each is one method in `createExportClient`.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from pydantic import TypeAdapter
-
+from contraagent.commandline import CommandError, add_extensions, add_runs_dir, load_extensions
 from contraagent.monitor import api
 from contraagent.monitor.core import Monitor, row_extras
 from contraagent.monitor.trends import Period
+from contraagent.monitor.views import VIEWS, serialize
 
+#: The bundled web UI: the page and its scripts (`Monitor.static_dir` replaces it).
 STATIC = Path(__file__).parent / "static"
 
 #: What the page needs beside `data/`.
@@ -73,18 +74,7 @@ CONTENT_KEYS = frozenset({"content", "text"})
 
 
 @dataclass(frozen=True)
-class Route:
-    """One route of the API as a file of the export: `file` under `data/` (a site route)
-    or `data/runs/<run>/` (a run route), `read(monitor, run)` its body (`run` is '' for a
-    site route), `model` the contract it is checked against."""
-
-    file: str
-    read: Callable[[Monitor, str], Any]
-    model: Any
-
-
-@dataclass(frozen=True)
-class SiteRoute:
+class SiteExportFile:
     """One route of no run as a file under `data/`: `read(monitor, period)` its body, over
     the export's period, `model` its contract."""
 
@@ -96,22 +86,12 @@ class SiteRoute:
 #: The routes of no run, beside `info.json` and `runs.json` (which the export writes
 #: itself: they say what it holds); panels of `scope="trends"` are written under
 #: `trends/panels/` (`_panels`).
-SITE_ROUTES: tuple[SiteRoute, ...] = (SiteRoute("trends.json", lambda m, period: m.trends(period), api.Trends),)
-
-# `Optional`, not `X | None`: a TypeAdapter's type must be a type, not a `UnionType` value.
-ROUTES: tuple[Route, ...] = (
-    Route("journal.json", lambda m, run: dict(zip(("entries", "total"), m.journal(run), strict=True)), api.JournalPage),
-    Route("plan.json", lambda m, run: m.plan(run), api.Plan),
-    Route("outputs.json", lambda m, run: m.outputs(run), api.Outputs),
-    Route("definitions.json", lambda m, run: m.definitions(run), list[api.TaskDefinition]),
-    Route("cursor.json", lambda m, run: m.cursor(run) or {}, Optional[api.CursorView]),  # noqa: UP045
-)
+SITE_FILES: tuple[SiteExportFile, ...] = (SiteExportFile("trends.json", lambda m, period: m.trends(period), api.Trends),)
 
 
 def _dump(model: Any, value: Any) -> Any:
-    """`value` as the route answers it: checked against its model, unset keys left out."""
-    adapter = TypeAdapter(model)
-    return json.loads(adapter.dump_json(adapter.validate_python(value), exclude_unset=True, by_alias=True))
+    """`value` as the route answers it (`serialize`), as JSON data."""
+    return json.loads(serialize(model, value))
 
 
 class Redactor:
@@ -171,9 +151,9 @@ def _write(path: Path, body: Any) -> int:
     return len(text.encode())
 
 
-def _page(title: str, data: str) -> str:
+def _page(static: Path, title: str, data: str) -> str:
     """The monitor's page, reading the export from `data` instead of a server."""
-    html = (STATIC / "index.html").read_text()
+    html = (static / "index.html").read_text()
     html = html.replace("<ca-monitor></ca-monitor>", f'<ca-monitor export="{data}"></ca-monitor>', 1)
     return re.sub(r"<title>.*?</title>", f"<title>{_escape(title)}</title>", html, count=1)
 
@@ -229,8 +209,9 @@ def export(
         red = Redactor([*_run_roots(monitor, run), monitor.runs_dir, monitor.runs_dir.resolve()], keep=keep, exclude=exclude)
         d = data / "runs" / run
         n = 0
-        for route in ROUTES:
-            n += _write(d / route.file, red(_dump(route.model, route.read(monitor, run))))
+        for view in VIEWS.values():
+            if view.export:
+                n += _write(d / f"{view.name}.json", red(_dump(view.model, view.read(monitor, run))))
         journal = monitor.journal(run)[0]
         outputs, plan_rows = monitor.outputs(run), monitor.plan_rows(run)
         keys = {k for k in [*(n.get("key") for n in plan_rows), *(e.get("key") for e in journal)] if isinstance(k, str) and k}
@@ -255,7 +236,7 @@ def export(
             n += _write(d / "tasks" / f"{key}.json", red(_dump(api.TaskDetail, detail)))
         n += _panels(monitor, "run", run, d / "panels", red)
         sizes[run] = n
-    total = sum(_write(data / route.file, base(_dump(route.model, route.read(monitor, period)))) for route in SITE_ROUTES)
+    total = sum(_write(data / f.file, base(_dump(f.model, f.read(monitor, period)))) for f in SITE_FILES)
     total += _panels(monitor, "trends", "", data / "trends" / "panels", base, period)
     redacted = sorted({r for r in REDACTED if r not in keep} | exclude)
     info = {
@@ -267,10 +248,11 @@ def export(
     }
     total += _write(data / "info.json", _dump(api.Info, info))
     total += _write(data / "runs.json", base(_dump(list[api.RunSummary], [{**s, "running": False} for s in summaries])))
+    static = monitor.static_dir or STATIC
     for name in PAGE_FILES:
         if name != "index.html":
-            shutil.copyfile(STATIC / name, out / name)
-    (out / "index.html").write_text(_page(monitor.title, "data/"))
+            shutil.copyfile(static / name, out / name)
+    (out / "index.html").write_text(_page(static, monitor.title, "data/"))
     return ExportReport(out=out, runs=chosen, bytes_by_run=sizes, total_bytes=total + sum(sizes.values()))
 
 
@@ -298,36 +280,19 @@ def _period(start: str, end: str, days: int, tz: str) -> Period:
     return Period.parse((last - timedelta(days=max(1, days) - 1)).isoformat(), last.isoformat(), tz)
 
 
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-    import sys
+# --- the command -----------------------------------------------------------------------
 
-    ap = argparse.ArgumentParser(
-        prog="contraagent monitor export",
-        description="Write the monitor's views of some runs as files a static server serves: no transcripts, no processes.",
-    )
-    ap.add_argument("--runs-dir", default="runs", help="directory holding runs/<run-id>/ (default: ./runs)")
+HELP = "write the monitor's views of some runs as files a static server serves"
+
+
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """`contraagent monitor export`."""
+    ap.description = "Write the monitor's views of some runs as files a static server serves: no transcripts, no processes."
+    add_runs_dir(ap)
     ap.add_argument("--out", required=True, help="the directory to write: index.html, app.js, ja.js and data/")
     ap.add_argument("--runs", type=int, default=10, help="how many runs, newest activity first (default: 10; 0: every run)")
     ap.add_argument("--since", default=None, metavar="ISO_TIME", help="only runs active since this time, e.g. 2026-10-01")
-    ap.add_argument(
-        "--panels",
-        default=None,
-        metavar="MODULE:ATTR",
-        help="the pipeline's own views, as for `contraagent monitor`: path/to/views.py:PANELS or package.module:PANELS",
-    )
-    ap.add_argument(
-        "--groups",
-        default=None,
-        metavar="MODULE:ATTR",
-        help='the plan\'s columns and the trends\' groups: a list of {"id", "label", "kinds"}, as path/to/views.py:GROUPS',
-    )
-    ap.add_argument(
-        "--task-detail",
-        default=None,
-        metavar="MODULE:ATTR",
-        help="fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail",
-    )
+    add_extensions(ap)
     ap.add_argument("--include-live", action="store_true", help="write runs that are still running too (default: left out)")
     ap.add_argument("--title", default="contraagent")
     ap.add_argument("--days", type=int, default=14, help="the trends' period: the last N days, today included (default: 14)")
@@ -336,25 +301,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tz", default="UTC", help="the time zone the trends' days are counted in (default: UTC)")
     ap.add_argument("--keep", action="append", default=[], choices=REDACTED, help="keep what is taken out by default: paths, host")
     ap.add_argument("--exclude", action="append", default=[], metavar="KEY", help="take out this key wherever it appears (e.g. params)")
-    args = ap.parse_args(argv)
-    from contraagent.monitor.server import load_attr
 
-    extensions: dict[str, Any] = {}
-    for name in ("panels", "groups", "task_detail"):
-        spec = getattr(args, name)
-        if not spec:
-            continue
-        try:
-            extensions[name] = load_attr(spec)
-        except Exception as exc:  # an import that fails is the user's to fix: say which
-            flag = "--" + name.replace("_", "-")
-            sys.stderr.write(f"contraagent monitor export: {flag} {spec}: {type(exc).__name__}: {exc}\n")
-            return 2
+
+def run(args: argparse.Namespace) -> int:
+    """`contraagent monitor export`: needs no server, so not the `monitor` extra."""
+    extensions = load_extensions(args)
     try:
         period = _period(args.start, args.end, args.days, args.tz)
     except ValueError as exc:
-        sys.stderr.write(f"contraagent monitor export: {exc}\n")
-        return 2
+        raise CommandError(str(exc)) from None
     monitor = Monitor(args.runs_dir, title=args.title, **extensions)
     report = export(
         monitor,
@@ -366,7 +321,7 @@ def main(argv: list[str] | None = None) -> int:
         period=period,
         live=args.include_live,
     )
-    for run in report.runs:
-        sys.stdout.write(f"  {run}: {report.bytes_by_run[run] / 1000:.0f} kB\n")
+    for name in report.runs:
+        sys.stdout.write(f"  {name}: {report.bytes_by_run[name] / 1000:.0f} kB\n")
     sys.stdout.write(f"wrote {len(report.runs)} runs to {report.out} ({report.total_bytes / 1000:.0f} kB of data)\n")
     return 0

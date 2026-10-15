@@ -10,11 +10,16 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
+from contraagent.cli import main as cli_main
 from contraagent.monitor import Monitor, RunRecords, api
 from contraagent.monitor.core import Panel
-from contraagent.monitor.export import export, main
+from contraagent.monitor.export import export
 from contraagent.monitor.trends import Period
 from contraagent.testing import StubAgent
+
+
+def main(argv: list[str]) -> int:
+    return cli_main(["monitor", "export", *argv])
 
 
 class Note(BaseModel):
@@ -180,6 +185,17 @@ def test_the_cli_takes_panels_groups_and_task_detail_as_the_monitor_does(tmp_pat
     assert isinstance(value, int) and value >= 2  # an int stays one
     assert json.loads((out / "data/runs/only/tasks/note-a.json").read_text())["attempts_seen"] >= 1
     assert main(["--runs-dir", str(rd), "--out", str(out), "--groups", "nowhere.py:GROUPS"]) == 2
+
+
+def test_an_export_writes_the_monitor_s_own_page(tmp_path):
+    static = tmp_path / "ui"
+    static.mkdir()
+    (static / "index.html").write_text("<title>x</title><ca-monitor></ca-monitor>")
+    for name in ("app.js", "ja.js"):
+        (static / name).write_text(f"// own {name}")
+    export(Monitor(runs(tmp_path, ids=("only",)), static_dir=static), tmp_path / "site", now=NOW)
+    assert (tmp_path / "site/app.js").read_text() == "// own app.js"
+    assert '<ca-monitor export="data/">' in (tmp_path / "site/index.html").read_text()
 
 
 def test_a_run_still_running_is_left_out_unless_asked_for(tmp_path):
