@@ -1292,6 +1292,14 @@
             "type": "array",
             "title": "Validators"
           },
+          "preserve": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Preserve",
+            "description": "output: JSON pointers to the parts of the file the task keeps as they were (`*`: every member)"
+          },
           "file": {
             "$ref": "#/components/schemas/FileView"
           },
@@ -4740,6 +4748,14 @@
             },
             "type": "array",
             "title": "Validators"
+          },
+          "preserve": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Preserve",
+            "description": "agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)"
           },
           "tools": {
             "anyOf": [

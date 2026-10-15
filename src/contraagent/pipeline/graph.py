@@ -194,6 +194,7 @@ class Node:
                 call=call,
                 from_message=from_message,
                 unwrap=getattr(self.spec, "unwrap", False),
+                preserve=getattr(self.spec, "preserve", ()),
             )
         ]
 

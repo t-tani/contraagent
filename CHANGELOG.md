@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `agent_task(preserve=["/source", "/items/*/id"])`: the parts of a JSON output file an agent
+  task keeps, as JSON pointers with a segment `*` for every member. Each value they select in
+  the file before the launch must be in it after, equal; one that changed or was removed goes
+  back to the agent as a check error (`/items/1/id changed`), and an attempt that does not pass
+  puts the file back as it was. The pointers are checked against the output's schema when the
+  task is declared, and are in the call file (`output.preserve`), the task's definition and
+  its contract record (`preserve`).
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

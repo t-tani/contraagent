@@ -50,6 +50,7 @@ documentation. No other word is used for the same thing.
 | **schema** | the pydantic class a file is checked against | `agent_task(output=)`, `OutputContract.schema` |
 | **validator** | a check a file must pass beyond its schema | `agent_task(validators=)`, `CommandValidator`, any `(path, value) -> errors` |
 | **contract** | a file plus its schema and validators | `OutputContract`, `InputContract` |
+| **preserve** | the parts of an output file a launch must keep as they were before it: JSON pointers (RFC 6901, a segment `*` for every member), each value they select in the file before the launch equal in it after | `agent_task(preserve=)`, `OutputContract.preserve`, `contraagent.pointers`; call file `output.preserve` |
 | **check** | what can be found wrong with a flow without a launch | `Pipeline.check`, `CheckReport`, `contraagent check` |
 | **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch. A candidate, not a use: of two declarations of one kind, the one whose tasks are created is the kind's | `pipeline/reach.py`, `CheckReport.later_kinds` |
 | **stub agent** | a coding agent that plays scripted replies instead of an LLM, for tests | `contraagent.testing.StubAgent` |
