@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { typedBody, type PanelBody } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { bodyColumns, rowTone } from '../../adapters/panel-body.js';
+import { bodyColumns, cellUrl, rowTone } from '../../adapters/panel-body.js';
 import { cellText, fractionPct } from '../../words/panels.js';
 import './ca-panel-body.js';
 import './ca-panel-view.js';
@@ -97,6 +97,57 @@ describe('a panel body', () => {
     const chart = r.querySelector('cae-column-chart') as unknown as { stacked: boolean; format: (v: number) => string };
     expect(chart.stacked).toBe(true);
     expect(chart.format(1.5)).toBe('$1.50');
+  });
+
+  it('leads a link column\'s cell to its row\'s URL, http or https only', async () => {
+    const table = {
+      type: 'table',
+      columns: [
+        { id: 'topic', label: 'Topic', link: 'url' },
+        { id: 'n', label: 'Items' },
+      ],
+      rows: [
+        { topic: 'cve-2026-1', url: 'https://example.org/t/cve-2026-1', n: 3 },
+        { topic: 'sneaky', url: 'javascript:alert(1)', n: 1 },
+        { topic: 'no-url', n: 0 },
+      ],
+    } as unknown as PanelBody;
+    expect(cellUrl('https://example.org/a')).toBe('https://example.org/a');
+    expect(cellUrl('javascript:alert(1)')).toBeNull();
+    expect(cellUrl('  http://x.test/ ')).toBe('http://x.test/');
+    expect(cellUrl(42)).toBeNull();
+    const el = await mount<CaPanelBody>('ca-panel-body', { body: table });
+    const grid = el.shadowRoot!.querySelector('cae-data-table')!;
+    await (grid as unknown as { updateComplete: Promise<boolean> }).updateComplete;
+    const links = [...grid.shadowRoot!.querySelectorAll('a')];
+    expect(links.map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('rel'), a.getAttribute('target')])).toEqual([
+      ['cve-2026-1', 'https://example.org/t/cve-2026-1', 'noopener noreferrer', '_blank'],
+    ]);
+  });
+
+  it('writes a note as escaped markdown, with its tone beside it', async () => {
+    const body = { type: 'note', tone: 'attention', text: 'Counts **run starts**.\n\n<img src=x onerror=alert(1)> [docs](https://example.org)' } as unknown as PanelBody;
+    const el = await mount<CaPanelBody>('ca-panel-body', { body });
+    const note = el.shadowRoot!.querySelector<HTMLElement>('.note')!;
+    expect(note.dataset['tone']).toBe('attention');
+    expect(note.querySelector('b')?.textContent).toBe('run starts');
+    expect(note.querySelector('img')).toBeNull();
+    expect(note.textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(note.querySelector('a')?.getAttribute('href')).toBe('https://example.org');
+  });
+
+  it('draws a status grid with its cells', async () => {
+    const body = {
+      type: 'status_grid',
+      title: 'Cycles',
+      x: ['00', '01'],
+      y: ['Mon'],
+      cells: [[{ label: 'done', tone: 'done' }, null]],
+    } as unknown as PanelBody;
+    const el = await mount<CaPanelBody>('ca-panel-body', { body });
+    const grid = el.shadowRoot!.querySelector('cae-state-grid') as unknown as { label: string; cells: unknown[][] };
+    expect(grid.label).toBe('Cycles');
+    expect(grid.cells).toEqual([[{ label: 'done', tone: 'done' }, null]]);
   });
 
   it('is drawn by the panel view; any other body stays a JSON tree', async () => {
