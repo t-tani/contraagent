@@ -44,7 +44,7 @@ export class CaProcsView extends LitElement {
   override render() {
     const p = this.procs;
     if (!p?.alive) {
-      const why = this.exported ? notInExport() : this.unresponsive ? noReportLabel() : msg('run not running');
+      const why = this.exported ? notInExport() : this.unresponsive ? noReportLabel() : msg('not running');
       return html`<div class="blank"><span class="ic" aria-hidden="true">⚙</span><b>${facts(msg('No processes'), why)}</b></div>`;
     }
     const pys = p.python_tasks;

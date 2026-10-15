@@ -8,7 +8,7 @@ import { deferredText } from '../words/rests.js';
 import { peakContextLabel, peakContextTip } from '../words/context.js';
 import { stopLabel } from '../words/stop.js';
 import { stateCount } from '../words/outcome.js';
-import { dayLabel, modelName, passedShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
+import { dayLabel, modelName, doneShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
 
 /** The sections of the trends, one body each, in the order a reader checks them: their key and their body. */
 export interface TrendSection {
@@ -64,7 +64,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
           id: 'attempts',
           label: w.attempts,
           value: String(tot.attempts),
-          sub: [[passedShare(tot.attempts ? `${Math.round((tot.ok / tot.attempts) * 100)}%` : '—'), ...(tot.partial ? [stateCount('partial', tot.partial)] : [])]],
+          sub: [[doneShare(tot.attempts ? `${Math.round((tot.ok / tot.attempts) * 100)}%` : '—'), ...(tot.partial ? [stateCount('partial', tot.partial)] : [])]],
         },
         { id: 'cost', label: w.cost, value: tot.cost_usd == null ? '—' : usd(tot.cost_usd), sub: spent && tot.cost_usd != null ? [[perDay(usd(tot.cost_usd / spent))]] : [] },
         { id: 'tokens', label: w.tokens, value: tokenCount(tokensOf(tot.tokens)), sub: [[`${w.input} ${tokenCount(tot.tokens.input)} | ${w.output} ${tokenCount(tot.tokens.output)}`]] },
@@ -105,7 +105,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         { id: 'kind', label: w.kind },
         ...(t.kinds.some((k) => k.group && k.group !== k.kind) ? [{ id: 'group', label: w.group }] : []),
         { id: 'tasks', label: w.tasks, align: 'end' as const, format: 'number' as const },
-        { id: 'passed', label: w.tasksPassed, align: 'end' as const, format: 'pct' as const },
+        { id: 'passed', label: w.tasksDone, align: 'end' as const, format: 'pct' as const },
         ...(kinds.some((k) => k.tasks_partial) ? [{ id: 'partial', label: w.partial, align: 'end' as const, format: 'number' as const }] : []),
         { id: 'attempts', label: w.attempts, align: 'end' as const, format: 'number' as const },
         { id: 'median', label: w.medianTime, align: 'end' as const, format: 'duration' as const },
@@ -316,7 +316,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         { id: 'run', label: w.run },
         { id: 'started', label: w.started, format: 'datetime' },
         { id: 'attempts', label: w.attempts, align: 'end', format: 'number' },
-        { id: 'passed', label: w.passed, align: 'end', format: 'pct' },
+        { id: 'passed', label: w.done, align: 'end', format: 'pct' },
         ...(t.runs.some((r) => r.partial) ? [{ id: 'partial', label: w.partial, align: 'end' as const, format: 'number' as const }] : []),
         { id: 'cost', label: w.cost, align: 'end', format: 'usd', bar: true },
         { id: 'wall', label: w.time, align: 'end', format: 'duration' },

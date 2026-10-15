@@ -32,7 +32,7 @@ export function graphStrings(up: boolean, functions: boolean): Omit<LayeredGraph
     solidEdge: msg('waits for output'),
     dashedEdge: msg('created after result'),
     cycle: msg('next pass'),
-    drill: msg('has an inner view'),
+    drill: msg('has a level below'),
     open: msg('Show inside'),
     close: msg('Hide inside'),
     iconNames: { agent: msg('agent task'), python: msg('Python task') },

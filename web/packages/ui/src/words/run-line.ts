@@ -38,7 +38,7 @@ export function triesLine({ tries, notStarted }: RunDerived['tries']): string {
 export const stubLabel = (): string => msg('stub agent', { desc: 'A run whose tasks a coding agent with scripted replies played' });
 
 /** What a stub run's mark means, for its tooltip. */
-export const stubTip = (): string => msg('A run whose tasks the stub agent played with scripted replies, not a model (stub)');
+export const stubTip = (): string => msg('Tasks played by the stub agent with scripted replies (stub)');
 
 /** A replay's mark (`RunSummary.replay`): its agent tasks played their recordings. */
 export const replayLabel = (): string => msg('replay', { desc: 'A run whose agent sessions were played from the recordings of an earlier run' });

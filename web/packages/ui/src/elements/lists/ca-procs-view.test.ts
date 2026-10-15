@@ -14,7 +14,7 @@ async function mount(props: Partial<CaProcsView>): Promise<CaProcsView> {
 describe('ca-procs-view', () => {
   it('with no live process: the run is not running', async () => {
     const el = await mount({});
-    expect(el.shadowRoot?.textContent).toContain('No processes | run not running');
+    expect(el.shadowRoot?.textContent).toContain('No processes | not running');
     el.remove();
   });
 

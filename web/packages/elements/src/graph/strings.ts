@@ -78,7 +78,7 @@ export const DEFAULT_LAYERED_GRAPH_STRINGS: Readonly<LayeredGraphStrings> = {
   nameHeader: 'Name',
   statusHeader: 'Status',
   solidHeader: 'Earlier',
-  dashedHeader: 'Linked after',
+  dashedHeader: 'Dashed link from',
   laterHeader: 'Later',
   none: 'none',
   inCluster: (label) => `${label} in the cluster`,

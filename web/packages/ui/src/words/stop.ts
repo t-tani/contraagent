@@ -25,7 +25,8 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
       const kinds = new Set(inputProblems(reason).map((p) => p.problem));
       if (kinds.size === 1 && kinds.has('missing')) return msg('not started (input missing)');
       if (kinds.size === 1 && kinds.has('checks')) return msg('not started (input failed checks)');
-      return msg('not started (input missing or failed checks)');
+      if (kinds.size === 2) return msg('not started (input missing and input failed checks)');
+      return msg('not started', { id: 'stop-invalid-input', desc: 'How an attempt ended: invalid_input, with no input named' });
     }
     case 'invalid_output':
       return msg('failed checks');
@@ -38,7 +39,7 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
     case 'context_budget':
       return msg('context limit reached');
     case 'stalled':
-      return msg('stalled (no output)');
+      return msg('stalled (no events)');
     case 'auth_failed':
       return msg('authentication failed');
     case 'api_error':
@@ -56,7 +57,7 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
     case 'no_output':
       return msg('ended without a result');
     case 'launch_failed':
-      return msg('could not start the agent');
+      return msg('agent session did not start');
     case 'credential_mismatch':
       return msg('wrong identity used');
   }

@@ -68,8 +68,7 @@ export class CaWorkers extends LitElement {
         },
       )}
       ${free.map(
-        () => html`<div class="wk idle"><div class="wk-top"><b>${msg('Idle')}</b></div>
-          <div class="meta">${msg('No task')}</div></div>`,
+        () => html`<div class="wk idle"><div class="wk-top"><b>${msg('Idle')}</b></div></div>`,
       )}
     </div>`;
   }

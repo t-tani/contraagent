@@ -84,7 +84,7 @@ A colour means one thing, on every screen and in every theme:
   its size and weight, not by a colour of its own.
 - **A status colour marks a status, and only where it applies.** A count of a
   problem (failed attempts, tasks not started) takes its status colour above 0;
-  at 0 it is neutral, with its words ("All attempts passed"). A total is never
+  at 0 it is neutral, with its words ("All attempts done"). A total is never
   coloured by its worst part.
 - **A status also has a shape and a word**, so it reads without colour: ✓ done,
   ✕ failed, ◌ not started, a round mark for done and a square one for failed.

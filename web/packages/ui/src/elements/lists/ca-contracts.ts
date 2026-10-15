@@ -98,7 +98,7 @@ export class CaContracts extends LitElement {
       ${ins.length
         ? html`<section class="panel c12">
             <h3 title=${msg('InputContract')}>${msg('Inputs')}
-              <span class="r">${msg('Files each task reads, checked when the task starts')}</span></h3>
+              <span class="r">${msg('Files each task reads')}</span></h3>
             ${repeat(ins, ([c, i]) => `in|${c.key}|${i.path}`, ([c, i]) => this.inRow(c, i))}
           </section>`
         : nothing}

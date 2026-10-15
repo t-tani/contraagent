@@ -86,7 +86,7 @@ describe('ca-task-view', () => {
     const el = await view({ client, taskKey: 'review-a' });
     expect(asked).toEqual(['review-a']);
     expect(text(root(el).querySelector('.tm-name'))).toBe('review · a');
-    expect(text(root(el).querySelector('.verdict'))).toBe('Done on attempt 2 after 1 failed attempt. First failure: tool crashed');
+    expect(text(root(el).querySelector('.verdict'))).toBe('Done on attempt 2 | 1 failed attempt | first failure: tool crashed');
     expect([...root(el).querySelectorAll('.runchip')].map((c) => c.className.replace(/\s+/g, ' ').trim())).toEqual(['runchip bad', 'runchip ok']);
     el.remove();
   });
@@ -142,7 +142,7 @@ describe('ca-task-view', () => {
     const tabs = () => [...root(el).querySelectorAll('.tview')].map((t) => [text(t), t.getAttribute('aria-selected')]);
     expect(tabs()).toEqual([['Transcript', 'true'], ['Input2', 'false'], ['Output1', 'false'], ['Definition', 'false']]);
     // No stream: the reason there is no transcript, in place of it.
-    expect(text(root(el).querySelector('.notrans b'))).toBe('No transcript');
+    expect(text(root(el).querySelector('.notrans b'))).toBe('No transcript | not saved (keep_transcripts = false)');
     expect(root(el).querySelector('.pane')).toBeNull();
 
     el.view = 'input';

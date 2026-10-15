@@ -59,7 +59,7 @@ describe('trendSections', () => {
     expect(cols(body('kinds'))).toContain('partial');
     expect(body('kinds').rows.map((r) => [r['kind'], r['partial']])).toEqual([['writer', 0], ['triage', 1]]);
     expect(body('runs').rows.map((r) => r['partial'])).toEqual([1, 0]);
-    expect((s[0]?.body as TilesBody).tiles.find((x) => x.id === 'attempts')?.sub).toEqual([['Passed 90%', '1 partly done']]);
+    expect((s[0]?.body as TilesBody).tiles.find((x) => x.id === 'attempts')?.sub).toEqual([['Done 90%', '1 partly done']]);
   });
 
   it('stacks the cost of each day by kind, the costliest kind first, a day without it empty', () => {
@@ -81,7 +81,7 @@ describe('trendSections', () => {
       ['Tokens', '1.2k'],
       ['Time', '10m 00s'],
     ]);
-    expect(tiles[1]!.sub).toEqual([['Passed 90%']]);
+    expect(tiles[1]!.sub).toEqual([['Done 90%']]);
     expect(tiles[2]!.sub).toEqual([['$0.750 a day']]);
   });
 

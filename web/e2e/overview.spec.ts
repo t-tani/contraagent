@@ -82,6 +82,8 @@ test.describe('docs: a review loop per unit', () => {
     await enter(page, 'review_loop');
     const frame = graph(page).locator('.main > .frame');
     const views = graph(page).locator('.views');
+    // The click on Table scrolls the switch into view first: measure both views from there.
+    await views.scrollIntoViewIfNeeded();
     const before = { frame: (await frame.boundingBox())!, views: (await views.boundingBox())! };
     await expect(views.getByRole('radio', { name: 'Graph' })).toHaveAttribute('aria-checked', 'true');
     await views.getByRole('radio', { name: 'Table' }).click();

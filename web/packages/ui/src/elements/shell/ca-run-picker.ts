@@ -206,7 +206,7 @@ export class CaRunPicker extends LitElement {
                 </div>`,
               )}
             </div>`
-          : html`<div class="blank"><span>${msg('No runs match')}</span></div>`}
+          : html`<div class="blank"><span>${msg('No runs match the search')}</span></div>`}
       </div>`;
   }
 

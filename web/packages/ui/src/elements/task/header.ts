@@ -64,8 +64,8 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
     const why = runRelative(fails[0]?.reason, c.run) || stopLabel(fails[0]?.stop);
     return [
       fails.length === 1
-        ? msg(str`Done on attempt ${tries.length} after 1 failed attempt. First failure: ${why}`)
-        : msg(str`Done on attempt ${tries.length} after ${fails.length} failed attempts. First failure: ${why}`),
+        ? msg(str`Done on attempt ${tries.length} | 1 failed attempt | first failure: ${why}`)
+        : msg(str`Done on attempt ${tries.length} | ${fails.length} failed attempts | first failure: ${why}`),
       'neutral',
     ];
   }
@@ -76,8 +76,8 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
     if (!first) return [corrections === 1 ? msg('Done after 1 correction') : msg(str`Done after ${corrections} corrections`), 'neutral'];
     return [
       corrections === 1
-        ? msg(str`Done after 1 correction. First failed check: ${first}`)
-        : msg(str`Done after ${corrections} corrections. First failed check: ${first}`),
+        ? msg(str`Done after 1 correction | first failed check: ${first}`)
+        : msg(str`Done after ${corrections} corrections | first failed check: ${first}`),
       'neutral',
     ];
   }
@@ -158,7 +158,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
       ${searchFold(tries, onSearch)}
       ${changesFold(tries)}
       ${unreadEvents(tries)
-        ? html`<div class="meta unread" title=${msg('Event types from the coding agent that this contraagent version does not recognize')}>
+        ? html`<div class="meta unread" title=${msg('Event types this contraagent version does not know (unread_events)')}>
             <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
           </div>`
         : nothing}
@@ -179,7 +179,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
 function identityTags(tries: JournalRow[]): TranscriptTag[] {
   const ids = [...new Set(tries.flatMap((r) => [...(r.hops ?? []).map((h) => h.credential), r.credential]).filter((x): x is string => !!x))];
   if (!ids.length) return [];
-  const tip = [msg('What the coding agent authenticated as: an account or an API key (credential)'), ...ids.map(credentialTip)].filter(Boolean).join('\n');
+  const tip = [msg('Account or API key the coding agent used (credential)'), ...ids.map(credentialTip)].filter(Boolean).join('\n');
   return [{ label: msg('identity'), value: listText(ids.map(credentialLabel)), tip, look: 'quiet' }];
 }
 

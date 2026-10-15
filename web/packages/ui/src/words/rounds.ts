@@ -31,12 +31,12 @@ export function roundWhy(r: RoundInfo, resumed = false): string {
   return msg('first agent session');
 }
 
-/** A switched round's model, and why it stopped: `primary-model: rate limited; switched to fallback-model`. */
+/** A switched round's model, why it stopped, and the next model: `primary-model: rate limited → fallback-model`. */
 export function switchText(r: RoundInfo): string {
   const from = r.model || msg('model');
   return r.switchedTo
-    ? msg(str`${from}: ${stopLabel(r.switchedStop)}; switched to ${r.switchedTo}`)
-    : msg(str`${from}: ${stopLabel(r.switchedStop)}; switched to the next model`);
+    ? msg(str`${from}: ${stopLabel(r.switchedStop)} → ${r.switchedTo}`)
+    : msg(str`${from}: ${stopLabel(r.switchedStop)} → next model`);
 }
 
 /** The ✓ / ✕ mark, its word for screen readers and its tooltip. */

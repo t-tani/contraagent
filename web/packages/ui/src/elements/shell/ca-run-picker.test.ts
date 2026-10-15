@@ -21,7 +21,7 @@ describe('ca-run-picker', () => {
     expect(items[0]!.textContent).toContain('Trends'); // the pages of no run come first
     const names = items.slice(1).map((i) => i.querySelector('.nm')!);
     expect(names.map((n) => n.querySelector('.pill')?.textContent ?? '')).toEqual(['stub agent', '']);
-    expect(names[0]!.querySelector('.pill')!.getAttribute('title')).toBe('A run whose tasks the stub agent played with scripted replies, not a model (stub)');
+    expect(names[0]!.querySelector('.pill')!.getAttribute('title')).toBe('Tasks played by the stub agent with scripted replies (stub)');
     el.remove();
   });
 });

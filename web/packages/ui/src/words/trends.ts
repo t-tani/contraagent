@@ -5,7 +5,7 @@ import { getLocale } from '../core/i18n.js';
 /** The trends page's name: in the run picker, the page's heading and the browser tab. */
 export const trendsTitle = (): string => msg('Trends');
 /** What the trends page shows, for the run picker's entry and the page's tooltip. */
-export const trendsTip = (): string => msg('Cost, tasks and models over the runs of a period');
+export const trendsTip = (): string => msg('Totals of the runs in a period');
 /** The trends page's first tab: the trends, with the custom views that name no tab. */
 export const trendsFirstTab = (): string => msg('Summary', { desc: "The trends page's first tab: what the runs of the period add up to, beside the tabs of the custom views" });
 
@@ -42,7 +42,7 @@ export function weekdayLabels(locale: string = getLocale()): string[] {
 export const trendWords = () => ({
   runs: msg('Runs', { id: 'trends-runs', desc: 'How many runs worked in the trends period' }),
   attempts: msg('Attempts'),
-  passed: msg('Passed'),
+  done: msg('Done'),
   cost: msg('Cost'),
   tokens: msg('Tokens'),
   time: msg('Time'),
@@ -52,7 +52,7 @@ export const trendWords = () => ({
   kind: msg('Kind'),
   group: msg('Group'),
   tasks: msg('Tasks'),
-  tasksPassed: msg('Tasks passed'),
+  tasksDone: msg('Tasks done'),
   partial: msg('Partly done', { id: 'trends-partial', desc: 'A column: tasks or attempts whose output is a placeholder (partial)' }),
   medianTime: msg('Median time'),
   totalTime: msg('Total time'),
@@ -64,9 +64,9 @@ export const trendWords = () => ({
   output: msg('Output'),
   cacheRead: msg('Cache read'),
   cacheWrite: msg('Cache write'),
-  outcomes: msg('Attempts that did not complete'),
+  outcomes: msg('Attempts not done'),
   outcome: msg('Outcome'),
-  denials: msg('Refused tool calls'),
+  denials: msg('Denied tool calls'),
   toolCalls: msg('Tool calls'),
   pythonKinds: msg('Python tasks'),
   tool: msg('Tool'),
@@ -108,8 +108,8 @@ export const restEvent = (event: string | null | undefined): string =>
 /** A day's share of an amount: `$1.20 a day`. */
 export const perDay = (amount: string): string => msg(str`${amount} a day`, { desc: 'An average over the days of the trends period that had any cost' });
 
-/** The share of attempts that passed: `Passed 97%`. */
-export const passedShare = (pctText: string): string => msg(str`Passed ${pctText}`);
+/** The share of attempts done: `Done 97%`. */
+export const doneShare = (pctText: string): string => msg(str`Done ${pctText}`);
 
 /** The trends' empty state. */
 export const noRunsInPeriod = (): string => msg('No runs in this period');
