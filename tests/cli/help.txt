@@ -1,7 +1,7 @@
 # Every command's --help (Python 3.12, COLUMNS=100); `uv run python tests/cli/help.py` writes it.
 
 $ contraagent --help
-usage: contraagent [-h] {monitor,relay,hub,plugin,call,check,run,docs} ...
+usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,check,run,docs} ...
 
 positional arguments:
   {monitor,relay,hub,plugin,call,check,run,docs}
@@ -18,6 +18,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
+  --version             show program's version number and exit
 
 $ contraagent monitor --help
 usage: contraagent monitor [-h] [--runs-dir RUNS_DIR] [--host HOST] [--port PORT]

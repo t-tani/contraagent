@@ -1,27 +1,32 @@
 # syntax=docker/dockerfile:1
-# The contraagent hub as a container image. The build context is the repository root:
+# The contraagent hub as a container image, installed from PyPI or from a wheel. The build
+# context is this directory; compose.yaml beside this file builds it with these arguments:
 #
-#   docker build -f src/contraagent/docs/examples/hub/Dockerfile -t contraagent-hub .
+#   CONTRAAGENT_VERSION  the version to install (`contraagent --version` prints the installed one)
+#   CONTRAAGENT_WHEEL    a wheel file in this directory, installed in place of PyPI's (optional)
 #
-# (compose.yaml beside this file builds it the same way). Dockerfile.dockerignore lists
-# what enters the context: pyproject.toml, uv.lock, LICENSE and src/. The monitor's UI is
-# committed in src/contraagent/_internal/monitor/static, so no Node build runs here.
+#   docker build --build-arg CONTRAAGENT_VERSION=<version> -t contraagent-hub:<version> .
+#
+# The image holds the version it was asked for, or the build fails. .dockerignore lets only
+# wheels into the context.
 #
 # The hub runs as the user `contraagent` (uid 10001). /data is its volume: the open
 # transcript segments go to /data/streams. Tokens are files, mounted read-only at
 # /run/secrets (compose secrets), and named with --ingest-token-file and --read-token-file.
 
-FROM ghcr.io/astral-sh/uv:0.11.18 AS uv
-
 FROM python:3.12.12-slim-bookworm AS build
-COPY --from=uv /uv /bin/uv
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
-WORKDIR /src
-COPY pyproject.toml uv.lock LICENSE ./
-# The locked dependencies first, in a layer of their own that a source change keeps.
-RUN uv sync --frozen --no-dev --extra hub --no-install-project
-COPY src ./src
-RUN uv sync --frozen --no-dev --extra hub --no-editable
+ARG CONTRAAGENT_VERSION
+ARG CONTRAAGENT_WHEEL=
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN --mount=type=bind,target=/context \
+    if [ -z "$CONTRAAGENT_VERSION" ]; then echo "set the build argument CONTRAAGENT_VERSION" >&2; exit 1; fi \
+    && if [ -n "$CONTRAAGENT_WHEEL" ]; then spec="/context/$CONTRAAGENT_WHEEL[hub]"; \
+       else spec="contraagent[hub]==$CONTRAAGENT_VERSION"; fi \
+    && python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --compile "$spec" \
+    && installed=$(/opt/venv/bin/contraagent --version) \
+    && if [ "$installed" != "contraagent $CONTRAAGENT_VERSION" ]; then \
+         echo "installed $installed, not contraagent $CONTRAAGENT_VERSION (CONTRAAGENT_VERSION)" >&2; exit 1; fi
 
 FROM python:3.12.12-slim-bookworm
 RUN groupadd --system --gid 10001 contraagent \

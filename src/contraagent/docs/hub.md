@@ -8,8 +8,8 @@ whose hub is unreachable keeps running and catches up later.
 
 Every option is in `contraagent hub --help` and `contraagent relay --help`; the wire
 between them is the OpenAPI document `contraagent hub --openapi PATH` writes. Install the `hub` extra
-(`pip install 'contraagent[hub]'`) on the hub's host. How to run one for real (compose, tokens, retention,
-backups) is in [Operating a hub](hub-operations.md).
+(`pip install 'contraagent[hub]'`) on the hub's host, or run it in compose from an image of the installed
+version. How to run one for real (compose, tokens, retention, backups) is in [Operating a hub](hub-operations.md).
 
 ## Start a hub
 

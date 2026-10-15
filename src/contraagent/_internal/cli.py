@@ -19,6 +19,7 @@ contraagent run tasks.py:docs --record DIR   # a run that keeps each task attemp
 contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
                                          # a replay: every task plays its recording, nothing is spent;
                                          # with --record-missing, a task with none runs and is recorded
+contraagent --version                    # the installed version
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
 contraagent relay --hub URL [--runs-dir runs]  # ship this host's runs to a hub
@@ -37,6 +38,7 @@ import argparse
 import importlib
 import signal
 import sys
+from importlib import metadata
 from pathlib import Path
 
 from contraagent._internal.commandline import (
@@ -78,6 +80,7 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
     """The command line. A command of `MODULES` gets its arguments only when it is `command`
     (its module is imported only then); `""` gives every command its arguments."""
     ap = argparse.ArgumentParser(prog="contraagent")
+    ap.add_argument("--version", action="version", version=f"%(prog)s {metadata.version('contraagent')}")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, (module, help) in MODULES.items():
         if command == "" or command == name:
