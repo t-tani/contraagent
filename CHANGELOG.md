@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The stub agent reports a utilization reading: `writes(value, rate_limit=RateLimit(...))` lands
+  in the launch's readings, so a test on the stub rests a credential past its quota cap or its
+  `quota_rule` and follows the task to its next hop or to `deferred`.
 - `disallowed_tools` in a task table and in `agent_task(...)`: tools a kind's launches may not
   use, in Claude Code's names and patterns (`["WebFetch", "Bash(rm:*)"]`), checked where they
   are written. Claude Code denies them with `--disallowedTools`, opencode with its permissions,

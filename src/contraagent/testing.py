@@ -16,7 +16,9 @@ A reply is one of:
 
 * a value: the output to write (a pydantic model or a dict as JSON, a `str` as is), or for
   a task whose output is its final message (`output_from="message"`), the final message;
-* `writes(value)`: the same, explicitly (a JSON list output needs it);
+* `writes(value)`: the same, explicitly (a JSON list output needs it); `writes(value,
+  rate_limit=RateLimit(five_hour_pct=80))` also reports a utilization reading, as a coding
+  agent does, so quota caps and `quota_rule` rest the credential in a test;
 * `writes_smallest()`: the smallest value the output's schema accepts (`contracts.smallest`);
   a schema rule it cannot build (`pattern`) fails the launch and names the rule;
 * `writes_nothing()`: the launch completes and leaves no file;
@@ -46,6 +48,7 @@ launch (`StubLaunch.in_turn`). Under omp's names it stops, as omp does.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import os
 import subprocess
@@ -53,6 +56,7 @@ import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -84,12 +88,13 @@ class Reply:
     cost_usd: float | None = None
 
 
-def writes(value: Any, *, cost_usd: float | None = None) -> Reply:
+def writes(value: Any, *, cost_usd: float | None = None, rate_limit: RateLimit | None = None) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
     `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
     session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
-    running total, as the agent does."""
-    return Reply(output=value, cost_usd=cost_usd)
+    running total, as the agent does. `rate_limit`: the utilization reading the launch reports
+    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge."""
+    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit)
 
 
 #: The output of `writes_smallest()`: built from the output's schema when it is played.
@@ -423,8 +428,20 @@ class StubAgent(Backend):
             session_id=session,
             cost_usd=cost,
             rate_limit=reply.rate_limit,
+            rate_limits=[_observed(reply.rate_limit)] if _is_reading(reply.rate_limit) else [],
             stderr_tail=reply.reason,
         )
+
+
+def _is_reading(rl: RateLimit | None) -> bool:
+    """A reply's `rate_limit` that reports utilization: a reading of the launch, as a coding agent sends one."""
+    return rl is not None and (rl.five_hour_pct is not None or rl.seven_day_pct is not None or bool(rl.windows))
+
+
+def _observed(rl: RateLimit | None) -> RateLimit:
+    """The reading with the time it arrived, now when the script gives none."""
+    assert rl is not None
+    return rl if rl.observed_at else dataclasses.replace(rl, observed_at=datetime.now(UTC).isoformat(timespec="seconds"))
 
 
 def _text_of(value: Any) -> str:
