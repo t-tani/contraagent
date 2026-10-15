@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ContraagentDeprecationWarning` (a `DeprecationWarning`), from `contraagent`: what a
+  deprecated name of a public module warns once released. A moved name still gives its
+  object from its new home, a removed one raises `AttributeError` saying what to use.
+- The public API is fully typed: `pyright --verifytypes contraagent` finds every symbol of
+  the public modules with a declared, known type. `dict` and `list` parameters, returns
+  and fields have their type arguments (`Task.params`, `LaunchResult.raw_result`,
+  `RunReport.summary`, `Monitor` reads, ...), instance attributes and pydantic
+  `model_config` are annotated, and `register_normalizer`, `create_backend`,
+  `CursorStore`, `Run`, `PythonTaskRunner`, `Router` and `RoutingPlan` declare what they
+  take. `CursorStore.record` takes a mapping, and `RunnerConfig.max_concurrent` is
+  read-only, so a frozen config satisfies it.
+
 - A validator may take `before`, the output file as it was before the task, parsed as its
   value is (the model instance, or the text; None when there was no file or it did not meet
   its schema): `def adds_an_idea(path, backlog: Backlog, *, before: Backlog | None)`. It is

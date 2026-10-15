@@ -40,7 +40,7 @@ from contraagent._internal.dispatch.records import (
     TokenUsage,
 )
 from contraagent._internal.dispatch.task import Deferral, Origin, Partial, Task, TaskResult, TimeBox
-from contraagent._internal.errors import ContraagentError
+from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
 from contraagent._internal.execution.run import RunExists, RunLocked
@@ -65,6 +65,7 @@ __all__ = [
     "CheckReport",
     "CommandValidator",
     "ConfigError",
+    "ContraagentDeprecationWarning",
     "ContraagentError",
     "CredentialError",
     "Deferral",

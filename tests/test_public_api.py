@@ -330,3 +330,67 @@ def test_the_public_modules_are_fully_typed():
     ]
     assert len(symbols) > 200
     assert incomplete == []
+
+
+def _lazy(name: str) -> object:
+    if name == "lazy":
+        return 42
+    raise AttributeError(name)
+
+
+@pytest.fixture
+def old_module(monkeypatch):
+    """A public module with a moved name, a removed name and a name of its own imported
+    when first used."""
+    from contraagent._internal.public import migration
+
+    module = types.ModuleType("contraagent.old")
+    module.__getattr__ = migration(  # type: ignore[attr-defined]
+        "contraagent.old",
+        moved={"OldRun": "contraagent.engine:Run"},
+        removed={"helper": "use contraagent.engine.Run.cursor"},
+        fallback=_lazy,
+    )
+    monkeypatch.setitem(sys.modules, "contraagent.old", module)
+    return module
+
+
+def test_a_moved_name_warns_and_gives_the_object_from_its_new_home(old_module):
+    from contraagent import ContraagentDeprecationWarning
+    from contraagent.engine import Run
+
+    with pytest.warns(ContraagentDeprecationWarning, match=r"contraagent\.old\.OldRun moved to contraagent\.engine\.Run") as caught:
+        assert old_module.OldRun is Run
+    assert issubclass(ContraagentDeprecationWarning, DeprecationWarning)
+    assert caught[0].filename == __file__
+    with pytest.warns(ContraagentDeprecationWarning):
+        from contraagent.old import OldRun  # type: ignore[import-not-found]
+    assert OldRun is Run
+
+
+def test_a_moved_name_is_an_error_in_the_tests_unless_expected(old_module):
+    from contraagent import ContraagentDeprecationWarning
+
+    with pytest.raises(ContraagentDeprecationWarning):
+        old_module.OldRun
+
+
+def test_a_removed_name_says_what_to_use(old_module):
+    with pytest.raises(AttributeError, match=r"contraagent\.old\.helper was removed; use contraagent\.engine\.Run\.cursor"):
+        old_module.helper
+    assert old_module.lazy == 42
+    with pytest.raises(AttributeError):
+        old_module.never_there
+    assert not hasattr(old_module, "never_there")
+
+
+def test_a_migration_table_is_checked():
+    from contraagent._internal.public import migration
+
+    with pytest.raises(ValueError, match="both moved and removed"):
+        migration("contraagent.old", moved={"a": "contraagent:Task"}, removed={"a": "gone"})
+    with pytest.raises(ValueError, match="not 'module:name'"):
+        migration("contraagent.old", moved={"a": "contraagent.Task"})
+    plain = migration("contraagent.old")
+    with pytest.raises(AttributeError, match="has no attribute 'x'"):
+        plain("x")

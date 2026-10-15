@@ -149,6 +149,13 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a
 `TextOutput`, a `str`.
 
+## The Python API
+
+| Word | Means | In code |
+|---|---|---|
+| **public module** | a module a user imports from: `contraagent`, `contraagent.config`, `contraagent.backends`, `contraagent.engine`, `contraagent.plugins`, `contraagent.monitor`, `contraagent.monitor.api`, `contraagent.testing`; its `__all__` is the API, everything under `contraagent._internal` is not | `__all__`; `tests/api/contraagent.api.txt` |
+| **deprecated name** | a name that left a public module and is still read there for a time: a moved name warns and gives the object from its new home, a removed name raises `AttributeError` saying what to use instead | `ContraagentDeprecationWarning`; a public module's `__getattr__ = migration(...)` |
+
 ## The monitor
 
 | Word | Means | In code |

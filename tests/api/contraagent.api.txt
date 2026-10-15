@@ -179,6 +179,8 @@ class CommandValidator
 
 class ConfigError(ContraagentError, ValueError)
 
+class ContraagentDeprecationWarning(DeprecationWarning)
+
 class ContraagentError(Exception)
 
 class CredentialError(ContraagentError)

@@ -79,6 +79,8 @@ testpaths = ["tests"]
 # In parallel (pytest-xdist), at most 6 processes: past that the suite waits on CPU, not tests.
 # `--dist loadgroup` keeps the tests of one `xdist_group` on one worker. `-n0` runs it in one process.
 addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup"
+# A deprecated name contraagent itself still uses fails the tests.
+filterwarnings = ["error::contraagent.ContraagentDeprecationWarning"]
 markers = [
     "perf: times a view over a large made-up runs directory (minutes, machine-dependent); run with `uv run pytest -m perf -s`",
     "live: calls real coding agents and spends tokens; run with `CONTRAAGENT_LIVE=1 uv run pytest -m live`",
