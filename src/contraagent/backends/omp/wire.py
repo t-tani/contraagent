@@ -359,7 +359,7 @@ class TraceReader(EventFold):
             stop,
             exit_code=exit_code,
             result_text=text,
-            rate_limit=quota_refusal(self.api_error) if stop is Stop.RATE_LIMITED else None,
+            quota_refusal=quota_refusal(self.api_error) if stop is Stop.RATE_LIMITED else None,
             tool_uses=dict(self.tool_uses or self.executed),
             # The provider's own words, which omp puts on no stderr: the journal's reason.
             stderr_tail=self.api_error if stop is not Stop.COMPLETED else "",
@@ -408,6 +408,6 @@ class TextReader(EventFold):
             stop,
             exit_code=exit_code,
             result_text=text if stop in (Stop.COMPLETED, Stop.RATE_LIMITED) else "",
-            rate_limit=quota_refusal(text) if stop is Stop.RATE_LIMITED else None,
+            quota_refusal=quota_refusal(text) if stop is Stop.RATE_LIMITED else None,
             raw_result={},
         )

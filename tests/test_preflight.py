@@ -13,7 +13,7 @@ from contraagent import (
     Pipeline,
     PipelineConfig,
     PreflightStopped,
-    RateLimit,
+    QuotaRefusal,
     Route,
     Router,
     RoutingError,
@@ -47,8 +47,8 @@ class Agent(Backend):
     def run(self, launch):
         self.seen.append(launch.model)
         stop = self.script(launch.model)
-        rl = RateLimit(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
-        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, rate_limit=rl)
+        rl = QuotaRefusal(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
+        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, quota_refusal=rl)
 
 
 def kind(agent, model, credential="ambient"):

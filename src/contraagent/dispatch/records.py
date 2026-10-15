@@ -10,6 +10,8 @@ standard library and pydantic.
 * `Loop`, `Frame`: a flow path (`Origin.flow`, plan and flow call `flow`).
 * `Changes`: the files one attempt changed.
 * `TokenUsage`, `OtherModel`, `Hop`: one launch of an attempt on one route.
+* `Window`, `WINDOWS`, `QuotaWindow`, `QuotaReading`: a subscription's utilization, as a
+  coding agent reports it, and the windows it is measured over.
 * `Rest`, `SkippedHop`, `RestEvent`: a credential that rests on its quota, a hop an
   attempt passed over because of it, and a line of `rests.jsonl`.
 * `DeferralCause`: why a task was deferred, as data.
@@ -18,7 +20,9 @@ standard library and pydantic.
 
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Mapping
+from datetime import timedelta
+from typing import Any, Literal, NamedTuple
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -114,6 +118,17 @@ class OtherModel(BaseModel):
     cache_read: int = 0
     cache_creation: int = 0
 
+    def plus(self, other: OtherModel) -> OtherModel:
+        """This spend and `other`'s, summed: the cost None only when neither reported one."""
+        both = self.cost_usd is None and other.cost_usd is None
+        return OtherModel(
+            cost_usd=None if both else (self.cost_usd or 0.0) + (other.cost_usd or 0.0),
+            input=self.input + other.input,
+            output=self.output + other.output,
+            cache_read=self.cache_read + other.cache_read,
+            cache_creation=self.cache_creation + other.cache_creation,
+        )
+
 
 class Hop(BaseModel):
     """One launch of an attempt on one route of its failover chain: where it ran and how
@@ -140,10 +155,120 @@ class Hop(BaseModel):
     other_models: dict[str, OtherModel] = Field(default_factory=dict)
 
 
-# --- rest --------------------------------------------------------------------
+# --- quota -------------------------------------------------------------------
 
-#: A subscription window's name in a sentence.
-_WINDOW_WORDS = {"five_hour": "5-hour", "seven_day": "weekly"}
+#: A subscription's window that a quota cap names and every coding agent's reading gives:
+#: the 5-hour and the weekly one. A reading may name others (`QuotaReading.windows`: a
+#: model's own week, `seven_day_opus`), which no cap names.
+Window = Literal["five_hour", "seven_day"]
+
+
+class WindowSpec(NamedTuple):
+    """What one `Window` is: its name in a sentence, and how long a reading of it stands
+    when the reading names no reset."""
+
+    words: str
+    length: timedelta
+
+
+#: Every `Window`, in order: the one table routing, the trends and `Rest` read.
+WINDOWS: dict[Window, WindowSpec] = {
+    "five_hour": WindowSpec("5-hour", timedelta(hours=5)),
+    "seven_day": WindowSpec("weekly", timedelta(days=7)),
+}
+
+
+_SPECS: dict[str, WindowSpec] = {name: spec for name, spec in WINDOWS.items()}
+
+
+def window_spec(name: str) -> WindowSpec | None:
+    """The `WINDOWS` entry of a window named `name`; None for another window (`seven_day_opus`)."""
+    return _SPECS.get(name)
+
+
+def window_words(name: str) -> str:
+    """A window's name in a sentence (`5-hour`, `weekly`); another window keeps its own name."""
+    spec = window_spec(name)
+    return spec.words if spec is not None else name
+
+
+class QuotaWindow(BaseModel):
+    """One window of a reading: its utilization (%) and when it resets (ISO 8601)."""
+
+    model_config = ConfigDict(extra="allow", frozen=True)
+
+    pct: float | None = None
+    resets_at: str | None = None
+
+
+class QuotaReading(BaseModel):
+    """A subscription's utilization as the coding agent reported it during a launch
+    (Claude Code: when a session starts or resumes; omp: at each launch, what the
+    account's latest request reported). Account-wide: it includes whatever else used the
+    same account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's
+    `quota` an attempt's that give a 5-hour or weekly utilization."""
+
+    model_config = ConfigDict(extra="allow", frozen=True)
+
+    #: When this process received the reading (UTC ISO 8601). The utilization is
+    #: account-wide, as of the API call it came with.
+    observed_at: str | None = None
+    #: The `[credentials.<name>]` of the session that reported it: whose account the
+    #: utilization is (filled in by the runner, which knows the credential). Readings of
+    #: different credentials do not compare.
+    credential: str = ""
+    five_hour_pct: float | None = None
+    five_hour_resets_at: str | None = None
+    seven_day_pct: float | None = None
+    seven_day_resets_at: str | None = None
+    status: str = ""
+    #: Which account reported it: a 12-hex-digit digest that tells accounts apart and reveals
+    #: none (`backends.launch.account_digest`); '' when not known. One credential can stand
+    #: for two accounts (`ambient` on two coding agents, a replaced token): their readings do
+    #: not compare.
+    account: str = ""
+    #: The window `status` and `threshold_pct` are about (`five_hour`, `seven_day`, ...):
+    #: Claude Code's `rateLimitType`.
+    status_window: str = ""
+    #: The utilization (%) past which `status` warns (Claude Code's `surpassedThreshold`).
+    threshold_pct: float | None = None
+    #: Usage past the limit, billed as extra: its status (`allowed`, `rejected`, ...), why it
+    #: is off, and whether this request used it (Claude Code's `overageStatus`,
+    #: `overageDisabledReason`, `isUsingOverage`).
+    overage_status: str = ""
+    overage_disabled_reason: str = ""
+    using_overage: bool | None = None
+    #: Every window the reading names, by its name (`five_hour`, `seven_day`, a model's own
+    #: such as `seven_day_opus`): its utilization (%) and its reset. `five_hour_pct` and
+    #: `seven_day_pct` are two of them.
+    windows: dict[str, QuotaWindow] = Field(default_factory=dict)
+    #: What else the coding agent sent with the reading, by its own name: a newer field
+    #: this reader does not name yet.
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def from_windows(cls, windows: Mapping[str, QuotaWindow], **fields: Any) -> QuotaReading:
+        """A reading of `windows` (by name), its `five_hour_*` and `seven_day_*` fields
+        taken from those two; `fields`: the rest."""
+        five, week = windows.get("five_hour"), windows.get("seven_day")
+        return cls(
+            five_hour_pct=five.pct if five is not None else None,
+            five_hour_resets_at=five.resets_at if five is not None else None,
+            seven_day_pct=week.pct if week is not None else None,
+            seven_day_resets_at=week.resets_at if week is not None else None,
+            windows=dict(windows),
+            **fields,
+        )
+
+    def named_windows(self) -> dict[str, QuotaWindow]:
+        """Every window the reading gives a utilization or a reset for, by name: each
+        `Window` from its fields, then those of `windows` (which win for the same name)."""
+        named = {w: QuotaWindow(pct=getattr(self, f"{w}_pct"), resets_at=getattr(self, f"{w}_resets_at")) for w in WINDOWS}
+        named.update(self.windows)
+        return {k: v for k, v in named.items() if v.pct is not None or v.resets_at}
+
+
+# --- rest --------------------------------------------------------------------
 
 
 class Rest(BaseModel):
@@ -156,7 +281,7 @@ class Rest(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
 
     credential: str
-    window: Literal["", "five_hour", "seven_day"] = ""
+    window: Literal["", Window] = ""
     pct: float | None = None
     cap: float | None = None
     rule: str = ""
@@ -171,8 +296,7 @@ class Rest(BaseModel):
         """The rest in one line, for logs and the CLI: `personal rests: 5-hour usage 93%, max 90%`."""
         if self.rule:
             return f"{self.credential} rests: {self.rule}"
-        words = _WINDOW_WORDS.get(self.window, self.window)
-        return f"{self.credential} rests: {words} usage {self.pct or 0:.0f}%, max {self.cap or 0:g}%"
+        return f"{self.credential} rests: {window_words(self.window)} usage {self.pct or 0:.0f}%, max {self.cap or 0:g}%"
 
     def to_dict(self) -> dict:
         """The rest as `rests.jsonl` and a deferral's cause record it: a cap's rest names no reading."""

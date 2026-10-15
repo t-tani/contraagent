@@ -41,7 +41,7 @@ from contraagent.backends.credentials import (
     Vertex,
     WorkloadIdentity,
 )
-from contraagent.backends.launch import STDIN_THRESHOLD, Launch, LaunchResult, Limits, RateLimit, Stop, Usage
+from contraagent.backends.launch import STDIN_THRESHOLD, Launch, LaunchResult, Limits, QuotaRefusal, Stop, Usage
 from contraagent.backends.omp import OMP_PREAMBLE, OmpBackend, OmpRpcBackend
 from contraagent.backends.opencode import OpencodeBackend
 from contraagent.backends.pi import PiBackend
@@ -105,7 +105,7 @@ __all__ = [
     "OpencodeBackend",
     "PiBackend",
     "Pool",
-    "RateLimit",
+    "QuotaRefusal",
     "Secret",
     "Stop",
     "Subscription",

@@ -15,7 +15,7 @@ from contraagent import (
     LaunchResult,
     Pipeline,
     PipelineConfig,
-    RateLimit,
+    QuotaReading,
     Route,
     Router,
     Stop,
@@ -37,8 +37,8 @@ def iso(t: datetime) -> str:
     return t.isoformat()
 
 
-def reading(credential="personal", five=None, week=None, *, resets=NOW + timedelta(hours=2), observed=NOW) -> RateLimit:
-    return RateLimit(
+def reading(credential="personal", five=None, week=None, *, resets=NOW + timedelta(hours=2), observed=NOW) -> QuotaReading:
+    return QuotaReading(
         five_hour_pct=five,
         five_hour_resets_at=iso(resets) if resets else None,
         seven_day_pct=week,
@@ -234,7 +234,7 @@ class Agent(Backend):
             stop=Stop.COMPLETED,
             ok=True,
             model=launch.model,
-            rate_limits=readings,
+            quota=readings,
         )
 
 
@@ -373,7 +373,7 @@ def seed(tmp_path, five):
         "kind": "x",
         "stop": "completed",
         "ok": True,
-        "quota": [reading(five=five).__dict__ | {"credential": "personal"}],
+        "quota": [reading(five=five).model_dump() | {"credential": "personal"}],
     }
     # A reading taken now, its window resetting in two hours from the real clock.
     row["quota"][0]["observed_at"] = datetime.now(UTC).isoformat()

@@ -11,7 +11,20 @@ import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from contraagent import AgentRunner, Backend, KindConfig, LaunchResult, PipelineConfig, RateLimit, Route, Router, Stop, Task, TaskAdapter
+from contraagent import (
+    AgentRunner,
+    Backend,
+    KindConfig,
+    LaunchResult,
+    PipelineConfig,
+    QuotaReading,
+    QuotaWindow,
+    Route,
+    Router,
+    Stop,
+    Task,
+    TaskAdapter,
+)
 from contraagent.backends.claude.backend import ClaudeBackend
 from contraagent.backends.claude.wire import StreamReader
 from contraagent.backends.credentials import AMBIENT, Bedrock, OAuthToken, Secret, Subscription
@@ -31,13 +44,13 @@ def test_claude_s_rate_limit_events_are_read_in_full():
     reader = StreamReader(Limits())
     for line in (FIXTURES / "rate_limit_events.jsonl").read_text().splitlines():
         reader.feed_line(line)
-    calm, warned = reader.rate_limits
+    calm, warned = reader.quota
     assert (calm.status, calm.status_window, calm.threshold_pct) == ("allowed", "five_hour", None)
     assert (calm.five_hour_pct, calm.seven_day_pct) == (41.0, 24.0)
     assert (calm.overage_status, calm.overage_disabled_reason, calm.using_overage) == ("rejected", "org_level_disabled", False)
     assert calm.windows == {
-        "five_hour": {"pct": 41.0, "resets_at": "2026-10-14T14:30:00+00:00"},
-        "seven_day": {"pct": 24.0, "resets_at": "2026-10-15T08:00:00+00:00"},
+        "five_hour": QuotaWindow(pct=41.0, resets_at="2026-10-14T14:30:00+00:00"),
+        "seven_day": QuotaWindow(pct=24.0, resets_at="2026-10-15T08:00:00+00:00"),
     }
     assert calm.extra == {}
     assert (warned.status, warned.status_window, warned.threshold_pct, warned.seven_day_pct) == ("allowed_warning", "seven_day", 75.0, 98.0)
@@ -57,8 +70,8 @@ def test_a_window_or_a_field_the_reader_does_not_name_is_kept():
     }
     reader = StreamReader(Limits())
     reader.feed(event)
-    [r] = reader.rate_limits
-    assert r.windows["seven_day_opus"] == {"pct": 50.0, "resets_at": "2026-10-15T08:00:00+00:00"}  # the status's own window
+    [r] = reader.quota
+    assert r.windows["seven_day_opus"] == QuotaWindow(pct=50.0, resets_at="2026-10-15T08:00:00+00:00")  # the status's own window
     assert r.extra == {"newField": {"x": 1}}
     assert r.seven_day_pct is None  # not reported: not guessed
 
@@ -90,10 +103,10 @@ def test_omp_s_reading_names_its_account_and_every_window(tmp_path):
     bindir = fake_cli(tmp_path, "omp", OMP_USAGE)
     backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
     launch = Launch(prompt="hi", label="t", model="anthropic/claude-haiku-5-5", cwd=tmp_path, limits=Limits(timeout_s=30))
-    [reading] = backend.run(launch).rate_limits
+    [reading] = backend.run(launch).quota
     assert reading.account == account_digest(ACCOUNT_UUID, "6f1c2b9e-account")
     assert (reading.five_hour_pct, reading.seven_day_pct) == (5.0, 79.0)  # the account's own windows, not a model's
-    assert reading.windows["seven_day_fable"]["pct"] == 30.0  # a model's own window, named
+    assert reading.windows["seven_day_fable"].pct == 30.0  # a model's own window, named
     assert backend.account(AMBIENT, "anthropic/claude-haiku-5-5") == reading.account
     assert backend.account(AMBIENT, "no-provider") == ""
 
@@ -142,8 +155,8 @@ def creds(tmp_path):
     return PipelineConfig.load(f).credentials()
 
 
-def reading(credential="personal", week=99.0, account="", minutes=0) -> RateLimit:
-    return RateLimit(
+def reading(credential="personal", week=99.0, account="", minutes=0) -> QuotaReading:
+    return QuotaReading(
         credential=credential,
         account=account,
         seven_day_pct=week,
@@ -204,9 +217,9 @@ class Agent(Backend):
     def run(self, launch):
         with self._lock:
             self.seen.append(launch.credential.label)
-        r = RateLimit(seven_day_pct=self.week, seven_day_resets_at=(NOW + timedelta(days=2)).isoformat(), observed_at=NOW.isoformat())
+        r = QuotaReading(seven_day_pct=self.week, seven_day_resets_at=(NOW + timedelta(days=2)).isoformat(), observed_at=NOW.isoformat())
         label = launch.credential.label
-        return LaunchResult(label=launch.label, agent=self.name, credential=label, stop=Stop.COMPLETED, ok=True, rate_limits=[r])
+        return LaunchResult(label=launch.label, agent=self.name, credential=label, stop=Stop.COMPLETED, ok=True, quota=[r])
 
 
 def make_runner(tmp_path, agent, rests):
@@ -231,7 +244,7 @@ def test_the_runner_names_each_reading_s_account_and_asks_once(tmp_path):
     assert r.deferral(Task("k", key="t0")) is None  # the old account's 99% does not rest the new one
     result = r.run(Task("k", key="t1"))
     assert result.ok and agent.seen == ["personal"]
-    [read] = result.launch_result.rate_limits
+    [read] = result.launch_result.quota
     assert (read.credential, read.account) == ("personal", agent.acct)
     r.run(Task("k", key="t2"))
     assert agent.asked == 1  # asked once a run

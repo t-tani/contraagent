@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from contraagent.backends.launch import RateLimit, Stop
+from contraagent.backends.launch import QuotaRefusal, Stop
 
 #: A quota refusal in a provider's words, as omp, pi and opencode pass them on.
 QUOTA_RE = re.compile(
@@ -60,9 +60,9 @@ def parse_retry_after(text: str) -> float | None:
         return None
 
 
-def quota_refusal(words: str = "") -> RateLimit:
-    """The reading of a launch refused for its quota, with the cool-off its words state."""
-    return RateLimit(status="quota", retry_after_s=parse_retry_after(words))
+def quota_refusal(words: str = "") -> QuotaRefusal:
+    """A launch refused for its quota, with the cool-off its words state."""
+    return QuotaRefusal(retry_after_s=parse_retry_after(words))
 
 
 @dataclass(frozen=True)

@@ -23,9 +23,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent.backends.refusal import FAILED_STOPS, Ending, Signals
 from contraagent.backends.wire import EventFold, positive_int, tokens
+from contraagent.dispatch.records import QuotaReading
 
 #: How Codex words a refusal: for usage or rate (ChatGPT plan limits, a provider's 429), a
 #: refused credential, a safety refusal. A process that printed nothing failed to start
@@ -159,7 +160,6 @@ class EventReader(EventFold):
                 structured = json.loads(text)
             except ValueError:
                 structured = None
-        rate_limits = list(rollout.rate_limits) if rollout is not None else []
         return self.launch_result(
             launch,
             agent,
@@ -168,8 +168,7 @@ class EventReader(EventFold):
             cli_version=rollout.cli_version if rollout is not None else "",
             result_text=text,
             structured_output=structured,
-            rate_limit=rate_limits[-1] if rate_limits else None,
-            rate_limits=rate_limits,
+            quota=list(rollout.quota) if rollout is not None else [],
             init_model=model,
             context_window=rollout.context_window if rollout is not None else None,
             api_retries=self.api_retries,
@@ -189,7 +188,7 @@ class Rollout:
     #: The model's context window (`token_count`'s `model_context_window`, the latest); None without one.
     context_window: int | None = None
     cli_version: str = ""
-    rate_limits: list[RateLimit] = field(default_factory=list)
+    quota: list[QuotaReading] = field(default_factory=list)
 
 
 def call_usage(u: dict, model: str) -> CallUsage:
@@ -201,7 +200,7 @@ def call_usage(u: dict, model: str) -> CallUsage:
     )
 
 
-def rate_limit(limits: dict) -> RateLimit | None:
+def quota_reading(limits: dict) -> QuotaReading | None:
     """A `token_count`'s `rate_limits` (a ChatGPT plan's windows) as a reading, or None when it has no window."""
     five: dict = {}
     week: dict = {}
@@ -225,7 +224,7 @@ def rate_limit(limits: dict) -> RateLimit | None:
         v = w.get("used_percent")
         return round(float(v), 1) if isinstance(v, (int, float)) else None
 
-    return RateLimit(
+    return QuotaReading(
         observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
         status=str(limits.get("rate_limit_reached_type") or "allowed"),
         five_hour_pct=pct(five),
@@ -273,9 +272,9 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
             window = positive_int(info.get("model_context_window"))
             if window is not None:
                 out.context_window = window
-            reading = rate_limit(payload.get("rate_limits") or {})
+            reading = quota_reading(payload.get("rate_limits") or {})
             if reading is not None:
-                out.rate_limits.append(reading)
+                out.quota.append(reading)
     return out
 
 

@@ -172,7 +172,7 @@ class EventReader(EventFold):
             stop,
             exit_code=exit_code,
             result_text=text if stop is Stop.COMPLETED else (text or words if stop is Stop.RATE_LIMITED else ""),
-            rate_limit=quota_refusal(words) if stop is Stop.RATE_LIMITED else None,
+            quota_refusal=quota_refusal(words) if stop is Stop.RATE_LIMITED else None,
             # The provider's own words, which opencode prints on stdout: the journal's reason.
             stderr_tail=words if stop is not Stop.COMPLETED else "",
         )

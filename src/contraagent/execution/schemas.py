@@ -23,13 +23,23 @@ a new value.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from contraagent.backends.launch import Stop
 from contraagent.dispatch.flow import FlowState
-from contraagent.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop, TimeBoxRecord, TokenUsage
+from contraagent.dispatch.records import (
+    Changes,
+    DeferralCause,
+    Executor,
+    Frame,
+    Hop,
+    QuotaReading,
+    SkippedHop,
+    TimeBoxRecord,
+    TokenUsage,
+)
 from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 
 # --- journal ---------------------------------------------------------------
@@ -37,50 +47,6 @@ from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 #: The `stop` values contraagent writes: every `Stop`, `skipped`, and a Python task's `partial`.
 #: The schema lists them as an enum; a row a domain's own code wrote with another value still validates.
 JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
-
-
-class QuotaReading(BaseModel):
-    """A subscription's utilization as the coding agent reported it during an attempt
-    (Claude Code: when a session starts or resumes; omp: at each launch, what the
-    account's latest request reported). Account-wide: it includes
-    whatever else used the same account, parallel tasks too."""
-
-    model_config = ConfigDict(extra="allow")
-
-    observed_at: str | None = None
-    #: The credential (account) the utilization belongs to; readings of different accounts do not compare.
-    credential: str = ""
-    five_hour_pct: float | None = None
-    five_hour_resets_at: str | None = None
-    seven_day_pct: float | None = None
-    seven_day_resets_at: str | None = None
-    status: str = ""
-    #: Which account reported it: a 12-hex-digit digest that tells accounts apart and reveals
-    #: none (`backends.launch.account_digest`); '' when not known. Readings of one credential
-    #: but different accounts (`ambient` on two coding agents, a replaced token) do not compare.
-    account: str = ""
-    #: The window `status` and `threshold_pct` are about (`five_hour`, `seven_day`, ...).
-    status_window: str = ""
-    #: The utilization (%) past which `status` warns.
-    threshold_pct: float | None = None
-    #: Usage past the limit, billed as extra: its status, why it is off, whether this request used it.
-    overage_status: str = ""
-    overage_disabled_reason: str = ""
-    using_overage: bool | None = None
-    #: Every window the reading names, by its name (`five_hour`, `seven_day`, a model's own
-    #: such as `seven_day_opus`): its utilization (%) and its reset.
-    windows: dict[str, QuotaWindow] = Field(default_factory=dict)
-    #: What else the coding agent sent with the reading, by its own name.
-    extra: dict[str, Any] = Field(default_factory=dict)
-
-
-class QuotaWindow(BaseModel):
-    """One window of a reading: its utilization (%) and when it resets (ISO 8601)."""
-
-    model_config = ConfigDict(extra="allow")
-
-    pct: float | None = None
-    resets_at: str | None = None
 
 
 class JournalRow(BaseModel):

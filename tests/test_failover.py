@@ -12,7 +12,7 @@ from contraagent import (
     LaunchResult,
     Overrides,
     PipelineConfig,
-    RateLimit,
+    QuotaRefusal,
     Route,
     Router,
     RoutingError,
@@ -45,7 +45,7 @@ class Agent(Backend):
         with self._lock:
             self.seen.append((launch.model, launch.fallback_model))
         stop = self.script(launch.model)
-        rl = RateLimit(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
+        rl = QuotaRefusal(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
         return LaunchResult(
             label=launch.label,
             agent=self.name,
@@ -53,7 +53,7 @@ class Agent(Backend):
             ok=stop == Stop.COMPLETED,
             model=launch.model,
             wall_s=0.1,
-            rate_limit=rl,
+            quota_refusal=rl,
             result_text="safeguard refusal" if stop == Stop.REFUSED else "",
         )
 

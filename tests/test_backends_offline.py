@@ -70,7 +70,7 @@ def test_claude_backend_runs_a_launch_end_to_end(tmp_path):
         )
     )
     assert launch_result.stop == Stop.COMPLETED and launch_result.ok, launch_result.stderr_tail
-    assert launch_result.result_text == "ok" and launch_result.session_id == "s-1" and launch_result.usage.n_calls == 1
+    assert launch_result.result_text == "ok" and launch_result.session_id == "s-1" and len(launch_result.usage.calls) == 1
     assert launch_result.credential == "k" and launch_result.api_key_source == "ANTHROPIC_API_KEY"
     assert (launch_result.context_window, launch_result.as_dict()["context_window"]) == (1_000_000, 1_000_000)  # as reported
     env = json.loads(dump.read_text())
@@ -127,8 +127,8 @@ def test_every_utilization_reading_of_a_session_is_kept():
     reader = StreamReader(Limits())
     reader.feed_line(event(0.1, 0.55))
     reader.feed_line(event(0.15, 0.56))
-    assert [(r.five_hour_pct, r.seven_day_pct) for r in reader.rate_limits] == [(10.0, 55.0), (15.0, 56.0)]
-    assert reader.rate_limit is reader.rate_limits[-1] and all(r.observed_at for r in reader.rate_limits)
+    assert [(r.five_hour_pct, r.seven_day_pct) for r in reader.quota] == [(10.0, 55.0), (15.0, 56.0)]
+    assert all(r.observed_at for r in reader.quota)
 
 
 OMP_ACCOUNTED = r"""
@@ -154,11 +154,12 @@ def test_omp_reports_tokens_cost_and_the_accounts_usage(tmp_path):
     launch = Launch(prompt="hello", label="t", model="anthropic/claude-haiku-5-5", cwd=tmp_path, limits=Limits(timeout_s=30))
     result = backend.run(launch)
     assert result.stop == Stop.COMPLETED and result.cost_usd == 0.003
-    assert (len(result.usage.calls), result.usage.output, result.usage.cache_read, result.usage.cache_creation) == (2, 300, 2000, 100)
-    [reading] = result.rate_limits
+    t = result.usage.totals()
+    assert t is not None and (t.calls, t.output, t.cache_read, t.cache_creation) == (2, 300, 2000, 100)
+    [reading] = result.quota
     assert (reading.five_hour_pct, reading.seven_day_pct, reading.status) == (5.0, 79.0, "allowed")
     assert reading.seven_day_resets_at == "2026-10-14T12:00:00+00:00" and reading.observed_at
-    assert backend.run(launch).rate_limits[0] == reading  # read again at each launch: the latest request's
+    assert backend.run(launch).quota[0] == reading  # read again at each launch: the latest request's
 
 
 def test_omp_ends_a_launch_past_its_cost_cap(tmp_path):
@@ -183,7 +184,7 @@ def test_claude_reports_its_peak_context_and_stops_past_its_context_budget():
     reader = StreamReader(Limits())
     assert [reader.feed_line(line) for line in lines] == [None] * 4
     result = LaunchResult(label="t", usage=reader.usage())
-    assert (result.usage.n_calls, result.usage.resident, result.peak_context) == (3, 9003, 11541)
+    assert (len(result.usage.calls), result.usage.resident, result.peak_context) == (3, 9003, 11541)
     capped = StreamReader(Limits(context_budget=11000))
     watch = LimitsWatch(Limits(context_budget=11000), ClaudeBackend.watched_limits, capped)
     assert [capped.feed_line(line) or watch() for line in lines][-2:] == [Stop.CONTEXT, Stop.CONTEXT]

@@ -43,7 +43,7 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version):
     result = PiTraceReader().read((FIXTURES / version / "json.jsonl").read_bytes()).result(LAUNCH, "pi", exit_code=0, killed=None)
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done"
     assert result.tool_uses == {"read": 1, "bash": 1}
-    assert result.usage.n_calls == 3 and result.usage.output > 0 and result.cost_usd and result.cost_usd > 0
+    assert len(result.usage.calls) == 3 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd and result.cost_usd > 0
     assert result.session_id
     assert result.unread_events == {}, "pi sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
@@ -64,7 +64,7 @@ def test_a_spent_quota_is_a_rate_limit_whatever_its_status():
     said = "You're out of extra usage. Add more at claude.ai/settings/usage and keep going."
     body = json.dumps({"type": "error", "error": {"type": "invalid_request_error", "message": said}})
     result = read(refusal(f"400 {body}"))
-    assert result.stop == Stop.RATE_LIMITED and not result.ok and result.rate_limit is not None
+    assert result.stop == Stop.RATE_LIMITED and not result.ok and result.quota_refusal is not None
     assert "out of extra usage" in result.stderr_tail
     assert read(refusal("429 Too Many Requests")).stop == Stop.RATE_LIMITED
 

@@ -63,7 +63,7 @@ def run(be: PiBackend, tmp_path, **launch):
 def test_a_launch_runs_end_to_end_and_sees_none_of_the_users_pi_setup(tmp_path, home):
     result, argv, env = run(backend(tmp_path, home), tmp_path, model="openai/gpt-5.6-luna", effort="low")
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done" and result.session_id == "s-1"
-    assert result.cost_usd == 0.003 and result.usage.n_calls == 2
+    assert result.cost_usd == 0.003 and len(result.usage.calls) == 2
     for flag in ("--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve"):
         assert flag in argv
     assert argv[argv.index("--thinking") + 1] == "low" and argv[argv.index("--model") + 1] == "openai/gpt-5.6-luna"

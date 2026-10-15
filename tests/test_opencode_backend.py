@@ -56,7 +56,8 @@ def test_a_launch_runs_with_its_key_alone(opencode, tmp_path):
     result, seen = opencode(launch, MY_KEY="sk-test", OPENCODE_API_KEY="leftover", ANTHROPIC_API_KEY="leftover", PWD="/elsewhere")
     assert result.stop == Stop.COMPLETED and result.ok, result.stderr_tail
     assert result.result_text == "done" and result.session_id == "ses_1" and result.tool_uses == {"bash": 1}
-    assert (result.usage.n_calls, result.usage.output, result.usage.cache_read, result.cost_usd) == (2, 12, 200, 0.004)
+    t = result.usage.totals()
+    assert t is not None and (t.calls, t.output, t.cache_read, result.cost_usd) == (2, 12, 200, 0.004)
     env = seen["env"]
     assert config(seen)["provider"] == {"anthropic": {"options": {"apiKey": "sk-test"}}}  # over any key in the user's config
     assert env["OPENCODE_AUTH_CONTENT"] == "{}"  # and no stored login
@@ -71,7 +72,7 @@ def test_a_quota_refusal_in_the_log_ends_the_launch(opencode, tmp_path):
     launch = Launch(prompt="x", label="t", model="opencode-go/m", cwd=tmp_path, env={"FAKE_QUOTA": "1"}, limits=Limits(timeout_s=30))
     t0 = time.monotonic()
     result, _ = opencode(launch)
-    assert result.stop == Stop.RATE_LIMITED and result.rate_limit is not None
+    assert result.stop == Stop.RATE_LIMITED and result.quota_refusal is not None
     assert result.result_text == "AI_APICallError: Go usage limit exceeded"
     assert time.monotonic() - t0 < 15
 

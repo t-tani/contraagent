@@ -39,9 +39,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import ValidationError
 
 from contraagent import rundir
-from contraagent.dispatch.records import RestEvent
+from contraagent.dispatch.records import WINDOWS, RestEvent, window_words
 from contraagent.execution.schemas import DeferredRow
 from contraagent.monitor import paths
+from contraagent.monitor.aggregate import TOKENS, add_model_usage, model_usage, number, token_counts
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
@@ -65,10 +66,6 @@ _REST_FIELDS = {"ts", "event", "credential", "window", "pct", "cap", "rule", "un
 
 DIGEST_LOGS = (rundir.JOURNAL, rundir.LAUNCHES, rundir.RESTS, rundir.DEFERRED)
 
-_TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
-_WINDOWS = ("five_hour", "seven_day")
-#: A window's name in the English panel bodies; another window keeps its own (`seven_day_opus`).
-_WINDOW_WORDS = {"five_hour": "5-hour", "seven_day": "weekly"}
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
@@ -144,10 +141,6 @@ def when(ts: object) -> datetime | None:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
-def _num(v: object) -> float | None:
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
-
-
 def _parse(lines: Iterable[str]) -> list[dict]:
     out = []
     for line in lines:
@@ -220,19 +213,13 @@ def run_files(source, run: str, infos: dict | None = None) -> tuple[dict, dict]:
     return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
 
 
-def _usage(v: object) -> dict | None:
-    if not isinstance(v, dict):
-        return None
-    return {k: int(n) for k in (*_TOKENS, "peak_context", "context_window") if (n := _num(v.get(k))) is not None}
-
-
 def digest(source, run: str) -> dict:
     """What a run did, by 15-minute slot of UTC (`SLOT_S`), as much as its trends need.
 
     `slots`: `[slot, {"last_ts", "kinds": {kind: {n, ok, partial, wall, cost, tokens, stops, walls}},
     "models": [...]}]`, oldest first: per kind its attempts, how many passed and how many
     were `partial` (ok, and counted apart from those that passed), their wall
-    time, cost (null when none reported one), tokens (`_TOKENS` order), outcomes, and their
+    time, cost (null when none reported one), tokens (`aggregate.TOKENS` order), outcomes, and their
     wall times, sorted (a median over a period stays exact, and joining runs is a list's
     `extend` and one sort); per model what its hops spent (`model_usage`, in order of first use).
     `kinds`: per kind its executor, its tasks, and the tasks whose last attempt passed
@@ -247,8 +234,6 @@ def digest(source, run: str) -> dict:
     window a reading names (`five_hour`, `seven_day` and any other in its `windows`, as
     `seven_day_opus`); `denied`: `[slot, tool, kind, count]`; `rests` (with the account
     and the reading a rule judged) and `deferred`: their rows."""
-    from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
-
     info = source.info(run) or {}
     slots: dict[int, dict] = {}
     rows_of: dict[int, list[dict]] = {}
@@ -271,12 +256,12 @@ def digest(source, run: str) -> dict:
             continue
         partial = e.get("stop") == "partial"  # ok, and counted apart: not passed, not failed
         ok = bool(e.get("ok")) and not partial
-        wall, cost, usage = _num(e.get("wall_s")) or 0.0, _num(e.get("cost_usd")), _usage(e.get("usage"))
+        wall, cost, usage = number(e.get("wall_s")) or 0.0, number(e.get("cost_usd")), token_counts(e.get("usage"))
         executor = e.get("executor") or "agent"
         s = slots.setdefault(slot, {"last_ts": "", "kinds": {}})
         s["last_ts"] = max(s["last_ts"], str(e.get("ts", "")))
         k = s["kinds"].setdefault(
-            kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+            kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(TOKENS), "stops": {}, "walls": []}
         )
         k["n"] += 1
         k["ok"] += ok
@@ -284,7 +269,7 @@ def digest(source, run: str) -> dict:
         k["wall"] += wall
         if cost is not None:
             k["cost"] = (k["cost"] or 0.0) + cost
-        for i, name in enumerate(_TOKENS):
+        for i, name in enumerate(TOKENS):
             k["tokens"][i] += int((usage or {}).get(name, 0))
         stop = str(e.get("stop", ""))
         k["stops"][stop] = k["stops"].get(stop, 0) + 1
@@ -297,8 +282,8 @@ def digest(source, run: str) -> dict:
         else:
             pairs += [slot, end]
         hops = [
-            {"agent": h.get("agent", ""), "model": h.get("model", ""), "cost_usd": _num(h.get("cost_usd")),
-             "wall_s": _num(h.get("wall_s")) or 0.0, "usage": _usage(h.get("usage")),
+            {"agent": h.get("agent", ""), "model": h.get("model", ""), "cost_usd": number(h.get("cost_usd")),
+             "wall_s": number(h.get("wall_s")) or 0.0, "usage": token_counts(h.get("usage")),
              "other_models": h.get("other_models") if isinstance(h.get("other_models"), dict) else {}}
             for h in e.get("hops") or () if isinstance(h, dict)
         ]  # fmt: skip
@@ -317,7 +302,7 @@ def digest(source, run: str) -> dict:
         for kind, k in s["kinds"].items():
             k["walls"].sort()
             t = total["kinds"].setdefault(
-                kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+                kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(TOKENS), "stops": {}, "walls": []}
             )
             t["n"] += k["n"]
             t["ok"] += k["ok"]
@@ -380,13 +365,13 @@ def _reading_windows(q: Mapping) -> dict[str, float]:
     """A journal reading's windows and their utilization: `five_hour` and `seven_day`, and
     every other its `windows` names (a model's own week, `seven_day_opus`)."""
     out: dict[str, float] = {}
-    for w in _WINDOWS:
-        pct = _num(q.get(f"{w}_pct"))
+    for w in WINDOWS:
+        pct = number(q.get(f"{w}_pct"))
         if pct is not None:
             out[w] = pct
     windows = q.get("windows")
     for w, v in windows.items() if isinstance(windows, Mapping) else ():
-        pct = _num(v.get("pct")) if isinstance(v, Mapping) else None
+        pct = number(v.get("pct")) if isinstance(v, Mapping) else None
         if pct is not None and isinstance(w, str) and w and w not in out:
             out[w] = pct
     return out
@@ -434,25 +419,6 @@ def _median(walls: list[float]) -> float:
     return walls[n // 2] if n % 2 else (walls[n // 2 - 1] + walls[n // 2]) / 2
 
 
-def _add_model(models: dict[tuple[str, str], dict], m: Mapping) -> None:
-    """Add one slot's spend on a model (`model_usage`) to `models`, in order of first use."""
-    into = models.get((m["agent"], m["model"]))
-    if into is None:
-        models[(m["agent"], m["model"])] = dict(m)
-        return
-    for f, v in m.items():
-        if f in ("agent", "model") or v is None:
-            continue
-        if f == "cost_usd":
-            into[f] = round((into[f] or 0.0) + v, 6)
-        elif f in ("peak_context", "context_window"):
-            into[f] = max(into.get(f) or 0, v)
-        elif f == "wall_s":
-            into[f] = round(into[f] + v, 1)
-        else:
-            into[f] += v
-
-
 class _Slots:
     """The day and the hour of each slot in a period, worked out once each."""
 
@@ -495,7 +461,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     peaks: dict[tuple[str, str, str], dict] = {}
     rests, deferred, runs = [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
-    totals = {"runs": 0, "attempts": 0, "ok": 0, "partial": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
+    totals = {"runs": 0, "attempts": 0, "ok": 0, "partial": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(TOKENS, 0)}
     for dg in digests:
         run = dg["run"]
         span = dg["span"]
@@ -528,7 +494,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                     kind,
                     {"kind": kind, "group": group, "executor": dg["kinds"][kind]["executor"], "tasks": 0, "tasks_ok": 0,
                      "tasks_partial": 0, "attempts": 0, "ok": 0, "partial": 0, "wall_s": 0.0, "wall_s_median": 0.0, "cost_usd": None,
-                     "tokens": dict.fromkeys(_TOKENS, 0)},
+                     "tokens": dict.fromkeys(TOKENS, 0)},
                 )  # fmt: skip
                 into["attempts"] += k["n"]
                 into["ok"] += k["ok"]
@@ -536,7 +502,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 into["wall_s"] += k["wall"]
                 if k["cost"] is not None:
                     into["cost_usd"] = (into["cost_usd"] or 0.0) + k["cost"]
-                for i, name in enumerate(_TOKENS):
+                for i, name in enumerate(TOKENS):
                     into["tokens"][name] += k["tokens"][i]
                     totals["tokens"][name] += k["tokens"][i]
                 walls.setdefault(kind, []).extend(k["walls"])
@@ -549,7 +515,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 partial += k["partial"]
                 wall += k["wall"]
             for m in s["models"]:
-                _add_model(models, m)
+                add_model_usage(models, m)
         # A task is one key of one run: its last attempt in the period says how it ended.
         whole = dg["span"] is not None and at.holds(dg["span"][0]) and at.holds(dg["span"][1])
         for kind, keys in dg["tasks"].items():
@@ -787,7 +753,7 @@ def bodies(view: dict) -> dict[str, dict]:
         who = q["credential"] or "default"
         if len(accounts[q["credential"]]) > 1:
             who += f" ({q['account'] or 'unknown account'})"
-        return f"{who} {_WINDOW_WORDS.get(q['window'], q['window'])}"
+        return f"{who} {window_words(q['window'])}"
 
     usage = {
         "type": "lines",
