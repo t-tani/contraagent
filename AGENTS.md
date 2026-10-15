@@ -398,7 +398,9 @@ version; nothing else holds that text.
   `tests/test_docs.py` checks against the example files. Its screenshots in
   `docs/assets/readme/` (outside the package, and out of the sdist) come from the
   showcase runs of the demo pipelines (`web/scripts/showcase.py`, every task done):
-  `pnpm --dir web screenshots` makes them again.
+  `pnpm --dir web screenshots --only readme` makes them again. Each is one region of a
+  view at most 880 CSS px wide, captured at device scale 2 and never scaled, and the
+  README shows it as `<img ... width="<its CSS width>">`, so its text shows at its own size.
 - Prose style, for the READMEs and the topics: write plain declarative sentences
   and short paragraphs, as a careful engineer writes a README. A paragraph or a list
   item starts with a sentence that carries its point, not with a bold run-in label
