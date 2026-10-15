@@ -57,6 +57,7 @@ from contraagent.execution.journal import Journal, utcnow_iso
 from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
+from contraagent.routing.capacity import sized
 from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
 
 _logger = logging.getLogger(__name__)
@@ -344,8 +345,11 @@ class Run:
         run.record_attempt)`, so nothing is written twice. `resume=True` skips every
         task an earlier attempt finished (`finished_before`). `kwargs` pass through
         (`max_concurrent`, `claim_capacity`, `finishing_kinds`, `deadline_s`...);
-        `retry_on`/`throttle_on` default to the stop sets above.
+        `retry_on`/`throttle_on` default to the stop sets above; a `PerTask` entry of
+        `claim_capacity` is sized by this host (`routing.capacity`).
         """
+        if kwargs.get("claim_capacity"):
+            kwargs["claim_capacity"] = sized(kwargs["claim_capacity"])
         kwargs.setdefault("retry_on", RETRY_ON)
         kwargs.setdefault("throttle_on", THROTTLE_ON)
         kwargs.setdefault("estimate", self.estimator().estimate)

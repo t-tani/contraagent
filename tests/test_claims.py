@@ -257,7 +257,15 @@ def test_the_claims_example_writes_each_topic_one_task_at_a_time(tmp_path):
     agent = StubAgent(
         {"style": timed(written), "terms": timed(written), "merge": timed(written), "triage": timed(lambda launch: {"relevant": True})}
     )
-    pipe = Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, backends=agent.backends(), log=lambda line: None, max_concurrent=8)
+    pipe = Pipeline(
+        None,
+        runs_dir=tmp_path / "runs",
+        cwd=tmp_path,
+        backends=agent.backends(),
+        log=lambda line: None,
+        max_concurrent=8,
+        claim_capacity=example.CLAIM_CAPACITY,
+    )
     report = pipe.run(example.topics, names=["alpha", "beta"])
     assert report.ok, report.failed
 

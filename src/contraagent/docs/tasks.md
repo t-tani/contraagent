@@ -287,7 +287,7 @@ A claim is a template, filled in when the task is created: `{unit}`, `{kind}`,
 one key claims `<key>~2`), and `{params.<name>}`, a parameter of the task call. A parameter that holds a list gives one name per element, so a task
 over several topics claims each of them.
 
-::code{file="examples/claims/flow.py" from="style = agent_task(" to="def topics("}
+::code{file="examples/claims/flow.py" from="style = agent_task(" to="lookup = agent_task("}
 
 ::code{file="examples/claims/flow.py" from="def topics("}
 
@@ -300,9 +300,28 @@ writes run together.
 `fnmatch` pattern, and a pattern gives each name it matches a capacity of its own
 (`{"heavy:*": 2}`: two tasks at a time on each `heavy:` name). A name's own entry
 outranks a pattern, and the longest matching pattern outranks the others; a
-capacity of 0 starts no task that claims the name. The config holds them as
-`[defaults.claim_capacity]`, and `Pipeline(claim_capacity=)` outranks it key by
-key.
+capacity of 0 starts no task that claims the name. A limit that many tasks share
+needs one name that they all claim: a pattern does not share its capacity. The
+config holds them as `[defaults.claim_capacity]`, and `Pipeline(claim_capacity=)`
+outranks it key by key.
+
+A capacity may instead be what one running task that claims the name needs of the
+host, a `PerTask`: `memory_mb`, `cores`, or both. Tasks that each start a local
+server of about 1.5 GB claim one name, and the host's free memory sets how many
+run at once:
+
+::code{file="examples/claims/flow.py" from="lookup = agent_task(" to="def topics("}
+
+`Pipeline(claim_capacity=CLAIM_CAPACITY)` gives it, or
+`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Each
+time the queue tries to start such a task, the capacity is the tasks that hold the
+name plus as many more as the free memory holds, and at most the usable cores
+divided by `cores`. While no task holds the name it is at least 1, so a run always
+goes on even on a host short of memory. The free memory is `MemAvailable` of
+`/proc/meminfo`, less `memory_mb` for each such task started in the last 30
+seconds, since a server just started has not taken its memory yet; where there is
+no `/proc/meminfo` (not Linux), memory does not limit the name. The capacity grows
+as memory frees, and a waiting task starts then, while the others still run.
 
 A claim that names `{unit}` on a task with no unit, or a parameter the call does
 not give, raises at the task call; so does a parameter that is an output not
