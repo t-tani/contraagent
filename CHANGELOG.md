@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `RunRecords.output(key)` and `PeriodRuns.output(run, key)`: a task's output file, read
+  wherever the monitor reads the run (a runs directory or a hub), so a panel shows an
+  output without a path of its own. The demo's `notes` panel reads its notes this way.
+- `contraagent --help`, `contraagent check --help` and `contraagent run --help` end with
+  the exit status each command returns.
+- `examples/runner/run.py`: a flow run from a program, with a journal column
+  (`row_extras`) made from each task's output, a `quota_rule` and `--resume`; its
+  docstring lists what `contraagent run` cannot pass.
+- The reference config (`examples/reference/pipeline.toml`) writes every key of the
+  config's JSON Schema: `isolate` and the quota caps on each credential type, a
+  `workload_identity` table (with `service_account_id`, `workspace_id`), a `bedrock`
+  and a `vertex` table, `_comment`.
 - Plugin hooks on Codex: `contraagent plugin render` writes `codex/hooks.json` (Codex's
   own hook format) from `hooks.toml`, and a Codex launch passes it as config, each hook
   trusted by the hash Codex asks for, with the user's own hooks turned off. The stop
@@ -732,6 +744,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Public API and names
 
+- The documentation names public paths only. What it sent the reader to `_internal` files
+  for is in the public objects' docstrings: the stub agent's replies in `contraagent.testing`,
+  every check in `Pipeline.check`, a run directory's files in `contraagent.engine.Run`, the
+  meaning of each stop in `contraagent.backends.Stop`, a plugin's parts in
+  `contraagent.plugins.Plugin`, each coding agent's isolation in its backend class, and a
+  recording directory's layout in `contraagent docs testing`. `contraagent check` says
+  `1 kind`, not `1 kinds`.
 - One public path per name. The implementation moved under `contraagent._internal`; the
   public modules only re-export, and each class and function names its public module as
   `__module__` (reprs, tracebacks, pickle): `contraagent` (tasks, flows, the pipeline,

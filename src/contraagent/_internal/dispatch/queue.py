@@ -162,7 +162,7 @@ class RunnerConfig(Protocol):
 
 class TaskRunner(Protocol):
     """The entire surface `WorkQueue` needs from a runner: a per-task
-    concurrency cap, and a way to actually run one. `AgentRunner` (`execution/runner.py`) satisfies this with no changes and no
+    concurrency cap, and a way to actually run one. `AgentRunner` satisfies this with no changes and no
     inheritance -- structural, not nominal."""
 
     def config(self, task: Task) -> RunnerConfig: ...

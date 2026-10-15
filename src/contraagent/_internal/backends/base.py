@@ -338,7 +338,7 @@ class Backend(abc.ABC):
         raise CredentialError(f"{self.name} cannot use {credential.type} credentials")
 
     def account(self, credential: Credential, model: str = "") -> str:
-        """The account a launch of `model` as `credential` bills, as `account_digest`: the
+        """The account a launch of `model` as `credential` bills, as a 12-hex-digit digest: the
         same value for the same account, never the secret or anything it can be turned
         back into. '' when this agent cannot tell (the default). Read from local state only
         (a login file, the credential's own secret), except where the agent offers no other

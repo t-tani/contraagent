@@ -223,7 +223,7 @@ class QuotaReading(BaseModel):
     seven_day_resets_at: str | None = None
     status: str = ""
     #: Which account reported it: a 12-hex-digit digest that tells accounts apart and reveals
-    #: none (`backends.launch.account_digest`); '' when not known. One credential can stand
+    #: none; '' when not known. One credential can stand
     #: for two accounts (`ambient` on two coding agents, a replaced token): their readings do
     #: not compare.
     account: str = ""

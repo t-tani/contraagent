@@ -38,8 +38,9 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
    until it prints ✓. → [Checking and testing](testing.md)
 8. **Test.** The flow on `contraagent.testing.StubAgent`, in pytest. → [Checking and testing](testing.md)
 9. **Run.** `contraagent run` with the arguments `check` took (`--run-id`, `--resume`
-   to continue one), or `Pipeline(config).run(flow, ...)` from a program that
-   needs more (its own backends, env, monitor panels). Watch it in the
+   to continue one), or `Pipeline(config).run(flow, ...)` from a program for what a
+   command line cannot pass: a journal column (`row_extras`), a `quota_rule`, scopes,
+   enrichers, its own backends, `env` (`examples/runner/run.py` lists them). Watch it in the
    monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
 
 ## Decisions
@@ -109,6 +110,6 @@ The docstrings are the reference. A pipeline imports from the public modules onl
 validators, the task and result a callback is given, the errors), `contraagent.config`
 (credentials, routes, budgets), `contraagent.backends` (the coding agents, the call file),
 `contraagent.engine` (the runners, schedulers and contracts underneath a pipeline),
-`contraagent.plugins`, `contraagent.monitor` and `contraagent.testing`. Their code is
-under `contraagent/_internal/`; the layer list is in `contraagent/_internal/__init__.py`.
-`contraagent docs --path` prints where they are.
+`contraagent.plugins`, `contraagent.monitor` and `contraagent.testing`
+([Compatibility](compatibility.md) says what is public). `help(<name>)` prints a
+name's docstring, and `contraagent docs --path` prints where the documentation is.

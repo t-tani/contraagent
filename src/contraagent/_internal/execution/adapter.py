@@ -60,7 +60,7 @@ class TaskAdapter:
     def changes(self, task: Task) -> Sequence[str]:
         """Patterns, relative to the working directory, of the files the task may change:
         each attempt's changes under them are recorded, and a failed attempt's new files
-        removed (`execution/changes.py`). Default: none."""
+        removed. Default: none."""
         return ()
 
     def env(self, task: Task) -> dict[str, str]:
@@ -72,7 +72,7 @@ class TaskAdapter:
 
         A dict with `role` (the named agent, `agents/<role>.md`),
         `plugin_dirs`, and `files` (`[{"path", "part", "text"}]`: the prompt
-        template, the schema, the role's definition ...). `pipeline.SpecAdapter`
+        template, the schema, the role's definition ...). `Pipeline`'s adapter
         fills it from the task's `agent_task` declaration and its plugin; the
         default says only which role and plugin directories the task runs with.
         """

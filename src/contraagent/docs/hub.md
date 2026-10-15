@@ -81,8 +81,8 @@ the lines go to one object in `--segments` as zstd frames of about 256 KiB with 
 of their first lines, and the index is recorded in the `--store` database (with
 `--store memory`, it is rebuilt from the sealed objects when the hub starts). A page of an
 earlier part of a transcript is one ranged read of one object. The hub answers each
-batch with how many lines it holds and how many are sealed (`Accepted.logs`,
-`Accepted.durable`).
+batch with how many lines it holds and how many are sealed (`logs` and `durable` of
+its response, `Accepted` in the OpenAPI document `contraagent hub --openapi` writes).
 
 A restarted hub resumes its open segments from `--streams-dir`. The open segments live
 on one host's disk, so a hub is one process.

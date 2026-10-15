@@ -48,7 +48,7 @@ from contraagent._internal.runs.files import parse_rows
 from contraagent._internal.runs.liveness import Liveness, StaticLiveness
 from contraagent._internal.runs.names import check_name
 from contraagent._internal.runs.procs import ProcLiveness
-from contraagent._internal.runs.source import PAGE_BYTES, DirectorySource, RunSource
+from contraagent._internal.runs.source import PAGE_BYTES, DirectorySource, RunFile, RunSource
 from contraagent._internal.runs.times import now, parse_iso
 
 #: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`), given the run's records (`RunRecords`).
@@ -102,10 +102,28 @@ class RunRecords:
         last wrote); None when the run has none."""
         return _document(self._source, self.id, name)
 
+    def output(self, key: str) -> RunFile | None:
+        """Task `key`'s output file (the first its contract names), as the host that drove
+        the run saw it, wherever the monitor reads the run; None when the task declared
+        none or its file does not exist. `.text` is its content as text, `.data` as bytes."""
+        return _first_output(self._source, self.id, self._source.document(self.id, layout.task_entry(layout.CONTRACTS, key)))
+
     def dir(self) -> Path | None:
-        """The run's directory, for a file that is not one of its records (an output); None
-        when the runs are not in a directory here (a hub keeps them in its store)."""
+        """The run's directory on this host, for a file that is none of its records and no
+        task's output; None when the runs are not in a directory here (a hub keeps them in
+        its store)."""
         return self._source.dir(self.id)
+
+
+def _first_output(source: RunSource, run: str, text: str | None) -> RunFile | None:
+    try:
+        record = json.loads(text) if text is not None else None
+    except ValueError:
+        return None
+    outputs = record.get("outputs") if isinstance(record, dict) else None
+    if not outputs or not isinstance(outputs[0], dict) or not isinstance(outputs[0].get("path"), str):
+        return None
+    return source.file(run, outputs[0]["path"])
 
 
 class PeriodRuns(list[str]):
@@ -141,6 +159,10 @@ class PeriodRuns(list[str]):
     def document(self, run: str, name: str) -> Any:
         """The value of the run's pipeline document `name`; None when it has none."""
         return self.run(run).document(name)
+
+    def output(self, run: str, key: str) -> RunFile | None:
+        """Task `key`'s output file in run `run`; None when it has none."""
+        return self.run(run).output(key)
 
     def dir(self, run: str) -> Path | None:
         """The run's directory; None when the runs are not in a directory here (a hub)."""
@@ -936,7 +958,7 @@ class Monitor:
     # --- trends --------------------------------------------------------------
 
     def trends(self, period: Period, *, run_group: str = "", stub: bool = False) -> dict[str, Any]:
-        """What the runs of `period` add up to (`monitor.trends`), with the same numbers as
+        """What the runs of `period` add up to, with the same numbers as
         panel bodies (`bodies`) and the trend panels on offer (`panels`). `run_group` keeps
         the runs of one group; stub runs count only with `stub`."""
         held = self._period_digests(period)

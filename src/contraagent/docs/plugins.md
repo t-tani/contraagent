@@ -20,7 +20,7 @@ opencode gets its parts as config (its role as `instructions`, its skills as
 `skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`), and
 Codex, which loads no plugin directory, its role's file, its skills, its
 `.mcp.json` and its rendered hooks as config (below). The
-docstring of `contraagent/_internal/plugins/plugin.py` lists its parts. The demo's:
+docstring of `contraagent.plugins.Plugin` lists its parts. The demo's:
 
 ```
 examples/demo/plugins/docs/
@@ -118,12 +118,12 @@ user's home; every launch keeps that out, and keeps what the agent itself can do
 
 A launch also leaves out the variables that tie it to a Claude Code session the
 pipeline was started from. A skill, a hook, a permission or an MCP server a task
-needs belongs in its plugin. omp's part is the overlay
-`contraagent/_internal/backends/omp/isolation/config.yml`; opencode's, the variables in
-`DEFAULT_ENV` of `contraagent/_internal/backends/opencode/backend.py`. pi runs with an agent
+needs belongs in its plugin. omp's part is a config overlay of contraagent's own;
+opencode's, the variables each launch sets. pi runs with an agent
 directory of contraagent's own (`PI_CODING_AGENT_DIR`, under
 `~/.cache/contraagent/pi/`) that links the user's logins and holds nothing else of
-theirs, and with its discovery turned off by flag (`contraagent/_internal/backends/pi/agent_dir.py`).
+theirs, and with its discovery turned off by flag. The docstrings of
+`contraagent.backends.OmpBackend`, `OpencodeBackend` and `PiBackend` give each in full.
 Codex finds skills only in fixed places, so it runs with a `HOME` of its own whose
 `.agents/skills` links to each skill of the task's plugin, then of its
 `skills_from` (a name already taken is not linked again); the commands it runs see
@@ -179,7 +179,7 @@ user's and the project's own hooks do not run; with any credential but `ambient`
 the user's `config.toml` is not read at all. Hooks an administrator manages
 (`requirements.toml`, MDM) run as Codex decides. A launch with no hook runs with
 Codex's hooks turned off. How the key and the hash are made is in the docstring
-of `contraagent/_internal/backends/codex/hooks.py`.
+of `contraagent.backends.CodexBackend`.
 
 Hook scripts read the JSON Claude Code sends hooks; the omp and pi extensions
 (`omp/index.ts`, `pi/index.ts`, both declared in `package.json`) and the opencode

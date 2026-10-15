@@ -2,7 +2,9 @@
 
 The code declares what a task is and its default budget. The TOML file decides
 where it runs: coding agent, model, effort, credential, failover chain, and
-budgets that outrank the declared ones. The demo's:
+budgets that outrank the declared ones. The demo's, whose agent `stub` is the demo's
+own `Backend` that `examples/demo/run.py` registers (`contraagent check ... --stub`
+checks a config that names it):
 
 ::code{file="examples/demo/pipeline.toml"}
 
@@ -11,6 +13,12 @@ budgets that outrank the declared ones. The demo's:
 Highest first: overrides (`Pipeline(overrides=...)`, e.g. from command-line
 flags), the kind's `[tasks.<kind>]` table, `agent_task(...)`, `[defaults]`, the
 built-in default.
+
+`[defaults]` takes the routing keys (`agent`, `model`, `effort`, `credential`,
+`model_failover`, `fallbacks`) and the run's own settings (`max_passes`, `preflight`,
+`claim_capacity`, `context_warn_pct`), nothing else. A budget (`max_turns`,
+`timeout_s`, `max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or
+`agent_task(...)`, and `[defaults]` refuses it.
 
 Refused before anything launches: a kind with no turn or time budget anywhere,
 an effort the coding agent's CLI does not accept, an unknown agent in a chain,
@@ -90,8 +98,7 @@ The preflight probes every distinct route of the run's reachable kinds once,
 before the first task: a model its coding agent does not list is dropped
 without a launch, and every other route gets one minimal launch (`max_turns=1`);
 a route whose probe does not complete (a 429, an error, a timeout) is dropped.
-Past the first 8 routes (`DEFAULT_CAP` in `routing/preflight.py`) the rest are
-kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
+Past the first 8 routes the rest are kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
 happens to a kind with no route left:
 
 | Policy | A kind with no route left |

@@ -143,7 +143,7 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
     assert main(["check", "tasks.py:flow", "--stub", "--kwargs", json.dumps({"units": ["a", "b"]})]) == 0
-    assert capsys.readouterr().out.startswith("✓ 2 tasks, 1 kinds: summarize 2")
+    assert capsys.readouterr().out.startswith("✓ 2 tasks, 1 kind: summarize 2")
     sys.modules.pop("tasks", None)
 
     (tmp_path / "tasks.py").write_text(
@@ -292,7 +292,7 @@ def test_a_generator_flow_is_checked_to_its_first_wait_with_its_reachable_kinds(
     assert report.kinds == {"summarize": 2}  # the first step of each unit's flow call
     assert sorted(report.later_kinds) == ["report", "review", "revise"]  # created as it runs
     assert sorted(report.routes) == ["review", "revise", "summarize"]
-    assert str(report).startswith("✓ 2 tasks, 1 kinds: summarize 2; later kinds: ")
+    assert str(report).startswith("✓ 2 tasks, 1 kind: summarize 2; later kinds: ")
 
 
 def summarize_via_module(unit):
