@@ -18,7 +18,7 @@
 //
 // Needs uv, and Playwright's Chromium (`pnpm --dir web exec playwright install chromium`).
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -62,15 +62,35 @@ const DOCS_LOOP = 'contraagent.docs.examples.demo.tasks.review_loop';
 const SHOTS = [
   // The root README.
   {
-    // The hero: the run, finished, and its pipeline graph with the review loop. At 680 px the
-    // graph is drawn top to bottom at its own size; wider, it would be scaled down to fit.
+    // The hero, wide: the monitor's header with the run's line; the pipeline graph at its own
+    // size (in a frame wider than the drawing, which is then never scaled to fit), from
+    // summarize through the review loop; and the first row of the totals.
     set: 'readme',
     name: 'overview',
     url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`,
-    width: 680,
-    height: 1500,
     ready: 'ca-pipeline-graph .dag',
-    clip: async (page) => [await card(page, 'section >> nth=0'), await card(page, 'section:has(ca-pipeline-graph)')],
+    gap: 0, // three bands: the header, the graph's frame, the row of tiles
+    parts: [
+      {
+        width: 1300,
+        height: 1000,
+        clip: async (page) => {
+          const head = await boxOf(page, 'header');
+          const frame = await boxOf(page, 'ca-pipeline-graph .gframe');
+          const from = (await boxOf(page, 'ca-pipeline-graph .node:has-text("summarize")')).x - 12;
+          return [box(0, 0, 880, head.height), box(from, frame.y, 880, frame.height)];
+        },
+      },
+      {
+        // At 916 px the totals' card is 880 px wide, four tiles to a row.
+        width: 916,
+        height: 1000,
+        clip: async (page) => {
+          const first = await boxOf(page, 'ca-kpis .tile >> nth=0');
+          return box(18, first.y - 14, 880, first.height + 24); // short of the next row
+        },
+      },
+    ],
   },
   {
     // An output checked, sent back with its failed checks, and corrected in the same session.
@@ -271,11 +291,10 @@ try {
 
   const browser = await chromium.launch();
   stops.push(() => browser.close());
-  for (const shot of shots) {
-    const { dir } = SETS[shot.set];
-    mkdirSync(dir, { recursive: true });
+  /** The shot's page, open in a context of `view`'s viewport (the shot's, or one of its `parts`'). */
+  const open = async (shot, view) => {
     const ctx = await browser.newContext({
-      viewport: { width: shot.width ?? 900, height: shot.height ?? 900 },
+      viewport: { width: view.width ?? 900, height: view.height ?? 900 },
       deviceScaleFactor: 2,
       reducedMotion: 'reduce',
       locale: 'en-US',
@@ -300,20 +319,26 @@ try {
     }
     if (shot.prepare) await shot.prepare(page);
     await page.waitForTimeout(1500); // the live feeds settle and the graphs lay out
-    const clip = shot.clip ? await shot.clip(page) : await hostBox(page);
+    return { ctx, page };
+  };
+  for (const shot of shots) {
+    const { dir } = SETS[shot.set];
+    mkdirSync(dir, { recursive: true });
     const path = join(dir, `${shot.name}.png`);
-    if (Array.isArray(clip)) {
-      const parts = [];
-      for (const [i, part] of clip.entries()) {
-        parts.push(join(dir, `${shot.name}.part${i}.png`));
-        await page.screenshot({ path: parts.at(-1), clip: part });
+    // Regions of one viewport (`clip` returns a list), or of several (`parts`, each its own).
+    const parts = [];
+    for (const view of shot.parts ?? [shot]) {
+      const { ctx, page } = await open(shot, view);
+      const clip = view.clip ? await view.clip(page) : await hostBox(page);
+      for (const region of Array.isArray(clip) ? clip : [clip]) {
+        parts.push(join(dir, `${shot.name}.part${parts.length}.png`));
+        await page.screenshot({ path: parts.at(-1), clip: region });
       }
-      stacks.push(['--stack', path, String(shot.gap ?? 12), ...parts]);
-    } else {
-      await page.screenshot({ path, clip });
+      await ctx.close();
     }
+    if (parts.length === 1) renameSync(parts[0], path);
+    else stacks.push(['--stack', path, String(shot.gap ?? 12), ...parts]);
     files.push(path);
-    await ctx.close();
   }
 } finally {
   for (const stop of stops.reverse()) await stop();

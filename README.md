@@ -17,10 +17,11 @@ handles failover, quotas, deadlines and resume, and a live monitor shows every r
 ![Linux](https://img.shields.io/badge/platform-Linux-555)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-<img src="docs/assets/readme/overview.png" width="676" alt="The run card of a finished run, and its pipeline graph: prepare, summarize, a loop of score, review and revise, then write_note, 44 of 44 tasks done">
+<img src="docs/assets/readme/overview.png" width="880" alt="The monitor's header with the run docs: 44 of 44 tasks done. Below it, part of the pipeline graph: summarize, then a loop of score, review and revise, up to 2 passes, then write_note, each with a mark per unit, all done. Below that, the totals: 44 tasks, 44 attempts, the cost and the tokens">
 
-<sub>The monitor after the demo pipeline ran on its demo agent. Every task is done
-and every output passed its checks, after two corrections in their own sessions, one
+<sub>The monitor after the demo pipeline ran on its demo agent: its header with the
+run's line, part of the pipeline graph, and the first totals. Every task is done and
+every output passed its checks, after two corrections in their own sessions, one
 model switch after a rate limit, and a second pass of the review loop for one unit
 (an item that the pipeline works on). The pipeline graph draws the flow as it is
 written, by function and loop, with a mark for each unit.</sub>
