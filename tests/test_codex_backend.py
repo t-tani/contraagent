@@ -7,6 +7,7 @@ import json
 import os
 import stat
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -171,7 +172,7 @@ def test_a_structured_answer_is_parsed(fake):
     schema = {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"], "additionalProperties": False}
     _, r, seen = fake(json_schema=schema, env={"FAKE_TEXT": '{"n": 5}'})
     assert r.structured_output == {"n": 5}
-    assert json.loads(open(seen["argv"][seen["argv"].index("--output-schema") + 1]).read()) == schema
+    assert json.loads(Path(seen["argv"][seen["argv"].index("--output-schema") + 1]).read_text()) == schema
 
 
 def test_a_refused_credential_ends_the_launch_on_its_second_retry(fake):

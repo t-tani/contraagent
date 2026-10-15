@@ -318,6 +318,9 @@ def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, sig):
         assert not _alive(agent), f"the agent outlived its pipeline ({sig.name})"
     finally:
         driver.kill()
+        driver.wait()
+        if driver.stderr is not None:
+            driver.stderr.close()
         for pid in _with_token(token):
             os.kill(pid, signal.SIGKILL)
 
