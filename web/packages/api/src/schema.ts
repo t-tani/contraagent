@@ -1386,6 +1386,11 @@ export type components = {
              * @description peak context: the largest input of one API call of a session on it (tokens); null when none reported one
              */
             peak_context?: number | null;
+            /**
+             * Context Window
+             * @description its context window (tokens of one API call's input) as the coding agent reported it; null when none did
+             */
+            context_window?: number | null;
         };
         /**
          * NoteBody
@@ -2614,6 +2619,8 @@ export type components = {
             resident?: number | null;
             /** Peak Context */
             peak_context?: number | null;
+            /** Context Window */
+            context_window?: number | null;
         } & {
             [key: string]: unknown;
         };

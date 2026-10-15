@@ -4,13 +4,12 @@ Each launch can load one static plugin dir (`--plugin-dir`), so the
 invocation sees exactly one agent, its skill bundle, its command prompt,
 and its settings — never the working tree's top-level .claude/ directory.
 
-Ported from an earlier `claude -p` wrapper (`ClaudeCLI`): the full
-argv surface, the live stream reader (per-call usage, rate limits,
-denials, retries, budget/context/stall/denial stops), and the
-result classifier. Env isolation (PARENT_SESSION_ENV + DEFAULT_ENV) and the
+It holds the full argv surface, the live stream reader (per-call usage,
+rate limits, denials, retries, budget/context/stall/denial stops), and
+the result classifier. Env isolation (PARENT_SESSION_ENV + DEFAULT_ENV) and the
 provider identity (`Credential`) are shared with the omp backend.
-Plugin isolation rides on top: `--plugin-dir`, where a pipeline passes
-`--agent` resolved from `.claude/agents/`.
+Plugin isolation rides on top: `--plugin-dir`, with `--agent` naming the
+task's role in that plugin.
 """
 
 from __future__ import annotations

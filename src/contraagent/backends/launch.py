@@ -4,9 +4,8 @@ Stop, Limits, Launch, Usage, RateLimit, and LaunchResult are backend-neutral.
 Per-CLI argv, env, and output parsing live in `backends/claude/` and
 `backends/omp/`; the Backend ABC in `backends/base.py`; the subprocess loop
 in `backends/process.py`; the provider identity in `backends/credentials.py`.
-
-Ported from an earlier `claude -p` wrapper: the per-call usage
-accounting, the stop taxonomy, and the telemetry record.
+They hold the per-call usage accounting, the stop taxonomy, and the
+telemetry record.
 """
 
 from __future__ import annotations
