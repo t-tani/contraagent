@@ -15,8 +15,9 @@ contraagent run tasks.py:docs --stub [--execute KIND]
                                          # a stub run: the stub agent plays every task with the smallest
                                          # output, and the tasks the flow created are listed
 contraagent run tasks.py:docs --record DIR   # a run that keeps each task attempt's recording in DIR
-contraagent run tasks.py:docs --replay DIR [--execute KIND]
-                                         # a replay: every task plays its recording, nothing is spent
+contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
+                                         # a replay: every task plays its recording, nothing is spent;
+                                         # with --record-missing, a task with none runs and is recorded
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
 """
@@ -115,6 +116,12 @@ def main(argv: list[str] | None = None) -> int:
         help="a replay: play the recordings in DIR in place of every agent task's launch and every Python task's function "
         "(but the kinds of --execute); nothing is spent (run id: <flow>-replay). Not with --stub or --record",
     )
+    run.add_argument(
+        "--record-missing",
+        action="store_true",
+        help="with --replay: a task with no recording in DIR launches (or runs its function) as in any run, and its "
+        "recording is written into DIR; this can spend tokens",
+    )
 
     docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
     docs.add_argument("topic", nargs="?", help="a topic the index lists (guide, tasks, ...)")
@@ -209,6 +216,9 @@ def _flow_command(args) -> int:
         if args.cmd == "run" and args.execute and not args.stub and replay is None:
             print("--execute: only with --stub or --replay", file=sys.stderr)
             return 2
+        if args.cmd == "run" and args.record_missing and replay is None:
+            print("--record-missing: only with --replay", file=sys.stderr)
+            return 2
         if replay is not None and (args.stub or record is not None):
             print(f"--replay: not with {'--stub' if args.stub else '--record'}", file=sys.stderr)
             return 2
@@ -223,6 +233,7 @@ def _flow_command(args) -> int:
             record=record,
             replay=replay,
             execute=args.execute if replay is not None else (),
+            record_missing=bool(getattr(args, "record_missing", False)),
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "

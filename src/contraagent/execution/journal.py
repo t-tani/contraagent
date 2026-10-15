@@ -110,6 +110,7 @@ class Journal:
             context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,
             flow_call=task.origin.flow_call if task.origin is not None else None,
+            replayed=result.replayed,
             **(self._row_extras(result) if self._row_extras else {}),
         )
 

@@ -26,7 +26,12 @@ task's recording in place of a launch, or of a Python task's function: attempt 1
 entry, attempt 2 the second, past the last the last again. It writes the recorded outputs
 and changed files into place, deletes the recorded deletions, appends the recorded
 transcript, and returns the recorded result with no cost and no tokens: nothing was spent
-in this run. A Python task of a kind in `execute` runs its function instead. A key
+in this run. A Python task of a kind in `execute` runs its function instead. A played
+attempt's result says `replayed` (`TaskResult.replayed`, the journal row's `replayed`).
+
+With `record_missing` (`Pipeline(replay=, record_missing=True)`, `--record-missing`), a
+task with no recording launches, or runs its function, as in any run, and the `Recorder`
+on the same directory records it there; the tasks with one are played. A key
 minted with `~n` that has no recording of its own plays the first recording of its base
 key after it (`summarize-alpha~3`, `summarize-alpha~4`, ... for `summarize-alpha~2`)
 that no task of this run has played. A task
@@ -42,7 +47,7 @@ import secrets
 import shutil
 import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,7 +55,7 @@ from typing import Any
 
 from contraagent import envvars, rundir
 from contraagent.backends import backend_class, known_agents
-from contraagent.backends.base import Backend
+from contraagent.backends.base import Backend, ModelChains
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.contracts import OutputContract
@@ -155,8 +160,8 @@ class Recorder:
         return _Mark(stream_at=at)
 
     def enrich(self, task: Task, before: _Mark, result: TaskResult) -> None:
-        # Nothing was launched: a deferral, or an input refused before launch.
-        if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None:
+        # Nothing was launched: a deferral, or an input refused before launch; or it was played.
+        if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None or result.replayed:
             return
         token, files = self._attempt_dir(task)
 
@@ -281,11 +286,17 @@ class Replay:
     to the runner's enrichers, and its `backends()` as the runner's backends. Bind it to a
     run's output contracts and working directory with `start` before the run.
     `execute`: the Python task kinds whose functions run instead of being played.
+    `record_missing`: a task with no recording launches on the coding agents given to
+    `backends(real=)`, or runs its function, instead of ending `error`; the directory may
+    be empty, or not exist yet.
     """
 
-    def __init__(self, directory: str | Path, *, execute: Iterable[str] = ()) -> None:
+    def __init__(self, directory: str | Path, *, execute: Iterable[str] = (), record_missing: bool = False) -> None:
         self.directory = Path(directory)
         self.execute: frozenset[str] = frozenset(execute)
+        self.record_missing = record_missing
+        if record_missing:
+            self.directory.mkdir(parents=True, exist_ok=True)
         if not self.directory.is_dir():
             raise RecordingError(f"replay: {self.directory} is not a directory of recordings")
         #: Recorded key -> (its entry, the folder of its attempts' files).
@@ -298,7 +309,7 @@ class Replay:
             if not isinstance(body, dict) or not body.get("key") or not body.get("attempts"):
                 raise RecordingError(f"replay: {entry_file} is not a recording (no key, or no attempt)")
             self.recordings[str(body["key"])] = (body, entry_file.with_suffix(""))
-        if not self.recordings:
+        if not self.recordings and not record_missing:
             raise RecordingError(f"replay: {self.directory} holds no recording (<kind>/<key>.json)")
         self._outputs: Callable[[Task], Sequence[OutputContract]] = lambda task: ()
         self._cwd = Path.cwd()
@@ -315,10 +326,20 @@ class Replay:
             self._playing.clear()
             self._played.clear()
 
-    def backends(self, names: Iterable[str] | None = None) -> dict[str, Backend]:
-        """A player under every coding-agent name (default: every registered one), for the
-        runner: a config's routes all land on it."""
-        return {n: ReplayAgent(self, n) for n in (names if names is not None else known_agents())}
+    def backends(self, names: Iterable[str] | None = None, *, real: Mapping[str, Backend] | None = None) -> dict[str, Backend]:
+        """A player under every coding-agent name (default: every registered one, or those of
+        `real`), for the runner: a config's routes all land on it. `real`: the coding agents
+        a task with no recording launches on (`record_missing`)."""
+        if names is None:
+            names = list(real) if real is not None else known_agents()
+        return {n: ReplayAgent(self, n, real=(real or {}).get(n)) for n in names}
+
+    def plays(self, key: str) -> bool:
+        """Whether the task `key` plays a recording in this run (False: it launches; only with
+        `record_missing`)."""
+        with self._lock:
+            playing = self._playing.get(key)
+        return not self.record_missing or (playing is not None and playing.key is not None)
 
     # --- ResultEnricher ------------------------------------------------------
 
@@ -342,10 +363,15 @@ class Replay:
             return playing
 
     def enrich(self, task: Task, before: None, result: TaskResult) -> None:
-        """A task with no recording is not retried: no attempt finds one."""
+        """A played attempt is `replayed`; a task with no recording is not retried (no attempt
+        finds one), unless it launched (`record_missing`)."""
         with self._lock:
             playing = self._playing.get(task.key)
-        if playing is not None and playing.key is None:
+        if playing is None:
+            return
+        if playing.key is not None and result.launch_result is not None:
+            result.replayed = True
+        elif playing.key is None and not self.record_missing:
             result.retryable = False
 
     def _choose(self, key: str) -> str | None:
@@ -364,12 +390,15 @@ class Replay:
     def play_python(self, task: Task, outputs: Sequence[OutputContract], cwd: Path) -> tuple[TaskResult, bool] | None:
         """A Python task's recorded call for its attempt, its output files written into place,
         and whether that call raised an exception of its `retry_on`; None for a kind in
-        `execute`, whose function runs. A task with no recording ends `error`, not retried."""
+        `execute`, whose function runs, and for a task with no recording with `record_missing`. A task with no
+        recording ends `error` otherwise, not retried."""
         if kind_name(task.kind) in self.execute:
             return None
         started = time.monotonic()
         playing = self._take(task)
         if playing.key is None or playing.folder is None:
+            if self.record_missing:
+                return None
             return TaskResult(task=task, ok=False, stop=STOP_ERROR, reason=f"no recording for {task.key}", retryable=False), False
         attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)]
         self._place(playing.folder / str(attempt.get("files", "")), attempt, outputs, cwd)
@@ -380,6 +409,7 @@ class Replay:
             stop=str(attempt.get("stop") or STOP_ERROR),
             wall_s=time.monotonic() - started,
             reason=reason,
+            replayed=True,
         )
         return result, bool(attempt.get("retry_on"))
 
@@ -460,36 +490,76 @@ class Replay:
 
 
 class ReplayAgent(Backend):
-    """A coding agent that plays a `Replay`'s recordings under one coding agent's name."""
+    """A coding agent that plays a `Replay`'s recordings under one coding agent's name.
+
+    With `real` (`record_missing`), a launch of a task with no recording, and a preflight's
+    probe, go to that coding agent; it answers for credentials, models and sessions."""
 
     binary = ""
 
-    def __init__(self, replay: Replay, name: str) -> None:
+    def __init__(self, replay: Replay, name: str, *, real: Backend | None = None) -> None:
         super().__init__(base_env={})
         self.replay = replay
         self.name = name
-        cls = backend_class(name)
+        self.real = real
+        cls = type(real) if real is not None else backend_class(name)
         if cls is not None:
             self.light_launch = cls.light_launch
             self.tool_deny_problem = cls.tool_deny_problem  # type: ignore[method-assign]
+        if real is not None:
+            for flag in ("native_model_chain", "drivable_model_chain", "needs_inline_role_file", "cost_is_session_total", "effort_levels"):
+                setattr(self, flag, getattr(real, flag))
+
+    def _launches(self, launch: Launch) -> Backend | None:
+        """The coding agent this launch goes to; None when it plays a recording."""
+        if self.real is None or self.replay.plays(launch.env.get(envvars.TASK, launch.label)):
+            return None
+        return self.real
 
     def argv(self, launch: Launch) -> list[str]:
-        return ["replay", "--model", launch.model or "-"]
+        real = self._launches(launch)
+        return real.argv(launch) if real is not None else ["replay", "--model", launch.model or "-"]
 
     def env(self, launch: Launch) -> dict[str, str]:
-        return {}
+        real = self._launches(launch)
+        return real.env(launch) if real is not None else {}
 
     def bind_credential(
         self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
-        """Any credential: a replay makes no API call."""
+        """Any credential: a replay makes no API call. With `real`, that agent's binding."""
+        if self.real is not None:
+            return self.real.bind_credential(credential, model, env=env, label=label)
         return CredentialBinding(isolated=True, isolation="replay: no API calls")
 
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        return self.real.account(credential, model) if self.real is not None else ""
+
+    def catalogue(self) -> set[str] | None:
+        return self.real.catalogue() if self.real is not None else None
+
+    def model_chains(self, cwd: Path | None = None) -> ModelChains | None:
+        return self.real.model_chains(cwd) if self.real is not None else None
+
+    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None:
+        return self.real.attest(launch_result, credential) if self.real is not None else None
+
     def resumable(self, launch: Launch) -> Launch:
-        return launch
+        real = self._launches(launch)
+        return real.resumable(launch) if real is not None else launch
+
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
+        real = self._launches(launch)
+        return real.resumed(launch, prior, prompt) if real is not None else super().resumed(launch, prior, prompt)
+
+    def discard_session(self, launch: Launch, session_id: str) -> None:
+        real = self._launches(launch)
+        if real is not None:
+            real.discard_session(launch, session_id)
 
     def run(self, launch: Launch) -> LaunchResult:
-        return self.replay.play(launch, self.name)
+        real = self._launches(launch)
+        return real.run(launch) if real is not None else self.replay.play(launch, self.name)
 
 
 __all__ = ["Recorder", "RecordingError", "Replay", "ReplayAgent", "base_key", "safe_name"]

@@ -232,6 +232,8 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
     assert main([*args, "--replay", "rec", "--execute", "count", "--run-id", "executed"]) == 0
     assert main([*args, "--execute", "count"]) == 2
+    assert main([*args, "--record-missing"]) == 2
+    assert main([*args, "--replay", "rec", "--record-missing", "--stub"]) == 2
 
 
 def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
@@ -242,3 +244,42 @@ def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
     assert runs[played.run_id]["replay"] == str((tmp_path / "rec").resolve())
     assert {r["replay"] for r in Monitor(tmp_path / "runs").runs()} == {""}
     assert live.ok
+
+
+def test_record_missing_fills_in_one_missing_recording_and_plays_the_rest(tmp_path):
+    record(tmp_path, flow_=lambda units: [write(units[0]), count(notes=[])])
+    agent = stub()
+    ran.clear()
+    cwd = tree(tmp_path / "fill")
+    runs, rec = tmp_path / "fill-runs", tmp_path / "rec"
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=runs, cwd=cwd, replay=rec, record_missing=True, backends=agent.backends())
+    filled = pipeline.run(lambda units: [write(u) for u in units] + [count(notes=[])], run_id="fill", units=["alpha", "beta"])
+    assert filled.ok, filled.failed
+    assert [launch.key for launch in agent.launches] == ["write-beta"]  # only the task with no recording launched
+    assert ran == []  # the Python task played its recording
+    assert {r["key"]: r["replayed"] for r in journal(filled)} == {"write-alpha": True, "write-beta": False, "python:count": True}
+    assert (tmp_path / "rec" / "write" / "write-beta.json").exists()
+    info = json.loads((filled.run_dir / "run.json").read_text())
+    assert info["stub"] is False and info["replay"] == str((tmp_path / "rec").resolve())
+    # The directory filled in replays every task, nothing launched.
+    played = replay(tmp_path, flow_=lambda units: [write(u) for u in units], name="again")
+    assert played.ok, played.failed
+    assert all(r["replayed"] for r in journal(played))
+
+
+def test_record_missing_runs_a_python_task_with_no_recording_and_records_it(tmp_path):
+    ran.clear()
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, replay=tmp_path / "new", record_missing=True)
+    report = pipeline.run(lambda: count(notes=[Note(title="a")]), run_id="fill")
+    assert report.ok and ran == ["count"]
+    assert json.loads((tmp_path / "new" / "count" / "python_count.json").read_text())["attempts"][0]["stop"] == "completed"
+
+
+def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
+    with pytest.raises(TypeError, match="give replay= the recordings directory"):
+        Pipeline(record_missing=True)
+    for given in ({"stub": StubAgent()}, {"record": tmp_path / "x"}):
+        with pytest.raises(TypeError, match=f"not with {next(iter(given))}="):
+            Pipeline(replay=tmp_path / "rec", record_missing=True, **given)
+    with pytest.raises(TypeError, match="execute= is for a replay"):
+        Pipeline(execute=["count"])

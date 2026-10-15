@@ -101,6 +101,20 @@ played all the same, and the task's reason says so: record again when the change
 matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. The module docstring (`contraagent/execution/recording.py`) gives the
 layout of a recording directory.
 
+### Fill in what is missing
+
+```
+contraagent run tasks.py:<flow> --config pipeline.toml --replay recordings/ --record-missing --kwargs '{"units": ["a", "b", "c"]}'
+```
+
+When the flow gains a task, or a unit, record only what is new: with `--record-missing`
+(`Pipeline(replay=DIR, record_missing=True)`) a task with a recording plays it, and a task
+with none launches (or runs its function) as in any run, on the config's routing with its
+failover, and its recording is written into the same directory. The directory may start
+empty. Such a run can spend tokens, so it is not a stub run (`run.json` `stub` is false);
+each attempt that played a recording says so in its journal row (`replayed`). `--preflight`
+and `backends=` apply to the launches it makes; `--stub` and `--record` are refused.
+
 ## Test: the stub agent
 
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call

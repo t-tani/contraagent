@@ -109,6 +109,7 @@ class Pipeline:
         record: str | Path | None = None,
         replay: str | Path | None = None,
         execute: Sequence[str] = (),
+        record_missing: bool = False,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -159,6 +160,13 @@ class Pipeline:
         `backends` or `preflight`.
         `execute`: with `replay`, the Python task kinds whose functions run instead of being
         played (as `StubAgent(execute=)` in a stub run).
+        `record_missing`: with `replay`, a task with no recording launches on the coding agents
+        (`backends`, default every registered one) through the config's routing, or runs its
+        function, and its recording is written into the `replay` directory (which may be empty);
+        the tasks with one are played. It can spend tokens, so the run is no stub run
+        (`run.json` `stub: false`, `replay` the directory); each played attempt's journal row
+        says `replayed`. With it, `backends` and `preflight` are allowed; `record` and `stub`
+        are not.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
@@ -172,21 +180,28 @@ class Pipeline:
         self.runs_dir = Path(runs_dir)
         if stub is not None and backends is not None:
             raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
+        if record_missing and replay is None:
+            raise TypeError("Pipeline: record_missing= fills in a replay's recordings; give replay= the recordings directory")
         if replay is not None:
-            given = [name for name, value in (("record", record), ("stub", stub), ("backends", backends)) if value is not None]
-            if preflight:
-                given.append("preflight")
+            given = [name for name, value in (("record", record), ("stub", stub)) if value is not None]
+            if not record_missing:  # with nothing to launch, a coding agent or a probe has no use
+                given += ["backends"] if backends is not None else []
+                given += ["preflight"] if preflight else []
             if given:
-                raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}=")
+                fills = " (record_missing records into the replay directory)" if record_missing else ""
+                raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}={fills}")
         if execute and replay is None:
             where = "give it to the stub agent: StubAgent(execute=)" if stub is not None else "it names what a replay does not play"
             raise TypeError(f"Pipeline: execute= is for a replay ({where})")
         self.stub = stub
         self.record = Path(record) if record is not None else None
         #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
-        self.replay = Replay(replay, execute=execute) if replay is not None else None
+        self.replay = Replay(replay, execute=execute, record_missing=record_missing) if replay is not None else None
         if stub is not None:
             backends = stub.backends()
+        elif self.replay is not None and record_missing:
+            real = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
+            backends = self.replay.backends(real=real)
         elif self.replay is not None:
             backends = self.replay.backends()
         self.backends = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
@@ -248,7 +263,7 @@ class Pipeline:
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
-                run.update_info(stub=True, replay=str(self.replay.directory.resolve()))
+                run.update_info(stub=not self.replay.record_missing, replay=str(self.replay.directory.resolve()))
             if not resume and run.rows():
                 raise RunExists(
                     f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
@@ -313,14 +328,16 @@ class Pipeline:
                         self.replay.start(adapter.output_contracts, self.cwd)
                         enrichers.insert(0, self.replay)
                     recorder = None
-                    if self.record is not None:  # last: it records the result the enrichers leave
-                        recorder = Recorder(self.record, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id)
+                    into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
+                    if into is not None:  # last: it records the result the enrichers leave
+                        recorder = Recorder(into, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id)
                         enrichers.append(recorder)
+                    # A pure replay plays each attempt's last launch: it walks no failover hop.
+                    pure = self.replay is not None and not self.replay.record_missing
                     runner = run.agent_runner(
                         self.backends,
                         plan.configs,
-                        # A replay plays each attempt's last launch: it walks no failover hop.
-                        routers=plan.routers if self.replay is None else {},
+                        routers=plan.routers if not pure else {},
                         credentials=plan.credentials,
                         adapter=adapter,
                         keep_transcripts=self.keep_transcripts,
@@ -373,7 +390,7 @@ class Pipeline:
         )
         plan.log()
         runner.configs = {**runner.configs, **plan.configs}
-        if self.replay is None:
+        if self.replay is None or self.replay.record_missing:
             runner.routers.update(plan.routers)
 
 

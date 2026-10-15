@@ -269,6 +269,8 @@ class TaskResult:
     # False when another attempt cannot end otherwise (a replay with no recording for the
     # task): a retrying runner stops at this one.
     retryable: bool = True
+    # True when the attempt was played from a recording (a replay), not launched or called.
+    replayed: bool = False
     payload: Any = None
 
     @classmethod
