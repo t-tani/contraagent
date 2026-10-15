@@ -1,11 +1,12 @@
 // The root README's screenshots (docs/assets/readme/*.png), taken from the real monitor:
-// it runs the demo pipeline on its demo agent (no coding agent, nothing spent) into a
-// temporary directory, serves `contraagent monitor` over those runs on a free port, and
-// captures each view with Playwright at a fixed viewport and device scale. The PNGs are
-// then reduced to a 256-colour palette (Pillow, through `uv run --with pillow`).
+// it writes the showcase runs (showcase.py: the demo pipelines on the demo agent, every
+// task done, no coding agent, nothing spent) into a temporary directory, serves
+// `contraagent monitor` over them on a free port, and captures the region of each view
+// that matters with Playwright, 1200 px wide at device scale 2. The PNGs keep their full
+// colour and are optimized losslessly (oxipng, through `uv run --with pyoxipng`).
 //
 //   pnpm --dir web screenshots                 # all of them, into docs/assets/readme/
-//   pnpm --dir web screenshots --runs DIR      # over demo runs already written (DIR/demo-runs)
+//   pnpm --dir web screenshots --runs DIR      # over showcase runs already written (DIR/demo-runs)
 //
 // Needs uv, and Playwright's Chromium (`pnpm --dir web exec playwright install chromium`).
 import { spawn, spawnSync } from 'node:child_process';
@@ -25,64 +26,90 @@ const { values: args } = parseArgs({
   },
 });
 
-/** Each screenshot: its file, the page, the theme, the viewport, and what it shows of the page. */
+const WIDTH = 1200;
+
+/**
+ * Each screenshot: its file, the page, the theme, the viewport's height, and the region it
+ * keeps (`clip(page)`, in CSS pixels).
+ */
 const SHOTS = [
   {
-    // The run at a glance: state, problems, outputs, and the pipeline graph with its loop.
+    // The hero: a finished run, every task done, the review loop's layer, and the totals.
     name: 'overview',
-    url: '/?run=docs&tab=overview',
+    url: '/?run=docs&tab=overview&layer=contraagent.docs.examples.demo.tasks.review_loop',
     theme: 'contraagent-light',
-    viewport: { width: 1280, height: 900 },
+    height: 1100,
     ready: 'ca-pipeline-graph .dag',
+    clip: async (page) => rows(0, bottom(await boxOf(page, 'ca-kpis')) + 12),
   },
   {
-    // A nested flow: functions drawn open, a loop inside a loop, and the legend.
+    // A nested flow's inner layer: two loops, one inside the other.
     name: 'pipeline-graph',
-    url: '/?run=analyse&tab=overview',
+    url: '/?run=analyse&tab=overview&layer=contraagent.docs.examples.analysis.flow.analyse_file',
     theme: 'contraagent-light',
-    viewport: { width: 1280, height: 900 },
+    height: 1000,
     ready: 'ca-pipeline-graph .dag',
-    clip: async (page) => box(page, 'ca-pipeline-graph', 12),
+    clip: async (page) => {
+      const g = await boxOf(page, 'ca-pipeline-graph');
+      return rows(g.y - 64, bottom(g) + 12);
+    },
   },
   {
-    // A task whose first output failed its checks, and the correction round that passed.
+    // An output checked, sent back with its failed checks, and corrected in the same session.
     name: 'task-detail',
     url: '/?run=docs&tab=stream&key=write_note-alpha&round=1',
     theme: 'contraagent-light',
-    viewport: { width: 1280, height: 760 },
+    height: 1100,
     ready: 'ca-task-view',
+    clip: async (page) => rows(104, bottom(await boxOf(page, 'ca-task-view', 'Output failed checks')) + 28),
   },
   {
-    // The history of attempts: outcome, coding agent, model, identity, tokens, cost, time.
+    // The summaries' history: a correction, and the model switch after a rate limit.
     name: 'history',
-    url: '/?run=docs&tab=journal',
+    url: '/?run=docs&tab=journal&kind=summarize',
     theme: 'contraagent-light',
-    viewport: { width: 1280, height: 640 },
-    ready: 'ca-journal-table, table',
+    height: 900,
+    ready: 'ca-journal-table',
+    clip: async (page) => rows(0, bottom(await boxOf(page, 'ca-journal-table')) + 8),
   },
   {
-    // The runs of a period added up.
-    name: 'trends',
-    url: '/?page=trends&days=7',
-    theme: 'contraagent-light',
-    viewport: { width: 1280, height: 900 },
-    ready: 'ca-trends',
-  },
-  {
-    // A model switch after a rate limit, in the dark theme (the monitor's default).
+    // The model switch in the task's detail, in the dark theme (the monitor's default).
     name: 'model-switch-dark',
     url: '/?run=docs&tab=stream&key=summarize-beta',
     theme: 'contraagent-dark',
-    viewport: { width: 1280, height: 760 },
+    height: 1100,
     ready: 'ca-task-view',
+    clip: async (page) => rows(104, bottom(await boxOf(page, 'ca-task-view', 'Done.', -1)) + 28),
+  },
+  {
+    // The runs of a period added up: totals, cost by day and kind, the kinds.
+    name: 'trends',
+    url: '/?page=trends&days=7',
+    theme: 'contraagent-light',
+    height: 1300,
+    ready: 'ca-trends',
+    clip: async () => rows(0, 990),
   },
 ];
 
-/** The bounding box of the first element matching `selector` (through shadow roots), with a margin. */
-async function box(page, selector, margin) {
-  const b = await page.locator(selector).first().boundingBox();
-  if (!b) throw new Error(`${selector} is not on the page`);
-  return { x: Math.max(0, b.x - margin), y: Math.max(0, b.y - margin), width: b.width + 2 * margin, height: b.height + 2 * margin };
+/** The full width of the page between `top` and `end`. */
+const rows = (top, end) => ({ x: 0, y: Math.max(0, top), width: WIDTH, height: end - Math.max(0, top) });
+const bottom = (b) => b.y + b.height;
+
+/**
+ * The box of the first element matching `selector` (through shadow roots); with `text`, the
+ * box of the block that holds the element inside it with that text (`nth`: which one, -1 the
+ * last).
+ */
+async function boxOf(page, selector, text, nth = 0) {
+  let target = page.locator(selector).first();
+  if (text) {
+    const found = target.getByText(text, { exact: true });
+    target = (nth < 0 ? found.last() : found.nth(nth)).locator('xpath=..');
+  }
+  const b = await target.boundingBox();
+  if (!b) throw new Error(`${selector}${text ? ` "${text}"` : ''} is not on the page`);
+  return b;
 }
 
 function freePort() {
@@ -118,29 +145,15 @@ let workdir = args.runs;
 let made = false;
 if (!workdir) {
   // At the demo agent's own pace (about a minute), so times and the timeline look real.
-  workdir = mkdtempSync(join(tmpdir(), 'ca-demo-'));
+  workdir = mkdtempSync(join(tmpdir(), 'ca-showcase-'));
   made = true;
-  run('uv', ['run', '--project', ROOT, 'python', '-m', 'contraagent.docs.examples.demo.run', '--no-serve'], { cwd: workdir });
+  run('uv', ['run', '--project', ROOT, 'python', join(ROOT, 'web', 'scripts', 'showcase.py')], { cwd: workdir });
 }
 
 const port = await freePort();
 const monitor = spawn(
   'uv',
-  [
-    'run',
-    '--project',
-    ROOT,
-    'contraagent',
-    'monitor',
-    '--runs-dir',
-    join(workdir, 'demo-runs'),
-    '--port',
-    String(port),
-    '--title',
-    'contraagent demo',
-    '--panels',
-    'contraagent.docs.examples.demo.run:PANELS',
-  ],
+  ['run', '--project', ROOT, 'contraagent', 'monitor', '--runs-dir', join(workdir, 'demo-runs'), '--port', String(port), '--title', 'contraagent demo'],
   { stdio: 'ignore', cwd: ROOT },
 );
 const files = [];
@@ -151,7 +164,7 @@ try {
   const browser = await chromium.launch();
   for (const shot of SHOTS) {
     const ctx = await browser.newContext({
-      viewport: shot.viewport,
+      viewport: { width: WIDTH, height: shot.height },
       deviceScaleFactor: 2,
       reducedMotion: 'reduce',
       locale: 'en-US',
@@ -166,7 +179,7 @@ try {
     await page.locator(shot.ready).first().waitFor();
     await page.waitForTimeout(1500); // the live feeds settle and the graph lays out
     const path = join(args.out, `${shot.name}.png`);
-    await page.screenshot({ path, ...(shot.clip ? { clip: await shot.clip(page) } : {}) });
+    await page.screenshot({ path, clip: await shot.clip(page) });
     files.push(path);
     await ctx.close();
   }
@@ -175,4 +188,4 @@ try {
   monitor.kill();
   if (made) rmSync(workdir, { recursive: true, force: true });
 }
-run('uv', ['run', '--project', ROOT, '--with', 'pillow', 'python', join(ROOT, 'web', 'scripts', 'shrink_png.py'), ...files]);
+run('uv', ['run', '--project', ROOT, '--with', 'pyoxipng', 'python', join(ROOT, 'web', 'scripts', 'optimize_png.py'), ...files]);
