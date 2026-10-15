@@ -22,9 +22,10 @@ export class CaWorkers extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
+      :host { display: block; container-type: inline-size; }
       .wks { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 10px; }
-      @media (max-width: 900px) { .wks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @container (max-width: 860px) { .wks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @container (max-width: 360px) { .wks { grid-template-columns: minmax(0, 1fr); } }
       .wk { border-radius: 11px; padding: 10px 12px; border: 1px solid var(--line); background: color-mix(in srgb, var(--text) 2.5%, transparent); min-width: 0;
         position: relative; overflow: hidden; display: block; width: 100%; color: inherit; text-align: start; }
       .wk > .meta { display: block; }

@@ -344,7 +344,7 @@ export class CaeDataTable<R = unknown> extends LitElement {
     const starts = this.windowed ? this.rowStarts() : null;
     const padTop = starts ? starts[from]! : 0;
     const padBottom = starts ? starts[n]! - starts[from + shown.length]! : 0;
-    return html`<table part="table" role="table" class=${this.activatable ? '' : 'passive'} style="--cae-data-table-columns: ${tracks}"
+    return html`<table part="table" data-scroll="x" role="table" class=${this.activatable ? '' : 'passive'} style="--cae-data-table-columns: ${tracks}"
       aria-rowcount=${this.windowed ? n + 1 : nothing}>
       <caption part="caption"><slot name="caption">${this.caption}</slot></caption>
       <thead part="head" role="rowgroup"><tr role="row">${this.columns.map((c) => this.header(c, s))}</tr></thead>

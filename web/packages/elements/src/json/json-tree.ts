@@ -19,7 +19,7 @@ export class CaeJsonTree extends LitElement {
   @property({ type: Number }) open = 1;
 
   override render() {
-    return html`<div class="jtree" part="tree">${this.node(this.value, 0)}</div>`;
+    return html`<div class="jtree" part="tree" data-scroll="x">${this.node(this.value, 0)}</div>`;
   }
 
   private node(v: unknown, depth: number): TemplateResult | string {

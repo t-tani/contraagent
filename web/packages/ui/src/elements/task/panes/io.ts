@@ -130,7 +130,7 @@ function usageTable(c: TaskContext, rows: JournalRow[]) {
   const reading = (q: ReturnType<typeof tryQuota>['start'], cred: string | undefined) =>
     q ? html`<td class="l" title=${readingTip(q)}>${(q.credential ?? '') === (cred ?? '') ? readingShort(q) : accountReading(q)}</td>` : dashL;
   return html`<h4 class="sect-h">${msg('Tokens and cost')}</h4>
-    <div class="usage-wrap"><table class="usage">
+    <div class="usage-wrap" data-scroll="x"><table class="usage">
       <tr>
         <th class="l"></th><th>${msg('Input')}</th><th>${msg('Output', { id: 'tokens-output', desc: 'Column: output tokens' })}</th><th>${msg('Cache read')}</th><th>${msg('Cache write')}</th>
         <th>${msg('API calls')}</th><th title=${msg('Reported by the coding agent')}>${msg('Cost')}</th><th class="l">${msg('Identity')}</th>

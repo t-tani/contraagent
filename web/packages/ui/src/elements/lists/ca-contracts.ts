@@ -47,10 +47,11 @@ export class CaContracts extends LitElement {
     contractStyles,
     executorIconStyles,
     css`
-      :host { display: block; }
+      :host { display: block; container-type: inline-size; }
       .ct-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
       details.ct { border-top: 1px solid var(--line); }
-      details.ct > summary { list-style: none; cursor: pointer; padding: 7px 4px; display: flex; align-items: center; gap: 10px; }
+      details.ct > summary { list-style: none; cursor: pointer; padding: 7px 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+      details.ct > summary > * { min-width: 0; overflow-wrap: anywhere; }
       details.ct > summary::-webkit-details-marker { display: none; }
       details.ct > summary::before { content: '▸'; color: var(--text-muted); width: 10px; transition: transform 0.15s; }
       details.ct[open] > summary::before { transform: rotate(90deg); }
@@ -58,6 +59,9 @@ export class CaContracts extends LitElement {
       .k-ic { margin-right: 0; }
       .ct-f { margin-left: auto; white-space: nowrap; }
       .ct-body { padding: 4px 10px 14px 24px; }
+      @container (max-width: 480px) {
+        .ct-body { padding: 4px 0 14px 12px; }
+      }
       .ct-links { margin-top: 10px; font-size: 12px; }
       .lead { margin: -4px 0 10px; }
       .one { display: flex; align-items: center; gap: 10px; padding: 7px 4px 7px 24px; border-top: 1px solid var(--line); flex-wrap: wrap; }

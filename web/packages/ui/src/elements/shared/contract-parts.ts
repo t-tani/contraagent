@@ -138,9 +138,10 @@ export const contractStyles = css`
   ${verdictStyles}
   .ct-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ct-lead { margin: 2px 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
-  .conds { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 2px 0 10px; font-size: 12px; }
-  .conds dt { color: var(--text-muted); }
-  .conds dd { margin: 0; color: var(--text-2); }
+  /* a name's column as wide as its longest name, up to half the width; a long name or value wraps */
+  .conds { display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr); gap: 2px 14px; margin: 2px 0 10px; font-size: 12px; }
+  .conds dt { color: var(--text-muted); overflow-wrap: anywhere; }
+  .conds dd { margin: 0; color: var(--text-2); min-width: 0; overflow-wrap: anywhere; }
   .note { margin-top: 6px; }
   .ct-raw { margin-top: 8px; }
   .ct-raw > summary { cursor: pointer; color: var(--text-muted); font-size: 12px; }

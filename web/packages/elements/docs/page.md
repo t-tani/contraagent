@@ -33,6 +33,15 @@ themes' rules once, and `data-ca-theme` on any ancestor then picks a theme
 
 ::code{file="examples/ci-pipeline.ts" from="import '@contraagent/elements/segmented/define'" to="// ---- The data"}
 
+## Widths
+
+Each element is as wide as its container and lays itself out by its own width,
+not the window's: its host is a CSS container (`container-type: inline-size`),
+so the same element fits a sidebar, a column or a whole page. Its width does
+not come from its content: in a flex row, give it a width or `flex: 1`. A table
+wider than its element scrolls inside its own box. This page's two columns
+become one below 760 px of the page's own width (`@container` in its stylesheet).
+
 ## The data
 
 A step is a node of the graph and a job is one run of it, or of one of its

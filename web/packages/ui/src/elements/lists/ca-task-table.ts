@@ -16,7 +16,6 @@ const CELLS = [
   executorIconStyles,
   css`
     caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    table { overflow-x: visible; }
     /* the numbers sit tight together, right-aligned; the status comes last and takes the spare width, so no gap opens inside the row */
     tr { column-gap: 20px; padding: 6px 12px; }
     tbody tr { border-bottom: 0; border-radius: 8px; transition: background 0.15s; }
@@ -28,7 +27,8 @@ const CELLS = [
     .grow .jdim { margin-left: 8px; }
     .pass { margin-left: 8px; font-size: 11px; color: var(--text-muted); }
     .cause { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
-    @media (max-width: 760px) {
+    /* a narrow table (its container is <cae-data-table>): the task, its status and its time */
+    @container (max-width: 760px) {
       tr { grid-template-columns: minmax(0, 1fr) 128px 90px; }
       [data-col='attempts'], [data-col='tokens'], [data-col='cost'], [data-col='ended'] { display: none; }
     }

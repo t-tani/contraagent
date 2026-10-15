@@ -4,8 +4,10 @@
 import { css } from 'lit';
 
 export const lanesStyles = css`
-  :host { display: block; --label: var(--cae-lanes-label-width, 112px); }
-  @media (max-width: 760px) { :host { --label: var(--cae-lanes-label-width, 78px); } }
+  :host { display: block; container-type: inline-size; --label: var(--cae-lanes-label-width, 112px); }
+  /* narrow (the host is a container): a narrower label column, and the axis' first, middle and last times only */
+  @container (max-width: 760px) { .lanes { --label: var(--cae-lanes-label-width, 78px); } }
+  @container (max-width: 480px) { .axis span:nth-child(even) { display: none; } }
   .lanes { position: relative; }
   .axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin: 0 0 6px calc(var(--label) + 8px); }
   .lane { display: grid; grid-template-columns: var(--label) minmax(0, 1fr); gap: 8px; align-items: center; min-height: 24px; padding: 4px 0; }

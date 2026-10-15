@@ -22,7 +22,7 @@ export class CaHosts extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
+      :host { display: block; container-type: inline-size; }
       .g12 { align-content: start; }
       table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
       th, td { text-align: start; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: baseline; }
@@ -31,7 +31,7 @@ export class CaHosts extends LitElement {
       .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
       td.runs { color: var(--text-2); }
       /* Narrow: one block per host, each value under its column's name. */
-      @media (max-width: 640px) {
+      @container (max-width: 640px) {
         thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
         tr { display: block; padding: 8px 0; border-top: 1px solid var(--line); }
         tbody tr:first-child { border-top: 0; }
