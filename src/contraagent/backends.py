@@ -1,12 +1,12 @@
 """The coding agents: one `Launch` in, one `LaunchResult` out.
 
-Each coding agent is a `Backend` registered by name (`create_backend("claude")`); a
+Each coding agent is a `Backend` registered by name (`create_backend("claude")`, `known_agents()`); a
 custom one subclasses `Backend` and is made known with `register_backend`, and its
 transcript lines reach the monitor through `register_normalizer`. The launch of an agent
 task hands its agent a call file (`CallFile.path_of(launch)`): its params and its output.
 """
 
-from contraagent._internal.backends import create_backend, register_backend
+from contraagent._internal.backends import create_backend, known_agents, register_backend
 from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.claude import ClaudeBackend
 from contraagent._internal.backends.codex import CodexBackend
@@ -47,6 +47,7 @@ __all__ = [
     "Stop",
     "Usage",
     "create_backend",
+    "known_agents",
     "normalize_stream_line",
     "register_backend",
     "register_normalizer",

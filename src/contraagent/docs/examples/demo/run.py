@@ -34,7 +34,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from contraagent import Overrides, Pipeline
-from contraagent.backends import Backend, CallFile, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage
+from contraagent.backends import Backend, CallFile, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage, known_agents
 from contraagent.config import QuotaReading
 from contraagent.docs.examples.demo.tasks import docs
 from contraagent.monitor import Panel, RunRecords
@@ -187,7 +187,12 @@ PANELS = {"notes": Panel(notes, title="notes", description="What write_note prod
 
 def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--real", metavar="AGENT", help="use a real coding agent (claude, omp) instead of the demo agent")
+    ap.add_argument(
+        "--real",
+        metavar="AGENT",
+        choices=known_agents(),
+        help=f"use a real coding agent ({', '.join(known_agents())}) instead of the demo agent",
+    )
     ap.add_argument("--no-serve", action="store_true", help="do not start the monitor")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--fast", action="store_true", help="demo agent with short pauses (what the tests run)")

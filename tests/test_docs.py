@@ -330,3 +330,13 @@ def test_the_testing_module_lists_every_kind_of_reply():
     doc = contraagent.testing.__doc__ or ""
     replies = [n for n in contraagent.testing.__all__ if n[0].islower()]
     assert [n for n in replies if f"`{n}(" not in doc] == []
+
+
+def test_the_demo_takes_every_registered_coding_agent(capsys):
+    from contraagent.backends import known_agents
+    from contraagent.docs.examples.demo.run import main as demo
+
+    with pytest.raises(SystemExit):
+        demo(["--help"])
+    help = " ".join(capsys.readouterr().out.split())
+    assert f"({', '.join(known_agents())})" in help

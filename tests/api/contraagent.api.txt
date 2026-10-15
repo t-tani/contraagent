@@ -1517,6 +1517,8 @@ class Usage
 
 def create_backend(name: str, **kwargs: Any) -> Backend
 
+def known_agents() -> tuple[str, ...]
+
 def normalize_stream_line(format: str, raw_line: str) -> list[dict[str, Any]]
 
 def register_backend(name: str, cls: type[Backend]) -> None
