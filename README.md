@@ -1,9 +1,5 @@
 <h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/contraagent-logo-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/contraagent-logo-light.svg">
-    <img src="docs/assets/brand/contraagent-logo-light.svg" width="330" alt="contraagent">
-  </picture>
+  <img src="docs/assets/brand/contraagent-logo-any.svg" width="330" alt="contraagent">
 </h1>
 
 contraagent runs coding agents as typed, checked and supervised tasks. Claude Code,
