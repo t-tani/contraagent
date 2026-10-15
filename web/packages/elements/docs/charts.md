@@ -6,6 +6,8 @@ per row and column) and `<cae-bar-chart>` (horizontal bars). Register them with
 `@contraagent/elements/charts/define`; the types and the arithmetic they share
 are in `@contraagent/elements/charts`.
 
+![Five charts of a CI pipeline: minutes by day as stacked columns, queue time as two lines, builds by weekday and hour as a heatmap, nightly builds as a state grid, and a test funnel as horizontal bars](images/charts.webp)
+
 ::code{file="examples/charts.ts"}
 
 ## Series and values

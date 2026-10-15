@@ -1,96 +1,124 @@
 ---
-title: "Live elements"
-description: "Each view of the monitor as an element of its own, live, fed with the demo pipeline's run."
+title: "Element gallery"
+description: "Every element of the web packages, live: the views of @contraagent/ui with the demo pipeline's run, the generic elements with the data of their examples."
 ---
 
 import Demo from '../../components/Demo.astro';
 import Example from '../../components/Example.astro';
+import ElementLinks from '../../components/ElementLinks.astro';
 
-Every example below is live. Click around: what an element sends shows under
-it. Each element's properties, attributes and events are in the
-[reference](/reference/elements/).
+Every element on this page is live. The views of `@contraagent/ui` show the
+demo pipeline's run (`<ca-monitor>` reads an export of it); the generic elements of `@contraagent/elements` show the
+hand-written data of their examples. What an element sends shows under it.
 
-## Contraagent views
+## Views of @contraagent/ui
 
-The views of the monitor (`@contraagent/ui`), fed with the demo pipeline's run.
+### `<ca-monitor>`
 
-### `<ca-transcript>`
-
-<Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
+<Demo tag="ca-monitor" props={{}} attrs={{ export: '/demo/data/', history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" describe />
+<ElementLinks tags={['ca-monitor']} links={[{ href: '/node/ui/embed/', label: 'Embed the monitor' }]} />
 
 ### `<ca-pipeline-graph>`
 
 <Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} describe />
+<ElementLinks tags={['ca-pipeline-graph']} links={[{ href: '/node/ui/events/', label: 'Events and the view route' }]} />
+
+### `<ca-transcript>`
+
+<Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
+<ElementLinks tags={['ca-transcript']} />
+
+### `<ca-task-view>`
+
+<Demo tag="ca-task-view" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false', taskKey: '="write_note-alpha"' }} height="640px" describe />
+<ElementLinks tags={['ca-task-view']} />
+
+### `<ca-definitions>`
+
+<Demo tag="ca-definitions" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false' }} height="560px" describe />
+<ElementLinks tags={['ca-definitions']} />
 
 ### `<ca-timeline>`
 
 <Demo tag="ca-timeline" props={{ journal: 'journal', plan: 'plan', run: 'run' }} describe />
+<ElementLinks tags={['ca-timeline']} />
 
 ### `<ca-kpis>`
 
 <Demo tag="ca-kpis" props={{ journal: 'journal' }} describe />
-
-The same element in the built-in GitHub Light theme (`data-ca-theme="github-light"`):
-
-<Demo tag="ca-kpis" props={{ journal: 'journal' }} theme="github-light" />
-
-And in a theme of one's own, `@contraagent/elements`' example (Solarized Light, `docs/examples/theme.css`):
-
-<Demo tag="ca-kpis" props={{ journal: 'journal' }} theme="contraagent-light" custom="solarized-light" />
+<ElementLinks tags={['ca-kpis']} links={[{ href: '/node/ui/theming/', label: 'The same element in other themes' }]} />
 
 ### `<ca-journal-table>`
 
 <Demo tag="ca-journal-table" props={{ rows: 'journal', plan: 'plan' }} height="360px" describe />
+<ElementLinks tags={['ca-journal-table']} links={[{ href: '/node/ui/live-data/', label: 'Live data' }]} />
 
 ### `<ca-task-table>`
 
 <Demo tag="ca-task-table" props={{ journal: 'journal', plan: 'plan', run: 'run' }} height="360px" describe />
+<ElementLinks tags={['ca-task-table']} />
 
 ### `<ca-contracts>`
 
 <Demo tag="ca-contracts" props={{ outputs: 'outputs' }} height="420px" describe />
+<ElementLinks tags={['ca-contracts']} />
 
-## Generic elements
-
-The elements of `@contraagent/elements`, each fed with the hand-written data of
-its example in `docs/examples/`, whose source is under it.
+## Elements of @contraagent/elements
 
 ### A whole page
 
 A CI pipeline's page built from the elements below: a theme switch, stat
-tiles, a sortable table and a layered graph with a detail panel
-([Building a page](/node/elements/page/)).
+tiles, a sortable table and a layered graph with a detail panel.
 
-<Example name="ci-pipeline" height="640px" />
+<Example name="ci-pipeline" height="640px" source="details" />
+<ElementLinks tags={['cae-segmented', 'cae-stat-tiles', 'cae-data-table', 'cae-layered-graph']} links={[{ href: '/node/elements/page/', label: 'Building a page' }]} />
 
 ### `<cae-data-table>`
 
-<Example name="data-table" />
+<Example name="data-table" source="details" />
+<ElementLinks tags={['cae-data-table']} links={[{ href: '/node/elements/data-table/', label: 'Data table' }]} />
 
 ### `<cae-layered-graph>`
 
-<Example name="graph" height="420px" />
+<Example name="graph" height="420px" source="details" />
+<ElementLinks tags={['cae-layered-graph']} links={[{ href: '/node/elements/graph/', label: 'Layered graph' }]} />
 
 ### `<cae-mark-matrix>`
 
-<Example name="matrix" />
-
-### `<cae-segmented>`
-
-<Example name="segmented" />
+<Example name="matrix" source="details" />
+<ElementLinks tags={['cae-mark-matrix']} links={[{ href: '/node/elements/matrix/', label: 'Mark matrix' }]} />
 
 ### `<cae-stat-tiles>`
 
-<Example name="tiles" />
+<Example name="tiles" source="details" />
+<ElementLinks tags={['cae-stat-tiles']} links={[{ href: '/node/elements/tiles/', label: 'Stat tiles' }]} />
 
 ### `<cae-lanes>`
 
-<Example name="lanes" />
+<Example name="lanes" source="details" />
+<ElementLinks tags={['cae-lanes']} links={[{ href: '/node/elements/lanes/', label: 'Lanes' }]} />
+
+### Charts
+
+<Example name="charts" source="details" />
+<ElementLinks tags={['cae-column-chart', 'cae-line-chart', 'cae-heatmap', 'cae-bar-chart']} links={[{ href: '/node/elements/charts/', label: 'Charts' }]} />
 
 ### `<cae-check-table>`
 
-<Example name="check-table" />
+<Example name="check-table" source="details" />
+<ElementLinks tags={['cae-check-table']} links={[{ href: '/node/elements/check-table/', label: 'Check table' }]} />
 
 ### `<cae-transcript>`
 
-<Example name="transcript" />
+<Example name="transcript" source="details" />
+<ElementLinks tags={['cae-transcript']} links={[{ href: '/node/elements/transcript/', label: 'Transcript' }]} />
+
+### `<cae-segmented>`
+
+<Example name="segmented" source="details" />
+<ElementLinks tags={['cae-segmented']} links={[{ href: '/node/elements/primitives/', label: 'Primitives' }]} />
+
+### Status pills
+
+<Example name="status" source="details" />
+<ElementLinks tags={[]} links={[{ href: '/node/elements/primitives/', label: 'Primitives' }]} />

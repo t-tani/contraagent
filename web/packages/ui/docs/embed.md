@@ -14,7 +14,7 @@ With `history="memory"`, the monitor leaves the page to its host:
 |---|---|---|
 | View route (run, tab, filters) | the URL's query; Back and Forward | the element; the URL and the history are the host's |
 | Scroll positions, open sections | the page's history entry, under `contraagent` | the element |
-| `document.title` | "<title> monitor" | not written |
+| `document.title` | `<title> monitor` | not written |
 | `<html lang>`, `<html data-ca-theme>` | follow the monitor's language and theme | not written; `lang` and `data-ca-theme` are set on `<ca-monitor>` |
 | Single-key shortcuts | anywhere in the page (`shortcuts="page"`) | only while the focus is inside the monitor (`shortcuts="element"`) |
 | The monitor's listeners on `document` and `window` | `keydown`, `popstate`, `pagehide` | none |

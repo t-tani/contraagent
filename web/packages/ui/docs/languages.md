@@ -33,7 +33,7 @@ in English and `<ca-monitor>` shows no language switch.
 
 What is translated is the monitor's own wording: labels, headings, tooltips and
 causes, and the words for a run's codes (a stop such as `completed` shows as
-"done"; a code the monitor does not know shows as "unknown (<code>)"). Dates
+"done"; a code the monitor does not know shows as `unknown (<code>)`). Dates
 and times follow the language too (`Oct 12, 10:38:40`, `10月12日 10:38:40`). What
 a run wrote stays as it is: kind and unit names, model and role names, file
 paths, failure reasons, and the transcripts.

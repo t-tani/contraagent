@@ -8,11 +8,12 @@ interface Doc { info: { version: string }; paths: Record<string, Record<string, 
 
 const doc = repoJson<Doc>('src/contraagent/_internal/monitor/openapi.json');
 const refName = (s: unknown): string => {
-  const x = s as { $ref?: string; type?: string; items?: unknown; anyOf?: unknown[] } | undefined;
+  const x = s as { $ref?: string; type?: string; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] } | undefined;
   if (!x) return '';
   if (x.$ref) return x.$ref.split('/').pop()!;
   if (x.type === 'array') return `${refName(x.items)}[]`;
-  if (x.anyOf) return x.anyOf.map(refName).filter(Boolean).join(' | ');
+  const union = x.anyOf ?? x.oneOf;
+  if (union) return union.map(refName).filter(Boolean).join(' | ');
   return x.type ?? '';
 };
 const ops = Object.entries(doc.paths).flatMap(([path, methods]) =>
@@ -32,15 +33,15 @@ const feed = (name: string) =>
 ---
 
 <p>Contract version <code>{doc.info.version}</code>. All endpoints are <code>GET</code>.</p>
-<table>
+<table class="ca-ref">
   <thead><tr><th>Endpoint</th><th>Answers</th><th>What</th></tr></thead>
   <tbody>
     {
       ops.map((o) => (
         <tr>
-          <td><code>{o.path}{o.query.length ? `?${o.query.join('&')}` : ''}</code></td>
-          <td><code>{o.media === 'text/event-stream' ? `SSE: ${o.schema}` : o.schema}</code></td>
-          <td set:html={inlineMd(o.op.description ?? o.op.summary)} />
+          <td data-label="Endpoint"><code>{o.path}{o.query.length ? `?${o.query.join('&')}` : ''}</code></td>
+          <td data-label="Answers"><code>{o.media === 'text/event-stream' ? `SSE: ${o.schema}` : o.schema}</code></td>
+          <td data-label="What" set:html={inlineMd(o.op.description ?? o.op.summary)} />
         </tr>
       ))
     }
@@ -48,12 +49,12 @@ const feed = (name: string) =>
 </table>
 
 <h3 id="run-feed">Messages of <code>/events?run=</code></h3>
-<table>
+<table class="ca-ref">
   <thead><tr><th>Event</th><th>Model</th><th>Sent</th></tr></thead>
-  <tbody>{feed('RunEvent').map((m) => <tr><td><code>{m.event}</code></td><td><code>{m.model}</code></td><td set:html={inlineMd(m.description)} /></tr>)}</tbody>
+  <tbody>{feed('RunEvent').map((m) => <tr><td data-label="Event"><code>{m.event}</code></td><td data-label="Model"><code>{m.model}</code></td><td data-label="Sent" set:html={inlineMd(m.description)} /></tr>)}</tbody>
 </table>
 <h3 id="stream-feed">Messages of <code>/events/stream?run=&key=</code></h3>
-<table>
+<table class="ca-ref">
   <thead><tr><th>Event</th><th>Model</th><th>Sent</th></tr></thead>
-  <tbody>{feed('StreamMessage').map((m) => <tr><td><code>{m.event}</code></td><td><code>{m.model}</code></td><td set:html={inlineMd(m.description)} /></tr>)}</tbody>
+  <tbody>{feed('StreamMessage').map((m) => <tr><td data-label="Event"><code>{m.event}</code></td><td data-label="Model"><code>{m.model}</code></td><td data-label="Sent" set:html={inlineMd(m.description)} /></tr>)}</tbody>
 </table>

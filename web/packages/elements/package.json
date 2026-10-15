@@ -152,6 +152,7 @@
     "dist",
     "src",
     "docs",
+    "!docs/images",
     "custom-elements.json"
   ],
   "sideEffects": [

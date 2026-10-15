@@ -1,12 +1,13 @@
 ---
 // A live element fed with the demo pipeline's run (src/fixtures/demo-run.json,
 // written by scripts/fixture.py). `props` maps element properties to fixture
-// keys; `theme` is a built-in theme (`data-ca-theme`), `custom` a class of @contraagent/ui's
+// keys (`=<json>`: that value; `@client`: a client of the demo export,
+// public/demo/data/, with its transcripts); `theme` is a built-in theme (`data-ca-theme`), `custom` a class of @contraagent/ui's
 // docs/examples/theme.css (a theme of one's own) on top of it;
 // `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it.
-import { inlineMd, repoJson } from '../lib/repo';
+import { describe as describeTag } from '../lib/elements';
+import { inlineMd } from '../lib/repo';
 
-interface Manifest { modules: { declarations?: { tagName?: string; description?: string }[] }[] }
 interface Props {
   tag: string;
   props: Record<string, string>;
@@ -18,11 +19,7 @@ interface Props {
   describe?: boolean;
 }
 const { tag: Tag, props, attrs = {}, height, theme = 'contraagent-dark', custom, caption, describe = false } = Astro.props;
-const description = describe
-  ? repoJson<Manifest>('web/packages/ui/custom-elements.json')
-      .modules.flatMap((m) => m.declarations ?? [])
-      .find((d) => d.tagName === Tag)?.description
-  : undefined;
+const description = describe ? describeTag(Tag) : undefined;
 ---
 
 {description && <p set:html={inlineMd(description)} />}
@@ -37,7 +34,43 @@ const description = describe
 <script>
   import '@contraagent/ui';
   import { adoptThemes } from '@contraagent/elements/themes';
+  import { createExportClient, type MonitorClient, type StreamPage } from '@contraagent/api';
   import fixture from '../fixtures/demo-run.json';
+
+  // The demo export (scripts/fixture.py), and each task's transcript written beside it.
+  const exported = createExportClient(new URL('/demo/data/', location.href).href);
+  const streamFile = (run: string, key: string) => `runs/${encodeURIComponent(run)}/streams/${encodeURIComponent(key)}.json`;
+
+  // The site has no monitor server: a transcript's feed (`/events/stream`, which
+  // `<ca-task-view>` tails) sends the transcript beside the export as its one page.
+  class DemoEventSource extends EventTarget {
+    onopen: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    private closed = false;
+    constructor(url: string | URL) {
+      super();
+      const u = new URL(url, location.href);
+      const run = u.searchParams.get('run');
+      const key = u.searchParams.get('key');
+      if (!u.pathname.endsWith('/events/stream') || !run || !key) return;
+      void exported.file<StreamPage>(streamFile(run, key)).then(
+        (page) => !this.closed && this.dispatchEvent(new MessageEvent('stream', { data: JSON.stringify(page) })),
+        () => !this.closed && this.onerror?.(),
+      );
+    }
+    close(): void {
+      this.closed = true;
+    }
+  }
+  globalThis.EventSource = DemoEventSource as unknown as typeof EventSource;
+
+  const client: MonitorClient = {
+    ...exported,
+    async stream(run, key, since = 0) {
+      const page = await exported.file<StreamPage>(streamFile(run, key));
+      return since > 0 ? { ...page, events: [] } : page;
+    },
+  };
 
   // `data-ca-theme` on each figure: the themes' rules in the page (importing the package adds none).
   adoptThemes(document);
@@ -45,7 +78,10 @@ const description = describe
   const data = fixture as Record<string, unknown>;
   for (const el of document.querySelectorAll<HTMLElement>('[data-ca-demo]')) {
     const map = JSON.parse(el.dataset['caDemo'] ?? '{}') as Record<string, string>;
-    for (const [prop, key] of Object.entries(map)) (el as unknown as Record<string, unknown>)[prop] = key.startsWith('=') ? JSON.parse(key.slice(1)) : data[key];
+    for (const [prop, key] of Object.entries(map))
+      (el as unknown as Record<string, unknown>)[prop] = key === '@client' ? client : key.startsWith('=') ? JSON.parse(key.slice(1)) : data[key];
+    // The whole monitor answers its own events.
+    if (el.localName === 'ca-monitor') continue;
     // A demo has no monitor around it: show what the element asks for instead of navigating.
     for (const name of ['ca-open-task', 'ca-navigate', 'ca-filter']) {
       el.addEventListener(name, (e) => {

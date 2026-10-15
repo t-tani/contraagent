@@ -1,84 +1,130 @@
 ---
-// Each element's properties, attributes, events and parts, from the custom
-// elements manifests the packages' builds write (custom-elements.json), by package.
-import { inlineMd as md, repoJson } from '../lib/repo';
+// One package's elements: each one's properties, attributes, events and parts,
+// from the custom elements manifest its build writes (custom-elements.json),
+// with a link to the topic that shows it live.
+import { getCollection } from 'astro:content';
+import { GALLERY, PACKAGES, elementsOf, type Decl, type PackageKey } from '../lib/elements';
+import { inlineMd as md } from '../lib/repo';
 
-interface Member { kind: string; name: string; privacy?: string; static?: boolean; type?: { text: string }; description?: string; attribute?: string; default?: string; readonly?: boolean }
-interface Ev { name: string; description?: string }
-interface Part { name: string; description?: string }
-interface Decl { kind: string; name: string; tagName?: string; description?: string; members?: Member[]; events?: Ev[]; cssParts?: Part[] }
-interface Manifest { modules: { path: string; declarations?: Decl[] }[] }
+interface Props { pkg: PackageKey }
+const { pkg } = Astro.props;
+const elements = elementsOf(pkg);
 
-const PACKAGES = [
-  { name: '@contraagent/ui', manifest: 'web/packages/ui/custom-elements.json' },
-  { name: '@contraagent/elements', manifest: 'web/packages/elements/custom-elements.json' },
-];
-const INTERNAL = new Set(['ca-clock']);
-const groups = PACKAGES.map((p) => ({
-  ...p,
-  elements: repoJson<Manifest>(p.manifest)
-    .modules.flatMap((m) => (m.declarations ?? []).map((d) => ({ ...d, path: m.path })))
-    .filter((d) => d.tagName && !INTERNAL.has(d.tagName))
-    .sort((a, b) => a.tagName!.localeCompare(b.tagName!)),
-}));
+// The topics that show an element live (their `live` front matter), by tag.
+const shownIn = new Map<string, { href: string; title: string }[]>();
+for (const entry of await getCollection('docs')) {
+  for (const tag of new Set((entry.data.live ?? []).flatMap((f) => f.tags))) {
+    const page = { href: `/${entry.id.replace(/\/?index$/, '')}/`, title: entry.data.title };
+    shownIn.set(tag, [...(shownIn.get(tag) ?? []), page]);
+  }
+}
 const props = (d: Decl) =>
   (d.members ?? []).filter((m) => m.kind === 'field' && !m.static && !m.privacy && !m.name.startsWith('_') && m.name !== 'styles');
 ---
 
+<p>
+  Generated from the <code>custom-elements.json</code> of <code>{PACKAGES[pkg].name}</code>: {elements.length} elements.
+</p>
+<ul class="ca-tag-index" aria-label="Elements">
+  {
+    elements.map((d) => (
+      <li>
+        <a href={`#${d.tagName}`}>
+          <code>&lt;{d.tagName}&gt;</code>
+        </a>
+      </li>
+    ))
+  }
+</ul>
+
 {
-  groups.map((g) => (
-    <>
-    <h2 id={g.name}><code>{g.name}</code></h2>
-    {g.elements.map((d) => (
-    <section>
-      <h3 id={d.tagName}><code>&lt;{d.tagName}&gt;</code></h3>
+  elements.map((d) => (
+    <section class="ca-ref-element">
+      <h2 id={d.tagName}>
+        <code>&lt;{d.tagName}&gt;</code>
+      </h2>
       <p set:html={md(d.description)} />
       <p class="meta">
-        <code>{d.name}</code> · <code>{d.path}</code>
+        <code>{d.name}</code> | <code>{d.path}</code>
+        {(shownIn.get(d.tagName!) ?? []).map((p) => (
+          <>
+            {' | '}
+            Live: <a href={p.href}>{p.title}</a>
+          </>
+        ))}
+        {GALLERY.has(d.tagName!) && (
+          <>
+            {' | '}
+            Live: <a href={`/elements/#${d.tagName}`}>Element gallery</a>
+          </>
+        )}
       </p>
       {props(d).length > 0 && (
-        <table>
-          <thead><tr><th>Property</th><th>Attribute</th><th>Type</th><th>Description</th></tr></thead>
+        <table class="ca-ref">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Attribute</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
           <tbody>
             {props(d).map((m) => (
               <tr>
-                <td><code>{m.name}</code></td>
-                <td>{m.attribute ? <code>{m.attribute}</code> : '—'}</td>
-                <td><code>{m.type?.text ?? ''}</code></td>
-                <td set:html={md(m.description)} />
+                <td data-label="Property">
+                  <code>{m.name}</code>
+                </td>
+                <td data-label="Attribute">{m.attribute ? <code>{m.attribute}</code> : 'none'}</td>
+                <td data-label="Type">
+                  <code>{m.type?.text ?? ''}</code>
+                </td>
+                <td data-label="Description" set:html={md(m.description)} />
               </tr>
             ))}
           </tbody>
         </table>
       )}
       {(d.events ?? []).length > 0 && (
-        <table>
-          <thead><tr><th>Event</th><th>Detail and meaning</th></tr></thead>
+        <table class="ca-ref">
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Detail and meaning</th>
+            </tr>
+          </thead>
           <tbody>
             {d.events!.map((e) => (
               <tr>
-                <td><code>{e.name}</code></td>
-                <td set:html={md(e.description)} />
+                <td data-label="Event">
+                  <code>{e.name}</code>
+                </td>
+                <td data-label="Detail and meaning" set:html={md(e.description)} />
               </tr>
             ))}
           </tbody>
         </table>
       )}
       {(d.cssParts ?? []).length > 0 && (
-        <table>
-          <thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+        <table class="ca-ref">
+          <thead>
+            <tr>
+              <th>Part</th>
+              <th>Meaning</th>
+            </tr>
+          </thead>
           <tbody>
             {d.cssParts!.map((p) => (
               <tr>
-                <td><code>{p.name}</code></td>
-                <td set:html={md(p.description)} />
+                <td data-label="Part">
+                  <code>{p.name}</code>
+                </td>
+                <td data-label="Meaning" set:html={md(p.description)} />
               </tr>
             ))}
           </tbody>
         </table>
       )}
     </section>
-    ))}
-    </>
   ))
 }

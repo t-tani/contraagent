@@ -5,6 +5,11 @@ the thing it stands for took. Register it with
 `@contraagent/elements/lanes/define`; the types and the placement functions are
 in `@contraagent/elements/lanes`.
 
+![Lanes on a time axis: a build that failed then passed, a test still running, and a line at now](images/lanes.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/lanes.ts"}
 
 ## Lanes and bars

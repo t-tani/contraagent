@@ -22,3 +22,68 @@
 .ca-demo figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.4rem; }
 .swatch { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 3px; margin-right: 0.4em; vertical-align: -0.1em; border: 1px solid var(--sl-color-gray-5); }
 .meta { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); }
+
+/* A live element in a page of the web packages (LiveFigure.astro). */
+.ca-live { margin: 1.5rem 0; }
+.ca-live .ca-demo { margin: 0 0 1rem; }
+.ca-live-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0.5rem 0 1.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+.ca-live-links a { color: var(--sl-color-text-accent); }
+.ca-live .ca-demo figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.4rem; }
+.ca-source { margin: 0.5rem 0 0; }
+.ca-source summary { cursor: pointer; font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); }
+.ca-source[open] summary { margin-bottom: 0.5rem; }
+
+/* The element reference: a row of tags, then a section per element. */
+.sl-markdown-content .ca-tag-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  list-style: none;
+}
+.sl-markdown-content .ca-tag-index li { margin: 0; }
+.ca-ref-element { border-top: 1px solid var(--sl-color-hairline); padding-top: 0.5rem; margin-top: 2.5rem; }
+.ca-ref code { overflow-wrap: anywhere; }
+
+/* Reference tables on a narrow screen: one card per row, each cell under its column's name. */
+@media (max-width: 50rem) {
+  .sl-markdown-content table.ca-ref { display: block; overflow: visible; border: 0; }
+  .sl-markdown-content table.ca-ref thead { display: none; }
+  .sl-markdown-content table.ca-ref tbody,
+  .sl-markdown-content table.ca-ref tr,
+  .sl-markdown-content table.ca-ref td { display: block; width: auto; }
+  .sl-markdown-content table.ca-ref tr {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin: 0 0 0.75rem;
+  }
+  .sl-markdown-content table.ca-ref td { border: 0; padding: 0.15rem 0; }
+  .sl-markdown-content table.ca-ref td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child) { display: flex; gap: 0.5rem; align-items: baseline; }
+  .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child)::before { display: inline; min-width: 9rem; }
+}
+
+/* The landing page. */
+.ca-home-shot { margin: 0 0 1rem; }
+.ca-home-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 12px;
+  box-shadow: var(--sl-shadow-md);
+}
+.ca-home-shot figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.5rem; }

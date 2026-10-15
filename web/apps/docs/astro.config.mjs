@@ -16,26 +16,27 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'contraagent',
-      description: 'Run coding-agent CLIs as typed, supervised, observable tasks.',
+      description: 'Run coding agents as typed, checked, supervised tasks.',
       // A live demo can show @contraagent/elements' example of a theme of one's own.
       customCss: ['./src/styles/site.css', '../../packages/elements/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
-        { label: 'Python', items: [{ autogenerate: { directory: 'python' } }] },
+        { label: 'Python package: contraagent', collapsed: true, items: [{ autogenerate: { directory: 'python' } }] },
         {
-          label: 'Node and the browser',
+          label: 'Web packages',
           items: [
-            { label: '@contraagent/ui', items: [{ autogenerate: { directory: 'node/ui' } }] },
-            { label: '@contraagent/elements', items: [{ autogenerate: { directory: 'node/elements' } }] },
-            { label: '@contraagent/api', items: [{ autogenerate: { directory: 'node/api' } }] },
+            { label: 'Element gallery', slug: 'elements' },
+            { label: '@contraagent/ui', collapsed: true, items: [{ autogenerate: { directory: 'node/ui' } }] },
+            { label: '@contraagent/elements', collapsed: true, items: [{ autogenerate: { directory: 'node/elements' } }] },
+            { label: '@contraagent/api', collapsed: true, items: [{ autogenerate: { directory: 'node/api' } }] },
           ],
         },
-        { label: 'Live elements', slug: 'elements' },
         {
           label: 'Reference',
           items: [
             { label: 'Monitor HTTP API', slug: 'reference/http-api' },
-            { label: 'Elements', slug: 'reference/elements' },
+            { label: 'Elements of @contraagent/ui', slug: 'reference/ui' },
+            { label: 'Elements of @contraagent/elements', slug: 'reference/elements' },
             { label: 'Theme properties', slug: 'reference/theme' },
           ],
         },

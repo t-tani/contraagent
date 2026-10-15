@@ -1,0 +1,30 @@
+---
+// A row of links under a live element: the elements' reference entries, then
+// the pages that document or show it.
+import { referenceUrl } from '../lib/elements';
+
+interface Props {
+  tags: string[];
+  links?: { href: string; label: string }[];
+}
+const { tags, links = [] } = Astro.props;
+---
+
+<p class="ca-live-links">
+  {
+    tags.length > 0 && (
+      <span>
+        Reference:{' '}
+        {tags.map((t, i) => (
+          <>
+            {i > 0 && ', '}
+            <a href={referenceUrl(t)}>
+              <code>&lt;{t}&gt;</code>
+            </a>
+          </>
+        ))}
+      </span>
+    )
+  }
+  {links.map((l) => <a href={l.href}>{l.label}</a>)}
+</p>

@@ -211,6 +211,59 @@ def test_every_page_of_every_package_expands(tmp_path):
     assert 'title="examples/demo/tasks.py"' in docs.text("tasks") and "def docs_one_review(" in docs.text("tasks")
 
 
+def _collector():
+    """The documentation site's collector (web/apps/docs/scripts/collect.py), as a module."""
+    import importlib.util
+
+    path = docs.DIR.parents[2] / "web/apps/docs/scripts/collect.py"
+    spec = importlib.util.spec_from_file_location("collect", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_no_page_of_any_package_holds_an_html_tag_in_its_prose():
+    """The site renders a page's Markdown: a `<title>` outside a code span is HTML there,
+    and swallows the rest of the page. A paragraph marked `<!-- not on the site -->` is
+    left out of the site, its mark too."""
+    collect = _collector()
+    for index, home, _, _ in collect.SECTIONS:
+        for page in [index, *(e.path for e in docs.entries(index))]:
+            collect.check_html(page, collect.site_only(docs.expand(page, home).splitlines()))
+    bad = collect.ROOT / "web/apps/docs/scripts/collect.py"  # any file under the repository, for its name
+    with pytest.raises(SystemExit, match=r"<title> \(line 2 .*code span"):
+        collect.check_html(bad, ["`<code>` is fine", 'the title, "<title> monitor"', "```", "<title>", "```"])
+    marked = ["a", "", collect.NOT_ON_SITE, "![x](images/x.webp)", "Live on the site.", "", "b"]
+    assert collect.site_only(marked) == ["a", "", "b"]
+    with pytest.raises(SystemExit, match="<!--"):
+        collect.check_html(bad, ["<!-- a comment of another kind -->"])
+
+
+def test_the_site_shows_each_element_live_in_place_of_its_screenshot(tmp_path, monkeypatch):
+    """Every screenshot of an element in the web packages becomes the live element on the
+    site; a topic of @contraagent/elements, or a screenshot, without one stops the collector."""
+    collect = _collector()
+    monkeypatch.setattr(collect, "CONTENT", tmp_path / "content")
+    monkeypatch.setattr(collect, "SCHEMAS", tmp_path / "schemas")
+    collect.main()
+    shots = 0
+    for index in (collect.ROOT / "web/packages/ui/README.md", collect.ROOT / "web/packages/elements/README.md"):
+        for page in [index, *(e.path for e in docs.entries(index))]:
+            shots += len(re.findall(r"!\[[^\]]*\]\((?:docs/)?images/", page.read_text()))
+    pages = [p.read_text() for p in (tmp_path / "content" / "node").rglob("*.md*")]
+    assert shots and sum(p.count("<LiveFigure ") for p in pages) >= shots
+    assert not any(re.search(r"!\[[^\]]*\]\((?:docs/)?images/", p) for p in pages)
+
+    live = dict(collect.LIVE)
+    monkeypatch.setattr(collect, "LIVE", {k: v for k, v in live.items() if k != "node/elements/graph"})
+    with pytest.raises(SystemExit, match="node/elements/graph shows no element live"):
+        collect.main()
+    monkeypatch.setattr(collect, "NO_ELEMENT", {*collect.NO_ELEMENT, "node/elements/graph"})
+    with pytest.raises(SystemExit, match="the screenshot images/graph.webp has no live element"):
+        collect.main()
+
+
 def test_the_root_readme_code_is_the_example_it_quotes():
     """GitHub does not expand `::code`, so the root README writes the code out: each
     fenced block that follows `<!-- ::code{...} -->` lines is those quotes, two blank lines

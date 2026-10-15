@@ -5,6 +5,11 @@ lines of facts under it, and a link. Register it with
 `@contraagent/elements/tiles/define`, which also registers the `<cae-count>` a
 tile's number counts up in; the types are in `@contraagent/elements/tiles`.
 
+![Four stat tiles: jobs, failed jobs with a link, build time, and queued](images/tiles.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/tiles.ts"}
 
 ## Tiles
