@@ -90,6 +90,20 @@ def main(argv: list[str] | None = None) -> int:
         metavar="KIND",
         help="with --stub: run the function of this Python task kind instead of playing it (repeatable)",
     )
+    run.add_argument(
+        "--record",
+        default=None,
+        metavar="DIR",
+        help="write each agent task attempt's recording to DIR: its outputs, the files its changes= patterns saw change, "
+        "its transcript and its result",
+    )
+    run.add_argument(
+        "--replay",
+        default=None,
+        metavar="DIR",
+        help="a replay: play the recordings in DIR in place of every agent task's launch; Python tasks run their functions, "
+        "nothing is spent (run id: <flow>-replay). Not with --stub or --record",
+    )
 
     docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
     docs.add_argument("topic", nargs="?", help="a topic the index lists (guide, tasks, ...)")
@@ -182,8 +196,21 @@ def _flow_command(args) -> int:
         elif args.cmd == "run" and args.execute:
             print("--execute: only with --stub", file=sys.stderr)
             return 2
+        record = getattr(args, "record", None)
+        replay = getattr(args, "replay", None)
+        if replay is not None and (args.stub or record is not None):
+            print(f"--replay: not with {'--stub' if args.stub else '--record'}", file=sys.stderr)
+            return 2
         overrides = Overrides(agent=args.agent, model=args.model)
-        pipeline = Pipeline(args.config, runs_dir=getattr(args, "runs_dir", "runs"), backends=backends, overrides=overrides, stub=stub)
+        pipeline = Pipeline(
+            args.config,
+            runs_dir=getattr(args, "runs_dir", "runs"),
+            backends=backends,
+            overrides=overrides,
+            stub=stub,
+            record=record,
+            replay=replay,
+        )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "
         print(f"✗ {args.flow}\n  error: {where(exc)}{kind}{exc}\n  read: `contraagent docs tasks`")

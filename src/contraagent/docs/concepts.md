@@ -53,7 +53,9 @@ documentation. No other word is used for the same thing.
 | **check** | what can be found wrong with a flow without a launch | `Pipeline.check`, `CheckReport`, `contraagent check` |
 | **reachable kind** | a kind whose task declaration a generator flow's code refers to, directly or through the functions, modules, closures and containers it refers to; checked, routed and probed before the first launch. A candidate, not a use: of two declarations of one kind, the one whose tasks are created is the kind's | `pipeline/reach.py`, `CheckReport.later_kinds` |
 | **stub agent** | a coding agent that plays scripted replies instead of an LLM, for tests | `contraagent.testing.StubAgent` |
-| **stub run** | a run whose tasks the stub agent plays: agent tasks, and Python tasks but the kinds it executes; flow code runs as in any run | `Pipeline(stub=)`, `StubAgent(default=, execute=)`, `writes_smallest`, `contraagent run --stub`; `run.json` `stub` |
+| **stub run** | a run in which no coding agent is launched: the stub agent plays its tasks (agent tasks, and Python tasks but the kinds it executes), or a replay plays its agent tasks' recordings; flow code runs as in any run | `Pipeline(stub=)`, `StubAgent(default=, execute=)`, `writes_smallest`, `contraagent run --stub`; `run.json` `stub` |
+| **recording** | what one agent task attempt left behind, kept to be played again: the facts of its last launch, the final contents of its outputs, the files its `changes` patterns saw created, modified and deleted, its transcript, and its task's fingerprint; never the rest of the working directory | `Pipeline(record=)`, `contraagent run --record DIR`; `<DIR>/<kind>/<key>.json`; `execution/recording.py` `Recorder` |
+| **replay** | a run whose agent tasks play their recordings in place of a launch, attempt by attempt, with nothing spent; its Python tasks run their functions. A replay is a stub run: its `run.json` says `stub` | `Pipeline(replay=)`, `contraagent run --replay DIR`; `Replay`, `ReplayAgent`; `run.json` `replay` |
 
 ## Routing
 
