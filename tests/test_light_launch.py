@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from contraagent import Backend, ClaudeBackend, OmpBackend, Pipeline, PipelineConfig, agent_task
 from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop, Usage
 from contraagent.cli import main
-from contraagent.execution.journal import _usage
 from contraagent.plugins import new_plugin
 from contraagent.routing.plan import RoutingError, RoutingPlan
 from contraagent.testing import StubAgent
@@ -164,7 +163,7 @@ def test_routing_refuses_a_coding_agent_that_cannot_launch_light_on_any_hop(tmp_
 def test_the_journal_holds_the_input_of_the_first_call():
     res = LaunchResult(label="x", stop=Stop.COMPLETED, ok=True)
     res.usage = Usage(calls=[CallUsage("m", input=600, cache_read=40, cache_creation=4, output=9), CallUsage("m", 900, 0, 0, 5)])
-    u = _usage(res)
+    u = res.usage.totals()
     assert u is not None and u.resident == 644 and u.input == 1500
 
 

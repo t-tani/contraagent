@@ -142,7 +142,7 @@ class Pipeline:
         `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
         `[defaults] max_passes`, else 10.
         `quota_rule(credential, reading)`: a reason the credential rests now, or None, given its
-        latest utilization reading (`RateLimit`), or the reason and when the rest ends
+        latest quota reading (`QuotaReading`), or the reason and when the rest ends
         (`(reason, datetime)`); beside the config's own caps
         (`max_five_hour_pct`, `max_seven_day_pct`). A resting credential is not launched
         on: its tasks take the next hop of their failover chain, or are deferred.

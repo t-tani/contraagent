@@ -14,7 +14,7 @@ from contraagent import (
     LaunchResult,
     OmpBackend,
     PipelineConfig,
-    RateLimit,
+    QuotaRefusal,
     Route,
     Router,
     RoutingError,
@@ -98,7 +98,7 @@ class Agent(Backend):
             stop=Stop.RATE_LIMITED if hit else Stop.COMPLETED,
             ok=not hit,
             model=launch.model,
-            rate_limit=RateLimit(retry_after_s=600) if hit else None,
+            quota_refusal=QuotaRefusal(retry_after_s=600) if hit else None,
         )
 
 

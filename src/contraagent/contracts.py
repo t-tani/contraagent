@@ -39,6 +39,7 @@ from pydantic import BaseModel, ValidationError
 from contraagent import pointers, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Launch, LaunchResult, Stop
+from contraagent.dispatch.records import OtherModel
 from contraagent.dispatch.task import kind_name
 from contraagent.validators import CommandValidator, Validator, run_validators, validator_name, wanted_context
 
@@ -404,16 +405,12 @@ def record_contracts(
         pass
 
 
-def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
+def add_other_models(a: dict[str, OtherModel], b: dict[str, OtherModel]) -> dict[str, OtherModel]:
     """Two launches' `other_models`, summed per model."""
-    out = {m: dict(v) for m, v in a.items()}
+    out = dict(a)
     for m, v in b.items():
-        had = out.setdefault(m, {})
-        for k, x in v.items():
-            if k == "cost_usd":
-                had[k] = None if x is None and had.get(k) is None else (had.get(k) or 0.0) + (x or 0.0)
-            elif isinstance(x, (int, float)):
-                had[k] = had.get(k, 0) + x
+        had = out.get(m)
+        out[m] = v if had is None else had.plus(v)
     return out
 
 
@@ -443,7 +440,7 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
     nxt.context_window = peak.context_window or (other.context_window if same_model else None)
     nxt.usage.calls = total.usage.calls + nxt.usage.calls
     nxt.usage.output_total += total.usage.output_total
-    nxt.rate_limits = total.rate_limits + nxt.rate_limits
+    nxt.quota = total.quota + nxt.quota
     nxt.hook_errors = total.hook_errors + nxt.hook_errors
     nxt.web_queries = total.web_queries + nxt.web_queries
     nxt.context_warned = nxt.context_warned or total.context_warned

@@ -34,11 +34,12 @@ from contraagent.backends.credentials import (
     scrubbed,
     secret_value,
 )
-from contraagent.backends.launch import ACCOUNT_UUID, Launch, RateLimit, account_digest
+from contraagent.backends.launch import ACCOUNT_UUID, Launch, account_digest
 from contraagent.backends.omp import catalogue
 from contraagent.backends.omp import wire as omp_wire
 from contraagent.backends.omp.config import OmpModelChains, load_model_chains
 from contraagent.backends.process import via_stdin
+from contraagent.dispatch.records import QuotaReading, QuotaWindow
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
 # for Claude Code stays canonical; this preamble carries the substitution
@@ -51,8 +52,8 @@ procedure with these substitutions:
 """
 
 
-def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> RateLimit | None:
-    """`omp usage --json`'s one report for `provider`, as a `RateLimit` reading."""
+def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> QuotaReading | None:
+    """`omp usage --json`'s one report for `provider`, as a `QuotaReading`."""
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=30)
         reports = [r for r in json.loads(proc.stdout).get("reports", []) if r.get("provider") == provider]
@@ -61,7 +62,7 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> RateL
     if len(reports) != 1:
         return None
     account: dict[str, dict] = {}  # the account's own windows, by omp's window id
-    windows: dict[str, dict] = {}  # every window, by the name a Claude Code reading gives it
+    windows: dict[str, QuotaWindow] = {}  # every window, by the name a Claude Code reading gives it
     statuses: set[str] = set()
     for limit in reports[0].get("limits", []):
         scope = limit.get("scope") or {}
@@ -76,23 +77,19 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> RateL
             statuses.add(str(limit.get("status") or ""))
         fraction = limit["amount"].get("usedFraction")
         at = (limit.get("window") or {}).get("resetsAt")
-        windows[name] = {
-            "pct": round(float(fraction) * 100, 1) if isinstance(fraction, (int, float)) else None,
-            "resets_at": _iso(at) if isinstance(at, (int, float)) else None,
-        }
+        windows[name] = QuotaWindow(
+            pct=round(float(fraction) * 100, 1) if isinstance(fraction, (int, float)) else None,
+            resets_at=_iso(at) if isinstance(at, (int, float)) else None,
+        )
     if not account:
         return None
     meta = reports[0].get("metadata") or {}
     seen = meta.get("headersUpdatedAt") or reports[0].get("fetchedAt")  # when a request reported it
-    return RateLimit(
+    return QuotaReading.from_windows(
+        windows,
         status="allowed" if statuses <= {"ok"} else ",".join(sorted(statuses - {"ok"})),
-        five_hour_pct=(windows.get("five_hour") or {}).get("pct"),
-        five_hour_resets_at=(windows.get("five_hour") or {}).get("resets_at"),
-        seven_day_pct=(windows.get("seven_day") or {}).get("pct"),
-        seven_day_resets_at=(windows.get("seven_day") or {}).get("resets_at"),
         observed_at=_iso(seen) if isinstance(seen, (int, float)) else None,
         account=account_digest(ACCOUNT_UUID, str(meta.get("accountId") or "")),
-        windows=windows,
     )
 
 
@@ -268,7 +265,7 @@ class OmpBackend(Backend):
         """Stdout is the json event stream (trace) or the answer (text)."""
         return omp_wire.TraceReader() if self.trace else omp_wire.TextReader()
 
-    def usage_reading(self, launch: Launch) -> RateLimit | None:
+    def usage_reading(self, launch: Launch) -> QuotaReading | None:
         """The 5-hour and weekly usage of the account `launch` runs as, as Claude Code reports it:
         what the account's latest request reported in its response headers, which omp keeps
         and `omp usage --json` prints (no request of its own). None for a model with no

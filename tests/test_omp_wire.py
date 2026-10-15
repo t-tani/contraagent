@@ -44,7 +44,7 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version, read):
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done"
     assert result.tool_uses == {"read": 1, "bash": 1, "web_search": 1}
     assert result.web_queries == ["oh-my-pi coding agent"]
-    assert result.usage.n_calls >= 2 and result.usage.output > 0 and result.cost_usd and result.cost_usd > 0
+    assert len(result.usage.calls) >= 2 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd and result.cost_usd > 0
     assert result.unread_events == {}, "omp sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
 
@@ -52,7 +52,8 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version, read):
 @pytest.mark.parametrize("version", VERSIONS)
 def test_both_wires_read_the_same_launch_alike(version):
     a, b = via_json(version), via_rpc(version)
-    assert (a.tool_uses, a.web_queries, a.result_text, a.usage.n_calls) == (b.tool_uses, b.web_queries, b.result_text, b.usage.n_calls)
+    assert (a.tool_uses, a.web_queries, a.result_text) == (b.tool_uses, b.web_queries, b.result_text)
+    assert len(a.usage.calls) == len(b.usage.calls)
     assert a.session_id  # `--mode json` names its session; the RPC launch ran with --no-session
 
 

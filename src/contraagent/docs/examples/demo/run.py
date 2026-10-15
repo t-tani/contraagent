@@ -39,7 +39,8 @@ from contraagent import (
     LaunchResult,
     Overrides,
     Pipeline,
-    RateLimit,
+    QuotaReading,
+    QuotaRefusal,
     Stop,
     envvars,
 )
@@ -115,7 +116,7 @@ class DemoAgent(Backend):
             )
             cost = (fresh * 3 + written * 3.75 + cached * 0.3 + out * 15) / 1_000_000
             with self._lock:  # one reading per session start, account-wide, as Claude Code reports it
-                reading = RateLimit(
+                reading = QuotaReading(
                     status="allowed",
                     five_hour_pct=round(self.used, 1),
                     seven_day_pct=round(40 + self.used / 10, 1),
@@ -133,7 +134,7 @@ class DemoAgent(Backend):
                 wall_s=round(time.monotonic() - started, 2),  # what the launch actually took
                 usage=usage,
                 cost_usd=round(cost, 6),
-                rate_limits=[reading],
+                quota=[reading],
                 session_id=f"s-{launch.label}",
                 **kw,
             )
@@ -149,7 +150,7 @@ class DemoAgent(Backend):
         if call.kind == "summarize":
             if launch.model == "primary-model" and unit == "beta":
                 tool("bash", {"command": "curl -s https://api.example/limits"}, "429 Too Many Requests", err=True)
-                return done(Stop.RATE_LIMITED, rate_limit=RateLimit(retry_after_s=600))
+                return done(Stop.RATE_LIMITED, quota_refusal=QuotaRefusal(retry_after_s=600))
             points = ["parses a config file", "validates it", "reports errors"]
             write(json.dumps({"unit": unit, "points": points[:2] if unit == "delta" and n == 1 else points}))
         elif call.kind == "review":

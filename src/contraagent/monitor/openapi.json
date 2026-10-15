@@ -4158,7 +4158,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "QuotaReading",
-        "description": "A subscription's utilization as the coding agent reported it during an attempt\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes\nwhatever else used the same account, parallel tasks too."
+        "description": "A subscription's utilization as the coding agent reported it during a launch\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes whatever else used the\nsame account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's\n`quota` an attempt's that give a 5-hour or weekly utilization."
       },
       "QuotaWindow": {
         "properties": {

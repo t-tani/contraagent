@@ -14,7 +14,7 @@ from contraagent import (
     Launch,
     LaunchResult,
     PipelineConfig,
-    RateLimit,
+    QuotaRefusal,
     RetryingRunner,
     Route,
     Router,
@@ -74,9 +74,9 @@ class StubBackend(Backend):
         if launch.stream_path:
             Path(launch.stream_path).parent.mkdir(parents=True, exist_ok=True)
             Path(launch.stream_path).write_text("hello from the agent\n")
-        rl = RateLimit(retry_after_s=60) if stop == Stop.RATE_LIMITED else None
+        rl = QuotaRefusal(retry_after_s=60) if stop == Stop.RATE_LIMITED else None
         return LaunchResult(
-            label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, wall_s=0.1, rate_limit=rl
+            label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, wall_s=0.1, quota_refusal=rl
         )
 
 

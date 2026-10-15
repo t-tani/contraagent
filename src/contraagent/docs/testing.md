@@ -164,7 +164,7 @@ own config routes to it, and under each name it acts as that agent does: as
 Claude Code it runs the plugin's Stop hooks before it ends its turn and replies
 again when one sends the output back (`launch.in_turn`); as omp it stops. A
 429 in a test moves the kind's later tasks to the hop too (see `routing`). A reply that
-reports a utilization reading (`writes(value, rate_limit=RateLimit(five_hour_pct=80))`)
+reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)
 rests a credential past its quota cap or its `quota_rule`, so a test can follow a task to
 its next hop, or to `deferred`. Tests import the flow's module like any other code: one
 outside the project's package needs the project root on `sys.path` (pytest's
