@@ -69,16 +69,6 @@ const steps: Step[] = [
     row-gap: 0.75rem;
     padding: 0 0 1.75rem;
   }
-  /* The path: a line from each step's number to the next. */
-  .step:not(:last-child)::before {
-    content: '';
-    position: absolute;
-    left: calc(1.125rem - 0.5px);
-    top: 2.5rem;
-    bottom: 0.25rem;
-    width: 1px;
-    background: linear-gradient(var(--sl-color-gray-5), color-mix(in srgb, var(--sl-color-gray-5) 30%, transparent));
-  }
   .step-n {
     display: inline-grid;
     place-items: center;

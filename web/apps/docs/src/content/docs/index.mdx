@@ -12,6 +12,7 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import RunReplay from '../../components/home/RunReplay.astro';
+import Reveal from '../../components/home/Reveal.astro';
 import Steps from '../../components/home/Steps.astro';
 
 
@@ -23,6 +24,7 @@ import Steps from '../../components/home/Steps.astro';
 
 ## What the runner does
 
+<div class="ca-runner">
 <CardGrid>
   <Card title="Outputs are contracts">
     Each output file is checked against its pydantic model and its validators. A file that fails goes back to the same agent session with the errors.
@@ -43,6 +45,7 @@ import Steps from '../../components/home/Steps.astro';
     The pipeline graph, each task's transcript, inputs, outputs and checks, the history of attempts, and trends over a period. A hub serves the runs of many hosts.
   </Card>
 </CardGrid>
+</div>
 
 ## Where to start
 
@@ -72,3 +75,5 @@ import Steps from '../../components/home/Steps.astro';
     <LinkCard title="Theme properties" href="/reference/theme/" description="Every --ca-* custom property and its value in each built-in theme." />
   </section>
 </div>
+
+<Reveal />
