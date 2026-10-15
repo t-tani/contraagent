@@ -1,6 +1,8 @@
 """A plugin's post_tool hook against real coding agents: it objects (exit 2) to a note written
 without a title line, and the agent fixes the note in the same session. The hook script reads
-the tool input in Claude Code's shape (`file_path`) on every agent.
+the tool input in Claude Code's shape (`file_path`) on every agent. On the agents whose stop
+hook continues the session (Claude Code, Codex), a check the stop hook fails is fixed in the
+same session too.
 
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_hooks.py
     CONTRAAGENT_LIVE=1 CONTRAAGENT_LIVE_AGENTS=omp,pi uv run pytest -m live -s tests/live/test_live_hooks.py
@@ -9,11 +11,13 @@ the tool input in Claude Code's shape (`file_path`) on every agent.
     omp       anthropic/claude-haiku-5-5                 ambient
     pi        openai/gpt-5.6-luna                        a ChatGPT login (subscription, provider openai)
     opencode  CONTRAAGENT_LIVE_OPENCODE_MODEL (default: OpenCode Zen's free Muse model)
+    codex     gpt-5.6-luna                               ambient (the ChatGPT login of codex)
 """
 
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,7 +31,7 @@ pytestmark = [
 
 from pydantic import BaseModel  # noqa: E402
 
-from contraagent import Pipeline, agent_task  # noqa: E402
+from contraagent import CommandValidator, Pipeline, agent_task  # noqa: E402
 from contraagent._internal.plugins import hooks  # noqa: E402
 from contraagent.plugins import Plugin, new_plugin  # noqa: E402
 
@@ -37,6 +41,7 @@ ROUTES = {
     "omp": {"agent": "omp", "model": "anthropic/claude-haiku-5-5", "effort": "low"},
     "pi": {"agent": "pi", "model": "openai/gpt-5.6-luna", "effort": "low", "credential": "chatgpt"},
     "opencode": {"agent": "opencode", "model": OPENCODE_MODEL},
+    "codex": {"agent": "codex", "model": "gpt-5.6-luna", "effort": "low"},
 }
 AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(ROUTES)).split(",") if a in ROUTES]
 
@@ -126,3 +131,36 @@ def test_a_post_tool_hook_s_objection_is_fixed_in_the_same_session(ws, agent):
     assert objected.exists(), "the first note had a title line: the hook never objected"
     assert text.startswith("# "), text  # the agent took the hook's words and fixed the note
     assert row["rounds"] == 1  # in the same session, not a correction round
+
+
+# Fails only when the stop hook runs it (`contraagent call validate` is its parent), so the
+# agent cannot pass it ahead by running it itself, and the runner's own check after the turn
+# passes whatever the file says: the token is in the file only when the stop hook's words
+# reached the agent within the session.
+CHECK = """import os, sys
+parent = open(f"/proc/{os.getppid()}/cmdline", "rb").read().replace(b"\\0", b" ").decode()
+if "call validate" in parent and "PINEAPPLE-42" not in open(sys.argv[1]).read():
+    sys.exit("the file must contain the word PINEAPPLE-42")
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the check reads its parent's command line from /proc")
+@pytest.mark.parametrize("agent", ["claude", "codex"])
+def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
+    if agent not in AGENTS:
+        pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")
+    check = ws / "check.py"
+    check.write_text(CHECK)
+    token = CommandValidator([sys.executable, str(check), "{path}"], name="token")
+    plugin = ws / "plugins" / "noter"
+    doc = agent_task(f"doc_{agent}", plugin=plugin, output=str, validators=[token], max_turns=16, timeout_s=300, **ROUTES[agent])
+
+    def flow():
+        doc(f"d-{agent}", topic="green tea")
+
+    report = Pipeline(ws / "pipeline.toml", runs_dir=ws / "runs", cwd=ws, log=print).run(flow, run_id=f"stop-{agent}")
+    [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    print(f"\n  {agent}: {row['stop']} ok={row['ok']} rounds={row.get('rounds')} hook_errors={row.get('hook_errors')}")
+    assert report.ok, report.failed
+    assert row["rounds"] == 1 and row["hook_errors"], row  # the stop hook objected; no correction round followed
+    assert "PINEAPPLE-42" in (report.run_dir / "out" / f"doc_{agent}" / f"d-{agent}.md").read_text()

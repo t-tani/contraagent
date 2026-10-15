@@ -17,6 +17,7 @@ its skills and hooks by flag):
       hooks/hooks.json             hooks as Claude Code reads them   (rendered)
       package.json, omp/           hooks as omp reads them           (rendered)
       package.json, pi/            hooks as pi reads them            (rendered)
+      codex/hooks.json             hooks as Codex reads them         (rendered)
 
 Nothing in it names a run, a unit or a file path: those arrive per task in the
 call file (`contraagent._internal.contracts.calls`).
@@ -44,8 +45,8 @@ HOOKS_TOML = "hooks.toml"
 #: What a plugin holds besides skills that acts on the session that loads it: named
 #: agents, slash commands, permissions, tools, hooks (each coding agent's rendering too).
 #: What `contraagent plugin render` writes from `hooks.toml`: nothing a skill plugin needs.
-RENDERED = ("hooks", "package.json", "omp", "opencode", "pi")
-NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "omp", "opencode", "pi")
+RENDERED = ("hooks", "package.json", "codex", "omp", "opencode", "pi")
+NOT_SKILLS = ("agents", "commands", "settings.json", ".mcp.json", HOOKS_TOML, "hooks", "package.json", "codex", "omp", "opencode", "pi")
 
 
 class PluginError(ContraagentError):

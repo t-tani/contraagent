@@ -18,8 +18,8 @@ agent_task (interface) ──► call file ──► coding agent + plugin (impl
 A plugin is a directory Claude Code and omp load natively (`--plugin-dir`);
 opencode gets its parts as config (its role as `instructions`, its skills as
 `skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`), and
-Codex, which loads no plugin directory, its role's file, its skills and its
-`.mcp.json` (below). The
+Codex, which loads no plugin directory, its role's file, its skills, its
+`.mcp.json` and its rendered hooks as config (below). The
 docstring of `contraagent/_internal/plugins/plugin.py` lists its parts. The demo's:
 
 ```
@@ -33,6 +33,7 @@ examples/demo/plugins/docs/
   skills/write-output/SKILL.md
   hooks.toml               hooks, declared once for every coding agent
   hooks/hooks.json         rendered for Claude Code
+  codex/hooks.json         rendered for Codex
   settings.json            permissions
 ```
 
@@ -68,7 +69,7 @@ where the task is declared, since it would act on every task that loads it.
 `plugin lint` checks a skill plugin's skills only, and `contraagent check` lints
 every plugin a task loads. A skill plugin declares no hooks, so `plugin render`
 writes nothing in it; files an earlier render left there (`package.json`,
-`hooks/`, `omp/`, `opencode/`, `pi/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
+`hooks/`, `codex/`, `omp/`, `opencode/`, `pi/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
 as its role file is: a resume runs a task again after its skills changed.
 
 ## An implementation per unit
@@ -113,7 +114,7 @@ user's home; every launch keeps that out, and keeps what the agent itself can do
 | omp | AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` and other tools' context files, skills, rules, hooks, tools and MCP servers; the user's installed Claude Code plugins | its built-in tools and subagents; the task's plugin and the skills of its `skills_from` |
 | opencode | the project's AGENTS.md, `opencode.json` and `.opencode/`; the user's `~/.claude/` (CLAUDE.md, skills) and `~/.agents/` skills; the user's opencode database (a session is kept in memory, or in its own directory when it may be resumed) | its built-in tools, skills and agents; the user's own opencode config (`~/.config/opencode`); the task's plugin and the skills of its `skills_from` |
 | pi | AGENTS.md, CLAUDE.md, `.pi/` and `.agents/` files; the user's pi settings, `SYSTEM.md`, extensions, skills, prompt templates and MCP servers | its built-in tools; the user's pi logins and custom providers (`ambient`, `subscription`); the task's plugin (skills, hooks, `.mcp.json`) and the skills of its `skills_from` |
-| Codex | AGENTS.md, the project's skills (`.agents/skills`, `.codex/skills`), the user's skills (`~/.agents/skills`), plugins, hooks and execpolicy rules; with any credential but `ambient`, the user's `config.toml` | its built-in tools and skills; the task's role, skills and `.mcp.json`, and the skills of its `skills_from` |
+| Codex | AGENTS.md, the project's skills (`.agents/skills`, `.codex/skills`), the user's skills (`~/.agents/skills`), plugins, the user's and the project's hooks, and execpolicy rules; with any credential but `ambient`, the user's `config.toml` | its built-in tools and skills; the task's role, skills, hooks and `.mcp.json`, and the skills of its `skills_from` |
 
 A launch also leaves out the variables that tie it to a Claude Code session the
 pipeline was started from. A skill, a hook, a permission or an MCP server a task
@@ -157,30 +158,55 @@ own hook system, so they run inside the agent:
 
 ::code{file="examples/demo/plugins/docs/hooks.toml"}
 
-| event | claude | omp, pi | opencode |
-|---|---|---|---|
-| `pre_tool` | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
-| `post_tool` | `PostToolUse`; exit 2 sends the script's words to the agent | `tool_result` event; exit 2 adds the script's words to the result the agent sees | `tool.execute.after`; exit 2 adds the script's words to the tool's output |
-| `stop` | the agent checks its own file and carries on in the same turn | none: `omp -p` and `pi -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
+| event | claude | codex | omp, pi | opencode |
+|---|---|---|---|---|
+| `pre_tool` | `PreToolUse`; exit 2 blocks | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
+| `post_tool` | `PostToolUse`; exit 2 sends the script's words to the agent | `PostToolUse`; exit 2 sends the script's words to the agent | `tool_result` event; exit 2 adds the script's words to the result the agent sees | `tool.execute.after`; exit 2 adds the script's words to the tool's output |
+| `stop` | the agent checks its own file and carries on in the same turn | `Stop`; as on Claude Code | none: `omp -p` and `pi -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
 
 On every agent, a `post_tool` script that exits 2 has the agent fix what it says
-in the same session (checked live on each).
+in the same session, and on Claude Code and Codex a `stop` hook that exits 2 does
+the same (checked live on each).
+
+Codex reads hooks in Claude Code's format, from each layer of its config. The Codex
+backend passes `codex/hooks.json` as the launch's config (`-c hooks=...`), with
+each `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin's directory; nothing is
+written into a `CODEX_HOME`. Codex runs a hook an administrator does not manage
+only when the config trusts it: `hooks.state."<key>".trusted_hash` set to the
+hook's hash. The launch's config trusts each of the plugin's hooks by its hash and
+turns off each hook the user's `config.toml` trusts (`enabled = false`), so the
+user's and the project's own hooks do not run; with any credential but `ambient`
+the user's `config.toml` is not read at all. Hooks an administrator manages
+(`requirements.toml`, MDM) run as Codex decides. A launch with no hook runs with
+Codex's hooks turned off. How the key and the hash are made is in the docstring
+of `contraagent/_internal/backends/codex/hooks.py`.
 
 Hook scripts read the JSON Claude Code sends hooks; the omp and pi extensions
 (`omp/index.ts`, `pi/index.ts`, both declared in `package.json`) and the opencode
 plugin (`opencode/index.js`) build the same
-payload, so one script serves every agent. The tool input comes in Claude Code's
-names whatever the agent calls its arguments:
+payload, so one script serves every agent. Codex sends its hooks the same JSON with its
+own tool names, so a Codex hook with a script runs it through
+`contraagent plugin hook --agent codex`, which builds Claude Code's tool calls. The
+tool input comes in Claude Code's names whatever the agent calls its arguments:
 
-| Claude Code | omp | pi | opencode |
-|---|---|---|---|
-| `file_path` (Read, Write, Edit) | `path` | `path` | `filePath` |
-| `old_string`, `new_string` (Edit) | `old_string`, `new_string` | `edits: [{oldText, newText}]`, when it holds one edit | `oldString`, `newString` |
-| `replace_all` (Edit) | `replace_all` | none | `replaceAll` |
-| `command`, `pattern`, `path` (Bash, Grep, Glob), `content` (Write) | the same | the same | the same |
+| Claude Code | omp | pi | opencode | Codex |
+|---|---|---|---|---|
+| `file_path` (Read, Write, Edit) | `path` | `path` | `filePath` | for Write and Edit, each file of an `apply_patch` |
+| `old_string`, `new_string` (Edit) | `old_string`, `new_string` | `edits: [{oldText, newText}]`, when it holds one edit | `oldString`, `newString` | the lines of the file's change, when it is one hunk |
+| `replace_all` (Edit) | `replace_all` | none | `replaceAll` | none |
+| `content` (Write) | the same | the same | the same | the lines of a file the patch adds |
+| `command` (Bash) | the same | the same | the same | the same |
+| `pattern`, `path` (Grep, Glob) | the same | the same | the same | none: no such tool |
 
-`file_path` is an absolute path on every agent, as Claude Code passes it. omp, pi
-and opencode pass on the path the model wrote, which may be relative to the
+A Codex `apply_patch` reaches a script once per file: as `Write` for a file it adds,
+as `Edit` for a file it updates (`file_path` is the new path of a file it moves).
+A file it deletes reaches no script, as Claude Code has no tool that deletes a file.
+Codex has no tool that reads or searches: it does both with shell commands, which
+a `bash` hook sees. A `read`, `grep` or `glob` hook does not run on Codex, and
+`plugin render` says so.
+
+`file_path` is an absolute path on every agent, as Claude Code passes it. omp, pi,
+opencode and Codex pass on the path the model wrote, which may be relative to the
 session's directory (`notes/a.md`); their hooks receive it resolved against that
 directory, and `~` against the home directory.
 
@@ -193,6 +219,7 @@ The `tool` of a hook names the tool as `hooks.toml` does (`bash`, `read`, `write
 contraagent plugin new plugins/<name>     # a working plugin from the template
 contraagent plugin lint plugins/<name>    # its parts agree: roles, skills, JSON, hook scripts, rendered hooks
 contraagent plugin render plugins/<name>  # each coding agent's native hooks from hooks.toml
+contraagent plugin hook --agent codex --root plugins/<name> hooks/x.sh   # what a rendered Codex hook runs
 ```
 
 A role `agent_task` names that the plugin does not define is an error where the

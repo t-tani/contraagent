@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Plugin hooks on Codex: `contraagent plugin render` writes `codex/hooks.json` (Codex's
+  own hook format) from `hooks.toml`, and a Codex launch passes it as config, each hook
+  trusted by the hash Codex asks for, with the user's own hooks turned off. The stop
+  hook's output check runs inside the Codex session, which fixes an off-contract output
+  before it ends, as on Claude Code (`hook_errors`, no correction round). A `pre_tool` or
+  `post_tool` script reads Claude Code's input there too: a shell command as `Bash`, each
+  file of an `apply_patch` as `Write` or `Edit` with an absolute `file_path`, through
+  `contraagent plugin hook --agent codex`. Codex has no read, grep or glob tool, so a hook
+  for one does not run there.
 - A validator may take `before`, the output file as it was before the task, parsed as its
   value is (the model instance, or the text; None when there was no file or it did not meet
   its schema): `def adds_an_idea(path, backlog: Backlog, *, before: Backlog | None)`. It is

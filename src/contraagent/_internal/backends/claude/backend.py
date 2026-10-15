@@ -67,6 +67,7 @@ class ClaudeBackend(ResumeById, Backend):
     """Headless Claude Code: `claude -p` with stream-json output."""
 
     name = "claude"
+    stop_hooks_file: str | None = "hooks/hooks.json"
     binary = "claude"
     effort_levels: tuple[str, ...] | None = ("low", "medium", "high", "xhigh", "max")
     # `--fallback-model` takes a comma-separated list and tries each in

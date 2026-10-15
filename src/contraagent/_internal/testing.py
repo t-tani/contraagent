@@ -42,11 +42,12 @@ A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub p
 route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
 
 Under a name whose coding agent continues its turn when a stop hook objects
-(Claude Code), the stub does what that agent does: once it has written its
-output it runs the Stop hooks of the launch's plugins (their rendered
-`hooks/hooks.json`, with the agent's working directory and environment), and
-when one exits 2 it is sent the hook's message and replies again in the same
-launch (`StubLaunch.in_turn`). Under omp's names it stops, as omp does.
+(Claude Code, Codex: `Backend.stop_hooks_file`), the stub does what that agent
+does: once it has written its output it runs the Stop hooks of the launch's
+plugins (their rendered `hooks/hooks.json` or `codex/hooks.json`, with the agent's
+working directory and environment), and when one exits 2 it is sent the hook's
+message and replies again in the same launch (`StubLaunch.in_turn`). Under omp's
+names it stops, as omp does.
 """
 
 from __future__ import annotations
@@ -64,11 +65,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from contraagent._internal.backends import Backend, ClaudeBackend, backend_class, known_agents
-from contraagent._internal.backends.claude.wire import feedback_errors
+from contraagent._internal.backends import Backend, backend_class, known_agents
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, QuotaRefusal, Stop, Usage
 from contraagent._internal.backends.streams import resolve_format
+from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import smallest
 from contraagent._internal.dispatch.records import QuotaReading
@@ -337,17 +338,22 @@ class StubAgent(Backend):
             self._tool(launch, f"{call.key}-{record.n}-write", "Write", call.output.path, "ok")
         return reply
 
+    def _stop_hooks_file(self) -> str | None:
+        """The rendered hooks file whose Stop hooks the coding agent this stub plays runs,
+        continuing its turn when one objects (`Backend.stop_hooks_file`); None when it does not."""
+        cls = backend_class(self.name)
+        return cls.stop_hooks_file if cls is not None else None
+
     def _continues_on_stop_hook(self) -> bool:
         """Whether the coding agent this stub plays continues its turn when a stop hook objects."""
-        cls = backend_class(self.name)
-        return cls is not None and issubclass(cls, ClaudeBackend)
+        return self._stop_hooks_file() is not None
 
     def _stop_hooks(self, launch: Launch, *, active: bool) -> str | None:
-        """Run the launch's plugins' Stop hooks as Claude Code does; what the first one
+        """Run the launch's plugins' Stop hooks as the coding agent does; what the first one
         that objects (exit 2) says, or None when they all let the agent stop."""
         payload = json.dumps({"hook_event_name": "Stop", "stop_hook_active": active, "session_id": launch.label})
         for plugin_dir in launch.plugin_dirs:
-            rendered = Path(plugin_dir) / "hooks" / "hooks.json"
+            rendered = Path(plugin_dir) / (self._stop_hooks_file() or "")
             try:
                 declared = json.loads(rendered.read_text()).get("hooks", {}).get("Stop", [])
             except (OSError, ValueError):

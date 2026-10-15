@@ -113,6 +113,10 @@ class Backend(abc.ABC):
     #: The `Limits` fields this agent leaves to the wrapper (`LimitsWatch`): `context_budget`,
     #: `max_budget_usd`, `max_turns`. The others it is given on its command line or has none of.
     watched_limits: frozenset[str] = frozenset()
+    #: A plugin's rendered hooks file (`contraagent plugin render`) whose Stop hooks this agent
+    #: runs as Claude Code does: one that exits 2 sends its words back and the agent continues
+    #: in the same session. None: a stop hook does not continue this agent's session.
+    stop_hooks_file: str | None = None
     #: How long the agent may take to list its models (`read_models`), in seconds.
     catalogue_timeout_s: float = 30.0
 

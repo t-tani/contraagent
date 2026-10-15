@@ -230,3 +230,14 @@ class LimitsWatch:
         if self.turns is not None and sum(f.tool_uses.values()) > self.turns:
             return Stop.MAX_TURNS
         return None
+
+
+def feedback_errors(text: str) -> list[str]:
+    """The errors a check's feedback lists (its `- ` lines outside code), else the text itself."""
+    errors, fenced = [], False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.startswith("- "):
+            errors.append(line[2:])
+    return errors or [text.strip()]

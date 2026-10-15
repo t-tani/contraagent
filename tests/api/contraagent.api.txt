@@ -884,6 +884,7 @@ class Backend(abc.ABC)
     def scratch(self, label: str, which: str, create: bool = True) -> Path
     def scratch_parent(self) -> Path | None
     signals: Signals = Signals(stderr_stops=frozenset())
+    stop_hooks_file: str | None = None
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
     def usage_reading(self, launch: Launch) -> QuotaReading | None
@@ -954,6 +955,7 @@ class ClaudeBackend(ResumeById, Backend)
     def resumable(self, launch: Launch) -> Launch
     def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None
     signals: Signals = claude_wire.SIGNALS
+    stop_hooks_file: str | None = 'hooks/hooks.json'
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
     watched_limits: frozenset[str] = frozenset({'context_budget'})
@@ -984,6 +986,7 @@ class CodexBackend(ResumeById, Backend)
         watch: LimitsWatch,
     ) -> tuple[bytes, str, int | None, Stop | None]
     def fold(self, launch: Launch) -> EventFold
+    def hook_args(self, launch: Launch) -> list[str]
     name = 'codex'
     needs_inline_role_file = True
     def prepare(self, launch: Launch) -> Launch
@@ -993,6 +996,7 @@ class CodexBackend(ResumeById, Backend)
     def scratch_parent(self) -> Path
     signals: Signals = codex_wire.SIGNALS
     def skill_home(self, launch: Launch) -> Path
+    stop_hooks_file: str | None = HOOKS_FILE
     watched_limits: frozenset[str] = frozenset({'max_turns'})
     wire: ModuleType | None = codex_wire
 
