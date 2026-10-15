@@ -3,7 +3,7 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
-import type { Page } from '../../core/route.js';
+import type { Page } from '../../core/view-route.js';
 import { trendsTitle, trendsTip } from '../../words/trends.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
 import { runMark, stateCount } from '../../words/index.js';

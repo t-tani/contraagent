@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { RememberedSet } from '../../core/memory.js';
-import type { TaskView } from '../../core/route.js';
+import type { TaskView } from '../../core/view-route.js';
 import { base } from '@contraagent/elements/styles';
 import { executorIcon, executorIconStyles } from '../../words/executor.js';
 import { kindUnit } from '../../words/format.js';

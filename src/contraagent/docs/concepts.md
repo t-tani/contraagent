@@ -174,14 +174,14 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
 | **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |
 | **outline** | the pipeline graph's list of every function of the flow and the loops they are in, as a tree | `outlineTree`, `nav.outline` |
-| **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`); on the Trends page, the trends with the trends panels of no `tab`, or the trends panels of one `tab` | `Tab`, route `tab`; `Panel.tab`, `PanelInfo.tab`, route `trendsTab` (`?page=trends&tab=`) |
+| **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`); on the Trends page, the trends with the trends panels of no `tab`, or the trends panels of one `tab` | `Tab`, view route `tab`; `Panel.tab`, `PanelInfo.tab`, view route `trendsTab` (`?page=trends&tab=`) |
 | **panel** / **panel body** | a view a pipeline adds to the monitor: computed per run (`scope="run"`, `fn(run)` with the run's `RunRecords`, a tab of each run) or over the runs of a period (`scope="trends"`, `fn(runs, period)`) / what it returns: a typed body (`tiles`, `table`, `columns`, `lines`, `heatmap`, `status_grid`, `hbars`, `note`, `blocks` of them) the monitor draws, or any other JSON object, shown as a JSON tree | `contraagent.monitor.Panel`; `contraagent.monitor.PanelBody`, `PANEL_TYPES`; `contraagent monitor --panels` |
 | **status grid** / **note** | a panel body of a state per row and column, each named by its label and coloured by its tone (a `heatmap` is a number per cell, in shades of one colour) / a panel body of text beside the figures, markdown shown escaped | `contraagent.monitor.StatusGridBody`, `GridCell`; `contraagent.monitor.NoteBody`; the element `cae-state-grid` |
-| **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |
-| **UI route** | where the reader is, kept in the URL (not a failover route) | `Route`, `Router` in `@contraagent/ui` |
+| **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, view route `view` |
+| **view route** | where the reader is in the monitor, kept in the URL (or in the element, with `history="memory"`) | `ViewRoute`, `ViewRoutePatch`, `ViewRouter` in `@contraagent/ui` |
 | **element** | a web component: `ca-*` in `@contraagent/ui`, `cae-*` in `@contraagent/elements` | `CaMonitor`, `CaTranscript`, `CaeSegmented`, ... |
 | **tone** | the status colour a value takes: failed, attention, done, running, muted, neutral | `Tone`, `data-tone` |
-| **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | route `sel`, `markSel`, `parseSelection` |
+| **selection** | what is selected in the pipeline graph's layer: a node, a loop box or a mark | view route `sel`, `markSel`, `parseSelection` |
 | **inspector** | the card beside the selection in the pipeline graph's frame (a sheet under the frame on a narrow screen) that shows its facts and where it leads | `ca-pipeline-graph` (its content), the `inspector` slot of `cae-layered-graph` |
 | **cluster** | a box of nodes in a layered graph; a loop box is one | `GraphClusterInput`, `.cluster` |
 | **series** | the id that lines marks up across a layered graph's nodes; the pipeline graph's units | `GraphInput.series` |

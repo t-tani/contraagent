@@ -12,7 +12,7 @@ export interface PipelineHost {
   /** The run id: paths in a cause are shown relative to it. */
   readonly run: string;
   readonly live: boolean;
-  /** The route's selection and pinned unit. */
+  /** The view route's selection and pinned unit. */
   readonly sel: string;
   readonly unit: string;
   /** The layer shown (its segments), and the layer the graph opens on. */

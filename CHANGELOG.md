@@ -1274,6 +1274,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Web packages
 
+- The monitor's view route is named apart from a failover route: `@contraagent/ui/core`
+  exports `ViewRoute` (was `Route`), `ViewRoutePatch` (was `RoutePatch`),
+  `DEFAULT_VIEW_ROUTE` (was `DEFAULT_ROUTE`), `parseViewRoute` and `formatViewRoute`
+  (were `parseRoute`, `formatRoute`), `ViewRouter`, `ViewRouterMode` and
+  `ViewRouteCause` (were `Router`, `RouterMode`, `RouteCause`). The URL's query and
+  the `ca-navigate` event are unchanged.
 - `data-ca-theme` sets the `--ca-*` properties themselves on its element (it set
   `--ca-theme-*` before), so a page's own CSS reads the theme by the elements' names:
   `var(--ca-bg)`, `var(--ca-text-secondary)`. A `--ca-*` property of the page wins when
@@ -1301,7 +1307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@contraagent/api` reads a refusal's reason: `inputProblems(reason)` (the
   inputs it names, missing or failed checks) and `runRelative(text, run)`
   (paths cut to the run directory).
-- `Router` takes an `onLeave` callback, called before it pushes a new history
+- `ViewRouter` takes an `onLeave` callback, called before it pushes a new history
   entry.
 - `@contraagent/ui` exports one name per meaning:
   - `tokenCount()` (was `tokens()`) formats a token count;

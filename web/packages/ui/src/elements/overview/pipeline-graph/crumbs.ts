@@ -66,7 +66,7 @@ export function crumbs(h: PipelineHost, controls: TemplateResult | null = null) 
   </div>`;
 }
 
-/** The layer the route named that this run does not have. */
+/** The layer the view route named that this run does not have. */
 export function missingLine(missing: string) {
   if (!missing) return nothing;
   const segs = missing.split('/');

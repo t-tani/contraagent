@@ -161,11 +161,11 @@ export class CaOverview extends LitElement {
   @property({ attribute: false }) host: HostSummary | undefined;
   @property({ attribute: false }) info!: Info;
   @property() run = '';
-  /** The pipeline graph's layer (`Route.layer`). */
+  /** The pipeline graph's layer (`ViewRoute.layer`). */
   @property() layer = '';
-  /** The unit highlighted in the pipeline graph (`Route.unit`). */
+  /** The unit highlighted in the pipeline graph (`ViewRoute.unit`). */
   @property() unit = '';
-  /** What is selected in the pipeline graph (`Route.sel`). */
+  /** What is selected in the pipeline graph (`ViewRoute.sel`). */
   @property() sel = '';
 
   private go(tab: 'outputs' | 'procs' | `panel:${string}`): void {
