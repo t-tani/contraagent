@@ -348,6 +348,7 @@ pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
 pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
+pnpm screenshots        # the root README's screenshots: the demo run, the real monitor, Playwright (about a minute)
 ```
 
 ## Documentation
@@ -381,7 +382,12 @@ version; nothing else holds that text.
   elements' stylesheet. The live examples read `src/fixtures/demo-run.json`;
   rewrite it with `uv run python web/apps/docs/scripts/fixture.py` after a change
   to what the monitor returns.
-- The root `README.md` points to the packages and holds no documentation of its own.
+- The root `README.md` is the landing page: it may pitch and summarize, and it
+  points to the packages for everything a reader does. Its code is written out (GitHub
+  does not expand `::code`), each block after `<!-- ::code{...} -->` lines that
+  `tests/test_docs.py` checks against the example files. Its screenshots in
+  `docs/assets/readme/` (outside the package, and out of the sdist) come from the
+  demo pipeline: `pnpm --dir web screenshots` makes them again.
 - `CHANGELOG.md` (Keep a Changelog) is written by towncrier: record a
   user-visible change as a fragment in `changelog.d/` (`<slug>.<type>.md`, or
   `+<slug>.<type>.md`; types `added`, `changed`, `deprecated`, `removed`,

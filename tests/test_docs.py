@@ -211,6 +211,30 @@ def test_every_page_of_every_package_expands(tmp_path):
     assert 'title="examples/demo/tasks.py"' in docs.text("tasks") and "def docs_one_review(" in docs.text("tasks")
 
 
+def test_the_root_readme_code_is_the_example_it_quotes():
+    """GitHub does not expand `::code`, so the root README writes the code out: each
+    fenced block that follows `<!-- ::code{...} -->` lines is those quotes, two blank lines
+    between them (as `ruff format` writes it), and stays identical to the example files."""
+    root = docs.DIR.parents[2]
+    readme = root / "README.md"
+    lines = readme.read_text().splitlines()
+    checked = 0
+    for i, line in enumerate(lines):
+        if not line.startswith("<!-- ::code{") or lines[i - 1].startswith("<!-- ::code{"):
+            continue
+        quotes, j = [], i
+        while lines[j].startswith("<!-- ::code{"):
+            attrs = dict(re.findall(r'(\w+)="([^"]*)"', lines[j]))
+            quotes.append(docs.quote(readme, attrs, root)[1:-1])
+            j += 1
+        assert lines[j].startswith("```"), f"README.md:{j + 1}: a fenced block follows the quotes"
+        end = next(k for k in range(j + 1, len(lines)) if lines[k].startswith("```"))
+        want = [line for n, q in enumerate(quotes) for line in (["", ""] if n else []) + q]
+        assert lines[j + 1 : end] == want, f"README.md:{j + 1}: the block differs from what it quotes"
+        checked += 1
+    assert checked, "the root README quotes an example"
+
+
 def test_a_quote_that_does_not_resolve_says_where(tmp_path):
     page = tmp_path / "p.md"
     page.write_text('# P\n\n::code{file="x.py" from="nowhere"}\n')

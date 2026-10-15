@@ -1,20 +1,38 @@
 # contraagent
 
-Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`, `pi -p`, `codex exec`) as typed, supervised, observable
-tasks. Think pydantic-ai for coding agents: a task is a typed function whose
-body is a coding agent, and your contract with it is a file it must leave
-behind. Scheduling, failover, validation, credentials, resume and live
-monitoring are the framework's job.
+Run coding agents as typed, checked, supervised tasks. contraagent turns Claude
+Code (`claude -p`), Codex CLI (`codex exec`), opencode (`opencode run`), oh-my-pi
+(`omp -p`) and pi (`pi -p`) into the steps of a Python pipeline: a task is a typed
+function whose body is a coding agent, and its result is a file checked against a
+pydantic model. Scheduling, failover, quotas, deadlines, resume and a live
+monitor are the runner's job.
 
-- **Typed tasks**: parameters and outputs are pydantic models; an output that
-  does not pass its schema or its validators goes back to the same session.
-- **Agent-native implementations**: what an agent does lives in a plugin the
-  coding agent loads itself (roles, skills, hooks), not in prompt strings.
-- **Routing**: per-task coding agent, model, budget and credential from one
-  TOML file, with failover on rate limits.
-- **Checked before it spends**: a flow, its plugins and its routing are checked
-  without launching anything, and a stub agent tests a flow's wiring.
-- **A live monitor** of every run: plan, journal, transcripts, outputs.
+- **The coding agents themselves**: the same task, plugin and config run on each
+  of the five; one TOML file chooses the coding agent, model, budget and
+  credential of each kind of task.
+- **The agent's own extensions**: an agent task's implementation is a plugin in
+  the coding agent's own format (roles, skills, MCP servers, hooks), beside its
+  built-in tools; hooks are written once and rendered for each agent.
+- **A clean context per task**: a task's agent sees its role, plugin, skills and
+  call file, not the user's or the project's settings, instruction files, skills,
+  hooks or MCP servers, nor another task's conversation ([Plugins](plugins.md)
+  lists the exceptions per agent).
+- **Outputs are contracts**: an output that does not pass its schema or its
+  validators goes back to the same session with the errors.
+- **Failover and quotas**: another model, coding agent or credential after a rate
+  limit, a failed launch or a safeguard refusal; caps on a subscription's 5-hour
+  and weekly usage.
+- **Deadlines and resume**: a run's deadline and time boxes defer what cannot
+  finish; a resumed run repeats only the tasks whose inputs or definition changed.
+- **Checked before it spends**: `contraagent check` reports every problem with
+  nothing launched; a stub agent, stub runs and recorded replays test a flow with
+  nothing spent.
+- **A live monitor** of every run, read-only: the pipeline graph, each task's
+  transcript, inputs, outputs and checks, the history of attempts, and trends
+  over a period; a hub serves the runs of many hosts.
+- **Written by a coding agent, too**: this documentation is installed with the
+  package (`contraagent docs`), and `contraagent docs --pointer` points a
+  project's coding agent at it.
 
 ## Install
 

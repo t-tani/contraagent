@@ -18,7 +18,8 @@
     "check:dist": "tsc -p apps/monitor/tsconfig.dist.json && node scripts/size.mjs && node consumer/consumer.test.mjs",
     "docs": "pnpm --filter @contraagent/docs dev",
     "tarballs": "pnpm --filter \"./packages/**\" build && node scripts/tarballs.mjs",
-    "i18n": "pnpm --filter @contraagent/ui i18n"
+    "i18n": "pnpm --filter @contraagent/ui i18n",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
