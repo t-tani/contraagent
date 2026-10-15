@@ -13,7 +13,7 @@ from typing import Annotated, Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, TypeAdapter, create_model
 
-from contraagent._internal.backends.credentials import Credential
+from contraagent._internal.backends.credentials import AnyCredential
 from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
 from contraagent._internal.routing.preflight import PreflightPolicy
 
@@ -90,7 +90,7 @@ class PipelineFile(_Table):
 
     defaults: DefaultsTable | None = None
     tasks: dict[str, TaskTable] | None = Field(None, description="the task tables, by kind")  # pyright: ignore[reportInvalidTypeForm]
-    credentials: dict[str, Credential] | None = Field(
+    credentials: dict[str, AnyCredential] | None = Field(
         None, description="identities a launch may authenticate as, by name; `ambient` is built in"
     )
     pipeline: dict[str, dict[str, Any]] | None = Field(None, description="the pipeline tables: a pipeline's own, never checked")
@@ -117,7 +117,7 @@ def config_schema() -> dict:
     the table, so its schema has no `name`, and it must give its `type`."""
     schema = _no_null(PipelineFile.model_json_schema(by_alias=True))
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    credential_types = TypeAdapter(Credential).json_schema()["$defs"]
+    credential_types = TypeAdapter(AnyCredential).json_schema()["$defs"]
     for name, definition in schema["$defs"].items():
         if name in credential_types:
             definition["properties"].pop("name", None)
