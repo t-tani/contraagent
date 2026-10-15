@@ -1,11 +1,12 @@
 """`agent_task(implementations=)`: one step declared with several implementations, each a kind."""
 
 import json
+import re
 
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Implementations, Pipeline, PipelineConfig, agent_task
+from contraagent import Implementations, Pipeline, PipelineConfig, agent_task, python_task
 from contraagent.monitor import Monitor
 from contraagent.monitor.trends import Period
 from contraagent.pipeline.reach import reachable
@@ -139,3 +140,41 @@ def test_a_stub_run_launches_each_unit_s_kind_and_the_monitor_draws_one_group(tm
     # The trends count each kind in its base kind's group too.
     kinds = {k["kind"]: k["group"] for k in Monitor(tmp_path / "runs", keep_digests=False).trends(Period.parse(tz="UTC"))["kinds"]}
     assert kinds == {"review-py": "review", "review-go": "review"}
+
+
+def created_then_implementation(review, other, lang: str):
+    yield other("a")
+    yield review[lang]("a")
+
+
+def reached_only(review, other):  # `other` is reachable, never created
+    if False:
+        yield other("a")
+    yield review["py"]("a")
+
+
+def test_a_kind_that_is_a_base_kind_or_an_implementation_kind_of_another_declaration_is_refused(tmp_path, plugins):
+    review = declare(plugins)
+    plain = agent_task("review", plugin=plugins / "review-py", output=Review, max_turns=5, timeout_s=60)
+    twin = agent_task("review-go", plugin=plugins / "review-go", output=Review, max_turns=5, timeout_s=60)
+
+    @python_task(name="review-py")
+    def same_name(unit: str) -> None:
+        return None
+
+    impl = "agent_task('review', implementations=...)"
+    cases = [
+        (plain, f"kind 'review' of agent_task('review') is also the base kind of {impl}"),
+        (twin, f"kind 'review-go' is declared by {impl} (implementation 'go') and by agent_task('review-go')"),
+        (same_name, f"kind 'review-py' is declared by {impl} (implementation 'py') and by @python_task review-py"),
+    ]
+    stub = StubAgent(default=lambda launch: {"unit": launch.unit, "findings": []})
+    for other, message in cases:
+        lang = "py" if other is same_name else "go"
+        reached = Pipeline(backends=stub.backends(), cwd=tmp_path).check(reached_only, review, other).errors
+        assert len(reached) == 1 and reached[0].startswith(f"flow: {message}") and "give one of them another name" in reached[0]
+        created = Pipeline(backends=stub.backends(), cwd=tmp_path).check(created_then_implementation, review, other, lang).errors
+        assert any(message in e for e in created), created
+        with pytest.raises(ValueError, match=re.escape(message)):  # before the first launch
+            Pipeline(runs_dir=tmp_path / "runs", backends=stub.backends(), cwd=tmp_path).run(reached_only, review, other)
+    assert stub.launches == []

@@ -53,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces its keys one by one (its `fallbacks` the whole chain). The monitor draws the
   implementation kinds as one group named `review` in the plan and the trends, unless
   `Monitor(groups=)` lists them; `plan.jsonl`, the plan's nodes and the kind's definition
-  record `base_kind`. `contraagent docs plugins` ("An implementation per unit") and
+  record `base_kind`. Another declaration whose kind is the base kind or an implementation
+  kind is refused by `Pipeline.check` and before the first launch. `contraagent docs plugins` ("An implementation per unit") and
   `examples/implementations/` show it.
 - A task call's `priority` (`summarize("alpha", priority=2.5)`, default 0): among ready tasks
   the queue would otherwise start in the order they were queued, the highest priority starts
