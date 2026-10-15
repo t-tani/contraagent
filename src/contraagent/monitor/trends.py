@@ -41,7 +41,7 @@ from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 9
+DIGEST_VERSION = 10
 
 #: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
 BODY_RUNS = 50
@@ -225,7 +225,8 @@ def digest(source, run: str) -> dict:
     wall times, sorted (a median over a period stays exact, and joining runs is a list's
     `extend` and one sort); per model what its hops spent (`model_usage`, in order of first use).
     `kinds`: per kind its executor, and its tasks and the tasks whose last attempt passed,
-    over the whole run; `tasks`: per kind, per task, its attempts as `slot, ok, slot, ok ...`
+    over the whole run, and an implementation kind's `base_kind` (`plan.jsonl`); `tasks`: per kind,
+    per task, its attempts as `slot, ok, slot, ok ...`
     (each slot counted from `span[0]`; the last attempt of a slot), for a period that cuts
     the run. `span`: the first and last slot
     of an attempt; `total`: the slots summed, in the same shape, for a period that holds
@@ -289,6 +290,9 @@ def digest(source, run: str) -> dict:
     for kind, keys in attempts.items():
         kinds[kind]["tasks"] = len(keys)
         kinds[kind]["tasks_ok"] = sum(pairs[-1] for pairs in keys.values())
+    for row in _parse(line for line in source.lines(run, rundir.PLAN)[0] if '"base_kind"' in line):
+        if row.get("kind") in kinds and row.get("base_kind"):
+            kinds[row["kind"]]["base_kind"] = str(row["base_kind"])
     total: dict = {"last_ts": "", "kinds": {}, "models": model_usage([r for slot in sorted(rows_of) for r in rows_of[slot]])}
     for slot in sorted(slots):
         s = slots[slot]
@@ -460,7 +464,8 @@ class _Slots:
 
 def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
-    group it is counted in (the monitor's `groups`), each other kind being its own."""
+    group it is counted in (the monitor's `groups`); an implementation kind it does not map is
+    counted in its base kind's, each other kind in its own."""
     group_of = dict(groups or {})
     at = _Slots(period)
     days = [d.isoformat() for d in period.days]
@@ -496,7 +501,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             d = daily[at.day(slot)]
             last = max(last, s["last_ts"])
             for kind, k in s["kinds"].items():
-                group = group_of.get(kind, kind)
+                group = group_of.get(kind) or dg["kinds"][kind].get("base_kind") or kind
                 d["attempts"] += k["n"]
                 d["ok"] += k["ok"]
                 if k["cost"] is not None:

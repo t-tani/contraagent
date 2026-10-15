@@ -439,7 +439,7 @@ class Run:
         `plan.jsonl`: the monitor draws the pipeline from it, including the
         work that has not started yet (the journal only knows what finished).
         A task with no origin (built by hand) has an empty `flow` and `created_from`, and
-        `flow_call` null."""
+        `flow_call` null. `base_kind` is there only for an implementation kind."""
         origin = task.origin
         row = {
             "ts": utcnow_iso(),
@@ -453,6 +453,7 @@ class Run:
             "flow": frames_row(origin.flow) if origin is not None else [],
             "created_from": list(origin.created_from) if origin is not None else [],
             "flow_call": origin.flow_call if origin is not None else None,
+            **({"base_kind": task.base_kind} if task.base_kind else {}),
         }
         self._append(rundir.PLAN, row)
         if self._estimates is not None:

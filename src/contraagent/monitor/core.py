@@ -297,7 +297,9 @@ class Monitor:
         keep_digests: bool = True,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
-        without them each kind is a group of its own.
+        without them each kind is a group of its own. The implementation kinds of one base
+        kind (`agent_task(implementations=)`) that `groups` does not list are one group,
+        named by the base kind.
         `static_dir` replaces the bundled web UI with the caller's own.
         `stream_formats` maps a custom coding agent's name to a built-in stream
         format (`claude`, `omp`) when the monitor runs in another process than
@@ -672,11 +674,12 @@ class Monitor:
         return list(calls.values())
 
     def _group_name(self, n: dict) -> str:
-        """A node's group: the first of `groups` that lists its kind, else its `Task.kind`."""
+        """A node's group: the first of `groups` that lists its kind, else its base kind (an
+        implementation kind's, `agent_task(implementations=)`), else its `Task.kind`."""
         for d in self.group_defs:
             if n["kind"] in d.get("kinds", ()):
                 return d["id"]
-        return n["kind"]
+        return n.get("base_kind") or n["kind"]
 
     def _groups(self, nodes: list[dict]) -> list[dict]:
         def tally(sid: str, label: str, members: list[dict]) -> dict:
@@ -688,7 +691,12 @@ class Monitor:
             for d in self.group_defs:
                 members = [n for n in nodes if n["kind"] in d.get("kinds", ())]
                 out.append(tally(d["id"], d.get("label", d["id"]), members))
-            return out
+            listed = {k for d in self.group_defs for k in d.get("kinds", ())}
+            bases: dict[str, list[dict]] = {}
+            for n in nodes:  # the implementation kinds `groups` does not list: their base kind's group
+                if n.get("base_kind") and n["kind"] not in listed:
+                    bases.setdefault(n["base_kind"], []).append(n)
+            return out + [tally(b, b, members) for b, members in bases.items()]
         groups: dict[str, list[dict]] = {}
         for n in nodes:
             groups.setdefault(n["group"], []).append(n)

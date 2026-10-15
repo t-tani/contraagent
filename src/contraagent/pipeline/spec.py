@@ -12,13 +12,15 @@ written).
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import inspect
 import json
 import math
+import re
 import string
 import typing
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, overload
@@ -66,6 +68,8 @@ class AgentTask[Out]:
     preserve: tuple[str, ...] = ()
     #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
     output_of: AgentTask | PythonTask | None = None
+    #: The base kind of an implementation kind (`agent_task(implementations=)`); empty for any other.
+    base_kind: str = ""
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -109,8 +113,8 @@ class AgentTask[Out]:
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name` and
-        `rerun_on_resume`. None:
+        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name`,
+        `rerun_on_resume` and `base_kind`. None:
         one kind, declared twice the same way."""
         if other is self:
             return []
@@ -122,7 +126,7 @@ class AgentTask[Out]:
             parts.append("skills_from")
         return parts + [
             name
-            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume")
+            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume", "base_kind")
             if getattr(self, name) != getattr(other, name)
         ]
 
@@ -164,6 +168,7 @@ class AgentTask[Out]:
         return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=params)
 
 
+@overload
 def agent_task[Out](
     kind: str,
     *,
@@ -184,8 +189,60 @@ def agent_task[Out](
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
     output_of: AgentTask | PythonTask | None = None,
+    implementations: None = None,
     **config: Any,
-) -> AgentTask[Out]:
+) -> AgentTask[Out]: ...
+
+
+@overload
+def agent_task[Out](
+    kind: str,
+    *,
+    output: type[Out] | None = None,
+    params: type[BaseModel] | None = None,
+    plugin: str | Path | None = None,
+    skills_from: Sequence[str | Path] = (),
+    role: str | None = None,
+    instructions: str | None = None,
+    validators: Sequence[Validator] = (),
+    output_name: str | None = None,
+    output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
+    requires: Sequence[str] = (),
+    claims: Sequence[str] = (),
+    changes: Sequence[str] = (),
+    tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
+    preserve: Sequence[str] = (),
+    output_of: AgentTask | PythonTask | None = None,
+    implementations: Mapping[str, str | Path],
+    **config: Any,
+) -> Implementations[Out]: ...
+
+
+def agent_task[Out](
+    kind: str,
+    *,
+    output: type[Out] | None = None,
+    params: type[BaseModel] | None = None,
+    plugin: str | Path | None = None,
+    skills_from: Sequence[str | Path] = (),
+    role: str | None = None,
+    instructions: str | None = None,
+    validators: Sequence[Validator] = (),
+    output_name: str | None = None,
+    output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
+    requires: Sequence[str] = (),
+    claims: Sequence[str] = (),
+    changes: Sequence[str] = (),
+    tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
+    preserve: Sequence[str] = (),
+    output_of: AgentTask | PythonTask | None = None,
+    implementations: Mapping[str, str | Path] | None = None,
+    **config: Any,
+) -> AgentTask[Out] | Implementations[Out]:
     """Declare an agent task.
 
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
@@ -257,11 +314,52 @@ def agent_task[Out](
     an earlier attempt of the run finished them, for a final step that reports or publishes
     the state of the work. A task that takes the output of a task that ran again already
     runs again, through its fingerprint.
+    `implementations`: one step done in several ways, by name: `{"python": "plugins/review-python",
+    "go": "plugins/review-go"}` (plugin directories, relative as `plugin` is; it takes the place
+    of `plugin`). Each is a kind of its own, `<kind>-<name>` (`review-go`), with that plugin
+    and every other argument given here; `kind` is their **base kind**. A name is letters,
+    digits and `_`. It returns an `Implementations`, indexed by name: `review["go"](unit)`.
+    Each implementation kind takes the `[tasks.<kind>]` table of the base kind, then its own
+    `[tasks.<kind>-<name>]` table key by key (its `fallbacks` replace the base kind's); the
+    monitor draws its tasks in the base kind's group, unless `Monitor(groups=)` lists the kind.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
     `contraagent docs routing` lists every key.
     """
+    base = _caller_dir()
+    if implementations is not None:
+        plugins = _checked_implementations(kind, implementations, plugin, instructions)
+        shared_dirs = [_relative_to(base, p) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from)]
+        return Implementations(
+            kind,
+            {
+                name: dataclasses.replace(
+                    agent_task(
+                        f"{kind}-{name}",
+                        output=output,
+                        params=params,
+                        plugin=_relative_to(base, path),
+                        skills_from=shared_dirs,
+                        role=role,
+                        validators=validators,
+                        output_name=output_name,
+                        output_from=output_from,
+                        unwrap=unwrap,
+                        requires=requires,
+                        claims=claims,
+                        changes=changes,
+                        tools=tools,
+                        rerun_on_resume=rerun_on_resume,
+                        preserve=preserve,
+                        output_of=output_of,
+                        **config,
+                    ),
+                    base_kind=kind,
+                )
+                for name, path in plugins.items()
+            },
+        )
     if plugin is None and instructions is None:
         raise TypeError(f"agent_task({kind!r}): give plugin= (its implementation) or, for a task without one, instructions=")
     if output is not None and output is not str and not (isinstance(output, type) and issubclass(output, BaseModel)):
@@ -298,7 +396,6 @@ def agent_task[Out](
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
     checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
-    base = _caller_dir()
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
     for p in shared:
@@ -329,6 +426,59 @@ def agent_task[Out](
         preserve=checked_preserve,
         output_of=output_of,
     )
+
+
+#: An implementation's name: what follows its base kind in its kind (`review-go`).
+_IMPLEMENTATION_NAME = re.compile(r"[A-Za-z0-9_]+")
+
+
+def _checked_implementations(kind: str, implementations: Any, plugin: Any, instructions: Any) -> dict[str, str | Path]:
+    """`implementations` as declared: a non-empty mapping of names to plugin directories."""
+    where = f"agent_task({kind!r})"
+    if plugin is not None:
+        raise TypeError(f"{where}: implementations names each implementation's plugin; drop plugin=")
+    if instructions is not None:
+        raise TypeError(f"{where}: implementations takes plugins, and instructions= is for a task without one; drop instructions=")
+    if not isinstance(implementations, Mapping) or not implementations:
+        raise TypeError(
+            f'{where}: implementations takes a dict of names to plugin directories ({{"go": "plugins/{kind}-go"}}), not {implementations!r}'
+        )
+    for name, path in implementations.items():
+        if not isinstance(name, str) or not _IMPLEMENTATION_NAME.fullmatch(name):
+            raise TypeError(f"{where}: implementation name {name!r} is not letters, digits and _ (its kind is {kind}-<name>)")
+        if not isinstance(path, (str, Path)):
+            raise TypeError(f"{where}: implementation {name!r} takes a plugin directory, not {path!r}")
+    return dict(implementations)
+
+
+class Implementations[Out](Mapping[str, AgentTask[Out]]):
+    """One step declared with several implementations (`agent_task(implementations=)`): an
+    agent task per implementation, by name. `review["go"]` is the kind `review-go`; call it as
+    any agent task (`yield review["go"](unit)`). `kind` is their base kind."""
+
+    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[Out]]) -> None:
+        self.kind = kind
+        self._tasks = dict(tasks)
+
+    @property
+    def kinds(self) -> list[str]:
+        """The implementation kinds, in the order declared (`review-python`, `review-go`)."""
+        return [t.kind for t in self._tasks.values()]
+
+    def __getitem__(self, name: str) -> AgentTask[Out]:
+        try:
+            return self._tasks[name]
+        except KeyError:
+            raise KeyError(f"{self.kind} has no implementation {name!r}; its implementations: {', '.join(self._tasks)}") from None
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._tasks)
+
+    def __len__(self) -> int:
+        return len(self._tasks)
+
+    def __repr__(self) -> str:
+        return f"Implementations({self.kind!r}, {', '.join(self.kinds)})"
 
 
 def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None) -> None:

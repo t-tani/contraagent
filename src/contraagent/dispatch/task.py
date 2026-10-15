@@ -148,6 +148,9 @@ class Task:
     `fingerprint`: a digest of what defines its work, set by whoever builds it;
     a resumed run skips a key only when its last journal row is ok with the
     same fingerprint.
+    `base_kind`: for a kind that is one of several implementations of one step, the
+    step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
+    `plan.jsonl`; nothing here reads it.
     """
 
     kind: str
@@ -167,6 +170,7 @@ class Task:
     payload: Any = None
     origin: Origin | None = None
     fingerprint: str = ""
+    base_kind: str = ""
 
     def __post_init__(self) -> None:
         # Generic, collision-safe fallbacks -- a domain that always assigns

@@ -282,6 +282,7 @@ class Pipeline:
                         self.backends,
                         self.overrides,
                         declared={kind: spec.config for kind, spec in specs.items()},
+                        bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                         requirements={kind: spec.requires for kind, spec in specs.items()},
                         light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=not driven,
@@ -335,7 +336,8 @@ class Pipeline:
                 finally:
                     driver.finish()
             if driven:
-                check_task_tables(self.config.task_tables([]), graph.agent_specs())
+                specs = graph.agent_specs()
+                check_task_tables(self.config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()})
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
@@ -355,6 +357,7 @@ class Pipeline:
             self.backends,
             self.overrides,
             declared={spec.kind: spec.config},
+            bases={spec.kind: spec.base_kind} if spec.base_kind else {},
             requirements={spec.kind: spec.requires},
             light=[spec.kind] if spec.light else [],
             all_kinds=False,

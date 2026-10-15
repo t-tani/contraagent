@@ -56,7 +56,13 @@ def test_check_errors_name_topics_that_exist():
 def test_the_reference_config_builds_a_routing_plan():
     config = PipelineConfig.load(EXAMPLES / "reference" / "pipeline.toml")
     backends = {"claude": ClaudeBackend(base_env={}), "omp": OmpBackend(base_env={})}
-    plan = RoutingPlan.build(config, ["summarize", "analyze", "research"], backends, requirements={"analyze": ["zdr"]})
+    kinds = ["summarize", "analyze", "research", "review-python", "review-go"]
+    bases = {"review-python": "review", "review-go": "review"}
+    plan = RoutingPlan.build(config, kinds, backends, bases=bases, requirements={"analyze": ["zdr"]})
+    assert [(plan.configs[k].model, plan.configs[k].timeout_s) for k in ("review-python", "review-go")] == [
+        ("claude-sonnet-5-5", 600),
+        ("claude-opus-5-5", 900),
+    ]
     assert plan.configs["analyze"].credential == "zdr" and plan.configs["summarize"].max_turns == 20
     assert [str(r) for r in plan.routers["research"].routes] == [
         "claude/claude-sonnet-5-5@subs",
@@ -166,7 +172,7 @@ def test_the_implementations_example_launches_each_unit_s_kind_with_its_plugin(t
         ("server", "review-go", str(plugins / "review-go")),
         ("lexer", "review-python", str(plugins / "review-python")),
     }
-    groups = Monitor(tmp_path / "runs", groups=flow.GROUPS).plan(report.run_dir.name)["groups"]
+    groups = Monitor(tmp_path / "runs").plan(report.run_dir.name)["groups"]
     assert [(g["id"], g["total"], g["done"]) for g in groups] == [("review", 3, 3)]
 
 
