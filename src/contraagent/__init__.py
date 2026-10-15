@@ -78,6 +78,7 @@ from contraagent.calls import CallFile
 from contraagent.contracts import InputContract, OutputContract, check_input, run_until_valid
 from contraagent.dispatch import (
     FlowDriver,
+    Partial,
     ResultEnricher,
     Task,
     TaskDeferred,
@@ -157,6 +158,7 @@ __all__ = [
     "OpencodeBackend",
     "OutputContract",
     "Overrides",
+    "Partial",
     "Pending",
     "PerTask",
     "PiBackend",

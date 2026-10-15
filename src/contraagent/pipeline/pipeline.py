@@ -33,7 +33,7 @@ from contraagent.backends import Backend, create_backend, known_agents
 from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.queue import GRACE_S
-from contraagent.dispatch.task import Task, TaskResult
+from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult
 from contraagent.execution.recording import Recorder, Replay
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
@@ -52,7 +52,8 @@ class RunReport:
     """What a `Pipeline.run` did. The flow's `Pending` values read their outputs from it too.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
-    `deferred`) plus the attempts this call journaled (`attempt_totals`)."""
+    `deferred`) plus the attempts this call journaled (`attempt_totals`). A `partial`
+    result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them)."""
 
     run_id: str
     run_dir: Path
@@ -71,6 +72,11 @@ class RunReport:
     @property
     def failed(self) -> list[TaskResult]:
         return [r for r in self.results.values() if not r.ok]
+
+    @property
+    def partial(self) -> list[TaskResult]:
+        """The results with stop `partial`: ok, their outputs placeholders a resume makes again."""
+        return [r for r in self.results.values() if r.stop == STOP_PARTIAL]
 
 
 def attempt_totals(rows: list[dict]) -> dict:
@@ -226,7 +232,8 @@ class Pipeline:
         refused (`RunExists`) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory (a task declared
-        `rerun_on_resume` runs again).
+        `rerun_on_resume` runs again, and so does a task whose last result was `partial`,
+        with the tasks that wait for it).
 
         On the main thread, SIGTERM and SIGINT (Ctrl-C) stop the run's agents while it
         runs, then end the process as they would have; the handlers in place before are

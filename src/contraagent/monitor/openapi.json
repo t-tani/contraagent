@@ -3421,6 +3421,11 @@
             "type": "integer",
             "title": "Done"
           },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "default": 0
+          },
           "failed": {
             "type": "integer",
             "title": "Failed"
@@ -3563,6 +3568,7 @@
               "pending",
               "running",
               "done",
+              "partial",
               "failed",
               "skipped",
               "blocked"
@@ -4286,7 +4292,14 @@
           },
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "journal rows that passed, not counting `partial` ones"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "journal rows with stop `partial`",
+            "default": 0
           },
           "not_run": {
             "type": "integer",
@@ -4799,6 +4812,12 @@
           "done": {
             "type": "integer",
             "title": "Done"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "tasks whose last result was `partial`: ok, the output a placeholder; not in `done`",
+            "default": 0
           },
           "failed": {
             "type": "integer",
@@ -5733,7 +5752,14 @@
           },
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "attempts that passed, not counting `partial` ones"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "attempts with stop `partial`: ok, counted apart from `ok`",
+            "default": 0
           }
         },
         "additionalProperties": false,
@@ -5839,7 +5865,14 @@
           },
           "tasks_ok": {
             "type": "integer",
-            "title": "Tasks Ok"
+            "title": "Tasks Ok",
+            "description": "tasks whose last attempt passed, not counting `partial` ones"
+          },
+          "tasks_partial": {
+            "type": "integer",
+            "title": "Tasks Partial",
+            "description": "tasks whose last attempt was `partial`",
+            "default": 0
           },
           "attempts": {
             "type": "integer",
@@ -5847,7 +5880,14 @@
           },
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "attempts that passed, not counting `partial` ones"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "attempts with stop `partial`: ok, counted apart from `ok`",
+            "default": 0
           },
           "wall_s": {
             "type": "number",
@@ -6087,7 +6127,14 @@
           },
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "attempts that passed, not counting `partial` ones"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "attempts with stop `partial`: ok, counted apart from `ok`",
+            "default": 0
           },
           "cost_usd": {
             "anyOf": [
@@ -6205,7 +6252,14 @@
           },
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "attempts that passed, not counting `partial` ones"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "attempts with stop `partial`: ok, counted apart from `ok`",
+            "default": 0
           },
           "cost_usd": {
             "anyOf": [

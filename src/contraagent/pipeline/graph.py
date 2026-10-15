@@ -56,7 +56,7 @@ from pydantic_core import to_jsonable_python
 from contraagent.contracts import InputContract, OutputContract, check_file
 from contraagent.dispatch.flow import TaskFailed, result_or_raise
 from contraagent.dispatch.python_task import PythonTaskPayload
-from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Frame, Origin, Task, TaskResult
+from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Frame, Origin, Partial, Task, TaskResult
 from contraagent.errors import ContraagentError
 from contraagent.pipeline import origin as origins
 from contraagent.pipeline.loops import LoopCounter, counting, is_while
@@ -506,22 +506,27 @@ class Graph:
         if node.spec.executor == "agent":
             return task
 
-        def call(node: Node = node) -> None:
+        def call(node: Node = node) -> Partial | None:
+            """Run the function and write its output; a `Partial` it returned, for the runner."""
             schema = node.output_schema
+            partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = node.resolved_params()
                 json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
                 has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
                 if not has_output:
-                    return
+                    return None
             else:
                 value = node.spec.invoke(node.unit, node.resolved_params())
+                if isinstance(value, Partial):
+                    partial, value = value, value.value
             # A Python task is given an output path only when it declares an output schema.
             if node.output_path is None or schema is None:
-                return
+                return partial
             doc = value if isinstance(value, schema) else schema.model_validate(value)
             node.output_path.parent.mkdir(parents=True, exist_ok=True)
             node.output_path.write_text(doc.model_dump_json(indent=2))
+            return partial
 
         return dataclasses.replace(
             task,

@@ -34,7 +34,7 @@ class PythonTaskPayload:
 
 def make_python_task(
     name: str,
-    fn: Callable[[], None],
+    fn: Callable[[], object],
     *,
     unit: str = "",
     after: tuple[str, ...] = (),
@@ -51,7 +51,8 @@ def make_python_task(
     `output_contracts` are `InputContract`s / `OutputContract`s checked around the function by
     `PythonTaskRunner` (`Run.python_runner()`), exactly as for an agent task.
     `retries` and `retry_on`, as for `@python_task`: the fresh attempts after an
-    exception of a class in `retry_on`; checked here.
+    exception of a class in `retry_on`; checked here. A function that returns a `Partial`
+    finishes ok with stop `partial` (its `reason` the result's), and a resume runs it again.
     """
     tries, on = checked_retries(f"make_python_task({name!r})", retries, retry_on)
     return Task(

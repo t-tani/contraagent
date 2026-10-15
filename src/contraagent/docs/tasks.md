@@ -45,6 +45,27 @@ attempt then finds the service running again.
 not part of its definition's digest: changing them does not run a finished task
 again on a resume (as with `claims` and `rerun_on_resume`).
 
+### Partial results
+
+A Python task whose service stays unavailable may still give the run something to
+go on with: it returns `Partial(value, reason=...)`. `value` is its output as
+usual, checked against its output schema and written to its output file;
+`reason` says why it is partial, in one line. The task finishes ok with stop
+`partial`, so the flow receives `value` as from any other result and later tasks
+run on it. The flow cannot tell the two apart: the result and the journal row
+carry the stop and the reason, and `RunReport.partial` lists such results.
+
+A resume runs a task whose last result was `partial` again, and with it every
+task that waits for it, directly or through others: their outputs were made from
+the placeholder. Every other task a resume skips as usual. Annotate the function
+`-> Out | Partial[Out]`; its output is `Out`.
+
+::code{file="examples/partial/flow.py" from="@python_task" to="summarize = agent_task("}
+
+A partial result is not a retry: for a failure a fresh attempt cures, use
+`retries`; when the attempts run out, the exception fails the task. To end with a
+placeholder instead, catch the exception and return `Partial`.
+
 ## The flow
 
 A flow is a plain function, with no decorator. `Pipeline` tells a generator flow
@@ -373,7 +394,8 @@ plays does not run, so it logs nothing; flow code runs as in any run.
 
 ## How a task ends
 
-A result's `stop` says why: `completed`, `invalid_output` (still off-contract
+A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
+output, ok; a resume runs it again), `invalid_output` (still off-contract
 after every fix-up round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.Stop`, each with its meaning in `contraagent/backends/launch.py`.

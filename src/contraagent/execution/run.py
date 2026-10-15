@@ -48,7 +48,7 @@ from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.task import Frame, Task, TaskResult, TimeBox, kind_name
+from contraagent.dispatch.task import STOP_PARTIAL, Frame, Task, TaskResult, TimeBox, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
@@ -69,12 +69,30 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 
 def finished_before(row: dict | None, task: Task) -> bool:
-    """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
-    task's fingerprint. What a resume skips; never a task that reruns on resume
-    (`Task.rerun_on_resume`)."""
-    if task.rerun_on_resume:
+    """Whether `row`, its key's last journal row, shows `task` finished: ok and not
+    `partial`, with the task's fingerprint. What a resume skips; never a task that reruns
+    on resume (`Task.rerun_on_resume`)."""
+    if task.rerun_on_resume or row is None or row.get("stop") == STOP_PARTIAL:
         return False
-    return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+    return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+
+
+def resume_skip(last: Mapping[str, dict]) -> Callable[[Task], bool]:
+    """What a resume skips, given each key's last journal row: a task `finished_before`,
+    unless it waits for a task that runs again because its last result was `partial`, or
+    for one that runs again for that reason in turn. Its output was made from a
+    placeholder, which a fingerprint does not show when the flow passed the output on
+    without receiving it. Asked once per task, as it is queued."""
+    again: set[str] = set()
+
+    def skip(task: Task) -> bool:
+        row = last.get(task.key)
+        stale = not again.isdisjoint(task.after)
+        if stale or (row is not None and row.get("stop") == STOP_PARTIAL):
+            again.add(task.key)
+        return not stale and finished_before(row, task)
+
+    return skip
 
 
 def _name_of(fn: Callable) -> str:
@@ -343,7 +361,7 @@ class Run:
 
         Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
         run.record_attempt)`, so nothing is written twice. `resume=True` skips every
-        task an earlier attempt finished (`finished_before`). `kwargs` pass through
+        task an earlier attempt finished (`resume_skip`). `kwargs` pass through
         (`max_concurrent`, `claim_capacity`, `finishing_kinds`, `deadline_s`...);
         `retry_on`/`throttle_on` default to the stop sets above; a `PerTask` entry of
         `claim_capacity` is sized by this host (`routing.capacity`).
@@ -354,8 +372,7 @@ class Run:
         kwargs.setdefault("throttle_on", THROTTLE_ON)
         kwargs.setdefault("estimate", self.estimator().estimate)
         if resume:
-            last = self.journal.last_rows()
-            kwargs.setdefault("skip", lambda task: finished_before(last.get(task.key), task))
+            kwargs.setdefault("skip", resume_skip(self.journal.last_rows()))
         q = WorkQueue(runner, follow_up=follow_up, on_event=self._on_event, on_result=self._journal_python_task, **kwargs)
         self.update_info(max_workers=q.max_concurrent)
         return q
