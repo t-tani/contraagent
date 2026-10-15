@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.monitor import Monitor, Panel, api
+from contraagent.monitor import Monitor, Panel, api, trends
 from contraagent.monitor.source import DirectorySource, StaticLiveness
 from contraagent.monitor.trends import Period, PeriodError
 
@@ -185,6 +185,52 @@ def test_failures_refusals_utilization_rests_deferrals_and_starts(runs):
     assert v["starts"]["weekdays"][3] == "Thu" and v["starts"]["counts"][3][18] == 1 and v["starts"]["counts"][4][20] == 1
 
 
+def test_utilization_is_per_account_and_window_and_a_rest_keeps_its_reading(tmp_path):
+    """A token replaced on one credential is two accounts, two lines; a model's own window
+    (`seven_day_opus`) is counted beside the account's; a rest keeps the account and the
+    reading a rule judged."""
+    reading = {"observed_at": "2026-10-02T03:00:00+00:00", "windows": {"seven_day": {"pct": 70, "resets_at": "2026-10-07T00:00:00+00:00"}}}
+    write_run(
+        tmp_path,
+        "r1",
+        [
+            row(
+                "2026-10-02T03:10:00+00:00",
+                "a-1",
+                "a",
+                quota=[
+                    {"observed_at": "2026-10-02T03:00:00+00:00", "credential": "sub", "account": "old", "seven_day_pct": 70},
+                    {
+                        "observed_at": "2026-10-02T05:00:00+00:00",
+                        "credential": "sub",
+                        "account": "new",
+                        "seven_day_pct": 5,
+                        "windows": {"seven_day": {"pct": 5}, "seven_day_opus": {"pct": 12}},
+                    },
+                ],
+            )
+        ],
+        rests=[
+            {
+                "ts": "2026-10-02T03:20:00+00:00",
+                "event": "start",
+                "credential": "sub",
+                "rule": "weekly",
+                "account": "old",
+                "reading": reading,
+            }
+        ],
+    )
+    v = Monitor(tmp_path).trends(utc())
+    lines = {(q["credential"], q["account"], q["window"]): q["daily_peak"][1] for q in v["quota"]}
+    assert lines == {("sub", "old", "seven_day"): 70, ("sub", "new", "seven_day"): 5, ("sub", "new", "seven_day_opus"): 12}
+    [rest] = v["rests"]
+    assert rest["account"] == "old" and rest["reading"] == reading
+    names = sorted(s["name"] for s in trends.bodies(v)["quota"]["blocks"][0]["series"])
+    assert names == ["sub (new) seven_day_opus", "sub (new) weekly", "sub (old) weekly"]  # two accounts of one credential: named
+    assert api.Trends.model_validate(v)
+
+
 def test_stub_runs_count_only_when_asked_and_a_run_group_keeps_its_own(runs):
     m = Monitor(runs)
     assert {r["run"] for r in m.trends(utc())["runs"]} == {"r1", "r2"}
@@ -324,8 +370,10 @@ def many_runs(root: Path, seed: int = 7) -> None:
                     {
                         "observed_at": ts,
                         "credential": rnd.choice(["sub", "team"]),
+                        "account": rnd.choice(["", "acct-a", "acct-b"]),  # a token replaced mid-period
                         "five_hour_pct": rnd.randrange(100),
                         "seven_day_pct": rnd.randrange(100),
+                        "windows": {"seven_day_opus": {"pct": rnd.randrange(100)}} if rnd.random() < 0.5 else {},
                     }
                 ]
                 if rnd.random() < 0.4

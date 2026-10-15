@@ -40,7 +40,7 @@ def test_a_typed_body_validates_by_its_type_and_any_other_object_is_untyped():
 
 def test_a_panel_may_return_a_model_and_is_sent_as_its_json():
     body = panel_body(api.TilesBody(tiles=[api.PanelTile(id="n", label="Runs", value=3)]))
-    assert body == {"type": "tiles", "collapsed": False, "tiles": [{"id": "n", "label": "Runs", "value": 3.0, "sub": []}]}
+    assert body == {"type": "tiles", "collapsed": False, "tiles": [{"id": "n", "label": "Runs", "value": 3, "sub": []}]}  # an int stays one
     assert panel_body({"any": 1}) == {"any": 1}
 
 
@@ -50,7 +50,7 @@ def test_run_and_trends_panels(tmp_path):
     write_run(tmp_path, "r1", ROWS[:2])
     write_run(tmp_path, "r2", ROWS[2:])
     mon = Monitor(tmp_path, panels=panels(tmp_path))
-    assert [(p["name"], p["scope"]) for p in mon.panel_info()] == [("cost", "trends"), ("spend", "run")]
+    assert [(p["name"], p["scope"]) for p in mon.panel_info()] == [("spend", "run"), ("cost", "trends")]  # the dict's order
     assert mon.run_panels() == ["spend"]  # a trends panel is no run's tab, and no run's feed sends it
     spend = BODY.validate_python(mon.panel("spend", "r1"))
     assert isinstance(spend, api.BlocksBody)
@@ -63,8 +63,8 @@ def test_run_and_trends_panels(tmp_path):
     cost = BODY.validate_python(mon.trends_panel("cost", period))
     assert isinstance(cost, api.ColumnsBody) and cost.stacked
     # Days in Tokyo: 23:30 UTC on the 13th is the 14th there, so every attempt is on 10-14.
-    assert cost.x == ["10-14"]
-    assert {s.name: s.values for s in cost.series} == {"triage": [0.1], "write": [0.75]}
+    assert cost.x == ["10-13", "10-14", "10-15"]
+    assert {s.name: s.values for s in cost.series} == {"triage": [None, 0.1, None], "write": [None, 0.75, None]}
     with pytest.raises(KeyError):
         mon.trends_panel("spend", period)
 

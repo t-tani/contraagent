@@ -3,19 +3,19 @@
     contraagent monitor --runs-dir runs --panels path/to/views.py:PANELS
 
 Each panel returns a typed body (`contraagent.monitor.api`): tiles, a table and
-charts, which the monitor draws with its own elements. It reads the run's journal
-itself; any other dict would be shown as a JSON tree.
+charts, which the monitor draws with its own elements; any other dict would be shown
+as a JSON tree. A run panel reads its run's journal itself; a trends panel reads the
+runs of its period through the `PeriodRuns` it is given, wherever the monitor reads
+them (a runs directory or a hub).
 """
 
 from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-from contraagent.monitor import Panel, Period
+from contraagent.monitor import Panel, Period, PeriodRuns
 from contraagent.monitor.api import (
     BlocksBody,
     ChartSeries,
@@ -84,32 +84,30 @@ def spend(runs_dir: Path):
     return view
 
 
-def cost_by_day(runs_dir: Path):
-    """The cost of the period's runs by day and kind, stacked: a trends panel."""
-
-    def view(runs: list[str], period: Period) -> ColumnsBody:
-        tz = ZoneInfo(period.tz)
-        by: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
-        for run in runs:
-            for r in journal(runs_dir, run):
-                day = datetime.fromisoformat(r["ts"].replace("Z", "+00:00")).astimezone(tz).strftime("%m-%d")
-                by[r["kind"]][day] += r.get("cost_usd") or 0
-        days = sorted({d for kind in by.values() for d in kind})
-        return ColumnsBody(
-            title="Cost by day",
-            unit="usd",
-            stacked=True,
-            x=days,
-            series=[ChartSeries(name=kind, values=[by[kind].get(d) for d in days]) for kind in sorted(by)],
-        )
-
-    return view
+def cost_by_day(runs: PeriodRuns, period: Period) -> ColumnsBody:
+    """The cost of the period's runs by day and kind, stacked: a trends panel. A run may
+    begin before the period or end after it: only its attempts that ended inside it count."""
+    by: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for run in runs:
+        for r in runs.journal(run):
+            day = period.day_of(r.get("ts"))  # None outside the period
+            if day is not None:
+                by[r["kind"]][day.strftime("%m-%d")] += r.get("cost_usd") or 0
+    days = [d.strftime("%m-%d") for d in period.days]
+    return ColumnsBody(
+        title="Cost by day",
+        unit="usd",
+        stacked=True,
+        x=days,
+        series=[ChartSeries(name=kind, values=[by[kind].get(d) for d in days]) for kind in sorted(by)],
+    )
 
 
 def panels(runs_dir: Path) -> dict[str, Panel]:
+    """The panels, in the order the monitor shows them."""
     return {
         "spend": Panel(spend(runs_dir), title="Spend", description="Attempts, cost and time by kind", icon="$"),
-        "cost": Panel(cost_by_day(runs_dir), title="Cost by day", icon="▥", scope="trends"),
+        "cost": Panel(cost_by_day, title="Cost by day", icon="▥", scope="trends"),
     }
 
 

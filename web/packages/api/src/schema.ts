@@ -90,7 +90,8 @@ export type paths = {
         };
         /**
          * Api Trend Panel
-         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period.
+         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period, made on a
+         *     panel thread, and kept for the same period over the same runs (`Monitor.trends_panel`).
          */
         get: operations["api_trend_panel_api_trends_panels__name__get"];
         put?: never;
@@ -270,7 +271,8 @@ export type paths = {
         };
         /**
          * Api Panel
-         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object.
+         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object;
+         *     made on a panel thread.
          */
         get: operations["api_panel_api_runs__run__panels__name__get"];
         put?: never;
@@ -1446,7 +1448,10 @@ export type components = {
             id: string;
             /** Label */
             label: string;
-            /** Value */
+            /**
+             * Value
+             * @description a number as given (an integer stays one), or text already formatted
+             */
             value: number | string;
             /** Tone */
             tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
@@ -2542,15 +2547,22 @@ export type components = {
         /**
          * TrendQuota
          * @description One account's utilization of one window over the period: each day's and each hour's highest reading.
+         *     A credential whose token was replaced has one entry per account.
          */
         TrendQuota: {
             /** Credential */
             credential: string;
             /**
-             * Window
-             * @enum {string}
+             * Account
+             * @description the account the readings are of (`QuotaReading.account`); empty when not known
+             * @default
              */
-            window: "five_hour" | "seven_day";
+            account?: string;
+            /**
+             * Window
+             * @description `five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)
+             */
+            window: string;
             /**
              * Daily Peak
              * @description per day of `period.days`; null when no reading arrived that day
@@ -2575,6 +2587,19 @@ export type components = {
             event?: string | null;
             /** Credential */
             credential?: string | null;
+            /**
+             * Account
+             * @description the account whose reading it is (`QuotaRest.account`); empty when not known
+             * @default
+             */
+            account?: string;
+            /**
+             * Reading
+             * @description for the quota rule's rest, the reading it judged (`QuotaRest.reading`)
+             */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
         } & {
             [key: string]: unknown;
         };
@@ -2883,7 +2908,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };

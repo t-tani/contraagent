@@ -196,11 +196,16 @@ def digest(source, run: str) -> dict:
         )
         for q in e.get("quota") or ():
             if isinstance(q, dict) and q.get("observed_at"):
+                pcts = {w: _num(q.get(f"{w}_pct")) for w in _WINDOWS}
+                for w, v in (q.get("windows") or {}).items():
+                    if w not in pcts or pcts[w] is None:
+                        pcts[w] = _num(v.get("pct")) if isinstance(v, dict) else None
                 quota.append(
                     {
                         "observed_at": q["observed_at"],
                         "credential": q.get("credential", ""),
-                        **{f"{w}_pct": _num(q.get(f"{w}_pct")) for w in _WINDOWS},
+                        "account": q.get("account") or "",
+                        "pcts": {w: p for w, p in pcts.items() if p is not None},
                     }
                 )
     denied = []
@@ -210,7 +215,7 @@ def digest(source, run: str) -> dict:
                 key = str(launch.get("label", ""))
                 denied.append({"ts": launch.get("ts", ""), "key": key, "kind": kinds.get(key, ""), "tool": str(d["tool"])})
     rests = [
-        {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until")}
+        {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading") if k in r}
         for r in _parse(source.lines(run, rundir.RESTS)[0])
     ]
     deferred = []
@@ -339,14 +344,11 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             day = period.day_of(q["observed_at"])
             if day is None:
                 continue
-            for w in _WINDOWS:
-                pct = q.get(f"{w}_pct")
-                if pct is None:
-                    continue
+            for w, pct in q["pcts"].items():
                 hour = int((when(q["observed_at"]) - period.opens).total_seconds() // 3600)  # type: ignore[operator]
-                hourly = readings.setdefault((q["credential"], w), {})
+                hourly = readings.setdefault((q["credential"], q["account"], w), {})
                 hourly[hour] = max(hourly.get(hour, 0.0), pct)
-                key = (q["credential"], w, day.isoformat())
+                key = (q["credential"], q["account"], w, day.isoformat())
                 peaks[key] = max(peaks.get(key, 0.0), pct)
         for x in dg["denied"]:
             if period.day_of(x["ts"]) is None:
@@ -392,11 +394,12 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     quota = [
         {
             "credential": credential,
+            "account": account,
             "window": window,
-            "daily_peak": [peaks.get((credential, window, d)) for d in days],
+            "daily_peak": [peaks.get((credential, account, window, d)) for d in days],
             "hourly_peak": [hourly.get(h) for h in range(hours)],
         }
-        for (credential, window), hourly in sorted(readings.items())
+        for (credential, account, window), hourly in sorted(readings.items())
     ]
     return {
         "period": period.as_dict(),
