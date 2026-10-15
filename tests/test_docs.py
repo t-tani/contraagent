@@ -64,6 +64,7 @@ def test_the_reference_config_builds_a_routing_plan():
     ]
     assert plan.credentials["subs"].members == ("token-a", "token-b")
     assert str(plan.routers["summarize"].routes[-1]) == "omp/opencode-go/glm-5.3"  # [[defaults.fallbacks]]
+    assert config.table("report")["title"] == "Weekly summary"  # [pipeline.report]
 
 
 def test_the_demo_plugin_is_clean():

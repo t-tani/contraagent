@@ -64,6 +64,7 @@ documentation. No other word is used for the same thing.
 | Word | Means | In code |
 |---|---|---|
 | **task table** | one kind's `[tasks.<kind>]` table in the config | `PipelineConfig.task_tables()`, `TASK_TABLE_KEYS` |
+| **pipeline table** | a pipeline's own table in the config, read by its code; contraagent never checks its keys | `[pipeline.<name>]`; `contraagent.pipeline_table(name)` in a run (`NoCurrentRun` outside one), `PipelineConfig.table(name)` |
 | **`[defaults]`** | run-wide routing, including `[[defaults.fallbacks]]` | `PipelineConfig.defaults()`, `.fallbacks()` |
 | **routing plan** | how each kind is routed (not `plan.jsonl`) | `RoutingPlan` |
 | **`KindConfig`** | one kind's resolved routing and budgets | `RoutingPlan.configs` |

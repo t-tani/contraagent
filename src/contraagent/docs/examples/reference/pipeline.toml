@@ -119,3 +119,9 @@ cooldown_s = 900                    # rest after a 429 when the provider states 
 # Also: type = "workload_identity" (federation_rule_id, organization_id,
 # identity_token_file), "bedrock" (region, aws_profile or bearer) and
 # "vertex" (project, region, credentials_file). Claude Code only.
+
+# --- the pipeline's own tables ------------------------------------------------
+
+[pipeline.report]                   # a pipeline table: contraagent.pipeline_table("report") in a run
+title = "Weekly summary"            # any keys: contraagent never checks them
+sections = ["changes", "risks"]
