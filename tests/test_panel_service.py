@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import rundir
 from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, RunRecords
+from contraagent.runs import layout
 
 PERIOD = Period.parse("2026-10-13", "2026-10-15", "UTC")
 
@@ -34,7 +34,7 @@ def test_a_trends_panel_reads_its_runs_through_period_runs(tmp_path):
     def view(runs: PeriodRuns, period: Period) -> dict:
         seen["runs"] = list(runs)
         seen["journal"] = runs.journal("r1")
-        seen["deferred"] = runs.records("r1", rundir.DEFERRED)
+        seen["deferred"] = runs.records("r1", layout.DEFERRED)
         seen["info"] = runs.info("r1")
         seen["dir"] = runs.dir("r1")
         return {"type": "tiles", "tiles": [{"id": "n", "label": "Runs", "value": len(runs)}]}

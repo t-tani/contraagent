@@ -35,14 +35,15 @@ Samples:
 
 from __future__ import annotations
 
-import json
 import statistics
 import threading
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
-from contraagent import rundir
 from contraagent.dispatch.task import Task, kind_name
+from contraagent.runs import layout
+from contraagent.runs.files import parse_rows
+from contraagent.runs.source import DirectorySource
 
 #: What a tail is estimated for: (the flow path's function names, the kind, the passes of
 #: the loops around it, outermost first, each capped at `LOOP_CAP`; None when not counted).
@@ -85,16 +86,16 @@ class JournalEstimates:
         self.loop_cap = loop_cap
         samples: dict[str, list[float]] = {}
         tails: dict[TailKey, list[float]] = {}
-        journals = recent_journals(runs_dir, recent)
-        for run_dir in (p.parent for p in journals):
-            journal = list(_rows(run_dir / rundir.JOURNAL))
+        source = DirectorySource(runs_dir)
+        for run in recent_runs(source, recent):
+            journal = parse_rows(source.lines(run, layout.JOURNAL)[0])
             for e in journal:
                 wall = float(e.get("wall_s") or 0)
                 key = e.get("kind") or ""
                 if key and wall > 0 and e.get("stop") == "completed":
                     samples.setdefault(key, []).append(wall)
-            plan = list(_rows(run_dir / rundir.PLAN))
-            calls = list(_rows(run_dir / rundir.FLOW_CALLS))
+            plan = parse_rows(source.lines(run, layout.PLAN)[0])
+            calls = parse_rows(source.lines(run, layout.FLOW_CALLS)[0])
             for key, tail in run_tails(plan, journal, calls, loop_cap=loop_cap):
                 tails.setdefault(key, []).append(tail)
         self._median = {k: statistics.median(v) for k, v in samples.items()}
@@ -253,32 +254,9 @@ def run_tails(
     return out
 
 
-def recent_journals(runs_dir: str | Path, recent: int = RECENT_RUNS) -> list[Path]:
-    """The `journal.jsonl` of the `recent` runs of `runs_dir` written to last, oldest first."""
-    return sorted(Path(runs_dir).glob(f"*/{rundir.JOURNAL}"), key=_mtime)[-recent:] if recent > 0 else []
-
-
-def journal_rows(path: Path) -> Iterator[dict]:
-    """The rows of a journal (any JSON lines file), skipping a line that does not parse."""
-    return _rows(path)
-
-
-def _mtime(path: Path) -> float:
-    try:
-        return path.stat().st_mtime
-    except OSError:
-        return 0.0
-
-
-def _rows(path: Path) -> Iterator[dict]:
-    try:
-        lines = path.read_text().splitlines()
-    except OSError:
-        return
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(row, dict):
-            yield row
+def recent_runs(source: DirectorySource, recent: int = RECENT_RUNS) -> list[str]:
+    """The `recent` runs of `source` whose journal was written to last, oldest first."""
+    if recent <= 0:
+        return []
+    written = [(st.mtime_ns, run) for run in source.runs() if (st := source.stat(run, layout.JOURNAL)) is not None]
+    return [run for _, run in sorted(written)[-recent:]]

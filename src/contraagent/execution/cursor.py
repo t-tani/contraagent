@@ -27,17 +27,15 @@ import fcntl
 import os
 import sys
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from contraagent import procfs
 from contraagent.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
+from contraagent.runs.files import write_document
+from contraagent.runs.times import now, now_iso
 
 CURSOR_SCHEMA_VERSION = "1.0"
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def _names(vocab: Iterable | None) -> frozenset[str] | None:
@@ -78,11 +76,9 @@ class CursorStore:
     # --- storage -----------------------------------------------------------
 
     def _save(self, cursor: Cursor) -> None:
-        """tmp + os.replace: a concurrent reader never sees a half-written file."""
+        """Written whole (`write_document`): a concurrent reader never sees a half-written file."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
-        tmp.write_text(cursor.model_dump_json(indent=2) + "\n")
-        os.replace(tmp, self.path)
+        write_document(self.path, cursor.model_dump_json(indent=2) + "\n")
 
     @contextlib.contextmanager
     def _locked(self):
@@ -110,7 +106,7 @@ class CursorStore:
         """The cursor, or a fresh one when none exists yet. A malformed file raises."""
         if self.path.is_file() and self.path.read_text().strip():
             return Cursor.model_validate_json(self.path.read_text())
-        return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=utcnow())
+        return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=now())
 
     # --- mutations ---------------------------------------------------------
 
@@ -123,7 +119,7 @@ class CursorStore:
             if name in cur.completed_stages:
                 sys.stderr.write(f"cursor: refusing to advance to already-completed stage {name!r}; left at {cur.stage!r}\n")
                 return cur
-            when = at or utcnow()
+            when = at or now()
             prev = cur.stage
             if prev is not None and prev != name and prev not in cur.completed_stages:
                 cur.completed_stages = [*cur.completed_stages, prev]
@@ -147,7 +143,7 @@ class CursorStore:
             if step in up.completed:
                 sys.stderr.write(f"cursor: refusing to advance unit {unit!r} to already-completed step {step!r}; left at {up.step!r}\n")
                 return cur
-            when = at or utcnow()
+            when = at or now()
             prev = up.step
             if prev is not None and prev != step and prev not in up.completed:
                 up.completed = [*up.completed, prev]
@@ -179,7 +175,7 @@ class CursorStore:
                     f"{prior.item_ids} in flight (since {prior.since}); "
                     f"refusing to also dispatch {item_ids} alongside it"
                 )
-            when = at or utcnow()
+            when = at or now()
             pid = os.getpid()
             up.inflight = Inflight(item_ids=list(item_ids), since=when, pid=pid, start_ticks=procfs.pid_start_ticks(pid))
             cur.units = {**cur.units, unit: up}
@@ -193,7 +189,7 @@ class CursorStore:
             up = cur.units.get(unit) or UnitCursor()
             up.inflight = None
             cur.units = {**cur.units, unit: up}
-            cur.updated_at = utcnow()
+            cur.updated_at = now()
             self._save(cur)
             return cur
 
@@ -204,9 +200,9 @@ class CursorStore:
             cur = self.load()
             if isinstance(entry, dict):
                 entry = dict(entry)
-                entry.setdefault("recorded_at", utcnow().isoformat(timespec="microseconds"))
+                entry.setdefault("recorded_at", now_iso("microseconds"))
             cur.markers = {**cur.markers, marker_key: [*cur.markers.get(marker_key, []), entry]}
-            cur.updated_at = utcnow()
+            cur.updated_at = now()
             self._save(cur)
             return cur
 

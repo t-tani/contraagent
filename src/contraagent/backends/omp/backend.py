@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends import opencode_key, plugin_files
@@ -39,6 +38,7 @@ from contraagent.backends.omp import catalogue
 from contraagent.backends.omp import wire as omp_wire
 from contraagent.backends.omp.config import OmpModelChains, load_model_chains
 from contraagent.backends.process import via_stdin
+from contraagent.runs.times import iso_of
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
 # for Claude Code stays canonical; this preamble carries the substitution
@@ -101,7 +101,7 @@ _OMP_WINDOWS = {"5h": "five_hour", "7d": "seven_day"}
 
 
 def _iso(ms: float) -> str:
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat(timespec="seconds")
+    return iso_of(ms / 1000)
 
 
 #: What a task agent may see beyond its plugin and call file: nothing (`isolation/config.yml`).

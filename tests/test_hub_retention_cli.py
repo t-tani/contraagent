@@ -19,7 +19,6 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from contraagent import rundir
 from contraagent.cli import main as cli_main
 from contraagent.commandline import UsageError
 from contraagent.hub import server
@@ -27,6 +26,7 @@ from contraagent.hub.core import Hub, PruneReport
 from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent.hub.retention import Pruner, default_prune_every, report_line
 from contraagent.hub.store import DirectoryBlobs, MemoryBlobs, MemoryHubStore
+from contraagent.runs import layout
 
 NOW = datetime.now(UTC)
 OLD = NOW - timedelta(days=40)
@@ -39,8 +39,8 @@ def iso(at: datetime) -> str:
 
 def ship(store: MemoryHubStore, run_id: str, at: datetime, host: str = "h1") -> str:
     ref = RunRef(host_id=host, run_id=run_id, run_uid=f"uid-{run_id}")
-    journal = LogChunk(log=rundir.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
-    docs = [DocumentPut(name=rundir.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
+    journal = LogChunk(log=layout.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
+    docs = [DocumentPut(name=layout.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
     store.put_batch(RecordBatch(run=ref, logs=[journal], documents=docs), iso(at))
     return ref.name
 
@@ -270,9 +270,9 @@ def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes
     streams = server.open_streams(str(hot), None, "memory", background=False)
     for name in (names["old"], names["recent"]):
         uid = store.entry(name).run_uid  # type: ignore[union-attr]
-        streams.append(name, uid, rundir.stream("summarize-a"), 0, ["a", "b"], iso(OLD))
-        streams.close(name, uid, rundir.stream("summarize-a"))
-        streams.append(name, uid, rundir.stream("summarize-b"), 0, ["open"], iso(OLD))
+        streams.append(name, uid, layout.stream("summarize-a"), 0, ["a", "b"], iso(OLD))
+        streams.close(name, uid, layout.stream("summarize-a"))
+        streams.append(name, uid, layout.stream("summarize-b"), 0, ["open"], iso(OLD))
     streams.shutdown()  # type: ignore[attr-defined]
 
     def files() -> list[str]:

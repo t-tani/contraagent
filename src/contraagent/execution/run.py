@@ -42,7 +42,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from contraagent import procfs, rundir
+from contraagent import procfs
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
 from contraagent.dispatch.flow import FlowState
@@ -54,8 +54,8 @@ from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, k
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
-from contraagent.execution.estimates import JournalEstimates, journal_rows, recent_journals
-from contraagent.execution.journal import Journal, utcnow_iso
+from contraagent.execution.estimates import JournalEstimates, recent_runs
+from contraagent.execution.journal import Journal
 from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
@@ -63,6 +63,10 @@ from contraagent.execution.schemas import DeferredRow, FlowCallRow, PlanRow
 from contraagent.routing.capacity import sized
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.quota import QuotaRests, QuotaRule, caps_of
+from contraagent.runs import layout
+from contraagent.runs.files import append_lines, parse_rows, write_document
+from contraagent.runs.source import DirectorySource, parse_info
+from contraagent.runs.times import now_iso
 
 _logger = logging.getLogger(__name__)
 
@@ -147,13 +151,13 @@ class Run:
         self.dir = self.runs_dir / run_id
         self.config = config
         self.dir.mkdir(parents=True, exist_ok=True)
-        (self.dir / rundir.STREAMS).mkdir(exist_ok=True)
+        (self.dir / layout.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
         # no unit; the journal row then carries an empty unit.
         self._unit_of = unit_of or (lambda t: t.declared_unit)
         self.journal = Journal(
-            self.dir / rundir.JOURNAL,
-            self.dir / rundir.LAUNCHES,
+            self.dir / layout.JOURNAL,
+            self.dir / layout.LAUNCHES,
             run_id=run_id,
             run_group=self.run_group,
             unit_of=self._unit_of,
@@ -162,7 +166,6 @@ class Run:
         self._log_to = log
         self._lock_fd: int | None = None
         self._estimates: JournalEstimates | None = None
-        self._plan_lock = threading.Lock()
         self._torn_down = False
         self._teardown_lock = threading.Lock()
         self._teardown_callbacks: list[Callable[[], None]] = []
@@ -170,29 +173,26 @@ class Run:
         self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
-        rundir.write_document(
-            self.dir / rundir.RUN_INFO,
+        write_document(
+            self.dir / layout.RUN_INFO,
             json.dumps(
                 {
                     "run_id": run_id,
                     "run_uid": self._previous_uid() or uuid.uuid4().hex,
-                    "host_id": rundir.host_id(),
+                    "host_id": layout.host_id(),
                     "run_group": self.run_group,
                     "pid": os.getpid(),
                     "start_ticks": procfs.pid_start_ticks(os.getpid()),
                     "argv": list(sys.argv),
                     "cwd": str(Path(cwd or os.getcwd()).resolve()),
-                    "started_at": utcnow_iso(),
+                    "started_at": now_iso(),
                 }
             ),
         )
 
     def _previous_uid(self) -> str | None:
         """The `run_uid` of an earlier attempt of this run id: a resumed run keeps it."""
-        try:
-            uid = json.loads((self.dir / rundir.RUN_INFO).read_text()).get("run_uid")
-        except (OSError, ValueError, AttributeError):
-            return None
+        uid = (self._info() or {}).get("run_uid")
         return uid if isinstance(uid, str) and uid else None
 
     # --- lock and lifecycle ------------------------------------------------
@@ -239,22 +239,25 @@ class Run:
     def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
         """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor
         looks for it. `stages` / `steps` are the legal vocabulary (see `CursorStore`)."""
-        return CursorStore(self.dir / rundir.CURSOR, self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
+        return CursorStore(self.dir / layout.CURSOR, self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
 
     def finish(self) -> None:
         """Mark the run finished in run.json. The monitor then shows it as no
         longer live even while this process stays up (to serve a monitor, say)."""
-        self.update_info(finished_at=utcnow_iso())
+        self.update_info(finished_at=now_iso())
 
     def update_info(self, **fields) -> None:
         """Merge `fields` into run.json (what the monitor shows about this run)."""
-        path = self.dir / rundir.RUN_INFO
-        try:
-            info = json.loads(path.read_text())
-        except (OSError, ValueError):
-            info = {}
+        info = self._info() or {}
         info.update(fields)
-        rundir.write_document(path, json.dumps(info))
+        write_document(self.dir / layout.RUN_INFO, json.dumps(info))
+
+    def _info(self) -> dict | None:
+        """`run.json` as this run directory holds it; None before the first write."""
+        try:
+            return parse_info((self.dir / layout.RUN_INFO).read_text())
+        except OSError:
+            return None
 
     def on_teardown(self, callback: Callable[[], None]) -> None:
         """Register a stop callback (a server, a VM lease) for `teardown`."""
@@ -373,8 +376,9 @@ class Run:
         caps = {c.credential: c.model_dump(exclude={"credential"}, exclude_none=True) for c in caps_of(credentials)}
         self.update_info(quota_caps=caps, quota_rule=_name_of(rule) if rule is not None else "")
         fields = {f.name for f in dataclasses.fields(RateLimit)}
-        for path in recent_journals(self.runs_dir):
-            for row in journal_rows(path):
+        source = DirectorySource(self.runs_dir)
+        for run in recent_runs(source):
+            for row in parse_rows(source.lines(run, layout.JOURNAL)[0]):
                 for reading in row.get("quota") or ():
                     if isinstance(reading, dict):
                         rests.observe(RateLimit(**{k: v for k, v in reading.items() if k in fields}))
@@ -488,7 +492,7 @@ class Run:
         `flow_call` null. `base_kind` is there only for an implementation kind."""
         origin = task.origin
         row = PlanRow(
-            ts=utcnow_iso(),
+            ts=now_iso(),
             key=task.key,
             kind=kind_name(task.kind),
             unit=self._unit_of(task),
@@ -501,7 +505,7 @@ class Run:
             flow_call=origin.flow_call if origin is not None else None,
             base_kind=task.base_kind,
         ).to_dict()
-        self._append(rundir.PLAN, row)
+        self._append(layout.PLAN, row)
         if self._estimates is not None:
             self._estimates.observe_plan(row)
 
@@ -510,15 +514,15 @@ class Run:
         monitor names why it did not run. A task deferred after it started (its runner found
         no way to launch it) loses its running marker too."""
         self._mark_inflight(task, running=False)
-        row = DeferredRow(ts=utcnow_iso(), key=task.key, kind=kind_name(task.kind), unit=self._unit_of(task), reason=reason, cause=cause)
-        self._append(rundir.DEFERRED, row.to_dict())
+        row = DeferredRow(ts=now_iso(), key=task.key, kind=kind_name(task.kind), unit=self._unit_of(task), reason=reason, cause=cause)
+        self._append(layout.DEFERRED, row.to_dict())
         self._log(logging.INFO, f"[deferred] {task.key}: {reason}")
 
     def _record_rest(self, event: str, rest: Rest) -> None:
         """One line of `rests.jsonl` (a `RestEvent`): `event` `start` when the credential
         began resting, `end` when it was found not resting again (with the rest that ended)."""
-        row = RestEvent.model_validate({"ts": utcnow_iso(), "event": event, **rest.to_dict()})
-        self._append(rundir.RESTS, row.model_dump(mode="json", exclude_unset=True))
+        row = RestEvent.model_validate({"ts": now_iso(), "event": event, **rest.to_dict()})
+        self._append(layout.RESTS, row.model_dump(mode="json", exclude_unset=True))
         self._log(logging.INFO, f"[rest] {rest.text()}" if event == "start" else f"[rest] {rest.credential} rests no more")
 
     def record_flow_call(
@@ -540,7 +544,7 @@ class Run:
         flow call yielded through `time_box`, its `time_box` (`TimeBox.record`; `started_at`:
         when the flow call started, where its deadline counts from); "end": its `state` and
         `error`."""
-        ts = utcnow_iso()
+        ts = now_iso()
         if event == "start":
             box = {"time_box": time_box.record(started_at)} if time_box is not None else {}
             start = {"ts": ts, "id": call_id, "event": "start", "parent": parent, "function": function, "flow": list(flow)}
@@ -548,26 +552,24 @@ class Run:
         else:
             error_text = f"{type(error).__name__}: {error}" if error is not None else None
             row = FlowCallRow(ts=ts, id=call_id, event="end", state=state, error=error_text)
-        self._append(rundir.FLOW_CALLS, row.to_dict())
+        self._append(layout.FLOW_CALLS, row.to_dict())
         if event == "end" and self._estimates is not None:
             self._estimates.flow_call_ended(call_id, state or "")
 
     def _append(self, name: str, row: dict) -> None:
-        with self._plan_lock, open(self.dir / name, "a") as f:
-            f.write(json.dumps(row) + "\n")
+        append_lines(self.dir / name, [json.dumps(row)])
 
     def _mark_inflight(self, task: Task, *, running: bool) -> None:
         """One marker per running task, so the monitor can show it even when
         nothing is a child process (a Python task, a backend that is a
         library call). A marker whose process is gone is ignored by the monitor,
         so a crash leaves nothing that looks live."""
-        d = self.dir / rundir.INFLIGHT
-        d.mkdir(exist_ok=True)
-        path = d / (task.key.replace(":", "_").replace("/", "_") + ".json")
+        (self.dir / layout.INFLIGHT).mkdir(exist_ok=True)
+        path = self.dir / layout.task_entry(layout.INFLIGHT, task.key)
         if not running:
             path.unlink(missing_ok=True)
             return
-        rundir.write_document(
+        write_document(
             path,
             json.dumps(
                 {
@@ -576,7 +578,7 @@ class Run:
                     "unit": self._unit_of(task),
                     "claims": list(task.claims),
                     "executor": task.executor,
-                    "started_at": utcnow_iso(),
+                    "started_at": now_iso(),
                     "pid": os.getpid(),
                 }
             ),

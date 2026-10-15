@@ -84,9 +84,9 @@ from contraagent.commandline import (
 from contraagent.monitor import api, export
 from contraagent.monitor.core import Monitor
 from contraagent.monitor.export import STATIC
-from contraagent.monitor.paths import BadName
 from contraagent.monitor.trends import Period, PeriodError
 from contraagent.monitor.views import VIEWS, View, serialize
+from contraagent.runs.names import BadName, is_plain
 
 log = logging.getLogger(__name__)
 
@@ -440,7 +440,7 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
     @app.get("/{name}.{ext}", include_in_schema=False)
     def asset(name: str, ext: str) -> FileResponse:
-        if ext not in ("js", "css") or "/" in name or name.startswith("."):
+        if ext not in ("js", "css") or not is_plain(name):
             raise HTTPException(404)
         path = static / f"{name}.{ext}"
         if not path.is_file():

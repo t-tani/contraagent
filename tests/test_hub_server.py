@@ -17,7 +17,6 @@ pytest.importorskip("sse_starlette")
 
 from fastapi.testclient import TestClient
 
-from contraagent import rundir
 from contraagent.cli import main as cli_main
 from contraagent.hub import server
 from contraagent.hub.core import Hub
@@ -35,7 +34,9 @@ from contraagent.hub.protocol import (
     RunRef,
 )
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor, procs
+from contraagent.monitor import Monitor
+from contraagent.runs import layout
+from contraagent.runs.liveness import empty_snapshot
 from test_hub_contract import ship
 
 INGEST = "ingest-secret"
@@ -76,7 +77,7 @@ class HttpClient:
         assert r.status_code == 204, r.text
 
 
-def records(lines: list[str], offset: int = 0, log: str = rundir.JOURNAL) -> str:
+def records(lines: list[str], offset: int = 0, log: str = layout.JOURNAL) -> str:
     return RecordBatch(run=RUN, logs=[LogChunk(log=log, offset=offset, lines=lines)]).model_dump_json()
 
 
@@ -90,18 +91,18 @@ def raw(value) -> object:
 def test_a_batch_posts_and_the_gap_and_resend_rules_come_back():
     hub, c = make()
     assert c.post(INGEST_RECORDS, content=records(["a", "b"]), headers=AUTH).json() == {
-        "logs": {rundir.JOURNAL: 2},
-        "durable": {rundir.JOURNAL: 2},
+        "logs": {layout.JOURNAL: 2},
+        "durable": {layout.JOURNAL: 2},
     }
     assert c.post(INGEST_RECORDS, content=records(["b", "c"], 1), headers=AUTH).json() == {
-        "logs": {rundir.JOURNAL: 3},
-        "durable": {rundir.JOURNAL: 3},
+        "logs": {layout.JOURNAL: 3},
+        "durable": {layout.JOURNAL: 3},
     }
     assert c.post(INGEST_RECORDS, content=records(["z"], 9), headers=AUTH).json() == {
-        "logs": {rundir.JOURNAL: 3},
-        "durable": {rundir.JOURNAL: 3},
+        "logs": {layout.JOURNAL: 3},
+        "durable": {layout.JOURNAL: 3},
     }
-    assert hub.store.lines("r1@h1", rundir.JOURNAL) == (["a", "b", "c"], 3)
+    assert hub.store.lines("r1@h1", layout.JOURNAL) == (["a", "b", "c"], 3)
 
 
 def test_a_body_that_is_not_a_batch_is_refused():
@@ -114,7 +115,7 @@ def test_a_gzip_body_is_taken():
     hub, c = make()
     body = gzip.compress(records(["a"]).encode())
     r = c.post(INGEST_RECORDS, content=body, headers={**AUTH, "Content-Encoding": "gzip"})
-    assert r.json() == {"logs": {rundir.JOURNAL: 1}, "durable": {rundir.JOURNAL: 1}}
+    assert r.json() == {"logs": {layout.JOURNAL: 1}, "durable": {layout.JOURNAL: 1}}
     assert c.post(INGEST_RECORDS, content=b"\x1f\x8bnope", headers={**AUTH, "Content-Encoding": "gzip"}).status_code == 400
     assert c.post(INGEST_RECORDS, content=b"{}", headers={**AUTH, "Content-Encoding": "br"}).status_code == 415
 
@@ -189,7 +190,7 @@ def test_an_oversized_request_is_413():
 def test_every_endpoint_carries_what_the_core_computed(demo_runs):
     hub, c = make()
     ship(demo_runs, HttpClient(c), "h1")
-    mon = hub.monitor(title="contraagent hub")
+    mon = server.hub_monitor(hub, title="contraagent hub")
     c.headers.update(READ_AUTH)
     assert c.get("/api/info").json()["title"] == "contraagent hub"
     runs = c.get("/api/runs").json()
@@ -224,12 +225,12 @@ def test_a_heartbeat_reporting_a_run_alive_shows_it_running():
     hub, c = make()
     client = HttpClient(c)
     info = json.dumps({"run_id": "r1", "run_uid": "u1", "started_at": datetime.now(UTC).isoformat()})
-    client.send_records(RecordBatch(run=RUN, documents=[DocumentPut(name=rundir.RUN_INFO, text=info)]))
+    client.send_records(RecordBatch(run=RUN, documents=[DocumentPut(name=layout.RUN_INFO, text=info)]))
     c.headers.update(READ_AUTH)
     assert [r["running"] for r in c.get("/api/runs").json()] == [False]
     launch = {"pid": 9, "age_s": 4, "cmd": "claude -p", "full_cmd": "claude -p ...", "children": []}
     launch |= {"key": "review-a", "kind": "review", "unit": "a", "role": "", "model": "sonnet", "plugin": "p"}
-    snap = procs.empty_snapshot("r1", json.loads(info), True) | {"pid": 7, "launches": [launch]}
+    snap = empty_snapshot("r1", json.loads(info), True) | {"pid": 7, "launches": [launch]}
     report = RunLiveness(run=RUN, alive=True, snapshot=snap)
     assert client.send_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, runs=[report])).ttl_s == hub.ttl_s
     assert [(r["run"], r["running"]) for r in c.get("/api/runs").json()] == [("r1@h1", True)]
@@ -292,7 +293,7 @@ def test_the_monitor_answers_401_without_the_read_token():
 def test_login_sets_the_cookie_after_which_routes_and_feeds_work():
     hub, c = make()
     info = json.dumps({"run_id": "r1", "run_uid": "u1", "started_at": datetime.now(UTC).isoformat()})
-    HttpClient(c).send_records(RecordBatch(run=RUN, documents=[DocumentPut(name=rundir.RUN_INFO, text=info)]))
+    HttpClient(c).send_records(RecordBatch(run=RUN, documents=[DocumentPut(name=layout.RUN_INFO, text=info)]))
     assert c.get("/login?token=wrong", follow_redirects=False).status_code == 401
     assert server.COOKIE not in c.cookies
     r = c.get(f"/login?token={READ}", follow_redirects=False)

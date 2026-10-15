@@ -10,6 +10,10 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `errors`      `ContraagentError`, the base of every error raised on purpose
 * `docs/`       the documentation, installed with the package: Markdown topics and the
                 examples they quote; `contraagent docs`
+* `runs/`       run records: the layout of a run directory, the one writer of a document
+                and of a log line, the readers of complete lines, the times records hold;
+                `RunSource` (where runs are read from) and `Liveness`; it imports only the
+                leaf modules `procfs`, `envvars` and `telemetry`
 * `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
                 `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level, priority)
                 and `FlowDriver` (generator flows over it); `make_python_task`; `records`: the
@@ -28,7 +32,8 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `pipeline/`   `agent_task`, `@python_task`, `Pipeline`: the API a pipeline is written in
 * `monitor/`    a read-only live view of a run, as a library and a web UI
 * `hub/`        the runs of many hosts in one monitor: `contraagent relay` ships a host's runs,
-                `contraagent hub` stores them and serves their monitor
+                `contraagent hub` stores them and serves their monitor; only `hub/server.py`,
+                which serves the monitor's app, imports `monitor/`
 * `testing`     `StubAgent`: a coding agent that plays scripted replies, for tests
 
 A pipeline declares its tasks (parameters, output, budget), implements each
@@ -74,7 +79,7 @@ from contraagent.backends import (
     create_backend,
     register_backend,
 )
-from contraagent.backends.streams import normalize_stream_line, read_stream, register_normalizer
+from contraagent.backends.streams import normalize_stream_line, register_normalizer
 from contraagent.calls import CallFile
 from contraagent.contracts import InputContract, OutputContract, check_input, run_until_valid
 from contraagent.dispatch import (
@@ -209,7 +214,6 @@ __all__ = [
     "normalize_stream_line",
     "pipeline_table",
     "python_task",
-    "read_stream",
     "register_backend",
     "register_normalizer",
     "require_budgets",

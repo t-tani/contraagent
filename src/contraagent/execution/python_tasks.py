@@ -40,7 +40,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from contraagent import rundir
 from contraagent.contracts import check_input, record_contracts
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.task import (
@@ -58,6 +57,8 @@ from contraagent.execution.pipeline_files import Written, capturing, writing_int
 from contraagent.execution.runner import RetryingRunner
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.kind_config import KindConfig
+from contraagent.runs import layout
+from contraagent.runs.files import write_document
 
 
 @dataclass(frozen=True)
@@ -155,9 +156,9 @@ class PythonTaskRunner:
             return
         self._defined.add(task.kind)
         try:
-            d = self._run_dir / rundir.DEFINITIONS
+            d = self._run_dir / layout.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
-            rundir.write_document(d / f"{task.kind}.json", json.dumps({"kind": task.kind, **definition}, default=str))
+            write_document(d / f"{layout.file_name(str(task.kind))}.json", json.dumps({"kind": task.kind, **definition}, default=str))
         except OSError:  # a definition the monitor cannot show must not fail the task
             pass
 

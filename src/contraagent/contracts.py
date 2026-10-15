@@ -36,10 +36,12 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from contraagent import pointers, rundir
+from contraagent import pointers
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.dispatch.task import kind_name
+from contraagent.runs import layout
+from contraagent.runs.files import write_document
 from contraagent.validators import CommandValidator, Validator, run_validators, validator_name, wanted_context
 
 _logger = logging.getLogger(__name__)
@@ -170,7 +172,7 @@ class Before:
         """Put the file back as it was, when its text is kept (values to keep, a validator
         that takes `before`)."""
         if self.text is not None:
-            rundir.write_document(path, self.text)
+            write_document(path, self.text)
 
 
 @dataclass(frozen=True)
@@ -396,10 +398,8 @@ def record_contracts(
         "inputs": [spec(c, "input") for c in input_contracts],
     }
     try:
-        d = Path(run_dir) / rundir.CONTRACTS
-        d.mkdir(parents=True, exist_ok=True)
-        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in task.key)
-        rundir.write_document(d / f"{safe}.json", json.dumps(record, default=str))
+        (Path(run_dir) / layout.CONTRACTS).mkdir(parents=True, exist_ok=True)
+        write_document(Path(run_dir) / layout.task_entry(layout.CONTRACTS, task.key), json.dumps(record, default=str))
     except (OSError, TypeError):
         pass
 
@@ -558,12 +558,12 @@ def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str
         path.parent.mkdir(parents=True, exist_ok=True)
         text = message
         if c.unwrap:
-            rundir.write_document(c.message_path(cwd), message)
+            write_document(c.message_path(cwd), message)
             document = unwrap_json(message)
             if document is not None:
                 unwrapped = unwrapped or document != message.strip()
                 text = document
-        rundir.write_document(path, text)
+        write_document(path, text)
     return unwrapped
 
 

@@ -9,7 +9,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   GET  /healthz                Health: 200 when every store answers, 503 naming those that do not
   GET  /login?token=<read>     sets the read cookie and redirects to /
   everything else              the monitor (`contraagent.monitor.server.create_app`)
-                               over `Hub.monitor()`: API, SSE feeds, the bundled UI
+                               over `hub_monitor(hub)`: API, SSE feeds, the bundled UI
 
 * **Ingest** answers 401 without `Authorization: Bearer <token>` naming one of the ingest
   tokens. A token given for one host (`host_id token` in the token file) answers 403 to a
@@ -93,6 +93,7 @@ from contraagent.hub.retention import (
 from contraagent.hub.source import DEFAULT_TTL_S
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
+from contraagent.monitor import Monitor
 from contraagent.monitor.server import LOCAL_HOSTS, create_app, host_names, is_loopback, require_extra
 
 log = logging.getLogger(__name__)
@@ -463,6 +464,12 @@ class _Dispatch:
             await self.monitor(scope, receive, send)
 
 
+def hub_monitor(hub: Hub, **kwargs: Any) -> Monitor:
+    """The monitor's views of every host's runs the hub holds: over `Hub.source()` and
+    `Hub.liveness()` (`Monitor`'s keyword arguments pass through)."""
+    return Monitor(source=hub.source(), liveness=hub.liveness(), many_hosts=True, **kwargs)
+
+
 def create_hub_app(
     hub: Hub,
     *,
@@ -474,7 +481,7 @@ def create_hub_app(
     max_records_bytes: int = MAX_RECORDS_BYTES,
     max_blob_bytes: int = MAX_BLOB_BYTES,
 ) -> ASGIApp:
-    """The hub as one ASGI app: the ingest routes and the monitor over `hub.monitor()`.
+    """The hub as one ASGI app: the ingest routes and the monitor (`hub_monitor`).
 
     `ingest_tokens`: see `create_ingest_app`. `read_token=None` leaves the monitor open.
     `allowed_hosts` and `cors_origins` are the monitor's (`monitor.server.create_app`)."""
@@ -484,7 +491,7 @@ def create_hub_app(
         max_records_bytes=max_records_bytes,
         max_blob_bytes=max_blob_bytes,
     )
-    monitor = create_app(hub.monitor(title=title), allowed_hosts=allowed, cors_origins=cors_origins)
+    monitor = create_app(hub_monitor(hub, title=title), allowed_hosts=allowed, cors_origins=cors_origins)
     # The Host check comes before the read guard, so /login is under it too.
     guarded = TrustedHostMiddleware(ReadGuard(monitor, read_token), allowed_hosts=allowed)
     return _Dispatch(ingest, guarded)

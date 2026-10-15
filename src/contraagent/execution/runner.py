@@ -26,7 +26,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
-from contraagent import envvars, rundir
+from contraagent import envvars, telemetry
 from contraagent.backends.base import Backend
 from contraagent.backends.credentials import AMBIENT, CredentialBase, Pool
 from contraagent.backends.launch import Launch, LaunchResult, Stop
@@ -41,6 +41,8 @@ from contraagent.routing.kind_config import KindConfig
 from contraagent.routing.pool import pools_of
 from contraagent.routing.quota import QuotaRests
 from contraagent.routing.router import Route, Router
+from contraagent.runs import layout
+from contraagent.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
 
@@ -62,8 +64,8 @@ def _rest_deferral(rests: Sequence[SkippedHop]) -> Deferral:
 
 
 def telemetry_line(task: Task, run_id: str, role: str | None) -> str:
-    """One greppable line naming the run and task, first in every prompt."""
-    return f"TELEMETRY run={run_id or '-'} kind={kind_name(task.kind)} unit={task.unit or '-'} key={task.key} role={role or '-'}"
+    """The telemetry line of `task` (`contraagent.telemetry`), first in every prompt."""
+    return telemetry.line(run_id, kind_name(task.kind), task.unit, task.key, role)
 
 
 #: Failures another hop cannot fix: nothing was launched (an input is off-contract), or the
@@ -257,7 +259,7 @@ class AgentRunner:
             preamble=task.params.get("preamble"),
             context_files=self.adapter.context_files(task, be),
             plugin_dirs=plugin_dirs,
-            stream_path=self.run_dir / rundir.stream(task.key) if self.keep_transcripts else None,
+            stream_path=self.run_dir / layout.stream(task.key) if self.keep_transcripts else None,
         )
 
     def credential_for(self, task: Task, route: Route | None) -> CredentialBase:
@@ -389,9 +391,9 @@ class AgentRunner:
         self._defined.add(kind)
         try:
             body = {"kind": kind, **(self.adapter.definition(task) or {})}
-            d = self.run_dir / rundir.DEFINITIONS
+            d = self.run_dir / layout.DEFINITIONS
             d.mkdir(parents=True, exist_ok=True)
-            rundir.write_document(d / f"{kind}.json", json.dumps(body, default=str))
+            write_document(d / f"{layout.file_name(kind)}.json", json.dumps(body, default=str))
         except Exception:  # a definition the monitor cannot show must not fail a launch
             pass
 

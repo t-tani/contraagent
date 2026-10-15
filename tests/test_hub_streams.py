@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import rundir
 from contraagent.hub.client import DirectClient
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import LogChunk, RecordBatch, RunRef
@@ -17,7 +16,8 @@ from contraagent.hub.segment_objects import DirectorySegmentObjects, MemorySegme
 from contraagent.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
-from contraagent.monitor.source import PAGE_BYTES, page
+from contraagent.runs import layout
+from contraagent.runs.source import PAGE_BYTES, page
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -40,7 +40,7 @@ STREAMS: dict[str, Callable[[Path], StreamLogs]] = {
     ),
 }
 
-LOG = rundir.stream("summarize-a")
+LOG = layout.stream("summarize-a")
 
 
 @pytest.fixture(params=sorted(STREAMS))
@@ -103,7 +103,7 @@ def test_close_keeps_every_line_readable(streams):
 
 
 def test_drop_removes_a_runs_transcripts_and_activity(streams):
-    other = rundir.stream("summarize-b")
+    other = layout.stream("summarize-b")
     streams.append("r@h", "u", LOG, 0, [f"{i}" for i in range(100)], "t1")
     streams.close("r@h", "u", LOG)
     streams.append("r@h", "u", other, 0, ["x"], "t1")
@@ -140,7 +140,7 @@ def test_the_hub_sends_transcripts_to_the_stream_logs_and_closes_them_with_the_j
     assert hub.store.count("r@h", LOG) == -1  # not in the record store
     source = hub.source()
     assert source.lines("r@h", LOG) == (["e1", "e2"], 2) and source.size("r@h", LOG) == 2
-    assert source.exists("r@h", rundir.STREAMS) and source.exists("r@h", LOG)
-    journal = LogChunk(log=rundir.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
-    assert client.send_records(RecordBatch(run=run, logs=[journal])).durable[rundir.JOURNAL] == 1
+    assert source.exists("r@h", layout.STREAMS) and source.exists("r@h", LOG)
+    journal = LogChunk(log=layout.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
+    assert client.send_records(RecordBatch(run=run, logs=[journal])).durable[layout.JOURNAL] == 1
     assert source.activity("r@h") is not None

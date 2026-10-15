@@ -10,11 +10,12 @@ writes the same bytes.
 from __future__ import annotations
 
 import os
-import tempfile
 import threading
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import parse_qs, urlparse
+
+from contraagent.runs.files import write_document
 
 
 class SegmentObjects(Protocol):
@@ -88,16 +89,7 @@ class DirectorySegmentObjects:
     def put(self, key: str, data: bytes) -> None:
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".put-")
-        try:
-            with os.fdopen(fd, "wb") as f:
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp, path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        write_document(path, data, fsync=True)
 
     def get_range(self, key: str, start: int, end: int | None) -> bytes:
         with open(self._path(key), "rb") as f:
@@ -115,7 +107,7 @@ class DirectorySegmentObjects:
         out = []
         for dirpath, _, files in os.walk(self.root):
             for name in files:
-                if name.startswith(".put-"):
+                if name.startswith("."):  # a write not finished (`write_document`'s temporary file)
                     continue
                 key = Path(dirpath, name).relative_to(self.root).as_posix()
                 if key.startswith(prefix):

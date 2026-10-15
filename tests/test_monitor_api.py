@@ -16,8 +16,8 @@ from pydantic import TypeAdapter
 
 from contraagent.backends.streams import normalize_stream_line
 from contraagent.cli import main as cli_main
-from contraagent.monitor import Monitor, Panel, api, procs, server
-from contraagent.monitor.paths import BadName, check_name
+from contraagent.monitor import Monitor, Panel, api, server
+from contraagent.runs.names import BadName, check_name
 
 
 def client_for(monitor: Monitor, **kwargs) -> TestClient:
@@ -296,6 +296,8 @@ def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
 
 
 def test_process_ages_use_the_kernel_clock_rate():
+    from contraagent.runs import procs
+
     assert procs._CLK == os.sysconf("SC_CLK_TCK")
 
 

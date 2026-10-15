@@ -36,11 +36,12 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
+from contraagent.runs.source import Pager
 
 #: The channel a `PostgresHubStore` notifies after each batch that changed a run, and each heartbeat.
 NOTIFY_CHANNEL = "contraagent_hub"
 
-SCHEMA_VERSION = 1
+POSTGRES_SCHEMA_VERSION = 1
 
 # An arbitrary 64-bit key for the advisory lock held while the schema is created.
 _SCHEMA_LOCK = 0x636F6E7472616167
@@ -136,9 +137,9 @@ class PostgresHubStore:
             row = conn.execute("SELECT max(version) FROM schema_version").fetchone()
             held = row[0] if row else None
             if held is None:
-                conn.execute("INSERT INTO schema_version (version) VALUES (%s)", (SCHEMA_VERSION,))
-            elif held > SCHEMA_VERSION:
-                raise RuntimeError(f"the hub database has schema version {held}; this contraagent knows up to {SCHEMA_VERSION}")
+                conn.execute("INSERT INTO schema_version (version) VALUES (%s)", (POSTGRES_SCHEMA_VERSION,))
+            elif held > POSTGRES_SCHEMA_VERSION:
+                raise RuntimeError(f"the hub database has schema version {held}; this contraagent knows up to {POSTGRES_SCHEMA_VERSION}")
 
     # --- writes ------------------------------------------------------------------------
 
@@ -227,7 +228,7 @@ class PostgresHubStore:
             row = conn.execute("SELECT run_uid, host_id, run_id FROM runs WHERE name = %s", (name,)).fetchone()
         return RunRef(run_uid=row[0], host_id=row[1], run_id=row[2]) if row else None
 
-    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT logs.id, logs.lines FROM logs JOIN runs ON runs.id = logs.run WHERE runs.name = %s AND logs.log = %s",
@@ -239,11 +240,29 @@ class PostgresHubStore:
             start, stop, _ = slice(since, None if limit is None else since + limit).indices(total)
             if stop <= start:
                 return [], total
+            pager = Pager(None, max_bytes)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT line FROM log_lines WHERE log = %s AND line_no >= %s AND line_no < %s ORDER BY line_no", (log_id, start, stop)
+            )
+            while not pager.full and (rows := cur.fetchmany(500)):
+                pager.take(r[0] for r in rows)
+            cur.close()
+        return pager.out, total
+
+    def logs(self, name: str) -> list[str]:
+        with self._conn() as conn:
             rows = conn.execute(
-                "SELECT line FROM log_lines WHERE log = %s AND line_no >= %s AND line_no < %s ORDER BY line_no",
-                (log_id, start, stop),
+                "SELECT logs.log FROM logs JOIN runs ON runs.id = logs.run WHERE runs.name = %s ORDER BY logs.log", (name,)
             ).fetchall()
-        return [r[0] for r in rows], total
+        return [r[0] for r in rows]
+
+    def documents(self, name: str) -> list[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT d.name FROM documents d JOIN runs ON runs.id = d.run WHERE runs.name = %s ORDER BY d.name", (name,)
+            ).fetchall()
+        return [r[0] for r in rows]
 
     def count(self, name: str, log: str) -> int:
         with self._conn() as conn:

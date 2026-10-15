@@ -10,7 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, api
 from contraagent.monitor.core import panel_body
-from contraagent.monitor.source import DirectorySource
+from contraagent.runs.source import DirectorySource
 
 BODY = TypeAdapter(api.PanelBody)
 

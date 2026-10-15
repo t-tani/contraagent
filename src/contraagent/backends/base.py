@@ -23,7 +23,6 @@ import subprocess
 import tempfile
 import threading
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from typing import Protocol
@@ -33,6 +32,7 @@ from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
 from contraagent.backends.process import LaunchError, Sink, run_process
 from contraagent.backends.refusal import Signals, quota_refusal
 from contraagent.backends.wire import EventFold, LimitsWatch
+from contraagent.runs.times import now_iso
 
 #: Variables that tie a process to a Claude Code session that started contraagent
 #: (a coding agent running the pipeline): its id, its messaging socket and token.
@@ -182,7 +182,7 @@ class Backend(abc.ABC):
 
     def run(self, launch: Launch) -> LaunchResult:
         """Run one launch to completion and return its LaunchResult (the template above)."""
-        started_at = datetime.now(UTC).isoformat(timespec="seconds")
+        started_at = now_iso()
         t0 = time.monotonic()
         reading = self.usage_reading(launch)
         result = self._run(launch, started_at, t0)

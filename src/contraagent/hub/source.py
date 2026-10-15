@@ -1,5 +1,5 @@
-"""The monitor's ports over a hub: `HubSource` reads every host's runs from a `HubStore`,
-its task transcripts from `StreamLogs`, and file contents from a `BlobStore`;
+"""The run source over a hub: `HubSource` reads every host's runs from a `HubStore`, its
+task transcripts from `StreamLogs`, and file contents from a `BlobStore`;
 `HeartbeatLiveness` counts a run live while its host's heartbeats keep arriving and report
 it alive.
 
@@ -10,30 +10,36 @@ the run's own records, as its host wrote them.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from collections.abc import Callable
-from datetime import datetime
+from pathlib import Path
 
-from contraagent import rundir
 from contraagent.hub.store import BlobStore, HubStore
 from contraagent.hub.streams import StreamLogs, is_stream
-from contraagent.monitor import paths, procs
-from contraagent.monitor.source import entry_parts, page, poll_size
+from contraagent.runs import layout
+from contraagent.runs.liveness import empty_snapshot
+from contraagent.runs.names import check_name, entry_parts
+from contraagent.runs.source import LogPosition, RunFile, Stat, parse_info, poll_size
+from contraagent.runs.times import parse_iso
 
 #: Seconds without a heartbeat after which a host's runs no longer count as live.
 DEFAULT_TTL_S = 15.0
 
 
+def _ns(iso: str | None) -> int:
+    at = parse_iso(iso)
+    return int(at.timestamp() * 1e9) if at is not None else 0
+
+
 def _seconds(iso: str) -> float | None:
-    try:
-        return datetime.fromisoformat(iso).timestamp()
-    except ValueError:
-        return None
+    at = parse_iso(iso)
+    return at.timestamp() if at is not None else None
 
 
 class HubSource:
-    """A `RunSource` over a hub's stores."""
+    """A `RunSource` over a hub's stores. A log's `size` and `stat().size` are its line
+    count; the time of a record is the run's activity. It has no run directory and keeps
+    no trends digest."""
 
     def __init__(self, store: HubStore, blobs: BlobStore, streams: StreamLogs) -> None:
         self.store = store
@@ -42,7 +48,7 @@ class HubSource:
 
     @staticmethod
     def _name(run: str) -> str:
-        return paths.check_name(run, "run id")
+        return check_name(run, "run id")
 
     def _uid(self, run: str) -> str:
         entry = self.store.entry(self._name(run))
@@ -53,12 +59,8 @@ class HubSource:
 
     def info(self, run: str) -> dict | None:
         """The run's `run.json`, its `host_id` the one the hub names it by (the relay's)."""
-        text = self.store.document(self._name(run), rundir.RUN_INFO)
-        try:
-            info = json.loads(text) if text is not None else None
-        except ValueError:
-            return None
-        if not isinstance(info, dict):
+        info = parse_info(self.store.document(self._name(run), layout.RUN_INFO))
+        if info is None:
             return None
         entry = self.store.entry(self._name(run))
         return {**info, "host_id": entry.host_id} if entry else info
@@ -67,8 +69,16 @@ class HubSource:
         entry_parts(log)
         if is_stream(log):
             return self.streams.read(self._name(run), self._uid(run), log, since, limit, max_bytes)
-        got, total = self.store.lines(self._name(run), log, since, limit)
-        return page(got, None, max_bytes), total
+        return self.store.lines(self._name(run), log, since, limit, max_bytes)
+
+    def lines_at(
+        self, run: str, log: str, at: LogPosition, limit: int | None = None, max_bytes: int | None = None
+    ) -> tuple[list[str], LogPosition]:
+        got, _ = self.lines(run, log, at.line, limit, max_bytes)
+        return got, at.after(got)
+
+    def position(self, run: str, log: str, line: int) -> LogPosition:
+        return LogPosition(0, 0).after(self.lines(run, log, 0, max(line, 0))[0])
 
     def size(self, run: str, log: str) -> int:
         entry_parts(log)
@@ -88,10 +98,30 @@ class HubSource:
 
     def exists(self, run: str, name: str) -> bool:
         entry_parts(name)
-        if name == rundir.STREAMS or is_stream(name):
+        if name == layout.STREAMS or is_stream(name):
             logs = self.streams.logs(self._name(run), self._uid(run))
             return name in logs if is_stream(name) else bool(logs)
         return self.store.exists(self._name(run), name)
+
+    def stat(self, run: str, name: str = "") -> Stat | None:
+        at = self.activity(run)
+        if not name:
+            return Stat(0, _ns(at)) if self.store.entry(self._name(run)) is not None else None
+        entry_parts(name)
+        text = self.store.document(self._name(run), name)
+        if text is not None:
+            return Stat(len(text.encode()), _ns(at))
+        count = self.size(run, name)
+        return Stat(count, _ns(at)) if count >= 0 else None
+
+    def logs(self, run: str) -> list[str]:
+        name = self._name(run)
+        held = self.store.logs(name)
+        own = [log for log in layout.LOGS if log in held]
+        return own + self.streams.logs(name, self._uid(run)) + sorted(log for log in held if log not in own)
+
+    def documents(self, run: str) -> list[str]:
+        return [d for d in self.store.documents(self._name(run)) if d != layout.TRENDS]
 
     def document(self, run: str, name: str) -> str | None:
         entry_parts(name)
@@ -105,16 +135,29 @@ class HubSource:
         times = [t for t in (self.store.activity(self._name(run)), self.streams.activity(self._name(run), self._uid(run))) if t]
         return max(times) if times else None
 
-    def file(self, run: str, path: str) -> tuple[str | None, int, str] | None:
+    def file(self, run: str, path: str) -> RunFile | None:
         ref = self.store.file(self._name(run), path)
         if ref is None or ref.sha256 is None:
             return None
         data = self.blobs.get(ref.sha256)
-        try:
-            text = data.decode("utf-8") if data is not None else None
-        except UnicodeDecodeError:
-            text = None
-        return text, ref.size, ref.mtime
+        return RunFile(data, ref.mtime) if data is not None else None
+
+    def file_stat(self, run: str, path: str) -> Stat | None:
+        ref = self.store.file(self._name(run), path)
+        if ref is None or ref.sha256 is None:
+            return None
+        return Stat(ref.size, _ns(ref.mtime))
+
+    def dir(self, run: str) -> Path | None:
+        self._name(run)
+        return None
+
+    def kept(self, run: str) -> str | None:
+        self._name(run)
+        return None
+
+    def keep(self, run: str, text: str) -> None:
+        self._name(run)
 
 
 class HeartbeatLiveness:
@@ -154,12 +197,8 @@ class HeartbeatLiveness:
             for report in heartbeat.runs:
                 if not report.alive:
                     continue
-                text = self.store.document(report.run.name, rundir.RUN_INFO)
-                try:
-                    info = json.loads(text) if text is not None else {}
-                except ValueError:
-                    info = {}
-                if not (isinstance(info, dict) and info.get("finished_at")):
+                info = parse_info(self.store.document(report.run.name, layout.RUN_INFO)) or {}
+                if not info.get("finished_at"):
                     out.add(report.run.name)
         return out
 
@@ -179,13 +218,8 @@ class HeartbeatLiveness:
         return out
 
     def snapshot(self, run: str) -> dict:
-        paths.check_name(run, "run id")
+        check_name(run, "run id")
         got = self._reports().get(run)
         if got is not None:
             return got
-        text = self.store.document(run, rundir.RUN_INFO)
-        try:
-            info = json.loads(text) if text is not None else None
-        except ValueError:
-            info = None
-        return procs.empty_snapshot(run, info if isinstance(info, dict) else None, False)
+        return empty_snapshot(run, parse_info(self.store.document(run, layout.RUN_INFO)), False)

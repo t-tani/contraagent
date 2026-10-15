@@ -29,22 +29,26 @@ import threading
 from collections.abc import Callable, Iterable
 from concurrent.futures import Future
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
-from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_line, resolve_format
 from contraagent.dispatch.records import DeferralCause, Rest, RestEvent, TimeBoxRecord
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
-from contraagent.monitor import paths, trends
-from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
+from contraagent.monitor import trends
 from contraagent.monitor.trends import Period
 from contraagent.routing.preflight import PreflightRecord
 from contraagent.routing.quota import QuotaCap
+from contraagent.runs import layout
+from contraagent.runs.files import parse_rows
+from contraagent.runs.liveness import Liveness, StaticLiveness
+from contraagent.runs.names import check_name
+from contraagent.runs.procs import ProcLiveness
+from contraagent.runs.source import PAGE_BYTES, DirectorySource, RunSource
+from contraagent.runs.times import now, parse_iso
 
 #: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`), given the run's records (`RunRecords`).
 PanelFn = Callable[["RunRecords"], Any]
@@ -53,7 +57,7 @@ TrendsPanelFn = Callable[["PeriodRuns", Period], Any]
 
 
 def _document(source: RunSource, run: str, name: str) -> Any:
-    text = source.document(run, rundir.pipeline_document(name))
+    text = source.document(run, layout.pipeline_document(name))
     if text is None:
         return None
     try:
@@ -80,17 +84,17 @@ class RunRecords:
 
     def journal(self) -> list[dict]:
         """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
-        return self.records(rundir.JOURNAL)
+        return self.records(layout.JOURNAL)
 
     def records(self, log: str) -> list[dict]:
-        """The rows of one of the logs contraagent writes (`rundir.JOURNAL`, `rundir.DEFERRED`,
+        """The rows of one of the logs contraagent writes (`layout.JOURNAL`, `layout.DEFERRED`,
         ...); a line that does not parse is skipped, a log the run does not have is empty."""
-        return _parse(self._source.lines(self.id, log)[0])
+        return parse_rows(self._source.lines(self.id, log)[0])
 
     def log(self, name: str) -> list[dict]:
         """The rows of the pipeline log `name` (what `contraagent.log(name, row)` appended),
         oldest first; empty when the run has none."""
-        return self.records(rundir.pipeline_log(name))
+        return self.records(layout.pipeline_log(name))
 
     def document(self, name: str) -> Any:
         """The value of the pipeline document `name` (what `contraagent.save(name, value)`
@@ -100,7 +104,7 @@ class RunRecords:
     def dir(self) -> Path | None:
         """The run's directory, for a file that is not one of its records (an output); None
         when the runs are not in a directory here (a hub keeps them in its store)."""
-        return self._source.path(self.id) if isinstance(self._source, DirectorySource) else None
+        return self._source.dir(self.id)
 
 
 class PeriodRuns(list[str]):
@@ -126,7 +130,7 @@ class PeriodRuns(list[str]):
         return self.run(run).journal()
 
     def records(self, run: str, log: str) -> list[dict]:
-        """The rows of one of the logs contraagent writes (`rundir.JOURNAL`, `rundir.DEFERRED`, ...)."""
+        """The rows of one of the logs contraagent writes (`layout.JOURNAL`, `layout.DEFERRED`, ...)."""
         return self.run(run).records(log)
 
     def log(self, run: str, name: str) -> list[dict]:
@@ -205,17 +209,6 @@ def _first_last(readings: list[dict]) -> dict:
     return {"quota": accounts}
 
 
-def _when(iso: object) -> datetime | None:
-    """An ISO 8601 time, read as UTC when it names no zone; None for anything else."""
-    if not isinstance(iso, str) or not iso:
-        return None
-    try:
-        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
-
-
 def _number(v: object) -> float | None:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
@@ -254,25 +247,6 @@ def _shown_flow(flow: list, cwd: Path | None) -> list:
     return [{**f, "file": _shown(f.get("file", ""), cwd)} for f in flow if isinstance(f, dict)]
 
 
-def _parses(line: str) -> bool:
-    try:
-        json.loads(line)
-    except ValueError:
-        return False
-    return True
-
-
-def _parse(lines: list[str]) -> list[dict]:
-    """The JSON values of log lines or documents; one that does not parse (a torn last write) is skipped."""
-    out = []
-    for line in lines:
-        try:
-            out.append(json.loads(line))
-        except ValueError:
-            continue
-    return out
-
-
 class Monitor:
     """Read-only views over runs, shared by the web server and any other front end."""
 
@@ -303,7 +277,7 @@ class Monitor:
         and this host's `/proc`); a `source` given without `liveness` has no live run.
         `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts.
         `keep_digests`: keep a finished run's trends digest in its directory
-        (`rundir.TRENDS`), so a restarted monitor reads it back instead of the logs;
+        (`layout.TRENDS`), so a restarted monitor reads it back instead of the logs;
         it is always kept in memory."""
         self.many_hosts = many_hosts
         self.runs_dir = Path(runs_dir).resolve()
@@ -331,8 +305,8 @@ class Monitor:
         self._lock = threading.Lock()
 
     def check_run(self, run: str) -> str:
-        """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
-        return paths.check_name(run, "run id")
+        """`run` itself; `names.BadName` (a ValueError) when it is not a plain name."""
+        return check_name(run, "run id")
 
     # --- runs --------------------------------------------------------------
 
@@ -371,7 +345,7 @@ class Monitor:
             if not last:
                 # A run on its first task has no journal row yet (rows land when
                 # a task finishes); still list it once it has live evidence.
-                if not info and not self.source.exists(run, rundir.STREAMS):
+                if not info and not self.source.exists(run, layout.STREAMS):
                     continue
                 last = self.source.activity(run) or ""
                 if not last:
@@ -428,13 +402,13 @@ class Monitor:
         readings = [q for row in rows for a in row["quota"] for q in (a["first"], a["last"])]
         out = {"hosts": hosts, **_first_last(readings)}
         # The rests in force now: begun by a live run, not ended, not past their end.
-        now = datetime.now(UTC)
+        at = now()
         current = [
             r
             for row in rows
             if row["running"]
             for r in self._quota(row["run"])["rests"]
-            if not r.get("ended") and not ((end := _when(r.get("until"))) is not None and end <= now)
+            if not r.get("ended") and not ((end := parse_iso(r.get("until"))) is not None and end <= at)
         ]
         for a in out["quota"]:
             a["rests"] = [
@@ -467,14 +441,14 @@ class Monitor:
     # --- journal -----------------------------------------------------------
 
     def _read_journal(self, run: str) -> list[dict]:
-        return _parse(self.source.lines(run, rundir.JOURNAL)[0])
+        return parse_rows(self.source.lines(run, layout.JOURNAL)[0])
 
     def journal(self, run: str, since: int = 0) -> tuple[list[dict], int]:
         """Rows after line offset `since`, and the new total."""
-        if self.source.size(run, rundir.JOURNAL) < 0:
+        if self.source.size(run, layout.JOURNAL) < 0:
             return [], since
-        lines, total = self.source.lines(run, rundir.JOURNAL, since)
-        return _parse(lines), total
+        lines, total = self.source.lines(run, layout.JOURNAL, since)
+        return parse_rows(lines), total
 
     # --- plan (the pipeline, including work that has not started) ---------
 
@@ -484,7 +458,7 @@ class Monitor:
 
     def _read_plan(self, run: str) -> list[dict]:
         out, seen = [], set()
-        for row in _parse(self.source.lines(run, rundir.PLAN)[0]):
+        for row in parse_rows(self.source.lines(run, layout.PLAN)[0]):
             # A key queued again (a retry, a re-dispatch) is the same node.
             if row.get("key") not in seen:
                 seen.add(row.get("key"))
@@ -524,7 +498,7 @@ class Monitor:
                 )
         # Why a task was deferred, unless a journal row came after (a resumed run ran it).
         deferred: dict[str, dict] = {}
-        for d in _parse(self.source.lines(run, rundir.DEFERRED)[0]):
+        for d in parse_rows(self.source.lines(run, layout.DEFERRED)[0]):
             j = last.get(d.get("key", ""))
             if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
                 deferred[d.get("key", "")] = d
@@ -617,7 +591,7 @@ class Monitor:
                 continue
         rests: list[dict] = []
         open_: dict[tuple[str, str], dict] = {}
-        for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
+        for row in parse_rows(self.source.lines(run, layout.RESTS)[0]):
             try:
                 event = RestEvent.model_validate(row)
             except ValidationError:
@@ -641,7 +615,7 @@ class Monitor:
         """Each flow call of `flow_calls.jsonl` in start order, folded with its end. A
         resumed run starts its flow calls again: the latest start of an id counts."""
         calls: dict[str, dict] = {}
-        for row in _parse(self.source.lines(run, rundir.FLOW_CALLS)[0]):
+        for row in parse_rows(self.source.lines(run, layout.FLOW_CALLS)[0]):
             cid = row.get("id") if isinstance(row, dict) else None
             if not isinstance(cid, str):
                 continue
@@ -696,7 +670,7 @@ class Monitor:
 
     def task_detail(self, run: str, key: str) -> dict:
         """Journal rows, live launches and the stream file for one task, by its key."""
-        paths.check_name(key, "task key")
+        check_name(key, "task key")
         rows = [e for e in self._read_journal(run) if e.get("key") == key]
         snap = self.liveness.snapshot(run)
         launches = [
@@ -714,7 +688,7 @@ class Monitor:
             "launches": launches,
             "definition": defs.get(kind),
             "io": self.task_io(run, key),
-            "stream": key if self.source.size(run, rundir.stream(key)) >= 0 else None,
+            "stream": key if self.source.size(run, layout.stream(key)) >= 0 else None,
             "row_extras": row_extras(rows),
         }
         if self.task_detail_fn is not None:
@@ -739,13 +713,13 @@ class Monitor:
 
     def stream_size(self, run: str, key: str) -> int:
         """A number that changes whenever task `key`'s transcript grows; -1 while it has
-        none. `paths.BadName` for a run id or task key that is not a plain name."""
-        return self.source.size(run, rundir.stream(paths.check_name(key, "task key")))
+        none. `names.BadName` for a run id or task key that is not a plain name."""
+        return self.source.size(run, layout.stream(check_name(key, "task key")))
 
     async def wait_stream(self, run: str, key: str, beyond: int, timeout: float) -> int:
         """Wait until task `key`'s transcript has grown past `beyond` (a value `stream_size`
         returned), or `timeout` seconds; return its `stream_size` then."""
-        return await self.source.wait(run, rundir.stream(paths.check_name(key, "task key")), beyond, timeout)
+        return await self.source.wait(run, layout.stream(check_name(key, "task key")), beyond, timeout)
 
     def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict, int]:
         """A page of task `key`'s normalized transcript events.
@@ -763,9 +737,8 @@ class Monitor:
         the tail page, the last `limit` lines), as `stream` gives it, and the line offset
         after the last line the page read: where the next page starts. The page stops at
         `limit` events or `PAGE_BYTES`, so that offset can be less than `total`. A last
-        line that starts as a JSON object but does not parse is still being written: the
-        page does not read it."""
-        log = rundir.stream(paths.check_name(key, "task key"))
+        line still being written (no newline yet) is not read (`RunSource.lines`)."""
+        log = layout.stream(check_name(key, "task key"))
         start = since or 0
         if self.source.size(run, log) < 0:
             return {"events": [], "total": start, "behind": 0}, start
@@ -774,8 +747,6 @@ class Monitor:
             total = self.source.lines(run, log, 0, 0)[1]
             behind = start = max(0, total - limit)
         lines, total = self.source.lines(run, log, start, limit * 4, max_bytes=PAGE_BYTES)
-        if lines and start + len(lines) == total and lines[-1].lstrip().startswith("{") and not _parses(lines[-1]):
-            lines = lines[:-1]
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
         out: list[dict] = []
         tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
@@ -810,7 +781,7 @@ class Monitor:
             last[e.get("key", "")] = e
         running = _running_keys(self.liveness.snapshot(run))
         records = []
-        for rec in _parse(self.source.folder(run, rundir.CONTRACTS)):
+        for rec in parse_rows(self.source.folder(run, layout.CONTRACTS)):
             row = last.get(rec.get("key", ""))
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
                 spec["file"] = self._file_view(run, spec["path"])
@@ -838,8 +809,8 @@ class Monitor:
         got = self.source.file(run, path)
         if got is None:
             return {"exists": False}
-        text, size, mtime = got
-        out: dict = {"exists": True, "size": size, "mtime": mtime}
+        text = got.text
+        out: dict = {"exists": True, "size": got.size, "mtime": got.mtime}
         if text is None:
             out["content"] = None
             return out
@@ -869,7 +840,7 @@ class Monitor:
 
     def definitions(self, run: str) -> list[dict]:
         """What defined each kind of task in this run (`definitions/<kind>.json`)."""
-        return _parse(self.source.folder(run, rundir.DEFINITIONS))
+        return parse_rows(self.source.folder(run, layout.DEFINITIONS))
 
     def task_io(self, run: str, key: str, *, outputs: dict | None = None, plan_rows: list[dict] | None = None) -> dict:
         """One task's input and output: its params, the files it read, the files
@@ -915,7 +886,7 @@ class Monitor:
         """What the task was given: the call file's params (every value, a value
         from an earlier task included), else the contract record's scalar ones."""
         try:
-            params = json.loads(self.source.document(run, rundir.entry(rundir.CALLS, key)) or "").get("params")
+            params = json.loads(self.source.document(run, layout.task_entry(layout.CALLS, key)) or "").get("params")
         except (ValueError, AttributeError):
             return fallback
         return params if isinstance(params, dict) else fallback
@@ -925,7 +896,7 @@ class Monitor:
     def cursor(self, run: str) -> dict | None:
         """The run's `CursorStore` (runs/<run>/cursor.json), or None when it keeps none:
         the stage it is in, the stages behind it, and each unit's step."""
-        text = self.source.document(run, rundir.CURSOR)
+        text = self.source.document(run, layout.CURSOR)
         cur = parse_cursor(text) if text is not None else None
         if cur is None:
             return None
@@ -1061,39 +1032,29 @@ class Monitor:
         if held is not None and held[0] == sig:
             return held[1]
         kept = self._kept_digest(run, sig)
-        dg = trends.restore(kept) if kept is not None else trends.digest(self.source, run)
+        dg = trends.from_kept(kept) if kept is not None else trends.digest(self.source, run)
         if kept is None and sig.get("finished_at") and not is_live(run):
             self._keep_digest(run, sig, trends.kept_form(dg))
         self._digests[run] = (sig, dg)
         return dg
 
-    def _digest_path(self, run: str) -> Path | None:
-        if not self.keep_digests or not isinstance(self.source, DirectorySource):
-            return None
-        return Path(trends.run_dir(self.source, run)) / rundir.TRENDS
-
     def _kept_digest(self, run: str, sig: dict) -> dict | None:
-        path = self._digest_path(run)
-        if path is None:
-            return None
+        """The digest the source keeps of the run (`RunSource.kept`), when it was made from
+        the logs as they are (`sig`) by this digest version."""
+        text = self.source.kept(run) if self.keep_digests else None
         try:
-            kept = json.loads(path.read_text())
-        except (OSError, ValueError):
+            kept = json.loads(text) if text is not None else None
+        except ValueError:
             return None
         if not isinstance(kept, dict) or kept.get("signature") != sig or kept.get("digest", {}).get("version") != trends.DIGEST_VERSION:
             return None
         return kept["digest"]
 
     def _keep_digest(self, run: str, sig: dict, dg: dict) -> None:
-        """Write a digest to the run's `trends.json`; best effort (a read-only runs directory
-        keeps it in memory only)."""
-        path = self._digest_path(run)
-        if path is None:
-            return
-        try:
-            rundir.write_document(path, json.dumps({"signature": sig, "digest": dg}))
-        except OSError:
-            pass
+        """Keep a digest where the source keeps one (`RunSource.keep`: a runs directory's
+        `trends.json`); it is in memory anyway."""
+        if self.keep_digests:
+            self.source.keep(run, json.dumps({"signature": sig, "digest": dg}))
 
 
 def row_extras(rows: list[dict]) -> list[str]:

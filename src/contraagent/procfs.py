@@ -1,9 +1,11 @@
-"""Generic `/proc` introspection: read one known PID's identity and footprint, and
-the host's free memory and usable cores.
+"""Generic `/proc` introspection: read one known PID's identity and footprint, the
+processes of the host, and the host's free memory and usable cores.
 
 A plain `/proc/<pid>/stat` parse, a cmdline/environ read, a PID-reuse
-identity check, an RSS sum over a process group, and `MemAvailable` of
-`/proc/meminfo`. A leaf module with no imports from the rest of the package.
+identity check, an RSS sum over a process group, the pids listed, the boot time and
+clock ticks a start time is counted in, and `MemAvailable` of `/proc/meminfo`. Every
+read of `/proc` in the package is here. A leaf module with no imports from the rest of
+the package.
 
 `proc_root` is injectable on every function so callers can point it at a
 fake directory tree in tests, instead of the real `/proc`.
@@ -56,14 +58,45 @@ def read_cmdline(pid: int, proc_root: str = "/proc") -> str:
     return raw.replace(b"\x00", b" ").decode(errors="replace").strip()
 
 
-def read_environ(pid: int, proc_root: str = "/proc") -> str:
-    """Return the process environment with NULs turned into spaces, or an empty
-    string when it is gone or unreadable."""
+def read_environ(pid: int, proc_root: str = "/proc", prefix: str = "") -> dict[str, str]:
+    """The process environment, the variables whose names start with `prefix`; empty when
+    the process is gone or its environment is unreadable (another user's)."""
     try:
         raw = Path(proc_root, str(pid), "environ").read_bytes()
-    except (FileNotFoundError, ProcessLookupError, NotADirectoryError, PermissionError):
-        return ""
-    return raw.replace(b"\x00", b" ").decode(errors="replace").strip()
+    except OSError:
+        return {}
+    out = {}
+    want = prefix.encode()
+    for item in raw.split(b"\0"):
+        k, eq, v = item.partition(b"=")
+        if eq and k.startswith(want):
+            out[k.decode(errors="replace")] = v.decode(errors="replace")
+    return out
+
+
+def pids(proc_root: str = "/proc") -> list[int]:
+    """The pids of every process `/proc` lists; empty where there is no `/proc`."""
+    try:
+        return [int(name) for name in os.listdir(proc_root) if name.isdigit()]
+    except OSError:
+        return []
+
+
+def clock_ticks() -> int:
+    """Clock ticks per second, the unit of a start time in `/proc/<pid>/stat`."""
+    try:
+        return os.sysconf("SC_CLK_TCK")
+    except (ValueError, OSError):
+        return 100
+
+
+def boot_time(proc_root: str = "/proc") -> int:
+    """When the host booted, in seconds since the epoch (`btime` of `/proc/stat`); 0 when unknown."""
+    try:
+        with open(Path(proc_root, "stat")) as f:
+            return int(next(line.split()[1] for line in f if line.startswith("btime")))
+    except (OSError, StopIteration, ValueError, IndexError):
+        return 0
 
 
 def proc_alive(pid: int, proc_root: str = "/proc") -> bool:
@@ -105,7 +138,8 @@ def pid_identity_ok(
     if expected_start_ticks is not None:
         return st["starttime"] == expected_start_ticks
     if expect_substrings:
-        haystack = f"{read_cmdline(pid, proc_root)} {read_environ(pid, proc_root)}"
+        env = " ".join(f"{k}={v}" for k, v in read_environ(pid, proc_root).items())
+        haystack = f"{read_cmdline(pid, proc_root)} {env}"
         return all(s in haystack for s in expect_substrings)
     return False
 
@@ -125,16 +159,10 @@ def read_rss_kb(pid: int, proc_root: str = "/proc") -> int:
 def pgid_members(pgid: int, proc_root: str = "/proc") -> list:
     """Pids whose process-group id is `pgid`."""
     members = []
-    try:
-        entries = os.listdir(proc_root)
-    except FileNotFoundError:
-        return members
-    for name in entries:
-        if not name.isdigit():
-            continue
-        st = read_proc_stat(int(name), proc_root)
+    for pid in pids(proc_root):
+        st = read_proc_stat(pid, proc_root)
         if st is not None and st["pgrp"] == pgid and st["state"] != "Z":
-            members.append(int(name))
+            members.append(pid)
     return members
 
 

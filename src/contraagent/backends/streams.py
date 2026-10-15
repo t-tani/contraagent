@@ -132,23 +132,3 @@ def normalize_stream_line(format: str, raw_line: str) -> list[dict]:
     out = normalize(ev)
     events = out if isinstance(out, list) else [out]
     return [e for e in events if e is not None and e.get("type") != "skip"]
-
-
-def read_stream(format: str, stream_path, start: int = 0):
-    """Yield `(next_offset, event)` for each renderable line of a launch's stream file.
-
-    The live view of a running task: every backend appends raw lines to
-    `launch.stream_path` as the agent works, and a viewer polls this with
-    the last offset it saw to get only the new events. `start` is a byte
-    offset; a partial trailing line (the agent is mid-write) is left for
-    the next call. Lines that normalize to nothing are skipped.
-    """
-    with open(stream_path, "rb") as f:
-        f.seek(start)
-        offset = start
-        for raw in f:
-            if not raw.endswith(b"\n"):
-                return
-            offset += len(raw)
-            for ev in normalize_stream_line(format, raw.decode("utf-8", "replace").rstrip("\n")):
-                yield offset, ev

@@ -311,14 +311,10 @@ def _flow_command(args) -> int:
 def _print_created(result) -> None:
     """The tasks a run's flow created, in the order it created them: `kind · unit`, how each
     ended, and the flow path that created it (its functions, the last one's line)."""
-    import json
+    from contraagent.runs import layout
+    from contraagent.runs.files import read_rows
 
-    from contraagent import rundir
-
-    try:
-        rows = [json.loads(line) for line in (result.run_dir / rundir.PLAN).read_text().splitlines() if line.strip()]
-    except (OSError, ValueError):
-        rows = []
+    rows = read_rows(result.run_dir / layout.PLAN)
     print(f"{len(rows)} task{'s' if len(rows) != 1 else ''} created:")
     for row in rows:
         res = result.results.get(row["key"])

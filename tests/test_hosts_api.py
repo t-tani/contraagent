@@ -3,12 +3,12 @@
 
 import json
 
-from contraagent import rundir
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent.hub.source import HeartbeatLiveness
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent.monitor import Monitor
+from contraagent.runs import layout
 
 T0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
 AT = "2026-10-13T00:00:00+00:00"
@@ -27,8 +27,8 @@ def ship(hub: Hub, host: str, run: str, *, finished: bool = False, reading: dict
     hub.records(
         RecordBatch(
             run=ref,
-            documents=[DocumentPut(name=rundir.RUN_INFO, text=json.dumps(info))],
-            logs=[LogChunk(log=rundir.JOURNAL, offset=0, lines=[json.dumps(row)])],
+            documents=[DocumentPut(name=layout.RUN_INFO, text=json.dumps(info))],
+            logs=[LogChunk(log=layout.JOURNAL, offset=0, lines=[json.dumps(row)])],
         )
     )
     return ref
@@ -66,11 +66,11 @@ def test_a_hub_names_each_runs_host_and_marks_runs_whose_host_went_quiet():
 
 
 def test_one_host_is_its_own_single_host(tmp_path, monkeypatch):
-    monkeypatch.setenv(rundir.HOST_ID_ENV, "build-7")
+    monkeypatch.setenv(layout.HOST_ID_ENV, "build-7")
     run = tmp_path / "r1"
     run.mkdir()
-    (run / rundir.RUN_INFO).write_text(json.dumps({"run_id": "r1", "run_uid": "u1", "host_id": "build-7", "started_at": AT}))
-    (run / rundir.JOURNAL).write_text(json.dumps({"key": "k", "kind": "k", "ok": True, "ts": AT}) + "\n")
+    (run / layout.RUN_INFO).write_text(json.dumps({"run_id": "r1", "run_uid": "u1", "host_id": "build-7", "started_at": AT}))
+    (run / layout.JOURNAL).write_text(json.dumps({"key": "k", "kind": "k", "ok": True, "ts": AT}) + "\n")
     mon = Monitor(tmp_path)
     assert not mon.many_hosts
     (row,) = mon.runs()

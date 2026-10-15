@@ -33,7 +33,7 @@ are written, so a reader sees the old recording or the new one.
 
 A recording run compares the working directory at its start and its end (`Recorder.start`,
 `Recorder.finish`), leaving out `.git`, `__pycache__`, the recordings and the run's own
-files (`rundir.OWN`; its `out/` is compared like any other folder). A path created,
+files (`layout.OWN`; its `out/` is compared like any other folder). A path created,
 modified or deleted that no task's outputs, nor its `changes=` patterns, cover is an
 **undeclared change**: a replay cannot make it again, since no recording holds it. They are
 written to `recordings/undeclared.json` (`run`, `created`, `modified`, `deleted`), replaced
@@ -70,11 +70,10 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from contraagent import envvars, rundir
+from contraagent import envvars
 from contraagent.backends import backend_class, known_agents
 from contraagent.backends.base import Backend, ModelChains
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
@@ -83,7 +82,10 @@ from contraagent.contracts import OutputContract
 from contraagent.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution.changes import compare, scan, scan_tree
-from contraagent.execution.pipeline_files import Written, restore
+from contraagent.execution.pipeline_files import Written, write_captured
+from contraagent.runs import layout
+from contraagent.runs.files import write_document
+from contraagent.runs.times import now_iso
 
 VERSION = 1
 
@@ -133,11 +135,6 @@ class RecordingError(ContraagentError):
     """A recording directory that cannot be replayed: missing, or holding no recording."""
 
 
-def safe_name(name: str) -> str:
-    """`name` as one file name: letters, digits, `-`, `_` and `.` kept, anything else `_`."""
-    return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
-
-
 def base_key(key: str) -> tuple[str, int]:
     """A key's base and its `~n` (1 for a key with none): `summarize-alpha~2` is `("summarize-alpha", 2)`."""
     m = _TILDE.match(key)
@@ -154,12 +151,12 @@ def _written(files: Path, pipeline: dict) -> Written:
     written = Written()
     for name in pipeline.get("logs") or ():
         try:
-            written.logs[name] = (files / rundir.pipeline_log(name)).read_text(encoding="utf-8").splitlines(keepends=True)
+            written.logs[name] = (files / layout.pipeline_log(name)).read_text(encoding="utf-8").splitlines(keepends=True)
         except OSError:
             continue
     for name in pipeline.get("documents") or ():
         try:
-            written.documents[name] = (files / rundir.pipeline_document(name)).read_text(encoding="utf-8")
+            written.documents[name] = (files / layout.pipeline_document(name)).read_text(encoding="utf-8")
         except OSError:
             continue
     return written
@@ -229,7 +226,7 @@ class Recorder:
         self._lock = threading.Lock()
 
     def snapshot(self, task: Task) -> _Mark:
-        stream = self._run_dir / rundir.stream(task.key)
+        stream = self._run_dir / layout.stream(task.key)
         try:
             at = stream.stat().st_size
         except OSError:
@@ -262,7 +259,7 @@ class Recorder:
             deleted = list(changes.deleted)
 
         stream = None
-        source = self._run_dir / rundir.stream(task.key)
+        source = self._run_dir / layout.stream(task.key)
         try:
             with open(source, "rb") as f:
                 f.seek(before.stream_at)
@@ -306,11 +303,11 @@ class Recorder:
         pipeline: dict[str, list[str]] = {"logs": [], "documents": []}
         for name, lines in (written.logs if written is not None else {}).items():
             data = "".join(lines).encode()
-            if self._store_bytes(task, data, files / rundir.pipeline_log(name), rundir.pipeline_log(name), by_hash):
+            if self._store_bytes(task, data, files / layout.pipeline_log(name), layout.pipeline_log(name), by_hash):
                 pipeline["logs"].append(name)
         for name, text in (written.documents if written is not None else {}).items():
             data = text.encode()
-            if self._store_bytes(task, data, files / rundir.pipeline_document(name), rundir.pipeline_document(name), by_hash):
+            if self._store_bytes(task, data, files / layout.pipeline_document(name), layout.pipeline_document(name), by_hash):
                 pipeline["documents"].append(name)
         facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "pipeline": pipeline, "by_hash": by_hash}
         self._keep(task, "python", facts)
@@ -353,8 +350,8 @@ class Recorder:
 
     def _skip(self) -> Callable[[Path], bool]:
         """What the working directory's comparison leaves out: `.git`, `__pycache__`, the
-        recordings, and the run's own files (`rundir.OWN`) and lock, wherever they are."""
-        own = {(self._run_dir / name).resolve() for name in rundir.OWN}
+        recordings, and the run's own files (`layout.OWN`) and lock, wherever they are."""
+        own = {(self._run_dir / name).resolve() for name in layout.OWN}
         own |= {self.directory.resolve(), self._run_dir.parent.resolve() / f"{self._run_dir.name}.lock"}
         names = {".git", "__pycache__"}
         return lambda path: path.name in names or path in own
@@ -383,7 +380,7 @@ class Recorder:
             "deleted": [p for p in found.deleted if not declared(p)],
         }
         self.directory.mkdir(parents=True, exist_ok=True)
-        rundir.write_document(self.directory / UNDECLARED, json.dumps(body, ensure_ascii=False, indent=2) + "\n")
+        write_document(self.directory / UNDECLARED, json.dumps(body, ensure_ascii=False, indent=2) + "\n")
         return sorted([*body["created"], *body["modified"], *body["deleted"]])
 
     def _store(self, task: Task, src: Path, dst: Path, by_hash: list[dict[str, Any]]) -> bool:
@@ -434,7 +431,7 @@ class Recorder:
     def _attempt_dir(self, task: Task) -> tuple[str, Path]:
         """A fresh folder for one attempt's files: its name and its path."""
         token = f"{task.attempt + 1}-{secrets.token_hex(4)}"
-        files = self.directory / safe_name(kind_name(task.kind)) / safe_name(task.key) / token
+        files = self.directory / layout.file_name(kind_name(task.kind)) / layout.file_name(task.key) / token
         files.mkdir(parents=True, exist_ok=True)
         return token, files
 
@@ -443,7 +440,7 @@ class Recorder:
             "attempt": task.attempt + 1,
             "files": token,
             "run": self._run_id,
-            "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "recorded_at": now_iso(),
             "fingerprint": task.fingerprint,
             "ok": result.ok,
             "stop": result.stop,
@@ -453,9 +450,9 @@ class Recorder:
     def _keep(self, task: Task, executor: str, attempt: dict[str, Any]) -> None:
         """Add `attempt` to the task's recording (its first attempt in this run replaces it)."""
         kind = kind_name(task.kind)
-        home = self.directory / safe_name(kind)
-        entry_file = home / f"{safe_name(task.key)}.json"
-        folder = home / safe_name(task.key)
+        home = self.directory / layout.file_name(kind)
+        entry_file = home / f"{layout.file_name(task.key)}.json"
+        folder = home / layout.file_name(task.key)
         with self._lock:
             earlier: list[dict] = []
             if task.attempt > 0:
@@ -471,7 +468,7 @@ class Recorder:
                 "unit": task.declared_unit,
                 "attempts": [*earlier, attempt],
             }
-            rundir.write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
+            write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
             # The attempts the entry no longer names: an earlier run's recording of this key.
             named = {a.get("files") for a in body["attempts"]}
             for old in folder.iterdir():
@@ -640,7 +637,7 @@ class Replay:
         files = playing.folder / str(attempt.get("files", ""))
         self._place(files, attempt, outputs, cwd)
         if run_dir is not None:
-            restore(run_dir, _written(files, attempt.get("pipeline") or {}))
+            write_captured(run_dir, _written(files, attempt.get("pipeline") or {}))
         reason = "; ".join([*self._notes(playing, task, attempt), *([attempt["reason"]] if attempt.get("reason") else [])])
         result = TaskResult(
             task=task,
@@ -801,4 +798,4 @@ class ReplayAgent(Backend):
         return real.run(launch) if real is not None else self.replay.play(launch, self.name)
 
 
-__all__ = ["MAX_FILE_MB", "Recorder", "RecordingError", "Replay", "ReplayAgent", "base_key", "megabytes", "safe_name"]
+__all__ = ["MAX_FILE_MB", "Recorder", "RecordingError", "Replay", "ReplayAgent", "base_key", "megabytes"]

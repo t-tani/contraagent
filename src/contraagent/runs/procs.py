@@ -1,4 +1,4 @@
-"""Live process-tree introspection, read straight from /proc (no `ps`).
+"""The live processes of a run on this host, read from `/proc` (`procfs`; no `ps`).
 
 A run is live when the pid recorded in its `run.json` is still the same
 process (pid *and* start time, so a recycled pid is not mistaken for it).
@@ -7,40 +7,27 @@ environment `AgentRunner.launch` sets — a fact about the process, not a guess
 parsed from its command line — and the topmost process of each task is
 reported as one launch. Work running inside the run's own process (a Python
 task, an agent behind a library-call backend) is known from the in-flight
-markers `Run` writes.
+markers `Run` writes (`layout.INFLIGHT`).
+
+A run's records are read through its `DirectorySource`; `ProcLiveness` serves this as
+the `Liveness` of one host's runs directory.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 from pathlib import Path
 
-from contraagent import envvars, procfs
-from contraagent.monitor.paths import BadName, under
+from contraagent import envvars, procfs, telemetry
+from contraagent.runs import layout
+from contraagent.runs.liveness import empty_snapshot
+from contraagent.runs.names import BadName
+from contraagent.runs.source import DirectorySource
+from contraagent.runs.times import parse_iso
 
-
-def _clock_ticks() -> int:
-    """Clock ticks per second, the unit of /proc/<pid>/stat's start time."""
-    try:
-        return os.sysconf("SC_CLK_TCK")
-    except (ValueError, OSError):
-        return 100
-
-
-_CLK = _clock_ticks()
-_TELEMETRY = re.compile(r"TELEMETRY run=(\S+) kind=(\S+) unit=(\S+) key=(\S+)(?: role=(\S+))?")
-
-
-def read_run_info(runs_dir: Path, run: str) -> dict | None:
-    """`runs/<run>/run.json`; `BadName` when `run` is not a plain name."""
-    path = under(runs_dir, run, "run.json", what="run id")
-    try:
-        return json.loads(path.read_text())
-    except (OSError, ValueError):
-        return None
+_CLK = procfs.clock_ticks()
 
 
 def is_alive(info: dict | None) -> bool:
@@ -50,48 +37,23 @@ def is_alive(info: dict | None) -> bool:
     return procfs.pid_identity_ok(int(info["pid"]), info.get("start_ticks"))
 
 
-def live_runs(runs_dir: Path) -> set[str]:
+def live_runs(source: DirectorySource) -> set[str]:
+    """The runs of `source` whose driving process is alive."""
     out = set()
-    try:
-        dirs = [d for d in runs_dir.iterdir() if d.is_dir()]
-    except OSError:
-        return out
-    for d in dirs:
+    for run in source.runs():
         try:
-            info = read_run_info(runs_dir, d.name)
+            info = source.info(run)
         except BadName:
             continue
         if is_alive(info):
-            out.add(d.name)
-    return out
-
-
-def _boot_time() -> int:
-    try:
-        with open("/proc/stat") as f:
-            return int(next(line.split()[1] for line in f if line.startswith("btime")))
-    except (OSError, StopIteration, ValueError):
-        return 0
-
-
-def _environ(pid: int) -> dict[str, str]:
-    try:
-        raw = Path(f"/proc/{pid}/environ").read_bytes()
-    except OSError:
-        return {}
-    out = {}
-    for item in raw.split(b"\0"):
-        k, _, v = item.partition(b"=")
-        if k.startswith(b"CONTRAAGENT_"):
-            out[k.decode()] = v.decode(errors="replace")
+            out.add(run)
     return out
 
 
 def _scan() -> dict[int, dict]:
-    btime, now = _boot_time(), time.time()
+    btime, now = procfs.boot_time(), time.time()
     procs: dict[int, dict] = {}
-    for name in filter(str.isdigit, os.listdir("/proc")):
-        pid = int(name)
+    for pid in procfs.pids():
         st = procfs.read_proc_stat(pid)
         if st is None or st["state"] == "Z":
             continue
@@ -111,25 +73,9 @@ def _flag(cmd: str, name: str) -> str:
     return m.group(1) if m else ""
 
 
-def empty_snapshot(run: str, info: dict | None, alive: bool) -> dict:
-    """A snapshot with no processes: what `run.json` says about the run, and whether it is live."""
-    return {
-        "run": run,
-        "alive": alive,
-        "pid": (info or {}).get("pid"),
-        "argv": (info or {}).get("argv", []),
-        "started_at": (info or {}).get("started_at", ""),
-        "max_workers": (info or {}).get("max_workers"),
-        "run_group": (info or {}).get("run_group", run),
-        "launches": [],
-        "tree": [],
-        "python_tasks": [],
-    }
-
-
-def snapshot(runs_dir: Path, run: str) -> dict:
+def snapshot(source: DirectorySource, run: str) -> dict:
     """Live processes of one run: its agent launches, the full tree, and running Python tasks."""
-    info = read_run_info(runs_dir, run)
+    info = source.info(run)
     alive = is_alive(info)
     out = empty_snapshot(run, info, alive)
     if not alive or info is None:
@@ -140,17 +86,17 @@ def snapshot(runs_dir: Path, run: str) -> dict:
         by_ppid.setdefault(p["ppid"], []).append(p)
 
     def node(p: dict, depth: int, parent_key: str) -> dict:
-        env = _environ(p["pid"])
+        env = procfs.read_environ(p["pid"], prefix=envvars.PREFIX)
         key = env.get(envvars.TASK, "")
         n = {"pid": p["pid"], "age_s": p["age_s"], "cmd": _short(p["cmd"]), "full_cmd": p["cmd"]}
         if key and key != parent_key and env.get(envvars.RUN, run) == run:
-            tele = _TELEMETRY.search(p["cmd"])
+            tele = telemetry.parse(p["cmd"])
             n.update(
                 {
                     "key": key,
                     "kind": env.get(envvars.KIND, ""),
                     "unit": env.get(envvars.UNIT, ""),
-                    "role": tele.group(5) or "" if tele else "",
+                    "role": tele.role if tele else "",
                     "model": _flag(p["cmd"], "--model"),
                     "plugin": _flag(p["cmd"], "--plugin-dir"),
                 }
@@ -175,7 +121,7 @@ def snapshot(runs_dir: Path, run: str) -> dict:
     # Work inside the run's own process: Python tasks, and agent tasks whose
     # backend is a library call (no child process to find; known only by marker).
     seen = {lc["key"] for lc in out["launches"]}
-    for m in _inflight(runs_dir, run):
+    for m in _inflight(source, run):
         if m.pop("executor") == "python":
             out["python_tasks"].append(m)
         elif m["key"] not in seen:
@@ -183,28 +129,22 @@ def snapshot(runs_dir: Path, run: str) -> dict:
     return out
 
 
-def _inflight(runs_dir: Path, run: str) -> list[dict]:
+def _inflight(source: DirectorySource, run: str) -> list[dict]:
     """Tasks running inside the run's own process, from their in-flight markers.
     A marker whose process is gone is ignored."""
     out = []
-    d = under(runs_dir, run, "inflight", what="run id")
-    if not d.is_dir():
-        return out
     now = time.time()
-    for marker in sorted(d.glob("*.json")):
+    for text in source.folder(run, layout.INFLIGHT):
         try:
-            m = json.loads(marker.read_text())
-        except (OSError, ValueError):
+            m = json.loads(text)
+        except ValueError:
+            continue
+        if not isinstance(m, dict):
             continue
         pid = int(m.get("pid") or 0)
         if not pid or procfs.read_proc_stat(pid) is None:
             continue
-        try:
-            from datetime import datetime
-
-            started = datetime.fromisoformat(m.get("started_at", "")).timestamp()
-        except ValueError:
-            started = 0.0
+        started = parse_iso(m.get("started_at"))
         out.append(
             {
                 "key": m.get("key", ""),
@@ -212,7 +152,26 @@ def _inflight(runs_dir: Path, run: str) -> list[dict]:
                 "unit": m.get("unit", ""),
                 "pid": pid,
                 "executor": m.get("executor") or "agent",
-                "age_s": round(now - started) if started else 0,
+                "age_s": round(now - started.timestamp()) if started else 0,
             }
         )
     return out
+
+
+class ProcLiveness:
+    """Live runs of one `runs/` directory on this host: the pid in `run.json`, checked in `/proc`."""
+
+    def __init__(self, root: str | Path) -> None:
+        self.source = DirectorySource(root)
+
+    def live(self) -> set[str]:
+        return live_runs(self.source)
+
+    def snapshot(self, run: str) -> dict:
+        return snapshot(self.source, run)
+
+    def unresponsive(self) -> set[str]:
+        return set()
+
+    def hosts(self) -> list[dict]:
+        return [{"host_id": layout.host_id(), "up": True, "last_seen": "", "interval_s": None}]
