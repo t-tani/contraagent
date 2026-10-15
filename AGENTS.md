@@ -189,8 +189,10 @@ definitions: it imports names from `_internal`, lists them in `__all__` and call
 imports a public module. Each object has one public path. A name a user, the
 documentation or an example uses gets a public home; every contraagent type a public
 signature, field or callback argument reaches is exported too; the rest stays in
-`_internal`. The examples in `docs/examples/` import only public modules.
-`tests/test_public_api.py` checks all of this.
+`_internal`. The examples in `docs/examples/` import only public modules; nothing
+outside the package imports `_internal` but the tests. The public modules import
+without the `monitor` and `hub` extras. `tests/test_public_api.py` checks the
+public modules and what they export.
 
 Inside `_internal`, each layer imports only the layers above it in the list in the
 `src/contraagent/_internal/__init__.py` docstring (`errors`, `platform`,
@@ -201,10 +203,18 @@ process) and `commandline` are leaf modules, importing nothing else of the packa
 `runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
 imports only the standard library and `platform/`; every reader and writer of a run's
 files goes through it.
-`dispatch/` imports nothing outside the standard library, pydantic and `runs/` (its record types, `dispatch/records.py`, are what every later layer writes and reads).
+`dispatch/` imports nothing but the standard library, pydantic and `runs/` (its record
+types, `dispatch/records.py`, are what every later layer writes and reads).
 `hub/` does not import `monitor/`, but for `hub/server.py`, which serves the monitor's
-app (`tests/test_run_files.py` checks both). Never import a later
-layer from an earlier one; pass a callback or a protocol instead.
+app. Never import a later layer from an earlier one; pass a callback or a protocol
+instead.
+
+`uv run lint-imports` checks these import rules: one contract each in pyproject.toml's
+`[tool.importlinter]`, an exception only as a commented `ignore_imports` line.
+"The examples import no `_internal`" is the `protected` contract: the examples are
+modules of `contraagent.docs`, and only `_internal` and the public modules may import
+`_internal`. The tests are not in the graph. `tests/test_layers.py` runs it, so
+`uv run pytest` fails on a broken contract.
 
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
 feeds, store; no UI) and `@contraagent/elements` (generic elements and their
@@ -251,6 +261,7 @@ every element class is `@localized()`. Translations live in
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright          # 0 errors; the "yaml" source warning is expected
+uv run lint-imports     # the import contracts (pyproject.toml); tests/test_layers.py runs it too
 uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
 uv run pytest -m e2e    # the hub and relays as processes over Postgres and RustFS (docker)
 ```
@@ -268,6 +279,11 @@ not know fails it.
 After changing a monitor response model or route, regenerate the committed
 contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
+
+After changing a command's arguments or help, rewrite every command's `--help`:
+`uv run python tests/cli/help.py` writes `tests/cli/help.txt` (a test fails while it is
+stale; argparse's output depends on the Python version, so it compares on the version
+the file names, the one in `.python-version`).
 
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
 published at least 14 days ago), in `web/`:
