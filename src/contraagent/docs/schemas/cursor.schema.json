@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "`cursor.json` in a run directory of run format 1.",
+  "$defs": {
+    "HistoryEntry": {
+      "additionalProperties": false,
+      "description": "One transition, run- and unit-level alike: `{name, at}`.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "at"
+      ],
+      "title": "HistoryEntry",
+      "type": "object"
+    },
+    "Inflight": {
+      "additionalProperties": false,
+      "description": "Work items dispatched but not yet recorded, and who dispatched them.\n\n`pid`/`start_ticks` identify the dispatching process, not just a\ntimestamp: `CursorStore.set_inflight` uses them to tell \"the prior\ndispatcher is still alive\" from \"that process is gone\" as a verifiable\nfact rather than a guess about how long a launch should take.",
+      "properties": {
+        "item_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Item Ids",
+          "type": "array"
+        },
+        "since": {
+          "format": "date-time",
+          "title": "Since",
+          "type": "string"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pid"
+        },
+        "start_ticks": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Ticks"
+        }
+      },
+      "required": [
+        "since"
+      ],
+      "title": "Inflight",
+      "type": "object"
+    },
+    "UnitCursor": {
+      "additionalProperties": false,
+      "description": "One unit's position in the per-unit step sequence.\n\n`stage` is the run stage that was active the last time this unit's step\nadvanced: the run's stage can move on while a unit mid-fan-out has not\nbeen touched, and comparing the two is how a reader tells a unit is\nlagging rather than done. `completed` lists the steps already applied.\n`loop_pass` is the pass number of a loop inside the step (0 until a loop records one).",
+      "properties": {
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "completed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Completed",
+          "type": "array"
+        },
+        "loop_pass": {
+          "default": 0,
+          "title": "Loop Pass",
+          "type": "integer"
+        },
+        "inflight": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Inflight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/HistoryEntry"
+          },
+          "title": "History",
+          "type": "array"
+        }
+      },
+      "title": "UnitCursor",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The run's one resume cursor.\n\n`markers` is a free-form store of event lists keyed by name (a stall, a\nskipped step, a reroute): no closed vocabulary, so values stay\n`list[dict]` rather than per-key models.",
+  "properties": {
+    "schema_version": {
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "run": {
+      "title": "Run",
+      "type": "string"
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stage"
+    },
+    "completed_stages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Completed Stages",
+      "type": "array"
+    },
+    "history": {
+      "items": {
+        "$ref": "#/$defs/HistoryEntry"
+      },
+      "title": "History",
+      "type": "array"
+    },
+    "units": {
+      "additionalProperties": {
+        "$ref": "#/$defs/UnitCursor"
+      },
+      "title": "Units",
+      "type": "object"
+    },
+    "markers": {
+      "additionalProperties": {
+        "items": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "title": "Markers",
+      "type": "object"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run",
+    "updated_at"
+  ],
+  "title": "Cursor",
+  "type": "object"
+}

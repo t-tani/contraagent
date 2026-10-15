@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter, WithJsonSchema
 
 from contraagent._internal.errors import ContraagentError
 
@@ -87,7 +87,12 @@ def _secret_text(v: Secret) -> str:
 
 
 #: A secret in a credential: written `env:NAME` / `file:/path`, recorded as that text, never resolved here.
-SecretField = Annotated[Secret, BeforeValidator(_secret), PlainSerializer(_secret_text, return_type=str)]
+SecretField = Annotated[
+    Secret,
+    BeforeValidator(_secret),
+    PlainSerializer(_secret_text, return_type=str),
+    WithJsonSchema({"type": "string", "pattern": "^(env|file):.+", "description": "env:NAME or file:/path"}),
+]
 
 
 # --- credential types -------------------------------------------------------
@@ -96,7 +101,10 @@ SecretField = Annotated[Secret, BeforeValidator(_secret), PlainSerializer(_secre
 # `frozen` is a class keyword, repeated on every subclass, rather than a `model_config`
 # entry: type checkers read only the keyword, and only a frozen field may be narrowed
 # by a subclass, which is what pins `type` to each subclass's own literal.
-class CredentialBase(BaseModel, frozen=True):
+class Credential(BaseModel, frozen=True):
+    """The identity an agent's API calls are billed to: each kind of credential
+    (`Ambient`, `Subscription`, `ApiKey`, ...) is one of its subclasses."""
+
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     #: The name the config gives it; what journals and the monitor show.
@@ -128,7 +136,7 @@ class CredentialBase(BaseModel, frozen=True):
         return tuple(v.source.partition(":")[2] for v in self.__dict__.values() if isinstance(v, Secret) and v.source.startswith("env:"))
 
 
-class Ambient(CredentialBase, frozen=True):
+class Ambient(Credential, frozen=True):
     """The host's default, untouched: the coding agent runs with the parent's environment
     (its credential variables included) and loads whatever it would load by itself.
     No guarantees, so no traits: a task that `requires` any is never run on it."""
@@ -137,7 +145,7 @@ class Ambient(CredentialBase, frozen=True):
     isolate: bool = False
 
 
-class Subscription(CredentialBase, frozen=True):
+class Subscription(Credential, frozen=True):
     """A stored login (Claude Pro/Max/Team/Enterprise, an omp or pi provider login).
 
     `config_dir`: the directory holding that login: Claude Code's `CLAUDE_CONFIG_DIR`,
@@ -151,7 +159,7 @@ class Subscription(CredentialBase, frozen=True):
     profile: str | None = None
 
 
-class ApiKey(CredentialBase, frozen=True):
+class ApiKey(Credential, frozen=True):
     """A provider's own API key, at the provider's own endpoint. Anything else is a `Gateway`."""
 
     type: Literal["api_key"] = "api_key"
@@ -159,7 +167,7 @@ class ApiKey(CredentialBase, frozen=True):
     key: SecretField
 
 
-class OAuthToken(CredentialBase, frozen=True):
+class OAuthToken(Credential, frozen=True):
     """A long-lived OAuth token (`claude setup-token`)."""
 
     type: Literal["oauth_token"] = "oauth_token"
@@ -167,7 +175,7 @@ class OAuthToken(CredentialBase, frozen=True):
     token: SecretField
 
 
-class Gateway(CredentialBase, frozen=True):
+class Gateway(Credential, frozen=True):
     """Your own endpoint: an LLM gateway (LiteLLM and the like) or a self-hosted API.
 
     Claude Code speaks the Anthropic Messages API to `base_url`, sending `token`
@@ -201,7 +209,7 @@ class Gateway(CredentialBase, frozen=True):
         return "\n".join(f"{k}: {v}" for k, v in self.headers.items())
 
 
-class WorkloadIdentity(CredentialBase, frozen=True):
+class WorkloadIdentity(Credential, frozen=True):
     """Anthropic workload identity federation: an identity token exchanged for API access."""
 
     type: Literal["workload_identity"] = "workload_identity"
@@ -213,7 +221,7 @@ class WorkloadIdentity(CredentialBase, frozen=True):
     workspace_id: str | None = None
 
 
-class Bedrock(CredentialBase, frozen=True):
+class Bedrock(Credential, frozen=True):
     """Amazon Bedrock: an AWS profile (or the default chain), or a Bedrock API key (`bearer`)."""
 
     type: Literal["bedrock"] = "bedrock"
@@ -222,7 +230,7 @@ class Bedrock(CredentialBase, frozen=True):
     bearer: SecretField | None = None
 
 
-class Vertex(CredentialBase, frozen=True):
+class Vertex(Credential, frozen=True):
     """Google Vertex AI. `credentials_file` may be a service-account key or a workload
     identity federation (`external_account`) config."""
 
@@ -232,7 +240,7 @@ class Vertex(CredentialBase, frozen=True):
     credentials_file: Path | None = None
 
 
-class Pool(CredentialBase, frozen=True):
+class Pool(Credential, frozen=True):
     """Several credentials used as one, e.g. two subscriptions or a set of OAuth tokens.
 
     `strategy`: `in_order` uses the first member that is not cooling down
@@ -249,16 +257,16 @@ class Pool(CredentialBase, frozen=True):
     cooldown_s: float = 900.0
 
 
-Credential = Annotated[
+AnyCredential = Annotated[
     Ambient | Subscription | ApiKey | OAuthToken | Gateway | WorkloadIdentity | Bedrock | Vertex | Pool, Field(discriminator="type")
 ]
 CREDENTIAL_TYPES = ("ambient", "subscription", "api_key", "oauth_token", "gateway", "workload_identity", "bedrock", "vertex", "pool")
-_ADAPTER: TypeAdapter = TypeAdapter(Credential)
+_ADAPTER: TypeAdapter = TypeAdapter(AnyCredential)
 
 AMBIENT = Ambient(name="ambient")
 
 
-def parse_credentials(tables: dict[str, dict[str, Any]]) -> dict[str, CredentialBase]:
+def parse_credentials(tables: dict[str, dict[str, Any]]) -> dict[str, Credential]:
     """Every `[credentials.<name>]` table, pools resolved against their members."""
     out = {name: parse_credential(name, table) for name, table in tables.items()}
     for name, c in list(out.items()):
@@ -280,7 +288,7 @@ def parse_credentials(tables: dict[str, dict[str, Any]]) -> dict[str, Credential
     return out
 
 
-def parse_credential(name: str, table: dict[str, Any]) -> CredentialBase:
+def parse_credential(name: str, table: dict[str, Any]) -> Credential:
     """One `[credentials.<name>]` table."""
     data = {**table, "name": name}
     if "traits" in data:
@@ -305,7 +313,7 @@ def model_id(model: str) -> str:
     return model.split("/", 1)[1] if "/" in model else model
 
 
-def check_provider(credential: CredentialBase, model: str, provider: str, named: str = "") -> None:
+def check_provider(credential: Credential, model: str, provider: str, named: str = "") -> None:
     """Refuse a credential for `provider` on a model of another provider. `named`: the provider
     the credential names, when the agent knows its login under another (`provider`)."""
     wanted = model_provider(model)
@@ -423,7 +431,7 @@ SECRET_NAME_RE = re.compile(r"(_API_KEY|_AUTH_TOKEN|_OAUTH_TOKEN|_ACCESS_TOKEN|_
 
 def child_env(
     base: dict[str, str],
-    credential: CredentialBase,
+    credential: Credential,
     binding: CredentialBinding,
     launch_env: dict[str, str],
     *,

@@ -56,7 +56,7 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
-from contraagent._internal.backends.credentials import CredentialBase, Pool
+from contraagent._internal.backends.credentials import Credential, Pool
 from contraagent._internal.dispatch.records import WINDOWS, QuotaReading, Rest, window_spec
 from contraagent._internal.runs.times import parse_iso
 
@@ -107,7 +107,7 @@ class QuotaCap(BaseModel):
     seven_day_pct: float | None = None
 
 
-def caps_of(credentials: Mapping[str, CredentialBase]) -> list[QuotaCap]:
+def caps_of(credentials: Mapping[str, Credential]) -> list[QuotaCap]:
     """The quota caps of each credential that has one. A pool's member with no cap of its
     own takes the pool's."""
     out: list[QuotaCap] = []
@@ -136,7 +136,7 @@ class QuotaRests:
 
     def __init__(
         self,
-        credentials: Mapping[str, CredentialBase],
+        credentials: Mapping[str, Credential],
         rule: QuotaRule | None = None,
         *,
         finishing_kinds: Iterable[str] = (),
@@ -145,7 +145,7 @@ class QuotaRests:
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.credentials: dict[str, CredentialBase] = dict(credentials)
+        self.credentials: dict[str, Credential] = dict(credentials)
         self.rule = rule
         self.finishing_kinds: frozenset[str] = frozenset(finishing_kinds)
         self.grace_s = grace_s

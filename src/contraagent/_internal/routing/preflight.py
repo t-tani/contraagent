@@ -37,7 +37,7 @@ from typing import ClassVar, Literal, get_args
 from pydantic import BaseModel, ConfigDict, Field
 
 from contraagent._internal.backends.base import Backend
-from contraagent._internal.backends.credentials import AMBIENT, CredentialBase
+from contraagent._internal.backends.credentials import AMBIENT, Credential
 from contraagent._internal.backends.launch import Launch, LaunchResult, Limits, Stop
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError
@@ -127,7 +127,7 @@ def catalogue_check(backend: Backend | None, route: Route) -> tuple[bool, str]:
     return False, f"not in the {route.agent} model list"
 
 
-def probe(route: Route, backend: Backend, fallback: str | None = None, credential: CredentialBase = AMBIENT) -> RouteVerdict:
+def probe(route: Route, backend: Backend, fallback: str | None = None, credential: Credential = AMBIENT) -> RouteVerdict:
     """One minimal launch, shaped like the real one.
 
     `fallback` is the model-level chain the launch will actually carry
@@ -291,7 +291,7 @@ def run_preflight(
     routers: Mapping,
     configs: Mapping,
     backends: Mapping[str, Backend],
-    credentials: Mapping[str, CredentialBase] | None = None,
+    credentials: Mapping[str, Credential] | None = None,
     cap: int = DEFAULT_CAP,
     model_failover: bool = False,
 ) -> dict[tuple[str, str, str], RouteVerdict]:

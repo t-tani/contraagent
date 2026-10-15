@@ -1,3 +1,4 @@
+#:schema ../../schemas/pipeline.schema.json
 # A reference pipeline config: every table and key, annotated.
 # tests/test_examples.py loads it and builds a routing plan from it, so it stays valid.
 #

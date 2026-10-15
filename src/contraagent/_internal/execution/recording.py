@@ -75,7 +75,7 @@ from typing import Any
 
 from contraagent._internal.backends import backend_class, known_agents
 from contraagent._internal.backends.base import Backend, ModelChains
-from contraagent._internal.backends.credentials import CredentialBase, CredentialBinding
+from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
@@ -762,14 +762,14 @@ class ReplayAgent(Backend):
         return real.env(launch) if real is not None else {}
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """Any credential: a replay makes no API call. With `real`, that agent's binding."""
         if self.real is not None:
             return self.real.bind_credential(credential, model, env=env, label=label)
         return CredentialBinding(isolated=True, isolation="replay: no API calls")
 
-    def account(self, credential: CredentialBase, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         return self.real.account(credential, model) if self.real is not None else ""
 
     def catalogue(self) -> set[str] | None:
@@ -778,7 +778,7 @@ class ReplayAgent(Backend):
     def model_chains(self, cwd: Path | None = None) -> ModelChains | None:
         return self.real.model_chains(cwd) if self.real is not None else None
 
-    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None:
+    def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
         return self.real.attest(launch_result, credential) if self.real is not None else None
 
     def resumable(self, launch: Launch) -> Launch:

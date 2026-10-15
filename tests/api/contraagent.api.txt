@@ -65,68 +65,12 @@ class AgentTask[Out]
     unwrap: bool = False
     validators: tuple[Validator, ...]
 
-@dataclass(frozen=True)
-class Before
-    def __init__(
-        self,
-        stamp: tuple[int, int] | None,
-        preserved: Mapping[str, Any] = dict(),
-        text: str | None = None,
-    ) -> None
-    preserved: Mapping[str, Any] = field(default_factory=dict)
-    def restore(self, path: Path) -> None
-    stamp: tuple[int, int] | None
-    text: str | None = None
-    def value(self, schema: type[BaseModel] | None) -> Any
-
-class CallFile(BaseModel)
-    cwd: str = ''
-    key: str
-    kind: str
-    model_config: ConfigDict = ConfigDict(extra='forbid')
-    output: CallOutput | None = None
-    params: dict[str, Any] = Field(default_factory=dict)
-    @staticmethod
-    def path_of(launch: Launch) -> Path | None
-    @classmethod
-    def read(cls, path: Path) -> CallFile
-    run: str
-    unit: str = ''
-    version: int = 1
-    def write(self, path: Path) -> Path
-
-class CallOutput(BaseModel)
-    commands: list[dict[str, Any]] = Field(default_factory=list)
-    format: Literal['json', 'text'] = 'json'
-    from_: Literal['file', 'message'] = Field('file', validation_alias=AliasChoices('from', 'from_'), serialization_alias='from')
-    json_schema: dict[str, Any] = Field(default_factory=dict)
-    model_config: ConfigDict = ConfigDict(extra='forbid', serialize_by_alias=True)
-    path: str
-    preserve: list[str] = Field(default_factory=list)
-    schema_ref: SchemaRef | None = None
-
 class Changes(BaseModel)
     created: tuple[str, ...] = ()
     deleted: tuple[str, ...] = ()
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     modified: tuple[str, ...] = ()
     removed: tuple[str, ...] = ()
-
-@dataclass
-class Check
-    def __init__(
-        self,
-        path: Path,
-        ok: bool,
-        errors: list[str],
-        value: Any = None,
-        schema_ok: bool = False,
-    ) -> None
-    errors: list[str]
-    ok: bool
-    path: Path
-    schema_ok: bool = False
-    value: Any = None
 
 @dataclass
 class CheckReport
@@ -185,12 +129,6 @@ class ContraagentError(Exception)
 
 class CredentialError(ContraagentError)
 
-@dataclass(frozen=True)
-class Deferral
-    def __init__(self, reason: str, cause: DeferralCause) -> None
-    cause: DeferralCause
-    reason: str
-
 class DeferralCause(BaseModel)
     cause: str
     flow_call: str | None = Field(default=None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline")
@@ -199,39 +137,6 @@ class DeferralCause(BaseModel)
     need_s: float | None = Field(default=None, description='`cannot_finish`: the work it needed, in seconds')
     rests: tuple[SkippedHop, ...] = Field(default=(), description='`rest`: each hop passed over and why its credential rests')
     def to_dict(self) -> dict[str, Any]
-
-Executor = Literal['agent', 'python']
-
-@dataclass(eq=False)
-class FlowCall
-    def __init__(
-        self,
-        id: str,
-        gen: Generator[Any, Any, Any],
-        parent: FlowCall | None = None,
-        function: str = '',
-        site: tuple[str, int] | None = None,
-        state: FlowState = 'running',
-        frontier: tuple[str, ...] = (),
-        value: Any = None,
-        error: BaseException | None = None,
-        time_box: TimeBox | None = None,
-        started_at: float = time.time(),
-        _children: itertools.count = (lambda: itertools.count(1))(),
-    ) -> None
-    error: BaseException | None = None
-    frontier: tuple[str, ...] = ()
-    function: str = ''
-    gen: Generator[Any, Any, Any] = field(repr=False)
-    id: str
-    parent: FlowCall | None = field(default=None, repr=False)
-    site: tuple[str, int] | None = None
-    started_at: float = field(default_factory=time.time)
-    state: FlowState = 'running'
-    time_box: TimeBox | None = None
-    value: Any = field(default=None, repr=False)
-
-FlowState = Literal['running', 'returned', 'raised', 'closed']
 
 class Frame(BaseModel)
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
@@ -251,26 +156,6 @@ class Hop(BaseModel)
     stop: str = ''
     usage: TokenUsage | None = None
     wall_s: float = 0.0
-
-class Implementations[Out](Mapping[str, AgentTask[Out]])
-    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[Out]]) -> None
-    kind
-    @property kinds: list[str]
-
-@dataclass(frozen=True)
-class InputContract(_FileContract)
-    def __init__(
-        self,
-        path: Path,
-        schema: type[BaseModel] | None,
-        required: bool = True,
-        producer: str = '',
-    ) -> None
-    path: Path
-    producer: str = ''
-    required: bool = True
-    def resolve(self, cwd: Path) -> Path
-    schema: type[BaseModel] | None
 
 class LaunchError(ContraagentError)
 
@@ -301,35 +186,6 @@ class OtherModel(BaseModel)
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     output: int = 0
     def plus(self, other: OtherModel) -> OtherModel
-
-@dataclass(frozen=True)
-class OutputContract(_FileContract)
-    def __init__(
-        self,
-        path: Path,
-        schema: type[BaseModel] | None,
-        fresh: bool = True,
-        validators: tuple[Validator, ...] = (),
-        params: Callable[[], Mapping[str, Any]] | None = None,
-        call: Path | None = None,
-        from_message: bool = False,
-        unwrap: bool = False,
-        preserve: tuple[str, ...] = (),
-    ) -> None
-    def before(self, cwd: Path) -> Before
-    call: Path | None = None
-    def check(self, cwd: Path, before: Before | None = None) -> Check
-    @property compares: bool
-    fresh: bool = True
-    from_message: bool = False
-    def message_path(self, cwd: Path) -> Path
-    params: Callable[[], Mapping[str, Any]] | None = None
-    path: Path
-    preserve: tuple[str, ...] = ()
-    def resolve(self, cwd: Path) -> Path
-    schema: type[BaseModel] | None
-    unwrap: bool = False
-    validators: tuple[Validator, ...] = ()
 
 @dataclass(frozen=True)
 class Overrides
@@ -438,8 +294,6 @@ class PipelineConfig
 
 class PluginError(ContraagentError)
 
-PreflightPolicy = Literal['substitute', 'stop', 'off']
-
 class PreflightStopped(ContraagentError)
     def __init__(self, record: PreflightRecord) -> None
     record
@@ -497,6 +351,8 @@ class RoutingError(ContraagentError, ValueError)
 
 class RunExists(ContraagentError)
 
+class RunFormatError(ContraagentError)
+
 class RunLocked(ContraagentError)
 
 @dataclass
@@ -519,11 +375,6 @@ class RunReport
     run_id: str
     summary: dict[str, Any] = field(default_factory=dict)
     value: Any = None
-
-class SchemaRef(BaseModel)
-    module: str
-    qualname: str
-    search_path: str | None = None
 
 class SkippedHop(Rest)
     model: str = ''
@@ -652,24 +503,7 @@ class TimeBox
     finishing_kinds: frozenset[str] = frozenset()
     flow_call: str | None = None
     grace_s: float
-    def record(self, started_at: float | None) -> TimeBoxRecord
     slack_s: float = 0.0
-
-@dataclass(frozen=True, eq=False)
-class TimeBoxed
-    def __init__(
-        self,
-        gen: Generator[Any, Any, Any],
-        deadline_s: float,
-        grace_s: float,
-        slack_s: float,
-        finishing_kinds: tuple[str, ...],
-    ) -> None
-    deadline_s: float
-    finishing_kinds: tuple[str, ...]
-    gen: Generator[Any, Any, Any] = field(repr=False)
-    grace_s: float
-    slack_s: float
 
 class TokenUsage(BaseModel)
     cache_creation: int = 0
@@ -733,7 +567,7 @@ def agent_task(
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
     **config: Any,
-) -> Implementations[Out]
+) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
     *,
@@ -756,7 +590,7 @@ def agent_task(
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
     **config: Any,
-) -> AgentTask[Out] | Implementations[Out]
+) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
 
@@ -791,36 +625,34 @@ def python_task(
 def save(name: str, value: Any) -> None
 
 def time_box(
-    flow: Generator[Any, Any, Any],
+    flow: Generator[Y, S, R],
     *,
     deadline_s: float,
     grace_s: float = GRACE_S,
     finishing_kinds: Iterable[str] = (),
     slack_s: float | None = None,
-) -> TimeBoxed
+) -> Generator[Y, S, R]
 
 ## contraagent.config
 
 AMBIENT = Ambient(name='ambient')
 
-class Ambient(CredentialBase)
+class Ambient(Credential)
     isolate: bool = False
     type: Literal['ambient'] = 'ambient'
 
-class ApiKey(CredentialBase)
+class ApiKey(Credential)
     key: SecretField
     provider: str = 'anthropic'
     type: Literal['api_key'] = 'api_key'
 
-class Bedrock(CredentialBase)
+class Bedrock(Credential)
     aws_profile: str | None = None
     bearer: SecretField | None = None
     region: str
     type: Literal['bedrock'] = 'bedrock'
 
-Credential = Annotated[Ambient | Subscription | ApiKey | OAuthToken | Gateway | WorkloadIdentity | Bedrock | Vertex | Pool, Field(discriminator='type')]
-
-class CredentialBase(BaseModel)
+class Credential(BaseModel)
     def describe(self) -> dict[str, Any]
     isolate: bool = True
     @property label: str
@@ -832,7 +664,7 @@ class CredentialBase(BaseModel)
     traits: frozenset[str] = frozenset()
     type: str
 
-class Gateway(CredentialBase)
+class Gateway(Credential)
     auth: Literal['bearer', 'api_key'] = 'bearer'
     base_url: str
     def endpoint(self, env: dict[str, str] | None) -> str
@@ -916,12 +748,12 @@ class Limits
     stall_s: float | None = None
     timeout_s: float = 600.0
 
-class OAuthToken(CredentialBase)
+class OAuthToken(Credential)
     provider: str = 'anthropic'
     token: SecretField
     type: Literal['oauth_token'] = 'oauth_token'
 
-class Pool(CredentialBase)
+class Pool(Credential)
     cooldown_s: float = 900.0
     members: tuple[str, ...]
     strategy: Literal['in_order', 'round_robin'] = 'in_order'
@@ -968,21 +800,19 @@ class Secret
     def resolve(self, env: dict[str, str]) -> str
     source: str
 
-class Subscription(CredentialBase)
+class Subscription(Credential)
     config_dir: Path | None = None
     profile: str | None = None
     provider: str = 'anthropic'
     type: Literal['subscription'] = 'subscription'
 
-class Vertex(CredentialBase)
+class Vertex(Credential)
     credentials_file: Path | None = None
     project: str
     region: str
     type: Literal['vertex'] = 'vertex'
 
-Window = Literal['five_hour', 'seven_day']
-
-class WorkloadIdentity(CredentialBase)
+class WorkloadIdentity(Credential)
     federation_rule_id: str
     identity_token_file: Path
     organization_id: str
@@ -995,15 +825,15 @@ class WorkloadIdentity(CredentialBase)
 
 class Backend(abc.ABC)
     def __init__(self, binary: str = '', base_env: dict[str, str] | None = None)
-    def account(self, credential: CredentialBase, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '') -> str
     @abstractmethod
     def argv(self, launch: Launch) -> list[str]
-    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None
+    def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None
     def base_path(self) -> str | None
     binary: str = ''
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1037,6 +867,7 @@ class Backend(abc.ABC)
         t0: float | None = None,
     ) -> LaunchResult
     light_launch: bool = False
+    def mark_launch(self, launch: Launch) -> None
     def model_chains(self, cwd: Path | None = None) -> ModelChains | None
     def models(self) -> dict[str, int | None] | None
     name: str = ''
@@ -1061,6 +892,32 @@ class Backend(abc.ABC)
     watched_limits: frozenset[str] = frozenset()
     wire: ModuleType | None = None
 
+class CallFile(BaseModel)
+    cwd: str = ''
+    key: str
+    kind: str
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    output: CallOutput | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    @staticmethod
+    def path_of(launch: Launch) -> Path | None
+    @classmethod
+    def read(cls, path: Path) -> CallFile
+    run: str
+    unit: str = ''
+    version: int = 1
+    def write(self, path: Path) -> Path
+
+class CallOutput(BaseModel)
+    commands: list[dict[str, Any]] = Field(default_factory=list)
+    format: Literal['json', 'text'] = 'json'
+    from_: Literal['file', 'message'] = Field('file', validation_alias=AliasChoices('from', 'from_'), serialization_alias='from')
+    json_schema: dict[str, Any] = Field(default_factory=dict)
+    model_config: ConfigDict = ConfigDict(extra='forbid', serialize_by_alias=True)
+    path: str
+    preserve: list[str] = Field(default_factory=list)
+    schema_ref: SchemaRef | None = None
+
 @dataclass
 class CallUsage
     def __init__(self, model: str, input: int, cache_read: int, cache_creation: int, output: int) -> None
@@ -1073,13 +930,13 @@ class CallUsage
 
 class ClaudeBackend(ResumeById, Backend)
     def __init__(self, binary: str = 'claude', base_env: dict[str, str] | None = None)
-    def account(self, credential: CredentialBase, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '') -> str
     def argv(self, launch: Launch) -> list[str]
-    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None
+    def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None
     binary = 'claude'
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1108,7 +965,7 @@ class CodexBackend(ResumeById, Backend)
     binary = 'codex'
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1247,7 +1104,7 @@ class Launch
         persist_session: bool = False,
         exclude_dynamic_sections: bool = False,
         limits: Limits = Limits(),
-        credential: CredentialBase = AMBIENT,
+        credential: Credential = AMBIENT,
         cwd: Path = Path.cwd(),
         env: dict[str, str] = dict(),
         stream_path: Path | None = None,
@@ -1265,7 +1122,7 @@ class Launch
     allowed_tools: tuple[str, ...] = ()
     append_system_prompt: str | None = None
     context_files: tuple[str, ...] = ()
-    credential: CredentialBase = AMBIENT
+    credential: Credential = AMBIENT
     cwd: Path = field(default_factory=Path.cwd)
     effort: str | None = None
     env: dict[str, str] = field(default_factory=dict)
@@ -1407,12 +1264,12 @@ class OmpBackend(Backend)
         thinking: str = 'medium',
         trace: bool = True,
     )
-    def account(self, credential: CredentialBase, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '') -> str
     def argv(self, launch: Launch) -> list[str]
     binary = 'omp'
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1453,13 +1310,13 @@ class OmpRpcBackend(OmpBackend)
 
 class OpencodeBackend(OpencodeKeyAccount, Backend)
     PERMISSION_OF: Mapping[str, str] = MappingProxyType({'Bash': 'bash', 'Read': 'read', 'Write': 'edit', 'Edit': 'edit', 'MultiEdit': 'edit', 'NotebookEdit': 'edit', 'Glob': 'glob', 'Grep': 'grep', 'LS': 'list', 'WebFetch': 'webfetch', 'WebSearch': 'websearch', 'Skill': 'skill', 'Agent': 'task', 'Task': 'task', 'TodoWrite': 'todowrite'})
-    def account(self, credential: CredentialBase, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '') -> str
     def argv(self, launch: Launch) -> list[str]
-    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]
+    def billed_key(self, credential: Credential, model: str) -> tuple[str, str]
     binary = 'opencode'
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1490,14 +1347,14 @@ class PiBackend(OpencodeKeyAccount, Backend)
         thinking: str = 'medium',
         agent_dirs: Path | None = None,
     )
-    def account(self, credential: CredentialBase, model: str = '') -> str
+    def account(self, credential: Credential, model: str = '') -> str
     agent_dirs: Path
     def argv(self, launch: Launch) -> list[str]
-    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]
+    def billed_key(self, credential: Credential, model: str) -> tuple[str, str]
     binary = 'pi'
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,
@@ -1522,6 +1379,11 @@ class PiBackend(OpencodeKeyAccount, Backend)
 class QuotaRefusal
     def __init__(self, retry_after_s: float | None = None) -> None
     retry_after_s: float | None = None
+
+class SchemaRef(BaseModel)
+    module: str
+    qualname: str
+    search_path: str | None = None
 
 @dataclass(frozen=True)
 class Signals
@@ -1580,8 +1442,6 @@ class Usage
     @property resident: int
     def totals(self, context_window: int | None = None) -> TokenUsage | None
 
-def account_digest(kind: str, value: str) -> str
-
 def create_backend(name: str, **kwargs: Any) -> Backend
 
 def normalize_stream_line(format: str, raw_line: str) -> list[dict[str, Any]]
@@ -1593,8 +1453,6 @@ def register_normalizer(
     normalize_event: Callable[[dict[str, Any]], dict[str, Any] | list[dict[str, Any]] | None],
     plaintext: Callable[[str], dict[str, Any] | None] | None = None,
 ) -> None
-
-def write_launch_marker(argv: list[str], launch: Launch) -> None
 
 ## contraagent.engine
 
@@ -1610,7 +1468,7 @@ class AgentRunner
         routers: Mapping[str, Router] | None = None,
         model: str = '',
         model_failover: bool = False,
-        credentials: Mapping[str, CredentialBase] | None = None,
+        credentials: Mapping[str, Credential] | None = None,
         env: Mapping[str, str] | None = None,
         keep_transcripts: bool = False,
         cwd: Path | str | None = None,
@@ -1618,14 +1476,14 @@ class AgentRunner
         enrichers: Sequence[ResultEnricher] = (),
         rests: QuotaRests | None = None,
     )
-    def account_of(self, backend: Backend, credential: CredentialBase, model: str) -> str
+    def account_of(self, backend: Backend, credential: Credential, model: str) -> str
     adapter: TaskAdapter
     def backend_for_route(self, task: Task, route: Route | None) -> Backend
     backends: dict[str, Backend]
     def config(self, task: Task) -> KindConfig
     configs: Mapping[str, KindConfig]
-    def credential_for(self, task: Task, route: Route | None) -> CredentialBase
-    credentials: dict[str, CredentialBase]
+    def credential_for(self, task: Task, route: Route | None) -> Credential
+    credentials: dict[str, Credential]
     cwd: Path
     def deferral(self, task: Task) -> Deferral | None
     enrichers: Sequence[ResultEnricher] = tuple(enrichers)
@@ -1636,7 +1494,7 @@ class AgentRunner
         task: Task,
         route: Route | None = None,
         backend: Backend | None = None,
-        credential: CredentialBase | None = None,
+        credential: Credential | None = None,
     ) -> Launch
     model
     model_failover
@@ -1648,6 +1506,36 @@ class AgentRunner
     run_dir: Path
     run_id
     scopes: Sequence[TaskScope] = tuple(scopes)
+
+@dataclass(frozen=True)
+class Before
+    def __init__(
+        self,
+        stamp: tuple[int, int] | None,
+        preserved: Mapping[str, Any] = dict(),
+        text: str | None = None,
+    ) -> None
+    preserved: Mapping[str, Any] = field(default_factory=dict)
+    def restore(self, path: Path) -> None
+    stamp: tuple[int, int] | None
+    text: str | None = None
+    def value(self, schema: type[BaseModel] | None) -> Any
+
+@dataclass
+class Check
+    def __init__(
+        self,
+        path: Path,
+        ok: bool,
+        errors: list[str],
+        value: Any = None,
+        schema_ok: bool = False,
+    ) -> None
+    errors: list[str]
+    ok: bool
+    path: Path
+    schema_ok: bool = False
+    value: Any = None
 
 class ClaimCapacity(Protocol)
     def allowed(self, held: int) -> int
@@ -1692,6 +1580,41 @@ class CursorStore
     def set_inflight(self, unit: str, item_ids: list[str], at: datetime | None = None) -> Cursor
     def steps_to_run(self, unit: str) -> list[str]
 
+@dataclass(frozen=True)
+class Deferral
+    def __init__(self, reason: str, cause: DeferralCause) -> None
+    cause: DeferralCause
+    reason: str
+
+@dataclass(eq=False)
+class FlowCall
+    def __init__(
+        self,
+        id: str,
+        gen: Generator[Any, Any, Any],
+        parent: FlowCall | None = None,
+        function: str = '',
+        site: tuple[str, int] | None = None,
+        state: FlowState = 'running',
+        frontier: tuple[str, ...] = (),
+        value: Any = None,
+        error: BaseException | None = None,
+        time_box: TimeBox | None = None,
+        started_at: float = time.time(),
+        _children: itertools.count = (lambda: itertools.count(1))(),
+    ) -> None
+    error: BaseException | None = None
+    frontier: tuple[str, ...] = ()
+    function: str = ''
+    gen: Generator[Any, Any, Any] = field(repr=False)
+    id: str
+    parent: FlowCall | None = field(default=None, repr=False)
+    site: tuple[str, int] | None = None
+    started_at: float = field(default_factory=time.time)
+    state: FlowState = 'running'
+    time_box: TimeBox | None = None
+    value: Any = field(default=None, repr=False)
+
 class FlowDriver
     def __init__(
         self,
@@ -1727,6 +1650,21 @@ class Inflight(BaseModel)
     since: datetime
     start_ticks: int | None = None
 
+@dataclass(frozen=True)
+class InputContract(_FileContract)
+    def __init__(
+        self,
+        path: Path,
+        schema: type[BaseModel] | None,
+        required: bool = True,
+        producer: str = '',
+    ) -> None
+    path: Path
+    producer: str = ''
+    required: bool = True
+    def resolve(self, cwd: Path) -> Path
+    schema: type[BaseModel] | None
+
 class JournalEstimates
     def __init__(
         self,
@@ -1742,6 +1680,35 @@ class JournalEstimates
     def observe_plan(self, row: dict[str, Any]) -> None
     def tail(self, task: Task) -> float | None
 
+@dataclass(frozen=True)
+class OutputContract(_FileContract)
+    def __init__(
+        self,
+        path: Path,
+        schema: type[BaseModel] | None,
+        fresh: bool = True,
+        validators: tuple[Validator, ...] = (),
+        params: Callable[[], Mapping[str, Any]] | None = None,
+        call: Path | None = None,
+        from_message: bool = False,
+        unwrap: bool = False,
+        preserve: tuple[str, ...] = (),
+    ) -> None
+    def before(self, cwd: Path) -> Before
+    call: Path | None = None
+    def check(self, cwd: Path, before: Before | None = None) -> Check
+    @property compares: bool
+    fresh: bool = True
+    from_message: bool = False
+    def message_path(self, cwd: Path) -> Path
+    params: Callable[[], Mapping[str, Any]] | None = None
+    path: Path
+    preserve: tuple[str, ...] = ()
+    def resolve(self, cwd: Path) -> Path
+    schema: type[BaseModel] | None
+    unwrap: bool = False
+    validators: tuple[Validator, ...] = ()
+
 class PythonTaskRunner
     def __init__(
         self,
@@ -1754,8 +1721,6 @@ class PythonTaskRunner
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
-        recorder: Any = None,
-        replay: Any = None,
     ) -> None
     def config(self, task: Task) -> RunnerConfig
     def contracts(self, task: Task) -> tuple[list[Any], list[Any]]
@@ -1765,7 +1730,7 @@ class PythonTaskRunner
 class QuotaRests
     def __init__(
         self,
-        credentials: Mapping[str, CredentialBase],
+        credentials: Mapping[str, Credential],
         rule: QuotaRule | None = None,
         *,
         finishing_kinds: Iterable[str] = (),
@@ -1774,7 +1739,7 @@ class QuotaRests
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         clock: Callable[[], float] = time.monotonic,
     ) -> None
-    credentials: dict[str, CredentialBase]
+    credentials: dict[str, Credential]
     finishing_kinds: frozenset[str]
     grace_s
     def latest(self, name: str, account: str | None = None) -> QuotaReading | None
@@ -1784,6 +1749,20 @@ class QuotaRests
     def resting_members(self, pool: str, kind: str = '', account: AccountOf | None = None) -> set[str]
     def rests(self, name: str, kind: str = '', account: AccountOf | None = None) -> list[Rest]
     rule
+
+class Rest(BaseModel)
+    account: str = ''
+    cap: float | None = None
+    credential: str
+    model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
+    pct: float | None = None
+    reading: dict[str, Any] | None = None
+    rule: str = ''
+    def skipped(self, route: str, model: str) -> SkippedHop
+    def text(self) -> str
+    def to_dict(self) -> dict[str, Any]
+    until: str = ''
+    window: Literal['', Window] = ''
 
 class RetryingRunner
     def __init__(
@@ -1835,7 +1814,7 @@ class RoutingPlan
         configs: dict[str, KindConfig] = dict(),
         routers: dict[str, Router] = dict(),
         overrides: Overrides = Overrides(),
-        credentials: dict[str, CredentialBase] = dict(),
+        credentials: dict[str, Credential] = dict(),
     ) -> None
     backends: Mapping[str, Backend]
     @classmethod
@@ -1855,7 +1834,7 @@ class RoutingPlan
     ) -> RoutingPlan
     config: PipelineConfig
     configs: dict[str, KindConfig] = field(default_factory=dict)
-    credentials: dict[str, CredentialBase] = field(default_factory=dict)
+    credentials: dict[str, Credential] = field(default_factory=dict)
     def log(self) -> None
     overrides: Overrides = Overrides()
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord
@@ -1906,8 +1885,6 @@ class Run
         *,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        recorder: Any = None,
-        replay: Any = None,
     ) -> PythonTaskRunner
     def queue(
         self,
@@ -1919,7 +1896,7 @@ class Run
     ) -> WorkQueue
     def quota_rests(
         self,
-        credentials: Mapping[str, CredentialBase],
+        credentials: Mapping[str, Credential],
         rule: QuotaRule | None = None,
         **kwargs: Any,
     ) -> QuotaRests
@@ -2061,8 +2038,6 @@ class Plugin
     def skill_files(self) -> list[tuple[str, str]]
     @property skills_only: bool
 
-def lint_plugin(plugin: Plugin) -> list[str]
-
 def new_plugin(directory: str | Path, name: str = '') -> list[Path]
 
 ## contraagent.monitor
@@ -2184,51 +2159,6 @@ class LogPosition(NamedTuple)
     def after(self, lines: Sequence[str]) -> LogPosition
     line: int
     offset: int
-
-class MemorySource
-    def __init__(
-        self,
-        records: Mapping[str, Mapping[str, str | list[str]]] | None = None,
-        *,
-        files: Mapping[str, Mapping[str, tuple[str, str]]] | None = None,
-        times: Mapping[str, str] | None = None,
-    ) -> None
-    def activity(self, run: str) -> str | None
-    def dir(self, run: str) -> Path | None
-    def document(self, run: str, name: str) -> str | None
-    def documents(self, run: str) -> list[str]
-    def exists(self, run: str, name: str) -> bool
-    def file(self, run: str, path: str) -> RunFile | None
-    def file_stat(self, run: str, path: str) -> Stat | None
-    files: dict[str, dict[str, tuple[str, str]]]
-    def folder(self, run: str, folder: str) -> list[str]
-    def info(self, run: str) -> dict[str, Any] | None
-    def keep(self, run: str, text: str) -> None
-    def kept(self, run: str) -> str | None
-    def lines(
-        self,
-        run: str,
-        log: str,
-        since: int = 0,
-        limit: int | None = None,
-        max_bytes: int | None = None,
-    ) -> tuple[list[str], int]
-    def lines_at(
-        self,
-        run: str,
-        log: str,
-        at: LogPosition,
-        limit: int | None = None,
-        max_bytes: int | None = None,
-    ) -> tuple[list[str], LogPosition]
-    def logs(self, run: str) -> list[str]
-    def position(self, run: str, log: str, line: int) -> LogPosition
-    records: dict[str, dict[str, str | list[str]]]
-    def runs(self) -> list[str]
-    def size(self, run: str, log: str) -> int
-    def stat(self, run: str, name: str = '') -> Stat | None
-    times: dict[str, str]
-    async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int
 
 class Monitor
     def __init__(
@@ -2452,10 +2382,6 @@ class TilesBody(_Body)
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['tiles'] = 'tiles'
 
-Tone = Literal['failed', 'attention', 'done', 'running', 'muted', 'neutral']
-
-ValueFormat = Literal['usd', 'pct', 'duration', 'tokens', 'datetime', 'number']
-
 def create_app(
     monitor: Monitor,
     *,
@@ -2546,8 +2472,6 @@ class ContractSpec(Open)
     schema_ref: str = ''
     status: ContractStatus | None = None
     validators: list[str] = Field(default_factory=list)
-
-ContractStatus = Literal['valid', 'invalid', 'refused', 'pending', 'failed', 'running']
 
 class CredentialRest(Rest)
     ended: str = Field('', description='when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)')
@@ -2695,8 +2619,6 @@ class JournalRow(BaseModel)
     wall_s: float = 0.0
     web_queries: list[str] = Field(default_factory=list)
 
-JsonObject = dict[str, Any]
-
 class KeptKind(BaseModel)
     agent: str
     kind: str
@@ -2707,12 +2629,14 @@ class KeptKind(BaseModel)
 class LaunchEvent(TranscriptEvent)
     argv: list[str]
     cwd: str
+    model_config: ConfigDict = ConfigDict(extra='allow')
     prompt: str = Field(description='cut at 200 000 characters')
     prompt_truncated: int = Field(0, description='characters of the prompt not shown')
     ts: float | None = Field(None, description='Unix time the launch started')
     type: Literal['launch']
 
 class MessageEvent(TranscriptEvent)
+    model_config: ConfigDict = ConfigDict(extra='allow')
     role: str | None = None
     text: str | None = None
     thinking: str | None = None
@@ -2721,6 +2645,7 @@ class MessageEvent(TranscriptEvent)
 class MessageUpdateEvent(TranscriptEvent)
     delta: str
     ev: str
+    model_config: ConfigDict = ConfigDict(extra='allow')
     type: Literal['message_update']
 
 class ModelUsage(Closed)
@@ -2739,10 +2664,12 @@ class ModelUsage(Closed)
     wall_s: float = 0.0
 
 class NoticeEvent(TranscriptEvent)
+    model_config: ConfigDict = ConfigDict(extra='allow')
     text: str
     type: Literal['notice']
 
 class OtherEvent(TranscriptEvent)
+    model_config: ConfigDict = ConfigDict(extra='allow')
     type: str
 
 class OutputTally(Closed)
@@ -2808,31 +2735,29 @@ class PlanMessage(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
 
 class PlanNode(PlanRow)
-    attempts: int = 1
-    deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
-    deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
-    group: str
-    level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
-    route: str = ''
-    state: TaskState
-    stop: str = ''
-    wall_s: float = 0.0
-
-class PlanRow(BaseModel)
     after: list[str] = Field(default_factory=list, description='task keys it waits for')
+    attempts: int = 1
     base_kind: str = Field('', description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty")
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     created_from: list[str] = Field(default_factory=list, description='keys whose results its flow call had received when it created it')
+    deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
+    deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
     executor: Executor = 'agent'
     flow: list[Frame] = Field(default_factory=list, description='the flow path: frames of flow code that created it, outermost first')
     flow_call: str | None = Field(None, description='the id of the flow call that created it; null for a task with no origin')
+    group: str
     key: str
     kind: str
+    level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
     model_config: ConfigDict = ConfigDict(extra='allow', serialize_by_alias=True)
     priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
+    route: str = ''
+    state: TaskState
+    stop: str = ''
     def to_dict(self) -> dict[str, Any]
     ts: str = Field('', description='when it was queued (absent for a node rebuilt from the journal)')
     unit: str = ''
+    wall_s: float = 0.0
 
 class PreflightRecord(BaseModel)
     dropped: list[DroppedRoute] = Field(default_factory=list)
@@ -2885,27 +2810,10 @@ class ReadyMessage(Closed)
     event: Literal['ready']
     model_config: ConfigDict = ConfigDict(extra='forbid')
 
-class Rest(BaseModel)
-    account: str = ''
-    cap: float | None = None
-    credential: str
-    model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
-    pct: float | None = None
-    reading: dict[str, Any] | None = None
-    rule: str = ''
-    def skipped(self, route: str, model: str) -> SkippedHop
-    def text(self) -> str
-    def to_dict(self) -> dict[str, Any]
-    until: str = ''
-    window: Literal['', Window] = ''
-
-class RestEvent(Rest)
-    event: Literal['start', 'end']
-    ts: str
-
 class RetryEvent(TranscriptEvent)
     attempt: int | None = None
     err: str = ''
+    model_config: ConfigDict = ConfigDict(extra='allow')
     type: Literal['auto_retry_start']
 
 RunEvent = JournalMessage | ProcsMessage | PlanMessage | OutputsMessage | CursorMessage | PanelMessage | ReadyMessage
@@ -3029,8 +2937,6 @@ class TaskLaunch(Closed)
     role: str | None
     unit: str | None
 
-TaskState = Literal['pending', 'running', 'done', 'partial', 'failed', 'skipped', 'blocked']
-
 class TimeBoxRecord(BaseModel)
     deadline_s: float = Field(description='seconds from `started_at` to the deadline')
     finishing_kinds: tuple[str, ...] = Field(default=(), description='the kinds that still launch past the deadline')
@@ -3043,6 +2949,7 @@ class ToolCallEchoEvent(TranscriptEvent)
     call: str
     cmd: str
     intent: str
+    model_config: ConfigDict = ConfigDict(extra='allow')
     tool: str | None
     type: Literal['acall']
     web_fetch: str | None = Field(None, description='the URL, when the call reads a web page')
@@ -3051,6 +2958,7 @@ class ToolCallEchoEvent(TranscriptEvent)
 class ToolEndEvent(TranscriptEvent)
     call: str
     err: bool
+    model_config: ConfigDict = ConfigDict(extra='allow')
     out: str
     tool: str | None
     type: Literal['tool_execution_end']
@@ -3058,6 +2966,7 @@ class ToolEndEvent(TranscriptEvent)
 class ToolResultEchoEvent(TranscriptEvent)
     call: str
     err: bool
+    model_config: ConfigDict = ConfigDict(extra='allow')
     out: str
     tool: str | None
     type: Literal['aresult']
@@ -3066,13 +2975,11 @@ class ToolStartEvent(TranscriptEvent)
     call: str
     cmd: str = Field(description='a one-line preview: the command, pattern, path, URL or query')
     intent: str
+    model_config: ConfigDict = ConfigDict(extra='allow')
     tool: str | None
     type: Literal['tool_execution_start', 'tool_execution_update']
     web_fetch: str | None = Field(None, description='the URL, when the call reads a web page')
     web_query: str | None = Field(None, description='the query, when the call is a web search')
-
-class TranscriptEvent(Open)
-    model_config: ConfigDict = ConfigDict(extra='allow')
 
 class TrendDay(Closed)
     attempts: int
@@ -3129,7 +3036,9 @@ class TrendQuota(Closed)
     window: str = Field(description='`five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)')
 
 class TrendRest(RestEvent)
+    event: Literal['start', 'end']
     run: str
+    ts: str
 
 class TrendRun(Closed)
     attempts: int
@@ -3240,7 +3149,7 @@ class StubAgent(Backend)
     binary = ''
     def bind_credential(
         self,
-        credential: CredentialBase,
+        credential: Credential,
         model: str = '',
         *,
         env: dict[str, str] | None = None,

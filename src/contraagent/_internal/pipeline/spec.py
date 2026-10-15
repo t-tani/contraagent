@@ -222,7 +222,7 @@ def agent_task[Out](
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
     **config: Any,
-) -> Implementations[Out]: ...
+) -> Mapping[str, AgentTask[Out]]: ...
 
 
 def agent_task[Out](
@@ -247,7 +247,7 @@ def agent_task[Out](
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
     **config: Any,
-) -> AgentTask[Out] | Implementations[Out]:
+) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
@@ -327,7 +327,7 @@ def agent_task[Out](
     "go": "plugins/review-go"}` (plugin directories, relative as `plugin` is; it takes the place
     of `plugin`). Each is a kind of its own, `<kind>-<name>` (`review-go`), with that plugin
     and every other argument given here; `kind` is their **base kind**. A name is letters,
-    digits and `_`. It returns an `Implementations`, indexed by name: `review["go"](unit)`.
+    digits and `_`. It returns a mapping of agent tasks by name: `review["go"](unit)`.
     Each implementation kind takes the `[tasks.<kind>]` table of the base kind, then its own
     `[tasks.<kind>-<name>]` table key by key (its `fallbacks` replace the base kind's); the
     monitor draws its tasks in the base kind's group, unless `Monitor(groups=)` lists the kind.

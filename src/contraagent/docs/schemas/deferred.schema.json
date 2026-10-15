@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `deferred.jsonl` in a run directory of run format 1.",
+  "$defs": {
+    "DeferralCause": {
+      "additionalProperties": false,
+      "description": "Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name. A field a cause does not have is left unset, and\n`deferred.jsonl` records only the fields set.",
+      "properties": {
+        "cause": {
+          "title": "Cause",
+          "type": "string"
+        },
+        "need_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "`cannot_finish`: the work it needed, in seconds",
+          "title": "Need S"
+        },
+        "left_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "`cannot_finish`: the time left before the deadline, in seconds",
+          "title": "Left S"
+        },
+        "flow_call": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline",
+          "title": "Flow Call"
+        },
+        "rests": {
+          "default": [],
+          "description": "`rest`: each hop passed over and why its credential rests",
+          "items": {
+            "$ref": "#/$defs/SkippedHop"
+          },
+          "title": "Rests",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cause"
+      ],
+      "title": "DeferralCause",
+      "type": "object"
+    },
+    "SkippedHop": {
+      "additionalProperties": true,
+      "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest.",
+      "properties": {
+        "credential": {
+          "title": "Credential",
+          "type": "string"
+        },
+        "window": {
+          "default": "",
+          "enum": [
+            "",
+            "five_hour",
+            "seven_day"
+          ],
+          "title": "Window",
+          "type": "string"
+        },
+        "pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pct"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        },
+        "until": {
+          "default": "",
+          "title": "Until",
+          "type": "string"
+        },
+        "account": {
+          "default": "",
+          "title": "Account",
+          "type": "string"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reading"
+        },
+        "route": {
+          "default": "",
+          "title": "Route",
+          "type": "string"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential"
+      ],
+      "title": "SkippedHop",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One line of `runs/<run>/deferred.jsonl`: a task the queue deferred, never launched;\nwhy in one line (`reason`) and as data (`cause`).",
+  "properties": {
+    "ts": {
+      "title": "Ts",
+      "type": "string"
+    },
+    "key": {
+      "title": "Key",
+      "type": "string"
+    },
+    "kind": {
+      "default": "",
+      "title": "Kind",
+      "type": "string"
+    },
+    "unit": {
+      "default": "",
+      "title": "Unit",
+      "type": "string"
+    },
+    "reason": {
+      "default": "",
+      "title": "Reason",
+      "type": "string"
+    },
+    "cause": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DeferralCause"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "ts",
+    "key"
+  ],
+  "title": "DeferredRow",
+  "type": "object"
+}

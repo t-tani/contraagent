@@ -45,13 +45,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from contraagent._internal.backends.base import Backend
-from contraagent._internal.backends.credentials import CredentialBase
+from contraagent._internal.backends.credentials import Credential
 from contraagent._internal.backends.launch import Stop
 from contraagent._internal.dispatch.flow import FlowState
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.python_task import make_python_task
 from contraagent._internal.dispatch.queue import TaskRunner, WorkQueue
-from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent
+from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent, TimeBoxRecord
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution import teardown as _teardown
@@ -71,7 +71,7 @@ from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, write_document
 from contraagent._internal.runs.source import DirectorySource, parse_info
-from contraagent._internal.runs.times import now_iso
+from contraagent._internal.runs.times import iso_of, now_iso
 
 _logger = logging.getLogger(__name__)
 
@@ -121,6 +121,11 @@ class RunLocked(ContraagentError):
 
 class RunExists(ContraagentError):
     """The run id already holds a run, and the caller did not ask to resume it."""
+
+
+class RunFormatError(ContraagentError):
+    """The run directory is of a run format this release does not read (`run.json` `format`):
+    a newer contraagent wrote it."""
 
 
 class Run:
@@ -178,10 +183,12 @@ class Run:
         self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
+        self._check_format()
         write_document(
             self.dir / layout.RUN_INFO,
             json.dumps(
                 {
+                    "format": layout.FORMAT,
                     "run_id": run_id,
                     "run_uid": self._previous_uid() or uuid.uuid4().hex,
                     "host_id": layout.host_id(),
@@ -193,6 +200,21 @@ class Run:
                     "started_at": now_iso(),
                 }
             ),
+        )
+
+    def _check_format(self) -> None:
+        """Refuse a run directory an earlier attempt left in a run format this release does not
+        read (`RunFormatError`), before its `run.json` is replaced."""
+        info = self._info()
+        if info is None:
+            return
+        found = layout.format_of(info)
+        if found in layout.FORMATS:
+            return
+        self.close()
+        raise RunFormatError(
+            f"{self.dir} is of run format {info.get('format')!r}; this contraagent reads run format "
+            f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
         )
 
     def _previous_uid(self) -> str | None:
@@ -343,15 +365,12 @@ class Run:
         *,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        recorder: Any = None,  # a `Recorder` (execution.recording); the pipeline gives it
-        replay: Any = None,  # a `Replay` (execution.recording); the pipeline gives it
     ) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
         a retried one here, the last by the queue. `scopes` / `enrichers` wrap each
-        attempt of a Python task, `recorder` keeps each attempt's recording and `replay` plays
-        it (`PythonTaskRunner`)."""
+        attempt of a Python task (`PythonTaskRunner`)."""
         return PythonTaskRunner(
             inner,
             adapter=adapter,
@@ -361,8 +380,6 @@ class Run:
             scopes=scopes,
             enrichers=enrichers,
             config=self.config,
-            recorder=recorder,
-            replay=replay,
         )
 
     def estimator(self) -> JournalEstimates:
@@ -373,7 +390,7 @@ class Run:
             self._estimates = JournalEstimates(self.runs_dir)
         return self._estimates
 
-    def quota_rests(self, credentials: Mapping[str, CredentialBase], rule: QuotaRule | None = None, **kwargs: Any) -> QuotaRests:
+    def quota_rests(self, credentials: Mapping[str, Credential], rule: QuotaRule | None = None, **kwargs: Any) -> QuotaRests:
         """The run's quota rests (`routing.quota`) over `credentials`, told the utilization
         readings of the recent runs' journals (this run's included, when resumed): an
         account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`.
@@ -556,12 +573,12 @@ class Run:
         """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
         `function` and `flow`, the flow path where the parent yielded it (the parent's frames,
         with their loops' passes, as in `plan.jsonl`; empty for a top flow call), and for a
-        flow call yielded through `time_box`, its `time_box` (`TimeBox.record`; `started_at`:
+        flow call yielded through `time_box`, its `time_box` (a `TimeBoxRecord`; `started_at`:
         when the flow call started, where its deadline counts from); "end": its `state` and
         `error`."""
         ts = now_iso()
         if event == "start":
-            box = {"time_box": time_box.record(started_at)} if time_box is not None else {}
+            box = {"time_box": _time_box_record(time_box, started_at)} if time_box is not None else {}
             start = {"ts": ts, "id": call_id, "event": "start", "parent": parent, "function": function, "flow": list(flow)}
             row = FlowCallRow.model_validate(start | box)
         else:
@@ -598,3 +615,15 @@ class Run:
                 }
             ),
         )
+
+
+def _time_box_record(box: TimeBox, started_at: float | None) -> TimeBoxRecord:
+    """`box` as `flow_calls.jsonl` records it; `started_at`: when its flow call started
+    (`time.time()`), now when None."""
+    return TimeBoxRecord(
+        started_at=iso_of(started_at) if started_at is not None else now_iso(),
+        deadline_s=box.deadline_s,
+        grace_s=box.grace_s,
+        slack_s=box.slack_s,
+        finishing_kinds=tuple(sorted(box.finishing_kinds)),
+    )

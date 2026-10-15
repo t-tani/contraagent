@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from contraagent._internal.backends import Backend, backend_class, known_agents
-from contraagent._internal.backends.credentials import CredentialBase, CredentialError, Pool
+from contraagent._internal.backends.credentials import Credential, CredentialError, Pool
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.routing.config import PipelineConfig
@@ -338,7 +338,7 @@ class RoutingPlan:
     routers: dict[str, Router] = field(default_factory=dict)
     overrides: Overrides = Overrides()
     #: `[credentials.<name>]` by name, `ambient` included: what an `AgentRunner` takes as `credentials`.
-    credentials: dict[str, CredentialBase] = field(default_factory=dict)
+    credentials: dict[str, Credential] = field(default_factory=dict)
 
     @classmethod
     def build(

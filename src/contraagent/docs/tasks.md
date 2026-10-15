@@ -98,7 +98,9 @@ whatever the flow returned (a `Pending` in it reads its task's output).
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
 journal row is ok with the same fingerprint is skipped, its output read from the
-run directory. Another run id starts a new run. A task's fingerprint is a digest
+run directory. Another run id starts a new run. A run directory a newer
+contraagent wrote, of a run format this one does not read (`run.json` `format`), is
+not resumed (`RunFormatError`; [Compatibility](compatibility.md#run-formats-and-schemas)). A task's fingerprint is a digest
 of:
 
 - its kind, unit, key and params;
@@ -450,5 +452,5 @@ and receive `TaskResult`s.
 | `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
-| `run_until_valid` (with `OutputContract` / `InputContract` from `contraagent`) | files checked by schema and validators; resume until they pass |
+| `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |
 | `CursorStore` | resume cursor: stage, per-unit step, in-flight work, markers |

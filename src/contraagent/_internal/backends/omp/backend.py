@@ -21,7 +21,7 @@ from contraagent._internal.backends.credentials import (
     SENSITIVE,
     Ambient,
     ApiKey,
-    CredentialBase,
+    Credential,
     CredentialBinding,
     CredentialError,
     Gateway,
@@ -284,7 +284,7 @@ class OmpBackend(Backend):
             reading.account = reading.account or opencode_key.account_of_key(self._opencode_key(binding, env))
         return reading
 
-    def account(self, credential: CredentialBase, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account omp's usage report names for the model's provider (`metadata.accountId`,
         from `omp usage --json`, which reads what omp kept of the account's last response).
         Asked once per credential and provider in this process; '' when omp reports none."""
@@ -346,7 +346,7 @@ class OmpBackend(Backend):
     # the providers in `PROFILE_ISOLATED_PROVIDERS`.
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):

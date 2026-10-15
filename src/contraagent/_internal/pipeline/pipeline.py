@@ -34,6 +34,7 @@ from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult
+from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent._internal.execution.run import Run, RunExists
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
@@ -384,13 +385,15 @@ class Pipeline:
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
-                        run.python_runner(
-                            RetryingRunner(runner, on_attempt=run.record_attempt),
-                            cwd=self.cwd,
-                            scopes=self.scopes,
-                            enrichers=self.enrichers,
-                            recorder=recorder,
-                            replay=self.replay,
+                        recording(
+                            run.python_runner(
+                                RetryingRunner(runner, on_attempt=run.record_attempt),
+                                cwd=self.cwd,
+                                scopes=self.scopes,
+                                enrichers=self.enrichers,
+                            ),
+                            recorder,
+                            self.replay,
                         ),
                         follow_up=follow_up,
                         resume=resume,

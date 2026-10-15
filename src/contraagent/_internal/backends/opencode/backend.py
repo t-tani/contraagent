@@ -32,7 +32,7 @@ from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
-    CredentialBase,
+    Credential,
     CredentialBinding,
     CredentialError,
     Gateway,
@@ -312,7 +312,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     # launch no stored login (`OPENCODE_AUTH_CONTENT` empty).
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):
@@ -364,7 +364,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
 
     # --- the account and its usage ---------------------------------------------
 
-    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+    def billed_key(self, credential: Credential, model: str) -> tuple[str, str]:
         """The OpenCode key a launch of `model` as `credential` bills, and the endpoint it
         goes to ('' for opencode.ai's), as opencode picks it: the credential's own key, else
         (`ambient`, a `subscription`) the stored login, then `OPENCODE_API_KEY`. ('', '')

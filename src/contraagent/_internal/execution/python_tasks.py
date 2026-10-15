@@ -57,6 +57,7 @@ from contraagent._internal.dispatch.task import (
 )
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.pipeline_files import Written, capturing, writing_into
+from contraagent._internal.execution.recording import Recorder, Replay
 from contraagent._internal.execution.runner import RetryingRunner
 from contraagent._internal.routing.config import PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
@@ -88,8 +89,7 @@ class PythonTaskRunner:
     the output check. The function's exception is the attempt's result, so a scope exits
     without one.
 
-    `recorder` (`Recorder.record_python`) keeps each call's recording; `replay`
-    (`Replay.play_python`) plays a call from its recording in place of the function.
+    A pipeline that records or replays gives it its recorder or its replay (`recording`).
     """
 
     def __init__(
@@ -103,8 +103,6 @@ class PythonTaskRunner:
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
-        recorder: Any = None,  # a `Recorder` (execution.recording); the pipeline gives it
-        replay: Any = None,  # a `Replay` (execution.recording); the pipeline gives it
     ) -> None:
         """`config`: the config file the run was started with, read by
         `contraagent.pipeline_table` in a Python task."""
@@ -112,8 +110,8 @@ class PythonTaskRunner:
         self._scopes = tuple(scopes)
         self._enrichers = tuple(enrichers)
         self._config = config
-        self._recorder = recorder
-        self._replay = replay
+        self._recorder: Recorder | None = None
+        self._replay: Replay | None = None
         self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
@@ -259,3 +257,12 @@ class PythonTaskRunner:
         if self._recorder is not None:
             self._recorder.record_python(task, result, outs, retry, written)
         return result, retry
+
+
+def recording(runner: PythonTaskRunner, recorder: Recorder | None, replay: Replay | None) -> PythonTaskRunner:
+    """`runner`, with `recorder` (`Recorder.record_python`) keeping each call's recording
+    and `replay` (`Replay.play_python`) playing a call from its recording in place of the
+    function: what a pipeline that records or replays gives its Python task runner."""
+    runner._recorder = recorder
+    runner._replay = replay
+    return runner

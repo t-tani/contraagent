@@ -1,0 +1,754 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `journal.jsonl` in a run directory of run format 1.",
+  "$defs": {
+    "Changes": {
+      "additionalProperties": true,
+      "description": "The files one attempt changed under its task's `changes` patterns, as paths relative\nto the working directory: those it `created`, `modified` and `deleted`.",
+      "properties": {
+        "created": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Created",
+          "type": "array"
+        },
+        "modified": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Modified",
+          "type": "array"
+        },
+        "deleted": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Deleted",
+          "type": "array"
+        },
+        "removed": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Removed",
+          "type": "array"
+        }
+      },
+      "title": "Changes",
+      "type": "object"
+    },
+    "Hop": {
+      "additionalProperties": true,
+      "description": "One launch of an attempt on one route of its failover chain: where it ran and how\nit ended.",
+      "properties": {
+        "route": {
+          "default": "",
+          "title": "Route",
+          "type": "string"
+        },
+        "agent": {
+          "default": "",
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "credential": {
+          "default": "",
+          "title": "Credential",
+          "type": "string"
+        },
+        "stop": {
+          "default": "",
+          "title": "Stop",
+          "type": "string"
+        },
+        "wall_s": {
+          "default": 0.0,
+          "title": "Wall S",
+          "type": "number"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "other_models": {
+          "additionalProperties": {
+            "$ref": "#/$defs/OtherModel"
+          },
+          "title": "Other Models",
+          "type": "object"
+        }
+      },
+      "title": "Hop",
+      "type": "object"
+    },
+    "OtherModel": {
+      "additionalProperties": true,
+      "description": "What a hop spent on a model other than its own (`Hop.other_models`).",
+      "properties": {
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "input": {
+          "default": 0,
+          "title": "Input",
+          "type": "integer"
+        },
+        "output": {
+          "default": 0,
+          "title": "Output",
+          "type": "integer"
+        },
+        "cache_read": {
+          "default": 0,
+          "title": "Cache Read",
+          "type": "integer"
+        },
+        "cache_creation": {
+          "default": 0,
+          "title": "Cache Creation",
+          "type": "integer"
+        }
+      },
+      "title": "OtherModel",
+      "type": "object"
+    },
+    "QuotaReading": {
+      "additionalProperties": true,
+      "description": "A subscription's utilization as the coding agent reported it during a launch\n(Claude Code: when a session starts or resumes; omp: at each launch, what the\naccount's latest request reported). Account-wide: it includes whatever else used the\nsame account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's\n`quota` an attempt's that give a 5-hour or weekly utilization.",
+      "properties": {
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "credential": {
+          "default": "",
+          "title": "Credential",
+          "type": "string"
+        },
+        "five_hour_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Five Hour Pct"
+        },
+        "five_hour_resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Five Hour Resets At"
+        },
+        "seven_day_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seven Day Pct"
+        },
+        "seven_day_resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seven Day Resets At"
+        },
+        "status": {
+          "default": "",
+          "title": "Status",
+          "type": "string"
+        },
+        "account": {
+          "default": "",
+          "title": "Account",
+          "type": "string"
+        },
+        "status_window": {
+          "default": "",
+          "title": "Status Window",
+          "type": "string"
+        },
+        "threshold_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold Pct"
+        },
+        "overage_status": {
+          "default": "",
+          "title": "Overage Status",
+          "type": "string"
+        },
+        "overage_disabled_reason": {
+          "default": "",
+          "title": "Overage Disabled Reason",
+          "type": "string"
+        },
+        "using_overage": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Using Overage"
+        },
+        "windows": {
+          "additionalProperties": {
+            "$ref": "#/$defs/QuotaWindow"
+          },
+          "title": "Windows",
+          "type": "object"
+        },
+        "extra": {
+          "additionalProperties": true,
+          "title": "Extra",
+          "type": "object"
+        }
+      },
+      "title": "QuotaReading",
+      "type": "object"
+    },
+    "QuotaWindow": {
+      "additionalProperties": true,
+      "description": "One window of a reading: its utilization (%) and when it resets (ISO 8601).",
+      "properties": {
+        "pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pct"
+        },
+        "resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resets At"
+        }
+      },
+      "title": "QuotaWindow",
+      "type": "object"
+    },
+    "SkippedHop": {
+      "additionalProperties": true,
+      "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest.",
+      "properties": {
+        "credential": {
+          "title": "Credential",
+          "type": "string"
+        },
+        "window": {
+          "default": "",
+          "enum": [
+            "",
+            "five_hour",
+            "seven_day"
+          ],
+          "title": "Window",
+          "type": "string"
+        },
+        "pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pct"
+        },
+        "cap": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cap"
+        },
+        "rule": {
+          "default": "",
+          "title": "Rule",
+          "type": "string"
+        },
+        "until": {
+          "default": "",
+          "title": "Until",
+          "type": "string"
+        },
+        "account": {
+          "default": "",
+          "title": "Account",
+          "type": "string"
+        },
+        "reading": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reading"
+        },
+        "route": {
+          "default": "",
+          "title": "Route",
+          "type": "string"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credential"
+      ],
+      "title": "SkippedHop",
+      "type": "object"
+    },
+    "TokenUsage": {
+      "additionalProperties": true,
+      "description": "Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)\nor one hop's (`Hop.usage`).",
+      "properties": {
+        "input": {
+          "default": 0,
+          "title": "Input",
+          "type": "integer"
+        },
+        "output": {
+          "default": 0,
+          "title": "Output",
+          "type": "integer"
+        },
+        "cache_read": {
+          "default": 0,
+          "title": "Cache Read",
+          "type": "integer"
+        },
+        "cache_creation": {
+          "default": 0,
+          "title": "Cache Creation",
+          "type": "integer"
+        },
+        "calls": {
+          "default": 0,
+          "title": "Calls",
+          "type": "integer"
+        },
+        "resident": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resident"
+        },
+        "peak_context": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Context"
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        }
+      },
+      "title": "TokenUsage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One finished attempt. `key` is the stable `Task.key`, one task; `kind`\nand `unit` are its kind and unit; `executor` says who ran it; `stop` is\n`Stop.value` (or a Python task's completed/error).",
+  "properties": {
+    "ts": {
+      "title": "Ts",
+      "type": "string"
+    },
+    "run_id": {
+      "default": "",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "run_group": {
+      "default": "",
+      "title": "Run Group",
+      "type": "string"
+    },
+    "key": {
+      "title": "Key",
+      "type": "string"
+    },
+    "attempt": {
+      "default": 0,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "executor": {
+      "default": "agent",
+      "enum": [
+        "agent",
+        "python"
+      ],
+      "title": "Executor",
+      "type": "string"
+    },
+    "unit": {
+      "default": "",
+      "title": "Unit",
+      "type": "string"
+    },
+    "agent": {
+      "default": "",
+      "title": "Agent",
+      "type": "string"
+    },
+    "model": {
+      "default": "",
+      "title": "Model",
+      "type": "string"
+    },
+    "credential": {
+      "default": "",
+      "title": "Credential",
+      "type": "string"
+    },
+    "route": {
+      "default": "",
+      "title": "Route",
+      "type": "string"
+    },
+    "hops": {
+      "items": {
+        "$ref": "#/$defs/Hop"
+      },
+      "title": "Hops",
+      "type": "array"
+    },
+    "skipped_hops": {
+      "items": {
+        "$ref": "#/$defs/SkippedHop"
+      },
+      "title": "Skipped Hops",
+      "type": "array"
+    },
+    "stop": {
+      "enum": [
+        "completed",
+        "timeout",
+        "max_turns",
+        "budget",
+        "context_budget",
+        "stalled",
+        "auth_failed",
+        "api_error",
+        "rate_limited",
+        "refused",
+        "aborted",
+        "denied",
+        "error",
+        "no_output",
+        "launch_failed",
+        "invalid_output",
+        "invalid_input",
+        "credential_mismatch",
+        "skipped",
+        "partial"
+      ],
+      "title": "Stop",
+      "type": "string"
+    },
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "wall_s": {
+      "default": 0.0,
+      "title": "Wall S",
+      "type": "number"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exit Code"
+    },
+    "signal": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Signal"
+    },
+    "reason": {
+      "default": "",
+      "title": "Reason",
+      "type": "string"
+    },
+    "rounds": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rounds"
+    },
+    "round_errors": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Round Errors",
+      "type": "array"
+    },
+    "hook_errors": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Hook Errors",
+      "type": "array"
+    },
+    "usage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TokenUsage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Usd"
+    },
+    "quota": {
+      "items": {
+        "$ref": "#/$defs/QuotaReading"
+      },
+      "title": "Quota",
+      "type": "array"
+    },
+    "web_queries": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Web Queries",
+      "type": "array"
+    },
+    "unread_events": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Unread Events",
+      "type": "object"
+    },
+    "changes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Changes"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "context_budget": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Context Budget"
+    },
+    "context_warned": {
+      "default": false,
+      "title": "Context Warned",
+      "type": "boolean"
+    },
+    "fingerprint": {
+      "default": "",
+      "title": "Fingerprint",
+      "type": "string"
+    },
+    "flow_call": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Flow Call"
+    },
+    "replayed": {
+      "default": false,
+      "title": "Replayed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ts",
+    "key",
+    "kind",
+    "stop",
+    "ok"
+  ],
+  "title": "JournalRow",
+  "type": "object"
+}

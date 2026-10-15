@@ -208,7 +208,7 @@ are kept apart: `ambient` is each coding agent's own login (two accounts when
 Claude Code and omp are logged in as different users), and a credential's token
 can be replaced between runs. A hop is judged by the readings of the account a
 launch on it bills (`Backend.account`): an earlier token's 98% does not rest the
-new one. The account is a digest (`account_digest`: SHA-256 over a fixed prefix,
+new one. The account is a digest (SHA-256 over a fixed prefix,
 the source and the value, cut to 12 hex digits), never the value: Claude Code's
 is its login's `oauthAccount.accountUuid` (in the config directory's
 `.claude.json`; for an ambient launch, a key or token in its environment first)
@@ -258,5 +258,9 @@ What is guaranteed:
 The journal records each launch's credential *name*, never a secret.
 
 ## Every table and key
+
+The JSON Schema of the file is `schemas/pipeline.schema.json` beside this page
+([Compatibility](compatibility.md)); the reference file's first line gives it to an
+editor that reads `#:schema`.
 
 ::code{file="examples/reference/pipeline.toml"}

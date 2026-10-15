@@ -6,8 +6,9 @@ import re
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Implementations, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent import Pipeline, PipelineConfig, agent_task, python_task
 from contraagent._internal.pipeline.reach import reachable
+from contraagent._internal.pipeline.spec import Implementations
 from contraagent._internal.routing.plan import check_task_tables
 from contraagent.engine import RoutingPlan
 from contraagent.monitor import Monitor, Period

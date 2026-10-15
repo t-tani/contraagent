@@ -294,3 +294,43 @@ def test_each_agent_s_hooks_read_claude_code_s_input_and_return_a_post_tool_obje
     for s in seen:
         assert s["tool_input"]["file_path"].endswith("/n.md")
         assert (s["tool_input"]["old_string"], s["tool_input"]["new_string"]) == ("a", "b")
+
+
+DRIVE_PATHS = """
+const [, , root, cwd] = process.argv;
+const paths = ["notes/n.md", "./notes/../notes/m.md", "~/x.md", `${cwd}/abs.md`];
+const oc = await (await import(`${root}/opencode/index.js`)).ContraagentHooks({ directory: cwd });
+for (const p of paths) {
+  await oc["tool.execute.before"]({ tool: "write" }, { args: { filePath: p, content: "x" } });
+  await oc["tool.execute.after"]({ tool: "write", args: { filePath: p, content: "x" } }, { output: "" });
+}
+for (const agent of ["omp", "pi"]) {
+  const handlers = {};
+  (await import(`${root}/${agent}/index.ts`)).default({ on: (name, fn) => (handlers[name] = fn) });
+  for (const p of paths) {
+    await handlers.tool_call({ toolName: "write", input: { path: p, content: "x" } }, { cwd });
+    await handlers.tool_result({ toolName: "write", input: { path: p, content: "x" }, content: [] }, { cwd });
+  }
+}
+"""
+
+
+@pytest.mark.skipif(shutil.which("bun") is None, reason="bun runs the rendered omp and pi extensions")
+def test_each_agent_s_hooks_read_an_absolute_file_path_as_claude_code_passes_it(plugin, tmp_path):
+    """omp, pi and opencode pass on the path the model wrote, often relative to the session's
+    directory; Claude Code always passes an absolute one, so a script matching `*/notes/*` or
+    reading the file from another directory works on every agent."""
+    (plugin / "hooks" / "seen.sh").write_text(
+        '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n'
+    )
+    (plugin / "hooks" / "seen.sh").chmod(0o755)
+    add_hooks(plugin, "".join(f'\n[[hooks]]\non = "{on}"\ntool = "write"\nscript = "hooks/seen.sh"\n' for on in ("pre_tool", "post_tool")))
+    hooks.write(Plugin.load(plugin))
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    (tmp_path / "drive.mjs").write_text(DRIVE_PATHS)
+    proc = subprocess.run(["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve()), str(cwd)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    seen = [json.loads(line)["tool_input"]["file_path"] for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    want = [str(cwd / "notes" / "n.md"), str(cwd / "notes" / "m.md"), str(Path.home() / "x.md"), str(cwd / "abs.md")]
+    assert seen == [p for p in want for _ in ("pre", "post")] * 3  # opencode, omp, pi

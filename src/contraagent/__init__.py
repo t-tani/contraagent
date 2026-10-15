@@ -13,7 +13,7 @@ a plugin, and writes the flow as a plain function:
 
     Pipeline("pipeline.toml").run(docs, units=["alpha", "beta"])
 
-The public modules: `contraagent` (this one: tasks, flows, the pipeline, contracts, the
+The public modules: `contraagent` (this one: tasks, flows, the pipeline, validators, the
 values callbacks are given, the errors), `contraagent.config` (credentials, routes,
 budgets, quota readings), `contraagent.backends` (the coding agents), `contraagent.engine`
 (the runners and schedulers underneath a pipeline), `contraagent.plugins`,
@@ -23,66 +23,43 @@ budgets, quota readings), `contraagent.backends` (the coding agents), `contraage
 
 from contraagent._internal.backends.credentials import CredentialError
 from contraagent._internal.backends.process import LaunchError
-from contraagent._internal.contracts.calls import CallFile, CallOutput, SchemaRef
-from contraagent._internal.contracts.contract import Before, Check, InputContract, OutputContract
 from contraagent._internal.contracts.validators import CommandValidator, Validator
-from contraagent._internal.dispatch.flow import FlowCall, FlowState, TaskDeferred, TaskFailed, TimeBoxed, time_box
+from contraagent._internal.dispatch.flow import TaskDeferred, TaskFailed, time_box
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent._internal.dispatch.records import (
-    Changes,
-    DeferralCause,
-    Executor,
-    Frame,
-    Hop,
-    Loop,
-    OtherModel,
-    SkippedHop,
-    TokenUsage,
-)
-from contraagent._internal.dispatch.task import Deferral, Origin, Partial, Task, TaskResult, TimeBox
+from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SkippedHop, TokenUsage
+from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResult, TimeBox
 from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
-from contraagent._internal.execution.run import RunExists, RunLocked
+from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
 from contraagent._internal.pipeline.check import CheckReport
 from contraagent._internal.pipeline.graph import Pending, TextOutput, TooManyPasses
 from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
-from contraagent._internal.pipeline.spec import AgentTask, Implementations, PythonTask, agent_task, python_task
+from contraagent._internal.pipeline.spec import AgentTask, PythonTask, agent_task, python_task
 from contraagent._internal.plugins.plugin import PluginError
 from contraagent._internal.public import publish
 from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
 from contraagent._internal.routing.plan import Overrides, RoutingError
-from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped
+from contraagent._internal.routing.preflight import PreflightStopped
 from contraagent._internal.routing.quota import QuotaRule
 
 __all__ = [
     "AgentTask",
-    "Before",
-    "CallFile",
-    "CallOutput",
     "Changes",
-    "Check",
     "CheckReport",
     "CommandValidator",
     "ConfigError",
     "ContraagentDeprecationWarning",
     "ContraagentError",
     "CredentialError",
-    "Deferral",
     "DeferralCause",
-    "Executor",
-    "FlowCall",
-    "FlowState",
     "Frame",
     "Hop",
-    "Implementations",
-    "InputContract",
     "LaunchError",
     "Loop",
     "NoCurrentRun",
     "Origin",
     "OtherModel",
-    "OutputContract",
     "Overrides",
     "Partial",
     "Pending",
@@ -90,7 +67,6 @@ __all__ = [
     "Pipeline",
     "PipelineConfig",
     "PluginError",
-    "PreflightPolicy",
     "PreflightStopped",
     "PythonTask",
     "QuotaRule",
@@ -98,9 +74,9 @@ __all__ = [
     "ResultEnricher",
     "RoutingError",
     "RunExists",
+    "RunFormatError",
     "RunLocked",
     "RunReport",
-    "SchemaRef",
     "SkippedHop",
     "Task",
     "TaskDeferred",
@@ -109,7 +85,6 @@ __all__ = [
     "TaskScope",
     "TextOutput",
     "TimeBox",
-    "TimeBoxed",
     "TokenUsage",
     "TooManyPasses",
     "Validator",

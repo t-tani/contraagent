@@ -11,7 +11,8 @@ from contraagent._internal.runs import layout
 from contraagent._internal.runs.liveness import StaticLiveness
 from contraagent._internal.runs.names import BadName
 from contraagent._internal.runs.procs import ProcLiveness
-from contraagent.monitor import DirectorySource, MemorySource, Monitor
+from contraagent._internal.runs.source import MemorySource
+from contraagent.monitor import DirectorySource, Monitor
 
 
 def copy_to_memory(root: Path) -> MemorySource:

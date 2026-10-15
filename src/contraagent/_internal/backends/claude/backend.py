@@ -26,7 +26,7 @@ from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
     Bedrock,
-    CredentialBase,
+    Credential,
     CredentialBinding,
     CredentialError,
     Gateway,
@@ -118,7 +118,7 @@ class ClaudeBackend(ResumeById, Backend):
     # falling back to the subscription.
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):
@@ -181,7 +181,7 @@ class ClaudeBackend(ResumeById, Backend):
     #: ambient launch bills the first one set, else the /login of its config directory.
     _AUTH_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
 
-    def account(self, credential: CredentialBase, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account of a /login (its `oauthAccount.accountUuid` in the config directory's
         `.claude.json`), or of the token or key a credential holds; '' for Bedrock, Vertex,
         workload identity, or a secret that cannot be read."""
@@ -209,7 +209,7 @@ class ClaudeBackend(ResumeById, Backend):
     #: (checked against the real CLI). Types not listed are not checked.
     _API_KEY_SOURCE = {"api_key": "ANTHROPIC_API_KEY", "subscription": "none", "oauth_token": "none"}
 
-    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None:
+    def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
         want = self._API_KEY_SOURCE.get(credential.type)
         got = launch_result.api_key_source
         if want is None or not got or got == want:

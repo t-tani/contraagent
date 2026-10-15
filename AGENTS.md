@@ -189,8 +189,16 @@ definitions: it imports names from `_internal`, lists them in `__all__` and call
 imports a public module. Each object has one public path. A name a user, the
 documentation or an example uses gets a public home; every contraagent type a public
 signature, field or callback argument reaches is exported too; the rest stays in
-`_internal`. The examples in `docs/examples/` import only public modules.
-`tests/test_public_api.py` checks all of this.
+`_internal`. A signature reaches a type only when its user needs it: a helper hides
+behind a method (`Backend.mark_launch`), a value returns the type it behaves as
+(`agent_task(implementations=)` a `Mapping`, `time_box` a generator). An alias of literal
+values is not exported (its annotation lists them). `contraagent.monitor.api` holds the
+schemas of the monitor's OpenAPI document that have no other public home, its
+`API_VERSION` and the union of transcript events (`AnyTranscriptEvent`), and nothing
+else. The examples in `docs/examples/` import only public modules; nothing outside the
+package imports `_internal` but the tests. The public modules import without the
+`monitor` and `hub` extras. `tests/test_public_api.py` checks the public modules and what
+they export.
 
 `tests/api/contraagent.api.txt` is the public API as griffe reads it: every name in
 a public module's `__all__`, with its signature, fields and defaults. A change to the
@@ -199,12 +207,12 @@ a test fails while it is stale. Every public symbol has a declared, known type
 (`pyright --verifytypes`, below): give a public parameter, return, field and attribute
 an annotation, and a `dict`, `list` or generic class its type arguments.
 
-Once released (0.1.0 is the first release), a name that leaves a public module is
-deprecated, not dropped: the module sets
+A deprecated name (from 1.0, see Compatibility below) stays readable in its public
+module: the module sets
 `__getattr__ = migration(__name__, moved={"Old": "contraagent.engine:New"}, removed={"gone": "use ... instead"})`
 (`_internal/public.py`), and reading it warns `ContraagentDeprecationWarning` or says
-what to use. The tests turn that warning into
-an error, so contraagent itself never uses a deprecated name.
+what to use. The tests turn that warning into an error, so contraagent itself never
+uses a deprecated name.
 
 Inside `_internal`, each layer imports only the layers above it in the list in the
 `src/contraagent/_internal/__init__.py` docstring (`errors`, `platform`,
@@ -215,10 +223,18 @@ process) and `commandline` are leaf modules, importing nothing else of the packa
 `runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
 imports only the standard library and `platform/`; every reader and writer of a run's
 files goes through it.
-`dispatch/` imports nothing outside the standard library, pydantic and `runs/` (its record types, `dispatch/records.py`, are what every later layer writes and reads).
+`dispatch/` imports nothing but the standard library, pydantic and `runs/` (its record
+types, `dispatch/records.py`, are what every later layer writes and reads).
 `hub/` does not import `monitor/`, but for `hub/server.py`, which serves the monitor's
-app (`tests/test_run_files.py` checks both). Never import a later
-layer from an earlier one; pass a callback or a protocol instead.
+app. Never import a later layer from an earlier one; pass a callback or a protocol
+instead.
+
+`uv run lint-imports` checks these import rules: one contract each in pyproject.toml's
+`[tool.importlinter]`, an exception only as a commented `ignore_imports` line.
+"The examples import no `_internal`" is the `protected` contract: the examples are
+modules of `contraagent.docs`, and only `_internal` and the public modules may import
+`_internal`. The tests are not in the graph. `tests/test_layers.py` runs it, so
+`uv run pytest` fails on a broken contract.
 
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
 feeds, store; no UI) and `@contraagent/elements` (generic elements and their
@@ -265,6 +281,7 @@ every element class is `@localized()`. Translations live in
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright          # 0 errors; the "yaml" source warning is expected
+uv run lint-imports     # the import contracts (pyproject.toml); tests/test_layers.py runs it too
 uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
 uv run pytest -m e2e    # the hub and relays as processes over Postgres and RustFS (docker)
 uv run pyright --verifytypes contraagent --ignoreexternal
@@ -277,7 +294,7 @@ Its score stays below 100% only because the examples under `contraagent.docs.exa
 are installed with the package and counted as public; they are documentation, written
 without the annotations an API carries. `griffe check` lists the changes since a
 release that break a caller (a removed name, a new required parameter, a changed
-default); once released, one comes with a deprecation (above) or in a major release.
+default); from 0.1.0 such a change waits for the release Compatibility below allows.
 Releases are tagged `<version>` (`0.1.0` is the first).
 
 pytest runs in parallel (pytest-xdist, at most 6 processes; `-n0` runs it in one).
@@ -293,6 +310,17 @@ not know fails it.
 After changing a monitor response model or route, regenerate the committed
 contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
+
+After changing a command's arguments or help, rewrite every command's `--help`:
+`uv run python tests/cli/help.py` writes `tests/cli/help.txt` (a test fails while it is
+stale; argparse's output depends on the Python version, so it compares on the version
+the file names, the one in `.python-version`).
+
+After changing a model of a run record (`_internal/execution/schemas.py`, the records
+in `_internal/dispatch/records.py` they hold) or the config file's tables, regenerate
+the JSON Schemas in `src/contraagent/docs/schemas/`:
+`uv run python -m contraagent._internal.execution.file_schemas` (a test fails while
+one is stale).
 
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
 published at least 14 days ago), in `web/`:
@@ -345,5 +373,19 @@ version; nothing else holds that text.
 
 ## Compatibility
 
-The package is unpublished. Rename freely: no compatibility aliases, no
-deprecation shims, no readers for old run directories.
+The public API is what `src/contraagent/docs/compatibility.md` lists: the
+public modules' `__all__`, the command line, the config file, the files a run
+writes and the monitor's `openapi.json`. `contraagent._internal` is not public:
+change it freely, with no aliases or shims inside it.
+
+- **Until 0.1.0 is tagged**: rename the public API freely too, with no
+  compatibility aliases, no deprecation shims and no readers for old run
+  directories; `CHANGELOG.md` records each rename as old → new.
+- **From 0.1.0**: a change to the public API is deliberate. The checks (the
+  API snapshot, the `--help` snapshot, `openapi.json`, the file schemas) show
+  it, `CHANGELOG.md` records it, and it waits for a minor release (from 1.0, a
+  major one, after `ContraagentDeprecationWarning` for two minor releases).
+  A record change that a reader of the current run format cannot read raises
+  `FORMAT` in `_internal/runs/layout.py` and adds the new format's fixture
+  beside `tests/fixtures/runs/v1/`; the monitor keeps reading every run format
+  in `FORMATS`.

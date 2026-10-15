@@ -80,7 +80,7 @@ _LAUNCH_PROMPT_CAP = 200_000
 
 
 def _launch_event(ev: dict[str, Any]) -> dict[str, Any]:
-    """A `launch` marker (written by `contraagent.backends.write_launch_marker`
+    """A `launch` marker (written by `Backend.mark_launch`
     at the head of each invocation's stream append) passed through to the
     client, backend-agnostically. It is neither backend's wire vocabulary --
     `run_process` writes it for every backend alike -- so it is recognized

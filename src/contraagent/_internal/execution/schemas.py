@@ -7,9 +7,12 @@ a deferral's cause) are the record types of `dispatch/records.py`.
   task finishes. `extra="allow"`: a domain adds its own columns (counts of
   what the task produced, say) and they round-trip untouched. The monitor
   reads only the fields named here.
+* `LaunchRow` — one line of `runs/<run>/launches.jsonl`: one launch, as
+  `LaunchResult.as_dict` writes it.
 * `PlanRow`, `FlowCallRow`, `DeferredRow` — one line of `plan.jsonl`,
   `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` (`dispatch/records.py`) is one
   line of `rests.jsonl`.
+* `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its run format.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
   never guesses. `extra="forbid"` throughout, because a renamed field or a
   typo'd stage name should fail loudly at write time instead of silently
@@ -41,6 +44,7 @@ from contraagent._internal.dispatch.records import (
     TokenUsage,
 )
 from contraagent._internal.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
+from contraagent._internal.routing.preflight import PreflightRecord
 
 # --- journal ---------------------------------------------------------------
 
@@ -114,6 +118,87 @@ class JournalRow(BaseModel):
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
     replayed: bool = False
+
+
+# --- launches --------------------------------------------------------------
+
+
+class LaunchUsage(BaseModel):
+    """A launch's tokens as `launches.jsonl` records them (`Usage.as_dict`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_calls: int = Field(description="API calls the coding agent made")
+    resident: int = Field(description="the whole input of the first API call; 0 with no call")
+    peak_context: int = Field(description="the whole input of the largest API call; 0 with no call")
+    context_total: int = Field(description="every API call's whole input, summed")
+    input: int
+    cache_read: int
+    cache_creation: int
+    output_total: int = Field(description="the output tokens of the launch's result")
+
+
+class LaunchQuota(QuotaReading):
+    """The latest quota reading of a launch and its quota refusal, as `launches.jsonl` records
+    them in one (`rate_limit`): `status` `quota` for a refusal with no reading."""
+
+    retry_after_s: float | None = Field(None, description="the cool-off the provider stated with a quota refusal, in seconds")
+
+
+class DeniedCall(BaseModel):
+    """A tool call the coding agent refused (`denied`): the tool and the head of its input."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool: str
+    input: str = Field(description="the call's input as JSON, cut at 160 characters")
+
+
+class LaunchRow(BaseModel):
+    """One line of `runs/<run>/launches.jsonl`: one launch of a coding agent
+    (`LaunchResult.as_dict`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ts: str = Field(description="when the launch started")
+    label: str
+    wall_s: float
+    stop: Stop
+    ok: bool
+    exit: int | None = Field(description="the coding agent's exit code; null when it did not exit")
+    agent: str
+    cli_version: str
+    argv: list[str] = Field(description="the command line, a prompt after `-p` cut at 200 characters")
+    model: str
+    session_id: str
+    num_turns: int | None
+    duration_api_ms: int | None
+    cost_usd: float | None
+    usage: LaunchUsage
+    context_window: int | None
+    context_pct: float | None
+    rate_limit: LaunchQuota | None
+    permission_denials: int = Field(description="tool calls refused")
+    denied: list[DeniedCall] = Field(description="the first 10 refused tool calls")
+    tool_uses: dict[str, int]
+    hollow: bool
+    tool_args: dict[str, list] = Field(description="by tool, the first 5 inputs of its calls")
+    web_queries: list[str]
+    unread_events: dict[str, int]
+    init_model: str
+    init_tools: int
+    init_errors: list[dict]
+    api_retries: int
+    retry_errors: dict[str, int]
+    result_head: str = Field(description="the final message, cut at 200 characters")
+    stderr_tail: str = Field(description="the end of standard error, 300 characters")
+    rounds: int | None
+    round_errors: list[list[str]]
+    round_costs: list[float | None]
+    unwrapped: bool
+    hook_errors: list[list[str]]
+    context_budget: int | None
+    context_warned: bool
 
 
 # --- plan, flow calls, deferrals ------------------------------------------
@@ -191,6 +276,37 @@ class DeferredRow(BaseModel):
     def to_dict(self) -> dict[str, Any]:
         """The row as `deferred.jsonl` records it: the cause's fields that are set, `{}` for none."""
         return {**self.model_dump(mode="json", exclude={"cause"}), "cause": self.cause.to_dict() if self.cause is not None else {}}
+
+
+# --- run.json --------------------------------------------------------------
+
+
+class RunInfo(BaseModel):
+    """`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run
+    it is (`run_id`, `run_uid`), its run format, and what the run recorded about itself since.
+    `Run.update_info` may add fields of a caller's own."""
+
+    model_config = ConfigDict(extra="allow")
+
+    format: int = Field(1, ge=1, description="the run format of the run directory; a run.json without it is of run format 1")
+    run_id: str
+    run_uid: str = Field(description="the id no other run has, on any host; kept when the run is resumed")
+    host_id: str = Field(description="the host that drives the run (`CONTRAAGENT_HOST_ID`, else the host name)")
+    run_group: str
+    pid: int
+    start_ticks: int | None = Field(description="the start time of `pid` in clock ticks after boot (`/proc/<pid>/stat`)")
+    argv: list[str]
+    cwd: str = Field(description="the run's working directory, absolute")
+    started_at: str = Field(description="when the latest run start began")
+    finished_at: str | None = Field(None, description="when the run finished; absent while it runs or after it was killed")
+    stub: bool | None = Field(None, description="true for a stub run")
+    replay: str | None = Field(None, description="the recordings directory a replay plays")
+    max_workers: int | None = Field(None, description="how many tasks run at once")
+    quota_caps: dict[str, dict[Literal["five_hour_pct", "seven_day_pct"], float]] | None = Field(
+        None, description="by credential, the quota caps of each that has one"
+    )
+    quota_rule: str | None = Field(None, description="the quota rule's `module.qualname`; empty without one")
+    preflight: PreflightRecord | None = Field(None, description="what the run's preflight did")
 
 
 # --- resume cursor ---------------------------------------------------------
