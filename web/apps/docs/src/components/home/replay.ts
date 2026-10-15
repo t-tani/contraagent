@@ -3,7 +3,8 @@
 // transcripts are given to <ca-pipeline-graph>, <ca-kpis> and <ca-transcript> as
 // they stood at each moment of the run, and the code lights the lines the running
 // tasks were created on. One clock drives it all (requestAnimationFrame); it starts
-// when the replay is on screen, stops while it is not, and rests on the last frame.
+// when the replay reaches the upper half of the screen (as the scene of
+// ./scene.css settles it), stops while it is off screen, and rests on the last frame.
 import type { FlowCallNode, JournalRow, Plan, PlanNode, TaskState } from '@contraagent/api';
 import { adoptThemes } from '@contraagent/elements/themes';
 import '@contraagent/ui/kpis';
@@ -96,6 +97,11 @@ class Replay {
   private sim(t: number): number {
     const into = t - this.codeMs - GRAPH_MS;
     return into < 0 ? this.data.t0 - 0.001 : this.data.t0 + (Math.min(into, this.runMs) * SPEED) / 1000;
+  }
+
+  /** The first frame, before the replay starts. */
+  prime(): void {
+    this.draw(true);
   }
 
   start(): void {
@@ -263,6 +269,7 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-run-replay]')) 
   const replay = new Replay(root, data);
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) replay.finish();
   else {
+    replay.prime();
     let started = false;
     let inView = false;
     const show = (): void => replay.setVisible(inView && !document.hidden);
@@ -275,7 +282,7 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-run-replay]')) 
           replay.start();
         } else if (started) show();
       },
-      { rootMargin: '0px 0px -10% 0px' },
+      { rootMargin: '0px 0px -45% 0px' },
     ).observe(root);
     document.addEventListener('visibilitychange', () => started && show());
   }

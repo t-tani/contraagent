@@ -7,33 +7,13 @@ head:
     content: "contraagent | Run coding agents as typed, checked, supervised tasks"
 hero:
   title: contraagent
-  tagline: "Run coding agents as typed, checked, supervised tasks. Each task of a Python pipeline is a typed function whose body is a coding agent, and its result is a file checked against a pydantic model."
-  actions:
-    - text: Start the tutorial
-      link: /python/tutorial/
-      icon: right-arrow
-    - text: Python package
-      link: /python/
-      variant: minimal
-    - text: Web packages
-      link: /node/ui/
-      variant: minimal
-    - text: Reference
-      link: /reference/http-api/
-      variant: minimal
+  tagline: "Each task is a typed Python function whose body is a coding agent. Its output is a file checked against a pydantic model."
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import RunReplay from '../../components/home/RunReplay.astro';
 import Steps from '../../components/home/Steps.astro';
 
-<ul class="ca-agents not-content" aria-label="Coding agents">
-  <li>Claude Code <code>claude -p</code></li>
-  <li>Codex CLI <code>codex exec</code></li>
-  <li>opencode <code>opencode run</code></li>
-  <li>oh-my-pi <code>omp -p</code></li>
-  <li>pi <code>pi -p</code></li>
-</ul>
 
 <RunReplay />
 

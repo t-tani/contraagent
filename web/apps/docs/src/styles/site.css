@@ -76,30 +76,7 @@
   .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child)::before { display: inline; min-width: 9rem; }
 }
 
-/* The landing page: the hero's text, the coding agents, the entry points (the replay and the steps style themselves). */
-[data-has-hero] .hero { padding-block: 2rem 1.25rem; }
-[data-has-hero] .hero h1 { letter-spacing: -0.03em; }
-[data-has-hero] .hero .tagline { max-width: 44rem; }
-.ca-agents {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  list-style: none;
-  padding: 0;
-  margin: 0 0 2.5rem;
-}
-.ca-agents li {
-  margin: 0;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 999px;
-  font-size: var(--sl-text-sm);
-  color: var(--sl-color-white);
-}
-.ca-agents code { font-size: var(--sl-text-xs); color: var(--sl-color-gray-3); background: none; padding: 0; }
+/* The landing page's entry points (the hero, the scene, the replay and the steps style themselves). */
 .ca-start {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));

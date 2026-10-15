@@ -1,0 +1,422 @@
+/*
+ * The landing page's first screen and the scene into the replay.
+ *
+ * The hero is sticky in a track taller than the screen (.ca-pin); the replay
+ * (.rr, RunReplay.astro) is pulled up over the end of the track, so while the
+ * reader scrolls the first screen's height the hero stays, recedes and fades,
+ * and the replay's window rises over it, tilted, and settles flat. Scroll-driven
+ * animations where the browser has them; elsewhere ./hero.ts sets --hero-p and
+ * --stage-p (0 to 1) from the scroll position and the same frames are computed
+ * from them. Transforms and opacity only. Narrow screens: no pin, a short rise.
+ * Reduced motion: none of it, and no moving background.
+ */
+
+:root {
+  --hero-ink: var(--sl-color-white);
+  --hero-ink-2: var(--sl-color-gray-2);
+  --hero-ink-3: var(--sl-color-gray-3);
+  --hero-blob-1: hsl(226 100% 62% / 0.55);
+  --hero-blob-2: hsl(268 90% 66% / 0.42);
+  --hero-blob-3: hsl(188 90% 52% / 0.3);
+  --hero-grid: hsl(220 40% 80% / 0.12);
+  --hero-glass: hsl(224 42% 10% / 0.78);
+  --hero-glass-line: hsl(222 60% 80% / 0.14);
+  --hero-glass-hi: hsl(222 80% 90% / 0.08);
+  --hero-accent-a: hsl(224 100% 72%);
+  --hero-accent-b: hsl(268 100% 78%);
+  --hero-accent-c: hsl(188 95% 62%);
+  --hero-on: hsl(160 75% 52%);
+  --hero-primary-ink: hsl(228 60% 8%);
+  --hero-shadow: hsl(228 80% 3% / 0.7);
+  --hero-pin: 70svh;
+}
+:root[data-theme='light'] {
+  --hero-ink: hsl(228 45% 9%);
+  --hero-ink-2: hsl(226 18% 30%);
+  --hero-ink-3: hsl(226 14% 42%);
+  --hero-blob-1: hsl(226 100% 72% / 0.42);
+  --hero-blob-2: hsl(268 100% 80% / 0.4);
+  --hero-blob-3: hsl(188 90% 62% / 0.3);
+  --hero-grid: hsl(228 40% 30% / 0.13);
+  --hero-glass: hsl(0 0% 100% / 0.82);
+  --hero-glass-line: hsl(228 40% 40% / 0.16);
+  --hero-glass-hi: hsl(0 0% 100% / 0.7);
+  --hero-accent-a: hsl(232 90% 52%);
+  --hero-accent-b: hsl(268 80% 52%);
+  --hero-accent-c: hsl(192 95% 36%);
+  --hero-on: hsl(160 80% 30%);
+  --hero-primary-ink: hsl(0 0% 100%);
+  --hero-shadow: hsl(228 50% 30% / 0.22);
+}
+
+/* The scene's progress without scroll-driven animations (./hero.ts): not inherited past the elements that read it. */
+@property --hero-p { syntax: '<number>'; inherits: false; initial-value: 0; }
+@property --stage-p { syntax: '<number>'; inherits: false; initial-value: 1; }
+
+/* The hero's background reaches the edges of the page: clipped there, not scrolled to. */
+[data-has-hero] .content-panel:first-of-type { overflow-x: clip; }
+[data-has-hero] .content-panel:first-of-type > .sl-container > .ca-pin { margin-top: -1.5rem; }
+
+.ca-pin { position: relative; }
+.ca-hero {
+  position: relative;
+  min-height: calc(100svh - var(--sl-nav-height, 3.5rem));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 3rem 0 4.5rem;
+  color: var(--hero-ink);
+  isolation: isolate;
+}
+
+/* The sky: a field of dots and three slow lights, from edge to edge. */
+.ca-sky {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: -20svh;
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
+  pointer-events: none;
+  overflow: hidden;
+}
+/* The sky fades into the page at its foot: a layer over it, not a mask (a mask over moving lights repaints each frame). */
+.ca-sky::after {
+  content: '';
+  position: absolute;
+  inset: 45% 0 0;
+  background: linear-gradient(to bottom, transparent, var(--sl-color-bg));
+}
+.ca-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at center, var(--hero-grid) 1px, transparent 1.6px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 60% 35%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 60% 35%, #000 30%, transparent 75%);
+}
+/* The lights: one layer of three gradients, drifting slowly (one layer to composite, not three). */
+.ca-aurora {
+  position: absolute;
+  inset: -20% -10% 0;
+  background:
+    radial-gradient(34rem 34rem at 62% 12%, var(--hero-blob-1), transparent 70%),
+    radial-gradient(30rem 30rem at 86% 46%, var(--hero-blob-2), transparent 70%),
+    radial-gradient(28rem 28rem at 30% 58%, var(--hero-blob-3), transparent 70%);
+  will-change: transform;
+  animation: ca-drift 28s ease-in-out infinite alternate;
+}
+@keyframes ca-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+}
+
+.ca-hero-inner {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 64rem) {
+  .ca-hero-inner { grid-template-columns: minmax(0, 1.18fr) minmax(0, 0.82fr); gap: 3.5rem; }
+}
+
+.ca-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 1.5rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--hero-glass-line);
+  background: var(--hero-glass);
+  font: 600 0.8rem/1.4 var(--sl-font-mono, var(--sl-font-system-mono));
+  letter-spacing: 0.02em;
+  color: var(--hero-ink-2);
+}
+.ca-eyebrow-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--hero-on);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hero-on) 22%, transparent), 0 0 12px var(--hero-on);
+}
+.sl-markdown-content .ca-display, .ca-display {
+  margin: 0;
+  font-size: clamp(2.5rem, 1rem + 3.7vw, 4.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 750;
+  color: var(--hero-ink);
+  text-wrap: balance;
+}
+.ca-display-accent {
+  background: linear-gradient(100deg, var(--hero-accent-a) 0%, var(--hero-accent-b) 55%, var(--hero-accent-c) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ca-sub {
+  margin: 1.5rem 0 0;
+  max-width: 36rem;
+  font-size: clamp(1.05rem, 0.95rem + 0.4vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--hero-ink-2);
+  text-wrap: pretty;
+}
+
+.ca-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; margin-top: 2.25rem; }
+.ca-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.8rem 1.35rem;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: 1rem;
+  text-decoration: none;
+  color: var(--hero-primary-ink);
+  background: linear-gradient(135deg, var(--hero-accent-a), var(--hero-accent-b));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--hero-accent-a) 60%, transparent), 0 10px 34px -8px color-mix(in srgb, var(--hero-accent-a) 70%, transparent), inset 0 1px 0 hsl(0 0% 100% / 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ca-primary:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px color-mix(in srgb, var(--hero-accent-a) 70%, transparent), 0 14px 40px -8px color-mix(in srgb, var(--hero-accent-b) 75%, transparent), inset 0 1px 0 hsl(0 0% 100% / 0.4); }
+.ca-primary svg { transition: transform 0.2s ease; }
+.ca-primary:hover svg { transform: translateX(2px); }
+.ca-secondary {
+  font-weight: 600;
+  color: var(--hero-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--hero-glass-line);
+  padding-bottom: 2px;
+}
+.ca-secondary:hover { border-bottom-color: var(--hero-accent-a); }
+.ca-primary:focus-visible, .ca-secondary:focus-visible, .ca-copy:focus-visible, .ca-down:focus-visible {
+  outline: 2px solid var(--hero-accent-a);
+  outline-offset: 3px;
+}
+
+.ca-install {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid var(--hero-glass-line);
+  background: var(--hero-glass);
+}
+.ca-install code {
+  background: none;
+  padding: 0;
+  font: 0.9rem/1.5 var(--sl-font-mono, var(--sl-font-system-mono));
+  color: var(--hero-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.ca-prompt { color: var(--hero-ink-3); user-select: none; }
+.ca-copy {
+  flex: none;
+  font: 600 0.8rem/1 var(--sl-font, var(--sl-font-system));
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--hero-glass-line);
+  background: var(--hero-glass-hi);
+  color: var(--hero-ink);
+  cursor: pointer;
+}
+.ca-copy:hover { border-color: var(--hero-accent-a); }
+.ca-copied, .ca-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* The coding agents: a glass card, the command with the agent it names, and the five agents. */
+.ca-agents-card {
+  position: relative;
+  margin: 0;
+  padding: 1.25rem 1.25rem 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--hero-glass-line);
+  background: linear-gradient(180deg, var(--hero-glass-hi), transparent 40%), var(--hero-glass);
+  box-shadow: 0 30px 70px -30px var(--hero-shadow), inset 0 1px 0 var(--hero-glass-hi);
+  transform: perspective(1400px) rotateY(-5deg) rotateX(2deg);
+  transform-origin: 0 50%;
+}
+.ca-agents-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--hero-accent-a) 45%, transparent), transparent 35%, transparent 65%, color-mix(in srgb, var(--hero-accent-b) 40%, transparent));
+  filter: blur(18px);
+  opacity: 0.6;
+}
+.ca-card-title { font-size: 0.85rem; font-weight: 600; color: var(--hero-ink-2); margin: 0 0 0.85rem; }
+.ca-card-cmd {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sl-color-black) 55%, transparent);
+  border: 1px solid var(--hero-glass-line);
+  font: 0.82rem/1.65 var(--sl-font-mono, var(--sl-font-system-mono));
+  color: var(--hero-ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+:root[data-theme='light'] .ca-card-cmd { background: hsl(228 40% 97% / 0.85); }
+.ca-agent-name {
+  display: inline-block;
+  min-width: 8ch;
+  color: var(--hero-accent-c);
+  font-weight: 700;
+}
+.ca-agent-list { list-style: none; margin: 0.75rem 0 0; padding: 0; display: grid; gap: 2px; }
+.ca-agent {
+  display: grid;
+  grid-template-columns: 0.6rem 5.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--hero-ink-2);
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+.ca-agent code { background: none; padding: 0; font: 0.8rem var(--sl-font-mono, var(--sl-font-system-mono)); }
+.ca-agent-key { color: var(--hero-ink); font-weight: 600; }
+.ca-agent-run { color: var(--hero-ink-3); }
+.ca-agent-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--hero-ink-3); opacity: 0.5; transition: background-color 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease; }
+.ca-agent.is-on { background: color-mix(in srgb, var(--hero-accent-a) 13%, transparent); color: var(--hero-ink); }
+.ca-agent.is-on .ca-agent-dot { background: var(--hero-on); opacity: 1; box-shadow: 0 0 10px var(--hero-on); }
+
+.ca-down {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--hero-ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ca-down svg { animation: ca-bob 2.2s ease-in-out infinite; }
+.ca-down:hover { color: var(--hero-ink); }
+@keyframes ca-bob { 50% { transform: translateY(3px); } }
+
+/* The replay above the pinned hero. */
+[data-has-hero] .rr { position: relative; z-index: 1; }
+/* A veil of the page's background, from edge to edge, that covers the hero as the replay rises. */
+[data-has-hero] .rr::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -14rem;
+  height: 40rem;
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
+  background: linear-gradient(to bottom, transparent, var(--sl-color-bg) 13rem, var(--sl-color-bg) 30rem, transparent);
+  pointer-events: none;
+}
+.rr-window { transform-origin: 50% 0; }
+/* The window as a screen: a ring of the accent and a deep shadow under it. */
+[data-has-hero] .rr-window {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--hero-accent-a) 22%, transparent),
+    0 40px 120px -40px color-mix(in srgb, var(--hero-accent-a) 45%, transparent),
+    0 30px 60px -30px var(--hero-shadow);
+}
+
+/* The scene, on a wide screen with motion. */
+@media (min-width: 50rem) and (prefers-reduced-motion: no-preference) {
+  .ca-pin { height: calc(100svh - var(--sl-nav-height, 3.5rem) + var(--hero-pin)); }
+  .ca-hero { position: sticky; top: var(--sl-nav-height, 3.5rem); height: calc(100svh - var(--sl-nav-height, 3.5rem)); min-height: 0; }
+  [data-has-hero] .rr { margin-top: calc(-1 * var(--hero-pin)); }
+
+  /* Longhands: the animation shorthand resets animation-timeline. */
+  @supports (animation-timeline: scroll()) {
+    .ca-hero-inner, .ca-down {
+      animation-name: ca-recede;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root);
+      animation-range: 0 var(--hero-pin);
+    }
+    .ca-down { animation-name: ca-recede-down; }
+    .ca-sky { animation-name: ca-sky-fade; animation-timing-function: linear; animation-fill-mode: both; animation-timeline: scroll(root); animation-range: 0 calc(var(--hero-pin) * 1.3); }
+    .rr-window {
+      animation-name: ca-rise;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 75%;
+    }
+    .rr-title {
+      animation-name: ca-title-in;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+  }
+  @supports not (animation-timeline: scroll()) {
+    /* ./hero.ts sets --hero-p on the hero and --stage-p on the window. */
+    .ca-hero-inner, .ca-down, .ca-sky { --hero-p: inherit; }
+    .ca-hero-inner {
+      opacity: calc(1 - var(--hero-p, 0) * 1.1);
+      transform: translate3d(0, calc(var(--hero-p, 0) * -7svh), 0) scale(calc(1 - var(--hero-p, 0) * 0.08));
+    }
+    .ca-down { opacity: calc(1 - var(--hero-p, 0) * 3); }
+    .ca-sky { opacity: calc(1 - var(--hero-p, 0) * 0.75); }
+    .rr-window {
+      opacity: calc(0.35 + var(--stage-p, 1) * 0.65);
+      transform: perspective(1800px) translate3d(0, calc((1 - var(--stage-p, 1)) * 10svh), 0) rotateX(calc((1 - var(--stage-p, 1)) * 16deg)) scale(calc(0.9 + var(--stage-p, 1) * 0.1));
+    }
+  }
+}
+@keyframes ca-recede {
+  to { opacity: 0; transform: translate3d(0, -7svh, 0) scale(0.92); }
+}
+@keyframes ca-recede-down {
+  30%, to { opacity: 0; }
+}
+@keyframes ca-sky-fade { to { opacity: 0.25; } }
+@keyframes ca-rise {
+  from { opacity: 0.35; transform: perspective(1800px) translate3d(0, 10svh, 0) rotateX(16deg) scale(0.9); }
+  to { opacity: 1; transform: perspective(1800px); }
+}
+@keyframes ca-title-in {
+  from { opacity: 0; transform: translate3d(0, 2rem, 0); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A narrow screen: no pin; the window rises a little as it comes into view. */
+@media (max-width: 49.99rem) and (prefers-reduced-motion: no-preference) {
+  .ca-hero { padding-bottom: 5rem; }
+  .ca-agents-card { transform: none; }
+  @supports (animation-timeline: view()) {
+    .rr-window { animation-name: ca-rise-small; animation-timing-function: linear; animation-fill-mode: both; animation-timeline: view(); animation-range: entry 0% entry 40%; }
+  }
+}
+@keyframes ca-rise-small {
+  from { opacity: 0.4; transform: translate3d(0, 3rem, 0) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 40rem) {
+  .ca-hero { padding-top: 2rem; }
+  .ca-agent { grid-template-columns: 0.6rem 4.6rem minmax(0, 1fr); }
+  .ca-agent-run { display: none; }
+  .ca-install { display: flex; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ca-aurora, .ca-down svg { animation: none; }
+  .ca-agents-card { transform: none; }
+}

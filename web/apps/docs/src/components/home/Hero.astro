@@ -1,0 +1,82 @@
+---
+// The landing page's first screen, in place of Starlight's hero (astro.config.mjs,
+// `components.Hero`; only the landing page has a `hero`). Its title and tagline
+// are the page's frontmatter. As the reader scrolls, it stays in place and recedes
+// while the replay below rises over it (./scene.css); ./hero.ts copies the
+// install command and steps through the coding agents.
+import './scene.css';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { tagline = '' } = data.hero ?? {};
+
+/** The coding agents: the name `--agent` takes, the CLI, and what a launch runs (src/contraagent/docs/agents.md). */
+const AGENTS = [
+  { name: 'claude', cli: 'Claude Code', run: 'claude -p' },
+  { name: 'codex', cli: 'Codex CLI', run: 'codex exec' },
+  { name: 'opencode', cli: 'opencode', run: 'opencode run' },
+  { name: 'omp', cli: 'oh-my-pi', run: 'omp -p' },
+  { name: 'pi', cli: 'pi', run: 'pi -p' },
+];
+const INSTALL = "uv add 'contraagent[monitor]'";
+/** The card's command, a line each, before `--agent`. */
+const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`];
+---
+
+<div class="ca-pin">
+  <header class="ca-hero" data-hero>
+    <div class="ca-sky" aria-hidden="true">
+      <div class="ca-aurora"></div>
+      <div class="ca-grid"></div>
+    </div>
+
+    <div class="ca-hero-inner">
+      <div class="ca-hero-copy">
+        <p class="ca-eyebrow"><span class="ca-eyebrow-dot" aria-hidden="true"></span>MIT | Python 3.12 or later | Linux</p>
+        <h1 id="_top" data-page-title class="ca-display">
+          Run coding agents as <span class="ca-display-accent">typed, checked, supervised</span> tasks.
+        </h1>
+        <p class="ca-sub">{tagline}</p>
+        <div class="ca-actions">
+          <a class="ca-primary" href="/python/tutorial/">
+            Get started
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M3 8h9M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </a>
+          <a class="ca-secondary" href="/python/">Read the docs</a>
+        </div>
+        <div class="ca-install">
+          <code><span class="ca-prompt" aria-hidden="true">$</span> {INSTALL}</code>
+          <button type="button" class="ca-copy" data-copy={INSTALL}>Copy</button>
+          <span class="ca-copied" role="status"></span>
+        </div>
+      </div>
+
+      <figure class="ca-agents-card">
+        <figcaption class="ca-card-title">The same tasks, plugin and config on five coding agents</figcaption>
+        <pre class="ca-card-cmd"><span class="ca-sr">{`${RUN.join(' ')} --agent followed by one of ${AGENTS.map((a) => a.name).join(', ')}`}</span><span aria-hidden="true"><span class="ca-prompt">$</span> {RUN[0]} \
+    {RUN[1]} \
+    --agent <span class="ca-agent-name" data-agent-name>{AGENTS[0]!.name}</span></span></pre>
+        <ul class="ca-agent-list">
+          {
+            AGENTS.map((a, i) => (
+              <li class:list={['ca-agent', { 'is-on': i === 0 }]} data-agent={a.name}>
+                <span class="ca-agent-dot" aria-hidden="true" />
+                <code class="ca-agent-key">{a.name}</code>
+                <span class="ca-agent-cli">{a.cli}</span>
+                <code class="ca-agent-run">{a.run}</code>
+              </li>
+            ))
+          }
+        </ul>
+      </figure>
+    </div>
+
+    <a class="ca-down" href="#rr-title">
+      <span>The demo run, replayed</span>
+      <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    </a>
+  </header>
+</div>
+
+<script>
+  import './hero';
+</script>
