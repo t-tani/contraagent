@@ -146,7 +146,7 @@ def _outputs(contracts: Sequence[OutputContract], cwd: Path) -> list[tuple[Path,
     return [(c.resolve(cwd), c.message_path(cwd)) for c in contracts]
 
 
-def _written(files: Path, pipeline: dict) -> Written:
+def _written(files: Path, pipeline: dict[str, Any]) -> Written:
     """What a recorded attempt wrote with `contraagent.log` and `save`, read back from its files."""
     written = Written()
     for name in pipeline.get("logs") or ():
@@ -208,7 +208,7 @@ class Recorder:
         log: Callable[[str], None] | None = None,
         patterns: Callable[[Task], Sequence[str]] = lambda task: (),
     ) -> None:
-        self.directory = Path(directory)
+        self.directory: Path = Path(directory)
         self._patterns = patterns
         self._tree: dict[str, tuple[int, int]] | None = None
         self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
@@ -454,7 +454,7 @@ class Recorder:
         entry_file = home / f"{layout.file_name(task.key)}.json"
         folder = home / layout.file_name(task.key)
         with self._lock:
-            earlier: list[dict] = []
+            earlier: list[dict[str, Any]] = []
             if task.attempt > 0:
                 try:
                     earlier = json.loads(entry_file.read_text(encoding="utf-8")).get("attempts", [])
@@ -482,7 +482,7 @@ class _Playing:
 
     task: Task
     key: str | None  # the recorded key played; None when there is none
-    attempts: list[dict] = field(default_factory=list)
+    attempts: list[dict[str, Any]] = field(default_factory=list)
     folder: Path | None = None
     #: Why the recording cannot be played (a file kept by hash only); empty when it can.
     blocked: str = ""
@@ -502,7 +502,7 @@ class Replay:
     """
 
     def __init__(self, directory: str | Path, *, execute: Iterable[str] = (), record_missing: bool = False) -> None:
-        self.directory = Path(directory)
+        self.directory: Path = Path(directory)
         self.execute: frozenset[str] = frozenset(execute)
         self.record_missing = record_missing
         if record_missing:
@@ -510,7 +510,7 @@ class Replay:
         if not self.directory.is_dir():
             raise RecordingError(f"replay: {self.directory} is not a directory of recordings")
         #: Recorded key -> (its entry, the folder of its attempts' files).
-        self.recordings: dict[str, tuple[dict, Path]] = {}
+        self.recordings: dict[str, tuple[dict[str, Any], Path]] = {}
         for entry_file in sorted(self.directory.glob("*/*.json")):
             try:
                 body = json.loads(entry_file.read_text(encoding="utf-8"))
@@ -651,7 +651,7 @@ class Replay:
         return result, bool(attempt.get("retry_on"))
 
     @staticmethod
-    def _place(files: Path, attempt: dict, outputs: Sequence[OutputContract], cwd: Path) -> None:
+    def _place(files: Path, attempt: dict[str, Any], outputs: Sequence[OutputContract], cwd: Path) -> None:
         """Write an attempt's recorded outputs and changed files into place, and delete its deletions."""
         for (out, message), recorded in zip(_outputs(outputs, cwd), attempt.get("outputs") or (), strict=False):
             if recorded.get("file"):
@@ -664,7 +664,7 @@ class Replay:
             (cwd / rel).unlink(missing_ok=True)
 
     @staticmethod
-    def _notes(playing: _Playing, task: Task, attempt: dict) -> list[str]:
+    def _notes(playing: _Playing, task: Task, attempt: dict[str, Any]) -> list[str]:
         """What the result says about the recording played: another key's, another fingerprint."""
         notes = []
         if playing.key != task.key:

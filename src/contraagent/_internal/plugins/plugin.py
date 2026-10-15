@@ -34,6 +34,7 @@ import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.errors import ContraagentError, did_you_mean
 
@@ -60,7 +61,7 @@ def is_plugin(path: str | Path) -> bool:
 class Plugin:
     root: Path
     name: str
-    hooks: tuple[dict, ...] = ()
+    hooks: tuple[dict[str, Any], ...] = ()
     #: Coding agents the hooks are rendered for; empty means every registered renderer.
     agents: tuple[str, ...] = ()
 
@@ -73,7 +74,7 @@ class Plugin:
             meta = json.loads((root / PLUGIN_JSON).read_text())
         except ValueError as exc:
             raise PluginError(f"{root / PLUGIN_JSON}: {exc}") from exc
-        hooks: dict = {}
+        hooks: dict[str, Any] = {}
         if (root / HOOKS_TOML).is_file():
             try:
                 hooks = tomllib.loads((root / HOOKS_TOML).read_text())
@@ -140,7 +141,7 @@ class Plugin:
         ("README.md", "readme"),
     )
 
-    def definition(self, role: str | None, limit: int = 40_000) -> dict:
+    def definition(self, role: str | None, limit: int = 40_000) -> dict[str, Any]:
         """The plugin as plain data, for the monitor: its files and the role in use."""
         files = []
         for rel, part in self._PARTS:
@@ -183,7 +184,7 @@ def body(text: str) -> str:
     return text[m.end() :] if m else text
 
 
-def frontmatter(text: str) -> dict:
+def frontmatter(text: str) -> dict[str, Any]:
     """The `key: value` lines between the leading `---` fences of a Markdown file."""
     m = re.match(r"^---\n(.*?)\n---", text, re.S)
     out = {}

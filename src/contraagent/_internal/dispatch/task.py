@@ -153,7 +153,7 @@ class Task:
     estimate_s: float | None = None
     tail_s: float | None = None
     priority: float = 0.0
-    params: dict = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
     attempt: int = 0
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     key: str = ""
@@ -288,7 +288,7 @@ class TaskResult:
     def launch_failed(cls, task: Task, reason: str) -> TaskResult:
         return cls(task=task, ok=False, stop=STOP_LAUNCH_FAILED, reason=reason)
 
-    def summary(self) -> dict:
+    def summary(self) -> dict[str, Any]:
         """Queue `end`-line summary. Generic only -- a domain's own delta
         lives in `payload`, passed through opaquely rather than flattened
         into named keys here."""

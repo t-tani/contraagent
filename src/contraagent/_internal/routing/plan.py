@@ -20,10 +20,10 @@ import dataclasses
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from contraagent._internal.backends import Backend, backend_class, known_agents
-from contraagent._internal.backends.credentials import CredentialError, Pool
+from contraagent._internal.backends.credentials import CredentialBase, CredentialError, Pool
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
 from contraagent._internal.routing.config import PipelineConfig
@@ -52,7 +52,7 @@ class RoutingError(ContraagentError, ValueError):
 
     def __init__(self, *errors: str) -> None:
         super().__init__("\n".join(errors))
-        self.errors = list(errors)
+        self.errors: list[str] = list(errors)
 
 
 def _report(errors: list[str] | None, message: str) -> None:
@@ -78,7 +78,7 @@ class Overrides:
     effort: str = ""
     credential: str = ""
 
-    def run_defaults(self, defaults: Mapping) -> tuple[str, str, str]:
+    def run_defaults(self, defaults: Mapping[str, Any]) -> tuple[str, str, str]:
         """(agent, model, effort) for the run: this override, else `[defaults]`, else built-in."""
         return (
             self.agent or str(defaults.get("agent") or "") or DEFAULT_AGENT,
@@ -106,7 +106,7 @@ def effort_problem(kinds: list[str], agent: str, effort: str) -> str | None:
     )
 
 
-def check_task_tables(tables: Mapping[str, dict], kinds: Iterable, bases: Mapping[str, str] | None = None) -> list[str]:
+def check_task_tables(tables: Mapping[str, dict[str, Any]], kinds: Iterable[Any], bases: Mapping[str, str] | None = None) -> list[str]:
     """`[tasks.<name>]` tables naming no kind of this run, nor the base kind of one
     (`bases`, as `RoutingPlan.build` takes them), said out loud.
 
@@ -122,8 +122,8 @@ def check_task_tables(tables: Mapping[str, dict], kinds: Iterable, bases: Mappin
 
 
 def resolved_task_tables(
-    file_tables: Mapping[str, dict], kinds: Iterable, declared: Mapping[str, Mapping], bases: Mapping[str, str]
-) -> dict[str, dict]:
+    file_tables: Mapping[str, dict[str, Any]], kinds: Iterable[Any], declared: Mapping[str, Mapping[str, Any]], bases: Mapping[str, str]
+) -> dict[str, dict[str, Any]]:
     """Each kind's task table, key by key, lowest first: what its code declares
     (`declared`), the config file's table of its base kind (`bases`: an implementation
     kind's, `agent_task(implementations=)`), the config file's table of the kind itself.
@@ -138,16 +138,16 @@ def resolved_task_tables(
 
 
 def resolve_routing(
-    configs: Mapping,
-    tables: Mapping[str, dict],
-    defaults: Mapping,
+    configs: Mapping[str, Any],
+    tables: Mapping[str, dict[str, Any]],
+    defaults: Mapping[str, Any],
     backends: Mapping[str, Backend],
     overrides: Overrides = Overrides(),
     requirements: Mapping[str, Iterable[str]] | None = None,
     errors: list[str] | None = None,
     *,
     light: Iterable[str] = (),
-) -> dict:
+) -> dict[str, Any]:
     """Fold the routing defaults and each kind's task table into its config.
     With `errors`, an effort the agent does not accept is appended there instead of raised.
     `light`: the kinds declared with no tools (`agent_task(tools=())`).
@@ -207,13 +207,13 @@ def resolve_routing(
 
 
 def build_routers(
-    configs: Mapping,
-    tables: Mapping[str, dict],
+    configs: Mapping[str, Any],
+    tables: Mapping[str, dict[str, Any]],
     config: PipelineConfig,
     backends: Mapping[str, Backend],
     overrides: Overrides = Overrides(),
     errors: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """One failover breaker per kind that has a chain.
 
     A breaker per kind, not per run: one kind's model answering 429 says
@@ -234,7 +234,7 @@ def build_routers(
     except ValueError as exc:  # a ConfigError too: the chain is not an array of tables
         _report(errors, str(exc))
         global_chain = ()
-    routers: dict = {}
+    routers: dict[str, Any] = {}
     pinned = overrides.agent or overrides.model
     ignored: list[str] = []
     for kind, rc in configs.items():
@@ -271,7 +271,11 @@ def build_routers(
 
 
 def check_credentials(
-    configs: Mapping, routers: Mapping, credentials: Mapping, backends: Mapping[str, Backend], errors: list[str] | None = None
+    configs: Mapping[str, Any],
+    routers: Mapping[str, Any],
+    credentials: Mapping[str, Any],
+    backends: Mapping[str, Backend],
+    errors: list[str] | None = None,
 ) -> None:
     """Every route of every kind must be able to launch on its credential, and that
     credential must be one the kind may use. With `errors`, every refusal is
@@ -292,7 +296,7 @@ def check_credentials(
                 _report(errors, f"{name} hop {i + 1}/{len(routes)} {route}: {problem}")
 
 
-def _route_problem(rc, route: Route, credentials: Mapping, backends: Mapping[str, Backend]) -> str | None:
+def _route_problem(rc, route: Route, credentials: Mapping[str, Any], backends: Mapping[str, Backend]) -> str | None:
     """Why `route` cannot carry a task of config `rc`, or None."""
     cred = credentials.get(route.credential or rc.credential)
     if cred is None:
@@ -330,21 +334,21 @@ class RoutingPlan:
 
     config: PipelineConfig
     backends: Mapping[str, Backend]
-    configs: dict = field(default_factory=dict)
-    routers: dict = field(default_factory=dict)
+    configs: dict[str, KindConfig] = field(default_factory=dict)
+    routers: dict[str, Router] = field(default_factory=dict)
     overrides: Overrides = Overrides()
     #: `[credentials.<name>]` by name, `ambient` included: what an `AgentRunner` takes as `credentials`.
-    credentials: dict = field(default_factory=dict)
+    credentials: dict[str, CredentialBase] = field(default_factory=dict)
 
     @classmethod
     def build(
         cls,
         config: PipelineConfig,
-        kinds: Iterable,
+        kinds: Iterable[Any],
         backends: Mapping[str, Backend],
         overrides: Overrides = Overrides(),
         *,
-        declared: Mapping[str, Mapping] | None = None,
+        declared: Mapping[str, Mapping[str, Any]] | None = None,
         bases: Mapping[str, str] | None = None,
         requirements: Mapping[str, Iterable[str]] | None = None,
         light: Iterable[str] = (),

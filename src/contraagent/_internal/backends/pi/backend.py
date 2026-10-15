@@ -18,6 +18,7 @@ directory's `models.json`, spoken to over the OpenAI chat-completions API.
 from __future__ import annotations
 
 from pathlib import Path
+from types import ModuleType
 
 from contraagent._internal.backends import opencode_key, plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
@@ -43,6 +44,7 @@ from contraagent._internal.backends.pi import agent_dir, catalogue
 from contraagent._internal.backends.pi import wire as pi_wire
 from contraagent._internal.backends.pi.login import pi_login
 from contraagent._internal.backends.process import via_stdin
+from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold
 
 #: Every discovery pi does at startup turned off: extensions (the built-in ones too, MCP
@@ -145,17 +147,17 @@ class PiBackend(OpencodeKeyAccount, Backend):
 
     name = "pi"
     binary = "pi"
-    effort_levels = ("off", "minimal", "low", "medium", "high", "xhigh", "max")
+    effort_levels: tuple[str, ...] | None = ("off", "minimal", "low", "medium", "high", "xhigh", "max")
     thinking: str = "medium"
     # pi has no named-agent mechanism: the task's role file rides along as an attached file.
     needs_inline_role_file = True
     # `--no-tools`, `--system-prompt` (`prompt_args`); the agent directory and
     # `ISOLATION_ARGS` already keep every setting, skill and MCP server out.
     light_launch = True
-    wire = pi_wire
-    signals = pi_wire.SIGNALS
+    wire: ModuleType | None = pi_wire
+    signals: Signals = pi_wire.SIGNALS
     # pi's CLI has no cost cap: the cost of each API call, as its `message_end` reports it, summed.
-    watched_limits = frozenset({"max_budget_usd"})
+    watched_limits: frozenset[str] = frozenset({"max_budget_usd"})
 
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
@@ -167,7 +169,7 @@ class PiBackend(OpencodeKeyAccount, Backend):
         super().__init__(binary, base_env)
         self.thinking = thinking
         #: Where the agent directories are made (`agent_dir.default_root`).
-        self.agent_dirs = agent_dirs or agent_dir.default_root(self._base_env)
+        self.agent_dirs: Path = agent_dirs or agent_dir.default_root(self._base_env)
 
     def fold(self, launch: Launch) -> EventFold:
         """Stdout is the `--mode json` event stream."""

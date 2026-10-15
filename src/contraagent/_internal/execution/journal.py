@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.backends.process import signal_of
 from contraagent._internal.dispatch.task import Task, TaskResult, kind_name
@@ -28,10 +29,10 @@ class Journal:
         run_id: str,
         run_group: str,
         unit_of: Callable[[Task], str],
-        row_extras: Callable[[TaskResult], dict] | None = None,
+        row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
     ) -> None:
-        self.path = Path(path)
-        self.launches_path = Path(launches_path)
+        self.path: Path = Path(path)
+        self.launches_path: Path = Path(launches_path)
         self.run_id = run_id
         self.run_group = run_group
         self._unit_of = unit_of
@@ -89,10 +90,10 @@ class Journal:
             result.launch_result.record(self.launches_path)
         return row
 
-    def rows(self) -> list[dict]:
+    def rows(self) -> list[dict[str, Any]]:
         """Every row on disk, as dicts (a domain's extra columns included)."""
         return read_rows(self.path)
 
-    def last_rows(self) -> dict[str, dict]:
+    def last_rows(self) -> dict[str, dict[str, Any]]:
         """Each key's last row: what a resume compares a task with."""
         return {r["key"]: r for r in self.rows() if r.get("key")}

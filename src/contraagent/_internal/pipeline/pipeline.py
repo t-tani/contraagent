@@ -58,7 +58,7 @@ class RunReport:
     run_id: str
     run_dir: Path
     results: dict[str, TaskResult]
-    summary: dict = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
     #: What the flow returned: a `Pending` in it reads its task's checked output (`.output`).
     value: Any = None
     #: The top flow calls that raised after their first task was queued; `.error` is the
@@ -79,7 +79,7 @@ class RunReport:
         return [r for r in self.results.values() if r.stop == STOP_PARTIAL]
 
 
-def attempt_totals(rows: list[dict]) -> dict:
+def attempt_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Over journal rows: `attempts`, `cost_usd` (None when no row reports a cost) and
     `fixups` (rounds after the first, plus each objection of a stop hook)."""
     costs = [r["cost_usd"] for r in rows if r.get("cost_usd") is not None]
@@ -110,7 +110,7 @@ class Pipeline:
         quota_rule: QuotaRule | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        row_extras: Callable[[TaskResult], dict] | None = None,
+        row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
@@ -194,14 +194,14 @@ class Pipeline:
         elif not isinstance(config, PipelineConfig):
             config = PipelineConfig.load(config)
         self.config = config
-        self.runs_dir = Path(runs_dir)
+        self.runs_dir: Path = Path(runs_dir)
         if stub is not None and backends is not None:
             raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
         if record_max_file_mb is not None and record is None and not record_missing:
             raise TypeError("Pipeline: record_max_file_mb= caps a recording's files; give record= (or replay= with record_missing=True)")
         if record_max_file_mb is not None and not record_max_file_mb > 0:
             raise ValueError(f"Pipeline: record_max_file_mb={record_max_file_mb!r} is not a positive number of MB")
-        self.record_max_file_mb = record_max_file_mb if record_max_file_mb is not None else MAX_FILE_MB
+        self.record_max_file_mb: float = record_max_file_mb if record_max_file_mb is not None else MAX_FILE_MB
         if record_missing and replay is None:
             raise TypeError("Pipeline: record_missing= fills in a replay's recordings; give replay= the recordings directory")
         if replay is not None:
@@ -216,9 +216,9 @@ class Pipeline:
             where = "give it to the stub agent: StubAgent(execute=)" if stub is not None else "it names what a replay does not play"
             raise TypeError(f"Pipeline: execute= is for a replay ({where})")
         self.stub = stub
-        self.record = Path(record) if record is not None else None
+        self.record: Path | None = Path(record) if record is not None else None
         #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
-        self.replay = Replay(replay, execute=execute, record_missing=record_missing) if replay is not None else None
+        self.replay: Replay | None = Replay(replay, execute=execute, record_missing=record_missing) if replay is not None else None
         if stub is not None:
             backends = stub.backends()
         elif self.replay is not None and record_missing:
@@ -226,9 +226,9 @@ class Pipeline:
             backends = self.replay.backends(real=real)
         elif self.replay is not None:
             backends = self.replay.backends()
-        self.backends = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
+        self.backends: dict[str, Backend] = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
         self.overrides = overrides
-        self.cwd = Path(cwd) if cwd else Path.cwd()
+        self.cwd: Path = Path(cwd) if cwd else Path.cwd()
         self.max_concurrent = max_concurrent
         # A malformed [defaults] preflight is reported by the routing plan, with the rest.
         self.preflight: PreflightPolicy = check_policy(
@@ -236,12 +236,12 @@ class Pipeline:
         )
         self.keep_transcripts = keep_transcripts
         self.log = log
-        self.env = dict(env or {})
+        self.env: dict[str, str] = dict(env or {})
         # A malformed [defaults] is reported with every other routing problem, by the routing plan.
-        self.max_passes = max_passes if max_passes is not None else int(config.defaults([]).get("max_passes", MAX_PASSES))
+        self.max_passes: int = max_passes if max_passes is not None else int(config.defaults([]).get("max_passes", MAX_PASSES))
         self.quota_rule = quota_rule
-        self.scopes = tuple(scopes)
-        self.enrichers = tuple(enrichers)
+        self.scopes: tuple[TaskScope, ...] = tuple(scopes)
+        self.enrichers: tuple[ResultEnricher, ...] = tuple(enrichers)
         self.row_extras = row_extras
         # A malformed [defaults.claim_capacity] is reported by the routing plan too.
         given = dict(queue_options.pop("claim_capacity", None) or {})
@@ -249,7 +249,7 @@ class Pipeline:
             if not isinstance(value, PerTask) and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ConfigError(f"Pipeline(claim_capacity=) {name!r} = {value!r} is not a non-negative integer or a PerTask")
         claim_capacity = {**config.claim_capacity([]), **given}
-        self.queue_options = {**queue_options, **({"claim_capacity": claim_capacity} if claim_capacity else {})}
+        self.queue_options: dict[str, Any] = {**queue_options, **({"claim_capacity": claim_capacity} if claim_capacity else {})}
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
         """Build the task graph `run` would, and check everything that needs no launch:
@@ -440,7 +440,9 @@ class Pipeline:
             runner.routers.update(plan.routers)
 
 
-def _start(flow: Callable[..., Any], args: tuple, kwargs: dict, graph: Graph, driver: FlowDriver, run: Run) -> tuple[Any, list[Task], bool]:
+def _start(
+    flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any], graph: Graph, driver: FlowDriver, run: Run
+) -> tuple[Any, list[Task], bool]:
     """Call the flow: (its value, the tasks to queue first, whether it is driven).
 
     A flow that raises before a task is queued raises here: the static part of

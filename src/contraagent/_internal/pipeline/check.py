@@ -117,7 +117,7 @@ class CheckReport:
         return "\n".join(lines)
 
 
-def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs: dict) -> CheckReport:
+def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> CheckReport:
     report = CheckReport()
     with tempfile.TemporaryDirectory(prefix="contraagent-check-") as tmp:
         graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
@@ -264,7 +264,7 @@ def _holds_pending(value: Any) -> bool:
 def _schema_errors(specs: dict[str, Any]) -> list[str]:
     """Output schemas the call file cannot carry, or the in-session hook cannot import."""
     errs: list[str] = []
-    refs: dict[str, dict] = {}
+    refs: dict[str, dict[str, Any]] = {}
     for kind, spec in specs.items():
         schema: type[BaseModel] | None = spec.output_schema
         if schema is None:
@@ -298,7 +298,7 @@ print(json.dumps(out))
 """
 
 
-def _import_in_fresh_interpreter(refs: dict[str, dict]) -> dict[str, str]:
+def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, str]:
     """What the hook (`contraagent call validate`, same interpreter) would fail to import."""
     try:
         proc = subprocess.run(

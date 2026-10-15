@@ -48,6 +48,7 @@ dev = [
     "pyright>=1.1.400",
     "contraagent[hub]",
     "pytest-xdist>=3.8",
+    "griffe==2.3.0",        # tests/api: the public API snapshot; `griffe check`
 ]
 
 [tool.hatch.build.targets.wheel]

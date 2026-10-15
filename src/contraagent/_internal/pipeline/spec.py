@@ -53,7 +53,7 @@ class AgentTask[Out]:
     plugin: Plugin | None
     role: str | None
     instructions: str | None
-    config: dict
+    config: dict[str, Any]
     validators: tuple[Validator, ...]
     output_name: str
     requires: tuple[str, ...] = ()
@@ -72,7 +72,7 @@ class AgentTask[Out]:
     #: JSON pointers to the parts of the output file a launch must keep (`contraagent._internal.contracts.pointers`).
     preserve: tuple[str, ...] = ()
     #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
-    output_of: AgentTask | PythonTask | None = None
+    output_of: AgentTask[Any] | PythonTask[Any] | None = None
     #: The base kind of an implementation kind (`agent_task(implementations=)`); empty for any other.
     base_kind: str = ""
 
@@ -116,7 +116,7 @@ class AgentTask[Out]:
         whose output file it writes (`output_of`), the parts of it to keep (`preserve`) and, for a light launch, that it has no tools."""
         return _digest(self._defined())
 
-    def differences(self, other: AgentTask) -> list[str]:
+    def differences(self, other: AgentTask[Any]) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
         digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name`,
         `rerun_on_resume` and `base_kind`. None:
@@ -162,7 +162,7 @@ class AgentTask[Out]:
         unit: str = "",
         *,
         key: str | None = None,
-        after: Sequence[Pending | str] = (),
+        after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
         **params: Any,
     ) -> Pending[Out]:
@@ -193,7 +193,7 @@ def agent_task[Out](
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask | PythonTask | None = None,
+    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
     **config: Any,
 ) -> AgentTask[Out]: ...
@@ -219,7 +219,7 @@ def agent_task[Out](
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask | PythonTask | None = None,
+    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
     **config: Any,
 ) -> Implementations[Out]: ...
@@ -244,7 +244,7 @@ def agent_task[Out](
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
-    output_of: AgentTask | PythonTask | None = None,
+    output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
     **config: Any,
 ) -> AgentTask[Out] | Implementations[Out]:
@@ -576,7 +576,7 @@ class PythonTask[Out]:
         unit: str = "",
         *,
         key: str | None = None,
-        after: Sequence[Pending | str] = (),
+        after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
         **kwargs: Any,
     ) -> Pending[Out]:
@@ -603,7 +603,7 @@ class PythonTask[Out]:
             }
         )
 
-    def definition(self, cwd: Path | None = None) -> dict:
+    def definition(self, cwd: Path | None = None) -> dict[str, Any]:
         """What defines this kind of task, for the monitor (`definitions/<kind>.json`):
         where the function is, what it takes and returns, its docstring and source."""
         fn = inspect.unwrap(self.fn)
@@ -640,7 +640,7 @@ class PythonTask[Out]:
             pass  # a function without source (built-in, REPL): the facts above still say what it is
         return body
 
-    def invoke(self, unit: str, kwargs: dict) -> Any:
+    def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any:
         if unit and "unit" not in kwargs and "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}
         return self.fn(**kwargs)
@@ -728,7 +728,7 @@ def _class_name(cls: type) -> str:
     return cls.__qualname__ if cls.__module__ == "builtins" else f"{cls.__module__}.{cls.__qualname__}"
 
 
-def _output_schema_of(fn: Callable) -> type[BaseModel] | None:
+def _output_schema_of(fn: Callable[..., Any]) -> type[BaseModel] | None:
     ann: Any
     try:
         ann = typing.get_type_hints(fn).get("return", inspect.Signature.empty)
@@ -758,7 +758,7 @@ def _without_partial(ann: Any) -> Any:
     return ann
 
 
-def _digest(body: dict) -> str:
+def _digest(body: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False, default=repr).encode()).hexdigest()
 
 
@@ -859,7 +859,7 @@ def _check_changes_pattern(kind: str, pattern: str) -> None:
         raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} is not inside the working directory")
 
 
-def _check_param_names(kind: str, model: type[BaseModel], params: dict) -> None:
+def _check_param_names(kind: str, model: type[BaseModel], params: dict[str, Any]) -> None:
     unknown = sorted(set(params) - set(model.model_fields))
     missing = sorted(n for n, f in model.model_fields.items() if f.is_required() and n not in params)
     if unknown or missing:

@@ -29,7 +29,7 @@ import os
 import stat
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import lines_at as read_lines_at
@@ -88,7 +88,7 @@ class RunSource(Protocol):
         """Every run id this source holds, in name order."""
         ...
 
-    def info(self, run: str) -> dict | None:
+    def info(self, run: str) -> dict[str, Any] | None:
         """The run's `run.json`, or None."""
         ...
 
@@ -229,7 +229,7 @@ async def poll_size(size: Callable[[], int], beyond: int, timeout: float, every:
         await asyncio.sleep(min(every, left))
 
 
-def parse_info(text: str | None) -> dict | None:
+def parse_info(text: str | None) -> dict[str, Any] | None:
     """A `run.json`'s text as a dict; None when absent, torn or not an object."""
     try:
         info = json.loads(text) if text is not None else None
@@ -242,7 +242,7 @@ class DirectorySource:
     """The runs in one `runs/` directory, as `execution.Run` writes them."""
 
     def __init__(self, root: str | Path) -> None:
-        self.root = Path(root).resolve()
+        self.root: Path = Path(root).resolve()
 
     def path(self, run: str, name: str = "") -> Path:
         """`root/<run>/<name>`, refused (`names.BadName`) when a part is not a plain name
@@ -278,7 +278,7 @@ class DirectorySource:
         except OSError:
             return []
 
-    def info(self, run: str) -> dict | None:
+    def info(self, run: str) -> dict[str, Any] | None:
         return parse_info(self.document(run, layout.RUN_INFO))
 
     def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
@@ -421,8 +421,8 @@ class MemorySource:
         times: Mapping[str, str] | None = None,
     ) -> None:
         self.records: dict[str, dict[str, str | list[str]]] = {r: dict(v) for r, v in (records or {}).items()}
-        self.files = {r: dict(v) for r, v in (files or {}).items()}
-        self.times = dict(times or {})
+        self.files: dict[str, dict[str, tuple[str, str]]] = {r: dict(v) for r, v in (files or {}).items()}
+        self.times: dict[str, str] = dict(times or {})
 
     def _run(self, run: str) -> dict[str, str | list[str]]:
         return self.records.get(check_name(run, "run id"), {})
@@ -438,7 +438,7 @@ class MemorySource:
     def runs(self) -> list[str]:
         return sorted(r for r in self.records if is_plain(r))
 
-    def info(self, run: str) -> dict | None:
+    def info(self, run: str) -> dict[str, Any] | None:
         return parse_info(self.document(run, layout.RUN_INFO))
 
     def lines(self, run: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:

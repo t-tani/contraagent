@@ -24,6 +24,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent._internal.errors import ContraagentError, did_you_mean
@@ -72,7 +73,7 @@ def _problem(errors: list[str] | None, message: str) -> None:
     errors.append(message)
 
 
-def _section(data: dict, name: str) -> dict:
+def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
     value = data.get(name)
     return value if isinstance(value, dict) else {}
 
@@ -121,7 +122,7 @@ def per_task_problem(memory_mb: object, cores: object) -> str | None:
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    raw: dict = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
     path: Path | None = None
 
     @classmethod
@@ -159,7 +160,7 @@ class PipelineConfig:
             if not isinstance(value, dict):
                 _problem(errors, f"{self.source}: pipeline.{name} = {value!r} is not a table; write [pipeline.{name}]")
 
-    def defaults(self, errors: list[str] | None = None) -> dict:
+    def defaults(self, errors: list[str] | None = None) -> dict[str, Any]:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
         model_failover), `max_passes` (`Pipeline(max_passes=)`), `preflight`
         (`Pipeline(preflight=)`, a `PreflightPolicy`) and `context_warn_pct` (the warning
@@ -235,21 +236,21 @@ class PipelineConfig:
                 out[name] = value
         return out
 
-    def task_tables(self, errors: list[str] | None = None) -> dict[str, dict]:
+    def task_tables(self, errors: list[str] | None = None) -> dict[str, dict[str, Any]]:
         """`[tasks.<kind>]`, the task tables: routing keys, budgets and the kind's own `fallbacks`.
 
         A malformed table raises `ConfigError`; with `errors`, every problem is
         appended there instead and what is well-formed still read, so one pass
         reports them all.
         """
-        out: dict[str, dict] = {}
+        out: dict[str, dict[str, Any]] = {}
         for kind, entry in _section(self.raw, "tasks").items():
             table = self._task_table(kind, entry, errors)
             if table:
                 out[kind] = table
         return out
 
-    def _task_table(self, kind: str, entry: object, errors: list[str] | None) -> dict:
+    def _task_table(self, kind: str, entry: object, errors: list[str] | None) -> dict[str, Any]:
         routing = ("agent", "model", "effort", "credential")
         allowed = set(routing) | set(TASK_TABLE_KEYS) | {"fallbacks", "model_failover", "disallowed_tools", "_comment"}
         named = ", ".join(sorted(allowed - {"_comment"}))
@@ -296,7 +297,7 @@ class PipelineConfig:
                 table["fallbacks"] = fb
         return table
 
-    def fallbacks(self) -> list[dict]:
+    def fallbacks(self) -> list[dict[str, Any]]:
         """`[[defaults.fallbacks]]`, in file order (raw tables; `router.parse_chain` validates)."""
         entries = _section(self.raw, "defaults").get("fallbacks")
         if entries is None:
@@ -305,7 +306,7 @@ class PipelineConfig:
             raise ConfigError(f"{self.source}: [defaults].fallbacks must be an array of tables, written [[defaults.fallbacks]]")
         return [e for e in entries if isinstance(e, dict)]
 
-    def credentials(self) -> dict:
+    def credentials(self) -> dict[str, Any]:
         """`[credentials.<name>]`, parsed, plus the built-in `ambient` (whatever each
         coding agent loads by default)."""
         tables = _section(self.raw, "credentials")
@@ -319,7 +320,7 @@ class PipelineConfig:
         except CredentialError as exc:
             raise ConfigError(f"{self.source}: {exc}") from None
 
-    def table(self, name: str) -> dict:
+    def table(self, name: str) -> dict[str, Any]:
         """`[pipeline.<name>]`: a pipeline table, the pipeline's own settings in this file,
         as parsed; contraagent never checks its keys. Empty when the file has none; a
         `pipeline.<name>` that is not a table raises `ConfigError`."""

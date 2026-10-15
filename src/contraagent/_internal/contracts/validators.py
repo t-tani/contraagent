@@ -151,9 +151,9 @@ class CommandValidator:
         more = len(lines) - self.max_lines
         return lines[: self.max_lines] + ([f"… and {more} more lines"] if more > 0 else [])
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "argv": list(self.argv), "timeout_s": self.timeout_s, "max_lines": self.max_lines}
 
     @classmethod
-    def from_dict(cls, d: dict) -> CommandValidator:
+    def from_dict(cls, d: dict[str, Any]) -> CommandValidator:
         return cls(d["argv"], name=d.get("name", ""), timeout_s=d.get("timeout_s", 120.0), max_lines=d.get("max_lines", 30))

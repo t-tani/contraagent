@@ -17,6 +17,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+from types import ModuleType
 
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById
 from contraagent._internal.backends.claude import wire as claude_wire
@@ -38,6 +39,7 @@ from contraagent._internal.backends.credentials import (
 )
 from contraagent._internal.backends.launch import ACCOUNT_SECRET, Launch, LaunchResult, account_digest
 from contraagent._internal.backends.process import via_stdin
+from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold
 
 # Env added to every child: no CLAUDE.md files, no auto-memory (its index in the
@@ -66,7 +68,7 @@ class ClaudeBackend(ResumeById, Backend):
 
     name = "claude"
     binary = "claude"
-    effort_levels = ("low", "medium", "high", "xhigh", "max")
+    effort_levels: tuple[str, ...] | None = ("low", "medium", "high", "xhigh", "max")
     # `--fallback-model` takes a comma-separated list and tries each in
     # order when the default is overloaded. Verified on 2.1.285.
     native_model_chain = True
@@ -74,10 +76,10 @@ class ClaudeBackend(ResumeById, Backend):
     # `--tools ""`, `--system-prompt`, and the `--setting-sources ""` and
     # `--strict-mcp-config` every launch already gets.
     light_launch = True
-    wire = claude_wire
-    signals = claude_wire.SIGNALS
+    wire: ModuleType | None = claude_wire
+    signals: Signals = claude_wire.SIGNALS
     # `--max-turns` and `--max-budget-usd` are its own; one call's input is watched.
-    watched_limits = frozenset({"context_budget"})
+    watched_limits: frozenset[str] = frozenset({"context_budget"})
 
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:

@@ -31,6 +31,7 @@ from __future__ import annotations
 import threading
 import time
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -148,8 +149,8 @@ class Router:
         fallbacks: tuple[Route, ...] = (),
         probe_interval_s: float = 900.0,
         max_probe_interval_s: float = 7200.0,
-        clock=time.monotonic,
-    ):
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         # A fallback identical to the primary is a no-op hop: drop it here
         # rather than discovering it as a wasted 1800s launch.
         self.routes: tuple[Route, ...] = (primary,) + tuple(f for f in fallbacks if f.identity != primary.identity)

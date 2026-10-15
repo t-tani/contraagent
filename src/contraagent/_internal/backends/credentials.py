@@ -32,7 +32,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter
 
@@ -97,7 +97,7 @@ SecretField = Annotated[Secret, BeforeValidator(_secret), PlainSerializer(_secre
 # entry: type checkers read only the keyword, and only a frozen field may be narrowed
 # by a subclass, which is what pins `type` to each subclass's own literal.
 class CredentialBase(BaseModel, frozen=True):
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     #: The name the config gives it; what journals and the monitor show.
     name: str = ""
@@ -118,7 +118,7 @@ class CredentialBase(BaseModel, frozen=True):
     def label(self) -> str:
         return self.name or self.type
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What may be recorded: never a secret, only where it comes from."""
         return self.model_dump(mode="json")
 
@@ -258,7 +258,7 @@ _ADAPTER: TypeAdapter = TypeAdapter(Credential)
 AMBIENT = Ambient(name="ambient")
 
 
-def parse_credentials(tables: dict[str, dict]) -> dict[str, CredentialBase]:
+def parse_credentials(tables: dict[str, dict[str, Any]]) -> dict[str, CredentialBase]:
     """Every `[credentials.<name>]` table, pools resolved against their members."""
     out = {name: parse_credential(name, table) for name, table in tables.items()}
     for name, c in list(out.items()):
@@ -280,7 +280,7 @@ def parse_credentials(tables: dict[str, dict]) -> dict[str, CredentialBase]:
     return out
 
 
-def parse_credential(name: str, table: dict) -> CredentialBase:
+def parse_credential(name: str, table: dict[str, Any]) -> CredentialBase:
     """One `[credentials.<name>]` table."""
     data = {**table, "name": name}
     if "traits" in data:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import ModuleType
 
 from contraagent._internal.backends import opencode_key, plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ModelChains
@@ -38,6 +39,7 @@ from contraagent._internal.backends.omp import catalogue
 from contraagent._internal.backends.omp import wire as omp_wire
 from contraagent._internal.backends.omp.config import OmpModelChains, load_model_chains
 from contraagent._internal.backends.process import via_stdin
+from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold
 from contraagent._internal.dispatch.records import QuotaReading, QuotaWindow
 from contraagent._internal.runs.times import iso_of
@@ -228,7 +230,7 @@ class OmpBackend(Backend):
 
     name = "omp"
     binary = "omp"
-    effort_levels = ("off", "minimal", "low", "medium", "high", "xhigh", "max", "auto")
+    effort_levels: tuple[str, ...] | None = ("off", "minimal", "low", "medium", "high", "xhigh", "max", "auto")
     thinking: str = "medium"
     trace: bool = True
 
@@ -243,13 +245,13 @@ class OmpBackend(Backend):
     # `--no-tools`, `--system-prompt` (`prompt_args`); the isolation config already
     # turns off every settings, skill and MCP discovery, and a light launch loads no plugin.
     light_launch = True
-    wire = omp_wire
-    signals = omp_wire.SIGNALS
+    wire: ModuleType | None = omp_wire
+    signals: Signals = omp_wire.SIGNALS
     # A line of text mode's stream is its plain-text narration.
     plaintext_stream = True
     # omp's CLI has no cost cap: the cost of each API call, as its `message_end` reports it,
     # summed (trace mode; text mode reports none).
-    watched_limits = frozenset({"max_budget_usd"})
+    watched_limits: frozenset[str] = frozenset({"max_budget_usd"})
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", trace: bool = True):
         super().__init__(binary, base_env)

@@ -39,6 +39,7 @@ import statistics
 import threading
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.dispatch.task import Task, kind_name
 from contraagent._internal.runs import layout
@@ -67,7 +68,7 @@ def tail_key(task: Task, cap: int = LOOP_CAP) -> TailKey:
     return tuple(f.function for f in flow), kind_name(task.kind), passes
 
 
-def row_tail_key(row: dict, cap: int = LOOP_CAP) -> TailKey:
+def row_tail_key(row: dict[str, Any], cap: int = LOOP_CAP) -> TailKey:
     """The tail key of a `plan.jsonl` row."""
     frames = row.get("flow") or ()
     passes = tuple(_capped(loop.get("pass"), cap) for f in frames for loop in f.get("loops") or ())
@@ -104,8 +105,8 @@ class JournalEstimates:
         self._lock = threading.Lock()
         self._run_samples: dict[str, list[float]] = {}
         self._run_tails: dict[TailKey, list[float]] = {}
-        self._plan: dict[str, dict] = {}  # by key: the first row
-        self._last: dict[str, dict] = {}  # by key: the last journal row
+        self._plan: dict[str, dict[str, Any]] = {}  # by key: the first row
+        self._last: dict[str, dict[str, Any]] = {}  # by key: the last journal row
         self._by_call: dict[str, list[str]] = {}  # flow call id -> the keys it created
         self._returned: set[str] = set()
 
@@ -134,7 +135,7 @@ class JournalEstimates:
 
     # --- this run ------------------------------------------------------------------
 
-    def observe_plan(self, row: dict) -> None:
+    def observe_plan(self, row: dict[str, Any]) -> None:
         """A `plan.jsonl` row of this run: a task the queue accepted."""
         key = row.get("key")
         if not key:
@@ -144,7 +145,7 @@ class JournalEstimates:
                 self._plan[key] = row
                 self._by_call.setdefault(str(row.get("flow_call") or "0"), []).append(key)
 
-    def observe_attempt(self, row: dict) -> None:
+    def observe_attempt(self, row: dict[str, Any]) -> None:
         """A journal row of this run: one finished attempt."""
         key = row.get("key")
         if not key:
@@ -185,12 +186,12 @@ class JournalEstimates:
 
 
 def run_tails(
-    plan: list[dict],
-    journal: list[dict],
-    flow_calls: Iterable[dict] = (),
+    plan: list[dict[str, Any]],
+    journal: list[dict[str, Any]],
+    flow_calls: Iterable[dict[str, Any]] = (),
     *,
     loop_cap: int = LOOP_CAP,
-    after_last: Callable[[dict], float] | None = None,
+    after_last: Callable[[dict[str, Any]], float] | None = None,
     only: set[str] | None = None,
 ) -> list[tuple[TailKey, float]]:
     """One run's tails: `(tail key, tail)` for each task of `plan` whose chain is complete.
@@ -203,7 +204,7 @@ def run_tails(
     `after_last(row)`: the tail counted after a task with no successor in `plan` (default
     0), and such a task is then not sampled itself. `only`: the keys to sample (default
     every key)."""
-    nodes: dict[str, dict] = {}
+    nodes: dict[str, dict[str, Any]] = {}
     for r in plan:
         if r.get("key"):
             nodes.setdefault(r["key"], r)  # the first row per key, as the monitor reads it

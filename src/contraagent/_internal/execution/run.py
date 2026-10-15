@@ -38,21 +38,24 @@ import os
 import sys
 import threading
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
 from contraagent._internal.backends.base import Backend
+from contraagent._internal.backends.credentials import CredentialBase
 from contraagent._internal.backends.launch import Stop
 from contraagent._internal.dispatch.flow import FlowState
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.python_task import make_python_task
-from contraagent._internal.dispatch.queue import WorkQueue
+from contraagent._internal.dispatch.queue import TaskRunner, WorkQueue
 from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution import teardown as _teardown
+from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.cursor import CursorStore
 from contraagent._internal.execution.estimates import JournalEstimates, recent_runs
 from contraagent._internal.execution.journal import Journal
@@ -63,6 +66,7 @@ from contraagent._internal.execution.schemas import DeferredRow, FlowCallRow, Pl
 from contraagent._internal.platform import procfs
 from contraagent._internal.routing.capacity import sized
 from contraagent._internal.routing.config import PipelineConfig
+from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, write_document
@@ -77,7 +81,7 @@ RETRY_ON = frozenset({Stop.API_ERROR.value, Stop.NO_OUTPUT.value, Stop.LAUNCH_FA
 THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 
-def finished_before(row: dict | None, task: Task) -> bool:
+def finished_before(row: dict[str, Any] | None, task: Task) -> bool:
     """Whether `row`, its key's last journal row, shows `task` finished: ok and not
     `partial`, with the task's fingerprint. What a resume skips; never a task that reruns
     on resume (`Task.rerun_on_resume`)."""
@@ -86,7 +90,7 @@ def finished_before(row: dict | None, task: Task) -> bool:
     return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 
-def resume_skip(last: Mapping[str, dict]) -> Callable[[Task], bool]:
+def resume_skip(last: Mapping[str, dict[str, Any]]) -> Callable[[Task], bool]:
     """What a resume skips, given each key's last journal row: a task `finished_before`,
     unless it waits for a task that runs again because its last result was `partial`, or
     for one that runs again for that reason in turn. Its output was made from a
@@ -104,7 +108,7 @@ def resume_skip(last: Mapping[str, dict]) -> Callable[[Task], bool]:
     return skip
 
 
-def _name_of(fn: Callable) -> str:
+def _name_of(fn: Callable[..., Any]) -> str:
     """A callable's `module.qualname`, as `run.json` names a quota rule."""
     fn = getattr(fn, "__func__", fn)
     qualname = getattr(fn, "__qualname__", "") or type(fn).__qualname__
@@ -129,7 +133,7 @@ class Run:
         *,
         run_group: str = "",
         lock: bool = True,
-        row_extras: Callable[[TaskResult], dict] | None = None,
+        row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
         unit_of: Callable[[Task], str] | None = None,
         log: Callable[[str], None] | None = None,
         cwd: str | Path | None = None,
@@ -147,16 +151,16 @@ class Run:
         `config` is the config file the run was started with; its pipeline tables are what
         `contraagent.pipeline_table` reads in the run (none without it)."""
         self.run_id = run_id
-        self.run_group = run_group or run_id
-        self.runs_dir = Path(runs_dir)
-        self.dir = self.runs_dir / run_id
+        self.run_group: str = run_group or run_id
+        self.runs_dir: Path = Path(runs_dir)
+        self.dir: Path = self.runs_dir / run_id
         self.config = config
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / layout.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
         # no unit; the journal row then carries an empty unit.
         self._unit_of = unit_of or (lambda t: t.declared_unit)
-        self.journal = Journal(
+        self.journal: Journal = Journal(
             self.dir / layout.JOURNAL,
             self.dir / layout.LAUNCHES,
             run_id=run_id,
@@ -229,7 +233,7 @@ class Run:
         self._writing.__enter__()
         return self
 
-    def __exit__(self, *exc) -> None:
+    def __exit__(self, *exc: object) -> None:
         writing, self._writing = self._writing, None
         try:
             self.close()
@@ -237,7 +241,9 @@ class Run:
             if writing is not None:
                 writing.__exit__(None, None, None)
 
-    def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
+    def cursor(
+        self, *, stages: Iterable[object] | None = None, steps: Iterable[object] | None = None, skip_when_completed: Iterable[object] = ()
+    ) -> CursorStore:
         """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor
         looks for it. `stages` / `steps` are the legal vocabulary (see `CursorStore`)."""
         return CursorStore(self.dir / layout.CURSOR, self.run_id, stages=stages, steps=steps, skip_when_completed=skip_when_completed)
@@ -247,13 +253,13 @@ class Run:
         longer live even while this process stays up (to serve a monitor, say)."""
         self.update_info(finished_at=now_iso())
 
-    def update_info(self, **fields) -> None:
+    def update_info(self, **fields: Any) -> None:
         """Merge `fields` into run.json (what the monitor shows about this run)."""
         info = self._info() or {}
         info.update(fields)
         write_document(self.dir / layout.RUN_INFO, json.dumps(info))
 
-    def _info(self) -> dict | None:
+    def _info(self) -> dict[str, Any] | None:
         """`run.json` as this run directory holds it; None before the first write."""
         try:
             return parse_info((self.dir / layout.RUN_INFO).read_text())
@@ -320,25 +326,25 @@ class Run:
         line += f", on {result.route}" if len(result.hops) > 1 else ""
         self._log(logging.INFO, line)
 
-    def rows(self) -> list[dict]:
+    def rows(self) -> list[dict[str, Any]]:
         return self.journal.rows()
 
     # --- running tasks -----------------------------------------------------
 
-    def agent_runner(self, backends: Backend | Mapping[str, Backend], configs: Mapping, **kwargs) -> AgentRunner:
+    def agent_runner(self, backends: Backend | Mapping[str, Backend], configs: Mapping[str, KindConfig], **kwargs: Any) -> AgentRunner:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
         return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
 
     def python_runner(
         self,
-        inner=None,
-        adapter=None,
+        inner: TaskRunner | None = None,
+        adapter: TaskAdapter | None = None,
         cwd: str | Path | None = None,
         *,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        recorder=None,
-        replay=None,
+        recorder: Any = None,  # a `Recorder` (execution.recording); the pipeline gives it
+        replay: Any = None,  # a `Replay` (execution.recording); the pipeline gives it
     ) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
@@ -367,7 +373,7 @@ class Run:
             self._estimates = JournalEstimates(self.runs_dir)
         return self._estimates
 
-    def quota_rests(self, credentials: Mapping, rule: QuotaRule | None = None, **kwargs) -> QuotaRests:
+    def quota_rests(self, credentials: Mapping[str, CredentialBase], rule: QuotaRule | None = None, **kwargs: Any) -> QuotaRests:
         """The run's quota rests (`routing.quota`) over `credentials`, told the utilization
         readings of the recent runs' journals (this run's included, when resumed): an
         account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`.
@@ -386,7 +392,14 @@ class Run:
                         continue
         return rests
 
-    def queue(self, runner, *, follow_up: Callable[[TaskResult], list[Task]] | None = None, resume: bool = False, **kwargs) -> WorkQueue:
+    def queue(
+        self,
+        runner: TaskRunner,
+        *,
+        follow_up: Callable[[TaskResult], list[Task]] | None = None,
+        resume: bool = False,
+        **kwargs: Any,
+    ) -> WorkQueue:
         """A `WorkQueue` over `runner` that records the plan and journals Python tasks.
 
         Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
@@ -558,7 +571,7 @@ class Run:
         if event == "end" and self._estimates is not None:
             self._estimates.flow_call_ended(call_id, state or "")
 
-    def _append(self, name: str, row: dict) -> None:
+    def _append(self, name: str, row: dict[str, Any]) -> None:
         append_lines(self.dir / name, [json.dumps(row)])
 
     def _mark_inflight(self, task: Task, *, running: bool) -> None:

@@ -25,6 +25,7 @@ import traceback
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, CredentialBase, Pool
@@ -38,7 +39,7 @@ from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
 from contraagent._internal.platform import envvars, telemetry
 from contraagent._internal.routing.kind_config import KindConfig
-from contraagent._internal.routing.pool import pools_of
+from contraagent._internal.routing.pool import CredentialPool, pools_of
 from contraagent._internal.routing.quota import QuotaRests
 from contraagent._internal.routing.router import Route, Router
 from contraagent._internal.runs import layout
@@ -113,12 +114,12 @@ class AgentRunner:
     def __init__(
         self,
         backends: Backend | Mapping[str, Backend],
-        configs: Mapping,
+        configs: Mapping[str, KindConfig],
         *,
         run_dir: Path | str,
         run_id: str = "",
         adapter: TaskAdapter | None = None,
-        routers: Mapping | None = None,
+        routers: Mapping[str, Router] | None = None,
         model: str = "",
         model_failover: bool = False,
         credentials: Mapping[str, CredentialBase] | None = None,
@@ -156,20 +157,20 @@ class AgentRunner:
         # Resolved per task rather than held as one "current" backend: tasks
         # fan out across threads, and a fallback route varies it per task.
         self.backends: dict[str, Backend] = dict(backends)
-        self.configs = configs
-        self.routers: dict = dict(routers or {})
-        self.adapter = adapter or TaskAdapter()
+        self.configs: Mapping[str, KindConfig] = configs
+        self.routers: dict[str, Router] = dict(routers or {})
+        self.adapter: TaskAdapter = adapter or TaskAdapter()
         self.run_id = run_id
-        self.run_dir = Path(run_dir)
+        self.run_dir: Path = Path(run_dir)
         (self.run_dir / "streams").mkdir(parents=True, exist_ok=True)
         self.model = model
         self.model_failover = model_failover
         self.credentials: dict[str, CredentialBase] = {"ambient": AMBIENT, **(credentials or {})}
         # Pool state is run-wide, like a Router: every worker thread shares it.
-        self.pools = pools_of(self.credentials)
-        self.env = dict(env or {})
+        self.pools: dict[str, CredentialPool] = pools_of(self.credentials)
+        self.env: dict[str, str] = dict(env or {})
         self.keep_transcripts = keep_transcripts
-        self.cwd = Path(cwd) if cwd else Path.cwd()
+        self.cwd: Path = Path(cwd) if cwd else Path.cwd()
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
         self.rests = rests
@@ -618,12 +619,12 @@ class RetryingRunner:
     """
 
     #: The wait before a fresh attempt (`backoff_s`).
-    backoff = staticmethod(backoff_s)
+    backoff: Callable[[float, int], float] = staticmethod(backoff_s)
 
     def __init__(
         self,
         runner: AgentRunner,
-        max_concurrent_overrides: dict | None = None,
+        max_concurrent_overrides: dict[str, Any] | None = None,
         on_attempt: Callable[[TaskResult], None] | None = None,
         on_exhausted: Callable[[Task, TaskResult], None] | None = None,
     ):
@@ -644,7 +645,7 @@ class RetryingRunner:
         rc = self._runner.config(task)
         attempts = 1 + max(0, rc.retries)
         last: TaskResult | None = None
-        notes: dict = {}  # every attempt's, for the one result the queue sees
+        notes: dict[str, Any] = {}  # every attempt's, for the one result the queue sees
         for attempt in range(attempts):
             task = replace(task, attempt=attempt)
             last = self._runner.run(task)

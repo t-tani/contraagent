@@ -285,3 +285,48 @@ def test_internal_imports_no_public_module_and_the_examples_only_public_ones():
         f"{p.relative_to(root)}: {m}" for p in (root / "docs").rglob("*.py") for m in _imported(p) if m.startswith("contraagent._internal")
     ]
     assert examples == []
+
+
+def _snapshot_module():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).with_name("api") / "snapshot.py"
+    spec = importlib.util.spec_from_file_location("api_snapshot", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_api_snapshot_is_current():
+    snapshot = _snapshot_module()
+    assert snapshot.PUBLIC == PUBLIC
+    current = snapshot.render()
+    committed = snapshot.SNAPSHOT.read_text() if snapshot.SNAPSHOT.exists() else ""
+    if current != committed:
+        import difflib
+
+        diff = "".join(difflib.unified_diff(committed.splitlines(True), current.splitlines(True), "committed", "sources", n=1))
+        pytest.fail(f"tests/api/contraagent.api.txt is stale; regenerate it with `{snapshot.COMMAND}`:\n{diff[:4000]}")
+
+
+def test_the_public_modules_are_fully_typed():
+    """`pyright --verifytypes`: every symbol of a public module has a known type, declared
+    rather than inferred. The examples under `contraagent.docs` are installed with the
+    package, so pyright counts them too; they are documentation, not API, and are left out."""
+    import json
+
+    out = subprocess.run(
+        [sys.executable, "-m", "pyright", "--verifytypes", "contraagent", "--ignoreexternal", "--outputjson"],
+        capture_output=True,
+        text=True,
+    ).stdout
+    symbols = json.loads(out)["typeCompleteness"]["symbols"]
+    incomplete = [
+        f"{s['name']}: {'; '.join(d['message'].splitlines()[0] for d in s['diagnostics'] if d['severity'] == 'error')}"
+        for s in symbols
+        if s["isExported"] and not s["name"].startswith("contraagent.docs.") and (not s["isTypeKnown"] or s["isTypeAmbiguous"])
+    ]
+    assert len(symbols) > 200
+    assert incomplete == []

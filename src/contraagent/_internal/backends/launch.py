@@ -17,6 +17,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialBase
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, TokenUsage
@@ -128,7 +129,7 @@ class Launch:
     append_system_prompt: str | None = None
     tools: tuple[str, ...] | None = None
     allowed_tools: tuple[str, ...] = ()
-    json_schema: dict | None = None
+    json_schema: dict[str, Any] | None = None
     settings: str | None = None
     setting_sources: str | None = None
     mcp_config: str | None = None
@@ -216,7 +217,7 @@ class Usage:
             context_window=context_window,
         )
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         """The usage as `launches.jsonl` records it: the totals, with the result's own
         output total (`output_total`) and every call's input summed (`context_total`)."""
         t = self.totals() or TokenUsage()
@@ -300,7 +301,7 @@ class LaunchResult:
     num_turns: int | None = None
     duration_api_ms: int | None = None
     result_text: str = ""
-    structured_output: dict | list | None = None
+    structured_output: dict[str, Any] | list[Any] | None = None
     cost_usd: float | None = None
     usage: Usage = field(default_factory=Usage)
     #: What the launch spent on models other than its own, by model, as the coding agent
@@ -311,7 +312,7 @@ class LaunchResult:
     quota: list[QuotaReading] = field(default_factory=list)
     #: Set when the launch was refused for its quota, with the cool-off the provider stated.
     quota_refusal: QuotaRefusal | None = None
-    permission_denials: list[dict] = field(default_factory=list)
+    permission_denials: list[dict[str, Any]] = field(default_factory=list)
     tool_uses: dict[str, int] = field(default_factory=dict)
     #: The queries of the web searches the agent made (Claude Code `WebSearch`, omp
     #: `web_search`), in call order; kept without a transcript too.
@@ -324,12 +325,12 @@ class LaunchResult:
     # tool count, load failures.
     init_model: str = ""
     init_tools: int = 0
-    init_errors: list[dict] = field(default_factory=list)
+    init_errors: list[dict[str, Any]] = field(default_factory=list)
     # From `system/api_retry`: retry count and per-cause classification.
     api_retries: int = 0
     retry_errors: dict[str, int] = field(default_factory=dict)
     stderr_tail: str = ""
-    raw_result: dict = field(default_factory=dict)
+    raw_result: dict[str, Any] = field(default_factory=dict)
     # Output-file contract (`contraagent._internal.contracts.contract`): rounds spent (1 when
     # the first answer was on-contract; None when the launch carried no
     # contract), and the errors of each round that failed its checks, in
@@ -373,7 +374,7 @@ class LaunchResult:
             return None
         return round(100.0 * peak / self.context_window, 1)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         d = {
             "ts": self.started_at,
             "label": self.label,
@@ -423,7 +424,7 @@ class LaunchResult:
         }
         return d
 
-    def _rate_limit(self) -> dict | None:
+    def _rate_limit(self) -> dict[str, Any] | None:
         """The latest quota reading and the quota refusal, as `launches.jsonl` records them
         in one: the reading's fields with the refusal's `retry_after_s`; `status` `quota`
         for a refusal with no reading."""

@@ -79,20 +79,20 @@ class RunRecords:
     def __repr__(self) -> str:
         return f"RunRecords({self.id!r})"
 
-    def info(self) -> dict:
+    def info(self) -> dict[str, Any]:
         """The run's `run.json`; empty when it has none."""
         return self._source.info(self.id) or {}
 
-    def journal(self) -> list[dict]:
+    def journal(self) -> list[dict[str, Any]]:
         """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
         return self.records(layout.JOURNAL)
 
-    def records(self, log: str) -> list[dict]:
+    def records(self, log: str) -> list[dict[str, Any]]:
         """The rows of one of the logs contraagent writes (`journal.jsonl`, `deferred.jsonl`,
         ...); a line that does not parse is skipped, a log the run does not have is empty."""
         return parse_rows(self._source.lines(self.id, log)[0])
 
-    def log(self, name: str) -> list[dict]:
+    def log(self, name: str) -> list[dict[str, Any]]:
         """The rows of the pipeline log `name` (what `contraagent.log(name, row)` appended),
         oldest first; empty when the run has none."""
         return self.records(layout.pipeline_log(name))
@@ -122,19 +122,19 @@ class PeriodRuns(list[str]):
         """Run `run`'s records."""
         return RunRecords(run, self._source)
 
-    def info(self, run: str) -> dict:
+    def info(self, run: str) -> dict[str, Any]:
         """The run's `run.json`; empty when it has none."""
         return self.run(run).info()
 
-    def journal(self, run: str) -> list[dict]:
+    def journal(self, run: str) -> list[dict[str, Any]]:
         """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
         return self.run(run).journal()
 
-    def records(self, run: str, log: str) -> list[dict]:
+    def records(self, run: str, log: str) -> list[dict[str, Any]]:
         """The rows of one of the logs contraagent writes (`journal.jsonl`, `deferred.jsonl`, ...)."""
         return self.run(run).records(log)
 
-    def log(self, run: str, name: str) -> list[dict]:
+    def log(self, run: str, name: str) -> list[dict[str, Any]]:
         """The rows of the run's pipeline log `name`; empty when it has none."""
         return self.run(run).log(name)
 
@@ -173,16 +173,16 @@ class Panel:
         if self.tab and self.scope != "trends":
             raise ValueError(f"Panel {self.title or self.fn!r}: tab= is for a trends panel; a run panel is a tab of its own")
 
-    def info(self, name: str) -> dict:
+    def info(self, name: str) -> dict[str, Any]:
         """What /api/info says of it (`api.PanelInfo`), as panel `name`."""
         title = self.title or name
         return {"name": name, "title": title, "description": self.description, "icon": self.icon, "scope": self.scope, "tab": self.tab}
 
-    def __call__(self, *args: Any) -> dict:
+    def __call__(self, *args: Any) -> dict[str, Any]:
         return panel_body(self.fn(*args))
 
 
-def panel_body(value: Any) -> dict:
+def panel_body(value: Any) -> dict[str, Any]:
     """A panel's return value as JSON data: a typed body given as a model, dumped."""
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json", exclude_none=True)
@@ -193,16 +193,16 @@ def panel_body(value: Any) -> dict:
 TaskDetailFn = Callable[[str, str, list], dict]
 
 
-def _running_keys(snap: dict) -> set:
+def _running_keys(snap: dict[str, Any]) -> set:
     """Keys of every task running now: agent launches and Python tasks."""
     return {lc.get("key") for lc in snap.get("launches", [])} | {pt.get("key") for pt in snap.get("python_tasks", [])}
 
 
-def _first_last(readings: list[dict]) -> dict:
+def _first_last(readings: list[dict[str, Any]]) -> dict[str, Any]:
     """Per credential and account (`QuotaReading.account`: `ambient` on two coding agents is
     two accounts), the run's first and last utilization reading, by when they were
     received; the account with the highest weekly utilization first."""
-    by: dict[tuple[str, str], list[dict]] = {}
+    by: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for q in sorted((q for q in readings if q.get("observed_at")), key=lambda q: q["observed_at"]):
         by.setdefault((q.get("credential") or "", q.get("account") or ""), []).append(q)
     accounts = [{"credential": c, "account": a, "first": qs[0], "last": qs[-1]} for (c, a), qs in by.items()]
@@ -210,7 +210,7 @@ def _first_last(readings: list[dict]) -> dict:
     return {"quota": accounts}
 
 
-def _deferral_cause(cause: object) -> dict | None:
+def _deferral_cause(cause: object) -> dict[str, Any] | None:
     """A `deferred.jsonl` row's `cause` (a `DeferralCause`) as the monitor serves it: its
     name, a deadline's figures, and each rest as the row recorded it. None for a row with no
     cause, or one that is not a `DeferralCause`."""
@@ -221,7 +221,7 @@ def _deferral_cause(cause: object) -> dict | None:
     return {**c.model_dump(mode="json", exclude={"rests"}), "rests": [r.model_dump(mode="json", exclude_unset=True) for r in c.rests]}
 
 
-def _time_box(box: object) -> dict | None:
+def _time_box(box: object) -> dict[str, Any] | None:
     """A flow call's time box as `flow_calls.jsonl` records it (a `TimeBoxRecord`); None
     for a flow call with none."""
     try:
@@ -239,7 +239,7 @@ def _shown(file: str, cwd: Path | None) -> str:
     return file
 
 
-def _shown_flow(flow: list, cwd: Path | None) -> list:
+def _shown_flow(flow: list[Any], cwd: Path | None) -> list[Any]:
     """A flow path with each frame's file as `_shown` gives it."""
     return [{**f, "file": _shown(f.get("file", ""), cwd)} for f in flow if isinstance(f, dict)]
 
@@ -259,7 +259,7 @@ class Monitor:
         task_detail: TaskDetailFn | None = None,
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,
-        groups: list[dict] | None = None,
+        groups: list[dict[str, Any]] | None = None,
         keep_digests: bool = True,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
@@ -277,7 +277,7 @@ class Monitor:
         (`layout.TRENDS`), so a restarted monitor reads it back instead of the logs;
         it is always kept in memory."""
         self.many_hosts = many_hosts
-        self.runs_dir = Path(runs_dir).resolve()
+        self.runs_dir: Path = Path(runs_dir).resolve()
         self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
         if liveness is not None:
             self.liveness: Liveness = liveness
@@ -288,16 +288,16 @@ class Monitor:
         self.title = title
         self.panels: dict[str, Panel] = {n: p if isinstance(p, Panel) else Panel(p, title=n) for n, p in (panels or {}).items()}
         self.task_detail_fn = task_detail
-        self.static_dir = Path(static_dir) if static_dir else None
-        self.stream_formats = dict(stream_formats or {})
-        self.group_defs = list(groups or [])
+        self.static_dir: Path | None = Path(static_dir) if static_dir else None
+        self.stream_formats: dict[str, str] = dict(stream_formats or {})
+        self.group_defs: list[dict[str, Any]] = list(groups or [])
         self.keep_digests = keep_digests
-        self._digests: dict[str, tuple[dict, dict]] = {}  # run -> (signature, digest)
+        self._digests: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {}  # run -> (signature, digest)
         self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
-        self._trends: tuple[tuple, dict] | None = None  # the last trends, and what they were made of
+        self._trends: tuple[tuple, dict[str, Any]] | None = None  # the last trends, and what they were made of
         # Each trends panel's last body, and what it was made of; and those being made now,
         # so the same panel asked again (a page refreshes every few seconds) waits for it.
-        self._trend_bodies: dict[tuple, tuple[tuple, dict]] = {}
+        self._trend_bodies: dict[tuple, tuple[tuple, dict[str, Any]]] = {}
         self._making: dict[tuple, Future] = {}
         self._lock = threading.Lock()
 
@@ -307,9 +307,9 @@ class Monitor:
 
     # --- runs --------------------------------------------------------------
 
-    def runs(self) -> list[dict]:
+    def runs(self) -> list[dict[str, Any]]:
         """One row per run directory, newest activity first."""
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         live = self.liveness.live()
         unresponsive = self.liveness.unresponsive()
         for run in self.source.runs():
@@ -317,7 +317,7 @@ class Monitor:
             n = ok = partial = not_run = 0
             cost: float | None = None
             tokens = dict.fromkeys(TOKENS, 0)
-            readings: list[dict] = []
+            readings: list[dict[str, Any]] = []
             wall = 0.0
             last = ""
             run_group = info.get("run_group", "")
@@ -373,12 +373,12 @@ class Monitor:
         out.sort(key=lambda r: r["last_ts"], reverse=True)
         return out
 
-    def hosts(self) -> dict:
+    def hosts(self) -> dict[str, Any]:
         """The hosts that drive the runs, with their runs counted, and each account's first
         and last utilization reading over every run. A host that drives runs but does not
         report (it has no heartbeat) is listed as not up."""
         rows = self.runs()
-        by_host: dict[str, list[dict]] = {}
+        by_host: dict[str, list[dict[str, Any]]] = {}
         for row in rows:
             by_host.setdefault(row.get("host_id", ""), []).append(row)
         reported = {h["host_id"]: h for h in self.liveness.hosts()}
@@ -413,7 +413,7 @@ class Monitor:
             ]
         return out
 
-    def _task_counts(self, run: str, live: bool = False) -> dict:
+    def _task_counts(self, run: str, live: bool = False) -> dict[str, Any]:
         """Tasks (not attempts) by how they ended, from the plan's states: the
         same numbers the run's own page shows. Running tasks are looked up only
         for a run that is `live`; a task deferred, or queued in a run that is not
@@ -435,10 +435,10 @@ class Monitor:
 
     # --- journal -----------------------------------------------------------
 
-    def _read_journal(self, run: str) -> list[dict]:
+    def _read_journal(self, run: str) -> list[dict[str, Any]]:
         return parse_rows(self.source.lines(run, layout.JOURNAL)[0])
 
-    def journal(self, run: str, since: int = 0) -> tuple[list[dict], int]:
+    def journal(self, run: str, since: int = 0) -> tuple[list[dict[str, Any]], int]:
         """Rows after line offset `since`, and the new total."""
         if self.source.size(run, layout.JOURNAL) < 0:
             return [], since
@@ -447,11 +447,11 @@ class Monitor:
 
     # --- plan (the pipeline, including work that has not started) ---------
 
-    def plan_rows(self, run: str) -> list[dict]:
+    def plan_rows(self, run: str) -> list[dict[str, Any]]:
         """The run's `plan.jsonl`, one row per key: the first, as it was queued."""
         return self._read_plan(run)
 
-    def _read_plan(self, run: str) -> list[dict]:
+    def _read_plan(self, run: str) -> list[dict[str, Any]]:
         out, seen = [], set()
         for row in parse_rows(self.source.lines(run, layout.PLAN)[0]):
             # A key queued again (a retry, a re-dispatch) is the same node.
@@ -460,7 +460,7 @@ class Monitor:
                 out.append(row)
         return out
 
-    def plan(self, run: str, live: dict | None = None) -> dict:
+    def plan(self, run: str, live: dict[str, Any] | None = None) -> dict[str, Any]:
         """The pipeline as a graph: every task ever queued, its dependencies and
         state, plus the groups. `failed` is a task that ran and failed;
         `blocked` is one that did not start because an input was missing or
@@ -471,7 +471,7 @@ class Monitor:
         `Run.queue`) falls back to the journal: finished tasks only, no edges.
         """
         journal = self._read_journal(run)
-        last: dict[str, dict] = {}
+        last: dict[str, dict[str, Any]] = {}
         for e in journal:
             last[e.get("key", "")] = e
         rows = self._read_plan(run)
@@ -492,7 +492,7 @@ class Monitor:
                     }
                 )
         # Why a task was deferred, unless a journal row came after (a resumed run ran it).
-        deferred: dict[str, dict] = {}
+        deferred: dict[str, dict[str, Any]] = {}
         for d in parse_rows(self.source.lines(run, layout.DEFERRED)[0]):
             j = last.get(d.get("key", ""))
             if j is None or str(j.get("ts", "")) < str(d.get("ts", "")):
@@ -563,7 +563,7 @@ class Monitor:
             **self._preflight(run),
         }
 
-    def _preflight(self, run: str) -> dict:
+    def _preflight(self, run: str) -> dict[str, Any]:
         """`preflight`: what the run's preflight did (`run.json`), when it records it."""
         record = (self.source.info(run) or {}).get("preflight")
         if record is None:
@@ -573,7 +573,7 @@ class Monitor:
         except ValidationError:
             return {}
 
-    def _quota(self, run: str) -> dict:
+    def _quota(self, run: str) -> dict[str, Any]:
         """The run's quota caps and rule (`run.json`), and each credential's rests
         (`rests.jsonl`): a start folded with its end, in start order."""
         info = self.source.info(run) or {}
@@ -584,8 +584,8 @@ class Monitor:
                 quota_caps.append(QuotaCap.model_validate({**v, "credential": c}).model_dump(mode="json"))
             except (TypeError, ValidationError):
                 continue
-        rests: list[dict] = []
-        open_: dict[tuple[str, str], dict] = {}
+        rests: list[dict[str, Any]] = []
+        open_: dict[tuple[str, str], dict[str, Any]] = {}
         for row in parse_rows(self.source.lines(run, layout.RESTS)[0]):
             try:
                 event = RestEvent.model_validate(row)
@@ -606,10 +606,10 @@ class Monitor:
         cwd = (self.source.info(run) or {}).get("cwd")
         return Path(cwd) if isinstance(cwd, str) and cwd else None
 
-    def _flow_calls(self, run: str, cwd: Path | None) -> list[dict]:
+    def _flow_calls(self, run: str, cwd: Path | None) -> list[dict[str, Any]]:
         """Each flow call of `flow_calls.jsonl` in start order, folded with its end. A
         resumed run starts its flow calls again: the latest start of an id counts."""
-        calls: dict[str, dict] = {}
+        calls: dict[str, dict[str, Any]] = {}
         for row in parse_rows(self.source.lines(run, layout.FLOW_CALLS)[0]):
             cid = row.get("id") if isinstance(row, dict) else None
             if not isinstance(cid, str):
@@ -629,7 +629,7 @@ class Monitor:
                 calls[cid].update(state=row.get("state") or "closed", error=row.get("error"))
         return list(calls.values())
 
-    def _group_name(self, n: dict) -> str:
+    def _group_name(self, n: dict[str, Any]) -> str:
         """A node's group: the first of `groups` that lists its kind, else its base kind (an
         implementation kind's, `agent_task(implementations=)`), else its `Task.kind`."""
         for d in self.group_defs:
@@ -637,8 +637,8 @@ class Monitor:
                 return d["id"]
         return n.get("base_kind") or n["kind"]
 
-    def _groups(self, nodes: list[dict]) -> list[dict]:
-        def tally(sid: str, label: str, members: list[dict]) -> dict:
+    def _groups(self, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        def tally(sid: str, label: str, members: list[dict[str, Any]]) -> dict[str, Any]:
             states = ("done", "partial", "failed", "running", "pending", "skipped", "blocked")
             c = {s: sum(1 for n in members if n["state"] == s) for s in states}
             return {"id": sid, "label": label, "total": len(members), **c}
@@ -649,21 +649,21 @@ class Monitor:
                 members = [n for n in nodes if n["kind"] in d.get("kinds", ())]
                 out.append(tally(d["id"], d.get("label", d["id"]), members))
             listed = {k for d in self.group_defs for k in d.get("kinds", ())}
-            bases: dict[str, list[dict]] = {}
+            bases: dict[str, list[dict[str, Any]]] = {}
             for n in nodes:  # the implementation kinds `groups` does not list: their base kind's group
                 if n.get("base_kind") and n["kind"] not in listed:
                     bases.setdefault(n["base_kind"], []).append(n)
             return out + [tally(b, b, members) for b, members in bases.items()]
-        groups: dict[str, list[dict]] = {}
+        groups: dict[str, list[dict[str, Any]]] = {}
         for n in nodes:
             groups.setdefault(n["group"], []).append(n)
         order = sorted(groups, key=lambda g: (min(n["level"] for n in groups[g]), nodes.index(groups[g][0])))
         return [tally(g, g, groups[g]) for g in order]
 
-    def procs(self, run: str) -> dict:
+    def procs(self, run: str) -> dict[str, Any]:
         return self.liveness.snapshot(run)
 
-    def task_detail(self, run: str, key: str) -> dict:
+    def task_detail(self, run: str, key: str) -> dict[str, Any]:
         """Journal rows, live launches and the stream file for one task, by its key."""
         check_name(key, "task key")
         rows = [e for e in self._read_journal(run) if e.get("key") == key]
@@ -716,7 +716,7 @@ class Monitor:
         returned), or `timeout` seconds; return its `stream_size` then."""
         return await self.source.wait(run, layout.stream(check_name(key, "task key")), beyond, timeout)
 
-    def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict, int]:
+    def stream(self, run: str, key: str, since: int, limit: int = 1500) -> tuple[dict[str, Any], int]:
         """A page of task `key`'s normalized transcript events.
 
         `since` is a line offset; the first call (`since=0`) returns the TAIL
@@ -727,7 +727,7 @@ class Monitor:
         page, _ = self.stream_from(run, key, since if since > 0 else None, limit)
         return page, page["total"]
 
-    def stream_from(self, run: str, key: str, since: int | None, limit: int = 1500) -> tuple[dict, int]:
+    def stream_from(self, run: str, key: str, since: int | None, limit: int = 1500) -> tuple[dict[str, Any], int]:
         """A page of task `key`'s normalized transcript events from line `since` (None:
         the tail page, the last `limit` lines), as `stream` gives it, and the line offset
         after the last line the page read: where the next page starts. The page stops at
@@ -743,7 +743,7 @@ class Monitor:
             behind = start = max(0, total - limit)
         lines, total = self.source.lines(run, log, start, limit * 4, max_bytes=PAGE_BYTES)
         fmt = resolve_format(self.task_agent(run, key), self.stream_formats)
-        out: list[dict] = []
+        out: list[dict[str, Any]] = []
         tools: dict[str, str] = {}  # call id -> tool name: some formats name the tool only on its start
         end = start
         for line in lines:
@@ -760,7 +760,7 @@ class Monitor:
 
     # --- contracts: the files tasks must leave behind ----------------------
 
-    def outputs(self, run: str) -> dict:
+    def outputs(self, run: str) -> dict[str, Any]:
         """Every declared `OutputContract` / `InputContract` of the run: its file,
         the model it must satisfy, and where it stands.
 
@@ -771,7 +771,7 @@ class Monitor:
         the task never started, `failed` when the task ended for another reason before
         the check could pass.
         """
-        last: dict[str, dict] = {}
+        last: dict[str, dict[str, Any]] = {}
         for e in self._read_journal(run):
             last[e.get("key", "")] = e
         running = _running_keys(self.liveness.snapshot(run))
@@ -792,7 +792,7 @@ class Monitor:
         return {"contracts": records, "tally": tally}
 
     @staticmethod
-    def _type_of(prop: dict) -> str:
+    def _type_of(prop: dict[str, Any]) -> str:
         if "$ref" in prop:
             return prop["$ref"].rsplit("/", 1)[-1]
         t = prop.get("type", "any")
@@ -800,12 +800,12 @@ class Monitor:
             return f"list[{Monitor._type_of(prop.get('items', {}))}]"
         return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
 
-    def _file_view(self, run: str, path: str, limit: int = 20_000) -> dict:
+    def _file_view(self, run: str, path: str, limit: int = 20_000) -> dict[str, Any]:
         got = self.source.file(run, path)
         if got is None:
             return {"exists": False}
         text = got.text
-        out: dict = {"exists": True, "size": got.size, "mtime": got.mtime}
+        out: dict[str, Any] = {"exists": True, "size": got.size, "mtime": got.mtime}
         if text is None:
             out["content"] = None
             return out
@@ -817,7 +817,7 @@ class Monitor:
         return out
 
     @staticmethod
-    def _contract_status(row: dict | None, file: dict, running: bool) -> tuple[str, int | None, list[str]]:
+    def _contract_status(row: dict[str, Any] | None, file: dict[str, Any], running: bool) -> tuple[str, int | None, list[str]]:
         if row is None:
             return ("running" if running else "pending"), None, []
         rounds = row.get("rounds")
@@ -833,11 +833,13 @@ class Monitor:
 
     # --- definitions and per-task input / output ------------------------------
 
-    def definitions(self, run: str) -> list[dict]:
+    def definitions(self, run: str) -> list[dict[str, Any]]:
         """What defined each kind of task in this run (`definitions/<kind>.json`)."""
         return parse_rows(self.source.folder(run, layout.DEFINITIONS))
 
-    def task_io(self, run: str, key: str, *, outputs: dict | None = None, plan_rows: list[dict] | None = None) -> dict:
+    def task_io(
+        self, run: str, key: str, *, outputs: dict[str, Any] | None = None, plan_rows: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """One task's input and output: its params, the files it read, the files
         it left behind with the contract verdict, and how data flows around it.
 
@@ -877,7 +879,7 @@ class Monitor:
             "downstream": downstream,
         }
 
-    def _call_params(self, run: str, key: str, fallback: dict) -> dict:
+    def _call_params(self, run: str, key: str, fallback: dict[str, Any]) -> dict[str, Any]:
         """What the task was given: the call file's params (every value, a value
         from an earlier task included), else the contract record's scalar ones."""
         try:
@@ -888,7 +890,7 @@ class Monitor:
 
     # --- resume cursor -------------------------------------------------------
 
-    def cursor(self, run: str) -> dict | None:
+    def cursor(self, run: str) -> dict[str, Any] | None:
         """The run's `CursorStore` (runs/<run>/cursor.json), or None when it keeps none:
         the stage it is in, the stages behind it, and each unit's step."""
         text = self.source.document(run, layout.CURSOR)
@@ -915,7 +917,7 @@ class Monitor:
 
     # --- panels ------------------------------------------------------------
 
-    def panel(self, name: str, run: str) -> dict:
+    def panel(self, name: str, run: str) -> dict[str, Any]:
         """Run panel `name`'s body for `run`: its `fn` given the run's records (`RunRecords`).
         KeyError: no run panel of that name."""
         panel = self.panels.get(name)
@@ -927,13 +929,13 @@ class Monitor:
         """The names of the panels computed per run: each run's tabs, and its live feed."""
         return [n for n, p in self.panels.items() if p.scope == "run"]
 
-    def panel_info(self) -> list[dict]:
+    def panel_info(self) -> list[dict[str, Any]]:
         """Every panel, in the order of the `panels` given."""
         return [p.info(n) for n, p in self.panels.items()]
 
     # --- trends --------------------------------------------------------------
 
-    def trends(self, period: Period, *, run_group: str = "", stub: bool = False) -> dict:
+    def trends(self, period: Period, *, run_group: str = "", stub: bool = False) -> dict[str, Any]:
         """What the runs of `period` add up to (`monitor.trends`), with the same numbers as
         panel bodies (`bodies`) and the trend panels on offer (`panels`). `run_group` keeps
         the runs of one group; stub runs count only with `stub`."""
@@ -953,12 +955,12 @@ class Monitor:
         self._trends = (made_of, out)
         return out
 
-    def _made_of(self, period: Period, run_group: str, stub: bool, held: list[tuple[str, dict, dict]]) -> tuple:
+    def _made_of(self, period: Period, run_group: str, stub: bool, held: list[tuple[str, dict[str, Any], dict[str, Any]]]) -> tuple:
         """What trends of `period` are made of: the period, the filters, the groups, and each
         run with the signature of its logs. The same, the same trends."""
         return (period, run_group, stub, tuple(sorted(self._group_of().items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
 
-    def trends_panel(self, name: str, period: Period, *, run_group: str = "") -> dict:
+    def trends_panel(self, name: str, period: Period, *, run_group: str = "") -> dict[str, Any]:
         """Trends panel `name`'s body: its `fn(runs, period)` over the runs of `period`
         (`PeriodRuns`, newest activity first). Made once for the same period over the same
         runs, as they were, and kept: a page that asks again gets it back, and one that asks
@@ -998,7 +1000,7 @@ class Monitor:
         """Kind -> the label of the group it is in (`groups`); a kind in none is its own."""
         return {k: g.get("label") or g.get("id") or k for g in self.group_defs for k in g.get("kinds") or ()}
 
-    def _period_digests(self, period: Period) -> list[tuple[str, dict, dict]]:
+    def _period_digests(self, period: Period) -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
         """The runs that may have worked in `period` (by `run.json`), with their signatures
         and digests."""
         out = []
@@ -1016,13 +1018,13 @@ class Monitor:
                 out.append((run, sig, self._digest(run, sig, is_live)))
         return out
 
-    def digest(self, run: str) -> dict:
+    def digest(self, run: str) -> dict[str, Any]:
         """Run `run`'s trends digest (`trends.digest`): from memory while its logs are the
         same, else from its `trends.json` when that was made from these logs, else from the
         logs (then kept: in memory, and in the directory of a finished run that is not live)."""
         return self._digest(run, trends.run_files(self.source, run, self._infos)[1], lambda r: r in self.liveness.live())
 
-    def _digest(self, run: str, sig: dict, is_live: Callable[[str], bool]) -> dict:
+    def _digest(self, run: str, sig: dict[str, Any], is_live: Callable[[str], bool]) -> dict[str, Any]:
         held = self._digests.get(run)
         if held is not None and held[0] == sig:
             return held[1]
@@ -1033,7 +1035,7 @@ class Monitor:
         self._digests[run] = (sig, dg)
         return dg
 
-    def _kept_digest(self, run: str, sig: dict) -> dict | None:
+    def _kept_digest(self, run: str, sig: dict[str, Any]) -> dict[str, Any] | None:
         """The digest the source keeps of the run (`RunSource.kept`), when it was made from
         the logs as they are (`sig`) by this digest version."""
         text = self.source.kept(run) if self.keep_digests else None
@@ -1045,14 +1047,14 @@ class Monitor:
             return None
         return kept["digest"]
 
-    def _keep_digest(self, run: str, sig: dict, dg: dict) -> None:
+    def _keep_digest(self, run: str, sig: dict[str, Any], dg: dict[str, Any]) -> None:
         """Keep a digest where the source keeps one (`RunSource.keep`: a runs directory's
         `trends.json`); it is in memory anyway."""
         if self.keep_digests:
             self.source.keep(run, json.dumps({"signature": sig, "digest": dg}))
 
 
-def row_extras(rows: list[dict]) -> list[str]:
+def row_extras(rows: list[dict[str, Any]]) -> list[str]:
     """The columns of journal rows that are a pipeline's own (`Run(row_extras=)`): keys
     `JournalRow` does not name, in the order they first appear."""
     known = JournalRow.model_fields
