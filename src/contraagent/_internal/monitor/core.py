@@ -88,7 +88,7 @@ class RunRecords:
         return self.records(layout.JOURNAL)
 
     def records(self, log: str) -> list[dict]:
-        """The rows of one of the logs contraagent writes (`layout.JOURNAL`, `layout.DEFERRED`,
+        """The rows of one of the logs contraagent writes (`journal.jsonl`, `deferred.jsonl`,
         ...); a line that does not parse is skipped, a log the run does not have is empty."""
         return parse_rows(self._source.lines(self.id, log)[0])
 
@@ -131,7 +131,7 @@ class PeriodRuns(list[str]):
         return self.run(run).journal()
 
     def records(self, run: str, log: str) -> list[dict]:
-        """The rows of one of the logs contraagent writes (`layout.JOURNAL`, `layout.DEFERRED`, ...)."""
+        """The rows of one of the logs contraagent writes (`journal.jsonl`, `deferred.jsonl`, ...)."""
         return self.run(run).records(log)
 
     def log(self, run: str, name: str) -> list[dict]:

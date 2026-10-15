@@ -123,7 +123,7 @@ class Pipeline:
         `[credentials.<name>]`); None runs on each task's declared defaults.
         `runs_dir`: where each run's directory (`<runs_dir>/<run_id>/`) is written.
         `backends`: coding agent name -> `Backend`; default, every registered one
-        (`contraagent._internal.testing.StubAgent().backends()` in a test).
+        (`contraagent.testing.StubAgent().backends()` in a test).
         `overrides`: choices that outrank the config (agent, model, effort, credential).
         `cwd`: where the agents run (default: this process's directory).
         `max_concurrent`: tasks running at once, across kinds (a kind's own
@@ -153,7 +153,7 @@ class Pipeline:
         `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt; one that cares
         about some tasks only tests `task.kind` or `task.executor`.
         `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
-        `stub`: a stub agent (`contraagent._internal.testing.StubAgent`) makes each run a stub run: it
+        `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
         function runs that was not named. The run id defaults to `<flow>-stub`, and

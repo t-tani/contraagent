@@ -183,7 +183,7 @@ a tab of each run; `trends`, `fn(runs, period)`, over the runs of a period, for 
 view of many runs. A panel reads runs only through what it is given, never through a
 path of its own, so it shows the same on one host and on a hub. `run`
 (`RunRecords`) is one run's records: its `id`, `info()` (its `run.json`),
-`journal()`, `records(log)` for another log contraagent writes (`runs.layout.DEFERRED`,
+`journal()`, `records(log)` for another log contraagent writes (`deferred.jsonl`,
 ...), `log(name)` and `document(name)` for the pipeline's own logs and documents
 (what `contraagent.log` and `contraagent.save` wrote; see
 [tasks and flows](tasks.md)), and `dir()` for a file that is none of these, an
@@ -193,6 +193,10 @@ activity first, with the same methods taking the run id first (`journal(run)`,
 `tz` its days are counted in; `period.day_of(ts)` is the day of a time inside the
 period and None outside it, for a run that began before the period or ended after
 it. The monitor offers the panels in the order of the dict it is given.
+A test calls a panel as the monitor does, over a runs directory:
+`fn(RunRecords(run_id, DirectorySource(runs_dir)))` for a run panel,
+`fn(PeriodRuns(run_ids, DirectorySource(runs_dir)), Period.parse(start, end))` for a
+trends panel (all in `contraagent.monitor`).
 
 ::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
 

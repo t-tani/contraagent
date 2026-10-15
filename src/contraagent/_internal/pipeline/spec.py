@@ -1,7 +1,7 @@
 """Declaring tasks: what a pipeline's flow function calls.
 
 * `agent_task(...)` declares an agent task's *interface*: its parameters, its
-  output, its budget. Its implementation is a plugin (`contraagent._internal.plugins`).
+  output, its budget. Its implementation is a plugin (`contraagent.plugins`).
 * `@python_task` turns a Python function into a Python task.
 
 Both are called like functions inside a flow run by `Pipeline.run`; a call
@@ -261,7 +261,7 @@ def agent_task[Out](
     JSON values). They reach the agent in its call file, never in the prompt.
     `output`: a pydantic model (a JSON file checked against it) or `str` (a text
     document). `validators` add checks the file must pass beyond its schema
-    (`contraagent._internal.contracts.validators`: a Python function, `CommandValidator(["textlint", ...])`).
+    (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`).
     `requires`: traits the credential it runs under must carry (`["zdr"]` for a
     task whose data may only go to a zero-data-retention organization). Which
     credential that is, is the config's to say; a route that does not satisfy

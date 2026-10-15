@@ -616,7 +616,7 @@ def smallest(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:
     `$ref` into the schema's own `$defs`. A rule it does not build (`pattern`,
     `format`, `multipleOf`, `not`) is named in the second item by its location, and
     the value is built without it. What a stub run plays as each task's output
-    (`contraagent._internal.testing.writes_smallest`).
+    (`contraagent.testing.writes_smallest`).
     """
     problems: list[str] = []
     root = dict(json_schema)

@@ -8,7 +8,7 @@ its reader (`fold`, an `EventFold` of `wire.py`) reads every line as it arrives 
 window), take a second look at stderr (`reclassify`) and check the credential the agent
 reports (`attest`). A backend supplies its argv, env and reader; one that does not drive
 a plain process (the omp RPC exchange) overrides `exchange` alone. A backend that plays
-replies instead of running a CLI (`contraagent._internal.testing.StubAgent`) overrides `run`.
+replies instead of running a CLI (`contraagent.testing.StubAgent`) overrides `run`.
 """
 
 from __future__ import annotations

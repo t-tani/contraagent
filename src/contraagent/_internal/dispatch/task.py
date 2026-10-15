@@ -8,7 +8,7 @@ and `AgentRunner`'s dispatch loop
 (`execution/runner.py`) only ever need what is defined here. A domain
 package builds its own `Kind` vocabulary and payload types on top via `Task.payload`/
 `TaskResult.payload`, two slots this module treats as fully opaque, and
-supplies `contraagent._internal.dispatch.interceptors.TaskScope`/`ResultEnricher`
+supplies `contraagent.TaskScope`/`ResultEnricher`
 implementations for whatever domain-specific lifecycle or progress logic a
 dispatch needs.
 
