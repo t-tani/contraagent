@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import CallFile, OutputContract, Pipeline, PipelineConfig, agent_task
+from contraagent import Pipeline, PipelineConfig, agent_task
 from contraagent._internal.contracts.calls import validate_call
-from contraagent.backends import Launch, LaunchResult, Stop
-from contraagent.engine import run_until_valid
+from contraagent.backends import CallFile, Launch, LaunchResult, Stop
+from contraagent.engine import OutputContract, run_until_valid
 from contraagent.testing import StubAgent, writes_nothing
 
 

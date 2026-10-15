@@ -8,11 +8,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Deferral, Pipeline, PipelineConfig, Task, TaskResult, agent_task
+from contraagent import Pipeline, PipelineConfig, Task, TaskResult, agent_task
 from contraagent._internal.monitor import api
 from contraagent.backends import Backend, LaunchResult, Stop
 from contraagent.config import KindConfig, QuotaReading, Route
-from contraagent.engine import AgentRunner, QuotaRests, Router, TaskAdapter, WorkQueue
+from contraagent.engine import AgentRunner, Deferral, QuotaRests, Router, TaskAdapter, WorkQueue
 from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 

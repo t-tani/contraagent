@@ -49,7 +49,7 @@ from contraagent._internal.dispatch.flow import FlowState
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.python_task import make_python_task
 from contraagent._internal.dispatch.queue import WorkQueue
-from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent
+from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent, TimeBoxRecord
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution import teardown as _teardown
@@ -67,7 +67,7 @@ from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, write_document
 from contraagent._internal.runs.source import DirectorySource, parse_info
-from contraagent._internal.runs.times import now_iso
+from contraagent._internal.runs.times import iso_of, now_iso
 
 _logger = logging.getLogger(__name__)
 
@@ -543,12 +543,12 @@ class Run:
         """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
         `function` and `flow`, the flow path where the parent yielded it (the parent's frames,
         with their loops' passes, as in `plan.jsonl`; empty for a top flow call), and for a
-        flow call yielded through `time_box`, its `time_box` (`TimeBox.record`; `started_at`:
+        flow call yielded through `time_box`, its `time_box` (a `TimeBoxRecord`; `started_at`:
         when the flow call started, where its deadline counts from); "end": its `state` and
         `error`."""
         ts = now_iso()
         if event == "start":
-            box = {"time_box": time_box.record(started_at)} if time_box is not None else {}
+            box = {"time_box": _time_box_record(time_box, started_at)} if time_box is not None else {}
             start = {"ts": ts, "id": call_id, "event": "start", "parent": parent, "function": function, "flow": list(flow)}
             row = FlowCallRow.model_validate(start | box)
         else:
@@ -585,3 +585,15 @@ class Run:
                 }
             ),
         )
+
+
+def _time_box_record(box: TimeBox, started_at: float | None) -> TimeBoxRecord:
+    """`box` as `flow_calls.jsonl` records it; `started_at`: when its flow call started
+    (`time.time()`), now when None."""
+    return TimeBoxRecord(
+        started_at=iso_of(started_at) if started_at is not None else now_iso(),
+        deadline_s=box.deadline_s,
+        grace_s=box.grace_s,
+        slack_s=box.slack_s,
+        finishing_kinds=tuple(sorted(box.finishing_kinds)),
+    )

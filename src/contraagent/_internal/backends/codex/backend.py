@@ -37,7 +37,7 @@ from contraagent._internal.backends.codex.wire import EventReader, find_rollout,
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
-    CredentialBase,
+    Credential,
     CredentialBinding,
     CredentialError,
     Gateway,
@@ -152,7 +152,7 @@ class CodexBackend(ResumeById, Backend):
     # a credential that does not work fails instead of falling back to the stored login.
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         c = credential
         if isinstance(c, Ambient):

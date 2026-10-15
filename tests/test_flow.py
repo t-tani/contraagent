@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, Field
 
-from contraagent import CallFile, CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, agent_task, python_task
 from contraagent._internal.contracts.calls import validate_call
 from contraagent._internal.platform import envvars
-from contraagent.backends import Stop
+from contraagent.backends import CallFile, Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails, writes_nothing
 

@@ -122,30 +122,38 @@ def result_or_raise(item: Any, result: TaskResult) -> TaskResult:
 
 
 @dataclass(frozen=True, eq=False)
-class TimeBoxed:
-    """A generator to run as a flow call with a deadline of its own. Build one with `time_box`."""
+class TimeBoxed[Y, S, R](Generator[Y, S, R]):
+    """A generator to run as a flow call with a deadline of its own. Build one with
+    `time_box`. The driver runs `gen` itself; as a generator it is `gen`."""
 
-    gen: GeneratorType = field(repr=False)
+    gen: Generator[Y, S, R] = field(repr=False)
     deadline_s: float
     grace_s: float
     slack_s: float
     finishing_kinds: tuple[str, ...]
 
+    def send(self, value: S) -> Y:
+        return self.gen.send(value)
 
-def time_box(
-    flow: Generator[Any, Any, Any],
+    def throw(self, *args: Any) -> Y:
+        return self.gen.throw(*args)
+
+
+def time_box[Y, S, R](
+    flow: Generator[Y, S, R],
     *,
     deadline_s: float,
     grace_s: float = GRACE_S,
     finishing_kinds: Iterable[str] = (),
     slack_s: float | None = None,
-) -> TimeBoxed:
+) -> Generator[Y, S, R]:
     """`flow`, a generator, to yield as a flow call with a deadline of its own: `deadline_s`
     from the moment it starts, over the tasks it and the flow calls it starts create. Past
     it only `finishing_kinds` still launch, for `grace_s`; the rest are deferred and its
     flow receives `TaskDeferred`. From `deadline_s - slack_s` (default a quarter of
     `deadline_s`) its tasks are ordered for the deadline. Its tasks are held to the run's
-    deadline and to every enclosing time box too, so the earliest deadline stops them."""
+    deadline and to every enclosing time box too, so the earliest deadline stops them.
+    It returns `flow` with its deadline, a generator to yield in place of `flow`."""
     if not isinstance(flow, GeneratorType):
         raise TypeError(f"time_box() takes a generator (a flow call), not {type(flow).__name__}")
     if not deadline_s or deadline_s <= 0:

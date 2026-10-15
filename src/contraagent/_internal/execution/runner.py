@@ -27,7 +27,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from contraagent._internal.backends.base import Backend
-from contraagent._internal.backends.credentials import AMBIENT, CredentialBase, Pool
+from contraagent._internal.backends.credentials import AMBIENT, Credential, Pool
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.backends.process import signal_of
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_until_valid
@@ -121,7 +121,7 @@ class AgentRunner:
         routers: Mapping | None = None,
         model: str = "",
         model_failover: bool = False,
-        credentials: Mapping[str, CredentialBase] | None = None,
+        credentials: Mapping[str, Credential] | None = None,
         env: Mapping[str, str] | None = None,
         keep_transcripts: bool = False,
         cwd: Path | str | None = None,
@@ -164,7 +164,7 @@ class AgentRunner:
         (self.run_dir / "streams").mkdir(parents=True, exist_ok=True)
         self.model = model
         self.model_failover = model_failover
-        self.credentials: dict[str, CredentialBase] = {"ambient": AMBIENT, **(credentials or {})}
+        self.credentials: dict[str, Credential] = {"ambient": AMBIENT, **(credentials or {})}
         # Pool state is run-wide, like a Router: every worker thread shares it.
         self.pools = pools_of(self.credentials)
         self.env = dict(env or {})
@@ -204,7 +204,7 @@ class AgentRunner:
         return named if named is not None else next(iter(self.backends.values()))
 
     def launch(
-        self, task: Task, route: Route | None = None, backend: Backend | None = None, credential: CredentialBase | None = None
+        self, task: Task, route: Route | None = None, backend: Backend | None = None, credential: Credential | None = None
     ) -> Launch:
         """Build the backend launch: role, model, limits, prompt."""
         rc = self.config(task)
@@ -252,7 +252,7 @@ class AgentRunner:
             stream_path=self.run_dir / layout.stream(task.key) if self.keep_transcripts else None,
         )
 
-    def credential_for(self, task: Task, route: Route | None) -> CredentialBase:
+    def credential_for(self, task: Task, route: Route | None) -> Credential:
         """The identity this task launches as on `route`: the route's, else the kind's.
         An unknown name raises: launching under a different identity is never a fallback."""
         name = self._credential_name(task, route)
@@ -264,7 +264,7 @@ class AgentRunner:
     def _credential_name(self, task: Task, route: Route | None) -> str:
         return (route.credential if route is not None and route.credential else "") or self.config(task).credential or "ambient"
 
-    def account_of(self, backend: Backend, credential: CredentialBase, model: str) -> str:
+    def account_of(self, backend: Backend, credential: Credential, model: str) -> str:
         """The account `backend` bills as `credential` for `model` (`Backend.account`), asked
         once a run; '' when it cannot tell."""
         key = (backend.name, credential.label, model)
@@ -553,7 +553,7 @@ class AgentRunner:
             tried.append(member.label)
             spent = last.wall_s
 
-    def _run_as(self, task: Task, route: Route | None, credential: CredentialBase) -> TaskResult:
+    def _run_as(self, task: Task, route: Route | None, credential: Credential) -> TaskResult:
         """One launch on one route as one credential. `ok`/`stop` come straight from the
         backend's `LaunchResult`; a domain's own progress verdict is a `ResultEnricher`'s job."""
         backend = self.backend_for_route(task, route)

@@ -189,10 +189,16 @@ definitions: it imports names from `_internal`, lists them in `__all__` and call
 imports a public module. Each object has one public path. A name a user, the
 documentation or an example uses gets a public home; every contraagent type a public
 signature, field or callback argument reaches is exported too; the rest stays in
-`_internal`. The examples in `docs/examples/` import only public modules; nothing
-outside the package imports `_internal` but the tests. The public modules import
-without the `monitor` and `hub` extras. `tests/test_public_api.py` checks the
-public modules and what they export.
+`_internal`. A signature reaches a type only when its user needs it: a helper hides
+behind a method (`Backend.mark_launch`), a value returns the type it behaves as
+(`agent_task(implementations=)` a `Mapping`, `time_box` a generator). An alias of literal
+values is not exported (its annotation lists them). `contraagent.monitor.api` holds the
+schemas of the monitor's OpenAPI document that have no other public home, its
+`API_VERSION` and the union of transcript events (`AnyTranscriptEvent`), and nothing
+else. The examples in `docs/examples/` import only public modules; nothing outside the
+package imports `_internal` but the tests. The public modules import without the
+`monitor` and `hub` extras. `tests/test_public_api.py` checks the public modules and what
+they export.
 
 Inside `_internal`, each layer imports only the layers above it in the list in the
 `src/contraagent/_internal/__init__.py` docstring (`errors`, `platform`,

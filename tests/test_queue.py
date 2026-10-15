@@ -5,8 +5,8 @@ import threading
 import time
 from types import SimpleNamespace
 
-from contraagent import Deferral, Task, TaskResult
-from contraagent.engine import WorkQueue
+from contraagent import Task, TaskResult
+from contraagent.engine import Deferral, WorkQueue
 
 
 class Runner:

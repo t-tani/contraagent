@@ -266,11 +266,53 @@ def test_serve_and_create_app_are_published_when_first_named():
 
 
 @pytest.mark.parametrize(
-    "name", ["make_python_task", "kind_name", "configs_from_tables", "require_budgets", "OMP_PREAMBLE", "STDIN_THRESHOLD"]
+    "name",
+    [
+        "make_python_task",
+        "kind_name",
+        "configs_from_tables",
+        "require_budgets",
+        "OMP_PREAMBLE",
+        "STDIN_THRESHOLD",
+        "account_digest",
+        "write_launch_marker",
+        "lint_plugin",
+        "Implementations",
+        "TimeBoxed",
+        "CredentialBase",
+        "MemorySource",
+        "PlanRow",
+        "RestEvent",
+    ],
 )
 def test_internal_helpers_are_not_public(name):
     for module in PUBLIC:
         assert name not in importlib.import_module(module).__all__
+
+
+def test_the_monitor_api_holds_its_openapi_schemas():
+    import json
+    from pathlib import Path
+
+    import contraagent.monitor.api
+
+    openapi = Path(contraagent.__file__).parent / "_internal" / "monitor" / "openapi.json"
+    schemas = set(json.loads(openapi.read_text())["components"]["schemas"])
+    extra = {"API_VERSION", "AnyTranscriptEvent"}
+    assert [n for n in contraagent.monitor.api.__all__ if n not in schemas | extra] == []
+    homes = {name for module in PUBLIC for name in importlib.import_module(module).__all__}
+    assert sorted(schemas - homes) == ["HTTPValidationError", "ValidationError"]  # FastAPI's own
+
+
+def test_no_alias_of_literal_values_is_exported():
+    """A field or parameter of literal values lists them in its annotation; no name stands for them."""
+    literal = [
+        f"{module}.{name}"
+        for module in PUBLIC
+        for name in importlib.import_module(module).__all__
+        if typing.get_origin(getattr(importlib.import_module(module), name)) is typing.Literal
+    ]
+    assert literal == []
 
 
 def test_the_task_and_the_result_a_callback_is_given_are_frozen():

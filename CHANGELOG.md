@@ -189,13 +189,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One public path per name. The implementation moved under `contraagent._internal`; the
   public modules only re-export, and each class and function names its public module as
   `__module__` (reprs, tracebacks, pickle): `contraagent` (tasks, flows, the pipeline,
-  contracts, the task and result a callback is given, every error), `contraagent.config`
+  validators, the task and result a callback is given, every error), `contraagent.config`
   (credentials, routes, budgets, quota readings), `contraagent.backends` (the coding
-  agents and what a custom one implements), `contraagent.engine` (the runners and
-  schedulers underneath a pipeline), `contraagent.plugins`, `contraagent.monitor` (with the
-  panel body types), `contraagent.monitor.api` (the HTTP responses) and
-  `contraagent.testing`. Every contraagent type a public signature reaches is exported
-  (`tests/test_public_api.py`). Names with no user and no documentation are not public.
+  agents, the call file, and what a custom one implements), `contraagent.engine` (the
+  runners, schedulers and contracts underneath a pipeline), `contraagent.plugins`,
+  `contraagent.monitor` (with the panel body types), `contraagent.monitor.api` (the
+  schemas of its OpenAPI document) and `contraagent.testing`. Every contraagent type a
+  public signature reaches is exported (`tests/test_public_api.py`). Names with no user and
+  no documentation are not public, nor is an alias of literal values (`Executor`,
+  `FlowState`, `PreflightPolicy`, `Window`, `Tone`, `ValueFormat`: the annotation lists the
+  values). `contraagent.config.Credential` is the base class of the credential kinds
+  (`CredentialBase` before); their union is not public. `agent_task(implementations=)`
+  returns a `Mapping[str, AgentTask]`, `time_box(flow)` a generator.
 
   | Old import | New import |
   |---|---|
@@ -208,7 +213,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `contraagent.Bedrock` | `contraagent.config.Bedrock` |
   | `contraagent.ClaudeBackend` | `contraagent.backends.ClaudeBackend` |
   | `contraagent.CodexBackend` | `contraagent.backends.CodexBackend` |
-  | `contraagent.Credential` | `contraagent.config.Credential` |
+  | `contraagent.Credential` (the union of the credential kinds) | not public; `contraagent.config.Credential` is their base class |
+  | `contraagent.backends.CredentialBase` | `contraagent.config.Credential` |
+  | `contraagent.CallFile` | `contraagent.backends.CallFile` |
+  | `contraagent.Implementations` | not public: a `Mapping[str, AgentTask]` |
+  | `contraagent.InputContract`, `OutputContract` | `contraagent.engine.InputContract`, `OutputContract` |
+  | `contraagent.PreflightPolicy` | not public |
   | `contraagent.CursorStore` | `contraagent.engine.CursorStore` |
   | `contraagent.FlowDriver` | `contraagent.engine.FlowDriver` |
   | `contraagent.Gateway` | `contraagent.config.Gateway` |
@@ -266,23 +276,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `contraagent.monitor.api.TableBody` | `contraagent.monitor.TableBody` |
   | `contraagent.monitor.api.TableColumn` | `contraagent.monitor.TableColumn` |
   | `contraagent.monitor.api.TilesBody` | `contraagent.monitor.TilesBody` |
-  | `contraagent.monitor.api.Tone` | `contraagent.monitor.Tone` |
-  | `contraagent.monitor.api.ValueFormat` | `contraagent.monitor.ValueFormat` |
+  | `contraagent.monitor.api.Tone`, `ValueFormat` | not public |
   | `contraagent.backends.launch.Usage`, `.CallUsage` | `contraagent.backends.Usage`, `contraagent.backends.CallUsage` |
-  | `contraagent.backends.process.write_launch_marker` | `contraagent.backends.write_launch_marker` |
+  | `contraagent.backends.process.write_launch_marker(backend.argv(launch), launch)` | `backend.mark_launch(launch)` (`contraagent.backends.Backend`) |
+  | `contraagent.backends.launch.account_digest` | not public |
+  | `contraagent.plugins.lint_plugin` | not public: `contraagent plugin lint` |
   | `contraagent.backends.opencode.backend.PERMISSION_OF` | `contraagent.backends.OpencodeBackend.PERMISSION_OF` |
-  | `launch.env[contraagent.envvars.CALL]` | `contraagent.CallFile.path_of(launch)` |
-  | `contraagent.runs.source.DirectorySource`, `MemorySource`, `RunSource` | `contraagent.monitor.DirectorySource`, `MemorySource`, `RunSource` |
+  | `launch.env[contraagent.envvars.CALL]` | `contraagent.backends.CallFile.path_of(launch)` |
+  | `contraagent.runs.source.DirectorySource`, `RunSource` | `contraagent.monitor.DirectorySource`, `RunSource` |
+  | `contraagent.runs.source.MemorySource` | not public |
   | `contraagent.runs.liveness.Liveness` | `contraagent.monitor.Liveness` |
   | `contraagent.monitor.export.export` | `contraagent.monitor.export` |
   | `contraagent.monitor.trends.PeriodError` | `contraagent.monitor.PeriodError` |
-  | `contraagent.dispatch.FlowCall`, `TimeBoxed`, `Deferral` | `contraagent.FlowCall`, `TimeBoxed`, `Deferral` |
+  | `contraagent.dispatch.FlowCall`, `Deferral` | `contraagent.engine.FlowCall`, `Deferral` |
+  | `contraagent.dispatch.TimeBoxed` | not public: `time_box` returns a generator |
+  | `contraagent.contracts.Check`, `Before` | `contraagent.engine.Check`, `Before` |
+  | `contraagent.calls.CallOutput`, `SchemaRef` | `contraagent.backends.CallOutput`, `SchemaRef` |
   | `contraagent.execution.recording.RecordingError` | `contraagent.RecordingError` |
   | `contraagent.routing.quota.QuotaRule` | `contraagent.QuotaRule` |
   | `contraagent.routing.quota.QuotaRests` | `contraagent.engine.QuotaRests` |
   | `contraagent.execution.schemas.Cursor`, `UnitCursor`, `Inflight`, `HistoryEntry` | `contraagent.engine.Cursor`, `UnitCursor`, `Inflight`, `HistoryEntry` |
-  | `contraagent.execution.schemas.JournalRow`, `PlanRow`; `contraagent.routing.quota.QuotaCap`; `contraagent.dispatch.Rest`, `RestEvent`, `TimeBoxRecord` | `contraagent.monitor.api.JournalRow`, `PlanRow`, `QuotaCap`, `Rest`, `RestEvent`, `TimeBoxRecord` |
-  | `contraagent.dispatch.Hop`, `SkippedHop`, `Changes`, `DeferralCause`, `Frame`, `Loop`, `OtherModel`, `TokenUsage`, `Executor`, `Origin` | `contraagent.Hop`, ... (the same names) |
+  | `contraagent.execution.schemas.JournalRow`; `contraagent.routing.quota.QuotaCap`; `contraagent.dispatch.TimeBoxRecord` | `contraagent.monitor.api.JournalRow`, `QuotaCap`, `TimeBoxRecord` |
+  | `contraagent.dispatch.Rest` | `contraagent.engine.Rest` |
+  | `contraagent.execution.schemas.PlanRow`, `contraagent.dispatch.RestEvent` | not public |
+  | `contraagent.dispatch.Hop`, `SkippedHop`, `Changes`, `DeferralCause`, `Frame`, `Loop`, `OtherModel`, `TokenUsage`, `Origin` | `contraagent.Hop`, ... (the same names) |
+  | `contraagent.dispatch.Executor` | not public |
   | `contraagent.<layer>.<module>` (`dispatch`, `execution`, `routing`, `runs`, `hub`, `cli`, `procfs`, `envvars`, `telemetry`, `pointers`, `validators`, `calls`, `contracts`, `errors`) | not public: `contraagent._internal.<layer>.<module>` |
   | `python -m contraagent.monitor ...` | `contraagent monitor ...` (or `python -m contraagent monitor ...`) |
 
@@ -290,6 +308,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Task`, `TaskResult`: frozen dataclasses). `ResultEnricher.enrich` returns the result
   as it should be (`dataclasses.replace(result, payload=...)`), or None to leave it.
 - `CallFile.path_of(launch)`: the call file a launch hands its agent, for a custom backend.
+- `Backend.mark_launch(launch)`: the `launch` marker at the head of a launch's transcript, for
+  a custom backend that overrides `run`.
 - The committed OpenAPI documents and the built web UI are under
   `src/contraagent/_internal/monitor/` and `src/contraagent/_internal/hub/`; regenerate the
   monitor's with `contraagent monitor --openapi PATH`.

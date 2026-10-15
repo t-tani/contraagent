@@ -66,9 +66,8 @@ from pydantic import BaseModel
 
 from contraagent._internal.backends import Backend, ClaudeBackend, backend_class, known_agents
 from contraagent._internal.backends.claude.wire import feedback_errors
-from contraagent._internal.backends.credentials import CredentialBase, CredentialBinding
+from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, QuotaRefusal, Stop, Usage
-from contraagent._internal.backends.process import write_launch_marker
 from contraagent._internal.backends.streams import resolve_format
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import smallest
@@ -253,7 +252,7 @@ class StubAgent(Backend):
         return {}
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """Any credential: the stub makes no API call, so none is used in place of another."""
         return CredentialBinding(isolated=True, isolation="stub: no API calls")
@@ -269,7 +268,7 @@ class StubAgent(Backend):
         if call_path is None:
             return self._result(launch, started, fails(reason="stub: no call file (an agent task without a call file)"))
         call = CallFile.read(call_path)
-        write_launch_marker(self.argv(launch), launch)
+        self.mark_launch(launch)
         self._tool(launch, f"{call.key}-read", "Read", str(call_path), json.dumps(call.params, ensure_ascii=False)[:2000])
         record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
         message: list[str] = []  # the final message, for an output taken from it
