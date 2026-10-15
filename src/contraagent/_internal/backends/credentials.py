@@ -32,7 +32,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter, WithJsonSchema
 
@@ -105,7 +105,7 @@ class Credential(BaseModel, frozen=True):
     """The identity an agent's API calls are billed to: each kind of credential
     (`Ambient`, `Subscription`, `ApiKey`, ...) is one of its subclasses."""
 
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     #: The name the config gives it; what journals and the monitor show.
     name: str = ""
@@ -126,7 +126,7 @@ class Credential(BaseModel, frozen=True):
     def label(self) -> str:
         return self.name or self.type
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What may be recorded: never a secret, only where it comes from."""
         return self.model_dump(mode="json")
 
@@ -266,7 +266,7 @@ _ADAPTER: TypeAdapter = TypeAdapter(AnyCredential)
 AMBIENT = Ambient(name="ambient")
 
 
-def parse_credentials(tables: dict[str, dict]) -> dict[str, Credential]:
+def parse_credentials(tables: dict[str, dict[str, Any]]) -> dict[str, Credential]:
     """Every `[credentials.<name>]` table, pools resolved against their members."""
     out = {name: parse_credential(name, table) for name, table in tables.items()}
     for name, c in list(out.items()):
@@ -288,7 +288,7 @@ def parse_credentials(tables: dict[str, dict]) -> dict[str, Credential]:
     return out
 
 
-def parse_credential(name: str, table: dict) -> Credential:
+def parse_credential(name: str, table: dict[str, Any]) -> Credential:
     """One `[credentials.<name>]` table."""
     data = {**table, "name": name}
     if "traits" in data:

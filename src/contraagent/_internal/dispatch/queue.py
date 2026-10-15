@@ -101,7 +101,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from typing import Protocol
+from typing import Any, Protocol
 
 from contraagent._internal.dispatch.records import DeferralCause
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
@@ -156,7 +156,8 @@ def _is_pattern(name: str) -> bool:
 class RunnerConfig(Protocol):
     """What `WorkQueue` reads of a task's config (`TaskRunner.config`): `max_concurrent`."""
 
-    max_concurrent: int | None
+    @property
+    def max_concurrent(self) -> int | None: ...
 
 
 class TaskRunner(Protocol):
@@ -199,18 +200,18 @@ class WorkQueue:
     ):
         self.runner = runner
         self.follow_up: FollowUp = follow_up or (lambda result: [])
-        self.max_concurrent = max(1, int(max_concurrent))
-        self.deadline_at = time.monotonic() + deadline_s if deadline_s else None
+        self.max_concurrent: int = max(1, int(max_concurrent))
+        self.deadline_at: float | None = time.monotonic() + deadline_s if deadline_s else None
         # From `deadline - slack_s` on, the queue orders for the deadline (the module docstring).
-        self.slack_s = slack_s if slack_s is not None else (SLACK_SHARE * deadline_s if deadline_s else 0.0)
+        self.slack_s: float = slack_s if slack_s is not None else (SLACK_SHARE * deadline_s if deadline_s else 0.0)
         # Post-deadline grace: opener kinds stop launching, but the caller's
         # short finishing kinds (`finishing_kinds`, e.g. a report) still go;
         # otherwise the finishing work would be deferred with everything else.
         self.grace_s = grace_s
-        self.hard_stop_at = (self.deadline_at + grace_s) if self.deadline_at is not None else None
-        self.finishing_kinds = tuple(finishing_kinds)
+        self.hard_stop_at: float | None = (self.deadline_at + grace_s) if self.deadline_at is not None else None
+        self.finishing_kinds: tuple[str, ...] = tuple(finishing_kinds)
         #: The run's own time box, over every task; None without a deadline.
-        self.time_box = (
+        self.time_box: TimeBox | None = (
             TimeBox(self.deadline_at, float(deadline_s), grace_s, self.slack_s, frozenset(self.finishing_kinds))
             if self.deadline_at is not None and deadline_s
             else None
@@ -226,8 +227,8 @@ class WorkQueue:
         # Stop values worth one retry, and stop values that count toward a
         # throttle (two in a row halve the slots for `throttle_s`). The queue
         # attaches no meaning to either: the caller names them.
-        self.retry_on = frozenset(retry_on)
-        self.throttle_on = frozenset(throttle_on)
+        self.retry_on: frozenset[str] = frozenset(retry_on)
+        self.throttle_on: frozenset[str] = frozenset(throttle_on)
         self.retry_wait_s = retry_wait_s
         self.throttle_s = throttle_s
         self._skip = skip  # resume: whether a task's work is already done
@@ -365,7 +366,7 @@ class WorkQueue:
 
     # --- progress -----------------------------------------------------------
 
-    def run(self) -> dict:
+    def run(self) -> dict[str, Any]:
         """Drain the queue or hit the driver timeout."""
         t0 = time.monotonic()
         with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
@@ -663,13 +664,13 @@ class WorkQueue:
         self.deferred.append(task)
         self._settle(TaskResult.deferred(task, deferral))
 
-    def _summary(self, wall_s: float) -> dict:
+    def _summary(self, wall_s: float) -> dict[str, Any]:
         by_stop: dict[str, int] = {}
         for r in self.results:
             by_stop[r.stop] = by_stop.get(r.stop, 0) + 1
         # Per-kind count and wall time. A domain's own per-kind figures (calls,
         # context use) come from its own summary, not from this one.
-        by_kind: dict[str, dict] = {}
+        by_kind: dict[str, dict[str, Any]] = {}
         for k in {r.task.kind for r in self.results}:
             rs = [r for r in self.results if r.task.kind == k]
             by_kind[k] = {"n": len(rs), "ok": sum(1 for r in rs if r.ok), "wall_s": round(sum(r.wall_s for r in rs), 1)}

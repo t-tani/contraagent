@@ -26,9 +26,10 @@ import contextlib
 import fcntl
 import os
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
 from contraagent._internal.platform import procfs
@@ -38,7 +39,7 @@ from contraagent._internal.runs.times import now, now_iso
 CURSOR_SCHEMA_VERSION = "1.0"
 
 
-def _names(vocab: Iterable | None) -> frozenset[str] | None:
+def _names(vocab: Iterable[Any] | None) -> frozenset[str] | None:
     if vocab is None:
         return None
     return frozenset(str(getattr(v, "value", v)) for v in vocab)
@@ -60,11 +61,11 @@ class CursorStore:
         path: str | Path,
         run: str = "",
         *,
-        stages: Iterable | None = None,
-        steps: Iterable | None = None,
-        skip_when_completed: Iterable = (),
-    ):
-        self.path = Path(path)
+        stages: Iterable[object] | None = None,
+        steps: Iterable[object] | None = None,
+        skip_when_completed: Iterable[object] = (),
+    ) -> None:
+        self.path: Path = Path(path)
         self.run = run
         self._stages = _names(stages)
         self._steps = _names(steps)
@@ -193,14 +194,13 @@ class CursorStore:
             self._save(cur)
             return cur
 
-    def record(self, marker_key: str, entry) -> Cursor:
-        """Append `entry` to the marker list `marker_key`. A dict entry is
-        stamped with `recorded_at` unless it carries one."""
+    def record(self, marker_key: str, entry: Mapping[str, Any]) -> Cursor:
+        """Append `entry` to the marker list `marker_key`, stamped with `recorded_at`
+        unless it carries one."""
         with self._locked():
             cur = self.load()
-            if isinstance(entry, dict):
-                entry = dict(entry)
-                entry.setdefault("recorded_at", now_iso("microseconds"))
+            entry = dict(entry)
+            entry.setdefault("recorded_at", now_iso("microseconds"))
             cur.markers = {**cur.markers, marker_key: [*cur.markers.get(marker_key, []), entry]}
             cur.updated_at = now()
             self._save(cur)
@@ -215,7 +215,7 @@ class CursorStore:
         done = set(up.completed) if up is not None else set()
         return [s for s in self._ordered_steps if not (s in self._skip and s in done)]
 
-    def resume_view(self) -> dict:
+    def resume_view(self) -> dict[str, Any]:
         """A thin diagnostic snapshot for a resume's startup print."""
         cur = self.load()
         return {

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.contracts.contract import InputContract, OutputContract
@@ -66,7 +67,7 @@ class TaskAdapter:
         """Extra environment for this task's launch (the runner's own `CONTRAAGENT_*` win)."""
         return {}
 
-    def definition(self, task: Task) -> dict | None:
+    def definition(self, task: Task) -> dict[str, Any] | None:
         """What defines this kind of task, for the monitor.
 
         A dict with `role` (the named agent, `agents/<role>.md`),

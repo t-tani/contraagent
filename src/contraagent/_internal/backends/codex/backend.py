@@ -29,6 +29,7 @@ import dataclasses
 import json
 import shutil
 from pathlib import Path
+from types import ModuleType
 
 from contraagent._internal.backends import plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById
@@ -47,6 +48,7 @@ from contraagent._internal.backends.credentials import (
 )
 from contraagent._internal.backends.launch import Launch, Stop
 from contraagent._internal.backends.process import via_stdin
+from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 
 #: Config every launch gets: nothing the user or the project would add to the
@@ -127,14 +129,14 @@ class CodexBackend(ResumeById, Backend):
     name = "codex"
     binary = "codex"
     # `model_reasoning_effort`; the levels `~/.codex/models_cache.json` lists for each model.
-    effort_levels = ("low", "medium", "high", "xhigh", "max", "ultra")
+    effort_levels: tuple[str, ...] | None = ("low", "medium", "high", "xhigh", "max", "ultra")
     # No `--agent`: the role's file goes into the prompt.
     needs_inline_role_file = True
-    wire = codex_wire
-    signals = codex_wire.SIGNALS
+    wire: ModuleType | None = codex_wire
+    signals: Signals = codex_wire.SIGNALS
     # `max_turns` counts tool calls; codex reports no cost, and per-call tokens only in the
     # rollout file, after the launch, so the cost and context budgets are not enforced.
-    watched_limits = frozenset({"max_turns"})
+    watched_limits: frozenset[str] = frozenset({"max_turns"})
 
     def __init__(self, binary: str = "codex", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)

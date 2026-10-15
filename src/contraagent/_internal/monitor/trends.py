@@ -31,6 +31,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import ValidationError
@@ -124,7 +125,7 @@ class Period:
             return None
         return t.astimezone(self.zone).date()
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {"from": self.start.isoformat(), "to": self.end.isoformat(), "tz": self.tz, "days": [d.isoformat() for d in self.days]}
 
 
@@ -140,7 +141,7 @@ def _slot(ts: object) -> int | None:
     return int(t.timestamp() // SLOT_S) if t is not None else None
 
 
-def run_files(source: RunSource, run: str, infos: dict | None = None) -> tuple[dict, dict]:
+def run_files(source: RunSource, run: str, infos: dict[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """A run's `run.json` and its `signature`: what its digest depends on (its logs' sizes,
     and when it started and finished). `infos` keeps each run's `run.json` by its `stat`,
     so an unchanged one is not read again: a period over hundreds of runs asks for each."""
@@ -157,7 +158,7 @@ def run_files(source: RunSource, run: str, infos: dict | None = None) -> tuple[d
     return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
 
 
-def digest(source, run: str) -> dict:
+def digest(source, run: str) -> dict[str, Any]:
     """What a run did, by 15-minute slot of UTC (`SLOT_S`), as much as its trends need.
 
     `slots`: `[slot, {"last_ts", "kinds": {kind: {n, ok, partial, wall, cost, tokens, stops, walls}},
@@ -179,9 +180,9 @@ def digest(source, run: str) -> dict:
     `seven_day_opus`); `denied`: `[slot, tool, kind, count]`; `rests` (with the account
     and the reading a rule judged) and `deferred`: their rows."""
     info = source.info(run) or {}
-    slots: dict[int, dict] = {}
-    rows_of: dict[int, list[dict]] = {}
-    kinds: dict[str, dict] = {}
+    slots: dict[int, dict[str, Any]] = {}
+    rows_of: dict[int, list[dict[str, Any]]] = {}
+    kinds: dict[str, dict[str, Any]] = {}
     key_kind: dict[str, str] = {}
     attempts: dict[str, dict[str, list[int]]] = {}
     peaks: dict[tuple[int, str, str, str], float] = {}
@@ -239,7 +240,7 @@ def digest(source, run: str) -> dict:
     for row in parse_rows(line for line in source.lines(run, layout.PLAN)[0] if '"base_kind"' in line):
         if row.get("kind") in kinds and row.get("base_kind"):
             kinds[row["kind"]]["base_kind"] = str(row["base_kind"])
-    total: dict = {"last_ts": "", "kinds": {}, "models": model_usage([r for slot in sorted(rows_of) for r in rows_of[slot]])}
+    total: dict[str, Any] = {"last_ts": "", "kinds": {}, "models": model_usage([r for slot in sorted(rows_of) for r in rows_of[slot]])}
     for slot in sorted(slots):
         s = slots[slot]
         total["last_ts"] = max(total["last_ts"], s["last_ts"])
@@ -305,7 +306,7 @@ def digest(source, run: str) -> dict:
     }
 
 
-def _reading_windows(q: Mapping) -> dict[str, float]:
+def _reading_windows(q: Mapping[str, Any]) -> dict[str, float]:
     """A journal reading's windows and their utilization: `five_hour` and `seven_day`, and
     every other its `windows` names (a model's own week, `seven_day_opus`)."""
     out: dict[str, float] = {}
@@ -321,14 +322,14 @@ def _reading_windows(q: Mapping) -> dict[str, float]:
     return out
 
 
-def kept_form(dg: dict) -> dict:
+def kept_form(dg: dict[str, Any]) -> dict[str, Any]:
     """A digest as `trends.json` keeps it: its total without the wall times its slots hold
     (`from_kept` puts them back), so a file holds each one once."""
     total = {**dg["total"], "kinds": {k: {f: v for f, v in t.items() if f != "walls"} for k, t in dg["total"]["kinds"].items()}}
     return {**dg, "total": total}
 
 
-def from_kept(dg: dict) -> dict:
+def from_kept(dg: dict[str, Any]) -> dict[str, Any]:
     """A digest read from `trends.json` (`kept_form`) made whole again: its total's wall times."""
     walls: dict[str, list[float]] = {}
     for _, s in dg["slots"]:
@@ -339,7 +340,7 @@ def from_kept(dg: dict) -> dict:
     return dg
 
 
-def in_period(info: Mapping, period: Period) -> bool:
+def in_period(info: Mapping[str, Any], period: Period) -> bool:
     """Whether a run may have done something in `period`, by its `run.json` alone: started
     before it closes, and not finished before it opens. A run that does not say is kept."""
     started, finished = parse_iso(info.get("started_at")), parse_iso(info.get("finished_at"))
@@ -388,7 +389,7 @@ class _Slots:
         return (slot - self.first) * SLOT_S // 3600
 
 
-def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
+def aggregate(digests: Iterable[dict[str, Any]], period: Period, groups: Mapping[str, str] | None = None) -> dict[str, Any]:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
     group it is counted in (the monitor's `groups`); an implementation kind it does not map is
     counted in its base kind's, each other kind in its own."""
@@ -397,12 +398,12 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     days = [d.isoformat() for d in period.days]
     hours = (at.end - at.first) * SLOT_S // 3600
     daily = [{"day": d, "cost_usd": {}, "attempts": 0, "ok": 0, "partial": 0} for d in days]
-    kinds: dict[str, dict] = {}
+    kinds: dict[str, dict[str, Any]] = {}
     walls: dict[str, list[float]] = {}
-    stops: dict[str, dict] = {}
-    denied: dict[str, dict] = {}
-    models: dict[tuple[str, str], dict] = {}
-    peaks: dict[tuple[str, str, str], dict] = {}
+    stops: dict[str, dict[str, Any]] = {}
+    denied: dict[str, dict[str, Any]] = {}
+    models: dict[tuple[str, str], dict[str, Any]] = {}
+    peaks: dict[tuple[str, str, str], dict[str, Any]] = {}
     rests, deferred, runs = [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
     totals = {"runs": 0, "attempts": 0, "ok": 0, "partial": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(TOKENS, 0)}
@@ -573,18 +574,18 @@ def _tokens(n: int) -> str:
     return f"{n / 1e6:.1f}M" if n >= 1e6 else f"{n / 1e3:.0f}k" if n >= 1e3 else str(n)
 
 
-def _blocks(*items: dict | None) -> dict:
+def _blocks(*items: dict[str, Any] | None) -> dict[str, Any]:
     return {"type": "blocks", "blocks": [x for x in items if x is not None]}
 
 
-def _kind_tone(k: dict) -> dict:
+def _kind_tone(k: dict[str, Any]) -> dict[str, Any]:
     """A kind row's tone: failed when a task failed, attention when one was partial."""
     if k["tasks_ok"] + k["tasks_partial"] < k["tasks"]:
         return {"_tone": "failed"}
     return {"_tone": "attention"} if k["tasks_partial"] else {}
 
 
-def bodies(view: dict) -> dict[str, dict]:
+def bodies(view: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """The trends as panel bodies (`{"type": "blocks", "blocks": [...]}`), one per section, in
     English: for a page that draws them without words of its own (a static export, a
     pipeline's panel that reuses one). The monitor's own view draws `view` in its words."""
@@ -693,7 +694,7 @@ def bodies(view: dict) -> dict[str, dict]:
     for q in view["quota"]:
         accounts.setdefault(q["credential"], set()).add(q["account"])
 
-    def series_name(q: dict) -> str:
+    def series_name(q: dict[str, Any]) -> str:
         who = q["credential"] or "default"
         if len(accounts[q["credential"]]) > 1:
             who += f" ({q['account'] or 'unknown account'})"

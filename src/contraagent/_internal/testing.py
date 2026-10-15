@@ -367,7 +367,9 @@ class StubAgent(Backend):
         """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
         return kind not in self.execute
 
-    def play_python(self, run: str, key: str, kind: str, unit: str, params: dict[str, Any], json_schema: dict | None) -> tuple[bool, Any]:
+    def play_python(
+        self, run: str, key: str, kind: str, unit: str, params: dict[str, Any], json_schema: dict[str, Any] | None
+    ) -> tuple[bool, Any]:
         """A stub run's Python task: (whether it returns an output, the output). `json_schema`
         is its output's schema, None for a task with no output. A failure raises, as the
         function would."""
@@ -427,7 +429,7 @@ class StubAgent(Backend):
             done = {"type": "tool_execution_end", "toolCallId": cid, "toolName": name.lower(), "isError": False}
             self._emit(launch, {**done, "result": {"content": [{"type": "text", "text": output}]}})
 
-    def _emit(self, launch: Launch, event: dict) -> None:
+    def _emit(self, launch: Launch, event: dict[str, Any]) -> None:
         if launch.stream_path is None:
             return
         with open(launch.stream_path, "a", encoding="utf-8") as f:

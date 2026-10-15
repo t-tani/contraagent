@@ -26,7 +26,7 @@ a new value.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -58,7 +58,7 @@ class JournalRow(BaseModel):
     and `unit` are its kind and unit; `executor` says who ran it; `stop` is
     `Stop.value` (or a Python task's completed/error)."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     ts: str
     run_id: str = ""
@@ -209,7 +209,7 @@ class PlanRow(BaseModel):
     and its origin. A task with no origin (built by hand) has an empty `flow` and
     `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind."""
 
-    model_config = ConfigDict(extra="allow", serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", serialize_by_alias=True)
 
     ts: str = Field("", description="when it was queued (absent for a node rebuilt from the journal)")
     key: str
@@ -227,7 +227,7 @@ class PlanRow(BaseModel):
         description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """The row as `plan.jsonl` records it: `base_kind` only when it is set."""
         return self.model_dump(mode="json", exclude=None if self.base_kind else {"base_kind"})
 
@@ -238,7 +238,7 @@ class FlowCallRow(BaseModel):
     flow call yielded through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
     `closed`) and `error` (`"<type>: <message>"` or null). A row holds only its event's fields."""
 
-    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)
 
     ts: str
     id: str
@@ -250,7 +250,7 @@ class FlowCallRow(BaseModel):
     state: FlowState | None = None
     error: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """The row as `flow_calls.jsonl` records it: the fields set."""
         return self.model_dump(mode="json", exclude_unset=True)
 
@@ -259,7 +259,7 @@ class DeferredRow(BaseModel):
     """One line of `runs/<run>/deferred.jsonl`: a task the queue deferred, never launched;
     why in one line (`reason`) and as data (`cause`)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     ts: str
     key: str
@@ -273,7 +273,7 @@ class DeferredRow(BaseModel):
     def _no_cause(cls, v: object) -> object:
         return None if v == {} else v
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """The row as `deferred.jsonl` records it: the cause's fields that are set, `{}` for none."""
         return {**self.model_dump(mode="json", exclude={"cause"}), "cause": self.cause.to_dict() if self.cause is not None else {}}
 
@@ -315,7 +315,7 @@ class RunInfo(BaseModel):
 class HistoryEntry(BaseModel):
     """One transition, run- and unit-level alike: `{name, at}`."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
 
     name: str
     at: datetime
@@ -330,7 +330,7 @@ class Inflight(BaseModel):
     fact rather than a guess about how long a launch should take.
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
 
     item_ids: list[str] = Field(default_factory=list)
     since: datetime
@@ -348,7 +348,7 @@ class UnitCursor(BaseModel):
     `loop_pass` is the pass number of a loop inside the step (0 until a loop records one).
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
 
     stage: str | None = None
     step: str | None = None
@@ -366,7 +366,7 @@ class Cursor(BaseModel):
     `list[dict]` rather than per-key models.
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", validate_assignment=True)
 
     schema_version: str
     run: str
@@ -374,5 +374,5 @@ class Cursor(BaseModel):
     completed_stages: list[str] = Field(default_factory=list)
     history: list[HistoryEntry] = Field(default_factory=list)
     units: dict[str, UnitCursor] = Field(default_factory=dict)
-    markers: dict[str, list[dict]] = Field(default_factory=dict)
+    markers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
     updated_at: datetime

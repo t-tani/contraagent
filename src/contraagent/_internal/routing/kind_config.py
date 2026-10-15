@@ -11,6 +11,7 @@ listing and walking a decompiler.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
+from typing import Any
 
 from contraagent._internal.backends.launch import Limits
 from contraagent._internal.dispatch.task import kind_name
@@ -57,7 +58,7 @@ class KindConfig:
     retry_backoff_base: float = 2.0
 
     @classmethod
-    def build(cls, defaults: dict, overrides: dict | None) -> KindConfig:
+    def build(cls, defaults: dict[str, Any], overrides: dict[str, Any] | None) -> KindConfig:
         """Merge defaults with per-kind overrides. Unknown keys are dropped."""
         d = dict(defaults)
         d.update({k: v for k, v in (overrides or {}).items() if k in cls.__dataclass_fields__})
@@ -77,7 +78,7 @@ class KindConfig:
             max_denials=self.max_denials,
         )
 
-    def with_(self, **changes) -> KindConfig:
+    def with_(self, **changes: Any) -> KindConfig:
         return replace(self, **changes)
 
 
@@ -100,7 +101,7 @@ TASK_TABLE_KEYS: dict[str, type | tuple[type, ...]] = {
 assert set(TASK_TABLE_KEYS) <= {f.name for f in fields(KindConfig)}
 
 
-def configs_from_tables(kinds, tables: dict[str, dict] | None = None) -> dict:
+def configs_from_tables(kinds, tables: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Per-kind KindConfig from the config's `[tasks.<kind>]` tables.
 
     A kind with no table gets the bare field defaults; `require_budgets`
@@ -110,7 +111,9 @@ def configs_from_tables(kinds, tables: dict[str, dict] | None = None) -> dict:
     return {k: KindConfig.build({}, tables.get(kind_name(k))) for k in kinds}
 
 
-def require_budgets(configs: dict, tables: dict[str, dict], required: tuple[str, ...] = ("max_turns", "timeout_s")) -> None:
+def require_budgets(
+    configs: dict[str, Any], tables: dict[str, dict[str, Any]], required: tuple[str, ...] = ("max_turns", "timeout_s")
+) -> None:
     """Fail loudly on a kind whose budgets the config never set.
 
     The question is "did the config say so", not "does the value look like
@@ -125,7 +128,7 @@ def require_budgets(configs: dict, tables: dict[str, dict], required: tuple[str,
         raise ValueError("; ".join(errors))
 
 
-def with_context_warn(configs: dict, default_pct: int | None) -> dict:
+def with_context_warn(configs: dict[str, Any], default_pct: int | None) -> dict[str, Any]:
     """Give `[defaults].context_warn_pct` to each kind that has a `context_budget` and no
     `context_warn_pct` of its own."""
     if default_pct is None:
@@ -133,7 +136,7 @@ def with_context_warn(configs: dict, default_pct: int | None) -> dict:
     return {k: c.with_(context_warn_pct=default_pct) if c.context_budget and c.context_warn_pct is None else c for k, c in configs.items()}
 
 
-def context_warn_problems(configs: dict) -> list[str]:
+def context_warn_problems(configs: dict[str, Any]) -> list[str]:
     """One message per kind with a `context_warn_pct` but no `context_budget` to be a percent of."""
     return sorted(
         f"kind {kind_name(k)} has context_warn_pct = {c.context_warn_pct} but no context_budget: "
@@ -143,7 +146,9 @@ def context_warn_problems(configs: dict) -> list[str]:
     )
 
 
-def missing_budgets(configs: dict, tables: dict[str, dict], required: tuple[str, ...] = ("max_turns", "timeout_s")) -> list[str]:
+def missing_budgets(
+    configs: dict[str, Any], tables: dict[str, dict[str, Any]], required: tuple[str, ...] = ("max_turns", "timeout_s")
+) -> list[str]:
     """What `require_budgets` refuses: one message per kind without its budgets."""
     out = []
     for k in configs:

@@ -99,8 +99,8 @@ class TaskFailed(Exception):
     def __init__(self, result: TaskResult, item: Any = None) -> None:
         self.result = result
         self.item = item
-        self.stop = result.stop
-        self.key = result.task.key
+        self.stop: str = result.stop
+        self.key: str = result.task.key
         detail = f": {result.reason}" if result.reason else ""
         super().__init__(f"task {self.key} {self.stop}{detail}")
 
@@ -179,7 +179,7 @@ class FlowCall:
     `time_box`; `started_at` (`time.time()`): when it started."""
 
     id: str
-    gen: GeneratorType = field(repr=False)
+    gen: Generator[Any, Any, Any] = field(repr=False)
     parent: FlowCall | None = field(default=None, repr=False)
     function: str = ""
     site: tuple[str, int] | None = None
@@ -252,7 +252,7 @@ class FlowDriver:
 
     # --- the cycle -----------------------------------------------------------
 
-    def run(self, queue: WorkQueue, *flows: Generator) -> dict:
+    def run(self, queue: WorkQueue, *flows: Generator[Any, Any, Any]) -> dict[str, Any]:
         """Start every flow on `queue`, run it, close what is left; the queue's
         summary. Sets the queue's `follow_up`, and `past_grace` to its
         `past_hard_stop` unless one was given."""
@@ -266,7 +266,7 @@ class FlowDriver:
         finally:
             self.finish()
 
-    def start(self, flow: Generator) -> list[Task]:
+    def start(self, flow: Generator[Any, Any, Any]) -> list[Task]:
         """Run a top flow to its first wait; the tasks to queue."""
         if not isinstance(flow, GeneratorType):
             raise TypeError(f"a flow call is a generator, not {type(flow).__name__}")
@@ -485,8 +485,10 @@ def _task_itself(item: Any) -> Task:
     raise TypeError(f"a flow yields a Task, a generator (or a time_box of one), or a list or tuple of them, not {type(item).__name__}")
 
 
-def _site(gen: GeneratorType) -> tuple[str, int] | None:
+def _site(gen: Generator[Any, Any, Any]) -> tuple[str, int] | None:
     """Where `gen` is suspended: the innermost generator of its `yield from` chain."""
+    if not isinstance(gen, GeneratorType):
+        return None
     inner = gen.gi_yieldfrom
     while isinstance(inner, GeneratorType):
         gen, inner = inner, inner.gi_yieldfrom

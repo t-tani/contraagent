@@ -9,15 +9,24 @@ A class's annotations are strings (`from __future__ import annotations`) that re
 the module that defines it; `typing.get_type_hints` and pydantic look them up in the
 module `__module__` names. So before a class moves, its own annotations, and its
 dataclass fields' types, are resolved where they were written.
+
+A name that leaves a public module stays readable there for a deprecation period: the
+module sets `__getattr__ = migration(__name__, moved={...}, removed={...})`. A moved name
+warns `ContraagentDeprecationWarning` and gives the object from its new home; a removed
+name raises `AttributeError` saying what to use instead.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import inspect
 import sys
-from collections.abc import Iterable
+import warnings
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
+
+from contraagent._internal.errors import ContraagentDeprecationWarning
 
 _INTERNAL = __name__.rpartition(".")[0]
 
@@ -57,3 +66,43 @@ def _resolve_annotations(cls: type) -> None:
         for field in cls.__dict__.get("__dataclass_fields__", {}).values():
             if field.name in own and isinstance(field.type, str):
                 field.type = resolved[field.name]
+
+
+def migration(
+    module: str,
+    *,
+    moved: Mapping[str, str] | None = None,
+    removed: Mapping[str, str] | None = None,
+    fallback: Callable[[str], Any] | None = None,
+) -> Callable[[str], Any]:
+    """A `__getattr__` for public module `module` that answers for the names that left it.
+
+    `moved`: an old name -> its new home, `"contraagent.engine:Run"`; reading the old name
+    warns `ContraagentDeprecationWarning` and gives that object. `removed`: an old name ->
+    what to use instead, in words; reading it raises `AttributeError` saying so.
+    `fallback`: the module's own `__getattr__` for any other name (a name imported when
+    first used); without it, any other name raises the usual `AttributeError`."""
+    moved = dict(moved or {})
+    removed = dict(removed or {})
+    if overlap := sorted(set(moved) & set(removed)):
+        raise ValueError(f"{module}: {', '.join(overlap)} both moved and removed")
+    for name, target in moved.items():
+        if target.count(":") != 1:
+            raise ValueError(f"{module}.{name}: {target!r} is not 'module:name'")
+
+    def __getattr__(name: str) -> Any:
+        if name in moved:
+            target_module, _, target_name = moved[name].partition(":")
+            warnings.warn(
+                f"{module}.{name} moved to {target_module}.{target_name}; import it from there",
+                ContraagentDeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(importlib.import_module(target_module), target_name)
+        if name in removed:
+            raise AttributeError(f"{module}.{name} was removed; {removed[name]}", name=name, obj=sys.modules.get(module))
+        if fallback is not None:
+            return fallback(name)
+        raise AttributeError(f"module {module!r} has no attribute {name!r}", name=name, obj=sys.modules.get(module))
+
+    return __getattr__

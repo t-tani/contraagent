@@ -24,15 +24,16 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from typing import Any
 
 from contraagent._internal.backends import backend_class
 
 #: Stream formats a caller registered (`register_normalizer`), and their plain-text readers.
-_NORMALIZERS: dict[str, Callable] = {}
-_PLAINTEXT_FALLBACK: dict[str, Callable] = {}
+_NORMALIZERS: dict[str, Callable[..., Any]] = {}
+_PLAINTEXT_FALLBACK: dict[str, Callable[..., Any]] = {}
 
 
-def _normalizers(format: str) -> tuple[Callable | None, Callable | None]:
+def _normalizers(format: str) -> tuple[Callable[..., Any] | None, Callable[..., Any] | None]:
     """The event normalizer and the plain-text one of stream format `format`."""
     if format in _NORMALIZERS:
         return _NORMALIZERS[format], _PLAINTEXT_FALLBACK.get(format)
@@ -43,7 +44,11 @@ def _normalizers(format: str) -> tuple[Callable | None, Callable | None]:
     return wire.normalize_event, (wire.normalize_text_line if cls is not None and cls.plaintext_stream else None)
 
 
-def register_normalizer(format: str, normalize_event, plaintext=None) -> None:
+def register_normalizer(
+    format: str,
+    normalize_event: Callable[[dict[str, Any]], dict[str, Any] | list[dict[str, Any]] | None],
+    plaintext: Callable[[str], dict[str, Any] | None] | None = None,
+) -> None:
     """Teach the monitor to render a custom `Backend`'s stream, as stream format `format`
     (usually the coding agent's name).
 
@@ -74,7 +79,7 @@ def resolve_format(agent: str, aliases: dict[str, str] | None = None) -> str:
 _LAUNCH_PROMPT_CAP = 200_000
 
 
-def _launch_event(ev: dict) -> dict:
+def _launch_event(ev: dict[str, Any]) -> dict[str, Any]:
     """A `launch` marker (written by `Backend.mark_launch`
     at the head of each invocation's stream append) passed through to the
     client, backend-agnostically. It is neither backend's wire vocabulary --
@@ -85,7 +90,7 @@ def _launch_event(ev: dict) -> dict:
     as the per-invocation tab boundary and as the source of the command-line
     and prompt header each tab shows."""
     prompt = str(ev.get("prompt") or "")
-    out: dict = {
+    out: dict[str, Any] = {
         "type": "launch",
         "ts": ev.get("ts"),
         "argv": [str(a) for a in (ev.get("argv") or [])],
@@ -101,7 +106,7 @@ def _launch_event(ev: dict) -> dict:
     return out
 
 
-def normalize_stream_line(format: str, raw_line: str) -> list[dict]:
+def normalize_stream_line(format: str, raw_line: str) -> list[dict[str, Any]]:
     """The renderable events of one stream line, in order: none, one, or (a format whose
     one line holds a tool call and its result, opencode's) several.
 

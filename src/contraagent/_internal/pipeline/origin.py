@@ -22,9 +22,10 @@ code (its examples excepted) nor the standard library.
 from __future__ import annotations
 
 import sysconfig
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 from types import FrameType, GeneratorType
+from typing import Any
 
 from contraagent._internal.dispatch.records import Frame, Loop
 
@@ -53,7 +54,7 @@ def frames_here(start: FrameType | None, loops: LoopsOf | None = None) -> tuple[
     return tuple(reversed(out))
 
 
-def generator_frames(gen: GeneratorType, loops: LoopsOf | None = None) -> tuple[Frame, ...]:
+def generator_frames(gen: Generator[Any, Any, Any], loops: LoopsOf | None = None) -> tuple[Frame, ...]:
     """Where `gen` is suspended: its frame, then each generator of its `yield from` chain."""
     out: list[Frame] = []
     g: object = gen

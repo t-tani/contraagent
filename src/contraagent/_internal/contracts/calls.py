@@ -21,7 +21,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -41,7 +41,7 @@ class SchemaRef(BaseModel):
 
 
 class CallOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)
 
     path: str
     format: Literal["json", "text"] = "json"
@@ -60,7 +60,7 @@ class CallOutput(BaseModel):
 class CallFile(BaseModel):
     """One agent task's call: who it is, what it is given, what it must leave behind."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     version: int = 1
     run: str

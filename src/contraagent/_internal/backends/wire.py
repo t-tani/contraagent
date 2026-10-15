@@ -19,7 +19,7 @@ import json
 import logging
 from collections import Counter
 from collections.abc import Iterator
-from typing import Self
+from typing import Any, Self
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop, Usage, note_web_query
 from contraagent._internal.backends.refusal import Ending, Signals, classify_stop
@@ -32,7 +32,7 @@ TOOL_ARGS_MAX = 20
 TOOL_ARG_CHARS = 500
 
 
-def parse_line(raw: bytes | str) -> dict | None:
+def parse_line(raw: bytes | str) -> dict[str, Any] | None:
     """One wire line as an event: a JSON object, else None (blank, not JSON, not an object)."""
     text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
     if not text.strip():
@@ -44,7 +44,7 @@ def parse_line(raw: bytes | str) -> dict | None:
     return ev if isinstance(ev, dict) else None
 
 
-def iter_jsonl(data: bytes) -> Iterator[dict]:
+def iter_jsonl(data: bytes) -> Iterator[dict[str, Any]]:
     """Every event of a finished output, in order (`parse_line` of each line)."""
     for raw in data.split(b"\n"):
         ev = parse_line(raw)
@@ -73,7 +73,7 @@ def first_text(args: object, *keys: str) -> str:
     return str(next((args[k] for k in keys if args.get(k)), "") or "")
 
 
-def tool_preview(cmd: object, *, web_query: bool = False, web_fetch: bool = False) -> dict:
+def tool_preview(cmd: object, *, web_query: bool = False, web_fetch: bool = False) -> dict[str, Any]:
     """A tool call's one-line preview for the monitor (`cmd`, cut at 800 characters): also its
     query when it is a web search (`web_query`), its URL when it reads a web page (`web_fetch`)."""
     text = str(cmd or "")[:800]
@@ -102,12 +102,12 @@ class EventFold:
     def __init__(self) -> None:
         self.saw_any = False
         self.session_id = ""
-        self.tool_uses: Counter = Counter()
+        self.tool_uses: Counter[str] = Counter()
         self.tool_args: dict[str, list[str]] = {}
         self.web_queries: list[str] = []
         self.calls: list[CallUsage] = []
         self.cost: float | None = None
-        self.unread: Counter = Counter()
+        self.unread: Counter[str] = Counter()
         #: The model's context window, when the wire reports one.
         self.context_window: int | None = None
 
@@ -118,7 +118,7 @@ class EventFold:
         ev = parse_line(raw)
         return self.feed(ev) if ev is not None else None
 
-    def feed(self, ev: dict) -> Stop | None:
+    def feed(self, ev: dict[str, Any]) -> Stop | None:
         """One event. A `Stop` ends the launch there."""
         raise NotImplementedError
 
@@ -179,7 +179,7 @@ class EventFold:
                 f"[{self.agent}] event {typ!r} is not one this contraagent reads; a newer {self.agent}? (LaunchResult.unread_events)"
             )
 
-    def launch_result(self, launch: Launch, agent: str, stop: Stop, *, exit_code: int | None, **fields) -> LaunchResult:
+    def launch_result(self, launch: Launch, agent: str, stop: Stop, *, exit_code: int | None, **fields: Any) -> LaunchResult:
         """The `LaunchResult` with what every wire reports alike, and `fields` over it."""
         self.warn_unread()
         base = dict(
@@ -214,9 +214,9 @@ class LimitsWatch:
 
     def __init__(self, limits: Limits, watched: frozenset[str], fold: EventFold):
         self.fold = fold
-        self.context = limits.context_budget if "context_budget" in watched else None
-        self.budget = limits.max_budget_usd if "max_budget_usd" in watched else None
-        self.turns = limits.max_turns if "max_turns" in watched else None
+        self.context: int | None = limits.context_budget if "context_budget" in watched else None
+        self.budget: float | None = limits.max_budget_usd if "max_budget_usd" in watched else None
+        self.turns: int | None = limits.max_turns if "max_turns" in watched else None
         self._seen = 0  # calls already checked against the context budget
 
     def __call__(self) -> Stop | None:

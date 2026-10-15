@@ -31,7 +31,7 @@ from contraagent._internal.backends.omp import wire as omp_wire
 from contraagent._internal.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, prompt_args, session_args
 from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import LaunchError
-from contraagent._internal.backends.refusal import FAILED_STOPS
+from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
@@ -139,7 +139,7 @@ class OmpRpcBackend(OmpBackend):
     plaintext_stream = False
     # No exit status to weigh: a process that ended before any agent event is a launch
     # failure, and a quota refusal it printed on stderr makes it `rate_limited`.
-    signals = dataclasses.replace(omp_wire.SIGNALS, stderr_stops=FAILED_STOPS | {Stop.LAUNCH_FAILED})
+    signals: Signals = dataclasses.replace(omp_wire.SIGNALS, stderr_stops=FAILED_STOPS | {Stop.LAUNCH_FAILED})
 
     def argv(self, launch: Launch) -> list[str]:
         a = [self.binary, "--mode", "rpc"]

@@ -178,7 +178,7 @@ class Node:
     params: dict[str, Any]
     after: tuple[str, ...]
     output_path: Path | None
-    upstream: list[Pending] = field(default_factory=list)
+    upstream: list[Pending[Any]] = field(default_factory=list)
     #: Its `changes` patterns, with `{unit}`, `{key}` and `{kind}` filled in.
     changes: tuple[str, ...] = ()
     #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
@@ -264,7 +264,7 @@ class Graph:
         self._reached: dict[str, Any] = {}  # agent kind with no task yet -> the reachable declaration routed
         self._named: dict[int, Any] = {}  # id(spec) -> every declaration reached or created, for `kind_clash`
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
-        self._produced: dict[int, tuple[Any, Pending]] = {}  # id(output) -> (output, its Pending)
+        self._produced: dict[int, tuple[Any, Pending[Any]]] = {}  # id(output) -> (output, its Pending)
         self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
         self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
         self._taken = 0
@@ -322,10 +322,10 @@ class Graph:
         *,
         unit: str,
         key: str | None,
-        after: Sequence[Pending | str],
+        after: Sequence[Pending[Any] | str],
         params: dict[str, Any],
         priority: float = 0.0,
-    ) -> Pending:
+    ) -> Pending[Any]:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
         stem: str = f"{spec.kind}-{unit}" if unit else spec.kind
@@ -416,7 +416,7 @@ class Graph:
             raise TypeError(f"{item.key} was created by another run")
         raise TypeError(f"a flow yields what a task call returns, a generator, or a list or tuple of them, not {type(item).__name__}")
 
-    def answer(self, item: Pending, result: TaskResult) -> Any:
+    def answer(self, item: Pending[Any], result: TaskResult) -> Any:
         """What a flow receives for a finished task: its checked output (None for a task
         with no output). `TaskFailed` / `TaskDeferred` for one that did not succeed, and
         `TaskFailed` (`invalid_output`) for an output that no longer passes its checks."""
@@ -580,7 +580,7 @@ class Graph:
         if node.spec.executor == "agent":
             return task
 
-        def call(node: Node = node) -> Partial | None:
+        def call(node: Node = node) -> Partial[Any] | None:
             """Run the function and write its output; a `Partial` it returned, for the runner."""
             schema = node.output_schema
             partial = None
@@ -706,7 +706,7 @@ def _tracked(value: Any) -> bool:
     return isinstance(value, (BaseModel, list, dict, set, TextOutput)) or (type(value) is tuple and len(value) > 0)
 
 
-def _pendings(values) -> Iterator[Pending]:
+def _pendings(values) -> Iterator[Pending[Any]]:
     for v in values:
         if isinstance(v, Pending):
             yield v

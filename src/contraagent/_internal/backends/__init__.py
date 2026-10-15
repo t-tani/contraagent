@@ -21,6 +21,8 @@ needs the list of known agents reads it from here.
 
 from __future__ import annotations
 
+from typing import Any
+
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.claude import ClaudeBackend
 from contraagent._internal.backends.codex import CodexBackend
@@ -71,7 +73,7 @@ def known_agents() -> tuple[str, ...]:
     return tuple(_REGISTRY)
 
 
-def create_backend(name: str, **kwargs) -> Backend:
+def create_backend(name: str, **kwargs: Any) -> Backend:
     """A new backend for a registered name. Unknown names raise KeyError."""
     cls = _REGISTRY.get(name)
     if cls is None:

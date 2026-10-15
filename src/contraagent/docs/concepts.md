@@ -158,6 +158,12 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a
 `TextOutput`, a `str`.
 
+## The Python API
+
+| Word | Means | In code |
+|---|---|---|
+| **deprecated name** | a public name that a later major release removes or renames, still read in its public module until then (from 1.0, for at least two minor releases: [compatibility](compatibility.md)): a moved name warns and gives the object from its new home, a removed name raises `AttributeError` saying what to use instead | `ContraagentDeprecationWarning`; a public module's `__getattr__ = migration(...)` |
+
 ## The monitor
 
 | Word | Means | In code |

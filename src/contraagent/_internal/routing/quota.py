@@ -52,6 +52,7 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -99,7 +100,7 @@ class QuotaCap(BaseModel):
     """One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`):
     the utilization (%) of a window past which it rests; None for a window with no cap."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     credential: str
     five_hour_pct: float | None = None
@@ -144,9 +145,9 @@ class QuotaRests:
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.credentials = dict(credentials)
+        self.credentials: dict[str, Credential] = dict(credentials)
         self.rule = rule
-        self.finishing_kinds = frozenset(finishing_kinds)
+        self.finishing_kinds: frozenset[str] = frozenset(finishing_kinds)
         self.grace_s = grace_s
         self.on_change = on_change
         self._now = now

@@ -32,7 +32,7 @@ import dataclasses
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import ClassVar, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -218,7 +218,7 @@ class DroppedRoute(BaseModel):
     """A route the preflight dropped: not in its agent's model list, or its probe did not
     complete. `kinds`: the kinds whose chain held it."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     agent: str
     model: str = Field(description="empty: the coding agent's default model")
@@ -233,7 +233,7 @@ class DroppedRoute(BaseModel):
 class Substitution(BaseModel):
     """A kind with no route left, run on the first route that answered (`substitute`)."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     kind: str
     from_agent: str
@@ -245,7 +245,7 @@ class Substitution(BaseModel):
 class KeptKind(BaseModel):
     """A kind with no route left, run as configured all the same (`substitute`), and why."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     kind: str
     agent: str
@@ -258,7 +258,7 @@ class PreflightRecord(BaseModel):
     it dropped, and, for each kind left with no route, its substitution, the kind kept
     as configured, or the kind that stopped the run (`stopped`)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     policy: PreflightPolicy = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
     dropped: list[DroppedRoute] = Field(default_factory=list)

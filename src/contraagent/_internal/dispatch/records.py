@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import timedelta
-from typing import Any, Literal, NamedTuple
+from typing import Any, ClassVar, Literal, NamedTuple
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -37,7 +37,7 @@ class Loop(BaseModel):
     """A `for` or `while` loop of a generator around a call site, and the pass the call
     site was in."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
 
     line: int = Field(description="the loop's first line, which names it")
     pass_: int | None = Field(
@@ -51,7 +51,7 @@ class Frame(BaseModel):
     """One frame of a flow path (outermost first): a call site in flow code where a task
     was created. A comprehension is not a loop."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True, serialize_by_alias=True)
 
     function: str = Field(description="`module.qualname`")
     file: str = Field(description="relative to the run's working directory when under it, else as recorded")
@@ -69,7 +69,7 @@ class Changes(BaseModel):
     """The files one attempt changed under its task's `changes` patterns, as paths relative
     to the working directory: those it `created`, `modified` and `deleted`."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     created: tuple[str, ...] = ()
     modified: tuple[str, ...] = ()
@@ -85,7 +85,7 @@ class TokenUsage(BaseModel):
     """Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)
     or one hop's (`Hop.usage`)."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     input: int = 0
     output: int = 0
@@ -109,7 +109,7 @@ class TokenUsage(BaseModel):
 class OtherModel(BaseModel):
     """What a hop spent on a model other than its own (`Hop.other_models`)."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     #: Part of the hop's `cost_usd`; None when the coding agent reported none.
     cost_usd: float | None = None
@@ -134,7 +134,7 @@ class Hop(BaseModel):
     """One launch of an attempt on one route of its failover chain: where it ran and how
     it ended."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     #: The route's label in its chain (`Route.label`).
     route: str = ""
@@ -195,7 +195,7 @@ def window_words(name: str) -> str:
 class QuotaWindow(BaseModel):
     """One window of a reading: its utilization (%) and when it resets (ISO 8601)."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     pct: float | None = None
     resets_at: str | None = None
@@ -208,7 +208,7 @@ class QuotaReading(BaseModel):
     same account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's
     `quota` an attempt's that give a 5-hour or weekly utilization."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     #: When this process received the reading (UTC ISO 8601). The utilization is
     #: account-wide, as of the API call it came with.
@@ -278,7 +278,7 @@ class Rest(BaseModel):
     window resets, for a cap; for the rule, the end it gave, else when the reading it judged
     stops standing (its earliest reset); empty when unknown."""
 
-    model_config = ConfigDict(extra="allow", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
     credential: str
     window: Literal["", Window] = ""
@@ -290,7 +290,7 @@ class Rest(BaseModel):
     account: str = ""
     #: The reading the quota rule judged: `{observed_at, windows: {<window>: {pct, resets_at}}}`;
     #: None for a cap's rest.
-    reading: dict | None = None
+    reading: dict[str, Any] | None = None
 
     def text(self) -> str:
         """The rest in one line, for logs and the CLI: `personal rests: 5-hour usage 93%, max 90%`."""
@@ -298,7 +298,7 @@ class Rest(BaseModel):
             return f"{self.credential} rests: {self.rule}"
         return f"{self.credential} rests: {window_words(self.window)} usage {self.pct or 0:.0f}%, max {self.cap or 0:g}%"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """The rest as `rests.jsonl` and a deferral's cause record it: a cap's rest names no reading."""
         return self.model_dump(mode="json", exclude={"reading"} if self.reading is None else None)
 
@@ -333,7 +333,7 @@ class DeferralCause(BaseModel):
     `rests`), or a runner's own name. A field a cause does not have is left unset, and
     `deferred.jsonl` records only the fields set."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     cause: str
     need_s: float | None = Field(default=None, description="`cannot_finish`: the work it needed, in seconds")
@@ -344,7 +344,7 @@ class DeferralCause(BaseModel):
     )
     rests: tuple[SkippedHop, ...] = Field(default=(), description="`rest`: each hop passed over and why its credential rests")
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """The cause as `deferred.jsonl` records it: the fields set."""
         return self.model_dump(mode="json", exclude_unset=True)
 
@@ -355,7 +355,7 @@ class DeferralCause(BaseModel):
 class TimeBoxRecord(BaseModel):
     """A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
     started_at: str = Field(description="when the flow call started, where its deadline counts from (UTC ISO 8601)")
     deadline_s: float = Field(description="seconds from `started_at` to the deadline")

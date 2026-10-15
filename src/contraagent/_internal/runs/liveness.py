@@ -13,7 +13,7 @@ processes.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from typing import Protocol
+from typing import Any, Protocol
 
 from contraagent._internal.runs.names import check_name
 from contraagent._internal.runs.source import RunSource
@@ -26,7 +26,7 @@ class Liveness(Protocol):
         """The ids of the runs whose driving process is alive."""
         ...
 
-    def snapshot(self, run: str) -> dict:
+    def snapshot(self, run: str) -> dict[str, Any]:
         """One run's live processes (see the module's docstring)."""
         ...
 
@@ -34,13 +34,13 @@ class Liveness(Protocol):
         """The ids of the runs last reported alive whose host has stopped reporting."""
         ...
 
-    def hosts(self) -> list[dict]:
+    def hosts(self) -> list[dict[str, Any]]:
         """The hosts that drive these runs: `{host_id, up, last_seen, interval_s}`;
         `last_seen` is when the host last reported (ISO 8601, "" when not reported)."""
         ...
 
 
-def empty_snapshot(run: str, info: dict | None, alive: bool) -> dict:
+def empty_snapshot(run: str, info: dict[str, Any] | None, alive: bool) -> dict[str, Any]:
     """A snapshot with no processes: what `run.json` says about the run, and whether it is live."""
     info = info or {}
     return {
@@ -61,7 +61,7 @@ class StaticLiveness:
     """Liveness given outright: the live run ids and each run's snapshot. A run with no
     snapshot given has no processes, and the run facts its `source` holds."""
 
-    def __init__(self, source: RunSource, live: Iterable[str] = (), snapshots: Mapping[str, dict] | None = None) -> None:
+    def __init__(self, source: RunSource, live: Iterable[str] = (), snapshots: Mapping[str, dict[str, Any]] | None = None) -> None:
         self.source = source
         self._live = set(live)
         self._snapshots = dict(snapshots or {})
@@ -69,7 +69,7 @@ class StaticLiveness:
     def live(self) -> set[str]:
         return set(self._live)
 
-    def snapshot(self, run: str) -> dict:
+    def snapshot(self, run: str) -> dict[str, Any]:
         check_name(run, "run id")
         if run in self._snapshots:
             return self._snapshots[run]
@@ -78,5 +78,5 @@ class StaticLiveness:
     def unresponsive(self) -> set[str]:
         return set()
 
-    def hosts(self) -> list[dict]:
+    def hosts(self) -> list[dict[str, Any]]:
         return []

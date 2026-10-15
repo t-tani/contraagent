@@ -121,7 +121,7 @@ def _run_dir(call: str) -> Path:
     return _current_run(call).dir
 
 
-def pipeline_table(name: str) -> dict:
+def pipeline_table(name: str) -> dict[str, Any]:
     """`[pipeline.<name>]` of the config the current run was started with: a pipeline
     table, the pipeline's own settings, as parsed (`PipelineConfig.table`). Empty when the
     file has none, or the run has no config file. NoCurrentRun outside a run."""

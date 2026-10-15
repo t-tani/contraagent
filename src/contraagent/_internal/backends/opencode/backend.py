@@ -24,8 +24,8 @@ import os
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from types import MappingProxyType
-from typing import ClassVar
+from types import MappingProxyType, ModuleType
+from typing import Any, ClassVar
 
 from contraagent._internal.backends import opencode_key, plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
@@ -48,7 +48,7 @@ from contraagent._internal.backends.opencode import catalogue
 from contraagent._internal.backends.opencode import wire as opencode_wire
 from contraagent._internal.backends.opencode_key import OpencodeKeyAccount
 from contraagent._internal.backends.process import Sink, via_stdin
-from contraagent._internal.backends.refusal import quota_refusal
+from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold
 
 #: Added to every launch: no project config, `AGENTS.md` or `.opencode/` directory, none of
@@ -105,7 +105,7 @@ def _patterns(key: str, pattern: str, cwd: Path) -> list[str]:
     return [pattern]
 
 
-def permission_rules(denied: tuple[str, ...], permission: dict, cwd: Path) -> dict:
+def permission_rules(denied: tuple[str, ...], permission: dict[str, Any], cwd: Path) -> dict[str, Any]:
     """`permission` (opencode's, from a role's `tools:`) narrowed by `Limits.disallowed_tools`
     (Claude Code's names and patterns: `Bash(git push:*)`, `Read(secrets/**)`, `WebFetch`):
     a whole tool denied, or a pattern after the rule the tool had (`{"*": "allow", "git
@@ -142,7 +142,7 @@ def role_tools(role_file: Path) -> list[str] | None:
     return None
 
 
-def mcp_servers(mcp_config: str) -> dict:
+def mcp_servers(mcp_config: str) -> dict[str, Any]:
     """A Claude Code `.mcp.json` (`mcpServers`) as opencode's `mcp`."""
     out = {}
     for name, s in plugin_files.mcp_servers(mcp_config).items():
@@ -164,17 +164,17 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
     binary = "opencode"
     # `--variant` takes the model's own reasoning levels, which differ by provider
     # (`opencode models --verbose` lists each model's): not checked here.
-    effort_levels = None
+    effort_levels: tuple[str, ...] | None = None
     # A light launch runs as `LIGHT_AGENT`: its prompt replaces opencode's, every tool
     # is denied, and the user's config is not read.
     light_launch = True
-    wire = opencode_wire
-    signals = opencode_wire.SIGNALS
+    wire: ModuleType | None = opencode_wire
+    signals: Signals = opencode_wire.SIGNALS
     # opencode has no flag for a cost cap or one call's input: each API call's cost and
     # input, as its `step_finish` reports them.
-    watched_limits = frozenset({"max_budget_usd", "context_budget"})
+    watched_limits: frozenset[str] = frozenset({"max_budget_usd", "context_budget"})
     # `opencode models --verbose` lists every provider's models with their details.
-    catalogue_timeout_s = 60.0
+    catalogue_timeout_s: float = 60.0
     # Claude Code's tool names (a role's `tools:`, `Limits.disallowed_tools`) as opencode's permissions.
     PERMISSION_OF: ClassVar[Mapping[str, str]] = MappingProxyType(
         {
@@ -234,12 +234,12 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
             a += ["--", message]
         return a
 
-    def config(self, launch: Launch) -> dict:
+    def config(self, launch: Launch) -> dict[str, Any]:
         """The opencode config of one launch (`OPENCODE_CONFIG_CONTENT`)."""
         if launch.tools == ():
             prompt = "\n\n".join(x for x in (launch.system_prompt, launch.append_system_prompt) if x)
             return {"agent": {LIGHT_AGENT: {"mode": "primary", "prompt": prompt, "permission": {"*": "deny"}}}}
-        cfg: dict = {}
+        cfg: dict[str, Any] = {}
         instructions = []
         own = Path(launch.plugin_dirs[0]) if launch.plugin_dirs else None
         role_file = own / "agents" / f"{launch.role}.md" if own is not None and launch.role else None
@@ -261,7 +261,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
             servers = mcp_servers(launch.mcp_config) if Path(launch.mcp_config).is_file() else {}
             if servers:
                 cfg["mcp"] = servers
-        permission: dict = {}
+        permission: dict[str, Any] = {}
         allowed = role_tools(role_file) if role_file is not None else None
         if launch.tools:
             allowed = list(launch.tools)
@@ -320,8 +320,8 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         provider = getattr(c, "provider", "")
         check_provider(c, model, provider)
 
-        options: dict = {}
-        entry: dict = {}
+        options: dict[str, Any] = {}
+        entry: dict[str, Any] = {}
         match c:
             case Subscription():
                 login = self._stored_login(provider, env) if env is not None else {"type": "api", "key": "<unresolved>"}
@@ -355,7 +355,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         out["OPENCODE_AUTH_CONTENT"] = "{}"
         return CredentialBinding(out, isolated=True, isolation=f"{where} and no stored login")
 
-    def _stored_login(self, provider: str, env: dict[str, str]) -> dict:
+    def _stored_login(self, provider: str, env: dict[str, str]) -> dict[str, Any]:
         """The login opencode stores for `provider` (`auth.json` in its data directory)."""
         login = opencode_key.stored_login(provider, env)
         if login is None:
@@ -422,7 +422,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
 KNOWN_PROVIDERS = frozenset({"anthropic", "openai", "google", "openrouter", "opencode", "opencode-go"})
 
 
-def _merged(base: dict, over: dict) -> dict:
+def _merged(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
     """`over` merged into `base`, objects key by key."""
     out = dict(base)
     for k, v in over.items():

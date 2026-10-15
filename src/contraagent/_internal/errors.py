@@ -3,8 +3,9 @@
 Each layer defines its own errors next to the code that raises them
 (`ConfigError`, `RoutingError`, `CredentialError`, `LaunchError`, `RunLocked`,
 `PluginError`); all of them derive from `ContraagentError`, so a caller can
-tell "contraagent refused" from a bug with one `except`. This module imports
-nothing else from the package, so any layer can use it.
+tell "contraagent refused" from a bug with one `except`. A deprecated name of a
+public module warns `ContraagentDeprecationWarning` (`public.migration`). This module
+imports nothing else from the package, so any layer can use it.
 """
 
 from __future__ import annotations
@@ -20,3 +21,7 @@ def did_you_mean(word: str, options) -> str:
     """` (did you mean x?)` for the closest of `options`, or "": for messages about a name."""
     close = difflib.get_close_matches(word, sorted(options), n=1, cutoff=0.6)
     return f" (did you mean {close[0]}?)" if close else ""
+
+
+class ContraagentDeprecationWarning(DeprecationWarning):
+    """A deprecated name of a public module was used: it still works, and is removed in a later release."""

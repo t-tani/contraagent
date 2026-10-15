@@ -39,9 +39,11 @@ import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from contraagent._internal.contracts.contract import check_input, record_contracts
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
+from contraagent._internal.dispatch.queue import RunnerConfig, TaskRunner
 from contraagent._internal.dispatch.task import (
     STOP_COMPLETED,
     STOP_ERROR,
@@ -53,7 +55,9 @@ from contraagent._internal.dispatch.task import (
     Task,
     TaskResult,
 )
+from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.pipeline_files import Written, capturing, writing_into
+from contraagent._internal.execution.recording import Recorder, Replay
 from contraagent._internal.execution.runner import RetryingRunner
 from contraagent._internal.routing.config import PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
@@ -85,23 +89,20 @@ class PythonTaskRunner:
     the output check. The function's exception is the attempt's result, so a scope exits
     without one.
 
-    `recorder` (`Recorder.record_python`) keeps each call's recording; `replay`
-    (`Replay.play_python`) plays a call from its recording in place of the function.
+    A pipeline that records or replays gives it its recorder or its replay (`recording`).
     """
 
     def __init__(
         self,
-        inner=None,
+        inner: TaskRunner | None = None,
         *,
-        adapter=None,
+        adapter: TaskAdapter | None = None,
         run_dir: str | Path | None = None,
         cwd: str | Path | None = None,
         on_failed_attempt: Callable[[TaskResult], None] | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
-        recorder=None,
-        replay=None,
     ) -> None:
         """`config`: the config file the run was started with, read by
         `contraagent.pipeline_table` in a Python task."""
@@ -109,15 +110,15 @@ class PythonTaskRunner:
         self._scopes = tuple(scopes)
         self._enrichers = tuple(enrichers)
         self._config = config
-        self._recorder = recorder
-        self._replay = replay
+        self._recorder: Recorder | None = None
+        self._replay: Replay | None = None
         self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
         self._cwd = Path(cwd) if cwd else Path.cwd()
         self._defined: set[str] = set()
 
-    def config(self, task: Task):
+    def config(self, task: Task) -> RunnerConfig:
         if task.fn is not None or self._inner is None:
             return _PythonTaskConfig()
         return self._inner.config(task)
@@ -127,7 +128,7 @@ class PythonTaskRunner:
         ask = getattr(self._inner, "deferral", None) if task.fn is None else None
         return ask(task) if ask is not None else None
 
-    def contracts(self, task: Task) -> tuple[list, list]:
+    def contracts(self, task: Task) -> tuple[list[Any], list[Any]]:
         """(outputs, inputs) declared for `task`, by the task and by the adapter."""
         payload = task.payload
         outs = list(getattr(payload, "output_contracts", ()) or ())
@@ -162,7 +163,7 @@ class PythonTaskRunner:
         except OSError:  # a definition the monitor cannot show must not fail the task
             pass
 
-    def _attempts(self, task: Task, outs: list, ins: list) -> TaskResult:
+    def _attempts(self, task: Task, outs: list[Any], ins: list[Any]) -> TaskResult:
         """Run an attempt, and another after an exception of the task's `retry_on`, up to
         `retries` more; the last attempt's result."""
         retries = getattr(task.payload, "retries", 0)
@@ -181,7 +182,7 @@ class PythonTaskRunner:
             time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
             attempt += 1
 
-    def _attempt(self, task: Task, outs: list, ins: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
+    def _attempt(self, task: Task, outs: list[Any], ins: list[Any], retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """One attempt, as `AgentRunner.run` brackets one of an agent task: each enricher
         snapshots, every scope is entered in order, the attempt runs, the scopes exit in
         reverse, and each enricher enriches the result. A scope that raises fails the task
@@ -194,7 +195,7 @@ class PythonTaskRunner:
             res, retry = self._checked_call(task, outs, ins, retry_on)
         return enriched(snapshots, task, res), retry
 
-    def _checked_call(self, task: Task, outs: list, ins: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
+    def _checked_call(self, task: Task, outs: list[Any], ins: list[Any], retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """Check the inputs, call the function, check the outputs it wrote."""
         bad = [e for c in ins for e in check_input(c, self._cwd)]
         if bad:
@@ -220,7 +221,7 @@ class PythonTaskRunner:
             res = replace(res, ok=False, stop=STOP_INVALID_OUTPUT, reason="; ".join(errors)[:240], round_errors=(tuple(errors[:5]),))
         return res, retry
 
-    def _call(self, task: Task, outs: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
+    def _call(self, task: Task, outs: list[Any], retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """Call the function: its result, and whether it raised an exception of `retry_on`; a
         replay plays the call instead, when it can, and a recorder keeps it. An exception is the
         task's result, never a crash of the queue; a returned `Partial` is an ok result with
@@ -256,3 +257,12 @@ class PythonTaskRunner:
         if self._recorder is not None:
             self._recorder.record_python(task, result, outs, retry, written)
         return result, retry
+
+
+def recording(runner: PythonTaskRunner, recorder: Recorder | None, replay: Replay | None) -> PythonTaskRunner:
+    """`runner`, with `recorder` (`Recorder.record_python`) keeping each call's recording
+    and `replay` (`Replay.play_python`) playing a call from its recording in place of the
+    function: what a pipeline that records or replays gives its Python task runner."""
+    runner._recorder = recorder
+    runner._replay = replay
+    return runner

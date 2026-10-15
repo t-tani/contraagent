@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A validator may take `before`, the output file as it was before the task, parsed as its
+  value is (the model instance, or the text; None when there was no file or it did not meet
+  its schema): `def adds_an_idea(path, backlog: Backlog, *, before: Backlog | None)`. It is
+  the file ahead of the first round on every correction round, for agent and Python tasks
+  alike; the file is read only for a contract with such a validator, and an attempt that does
+  not pass puts it back as it was. A `CommandValidator` is not given it.
+- `Pipeline(scopes=, enrichers=)` wrap each attempt of a Python task too, as they wrap each
+  attempt of an agent task: a scope (`TaskScope`) around its input check, call and output
+  check, retries included; an enricher (`ResultEnricher`) before and after, able to add a
+  `payload` or change `ok` and `stop`. One for some tasks only tests `task.kind` or
+  `task.executor`. `examples/scopes/` starts a local index server for each attempt of a
+  Python task kind.
+- Pipeline tables: a pipeline keeps its own settings in the config file under
+  `[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+  `contraagent.pipeline_table(name)` (`NoCurrentRun` outside a run), other code with
+  `PipelineConfig.table(name)`; either is an empty table when absent. contraagent never
+  checks their keys, and a `pipeline.<name>` that is not a table is refused. `Run(config=)`
+  and `PythonTaskRunner(config=)` take the config file the run was started with.
 #### Tasks and flows
 
 - Generator flows in `Pipeline.run`: a flow that is (or returns) a generator
@@ -1015,6 +1033,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WorkQueue(skip_keys=)` is `skip=`, a function of the task; the queue's
   `follow_up` is a public attribute.
 - Python 3.12 or later (`requires-python = ">=3.12"`).
+
+- `ContraagentDeprecationWarning` (a `DeprecationWarning`), from `contraagent`: what a
+  deprecated name of a public module warns (from 1.0; `compatibility.md`). A moved name still gives its
+  object from its new home, a removed one raises `AttributeError` saying what to use.
+- The public API is fully typed: `pyright --verifytypes contraagent` finds every symbol of
+  the public modules with a declared, known type. `dict` and `list` parameters, returns
+  and fields have their type arguments (`Task.params`, `LaunchResult.raw_result`,
+  `RunReport.summary`, `Monitor` reads, ...), instance attributes and pydantic
+  `model_config` are annotated, and `register_normalizer`, `create_backend`,
+  `CursorStore`, `Run`, `PythonTaskRunner`, `Router` and `RoutingPlan` declare what they
+  take. `CursorStore.record` takes a mapping, `RunnerConfig.max_concurrent` is read-only
+  (a frozen config satisfies it), and `PythonTaskRunner` and `Run.python_runner` no longer
+  take `recorder=` and `replay=` (the pipeline's own wiring).
 
 #### Tasks, flows and routing
 

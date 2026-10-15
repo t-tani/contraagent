@@ -325,3 +325,112 @@ def test_the_task_and_the_result_a_callback_is_given_are_frozen():
     with pytest.raises(dataclasses.FrozenInstanceError):
         result.ok = False  # type: ignore[misc]
     assert dataclasses.replace(result, ok=False).ok is False and result.ok
+
+
+def _snapshot_module():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).with_name("api") / "snapshot.py"
+    spec = importlib.util.spec_from_file_location("api_snapshot", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_api_snapshot_is_current():
+    snapshot = _snapshot_module()
+    assert snapshot.PUBLIC == PUBLIC
+    current = snapshot.render()
+    committed = snapshot.SNAPSHOT.read_text() if snapshot.SNAPSHOT.exists() else ""
+    if current != committed:
+        import difflib
+
+        diff = "".join(difflib.unified_diff(committed.splitlines(True), current.splitlines(True), "committed", "sources", n=1))
+        pytest.fail(f"tests/api/contraagent.api.txt is stale; regenerate it with `{snapshot.COMMAND}`:\n{diff[:4000]}")
+
+
+def test_the_public_modules_are_fully_typed():
+    """`pyright --verifytypes`: every symbol of a public module has a known type, declared
+    rather than inferred. The examples under `contraagent.docs` are installed with the
+    package, so pyright counts them too; they are documentation, not API, and are left out."""
+    import json
+
+    out = subprocess.run(
+        [sys.executable, "-m", "pyright", "--verifytypes", "contraagent", "--ignoreexternal", "--outputjson"],
+        capture_output=True,
+        text=True,
+    ).stdout
+    symbols = json.loads(out)["typeCompleteness"]["symbols"]
+    incomplete = [
+        f"{s['name']}: {'; '.join(d['message'].splitlines()[0] for d in s['diagnostics'] if d['severity'] == 'error')}"
+        for s in symbols
+        if s["isExported"] and not s["name"].startswith("contraagent.docs.") and (not s["isTypeKnown"] or s["isTypeAmbiguous"])
+    ]
+    assert len(symbols) > 200
+    assert incomplete == []
+
+
+def _lazy(name: str) -> object:
+    if name == "lazy":
+        return 42
+    raise AttributeError(name)
+
+
+@pytest.fixture
+def old_module(monkeypatch):
+    """A public module with a moved name, a removed name and a name of its own imported
+    when first used."""
+    from contraagent._internal.public import migration
+
+    module = types.ModuleType("contraagent.old")
+    module.__getattr__ = migration(  # type: ignore[attr-defined]
+        "contraagent.old",
+        moved={"OldRun": "contraagent.engine:Run"},
+        removed={"helper": "use contraagent.engine.Run.cursor"},
+        fallback=_lazy,
+    )
+    monkeypatch.setitem(sys.modules, "contraagent.old", module)
+    return module
+
+
+def test_a_moved_name_warns_and_gives_the_object_from_its_new_home(old_module):
+    from contraagent import ContraagentDeprecationWarning
+    from contraagent.engine import Run
+
+    with pytest.warns(ContraagentDeprecationWarning, match=r"contraagent\.old\.OldRun moved to contraagent\.engine\.Run") as caught:
+        assert old_module.OldRun is Run
+    assert issubclass(ContraagentDeprecationWarning, DeprecationWarning)
+    assert caught[0].filename == __file__
+    with pytest.warns(ContraagentDeprecationWarning):
+        from contraagent.old import OldRun  # type: ignore[import-not-found]
+    assert OldRun is Run
+
+
+def test_a_moved_name_is_an_error_in_the_tests_unless_expected(old_module):
+    from contraagent import ContraagentDeprecationWarning
+
+    with pytest.raises(ContraagentDeprecationWarning):
+        old_module.OldRun
+
+
+def test_a_removed_name_says_what_to_use(old_module):
+    with pytest.raises(AttributeError, match=r"contraagent\.old\.helper was removed; use contraagent\.engine\.Run\.cursor"):
+        old_module.helper
+    assert old_module.lazy == 42
+    with pytest.raises(AttributeError):
+        old_module.never_there
+    assert not hasattr(old_module, "never_there")
+
+
+def test_a_migration_table_is_checked():
+    from contraagent._internal.public import migration
+
+    with pytest.raises(ValueError, match="both moved and removed"):
+        migration("contraagent.old", moved={"a": "contraagent:Task"}, removed={"a": "gone"})
+    with pytest.raises(ValueError, match="not 'module:name'"):
+        migration("contraagent.old", moved={"a": "contraagent.Task"})
+    plain = migration("contraagent.old")
+    with pytest.raises(AttributeError, match="has no attribute 'x'"):
+        plain("x")

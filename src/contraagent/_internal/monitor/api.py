@@ -28,7 +28,7 @@ Bump `API_VERSION` when a field is removed, renamed or changes meaning
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, get_args
+from typing import Annotated, Any, ClassVar, Literal, get_args
 
 from pydantic import (
     BaseModel,
@@ -56,14 +56,14 @@ API_VERSION = "3.4.0"
 class Closed(BaseModel):
     """A shape the monitor builds itself: every key is declared here."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
 class Open(BaseModel):
     """A shape that carries keys another component or a domain chose: the declared
     fields are what the monitor and its UI rely on, the rest pass through."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
 
 #: A JSON object whose keys a domain chooses (a panel's body, a contract file's content).
@@ -208,7 +208,7 @@ class Hosts(Closed):
 class TrendPeriod(Closed):
     """The period: days `from`..`to`, both included, in the time zone `tz` (an IANA name)."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", populate_by_name=True)
 
     from_: str = Field(alias="from", description="the first day, YYYY-MM-DD")
     to: str = Field(description="the last day, YYYY-MM-DD")

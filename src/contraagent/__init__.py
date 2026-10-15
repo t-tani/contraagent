@@ -28,7 +28,7 @@ from contraagent._internal.dispatch.flow import TaskDeferred, TaskFailed, time_b
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResult, TimeBox
-from contraagent._internal.errors import ContraagentError
+from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
 from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
@@ -49,6 +49,7 @@ __all__ = [
     "CheckReport",
     "CommandValidator",
     "ConfigError",
+    "ContraagentDeprecationWarning",
     "ContraagentError",
     "CredentialError",
     "DeferralCause",
