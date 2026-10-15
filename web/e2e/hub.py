@@ -23,13 +23,13 @@ from pathlib import Path
 
 import uvicorn
 
-from contraagent import rundir
 from contraagent._internal.hub.core import Hub
 from contraagent._internal.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent._internal.hub.server import create_hub_app
 from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent._internal.hub.streams import is_stream
-from contraagent._internal.monitor.source import DirectorySource
+from contraagent._internal.runs import layout
+from contraagent.monitor import DirectorySource
 
 QUIET_S = 600  # how long ago h2 last reported
 LIVE = "docs"  # the run each host reports alive
@@ -87,15 +87,15 @@ def ship(hub: Hub, root: Path, host: str, received: datetime, credentials: list[
                 continue
             name = path.relative_to(root / run).as_posix()
             text = path.read_text(errors="replace")
-            if name == rundir.JOURNAL:
+            if name == layout.JOURNAL:
                 text = with_quota(text, credentials, received - timedelta(minutes=20), pct)
-            if name == rundir.RUN_INFO and run == LIVE:
+            if name == layout.RUN_INFO and run == LIVE:
                 text = json.dumps({k: v for k, v in json.loads(text).items() if k != "finished_at"})
             if name.endswith(".jsonl"):
                 logs.append(LogChunk(log=name, offset=0, lines=text.splitlines()))
             else:
                 documents.append(DocumentPut(name=name, text=text))
-        for text in source.folder(run, rundir.CONTRACTS):
+        for text in source.folder(run, layout.CONTRACTS):
             rec = json.loads(text)
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
                 p = Path(spec["path"])
