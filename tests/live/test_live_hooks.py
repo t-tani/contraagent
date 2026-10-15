@@ -133,14 +133,21 @@ def test_a_post_tool_hook_s_objection_is_fixed_in_the_same_session(ws, agent):
     assert row["rounds"] == 1  # in the same session, not a correction round
 
 
-# Fails only when the stop hook runs it (`contraagent call validate` is its parent), so the
-# agent cannot pass it ahead by running it itself, and the runner's own check after the turn
-# passes whatever the file says: the token is in the file only when the stop hook's words
-# reached the agent within the session.
-CHECK = """import os, sys
+# Fails only when the stop hook runs it (`contraagent call validate` is its parent), asking for
+# a word it makes up then (kept beside it, for the next run of the hook and for the test). The
+# agent cannot know the word before the stop hook says it: not from this file, which it may
+# read through its call file, nor from an earlier agent's run in the same directory. The
+# runner's own check after the turn passes whatever the file says, so the word is in the file
+# only when the stop hook's words reached the agent within the session.
+CHECK = """import os, secrets, sys
 parent = open(f"/proc/{os.getppid()}/cmdline", "rb").read().replace(b"\\0", b" ").decode()
-if "call validate" in parent and "PINEAPPLE-42" not in open(sys.argv[1]).read():
-    sys.exit("the file must contain the word PINEAPPLE-42")
+if "call validate" in parent:
+    kept = sys.argv[0] + ".word"
+    if not os.path.exists(kept):
+        open(kept, "w").write("WORD-" + secrets.token_hex(4).upper())
+    word = open(kept).read()
+    if word not in open(sys.argv[1]).read():
+        sys.exit(f"the file must contain the word {word}")
 """
 
 
@@ -149,8 +156,9 @@ if "call validate" in parent and "PINEAPPLE-42" not in open(sys.argv[1]).read():
 def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     if agent not in AGENTS:
         pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")
-    check = ws / "check.py"
+    check = ws / f"check_{agent}.py"
     check.write_text(CHECK)
+    Path(f"{check}.word").unlink(missing_ok=True)
     token = CommandValidator([sys.executable, str(check), "{path}"], name="token")
     plugin = ws / "plugins" / "noter"
     doc = agent_task(f"doc_{agent}", plugin=plugin, output=str, validators=[token], max_turns=16, timeout_s=300, **ROUTES[agent])
@@ -163,4 +171,5 @@ def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     print(f"\n  {agent}: {row['stop']} ok={row['ok']} rounds={row.get('rounds')} hook_errors={row.get('hook_errors')}")
     assert report.ok, report.failed
     assert row["rounds"] == 1 and row["hook_errors"], row  # the stop hook objected; no correction round followed
-    assert "PINEAPPLE-42" in (report.run_dir / "out" / f"doc_{agent}" / f"d-{agent}.md").read_text()
+    word = Path(f"{check}.word").read_text()  # made up when the stop hook first ran the check
+    assert word in (report.run_dir / "out" / f"doc_{agent}" / f"d-{agent}.md").read_text()
