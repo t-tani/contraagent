@@ -115,7 +115,7 @@ def test_no_secret_is_in_the_example():
         with pytest.raises(ValueError, match="no token"):
             (read_ingest_tokens if placeholder.startswith("ingest") else read_read_token)(HUB / "secrets" / placeholder)
     env = _env_file(HUB / ".env.example")
-    assert env["POSTGRES_PASSWORD"] == env["MINIO_ROOT_PASSWORD"] == "change-me"
+    assert env["POSTGRES_PASSWORD"] == env["RUSTFS_SECRET_KEY"] == "change-me"
     assert {p.name for p in (HUB / "secrets").iterdir()} == {"ingest-tokens.example", "read-token.example"}
 
 
@@ -133,7 +133,7 @@ def test_make_tokens_writes_tokens_the_hub_reads_and_keeps_them(tmp_path):
     assert secrets.stat().st_mode & 0o077 == 0
     env = _env_file(tmp_path / ".env")
     assert set(env) == set(_env_file(HUB / ".env.example")) and "change-me" not in env.values()
-    assert env["POSTGRES_PASSWORD"] != env["MINIO_ROOT_PASSWORD"]
+    assert env["POSTGRES_PASSWORD"] != env["RUSTFS_SECRET_KEY"]
     before = (secrets / "ingest-tokens").read_text()
     again = _make_tokens(tmp_path)
     assert again.returncode == 1 and "exists" in again.stderr
@@ -167,15 +167,15 @@ def test_compose_config_validates(tmp_path):
     assert done.returncode == 0, done.stderr
     config = json.loads(done.stdout)
     services = config["services"]
-    assert set(services) == {"hub", "postgres", "minio", "minio-init"}
+    assert set(services) == {"hub", "postgres", "rustfs", "rustfs-init"}
     hub = services["hub"]
     assert {s["source"] for s in hub["secrets"]} == {"ingest-tokens", "read-token"}
     assert {k: v["condition"] for k, v in hub["depends_on"].items()} == {
         "postgres": "service_healthy",
-        "minio": "service_healthy",
-        "minio-init": "service_completed_successfully",
+        "rustfs": "service_healthy",
+        "rustfs-init": "service_completed_successfully",
     }
-    assert all("healthcheck" in services[s] for s in ("hub", "postgres", "minio"))
+    assert all("healthcheck" in services[s] for s in ("hub", "postgres", "rustfs"))
     assert hub["ports"][0]["target"] == 8790
     assert Path(hub["build"]["context"]) == REPO
     assert not any("PASSWORD" in arg or "secret" in arg.lower() for arg in hub["command"] if "secrets/" not in arg)

@@ -3,7 +3,7 @@ segment objects and open segment files), live, unresponsive and recent runs stay
 by mark and sweep after their grace period, old heartbeats go; a dry run reports the same
 and changes nothing; every step can be repeated after a crash.
 
-`HUBS` lists the stores under test: everything in memory, and Postgres with S3 (MinIO)."""
+`HUBS` lists the stores under test: everything in memory, and Postgres with S3 (RustFS)."""
 
 import dataclasses
 import hashlib

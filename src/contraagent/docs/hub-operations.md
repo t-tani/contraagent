@@ -10,7 +10,7 @@ The files below are in `examples/hub/` of the installed package (`contraagent do
 
 ## Set up with compose
 
-`examples/hub/compose.yaml` runs the hub with Postgres and MinIO; the hub's image is
+`examples/hub/compose.yaml` runs the hub with Postgres and RustFS; the hub's image is
 built from this source tree (`examples/hub/Dockerfile`) or named by
 `CONTRAAGENT_HUB_IMAGE`.
 
@@ -25,7 +25,7 @@ curl -s http://localhost:8790/healthz
 that host only), `secrets/read-token`, `secrets/relay-<host>.env` for each host's relay,
 and `.env` from `.env.example` with a new password for each `change-me`. It refuses to
 replace tokens that exist. Compose gives the hub its tokens as secrets and its Postgres
-and MinIO passwords as environment variables, so none is on its command line.
+and RustFS keys as environment variables, so none is on its command line.
 
 The hub's command, with where each part of a run is kept:
 
@@ -84,9 +84,9 @@ storage. In compose, give it the hub's storage options:
 ```
 docker compose run --rm hub prune --retain-days 30 --dry-run \
   --store=postgresql://contraagent@postgres:5432/contraagent \
-  --blobs='s3://contraagent/blobs?endpoint=http://minio:9000&region=us-east-1' \
+  --blobs='s3://contraagent/blobs?endpoint=http://rustfs:9000&region=us-east-1' \
   --streams-dir=/data/streams \
-  --segments='s3://contraagent/segments?endpoint=http://minio:9000&region=us-east-1'
+  --segments='s3://contraagent/segments?endpoint=http://rustfs:9000&region=us-east-1'
 ```
 
 ## Back up and restore
@@ -94,7 +94,7 @@ docker compose run --rm hub prune --retain-days 30 --dry-run \
 | What | How | Needed |
 |---|---|---|
 | records and the segment index | `docker compose exec postgres pg_dump -U contraagent contraagent > hub.sql` | yes |
-| blobs and sealed segments | `mc mirror minio/contraagent <backup>` (or the bucket's own replication) | yes |
+| blobs and sealed segments | `docker compose run --rm -v "$PWD/backup:/backup" --entrypoint aws rustfs-init --endpoint-url http://rustfs:9000 s3 sync s3://contraagent /backup` (or the bucket's own replication) | yes |
 | open segments (`hub-data` volume) | a copy of the volume | no: relays send again what the hub no longer holds |
 
 Back up Postgres before the bucket: an object no index row names is removed by the

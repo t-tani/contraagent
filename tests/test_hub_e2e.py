@@ -1,4 +1,4 @@
-"""The hub end to end, as real processes: `contraagent hub` over Postgres and MinIO (docker,
+"""The hub end to end, as real processes: `contraagent hub` over Postgres and RustFS (docker,
 `hub_services`), one `contraagent relay` per host, and the monitor read over HTTP.
 
 The tests share one hub and two hosts and run in file order: each leaves the hub as the
@@ -446,7 +446,7 @@ def test_an_early_page_of_a_long_transcript_is_read_from_sealed_segments(env, li
     filler = "x" * 120
     _append(path, *(_delta(f"{_mark(i)} {filler}") for i in range(4000)))
     _until(lambda: env.stream_total(f"{LIVE}@h1", LONG_KEY) == 4000, "the long transcript on the hub")
-    sealed = _until(lambda: [k for k in _objects(env.segments) if f"{LONG_KEY}.stream.jsonl" in k], "sealed objects in MinIO", 30)
+    sealed = _until(lambda: [k for k in _objects(env.segments) if f"{LONG_KEY}.stream.jsonl" in k], "sealed objects in RustFS", 30)
     assert len(sealed) > 1  # 65536-byte segments
     _until(lambda: not _hot_files(env, LONG_KEY), "the long transcript's open segment sealed", 30)
     local = env.local("h1")

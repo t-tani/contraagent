@@ -16,9 +16,9 @@ backups) is in [Operating a hub](hub-operations.md).
 ```
 contraagent hub --host 0.0.0.0 --allow-host hub.lan \
   --store postgres://hub@db/contraagent \
-  --blobs s3://contraagent/blobs?endpoint=http://minio:9000 \
+  --blobs s3://contraagent/blobs?endpoint=http://rustfs:9000 \
   --streams-dir /var/lib/contraagent/streams \
-  --segments s3://contraagent/segments?endpoint=http://minio:9000 \
+  --segments s3://contraagent/segments?endpoint=http://rustfs:9000 \
   --ingest-token-file /etc/contraagent/ingest-tokens \
   --read-token-file /etc/contraagent/read-token
 ```

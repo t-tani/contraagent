@@ -585,7 +585,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /healthz` on the hub: 200 when its record, blob and transcript stores answer, 503
   naming the ones that do not.
 - A deployable hub in `docs/examples/hub/`: a `Dockerfile`, a `compose.yaml` with
-  Postgres and MinIO, `make-tokens`, and a systemd unit for the relay; the documentation
+  Postgres and RustFS, `make-tokens`, and a systemd unit for the relay; the documentation
   topic "Operating a hub" covers setup, tokens, retention, backups, upgrades and
   troubleshooting.
 - The monitor's transcript feed wakes when a transcript grows instead of every second,

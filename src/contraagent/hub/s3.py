@@ -34,7 +34,7 @@ def _absent(error: ClientError) -> bool:
 class S3Blobs:
     """A `BlobStore` at `url`: `s3://<bucket>/<prefix>?endpoint=<url>&region=<region>`.
 
-    The prefix may be empty; `endpoint` (an S3-compatible service such as MinIO) and
+    The prefix may be empty; `endpoint` (an S3-compatible service such as RustFS) and
     `region` are optional.
     """
 
