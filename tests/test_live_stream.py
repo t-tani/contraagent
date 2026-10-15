@@ -372,7 +372,7 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
     snapshot = {"run": "r1", "alive": True, "launches": [{"key": KEY}], "python_tasks": []}
     liveness = StaticLiveness(DirectorySource(root), live={"r1"}, snapshots={"r1": snapshot})
     hub = Hub(MemoryHubStore(), MemoryBlobs())
-    count = 120
+    count = 40  # eight rounds of the five gaps below: enough for a p95
     written: dict[int, float] = {}
     delivered: dict[int, float] = {}
     with serving(hub) as base:

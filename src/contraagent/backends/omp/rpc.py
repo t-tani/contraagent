@@ -130,6 +130,13 @@ class OmpRpcBackend(OmpBackend):
                 proc.kill()
                 proc.wait()
             live_processes.unregister(proc)
+            # The process is gone; its readers are at EOF or take a closed pipe as one.
+            for pipe in (proc.stdout, proc.stderr):
+                try:
+                    if pipe:
+                        pipe.close()
+                except OSError:
+                    pass
         launch_result.wall_s = time.monotonic() - t0
         return launch_result
 

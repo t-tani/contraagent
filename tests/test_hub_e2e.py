@@ -40,7 +40,9 @@ from hub_services import (  # noqa: E402
     s3_url,
 )
 
-pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("hub_services")]
+# One worker under pytest-xdist: the tests share the module's hub and relays and build on what
+# the earlier ones shipped, so each worker would otherwise start its own and find it empty.
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("hub_services"), pytest.mark.xdist_group("hub-e2e")]
 
 HOSTS = ("h1", "h2")
 READ_TOKEN = "read-" + uuid.uuid4().hex

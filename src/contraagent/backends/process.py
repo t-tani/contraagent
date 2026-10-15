@@ -262,7 +262,21 @@ def _supervise(
             _terminate(proc)
     exit_code = proc.returncode
     th.join(timeout=5)
+    _close_pipes(proc, stderr_read=not th.is_alive())
     return b"".join(out), "".join(stderr_buf)[-2000:], exit_code, killed
+
+
+def _close_pipes(proc: subprocess.Popen, *, stderr_read: bool) -> None:
+    """Close the pipes this process read, so none is left for the garbage collector
+    (a ResourceWarning). stderr only once its reader has finished: a grandchild that
+    keeps it open would otherwise have its reader closed under it."""
+    pipes = [proc.stdout, proc.stdin] + ([proc.stderr] if stderr_read else [])
+    for pipe in pipes:
+        if pipe is not None:
+            try:
+                pipe.close()
+            except OSError:
+                pass
 
 
 def _feed_sink(sink: Sink, pending: list[bytes], chunk: bytes) -> Stop | None:

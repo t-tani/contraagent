@@ -47,6 +47,7 @@ dev = [
     "ruff>=0.6",
     "pyright>=1.1.400",
     "contraagent[hub]",
+    "pytest-xdist>=3.8",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -74,7 +75,9 @@ exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Tests run against the installed (editable) package, as the subprocesses they spawn do.
-addopts = "-m 'not live and not e2e and not perf'"
+# In parallel (pytest-xdist), at most 6 processes: past that the suite waits on CPU, not tests.
+# `--dist loadgroup` keeps the tests of one `xdist_group` on one worker. `-n0` runs it in one process.
+addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup"
 markers = [
     "perf: times a view over a large made-up runs directory (minutes, machine-dependent); run with `uv run pytest -m perf -s`",
     "live: calls real coding agents and spends tokens; run with `CONTRAAGENT_LIVE=1 uv run pytest -m live`",

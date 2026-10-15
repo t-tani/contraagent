@@ -35,7 +35,7 @@ from contraagent.hub.protocol import (
 )
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent.monitor import Monitor, procs
-from test_hub_contract import demo_runs, ship  # noqa: F401  (demo_runs: a fixture)
+from test_hub_contract import ship
 
 INGEST = "ingest-secret"
 HOST_BOUND = "h2-secret"
@@ -185,7 +185,7 @@ def test_an_oversized_request_is_413():
 # --- the monitor over runs shipped by HTTP ---------------------------------------------
 
 
-def test_every_endpoint_carries_what_the_core_computed(demo_runs):  # noqa: F811
+def test_every_endpoint_carries_what_the_core_computed(demo_runs):
     hub, c = make()
     ship(demo_runs, HttpClient(c), "h1")
     mon = hub.monitor(title="contraagent hub")

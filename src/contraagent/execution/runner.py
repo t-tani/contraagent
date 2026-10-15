@@ -597,6 +597,12 @@ class AgentRunner:
         )
 
 
+def backoff_s(base: float, attempt: int) -> float:
+    """The wait before the attempt after `attempt` (from 0): up to `base` seconds, doubled per
+    attempt, with full jitter, so tasks that failed together do not all retry together."""
+    return random.uniform(0, base * 2**attempt)
+
+
 class RetryingRunner:
     """Wraps an `AgentRunner` so the queue sees one terminal `TaskResult` per `Task`.
 
@@ -610,6 +616,9 @@ class RetryingRunner:
     so a retried-then-completed task still leaves its full trail in the
     journal. `on_exhausted` is told when the last attempt also failed.
     """
+
+    #: The wait before a fresh attempt (`backoff_s`).
+    backoff = staticmethod(backoff_s)
 
     def __init__(
         self,
@@ -652,9 +661,7 @@ class RetryingRunner:
             if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT):
                 break
             if attempt + 1 < attempts:
-                # Full jitter: synchronized retries across many failing tasks
-                # would all re-hit the same backend together.
-                time.sleep(random.uniform(0, rc.retry_backoff_base**attempt))
+                time.sleep(self.backoff(rc.retry_backoff_base, attempt))
         assert last is not None
         if not last.ok and self._on_exhausted is not None:
             self._on_exhausted(task, last)

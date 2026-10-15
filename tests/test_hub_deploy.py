@@ -25,7 +25,6 @@ import pytest
 
 from contraagent import docs
 from contraagent.hub.server import read_ingest_tokens, read_read_token
-from test_hub_contract import demo_runs  # noqa: F401  (a fixture)
 
 HUB = docs.DIR / "examples" / "hub"
 COMPOSE = HUB / "compose.yaml"
@@ -206,7 +205,7 @@ def _get(url: str, token: str | None = None) -> tuple[int, bytes]:
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not _docker(), reason="docker is not available")
-def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs):  # noqa: F811
+def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs):
     began = time.monotonic()
     tag = uuid.uuid4().hex[:10]
     project, image, port = f"contraagent-e2e-{tag}", f"contraagent-hub:e2e-{tag}", _free_port()

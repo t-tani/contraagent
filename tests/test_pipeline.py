@@ -339,3 +339,13 @@ def test_an_off_contract_input_is_refused_once_and_shown_as_not_run(tmp_path):
     assert out["tally"]["refused"] == 1 and out["tally"]["failed"] == 0  # "not run", not "task failed"
     [spec] = out["contracts"][0]["outputs"]
     assert spec["status"] == "refused" and "required input is missing" in spec["errors"][0]
+
+
+def test_a_retry_waits_up_to_its_base_doubled_per_attempt(monkeypatch):
+    """`retry_backoff_base` is seconds, doubled per attempt (full jitter: a draw up to it);
+    a base of 0 waits nothing, the first attempt included."""
+    from contraagent.execution import runner
+
+    monkeypatch.setattr(runner.random, "uniform", lambda low, high: high)  # the longest wait
+    assert [runner.backoff_s(2.0, a) for a in range(3)] == [2.0, 4.0, 8.0]
+    assert runner.backoff_s(0.0, 0) == 0.0

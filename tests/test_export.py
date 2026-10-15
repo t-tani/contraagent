@@ -3,7 +3,7 @@ machine's paths and names taken out."""
 
 import json
 import socket
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -21,7 +21,8 @@ class Note(BaseModel):
     text: str
 
 
-note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60)
+# One attempt: note-b's failure is what an export redacts, and retrying it would only wait out a backoff.
+note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60, retries=1)
 NOW = lambda: datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 
 
@@ -34,11 +35,21 @@ def runs(tmp_path: Path, ids=("first", "second")) -> Path:
             "note-b": {"text": 3},  # off its schema twice: a reason with the file's absolute path
         }
     )
-    for run_id in ids:
+    for i, run_id in enumerate(ids):
         Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, backends=stub.backends(), log=lambda line: None).run(
             lambda: [note("a"), note("b")], run_id=run_id
         )
+        later(tmp_path / "runs" / run_id / "journal.jsonl", seconds=i)
     return tmp_path / "runs"
+
+
+def later(journal: Path, seconds: int) -> None:
+    """Move a run's journal rows `seconds` on: runs made within one second would tie on their
+    last activity (kept to the second), and the export orders runs by it."""
+    rows = [json.loads(line) for line in journal.read_text().splitlines()]
+    for row in rows:
+        row["ts"] = (datetime.fromisoformat(row["ts"]) + timedelta(seconds=seconds)).isoformat(timespec="seconds")
+    journal.write_text("".join(json.dumps(row) + "\n" for row in rows))
 
 
 def files(out: Path) -> dict[str, str]:
