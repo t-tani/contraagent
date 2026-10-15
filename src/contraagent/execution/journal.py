@@ -32,6 +32,7 @@ def _usage(o) -> TokenUsage | None:
         calls=u.n_calls,
         resident=u.resident if u.calls else None,
         peak_context=u.peak_context if u.calls else None,
+        context_window=o.context_window,
     )
 
 

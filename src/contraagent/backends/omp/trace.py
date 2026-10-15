@@ -338,6 +338,8 @@ class TraceReader:
         self.api_status: int | None = None
         self.api_error = ""
         self.unread: Counter = Counter()
+        #: The model's context window, when the wire reports one (omp's RPC `get_state`).
+        self.context_window: int | None = None
 
     def feed(self, ev: dict) -> None:
         typ = str(ev.get("type") or "")
@@ -468,4 +470,5 @@ class TraceReader:
             # The provider's own words, which omp puts on no stderr: the journal's reason.
             stderr_tail=self.api_error if stop is not Stop.COMPLETED else "",
             unread_events=dict(self.unread),
+            context_window=self.context_window,
         )

@@ -24,12 +24,6 @@ from contraagent.backends.credentials import AMBIENT, CredentialBase
 STDIN_THRESHOLD = 60_000
 
 
-def context_window(model: str) -> int:
-    """Usable input tokens per call. Only `[1m]`-suffixed models get 1M;
-    every other Claude 4/4.5 family model gets 200K."""
-    return 1_000_000 if "1m" in model.lower() else 200_000
-
-
 class Stop(str, enum.Enum):
     """Why one backend invocation ended. Exactly one per run."""
 
@@ -387,6 +381,10 @@ class LaunchResult:
     #: hops, whether any did). Set by the runner, which knows the limits.
     context_budget: int | None = None
     context_warned: bool = False
+    #: The context window of the model the launch ran on (tokens of one API call's input),
+    #: as the coding agent reports it; None when it reports none. Over folded rounds and
+    #: hops, the window of the launch whose call is the peak context (`fold_spend`).
+    context_window: int | None = None
 
     @property
     def peak_context(self) -> int | None:
@@ -397,11 +395,12 @@ class LaunchResult:
         return self.usage.peak_context if self.usage.calls else None
 
     @property
-    def context_pct(self) -> float:
-        """Peak context as % of the context window. Falls back to the launch
-        model when the stream names none."""
-        model = next((c.model for c in self.usage.calls if c.model), "") or self.model
-        return round(100.0 * self.usage.peak_context / context_window(model), 1)
+    def context_pct(self) -> float | None:
+        """The peak context as % of `context_window`; None when either is unknown."""
+        peak = self.peak_context
+        if peak is None or not self.context_window:
+            return None
+        return round(100.0 * peak / self.context_window, 1)
 
     def as_dict(self) -> dict:
         d = {
@@ -420,6 +419,7 @@ class LaunchResult:
             "duration_api_ms": self.duration_api_ms,
             "cost_usd": self.cost_usd,
             "usage": self.usage.as_dict(),
+            "context_window": self.context_window,
             "context_pct": self.context_pct,
             "rate_limit": asdict(self.rate_limit) if self.rate_limit else None,
             "permission_denials": len(self.permission_denials),

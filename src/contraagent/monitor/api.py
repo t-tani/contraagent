@@ -565,6 +565,9 @@ class ModelUsage(Closed):
     peak_context: int | None = Field(
         None, description="peak context: the largest input of one API call of a session on it (tokens); null when none reported one"
     )
+    context_window: int | None = Field(
+        None, description="its context window (tokens of one API call's input) as the coding agent reported it; null when none did"
+    )
 
 
 class Plan(Closed):

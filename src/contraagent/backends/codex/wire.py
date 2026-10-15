@@ -11,8 +11,8 @@ that failed; `Reconnecting... N/M (...)` while codex retries it) and
 The events carry no per-call token counts, no model name and no account
 usage. The rollout file codex writes for a persisted session
 (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) does: one
-`event_msg` `token_count` per API call (`last_token_usage`, `rate_limits`)
-and a `turn_context` with the model. `read_rollout` takes those.
+`event_msg` `token_count` per API call (`last_token_usage`, the model's
+`model_context_window`, `rate_limits`) and a `turn_context` with the model. `read_rollout` takes those.
 """
 
 from __future__ import annotations
@@ -150,10 +150,13 @@ def classify(reader: EventReader, exit_code: int | None) -> Stop:
 
 @dataclass
 class Rollout:
-    """What a session's rollout file adds to the events: per-call tokens, the model, account usage."""
+    """What a session's rollout file adds to the events: per-call tokens, the model, its
+    context window, account usage."""
 
     calls: list[CallUsage] = field(default_factory=list)
     model: str = ""
+    #: The model's context window (`token_count`'s `model_context_window`, the latest); None without one.
+    context_window: int | None = None
     cli_version: str = ""
     rate_limits: list[RateLimit] = field(default_factory=list)
 
@@ -215,7 +218,7 @@ def find_rollout(codex_home: Path, thread_id: str) -> Path | None:
 
 
 def read_rollout(path: Path, start: int = 0) -> Rollout:
-    """Per-call tokens, the model and the plan's usage from one rollout file, from byte
+    """Per-call tokens, the model, its context window and the plan's usage from one rollout file, from byte
     `start` on: a resumed session appends to the file its earlier turns are in."""
     out = Rollout()
     try:
@@ -238,9 +241,13 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
         elif typ == "turn_context":
             out.model = str(payload.get("model") or out.model)
         elif typ == "event_msg" and payload.get("type") == "token_count":
-            last = (payload.get("info") or {}).get("last_token_usage")
+            info = payload.get("info") or {}
+            last = info.get("last_token_usage")
             if isinstance(last, dict):
                 out.calls.append(call_usage(last, out.model))
+            window = info.get("model_context_window")
+            if isinstance(window, int) and not isinstance(window, bool) and window > 0:
+                out.context_window = window
             reading = rate_limit(payload.get("rate_limits") or {})
             if reading is not None:
                 out.rate_limits.append(reading)

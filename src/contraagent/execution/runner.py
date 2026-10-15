@@ -101,6 +101,7 @@ def _hop(label: str, result: TaskResult) -> dict:
                 "cache_creation": u.cache_creation,
                 "calls": u.n_calls,
                 "peak_context": u.peak_context if u.calls else None,
+                "context_window": o.context_window if o is not None else None,
             }
             if u is not None and (u.calls or u.output_total)
             else None
