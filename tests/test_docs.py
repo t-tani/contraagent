@@ -147,6 +147,29 @@ def test_a_quote_that_does_not_resolve_says_where(tmp_path):
         docs.expand(page, tmp_path)
 
 
+def test_the_implementations_example_launches_each_unit_s_kind_with_its_plugin(tmp_path):
+    from contraagent import Pipeline
+    from contraagent.docs.examples.implementations import flow
+    from contraagent.monitor import Monitor
+    from contraagent.testing import StubAgent
+
+    plugins = EXAMPLES / "implementations" / "plugins"
+    assert [Plugin.load(plugins / name).lint() for name in ("review-python", "review-go")] == [[], []]
+    units = {"parser": "python", "server": "go", "lexer": "python"}
+    check = Pipeline(runs_dir=tmp_path / "runs", backends=StubAgent().backends(), cwd=tmp_path).check(flow.review_all, units=units)
+    assert check.ok and check.later_kinds == ["review-go"]
+    agent = StubAgent(default=lambda launch: {"unit": launch.unit, "findings": [launch.kind]})
+    report = Pipeline(runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(flow.review_all, units=units)
+    assert report.ok and report.value == {"parser": 1, "server": 1, "lexer": 1}
+    assert {(launch.unit, launch.kind, launch.launch.plugin_dirs[0]) for launch in agent.launches} == {
+        ("parser", "review-python", str(plugins / "review-python")),
+        ("server", "review-go", str(plugins / "review-go")),
+        ("lexer", "review-python", str(plugins / "review-python")),
+    }
+    groups = Monitor(tmp_path / "runs", groups=flow.GROUPS).plan(report.run_dir.name)["groups"]
+    assert [(g["id"], g["total"], g["done"]) for g in groups] == [("review", 3, 3)]
+
+
 def test_the_reference_config_has_every_task_table_key():
     from contraagent.routing.kind_config import TASK_TABLE_KEYS
 

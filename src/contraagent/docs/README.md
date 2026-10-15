@@ -52,5 +52,6 @@ and the documentation site print the quoted lines in place.
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
+`examples/implementations/flow.py` chooses a task's implementation per unit;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
 test suite runs them all.
