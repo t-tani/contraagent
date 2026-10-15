@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, ValidationError, WrapValidator, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, TypeAdapter, ValidationError, WrapValidator, field_validator, model_validator
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
@@ -246,10 +246,12 @@ class TrendDenial(Closed):
 
 
 class TrendQuota(Closed):
-    """One account's utilization of one window over the period: each day's and each hour's highest reading."""
+    """One account's utilization of one window over the period: each day's and each hour's highest reading.
+    A credential whose token was replaced has one entry per account."""
 
     credential: str
-    window: Literal["five_hour", "seven_day"]
+    account: str = Field("", description="the account the readings are of (`QuotaReading.account`); empty when not known")
+    window: str = Field(description="`five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)")
     daily_peak: list[float | None] = Field(description="per day of `period.days`; null when no reading arrived that day")
     hourly_peak: list[float | None] = Field(
         description="per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
@@ -263,6 +265,8 @@ class TrendRest(Open):
     ts: str | None = None
     event: str | None = None
     credential: str | None = None
+    account: str = Field("", description="the account whose reading it is (`QuotaRest.account`); empty when not known")
+    reading: dict | None = Field(None, description="for the quota rule's rest, the reading it judged (`QuotaRest.reading`)")
 
 
 class TrendDeferral(Closed):
@@ -973,7 +977,7 @@ class PanelTile(Closed):
 
     id: str
     label: str
-    value: int | float | str = Field(description="a number (kept an integer when it is one) or text")
+    value: int | float | str = Field(description="a number as given (an integer stays one), or text already formatted")
     tone: Tone | None = None
     tip: str | None = None
     sub: list[list[str]] = Field(default_factory=list)
@@ -1133,6 +1137,15 @@ PanelBody = Annotated[
     Discriminator(_panel_kind),
 ]
 BlocksBody.model_rebuild()
+
+_PANEL_BODY = TypeAdapter(PanelBody)
+
+
+def panel_data(value: Any) -> Any:
+    """A panel's body as the monitor serves it, a run panel's and a trends panel's alike:
+    checked against `PanelBody` (a typed body that does not validate raises, it is never
+    shown as a JSON tree), then as JSON data."""
+    return _PANEL_BODY.dump_python(_PANEL_BODY.validate_python(value), mode="json", exclude_unset=True)
 
 
 # --- live feeds (Server-Sent Events) -------------------------------------

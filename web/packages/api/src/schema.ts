@@ -90,7 +90,8 @@ export type paths = {
         };
         /**
          * Api Trend Panel
-         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period.
+         * @description One trend panel's body: its `fn(runs, period)` over the runs of the period, made on a
+         *     panel thread, and kept for the same period over the same runs (`Monitor.trends_panel`).
          */
         get: operations["api_trend_panel_api_trends_panels__name__get"];
         put?: never;
@@ -270,7 +271,8 @@ export type paths = {
         };
         /**
          * Api Panel
-         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object.
+         * @description One run panel's body: a typed body (tiles, a table, charts), or any JSON object;
+         *     made on a panel thread.
          */
         get: operations["api_panel_api_runs__run__panels__name__get"];
         put?: never;
@@ -407,7 +409,7 @@ export type components = {
              */
             type?: "blocks";
             /** Blocks */
-            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             })[];
         };
@@ -855,22 +857,6 @@ export type components = {
              * @description one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted
              */
             pass: number | null;
-        };
-        /**
-         * GridCell
-         * @description One cell of a status grid: the state it is in, in words, and that state's tone.
-         *     `tip` adds a fact about this cell to its tooltip (a run's id, a count).
-         */
-        GridCell: {
-            /** Label */
-            label: string;
-            /**
-             * Tone
-             * @enum {string}
-             */
-            tone: "failed" | "attention" | "done" | "running" | "muted" | "neutral";
-            /** Tip */
-            tip?: string | null;
         };
         /** HBar */
         HBar: {
@@ -1359,35 +1345,6 @@ export type components = {
             wall_s?: number;
         };
         /**
-         * NoteBody
-         * @description Text beside the figures: what a part shows, how to read a number. `text` is
-         *     markdown (paragraphs, lists, emphasis, code, http(s) links; any markup in it is shown
-         *     as text). `tone` marks a note that warns (`attention`) or reports a failure (`failed`).
-         */
-        NoteBody: {
-            /**
-             * Title
-             * @description a heading over the body
-             */
-            title?: string | null;
-            /**
-             * Collapsed
-             * @description shown folded, under its title
-             * @default false
-             */
-            collapsed?: boolean;
-            /**
-             * Type
-             * @default note
-             * @constant
-             */
-            type?: "note";
-            /** Text */
-            text: string;
-            /** Tone */
-            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
-        };
-        /**
          * NoticeEvent
          * @description A line of session bookkeeping: init, a retry, a rate-limit status, a custom message.
          */
@@ -1478,7 +1435,7 @@ export type components = {
              */
             event: string;
             /** Data */
-            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             };
         };
@@ -1493,7 +1450,7 @@ export type components = {
             label: string;
             /**
              * Value
-             * @description a number (kept an integer when it is one) or text
+             * @description a number as given (an integer stays one), or text already formatted
              */
             value: number | string;
             /** Tone */
@@ -2019,37 +1976,6 @@ export type components = {
             at: string;
         };
         /**
-         * StatusGridBody
-         * @description A state per row (`y`) and column (`x`): `cells[row][column]`, null where there is
-         *     none. Each cell is coloured by its tone and named by its label (in the legend, the
-         *     tooltip and the table): the states of hourly cycles by day, say.
-         */
-        StatusGridBody: {
-            /**
-             * Title
-             * @description a heading over the body
-             */
-            title?: string | null;
-            /**
-             * Collapsed
-             * @description shown folded, under its title
-             * @default false
-             */
-            collapsed?: boolean;
-            /**
-             * Type
-             * @default status_grid
-             * @constant
-             */
-            type?: "status_grid";
-            /** X */
-            x: string[];
-            /** Y */
-            y: string[];
-            /** Cells */
-            cells: (components["schemas"]["GridCell"] | null)[][];
-        };
-        /**
          * StreamMessage
          * @description `/events/stream`: the first message is the transcript's tail page, then each
          *     message carries only the events after the previous one.
@@ -2078,7 +2004,7 @@ export type components = {
         };
         /**
          * TableBody
-         * @description Rows of values, one key per column; a row's `_tone` is its status (a `Tone`).
+         * @description Rows of values, one key per column; a row's `_tone` is its status.
          */
         TableBody: {
             /**
@@ -2108,8 +2034,7 @@ export type components = {
         /**
          * TableColumn
          * @description A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
-         *     the cell, as long as the value against the column's largest. `link`: the key of each
-         *     row that holds the URL the cell leads to (http or https; any other is no link).
+         *     the cell, as long as the value against the column's largest.
          */
         TableColumn: {
             /** Id */
@@ -2125,11 +2050,6 @@ export type components = {
              * @default false
              */
             bar?: boolean;
-            /**
-             * Link
-             * @description the key of the row that holds the cell's URL
-             */
-            link?: string | null;
             /** Tip */
             tip?: string | null;
         };
@@ -2627,15 +2547,22 @@ export type components = {
         /**
          * TrendQuota
          * @description One account's utilization of one window over the period: each day's and each hour's highest reading.
+         *     A credential whose token was replaced has one entry per account.
          */
         TrendQuota: {
             /** Credential */
             credential: string;
             /**
-             * Window
-             * @enum {string}
+             * Account
+             * @description the account the readings are of (`QuotaReading.account`); empty when not known
+             * @default
              */
-            window: "five_hour" | "seven_day";
+            account?: string;
+            /**
+             * Window
+             * @description `five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)
+             */
+            window: string;
             /**
              * Daily Peak
              * @description per day of `period.days`; null when no reading arrived that day
@@ -2660,6 +2587,19 @@ export type components = {
             event?: string | null;
             /** Credential */
             credential?: string | null;
+            /**
+             * Account
+             * @description the account whose reading it is (`QuotaRest.account`); empty when not known
+             * @default
+             */
+            account?: string;
+            /**
+             * Reading
+             * @description for the quota rule's rest, the reading it judged (`QuotaRest.reading`)
+             */
+            reading?: {
+                [key: string]: unknown;
+            } | null;
         } & {
             [key: string]: unknown;
         };
@@ -2968,7 +2908,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };
@@ -3270,7 +3210,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };

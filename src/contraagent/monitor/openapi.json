@@ -164,7 +164,7 @@
     "/api/trends/panels/{name}": {
       "get": {
         "summary": "Api Trend Panel",
-        "description": "One trend panel's body: its `fn(runs, period)` over the runs of the period.",
+        "description": "One trend panel's body: its `fn(runs, period)` over the runs of the period, made on a\npanel thread, and kept for the same period over the same runs (`Monitor.trends_panel`).",
         "operationId": "api_trend_panel_api_trends_panels__name__get",
         "parameters": [
           {
@@ -223,8 +223,39 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TilesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TableBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ColumnsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LinesBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HeatmapBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HBarsBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/StatusGridBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoteBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BlocksBody"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ],
                   "title": "Response Api Trend Panel Api Trends Panels  Name  Get"
                 }
               }
@@ -614,7 +645,7 @@
     "/api/runs/{run}/panels/{name}": {
       "get": {
         "summary": "Api Panel",
-        "description": "One run panel's body: a typed body (tiles, a table, charts), or any JSON object.",
+        "description": "One run panel's body: a typed body (tiles, a table, charts), or any JSON object;\nmade on a panel thread.",
         "operationId": "api_panel_api_runs__run__panels__name__get",
         "parameters": [
           {
@@ -3156,7 +3187,7 @@
               }
             ],
             "title": "Value",
-            "description": "a number (kept an integer when it is one) or text"
+            "description": "a number as given (an integer stays one), or text already formatted"
           },
           "tone": {
             "anyOf": [
@@ -5578,13 +5609,16 @@
             "type": "string",
             "title": "Credential"
           },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "the account the readings are of (`QuotaReading.account`); empty when not known",
+            "default": ""
+          },
           "window": {
             "type": "string",
-            "enum": [
-              "five_hour",
-              "seven_day"
-            ],
-            "title": "Window"
+            "title": "Window",
+            "description": "`five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)"
           },
           "daily_peak": {
             "items": {
@@ -5626,7 +5660,7 @@
           "hourly_peak"
         ],
         "title": "TrendQuota",
-        "description": "One account's utilization of one window over the period: each day's and each hour's highest reading."
+        "description": "One account's utilization of one window over the period: each day's and each hour's highest reading.\nA credential whose token was replaced has one entry per account."
       },
       "TrendRest": {
         "properties": {
@@ -5666,6 +5700,25 @@
               }
             ],
             "title": "Credential"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account",
+            "description": "the account whose reading it is (`QuotaRest.account`); empty when not known",
+            "default": ""
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading",
+            "description": "for the quota rule's rest, the reading it judged (`QuotaRest.reading`)"
           }
         },
         "additionalProperties": true,

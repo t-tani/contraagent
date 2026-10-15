@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cell leads to; http or https). A row's `_tone` is checked like every other tone: an
   unknown one is an error naming the tones. `examples/panels/cycles.py` shows hourly
   runs as a status grid.
+- A trends panel reads the runs of its period through `PeriodRuns`, the run ids it is
+  given (newest activity first) with `journal(run)`, `records(run, log)`, `info(run)` and
+  `dir(run)`, wherever the monitor reads them (a runs directory or a hub): no path of its own.
+- `contraagent monitor export` takes `--groups` and `--task-detail`, and its `--panels`,
+  `--groups` and `--task-detail` take `path/to/views.py:attr` as `contraagent monitor` does.
+  A run still running is left out of an export (`--include-live`, `export(live=True)`).
 - An OpenCode key is one account on every agent that runs its models (`backends/opencode/login.py`):
   opencode, pi and omp give the digest of the key they would send, so a quota rest on one
   holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
@@ -47,6 +53,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Panels are offered in the order of the dict given, not by name.
+- A trends panel's body is checked against `PanelBody` as a run panel's is, on
+  `/api/trends/panels/<name>` and in an export: a typed body that does not validate is
+  an error, never a JSON tree.
+- A trends panel is made once for the same period over the same runs and kept; a request
+  for one being made waits for it. Panels run on threads of their own, and a run feed reads
+  its views off the event loop, so a panel that takes a minute holds no other route back
+  (`/api/runs` waited for every request thread before).
+- Trends count utilization per credential, account and window: a token replaced mid-period
+  is two lines, and a model's own window (`seven_day_opus`) is counted beside the
+  account's. A rest in the trends keeps its account and the reading a rule judged.
 - `contraagent plugin render` writes one `package.json` for omp and pi: each
   renderer's own key is set or removed, the others are kept.
 - A quota reading names its account (`account`, a 12-hex-digit digest of the login's UUID
@@ -883,6 +900,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agent: omp's and pi's `path` and opencode's `filePath` are `file_path`, opencode's
   `oldString`/`newString` and pi's one-edit `edits` are `old_string`/`new_string`.
 - A panel tile's integer `value` stays an integer (`3`, not `3.0`).
+- A panel tile's integer `value` stays an integer (it was served as `3.0`).
 - omp reads `.env` files at start (its working directory's, its agent directory's, its config
   root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
   there came back after contraagent removed it: an isolated omp binding now names the file

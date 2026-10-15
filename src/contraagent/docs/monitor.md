@@ -177,9 +177,15 @@ included) is an error, never a JSON tree.
 ::code{file="examples/panels/views.py" from="def spend(" to="def cost_by_day("}
 
 A panel's `scope` says what it is computed over: `run` (the default), `fn(run)`,
-a tab of each run; `trends`, `fn(runs, period)`, over the run ids of a period
-(`Period`: its `start`, `end` and the time zone `tz` its days are counted in),
-for a view of many runs.
+a tab of each run; `trends`, `fn(runs, period)`, over the runs of a period, for a
+view of many runs. `runs` (`PeriodRuns`) is the period's run ids, newest activity
+first, and reads each run's records wherever the monitor reads them, a runs
+directory or a hub: `journal(run)`, `records(run, log)` for another log
+(`rundir.DEFERRED`, ...), `info(run)` (its `run.json`), and `dir(run)` for a file
+that is no log (None on a hub). `Period` holds its `start`, `end` and the time zone
+`tz` its days are counted in; `period.day_of(ts)` is the day of a time inside the
+period and None outside it, for a run that began before the period or ended after
+it. The monitor offers the panels in the order of the dict it is given.
 
 ::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
 
@@ -220,8 +226,12 @@ then the pipeline's own trend panels.
 `Trends.bodies` holds the same numbers as panel bodies (`{"type": "blocks", ...}`),
 in English, for a page that draws them without words of its own. A pipeline adds
 its own numbers over a period as a panel whose `scope` is `"trends"`: its function
-takes the period's run ids and the `Period`, and it is served at
-`/api/trends/panels/<name>`.
+takes the period's runs (`PeriodRuns`) and the `Period`, and it is served at
+`/api/trends/panels/<name>`, checked as a run panel is. A trend panel is made once
+for the same period over the same runs, as they were, and kept: a page asks for it
+again every few seconds and gets it back, and one that asks while it is being made
+waits for that one. Panels, a pipeline's own code, run on threads of their own, so a
+panel that takes a minute holds no other route back.
 
 The monitor reads only the runs that started before the period ends and did not
 finish before it begins, and of each, only a digest of its logs: what it did per
@@ -246,7 +256,11 @@ static server or a site serves, with no monitor running: the page (`index.html`,
 (`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
 cursor, each task and each panel), and the trends of a period over every run with
 its trend panels (`--days 14`, or `--from` and `--to`; `--tz`, default UTC). The
-export's Trends page shows that period and offers no other.
+export's Trends page shows that period and offers no other. `--panels`, `--groups`
+and `--task-detail` take what `contraagent monitor` takes (`path/to/views.py:PANELS`
+or `package.module:PANELS`). A run still running is left out, its views would stop
+half way (the run that writes the export, as its last step, is one); `--include-live`
+writes it too.
 
 ```
 contraagent monitor export --runs-dir runs --out site/stats --runs 14 --days 30 --tz Asia/Tokyo --panels mypipeline.panels:PANELS

@@ -129,7 +129,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | Word | Means | In code |
 |---|---|---|
 | **group** | a column of the plan | `Monitor(groups=)` |
-| **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=` |
+| **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=`; its runs as a trends panel reads them: `PeriodRuns` |
 | **trends** | what the runs of a period add up to, day by day: cost by kind (or group), each kind's tasks, success and time, each model's spend, failures, refused tool calls, utilization, rests, deferrals, run starts; read from each run's digest, kept in a finished run's `trends.json` | `Monitor.trends`, `/api/trends`, `Trends`; `Panel(scope="trends")` |
 | **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
 | **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |

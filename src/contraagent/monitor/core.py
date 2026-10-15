@@ -24,7 +24,9 @@ one host's `runs/` directory and `/proc`.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterable
+from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,8 +44,36 @@ from contraagent.monitor.trends import Period
 
 #: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`).
 PanelFn = Callable[[str], Any]
-#: A trends panel: `fn(runs, period) -> body`, over the run ids of the period, oldest first.
-TrendsPanelFn = Callable[[list[str], Period], Any]
+#: A trends panel: `fn(runs, period) -> body`, over the runs of the period (`PeriodRuns`).
+TrendsPanelFn = Callable[["PeriodRuns", Period], Any]
+
+
+class PeriodRuns(list[str]):
+    """The run ids of a period, newest activity first, as a trends panel receives them, and
+    their records wherever the monitor reads them (a runs directory or a hub): a panel
+    reads a run through this, never through a path of its own."""
+
+    def __init__(self, runs: Iterable[str], source: RunSource) -> None:
+        super().__init__(runs)
+        self._source = source
+
+    def records(self, run: str, log: str) -> list[dict]:
+        """The rows of one of the run's logs (`rundir.JOURNAL`, `rundir.DEFERRED`, ...); a line
+        that does not parse is skipped, a log the run does not have is empty."""
+        return _parse(self._source.lines(run, log)[0])
+
+    def journal(self, run: str) -> list[dict]:
+        """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
+        return self.records(run, rundir.JOURNAL)
+
+    def info(self, run: str) -> dict:
+        """The run's `run.json`; empty when it has none."""
+        return self._source.info(run) or {}
+
+    def dir(self, run: str) -> Path | None:
+        """The run's directory, for a file that is not one of its logs (an output); None
+        when the runs are not in a directory here (a hub keeps them in its store)."""
+        return self._source.path(run) if isinstance(self._source, DirectorySource) else None
 
 
 @dataclass
@@ -221,6 +251,11 @@ class Monitor:
         self._digests: dict[str, tuple[dict, dict]] = {}  # run -> (signature, digest)
         self._infos: dict[str, tuple] = {}  # run -> (run.json's stat, run.json)
         self._trends: tuple[tuple, dict] | None = None  # the last trends, and what they were made of
+        # Each trends panel's last body, and what it was made of; and those being made now,
+        # so the same panel asked again (a page refreshes every few seconds) waits for it.
+        self._trend_bodies: dict[tuple, tuple[tuple, dict]] = {}
+        self._making: dict[tuple, Future] = {}
+        self._lock = threading.Lock()
 
     def check_run(self, run: str) -> str:
         """`run` itself; `paths.BadName` (a ValueError) when it is not a plain name."""
@@ -828,9 +863,10 @@ class Monitor:
         return [n for n, p in self.panels.items() if p.scope == "run"]
 
     def panel_info(self) -> list[dict]:
+        """Every panel, in the order of the `panels` given."""
         return [
             {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon, "scope": p.scope}
-            for n, p in sorted(self.panels.items())
+            for n, p in self.panels.items()
         ]
 
     # --- trends --------------------------------------------------------------
@@ -842,7 +878,7 @@ class Monitor:
         held = self._period_digests(period)
         groups = self._group_of()
         # The same period over the same runs, as they were: the same trends (a page asks again and again).
-        made_of = (period, run_group, stub, tuple(sorted(groups.items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
+        made_of = self._made_of(period, run_group, stub, held)
         if self._trends is not None and self._trends[0] == made_of:
             return self._trends[1]
         digests = [dg for _, _, dg in held if (not run_group or dg["run_group"] == run_group) and (stub or not dg["stub"])]
@@ -852,21 +888,53 @@ class Monitor:
             "bodies": trends.bodies(view),
             "panels": [
                 {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon}
-                for n, p in sorted(self.panels.items())
+                for n, p in self.panels.items()
                 if p.scope == "trends"
             ],
         }
         self._trends = (made_of, out)
         return out
 
+    def _made_of(self, period: Period, run_group: str, stub: bool, held: list[tuple[str, dict, dict]]) -> tuple:
+        """What trends of `period` are made of: the period, the filters, the groups, and each
+        run with the signature of its logs. The same, the same trends."""
+        return (period, run_group, stub, tuple(sorted(self._group_of().items())), tuple((run, tuple(sig.items())) for run, sig, _ in held))
+
     def trends_panel(self, name: str, period: Period, *, run_group: str = "") -> dict:
-        """Trends panel `name`'s body: its `fn(runs, period)` over the run ids of `period`,
-        newest first. KeyError: no trends panel of that name."""
+        """Trends panel `name`'s body: its `fn(runs, period)` over the runs of `period`
+        (`PeriodRuns`, newest activity first). Made once for the same period over the same
+        runs, as they were, and kept: a page that asks again gets it back, and one that asks
+        while it is being made waits for that one. KeyError: no trends panel of that name."""
         panel = self.panels.get(name)
         if panel is None or panel.scope != "trends":
             raise KeyError(name)
-        runs = [r["run"] for r in self.trends(period, run_group=run_group)["runs"]]  # newest first
-        return panel(runs, period)
+        held = self._period_digests(period)
+        made_of = self._made_of(period, run_group, False, held)
+        place = (name, period, run_group)
+        with self._lock:
+            kept = self._trend_bodies.get(place)
+            if kept is not None and kept[0] == made_of:
+                return kept[1]
+            making = self._making.get((place, made_of))
+            mine = making is None
+            if mine:
+                making = self._making[(place, made_of)] = Future()
+        assert making is not None
+        if not mine:
+            return making.result()
+        try:
+            runs = PeriodRuns((r["run"] for r in self.trends(period, run_group=run_group)["runs"]), self.source)
+            body = panel(runs, period)
+        except BaseException as exc:
+            with self._lock:
+                self._making.pop((place, made_of), None)
+            making.set_exception(exc)
+            raise
+        with self._lock:
+            self._trend_bodies[place] = (made_of, body)
+            self._making.pop((place, made_of), None)
+        making.set_result(body)
+        return body
 
     def _group_of(self) -> dict[str, str]:
         """Kind -> the label of the group it is in (`groups`); a kind in none is its own."""
