@@ -18,7 +18,7 @@ and every output passed its checks, after two corrections in their own sessions,
 model switch after a rate limit, and a second pass of the review loop for one unit
 (an item that the pipeline works on).</sub>
 
-## A task is a function whose body is a coding agent
+## Example
 
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="from typing import" to="class Triage"} -->
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="class Triage" to="class FixPlan"} -->
