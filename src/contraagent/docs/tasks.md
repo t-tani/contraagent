@@ -14,6 +14,23 @@ it is.
 
 ::code{file="examples/demo/tasks.py" from="summarize = agent_task(" to="@python_task"}
 
+`agent_task`'s options, and the topic that explains each (the docstring states
+them all):
+
+| Options | For | Topic |
+|---|---|---|
+| `output`, `params`, `validators` | what it takes and leaves behind, and the checks its output must pass | [Contracts](contracts.md) |
+| `output_from`, `unwrap`, `tools=()` | an output in the final message; a light launch | [Contracts](contracts.md) |
+| `preserve`, `output_of` | filling in another task's file, and the parts to keep | [Contracts](contracts.md) |
+| `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
+| `output_name` | where its output file is | "Flows that depend on results", below |
+| `rerun_on_resume` | a step that a resume runs again | "The flow", below |
+| `claims` | one task at a time on a name | "Claims", below |
+| `changes` | the files it changes beside its output | "Files a task changes", below |
+| `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks | [Routing](routing.md) |
+| `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
+
 ## Python tasks
 
 A function becomes a task with the same contract machinery: its return
@@ -99,7 +116,8 @@ reference to the task's future output:
 the command line, with the arguments `contraagent check` takes, and exits 1 when
 a task or the flow failed. A program calls `Pipeline.run`, which returns a
 `RunReport`: `ok`, `failed`, `deferred`, the results by task key, `flow_errors`,
-and `value`, whatever the flow returned (a `Pending` in it reads its task's output).
+and `value`, whatever the flow returned (a `Pending` in it reads its task's output);
+its docstring lists every field.
 A deferred task (not launched: past a deadline, or on a resting credential) is in
 `deferred`, with its cause, and is no failure: `ok` holds when no task failed and
 the flow returned. A `TaskDeferred` the flow does not catch ends the flow without
@@ -115,8 +133,9 @@ of:
 
 - its kind, unit, key and params;
 - its definition: for an agent task, its instructions, its role file's content,
-  its output schema, its validators and its params schema; for a Python task, its
-  function's source, its output schema and its validators;
+  the skills of its plugin and of each plugin of its `skills_from`, its output
+  schema, its validators and its params schema; for a Python task, its function's
+  source, its output schema and its validators;
 - each task it waits for: the content of that task's output file when the flow
   received the output and passed it on (a generator flow), else that task's
   fingerprint (a task call passed before it finished, as in a flow that does not
@@ -400,6 +419,8 @@ A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
 in the pattern, or keep them from running at once (a claim).
 
+## Around each attempt: scopes, enrichers, journal columns
+
 `Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of a task, agent or
 Python. A scope (`TaskScope`) is a function of the task that returns a context manager,
 entered around each attempt: around every hop of an agent task, around the input check,
@@ -412,7 +433,7 @@ the result with a `payload` added or `ok` and `stop` changed
 `row_extras(result)` adds columns to the journal row. The monitor shows each such
 column under its own name, in the history and in the task's attempts (the API names
 them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
-topic:
+topic (the files of `changes`, above):
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
 
@@ -456,7 +477,7 @@ empty table when the file has none, or the run has no config file
 
 A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
 output, ok; a resume runs it again), `invalid_output` (still off-contract
-after every fix-up round), `invalid_input` (nothing launched), a budget
+after every correction round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.backends.Stop`, each with its meaning in its docstring.
 

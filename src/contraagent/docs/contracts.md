@@ -15,16 +15,19 @@ Their field descriptions reach the agent in the call file's JSON Schema.
 
 ## Checked twice, by the same rules
 
-- **Inside the session.** The plugin's stop hook runs `contraagent call
-  validate`, which reads the call file (`$CONTRAAGENT_CALL`), imports the output
-  model and runs the command validators. A failure keeps the agent working in
-  the same turn.
+- **Inside the session**, on Claude Code and Codex. The plugin's stop hook runs
+  `contraagent call validate`, which reads the call file (`$CONTRAAGENT_CALL`),
+  imports the output model and runs the command validators. A failure keeps the
+  agent working in the same turn. omp, opencode and pi have no stop hook that
+  continues a session ([Coding agents](agents.md)): for them the runner's check
+  below is the first one, and its errors come back in a correction round.
 - **By the runner, after the turn.** The schema, freshness (a file left by an
   earlier run does not pass), the parts to keep (`preserve`, below) and every validator. A failure resumes the same
   session with the errors as the next turn, until the file passes or the
   resumes are spent (`invalid_output`).
 
-Each resume is a **round**. The journal records how many rounds a task took
+Each launch of the session is a **round**, and each resume a **correction
+round**. The journal records how many rounds a task took
 (`rounds`) and the errors each resume was sent (`round_errors`), and the monitor
 shows each round of its transcript. The run's progress line for the attempt
 names the first round's first error. The attempt's cost is its rounds' cost,
@@ -118,10 +121,12 @@ shows it on the tokens of each attempt. Each coding agent does it with its own f
 |---|---|---|---|
 | Claude Code | `--system-prompt` | `--tools ""` | `--setting-sources ""` and `--strict-mcp-config`, as on every launch; no `--plugin-dir`, no `--agent` |
 | omp | `--system-prompt`; omp still appends its environment footer (the working directory, the system) | `--no-tools --no-lsp` | the isolation overlay every launch has (no context files, skills, rules or MCP servers); no `--plugin-dir` |
+| pi | `--system-prompt` | `--no-tools` | the flags every launch has (`--no-extensions`, `--no-skills`, `--no-context-files`, ...); no `--skill`, no `-e` |
 | opencode | an agent of its own (`--agent`) whose `prompt` it is; opencode's free models refuse such a session | that agent's `permission` denies every tool | the user's opencode config is not read either (an empty `XDG_CONFIG_HOME`: with no tool, nothing else reads it); no plugin |
 
-A coding agent that cannot launch so is refused for a kind with `tools=()`, on
-every route of the kind, failover hops included (`Backend.light_launch`). The
+Codex runs no light launch: a coding agent that cannot launch so is refused for a
+kind with `tools=()`, on every route of the kind, failover hops included
+(`Backend.light_launch`; [Coding agents](agents.md)). The
 agent can read nothing and run nothing: give it all it needs in its params. A
 list of tool names is not taken, since each coding agent names its tools its own
 way; a role names the ones it may use (`tools:`), as [plugins](plugins.md) says.

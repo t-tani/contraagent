@@ -1,7 +1,7 @@
 """A stub coding agent for tests: a `Backend` that plays scripted replies instead of an LLM.
 
 Only the coding agent is replaced. The runner, the output checks and the
-fix-up rounds, failover, retries, the journal and the monitor all run as
+correction rounds, failover, retries, the journal and the monitor all run as
 they do in production, so a flow's wiring is tested without spending tokens:
 
     stub = StubAgent({

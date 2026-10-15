@@ -91,7 +91,7 @@ class JournalRow(BaseModel):
     #: each was sent back as the next round; after `invalid_output`, the last is what still stood.
     round_errors: list[list[str]] = Field(default_factory=list)
     #: What the plugin's stop hook sent back within a launch, before the agent ended its turn
-    #: (Claude Code), one list per objection, cut at 5 each: a fix-up that took no round.
+    #: (Claude Code), one list per objection, cut at 5 each: none of them took a correction round.
     hook_errors: list[list[str]] = Field(default_factory=list)
     #: Tokens of every API call of the attempt (its rounds and hops); None for a Python task or a launch that reported none.
     usage: TokenUsage | None = None

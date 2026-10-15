@@ -114,6 +114,7 @@ A colour means one thing, on every screen and in every theme:
 | `--ca-agent`, `--ca-agent-bg` | identity: an agent task |
 | `--ca-meter` | a bar that measures, not judges: time, usage, progress |
 | `--ca-tok-input`, `--ca-tok-cache-read`, `--ca-tok-cache-write`, `--ca-tok-output` | the kinds of tokens in a bar |
+| `--ca-series-1` to `--ca-series-6` | the series of a chart, in a fixed order; never a status, and each series also named in words |
 | `--ca-code-*` | syntax colours in code, prompts and JSON |
 | `--ca-color-scheme` | `light` or `dark`: native controls and scrollbars |
 | `--ca-sans`, `--ca-mono` | the fonts |

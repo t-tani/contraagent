@@ -61,6 +61,15 @@ server without the API), with the `url`, `status` and media `type`.
 
 Each returns a function that closes it.
 
+## An export
+
+An export (`contraagent monitor export`) is the monitor's views of some runs,
+written as files and read with no server. `createExportClient(url)` is a client of
+its `data/` directory: the same methods as the server's client, each read from its
+file. `openExportFeed(client)` is the run feed for it: it plays a run's files once
+and ends with `ready`. Give both to `MonitorStore` (`client` and `openRunFeed`) to
+read an export as a server is read.
+
 ## The store
 
 `MonitorStore` keeps the run list fresh, opens the selected run's feed, folds
@@ -80,10 +89,11 @@ and lists about the run's tasks, computed once per state (the same `journal` and
 `plan` objects give the same result):
 
 - `outcomes` and `rows`: every task of the run, the plan joined with the
-  journal, with its outcome (`done`, `recovered`, `failed`, `not_started`,
-  `running`, `waiting`, `skipped`);
+  journal, with its outcome (`done`, `recovered`, `partial`, `failed`,
+  `not_started`, `running`, `waiting`, `skipped`; `partial`: ok, its output a
+  placeholder, neither done nor failed);
 - `counts`: tasks by outcome, `doneTotal` (done and recovered: "N of M tasks
-  done") and `finished` (done, recovered and skipped);
+  done") and `finished` (done, recovered, partial and skipped);
 - `problems`: failed tasks with the tasks they stopped, tasks not started for a
   reason of their own, and recovered tasks;
 - `kinds` and `tries`.

@@ -26,7 +26,8 @@ change. The version is `MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)).
   `#:schema <path to pipeline.schema.json>` in a config file gives the schema to an
   editor that reads the directive (Taplo, Even Better TOML).
 - **The files a run writes**: the layout of `runs/<run>/` and the records in it, of
-  the run format its `run.json` names (below).
+  the run format its `run.json` names, as [the run directory](#the-run-directory)
+  lists them.
 - **The monitor's HTTP API**: the endpoints and responses of the OpenAPI document
   `contraagent monitor --openapi PATH` writes, versioned by its `api_version`
   (`/api/info`): its major part goes up when a field is removed, renamed or changes
@@ -45,8 +46,8 @@ JSON Schemas, and the documentation site serves them under `/schemas/`.
   The exception's class is public.
 - A transcript's lines (`streams/<file>.stream.jsonl`): they are what the coding
   agent printed, in its own format.
-- `trends.json` in a run directory: the monitor's digest of a finished run, made
-  again from the run's logs whenever they change.
+- The files of a run directory that [the run directory](#the-run-directory) marks
+  as not public.
 - The page the monitor serves. The npm packages `@contraagent/api`,
   `@contraagent/ui` and `@contraagent/elements` have versions and documentation of
   their own.
@@ -77,6 +78,37 @@ From 1.0, a public name, parameter, option or config key that a major release
 removes or renames first warns for at least two minor releases: using it warns
 with `ContraagentDeprecationWarning`, which names what replaces it. Before 1.0, a minor release renames or removes without a warning, and
 `CHANGELOG.md` names the replacement.
+
+## The run directory
+
+`runs/<run>/` holds one run. A file that is public keeps its path and its form within
+a run format; one marked "run format only" keeps its path, and its content is read
+through the monitor's API, which is public.
+
+| Path | What it is | Public |
+|---|---|---|
+| `run.json` | the run: who drives it, its arguments, its format, its preflight and quota caps | yes: `run.schema.json` |
+| `journal.jsonl` | one row per finished attempt | yes: `journal.schema.json` |
+| `launches.jsonl` | one row per launch of a coding agent | yes: `launches.schema.json` |
+| `plan.jsonl` | every task the flow created | yes: `plan.schema.json` |
+| `flow_calls.jsonl` | each flow call's start and end | yes: `flow_calls.schema.json` |
+| `deferred.jsonl` | each deferred task and its cause | yes: `deferred.schema.json` |
+| `rests.jsonl` | each start and end of a credential's quota rest | yes: `rests.schema.json` |
+| `cursor.json` | a resume cursor (`CursorStore`), when a pipeline keeps one | yes: `cursor.schema.json` |
+| `calls/<key>.json` | the call file an agent task's launch was given | yes: the model `contraagent.backends.CallFile` |
+| `out/` | the tasks' outputs, at the paths their kinds' `output_name` gives | yes: each one's schema is its task's output |
+| `out/<...>.message.txt` | the whole final message beside an output taken out of it (`unwrap`) | yes: plain text |
+| `pipeline/<name>.jsonl`, `pipeline/<name>.json` | the pipeline's own log and document (`contraagent.log`, `contraagent.save`) | yes: the rows and the values the pipeline wrote |
+| `contracts/<key>.json`, `definitions/<kind>.json` | what each task and each kind declared | run format only |
+| `inflight/<key>.json` | a marker per task that is running | run format only |
+| `streams/<key>.stream.jsonl` | each agent task's transcript | the path only: the lines are the coding agent's |
+| `trends.json` | the monitor's digest of a finished run, made again from the logs whenever they change | no |
+
+Beside the run directory, `runs/<run>.lock` is the run lock, and a relay keeps its
+place in `<runs-dir>.relay.json` ([the hub](hub.md)); neither is public. A
+recording directory (`--record DIR`) is laid out as [testing](testing.md) shows.
+What contraagent writes outside these is listed in
+[Coding agents](agents.md#directories-outside-the-run).
 
 ## Run formats and schemas
 

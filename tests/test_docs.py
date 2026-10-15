@@ -330,3 +330,48 @@ def test_the_testing_module_lists_every_kind_of_reply():
     doc = contraagent.testing.__doc__ or ""
     replies = [n for n in contraagent.testing.__all__ if n[0].islower()]
     assert [n for n in replies if f"`{n}(" not in doc] == []
+
+
+AGENTS = ("claude", "omp", "opencode", "pi", "codex")
+
+
+def _agent_table() -> dict[str, dict[str, str]]:
+    """agents.md's table of what each coding agent does: {row label: {agent: cell}}."""
+    text = (docs.DIR / "agents.md").read_text()
+    block = text[text.index("| | claude |") :].split("\n\n", 1)[0].splitlines()
+    agents = [c.strip() for c in block[0].strip("|").split("|")][1:]
+    table = {}
+    for row in block[2:]:
+        label, *cells = [c.strip() for c in row.strip("|").split("|")]
+        table[label] = dict(zip(agents, cells, strict=True))
+    return table
+
+
+def test_the_agents_table_says_what_each_backend_class_does():
+    """Every yes/no cell of agents.md's table, against the agent's `Backend` class."""
+    from contraagent._internal.backends import backend_class
+    from contraagent.backends import Backend
+
+    table = _agent_table()
+    assert all(tuple(cells) == AGENTS for cells in table.values())
+
+    def says(row: str, agent: str) -> bool:
+        cell = table[row][agent]
+        assert cell.startswith(("yes", "no")), f"{row} / {agent}: {cell}"
+        return cell.startswith("yes")
+
+    for agent in AGENTS:
+        cls = backend_class(agent)
+        assert cls is not None
+        assert says("Stop hook continues the session (`stop_hooks_file`)", agent) == (cls.stop_hooks_file is not None)
+        assert says("Light launch (`light_launch`)", agent) == cls.light_launch
+        assert says("Role file attached to the prompt (`needs_inline_role_file`)", agent) == cls.needs_inline_role_file
+        assert says("`disallowed_tools` taken", agent) == (cls.tool_deny_problem(("WebFetch",)) is None)
+        reads = cls.usage_reading is not Backend.usage_reading
+        assert says("Quota readings read by contraagent before each launch (`usage_reading`)", agent) == reads
+        for limit in ("max_turns", "max_budget_usd", "context_budget"):
+            row = f"`{limit}` enforced"
+            assert ("by contraagent" in table[row][agent]) == (limit in cls.watched_limits), f"{row} / {agent}"
+            assert says(row, agent) or limit not in cls.watched_limits, f"{row} / {agent}"
+        session = "session's so far" in table["Cost of a resumed session (`cost_is_session_total`)"][agent]
+        assert session == cls.cost_is_session_total, agent

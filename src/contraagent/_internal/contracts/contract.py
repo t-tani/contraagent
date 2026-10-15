@@ -420,7 +420,7 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
     `context_window`: the window of the launch whose call is the peak context (the other
     launch's when that one reports none on the same model).
 
-    `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
+    `resumed`: `nxt` resumed `total`'s session (a correction round), else it is a session of its
     own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
     coding agent reports the session's cost so far (`session_total`,
     `Backend.cost_is_session_total`) already holds the earlier rounds', so it stands. The
