@@ -671,7 +671,7 @@ class RetryingRunner:
                     traceback.print_exc()
             # A refusal was already tried on every route; an off-contract input is the same
             # file on the next attempt. Neither is worth another launch.
-            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT):
+            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT) or not last.retryable:
                 break
             if attempt + 1 < attempts:
                 time.sleep(self.backoff(rc.retry_backoff_base, attempt))

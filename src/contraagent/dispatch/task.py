@@ -266,6 +266,9 @@ class TaskResult:
     skipped_hops: tuple[dict, ...] = ()
     # A `deferred` result's cause as data (`Deferral.cause`); None for any other result.
     cause: dict | None = None
+    # False when another attempt cannot end otherwise (a replay with no recording for the
+    # task): a retrying runner stops at this one.
+    retryable: bool = True
     payload: Any = None
 
     @classmethod
