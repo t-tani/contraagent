@@ -34,6 +34,7 @@ from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.task import Task, TaskResult
+from contraagent.execution.recording import Recorder, Replay
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
 from contraagent.pipeline.adapter import SpecAdapter
@@ -105,6 +106,8 @@ class Pipeline:
         enrichers: Sequence[ResultEnricher] = (),
         row_extras: Callable[[TaskResult], dict] | None = None,
         stub: Any = None,
+        record: str | Path | None = None,
+        replay: str | Path | None = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -144,6 +147,13 @@ class Pipeline:
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
+        `record`: a directory each agent task attempt's recording is written to
+        (`<record>/<kind>/<key>.json` and its files: `execution/recording.py`): its outputs,
+        the files its `changes=` patterns saw change, its transcript and its result.
+        `replay`: a directory of recordings, played in place of every agent task's launch,
+        attempt by attempt; nothing is spent. A replay is a stub run (`run.json` `stub: true`,
+        and `replay`, the directory) whose Python tasks run their functions; its run id
+        defaults to `<flow>-replay`. Not with `record`, `stub`, `backends` or `preflight`.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key."""
@@ -155,9 +165,20 @@ class Pipeline:
         self.runs_dir = Path(runs_dir)
         if stub is not None and backends is not None:
             raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
+        if replay is not None:
+            given = [name for name, value in (("record", record), ("stub", stub), ("backends", backends)) if value is not None]
+            if preflight:
+                given.append("preflight")
+            if given:
+                raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}=")
         self.stub = stub
+        self.record = Path(record) if record is not None else None
+        #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
+        self.replay = Replay(replay) if replay is not None else None
         if stub is not None:
             backends = stub.backends()
+        elif self.replay is not None:
+            backends = self.replay.backends()
         self.backends = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
         self.overrides = overrides
         self.cwd = Path(cwd) if cwd else Path.cwd()
@@ -206,11 +227,14 @@ class Pipeline:
         put back when it returns. An agent of a process killed outright (SIGKILL) is
         stopped by a watchdog (`backends/live_processes.py`): no agent outlives its run.
         """
-        run_id = run_id or (f"{flow.__name__}-stub" if self.stub is not None else flow.__name__)
+        suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
+        run_id = run_id or f"{flow.__name__}{suffix}"
         with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             if self.stub is not None:
                 run.update_info(stub=True)
+            if self.replay is not None:
+                run.update_info(stub=True, replay=str(self.replay.directory.resolve()))
             if not resume and run.rows():
                 raise RunExists(
                     f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
@@ -269,18 +293,26 @@ class Pipeline:
                         finishing_kinds=self.queue_options.get("finishing_kinds", ()),
                         grace_s=self.queue_options.get("grace_s", GRACE_S),
                     )
+                    adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
+                    enrichers = list(self.enrichers)
+                    if self.replay is not None:
+                        self.replay.start(adapter.output_contracts, self.cwd)
+                        enrichers.insert(0, self.replay)
+                    if self.record is not None:  # last: it records the result the enrichers leave
+                        enrichers.append(Recorder(self.record, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id))
                     runner = run.agent_runner(
                         self.backends,
                         plan.configs,
-                        routers=plan.routers,
+                        # A replay plays each attempt's last launch: it walks no failover hop.
+                        routers=plan.routers if self.replay is None else {},
                         credentials=plan.credentials,
-                        adapter=SpecAdapter(run.run_id, run_dir, self.cwd),
+                        adapter=adapter,
                         keep_transcripts=self.keep_transcripts,
                         cwd=self.cwd,
                         env=self.env,
                         rests=rests,
                         scopes=self.scopes,
-                        enrichers=self.enrichers,
+                        enrichers=enrichers,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
@@ -323,7 +355,8 @@ class Pipeline:
         )
         plan.log()
         runner.configs = {**runner.configs, **plan.configs}
-        runner.routers.update(plan.routers)
+        if self.replay is None:
+            runner.routers.update(plan.routers)
 
 
 def _start(flow: Callable[..., Any], args: tuple, kwargs: dict, graph: Graph, driver: FlowDriver, run: Run) -> tuple[Any, list[Task], bool]:

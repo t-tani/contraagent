@@ -10,6 +10,7 @@
 * `schemas.py`   the pydantic models of the files a run leaves on disk
 * `estimates.py` task durations and tails, from recent runs and this one, for the queue
 * `teardown.py`  stopping what a run started, however it ends
+* `recording.py` `Recorder` (each agent task attempt kept) and `Replay` (played again, nothing spent)
 """
 
 from contraagent.execution.adapter import TaskAdapter

@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Plan.preflight`. It replaces `Pipeline(preflight=True)`, which is `"substitute"`; there a
   kind with no failover chain whose route answered stays on it, and a route past the probe
   cap is kept unprobed.
+- Recordings and replays: `Pipeline(record="recordings/")` (`contraagent run --record DIR`)
+  keeps each agent task attempt's outputs, the files its `changes=` patterns saw change, its
+  transcript and its result; `Pipeline(replay="recordings/")` (`contraagent run --replay DIR`)
+  plays them in place of the launches, attempt by attempt, with nothing spent, while Python
+  tasks run their functions. A replay is a stub run; `run.json` names its recordings (`replay`).
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).
