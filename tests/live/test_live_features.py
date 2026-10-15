@@ -221,7 +221,7 @@ def test_changes_are_journaled_and_a_failed_attempt_leaves_none(ws, agent):
         validators=[never],
         max_turns=10,
         timeout_s=60,
-        retries=1,
+        retries=0,
         **route(agent),
     )
 

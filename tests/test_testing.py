@@ -25,7 +25,7 @@ def run(tmp_path, agent, flow, config=None):
 
 
 def test_replies_by_key_kind_list_and_callable(tmp_path, plugin_dir):
-    review = agent_task("review", plugin=plugin_dir, output=Verdict, max_turns=5, timeout_s=60, retries=2, retry_backoff_base=0)
+    review = agent_task("review", plugin=plugin_dir, output=Verdict, max_turns=5, timeout_s=60, retries=1, retry_backoff_base=0)
     handles = {}
 
     def flow():

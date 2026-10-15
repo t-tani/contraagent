@@ -42,7 +42,7 @@ context_warn = 120000               # mark the result over budget past this many
 max_denials = 5                     # stop a launch after this many permission denials
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
-retries = 3                         # fresh-session attempts after one that made no progress
+retries = 2                         # fresh-session attempts after the first, each after one that made no progress
 retry_backoff_base = 2.0            # seconds, doubled per attempt
 
 [tasks.analyze]                     # agent_task("analyze", ..., requires=["zdr"])

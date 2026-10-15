@@ -24,6 +24,7 @@ from typing import Any, Literal, TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
+from contraagent.dispatch.python_task import checked_retries
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.plugins.plugin import body
@@ -453,7 +454,7 @@ def python_task(
         kind = name or f.__name__
         owner = f"python_task({kind!r})"
         checked = _checked_claims(owner, claims)
-        tries, on = _checked_retries(owner, retries, retry_on)
+        tries, on = checked_retries(owner, retries, retry_on)
         return PythonTask(
             fn=f,
             name=kind,
@@ -466,23 +467,6 @@ def python_task(
         )
 
     return wrap(fn) if fn is not None else wrap
-
-
-def _checked_retries(owner: str, retries: Any, retry_on: Any) -> tuple[int, tuple[type[Exception], ...]]:
-    """`retries` and `retry_on` as declared, checked: a count of 0 or more, a tuple of
-    exception classes, and each given with the other."""
-    if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
-        raise TypeError(f"{owner}: retries must be an int of 0 or more, not {retries!r}")
-    if isinstance(retry_on, type) or not isinstance(retry_on, (tuple, list)):
-        raise TypeError(f"{owner}: retry_on must be a tuple of exception classes, such as (ConnectionError,), not {retry_on!r}")
-    for cls in retry_on:
-        if not (isinstance(cls, type) and issubclass(cls, Exception)):
-            raise TypeError(f"{owner}: retry_on holds {cls!r}; each item is an exception class, such as ConnectionError")
-    if retries and not retry_on:
-        raise ValueError(f"{owner}: retries={retries} with no retry_on; name the exception classes that give a fresh attempt")
-    if retry_on and not retries:
-        raise ValueError(f"{owner}: retry_on with retries=0; give the number of fresh attempts (retries=1 or more)")
-    return retries, tuple(retry_on)
 
 
 def _class_name(cls: type) -> str:

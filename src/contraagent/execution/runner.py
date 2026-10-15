@@ -607,8 +607,9 @@ def backoff_s(base: float, attempt: int) -> float:
 class RetryingRunner:
     """Wraps an `AgentRunner` so the queue sees one terminal `TaskResult` per `Task`.
 
-    A failure *without* progress retries with full-jitter exponential backoff
-    up to the kind's `KindConfig.retries`; a safeguard refusal is not
+    A failure *without* progress gets a fresh attempt, after full-jitter exponential
+    backoff, up to the kind's `KindConfig.retries` of them after the first (`retries=2`:
+    3 attempts at most); a safeguard refusal is not
     retried (the hop walk already tried every route). This sits beside the
     queue's own `retry_on`, which covers a launch that never ran.
 
@@ -643,7 +644,7 @@ class RetryingRunner:
 
     def run(self, task: Task) -> TaskResult:
         rc = self._runner.config(task)
-        attempts = max(1, rc.retries)
+        attempts = 1 + max(0, rc.retries)
         last: TaskResult | None = None
         for attempt in range(attempts):
             task.attempt = attempt
