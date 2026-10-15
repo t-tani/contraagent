@@ -62,9 +62,11 @@ const DOCS_LOOP = 'contraagent.docs.examples.demo.tasks.review_loop';
 const SHOTS = [
   // The root README.
   {
-    // The hero, wide: the monitor's header with the run's line; the pipeline graph at its own
-    // size (in a frame wider than the drawing, which is then never scaled to fit), from
-    // summarize through the review loop; and the first row of the totals.
+    // The hero, wide: the monitor's header with the run's line; the pipeline graph of the review
+    // loop's layer from summarize to write_note, drawn by the monitor at the zoom that fits the
+    // layer into the frame of a 1108 px page (about 88%, rendered at that size, never scaled
+    // after), with 24 px of the frame on either side; and the first row of the totals. The whole
+    // layer, prepare included, fits 880 px only at about 75%, too small to read.
     set: 'readme',
     name: 'overview',
     url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`,
@@ -72,13 +74,32 @@ const SHOTS = [
     gap: 0, // three bands: the header, the graph's frame, the row of tiles
     parts: [
       {
-        width: 1300,
+        width: 1300, // the header in one row, the run's line whole
+        height: 1000,
+        clip: async (page) => box(0, 0, 880, (await boxOf(page, 'header')).height),
+      },
+      {
+        width: 1108,
         height: 1000,
         clip: async (page) => {
-          const head = await boxOf(page, 'header');
           const frame = await boxOf(page, 'ca-pipeline-graph .gframe');
-          const from = (await boxOf(page, 'ca-pipeline-graph .node:has-text("summarize")')).x - 12;
-          return [box(0, 0, 880, head.height), box(from, frame.y, 880, frame.height)];
+          const from = await boxOf(page, 'ca-pipeline-graph .node:has-text("summarize")');
+          const to = await boxOf(page, 'ca-pipeline-graph .node:has-text("write_note")');
+          const left = (from.x + to.x + to.width) / 2 - 440;
+          if (from.x - left < 16) throw new Error('summarize to write_note does not fit the hero with its margins');
+          // Both margins are the frame's own colour: on the left it covers prepare and its edge
+          // into summarize, on the right the frame's end and the card past it.
+          const colour = await page.locator('ca-pipeline-graph .gframe').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+          const cover = ([x, y, w, h, c]) =>
+            document.body.append(
+              Object.assign(document.createElement('div'), {
+                style: `position:fixed;left:${x}px;top:${y}px;width:${w}px;height:${h}px;background:${c};z-index:9999`,
+              }),
+            );
+          const end = to.x + to.width;
+          await page.evaluate(cover, [left, frame.y, from.x - left, frame.height, colour]);
+          await page.evaluate(cover, [end, frame.y, left + 880 - end, frame.height, colour]);
+          return box(left, frame.y, 880, frame.height);
         },
       },
       {
