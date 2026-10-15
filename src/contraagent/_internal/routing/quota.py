@@ -52,20 +52,37 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
 from contraagent._internal.backends.credentials import Credential, Pool
+from contraagent._internal.dispatch.queue import GRACE_S
 from contraagent._internal.dispatch.records import WINDOWS, QuotaReading, Rest, window_spec
 from contraagent._internal.runs.times import parse_iso
 
-#: `quota_rule(credential, reading)`: a reason the credential rests now, or None; or the
-#: reason and when the rest ends (a `datetime`; one with no time zone is UTC).
-QuotaRule = Callable[[str, QuotaReading], "str | tuple[str, datetime] | None"]
 
-#: `account(credential)`: the account a launch as the credential bills now (`Backend.account`), '' unknown.
-AccountOf = Callable[[str], str]
+class QuotaRule(Protocol):
+    """A rule that rests a credential on its quota reading, beside the config's caps
+    (`max_five_hour_pct`, `max_seven_day_pct`): `rule(credential, reading)`
+    (`Pipeline(quota_rule=)`).
+
+    `credential`: the credential's name, the `<name>` of its `[credentials.<name>]` table
+    (`"ambient"` for the built-in one; a pool's member by its own name). `reading`: the
+    latest `QuotaReading` its coding agent reported for it. It returns None when the
+    credential may launch; a reason (`"5-hour usage past 85%"`) when it rests now, until
+    the reading stops standing (the earliest reset among its windows); or the reason and the
+    `datetime` the rest ends (one with no time zone is UTC). A resting credential is not
+    launched on: its tasks take the next hop of their failover chain, or are deferred."""
+
+    def __call__(self, credential: str, reading: QuotaReading, /) -> str | tuple[str, datetime] | None: ...
+
+
+class AccountOf(Protocol):
+    """`account(credential)`: the account a launch as credential `credential` (its name)
+    bills now, as `Backend.account` gives it; '' when unknown."""
+
+    def __call__(self, credential: str, /) -> str: ...
 
 
 def _aware(t: datetime) -> datetime:
@@ -140,7 +157,7 @@ class QuotaRests:
         rule: QuotaRule | None = None,
         *,
         finishing_kinds: Iterable[str] = (),
-        grace_s: float = 900.0,
+        grace_s: float = GRACE_S,
         on_change: Callable[[str, Rest], None] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         clock: Callable[[], float] = time.monotonic,

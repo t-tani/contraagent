@@ -379,8 +379,9 @@ Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
 in the pattern, or keep them from running at once (a claim).
 
 `Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of a task, agent or
-Python. A scope (`TaskScope`) is a context manager around it: around every hop of an
-agent task, around the input check, the call and the output check of a Python task.
+Python. A scope (`TaskScope`) is a function of the task that returns a context manager,
+entered around each attempt: around every hop of an agent task, around the input check,
+the call and the output check of a Python task.
 A scope that raises fails the task. A Python task's exception is the attempt's result,
 so the scope exits without one. An enricher (`ResultEnricher`) sees the task before
 and the result after (an agent task's after its changes are recorded), and may return

@@ -66,10 +66,6 @@ class Open(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
 
-#: A JSON object whose keys a domain chooses (a panel's body, a contract file's content).
-JsonObject = dict[str, Any]
-
-
 # --- /api/info -------------------------------------------------------------
 
 
@@ -345,7 +341,7 @@ class Trends(Closed):
     deferred_causes: dict[str, int]
     runs: list[TrendRun]
     starts: TrendStarts
-    bodies: dict[str, JsonObject]
+    bodies: dict[str, dict[str, Any]]
     panels: list[PanelInfo]
 
 
@@ -623,7 +619,7 @@ class CursorView(Closed):
     history: list[StageEntry] = Field(default_factory=list)
     updated_at: str = ""
     units: dict[str, UnitPosition] = Field(default_factory=dict)
-    markers: dict[str, list[JsonObject]] = Field(default_factory=dict, description="free-form event lists by name")
+    markers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict, description="free-form event lists by name")
 
 
 # --- procs -----------------------------------------------------------------
@@ -1113,7 +1109,7 @@ PanelBody = Annotated[
     | Annotated[StatusGridBody, Tag("status_grid")]
     | Annotated[NoteBody, Tag("note")]
     | Annotated[BlocksBody, Tag("blocks")]
-    | Annotated[JsonObject, Tag("untyped")],
+    | Annotated[dict[str, Any], Tag("untyped")],
     Discriminator(_panel_kind),
 ]
 BlocksBody.model_rebuild()

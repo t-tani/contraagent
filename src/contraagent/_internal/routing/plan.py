@@ -395,7 +395,8 @@ class RoutingPlan:
 
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord:
         """Probe every route once, drop the ones that cannot answer, and apply `policy` to
-        each kind left with no route (`PreflightPolicy`); returns what was done.
+        each kind left with no route (`substitute`, `stop` or `off`, as
+        `Pipeline(preflight=)`); returns what was done.
 
         A kind moved onto another route (`substitute`) is logged and recorded: a kind
         silently running somewhere other than where it was configured is the failure

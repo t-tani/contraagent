@@ -217,8 +217,10 @@ def test_declarations_fail_early(tmp_path, plugin_dir):
         pipeline(tmp_path, stub()).run(lambda: summarize("u"))
     with pytest.raises(TypeError, match="plugin="):
         agent_task("x", output=Summary)
-    with pytest.raises(ConfigError, match="max_turnz"):
+    with pytest.raises(TypeError, match="max_turnz"):
         agent_task("x", plugin=plugin_dir, max_turnz=3)
+    with pytest.raises(ConfigError, match=r"agent_task: \[x\]\.max_turns = '3' is not a number"):
+        agent_task("x", plugin=plugin_dir, max_turns="3")
     with pytest.raises(RuntimeError, match="inside a flow"):
         summarize("u", path="x")
 

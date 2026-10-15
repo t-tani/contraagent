@@ -10,22 +10,27 @@ seeing the task before and (for enrichers) the result after.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
 from contraagent._internal.dispatch.task import Task, TaskResult
 
-#: Wraps one attempt of a task in a `with`-block, agent or Python: for an
-#: agent task, entered right before its first failover hop and exited exactly
-#: once after its last, regardless of which of the dispatch loop's several
-#: return points is actually taken; for a Python task, around its input check,
-#: its call and its output check. The function's exception is the attempt's
-#: result, so the block exits without one. Pure lifecycle -- no return value is
-#: used, see `ResultEnricher` for the sibling that needs one. A scope for some
-#: tasks only tests `task.kind` or `task.executor` and returns
-#: `contextlib.nullcontext()` for the others.
-TaskScope = Callable[[Task], AbstractContextManager[None]]
+
+class TaskScope(Protocol):
+    """A function of a task that returns a context manager: `scope(task)`, called once per
+    attempt of the task, agent or Python, and the attempt runs inside `with scope(task):`
+    (`Pipeline(scopes=)`). A generator function decorated with `contextlib.contextmanager`
+    is one.
+
+    For an agent task the block is entered right before its first failover hop and exited
+    once after its last, whichever way the attempt ends (a timeout included); for a Python
+    task it is around its input check, its call and its output check. The function's
+    exception is the attempt's result, so the block exits without one. A scope returns no
+    value to the attempt (`ResultEnricher` does). A scope for some tasks only tests
+    `task.kind` or `task.executor` and returns `contextlib.nullcontext()` for the others."""
+
+    def __call__(self, task: Task, /) -> AbstractContextManager[None]: ...
 
 
 class ResultEnricher(Protocol):

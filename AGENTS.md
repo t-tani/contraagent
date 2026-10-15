@@ -191,8 +191,18 @@ documentation or an example uses gets a public home; every contraagent type a pu
 signature, field or callback argument reaches is exported too; the rest stays in
 `_internal`. A signature reaches a type only when its user needs it: a helper hides
 behind a method (`Backend.mark_launch`), a value returns the type it behaves as
-(`agent_task(implementations=)` a `Mapping`, `time_box` a generator). An alias of literal
-values is not exported (its annotation lists them). `contraagent.monitor.api` holds the
+(`agent_task(implementations=)` a `Mapping`, `time_box` a generator). The type of a
+function a user writes or passes (a rule, a scope, a validator, a panel, a callback) is a
+`Protocol` with a docstring stating the call and `__call__` its signature (positional-only
+parameters, so any function of that shape fits), never a `Callable` alias; it is exported
+where the user meets it. A named alias a signature reaches (a union) is exported like a
+class; an alias of literal values is not (its annotation lists them, and the
+documentation names the field, not the alias). A public signature names every argument
+it takes, typed and documented: no `**kwargs` passed through to another function (the
+`**` a test allows: a task's own parameters, a flow's arguments, a record's fields); an
+argument set that mirrors another (`agent_task`'s task table keys, `Pipeline`'s
+`WorkQueue` arguments) has a test that holds the two equal. No public docstring names
+`contraagent._internal`: it names the public object. `contraagent.monitor.api` holds the
 schemas of the monitor's OpenAPI document that have no other public home, its
 `API_VERSION` and the union of transcript events (`AnyTranscriptEvent`), and nothing
 else. The examples in `docs/examples/` import only public modules; nothing outside the

@@ -15,6 +15,7 @@ from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResul
 from contraagent._internal.backends.omp import OmpBackend, OmpRpcBackend
 from contraagent._internal.backends.opencode import OpencodeBackend
 from contraagent._internal.backends.pi import PiBackend
+from contraagent._internal.backends.process import Sink
 from contraagent._internal.backends.refusal import Ending, Signals
 from contraagent._internal.backends.streams import normalize_stream_line, register_normalizer
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
@@ -42,6 +43,7 @@ __all__ = [
     "QuotaRefusal",
     "SchemaRef",
     "Signals",
+    "Sink",
     "Stop",
     "Usage",
     "create_backend",

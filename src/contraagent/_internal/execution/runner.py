@@ -143,7 +143,7 @@ class AgentRunner:
         (`RoutingPlan.credentials`); `ambient` is always there.
         `model`, `model_failover`, `env`: run-wide launch defaults a kind's own
         config outranks.
-        `rests`: the run's quota rests (`routing.quota`): a hop whose credential rests is
+        `rests`: the run's quota rests (`QuotaRests`): a hop whose credential rests is
         skipped without a launch, a pool's resting members too, and a task with no hop
         left is deferred. Each launch's utilization readings are told to it.
         `scopes` / `enrichers`: wrap each dispatch (`TaskScope`, `ResultEnricher`). The

@@ -19,7 +19,7 @@ A reply is one of:
 * `writes(value)`: the same, explicitly (a JSON list output needs it); `writes(value,
   quota=QuotaReading(five_hour_pct=80))` also reports a quota reading, as a coding
   agent does, so quota caps and `quota_rule` rest the credential in a test;
-* `writes_smallest()`: the smallest value the output's schema accepts (`contracts.smallest`);
+* `writes_smallest()`: the smallest value the output's schema accepts;
   a schema rule it cannot build (`pattern`) fails the launch and names the rule;
 * `writes_nothing()`: the launch completes and leaves no file;
 * `fails(stop, reason)`: the launch ends on `stop` (default `error`);
@@ -123,9 +123,9 @@ _SMALLEST: Any = object()
 
 
 def writes_smallest() -> Reply:
-    """Write the smallest value the output's schema accepts (`contraagent._internal.contracts.contract.smallest`):
-    required fields only, the shortest lists and strings, numbers nearest zero. A text
-    output is `stub`. A schema rule it cannot build (`pattern`) fails the reply and names it."""
+    """Write the smallest value the output's schema accepts: required fields only, the
+    shortest lists and strings, numbers nearest zero. A text output is `stub`. A schema
+    rule it cannot build (`pattern`) fails the reply and names it."""
     return Reply(output=_SMALLEST)
 
 
@@ -185,9 +185,6 @@ class StubTask:
     n: int
 
 
-Script = Mapping[str, Any]
-
-
 class StubAgent(Backend):
     """A coding agent that reads its call file and plays the reply scripted for the task.
 
@@ -208,7 +205,9 @@ class StubAgent(Backend):
         """It denies what it is told to: it calls no tool."""
         return None
 
-    def __init__(self, script: Script | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0) -> None:
+    def __init__(
+        self, script: Mapping[str, Any] | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0
+    ) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
         self.default = default

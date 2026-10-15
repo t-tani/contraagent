@@ -2,8 +2,9 @@
 
 A public module (`contraagent`, `contraagent.config`, ...) holds no definitions: it
 imports names from `_internal` and calls `publish(__name__, __all__)`. Each class and
-function then names that module as its `__module__`, so a repr, a traceback, pickle and
-the documentation show the one path a user imports it from.
+function, and each function a class defines (its methods and properties), then names that
+module as its `__module__`, so a repr, a traceback, pickle, `help()` and the documentation
+show the one path a user imports it from.
 
 A class's annotations are strings (`from __future__ import annotations`) that resolve in
 the module that defines it; `typing.get_type_hints` and pydantic look them up in the
@@ -42,7 +43,20 @@ def publish(module: str, names: Iterable[str]) -> None:
             continue
         if inspect.isclass(obj):
             _resolve_annotations(obj)
+            _publish_members(obj, module)
         obj.__module__ = module
+
+
+def _publish_members(cls: type, module: str) -> None:
+    """Make `module` the home of the functions `cls` defines (methods, class and static
+    methods, properties), so `help()` of one names the public module too."""
+    for member in vars(cls).values():
+        if isinstance(member, (classmethod, staticmethod)):
+            member = member.__func__
+        functions = [member.fget, member.fset, member.fdel] if isinstance(member, property) else [member]
+        for fn in functions:
+            if inspect.isfunction(fn) and fn.__module__.startswith(f"{_INTERNAL}."):
+                fn.__module__ = module
 
 
 def _resolve_annotations(cls: type) -> None:

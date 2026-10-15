@@ -1,7 +1,8 @@
 """The public API: each public module re-exports, each object has one public path, every
-contraagent type a public signature, field or callback argument reaches is exported, and the
-public modules import without the extras. Who imports `_internal` is checked by
-`tests/test_layers.py`."""
+contraagent type a public signature, field or callback argument reaches is exported (a class,
+a protocol or a named alias; an alias of literal values is not), no public
+docstring names `_internal`, and the public modules import without the extras. Who imports
+`_internal` is checked by `tests/test_layers.py`."""
 
 from __future__ import annotations
 
@@ -49,6 +50,48 @@ def _ours(cls: type) -> bool:
     return isinstance(cls, type) and cls.__module__.split(".")[0] == "contraagent" and not cls.__module__.startswith("contraagent.docs")
 
 
+def _is_alias(value: object) -> bool:
+    """A type alias: a `type X = ...` statement, or a typing construct bound to a name
+    (`X = Callable[...]`, `X = A | B`, `X = Literal[...]`)."""
+    if isinstance(value, typing.TypeAliasType):
+        return True
+    return not isinstance(value, type) and (typing.get_origin(value) is not None or isinstance(value, types.UnionType))
+
+
+def _names_no_type(value: object) -> bool:
+    """An alias that names no type of its own: of literal values (`Literal["a", "b"]`; its
+    annotation lists them), or a field's validation over a type (`Annotated[Secret, ...]`;
+    the walk reaches the type under it)."""
+    if isinstance(value, typing.TypeAliasType):
+        value = value.__value__
+    if typing.get_origin(value) is typing.Annotated:
+        return isinstance(typing.get_args(value)[0], type)
+    return typing.get_origin(value) is typing.Literal
+
+
+def _internal_aliases() -> dict[int, list[str]]:
+    """id(alias) -> `module.name`, for every alias a module of `_internal` defines: a name its
+    source binds at the top level to a type alias (not one it imports)."""
+    found: dict[int, list[str]] = {}
+    for name, mod in list(sys.modules.items()):
+        if not name.startswith("contraagent._internal") or mod is None or not getattr(mod, "__file__", None):
+            continue
+        tree = ast.parse(Path(mod.__file__).read_text())
+        bound = set()
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                bound |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                bound.add(node.target.id)
+            elif isinstance(node, ast.TypeAlias):
+                bound.add(node.name.id)
+        for key in bound:
+            value = vars(mod).get(key)
+            if value is not None and _is_alias(value):
+                found.setdefault(id(value), []).append(f"{name}.{key}")
+    return found
+
+
 def _internal_names() -> dict[str, object]:
     """Every class and alias `_internal` defines, by name: what a string annotation naming
     something imported only for a type checker (`TYPE_CHECKING`) stands for."""
@@ -64,8 +107,12 @@ def _internal_names() -> dict[str, object]:
 class Walker:
     def __init__(self) -> None:
         self.fallback = _internal_names()
+        self.aliases = _internal_aliases()
         self.seen: set[int] = set()
         self.reached: dict[type, str] = {}
+        #: id(alias) -> (the alias, where it was first reached)
+        self.reached_aliases: dict[int, tuple[object, str]] = {}
+        self.where = ""
 
     def resolve(self, value: object, globalns: dict, localns: dict | None = None) -> object:
         if isinstance(value, typing.ForwardRef):
@@ -82,6 +129,8 @@ class Walker:
 
     def types_in(self, value: object, globalns: dict, localns: dict | None = None) -> Iterator[object]:
         value = self.resolve(value, globalns, localns)
+        if id(value) in self.aliases:
+            self.reached_aliases.setdefault(id(value), (value, self.where))
         if isinstance(value, tuple):
             for v in value:
                 yield from self.types_in(v, globalns, localns)
@@ -113,7 +162,8 @@ class Walker:
             yield value
 
     def visit_type(self, value: object, globalns: dict, where: str, localns: dict | None = None) -> None:
-        for t in self.types_in(value, globalns, localns):
+        self.where = where
+        for t in list(self.types_in(value, globalns, localns)):
             if isinstance(t, type) and _ours(t):
                 self.reached.setdefault(t, where)
                 self.visit(t, where)
@@ -207,6 +257,172 @@ def test_every_type_a_public_signature_reaches_is_exported():
         f"{t.__module__}.{t.__qualname__} (reached from {where})" for t, where in walker.reached.items() if id(t) not in exports
     )
     assert missing == []
+
+
+def test_every_alias_a_public_signature_reaches_is_exported():
+    """A named type alias a public signature, field or callback argument reaches is exported
+    too, as a class is; an alias that names no type of its own (literal values, a field's
+    validation) is not."""
+    exports = _exports()
+    walker = Walker()
+    for module, name, obj in exports.values():
+        walker.visit(obj, f"{module}.{name}")
+    assert walker.aliases, "no alias found: the walk would check nothing"
+    missing = sorted(
+        f"{' / '.join(walker.aliases[key])} (reached from {where})"
+        for key, (alias, where) in walker.reached_aliases.items()
+        if key not in exports and not _names_no_type(alias)
+    )
+    assert missing == []
+
+
+def test_a_callable_a_user_writes_is_a_protocol_with_its_call_documented():
+    """A function a user passes (a rule, a scope, a validator, a panel, a callback) has a
+    named type: a `Protocol` whose docstring states the call and whose `__call__` is the
+    signature, so `help()` and a type checker both show it."""
+    callables = {
+        "contraagent": ["QuotaRule", "TaskScope", "Validator"],
+        "contraagent.engine": ["AccountOf", "Answer", "Created", "FollowUp", "OnEvent", "OnFlowCall", "OnResult", "WaitsFor"],
+        "contraagent.monitor": ["PanelFn", "TaskDetailFn", "TrendsPanelFn"],
+        "contraagent.backends": ["Sink"],
+    }
+    for module, names in callables.items():
+        mod = importlib.import_module(module)
+        for name in names:
+            obj = getattr(mod, name)
+            assert name in mod.__all__ and getattr(obj, "_is_protocol", False), (module, name)
+            assert "__call__" in vars(obj) and (obj.__doc__ or "").strip(), (module, name)
+
+
+def test_the_quota_rule_documents_its_arguments():
+    from contraagent import QuotaRule
+
+    doc = QuotaRule.__doc__ or ""
+    assert "[credentials.<name>]" in doc and "QuotaReading" in doc and "None" in doc
+    params = list(inspect.signature(QuotaRule.__call__).parameters.values())[1:]
+    positional = inspect.Parameter.POSITIONAL_ONLY
+    assert [(p.name, p.kind) for p in params] == [("credential", positional), ("reading", positional)]
+
+
+def _public_members(obj: object) -> Iterator[tuple[str, object]]:
+    """An exported object and the functions and properties its class defines, by name."""
+    yield "", obj
+    if isinstance(obj, type):
+        for name, member in vars(obj).items():
+            if name.startswith("_") and name not in ("__init__", "__call__"):
+                continue
+            if isinstance(member, (classmethod, staticmethod)):
+                member = member.__func__
+            if isinstance(member, property) or (inspect.isfunction(member) and member.__module__.startswith("contraagent")):
+                yield f".{name}", member
+
+
+def test_no_public_docstring_names_internal():
+    """A docstring a user reads (`help()`) names public paths only: `contraagent._internal`
+    is not public, so a docstring names the public object instead."""
+    found = []
+    for module, name, obj in _exports().values():
+        for member, value in _public_members(obj):
+            doc = getattr(value, "__doc__", None) or ""
+            if isinstance(doc, str) and "_internal" in doc:  # `contraagent._internal`, or a path under it
+                found.append(f"{module}.{name}{member}")
+    assert found == []
+
+
+def test_help_of_a_public_function_or_method_shows_public_paths_only():
+    """`help()` of a public function, or of a function a public class defines, names its
+    public module. (A class's implementation bases keep their own paths: they are not public.)"""
+    import pydoc
+
+    found = []
+    for module, name, obj in _exports().values():
+        if not (isinstance(obj, type) or inspect.isfunction(obj)):
+            continue
+        for member, value in _public_members(obj):
+            target = value.fget if isinstance(value, property) else value
+            if target is None or isinstance(target, type):
+                continue
+            if target.__module__ != module:
+                found.append(f"{module}.{name}{member}: __module__ {target.__module__}")
+            text = pydoc.render_doc(target, renderer=pydoc.plaintext)
+            if "contraagent._internal" in text:
+                line = next(line for line in text.splitlines() if "contraagent._internal" in line)
+                found.append(f"{module}.{name}{member}: {line.strip()}")
+    assert found == []
+
+
+#: The `**` parameters a public signature keeps: a task's own parameters, the flow's
+#: arguments, the fields of a record merged in, the arguments of a class picked by name.
+#: Any other argument is a named, typed parameter.
+VAR_KEYWORD_KEPT = {
+    "contraagent.AgentTask.__call__": "params",
+    "contraagent.PythonTask.__call__": "kwargs",
+    "contraagent.Pipeline.check": "kwargs",
+    "contraagent.Pipeline.run": "kwargs",
+    "contraagent.TimeBox.cause": "fields",
+    "contraagent.config.KindConfig.with_": "changes",
+    "contraagent.config.QuotaReading.from_windows": "fields",
+    "contraagent.backends.EventFold.launch_result": "fields",
+    "contraagent.backends.create_backend": "kwargs",
+    "contraagent.engine.OnEvent.__call__": "fields",
+    "contraagent.engine.Run.update_info": "fields",
+    "contraagent.Validator.__call__": "kwargs",
+}
+
+
+def test_no_public_signature_takes_arguments_it_does_not_name():
+    found = {}
+    for module, name, obj in _exports().values():
+        if not (isinstance(obj, type) or inspect.isfunction(obj)) or name in ("serve", "create_app"):
+            continue
+        for member, value in _public_members(obj):
+            if not inspect.isfunction(value) or value.__module__ == "typing":
+                continue
+            for p in inspect.signature(value).parameters.values():
+                if p.kind is p.VAR_KEYWORD:
+                    found[f"{module}.{name}{member}"] = p.name
+    assert found == VAR_KEYWORD_KEPT
+
+
+def _keywords(fn: object, *, leave: tuple[str, ...] = ()) -> dict[str, object]:
+    """`fn`'s keyword parameters and their defaults, but `self` and `leave`."""
+    params = inspect.signature(fn).parameters.values()  # type: ignore[arg-type]
+    return {p.name: p.default for p in params if p.name != "self" and p.name not in leave and p.kind is not p.VAR_KEYWORD}
+
+
+def test_agent_task_takes_each_task_table_key_by_name():
+    """Each key of a `[tasks.<kind>]` table is an `agent_task` parameter of its own, None by
+    default (the kind's default, given or not), and nothing else is."""
+    from contraagent import agent_task
+    from contraagent._internal.routing.config import TASK_KEYS
+
+    declaration = {
+        "kind", "output", "params", "plugin", "skills_from", "role", "instructions", "validators", "output_name", "output_from",
+        "unwrap", "requires", "claims", "changes", "tools", "rerun_on_resume", "preserve", "output_of", "implementations",
+    }  # fmt: skip
+    keywords = _keywords(agent_task)
+    assert set(keywords) - declaration == set(TASK_KEYS)
+    assert {key: keywords[key] for key in TASK_KEYS} == dict.fromkeys(TASK_KEYS)
+    for overload in typing.get_overloads(agent_task):
+        assert set(_keywords(overload)) == set(keywords)
+
+
+def test_the_scheduling_arguments_are_the_queues():
+    """`Pipeline`'s scheduling arguments, and `Run.queue`'s, are `WorkQueue`'s, with its
+    defaults; `Run.agent_runner`'s are `AgentRunner`'s and `Run.quota_rests`' are
+    `QuotaRests`'."""
+    from contraagent import Pipeline
+    from contraagent.engine import AgentRunner, QuotaRests, Run, WorkQueue
+
+    queue = _keywords(WorkQueue, leave=("runner",))
+    pipeline = _keywords(Pipeline)
+    scheduling = {"deadline_s", "grace_s", "slack_s", "finishing_kinds", "overdue_s", "claim_capacity", "retry_wait_s", "throttle_s"}
+    assert {k: pipeline[k] for k in scheduling} == {k: queue[k] for k in scheduling}
+    run_queue = _keywords(Run.queue, leave=("runner", "resume"))
+    assert set(run_queue) == set(queue) - {"on_event", "on_result"}
+    assert [k for k in run_queue if run_queue[k] != queue[k]] == ["retry_on", "throttle_on"]  # a coding agent's stops
+    assert _keywords(Run.agent_runner) == _keywords(AgentRunner, leave=("run_dir", "run_id"))
+    assert _keywords(Run.quota_rests) == _keywords(QuotaRests, leave=("on_change", "now", "clock"))
 
 
 def test_published_classes_keep_their_annotations_and_pickle():

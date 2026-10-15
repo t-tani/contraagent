@@ -53,7 +53,7 @@ class CallOutput(BaseModel):
     #: Command validators (`validators.CommandValidator.to_dict()`); Python validators run in the runner only.
     commands: list[dict[str, Any]] = Field(default_factory=list)
     #: JSON pointers to the parts of the file the agent must keep as they are
-    #: (`agent_task(preserve=)`, `contraagent._internal.contracts.pointers`): `*` is every member.
+    #: (`agent_task(preserve=)`): `*` is every member.
     preserve: list[str] = Field(default_factory=list)
 
 

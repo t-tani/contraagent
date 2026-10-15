@@ -47,10 +47,23 @@ import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-#: `(path, value) -> errors`, optionally also taking any of `CONTEXT` by keyword.
-Validator = Callable[..., Iterable[str] | None]
+
+class Validator(Protocol):
+    """A check an output file must pass beyond its schema (`agent_task(validators=)`,
+    `@python_task(validators=)`): `validator(path, value)` returns the file's errors.
+
+    `path`: the output file; `value`: its content, parsed and checked against the schema (the
+    model instance for a JSON output, the text for a text output). It returns an iterable of
+    error strings; empty or None, the file passes. A validator may also declare any of these
+    by name, and is given them by keyword: `params`, the task's params; `call`, the path of an
+    agent task's call file; `cwd`, the task's working directory; `before`, the file as it was
+    before the task, parsed as `value` is (None when there was none, or it did not pass its
+    schema then). A plain function is one; `CommandValidator` runs a command instead."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Iterable[str] | None: ...
+
 
 #: What a validator may declare, beyond `(path, value)`.
 CONTEXT = ("params", "call", "cwd", "before")
