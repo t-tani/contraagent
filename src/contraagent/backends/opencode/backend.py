@@ -466,19 +466,54 @@ class OpencodeBackend(OneShotBackend):
         words = next((w for line in stderr.splitlines() if (w := refusal_in_log(line))), "")
         launch_result.result_text = launch_result.result_text or words
 
-    def catalogue(self) -> set[str] | None:
-        """Model ids from `opencode models`, or None when it cannot be read."""
+    def read_models(self) -> dict[str, int | None] | None:
+        """Model ids and their context windows from `opencode models --verbose`
+        (`parse_models`), or None when it cannot be read. opencode lists a window for each
+        model (`limit.context`): exact."""
         if not shutil.which(self.binary, path=self.base_path()):
             return None
         try:
             proc = subprocess.run(
-                [self.binary, "models"], capture_output=True, text=True, timeout=60, env={**self._base_env, "NO_COLOR": "1"}
+                [self.binary, "models", "--verbose"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env={**self._base_env, "NO_COLOR": "1"},
             )
         except (OSError, subprocess.SubprocessError):
             return None
         if proc.returncode != 0:
             return None
-        return {line.strip() for line in proc.stdout.splitlines() if re.fullmatch(r"[\w.-]+/\S+", line.strip())} or None
+        return parse_models(proc.stdout) or None
+
+
+#: A model's line in `opencode models`: `provider/model`.
+_MODEL_LINE = re.compile(r"[\w.-]+/\S+")
+_SPACE = re.compile(r"\s*")
+
+
+def parse_models(stdout: str) -> dict[str, int | None]:
+    """Each model of `opencode models --verbose` (a `provider/model` line, then the
+    model's JSON with `limit.context`), with its context window; None where the JSON
+    gives none. Plain `opencode models` (the lines alone) parses too, every window
+    None."""
+    out: dict[str, int | None] = {}
+    decoder = json.JSONDecoder()
+    pos = 0
+    for line in stdout.splitlines(keepends=True):
+        pos += len(line)
+        name = line.strip()
+        if line[:1].isspace() or not _MODEL_LINE.fullmatch(name):
+            continue
+        at = _SPACE.match(stdout, pos).end()  # type: ignore[union-attr]
+        try:
+            doc = decoder.raw_decode(stdout, at)[0] if stdout.startswith("{", at) else None
+        except ValueError:
+            doc = None
+        limit = doc.get("limit") if isinstance(doc, dict) else None
+        context = limit.get("context") if isinstance(limit, dict) else None
+        out[name] = context if isinstance(context, int) and not isinstance(context, bool) and context > 0 else None
+    return out
 
 
 #: Providers opencode knows by name (the ones a gateway credential is likely to stand in

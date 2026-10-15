@@ -1,5 +1,5 @@
 """omp's own config/registry: the `retry.fallbackChains` reader and the
-`omp models` catalogue parser.
+`omp models --json` catalogue parser.
 
 A leaf relative to `omp.py`: both are self-contained readers of omp's own
 on-disk config or CLI output, with no dependency on the Backend contract
@@ -8,7 +8,7 @@ itself. `omp.py` is the only importer; nothing here imports back into it.
 
 from __future__ import annotations
 
-import re
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,26 +18,25 @@ from pathlib import Path
 # cheap preflight pass must not read as "every model is unknown".
 CATALOGUE_TIMEOUT_S = 30
 
-# omp prints its model table as a `provider (n)` header followed by rows
-# of `| model | context | max-out | thinking | images |`. The ids a config
-# uses are provider-qualified, so a row is joined to its header rather
-# than matched literally.
-_PROVIDER_RE = re.compile(r"^([A-Za-z0-9._-]+) \(\d+\)$")
-_ROW_RE = re.compile(r"^│\s*(\S+)\s*│")
 
-
-def parse_models(stdout: str) -> set[str]:
-    """Provider-qualified ids from `omp models` output."""
-    out: set[str] = set()
-    provider = ""
-    for line in stdout.splitlines():
-        head = _PROVIDER_RE.match(line.strip())
-        if head:
-            provider = head.group(1)
+def parse_models(stdout: str) -> dict[str, int | None]:
+    """Each model of `omp models --json` (`{"models": [{"selector", "contextWindow"}]}`),
+    by its provider-qualified selector, with its context window (None where omp lists
+    none). Empty when the output is not that document."""
+    try:
+        doc = json.loads(stdout)
+    except ValueError:
+        return {}
+    rows = doc.get("models") if isinstance(doc, dict) else None
+    out: dict[str, int | None] = {}
+    for m in rows if isinstance(rows, list) else ():
+        if not isinstance(m, dict):
             continue
-        row = _ROW_RE.match(line)
-        if row and provider:
-            out.add(f"{provider}/{row.group(1)}")
+        selector = m.get("selector") or (f"{m['provider']}/{m['id']}" if m.get("provider") and m.get("id") else None)
+        if not isinstance(selector, str):
+            continue
+        window = m.get("contextWindow")
+        out[selector] = window if isinstance(window, int) and not isinstance(window, bool) and window > 0 else None
     return out
 
 

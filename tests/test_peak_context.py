@@ -2,12 +2,18 @@
 `context_warn_pct`% of `context_budget`, which stops nothing."""
 
 import json
+import sys
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Limits, Pipeline, PipelineConfig, agent_task
+from contraagent import Launch, Limits, OmpBackend, OpencodeBackend, PiBackend, Pipeline, PipelineConfig, Stop, agent_task
+from contraagent.backends.base import Backend, OneShotBackend, window_of
 from contraagent.backends.launch import CallUsage, LaunchResult, Usage
+from contraagent.backends.omp.config import parse_models as omp_models
+from contraagent.backends.opencode.backend import parse_models as opencode_models
+from contraagent.backends.pi import agent_dir
 from contraagent.contracts import fold_spend
 from contraagent.routing.config import ConfigError
 from contraagent.testing import StubAgent, writes
@@ -128,3 +134,87 @@ def test_the_journal_records_the_reported_window_beside_the_peak_context(tmp_pat
     assert row["hops"][0]["usage"]["context_window"] == 1_000_000
     [launch] = [json.loads(line) for line in (report.run_dir / "launches.jsonl").read_text().splitlines()]
     assert (launch["context_window"], launch["context_pct"]) == (1_000_000, 25.0)
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_omp_s_catalogue_lists_each_model_s_window():
+    """`omp models --json`, as omp 18.9.1 prints it."""
+    models = omp_models((FIXTURES / "omp" / "18.9.1" / "models.json").read_text())
+    assert models == {"anthropic/claude-haiku-5-5": 100_000, "anthropic-wif/claude-haiku-5-5": 1_000_000, "opencode-go/omen-alpha": None}
+    assert omp_models("not json") == {}
+
+
+def test_opencode_s_catalogue_lists_each_model_s_window():
+    """`opencode models --verbose`, as opencode 1.19.0 prints it: `limit.context`, not `limit.input`."""
+    models = opencode_models((FIXTURES / "opencode" / "1.19.0" / "models-verbose.txt").read_text())
+    assert models == {"opencode/gpt-5.6-luna": 1_050_000, "opencode-go/claude-haiku-5-5": 1_000_000}
+    assert opencode_models("opencode/a\nopencode/b\n") == {"opencode/a": None, "opencode/b": None}  # the plain list
+
+
+def test_pi_s_model_files_list_each_model_s_window(tmp_path):
+    """pi 1.2.0's `models-store.json`, and a custom provider's `models.json` over it."""
+    (tmp_path / "models-store.json").write_text((FIXTURES / "pi" / "1.2.0" / "models-store.json").read_text())
+    custom = {"openai": {"models": [{"id": "gpt-5.6-luna", "contextWindow": 128_000}]}, "local": {"models": [{"id": "small"}]}}
+    (tmp_path / "models.json").write_text(json.dumps({"providers": custom}))
+    assert agent_dir.windows(tmp_path) == {"anthropic/claude-haiku-5-5": 1_000_000, "openai/gpt-5.6-luna": 128_000}
+    assert agent_dir.windows(tmp_path / "none") == {}
+
+
+def test_a_model_is_found_as_it_was_launched():
+    windows = {"anthropic/claude-haiku-5-5": 100_000, "proxy/claude-haiku-5-5": 1_000_000, "openai/gpt-5.6-luna": 272_000, "b/m-v1:0": 8}
+    assert window_of(windows, "openai/gpt-5.6-luna") == 272_000
+    assert window_of(windows, "openai/gpt-5.6-luna:high") == 272_000  # a reasoning suffix
+    assert window_of(windows, "b/m-v1:0") == 8  # a `:` of the id itself
+    assert window_of(windows, "gpt-5.6-luna") == 272_000  # a bare id one provider lists
+    assert window_of(windows, "claude-haiku-5-5") is None  # two providers, two windows
+    assert window_of(windows, "openai/other") is None
+
+
+class Listed(OneShotBackend):
+    """A coding agent whose stream reports `stream_window` and whose catalogue is `listed`."""
+
+    name = "listed"
+
+    def __init__(self, listed: dict[str, int | None] | None, stream_window: int | None = None):
+        super().__init__(binary=sys.executable)
+        self.listed, self.stream_window, self.reads = listed, stream_window, 0
+
+    def argv(self, launch: Launch) -> list[str]:
+        return [self.binary, "-c", ""]
+
+    def env(self, launch: Launch) -> dict[str, str]:
+        return {}
+
+    def read_models(self) -> dict[str, int | None] | None:
+        self.reads += 1
+        return self.listed
+
+    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
+        return launch_on(launch.model, 50_000, self.stream_window)
+
+
+def launch_of(backend: Backend, tmp_path, model: str = "p/big") -> LaunchResult:
+    return backend.run(Launch(prompt="x", label="t", cwd=tmp_path, model=model, limits=Limits(timeout_s=30)))
+
+
+def test_a_window_the_stream_does_not_report_comes_from_the_catalogue_read_once(tmp_path):
+    agent = Listed({"p/big": 200_000})
+    first, second = launch_of(agent, tmp_path), launch_of(agent, tmp_path)
+    assert (first.context_window, first.context_pct, second.context_window) == (200_000, 25.0, 200_000)
+    assert agent.reads == 1 and agent.catalogue() == {"p/big"}
+    assert launch_of(agent, tmp_path, model="p/other").context_window is None  # a model it does not list
+
+
+def test_the_stream_s_window_wins_over_the_catalogue(tmp_path):
+    agent = Listed({"p/big": 200_000}, stream_window=1_000_000)
+    assert launch_of(agent, tmp_path).context_window == 1_000_000 and agent.reads == 0
+
+
+def test_a_catalogue_that_cannot_be_read_leaves_the_window_unknown(tmp_path):
+    agent = Listed(None)
+    result = launch_of(agent, tmp_path)
+    assert (result.context_window, result.context_pct, agent.catalogue(), agent.reads) == (None, None, None, 1)
+    for backend in (PiBackend(binary="no-such-pi"), OmpBackend(binary="no-such-omp"), OpencodeBackend(binary="no-such-opencode")):
+        assert backend.models() is None and backend.context_window("anthropic/claude-haiku-5-5") is None

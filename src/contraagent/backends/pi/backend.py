@@ -366,10 +366,12 @@ class PiBackend(OneShotBackend):
             out = {**out, "PI_CODING_AGENT_DIR": str(made)}
         return CredentialBinding(out, isolated=isolated, isolation=isolation)
 
-    def catalogue(self) -> set[str] | None:
+    def read_models(self) -> dict[str, int | None] | None:
         """Model ids from `pi --list-models`, or None when it cannot be read. pi lists the
         models of the providers it has a credential for, read from the user's own agent
-        directory."""
+        directory. Each window is the one that directory's model files list
+        (`agent_dir.windows`, exact; the list's own `context` column is rounded), None
+        for a model they do not list."""
         if not shutil.which(self.binary, path=self.base_path()):
             return None
         try:
@@ -385,7 +387,11 @@ class PiBackend(OneShotBackend):
             return None
         if proc.returncode != 0:
             return None
-        return parse_models(proc.stdout) or None
+        listed = parse_models(proc.stdout)
+        if not listed:
+            return None
+        known = agent_dir.windows(agent_dir.default_source(self._base_env))
+        return {model: known.get(model) for model in sorted(listed)}
 
     def argv(self, launch: Launch) -> list[str]:
         # `effort` is the neutral name for reasoning depth; pi spells it `--thinking`.

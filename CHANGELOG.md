@@ -1048,8 +1048,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a model with a 1M window and no `[1m]` in its name read 5 times too high). The window is
   what the coding agent reports, `LaunchResult.context_window`: Claude Code's
   `modelUsage[<model>].contextWindow`, Codex's `model_context_window`, omp RPC's
-  `get_state` model `contextWindow`; omp `-p`, pi and opencode report none. `context_pct`
-  is None without one. The journal records it beside the peak context
+  `get_state` model `contextWindow`. When the stream gives none, the window is the one the
+  coding agent's own model catalogue lists for the model the launch ran on, read once per
+  backend (`Backend.models`): `omp models --json` (`contextWindow`), `opencode models
+  --verbose` (`limit.context`), and pi's `models-store.json` and `models.json` in its agent
+  directory (`contextWindow`); all exact. `context_pct` is None without one. The journal records it beside the peak context
   (`usage.context_window` per attempt and per hop), the monitor's models carry it
   (`ModelUsage.context_window`), and `writes(value, context_window=...)` makes the stub
   agent report one.

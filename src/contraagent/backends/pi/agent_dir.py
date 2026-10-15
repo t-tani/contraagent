@@ -47,6 +47,28 @@ def default_root(env: dict[str, str]) -> Path:
     return Path(cache) / "contraagent" / "pi"
 
 
+def windows(source: Path) -> dict[str, int]:
+    """The context window of each model `source` describes, by provider-qualified id: pi's
+    model catalogue (`models-store.json`, `{provider: {"models": [...]}}`) and the custom
+    providers (`models.json`, `{"providers": {provider: {"models": [...]}}}`), the latter
+    winning, each model's `contextWindow` as listed (exact). A file that cannot be read
+    adds nothing."""
+    out: dict[str, int] = {}
+    for name in ("models-store.json", "models.json"):
+        try:
+            doc = json.loads((source / name).read_text())
+        except (OSError, ValueError):
+            continue
+        providers = doc.get("providers") if name == "models.json" and isinstance(doc, dict) else doc
+        for provider, entry in providers.items() if isinstance(providers, dict) else ():
+            models = entry.get("models") if isinstance(entry, dict) else None
+            for m in models if isinstance(models, list) else ():
+                window = m.get("contextWindow") if isinstance(m, dict) else None
+                if isinstance(m, dict) and m.get("id") and isinstance(window, int) and not isinstance(window, bool) and window > 0:
+                    out[f"{provider}/{m['id']}"] = window
+    return out
+
+
 def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_models: bool) -> Path:
     """The agent directory with `source`'s logins (`logins`), its custom providers
     (`link_models`) or the providers `models` (a `models.json` document), made once.
