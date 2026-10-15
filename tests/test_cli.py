@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from contraagent.cli import main, parser
+from contraagent._internal.cli import main, parser
 
 
 def _commands(ap: argparse.ArgumentParser, path: tuple[str, ...] = ()) -> list[tuple[str, ...]]:
@@ -50,20 +50,10 @@ def test_every_command_answers_help(command, capsys):
 
 def test_a_command_s_module_is_imported_only_when_it_is_named():
     code = (
-        "import sys; from contraagent.cli import parser; parser('docs'); "
-        "print(sorted(m for m in sys.modules if m.startswith(('contraagent.monitor', 'contraagent.hub', 'fastapi'))))"
+        "import sys; from contraagent._internal.cli import parser; parser('docs'); "
+        "print(sorted(m for m in sys.modules if m.startswith(('contraagent._internal.monitor', 'contraagent._internal.hub', 'fastapi'))))"
     )
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
-
-
-def test_the_monitor_package_imports_without_its_server():
-    code = "import sys, contraagent.monitor; print([m for m in ('fastapi', 'contraagent.monitor.server') if m in sys.modules])"
-    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
-
-
-def test_python_m_contraagent_monitor_is_the_monitor_command():
-    done = subprocess.run([sys.executable, "-m", "contraagent.monitor", "--help"], capture_output=True, text=True)
-    assert done.returncode == 0 and done.stdout.startswith("usage: contraagent monitor")
 
 
 def test_a_usage_error_exits_2_with_the_command_s_usage(capsys, monkeypatch):

@@ -16,8 +16,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from contraagent import Launch, Limits, OmpBackend, OmpRpcBackend
-from contraagent.backends.omp import rpc
+from contraagent._internal.backends.omp import rpc
+from contraagent.backends import Launch, OmpBackend, OmpRpcBackend
+from contraagent.config import Limits
 
 PROMPT = (
     "Do these three steps, one tool call each: 1) read the file note.txt; 2) run the shell command `echo hi`; "

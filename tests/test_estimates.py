@@ -3,12 +3,11 @@
 import json
 import os
 
-from contraagent import Pipeline
-from contraagent.dispatch.records import Frame, Loop
-from contraagent.dispatch.task import Origin, Task
+from contraagent import Frame, Loop, Origin, Pipeline, Task
+from contraagent._internal.execution.estimates import run_tails
+from contraagent._internal.pipeline.graph import Graph
 from contraagent.docs.examples.review import flow as example
-from contraagent.execution.estimates import JournalEstimates, run_tails
-from contraagent.pipeline.graph import Graph
+from contraagent.engine import JournalEstimates
 from contraagent.testing import StubAgent
 
 DOCS = "flows.docs"

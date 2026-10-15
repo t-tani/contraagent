@@ -19,14 +19,14 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from contraagent.cli import main as cli_main
-from contraagent.commandline import UsageError
-from contraagent.hub import server
-from contraagent.hub.core import Hub, PruneReport
-from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.hub.retention import Pruner, default_prune_every, report_line
-from contraagent.hub.store import DirectoryBlobs, MemoryBlobs, MemoryHubStore
-from contraagent.runs import layout
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.commandline import UsageError
+from contraagent._internal.hub import server
+from contraagent._internal.hub.core import Hub, PruneReport
+from contraagent._internal.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.retention import Pruner, default_prune_every, report_line
+from contraagent._internal.hub.store import DirectoryBlobs, MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
 
 NOW = datetime.now(UTC)
 OLD = NOW - timedelta(days=40)
@@ -113,7 +113,7 @@ class CountingHub(Hub):
 def test_the_thread_prunes_on_schedule_survives_an_exception_and_stops(caplog):
     hub = CountingHub(failing={1})
     pruner = Pruner(hub, older_than=timedelta(days=30), every_s=0.02, first_after_s=0.0)
-    with caplog.at_level(logging.INFO, logger="contraagent.hub.retention"):
+    with caplog.at_level(logging.INFO, logger="contraagent._internal.hub.retention"):
         pruner.start()
         assert hub.called.wait(10)
         pruner.stop()

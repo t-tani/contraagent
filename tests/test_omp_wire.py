@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, Stop
-from contraagent.backends.omp.rpc import RpcReader
-from contraagent.backends.omp.wire import TraceReader, normalize_event
+from contraagent._internal.backends.omp.rpc import RpcReader
+from contraagent._internal.backends.omp.wire import TraceReader, normalize_event
+from contraagent.backends import Launch, Stop
 
 FIXTURES = Path(__file__).parent / "fixtures" / "omp"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))
@@ -98,9 +98,10 @@ def test_a_provider_error_is_the_launchs_reason():
 
 
 def test_unread_events_reach_the_journal_summed_over_rounds(tmp_path):
-    from contraagent import LaunchResult, Task, TaskResult
-    from contraagent.contracts import fold_spend
-    from contraagent.execution.journal import Journal
+    from contraagent import Task, TaskResult
+    from contraagent._internal.contracts.contract import fold_spend
+    from contraagent._internal.execution.journal import Journal
+    from contraagent.backends import LaunchResult
 
     first = LaunchResult(label="t", unread_events={"session_settled": 1})
     last = fold_spend(first, LaunchResult(label="t", unread_events={"session_settled": 1, "new_thing": 2}))
@@ -111,8 +112,9 @@ def test_unread_events_reach_the_journal_summed_over_rounds(tmp_path):
 
 def test_a_launch_that_names_no_model_leaves_the_journals_model_empty(tmp_path):
     """The route (`hop 1/1 stub`) is not a model name."""
-    from contraagent import LaunchResult, Task, TaskResult
-    from contraagent.execution.journal import Journal
+    from contraagent import Task, TaskResult
+    from contraagent._internal.execution.journal import Journal
+    from contraagent.backends import LaunchResult
 
     journal = Journal(tmp_path / "j.jsonl", tmp_path / "l.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
     result = TaskResult(task=Task("k", key="t"), ok=True, stop="completed", launch_result=LaunchResult(label="t"), route="hop 1/1 stub")

@@ -11,9 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, Stop
-from contraagent.backends.opencode.wire import EventReader, normalize_event, refusal_in_log
-from contraagent.backends.streams import normalize_stream_line
+from contraagent._internal.backends.opencode.wire import EventReader, normalize_event, refusal_in_log
+from contraagent.backends import Launch, Stop, normalize_stream_line
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))

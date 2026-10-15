@@ -11,18 +11,17 @@ from pathlib import Path
 import httpx
 import pytest
 
-from contraagent.cli import main as cli_main
-from contraagent.hub.client import DirectClient, HttpClient, HubRefused, HubUnavailable
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, HeartbeatAck, LogChunk, RecordBatch, RunRef
-from contraagent.hub.relay import Relay, default_progress_path
-from contraagent.hub.server import hub_monitor
-from contraagent.hub.source import HeartbeatLiveness
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor
-from contraagent.runs import layout
-from contraagent.runs.liveness import StaticLiveness
-from contraagent.runs.source import DirectorySource
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.hub.client import DirectClient, HttpClient, HubRefused, HubUnavailable
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, HeartbeatAck, LogChunk, RecordBatch, RunRef
+from contraagent._internal.hub.relay import Relay, default_progress_path
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.source import HeartbeatLiveness
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent.monitor import DirectorySource, Monitor
 
 T0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
 
@@ -263,7 +262,7 @@ def test_a_hub_that_lost_everything_is_sent_every_run_again(runs):
 def test_an_unavailable_hub_does_not_stop_the_relay(runs, caplog):
     hub = new_hub()
     r = relay(Down(), runs, interval_s=3)
-    caplog.set_level(logging.WARNING, logger="contraagent.hub.relay")
+    caplog.set_level(logging.WARNING, logger="contraagent._internal.hub.relay")
     assert not r.pass_once() and not r.pass_once() and not r.heartbeat_once()
     assert [m for m in caplog.messages if "hub unavailable" in m].__len__() == 1  # once per outage
     assert r.delay() == 12  # 3s doubled for each of two failed passes
@@ -410,7 +409,7 @@ def test_a_refused_token_is_an_error_retried_slowly(runs, caplog, status):
     with pytest.raises(HubRefused):
         client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3))
     r = relay(client, runs, interval_s=3)
-    caplog.set_level(logging.WARNING, logger="contraagent.hub.relay")
+    caplog.set_level(logging.WARNING, logger="contraagent._internal.hub.relay")
     assert not r.pass_once() and not r.heartbeat_once() and not r.pass_once()
     errors = [rec for rec in caplog.records if rec.levelno == logging.ERROR]
     assert len(errors) == 1 and "hub refused the relay" in errors[0].getMessage() and f"HTTP {status}" in errors[0].getMessage()

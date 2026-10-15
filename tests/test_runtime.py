@@ -16,13 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.backends import live_processes
-from contraagent.backends.credentials import SecretField
-from contraagent.backends.launch import STDIN_THRESHOLD, Launch, Limits, Stop
-from contraagent.backends.process import run_process
-from contraagent.dispatch.task import Task
-from contraagent.execution import teardown
-from contraagent.execution.run import Run
+from contraagent import Task
+from contraagent._internal.backends import live_processes
+from contraagent._internal.backends.credentials import SecretField
+from contraagent._internal.backends.launch import STDIN_THRESHOLD
+from contraagent._internal.backends.process import run_process
+from contraagent._internal.execution import teardown
+from contraagent.backends import Launch, Stop
+from contraagent.config import Limits
+from contraagent.engine import Run
 
 
 def _launch(tmp_path, *, timeout=5.0, stall=None, prompt="", stream=True, **kw) -> Launch:
@@ -200,7 +202,7 @@ def test_launch_racing_a_teardown_is_stopped():
 
 def test_register_during_teardown_is_stopped(monkeypatch):
     """A registration landing while stop_all is still sweeping is refused."""
-    from contraagent.backends import live_processes as lp
+    from contraagent._internal.backends import live_processes as lp
 
     racer: list[subprocess.Popen] = []
     real_stop = lp._stop
@@ -258,9 +260,9 @@ def test_host_handler_is_restored_and_called(restore_signals):
 _DRIVER = """
 import sys
 from contraagent import Pipeline, agent_task
-from contraagent.backends.base import Backend
-from contraagent.backends.launch import LaunchResult, Stop
-from contraagent.backends.wire import EventFold
+from contraagent.backends import Backend
+from contraagent.backends import LaunchResult, Stop
+from contraagent.backends import EventFold
 
 token, runs = sys.argv[1], sys.argv[2]
 
@@ -342,7 +344,7 @@ def test_run_lock_is_not_world_writable(tmp_path):
 
 def test_run_logs_through_logging_by_default(tmp_path, caplog, capsys):
     run = Run("r", tmp_path, lock=False)
-    with caplog.at_level(logging.INFO, logger="contraagent.execution.run"):
+    with caplog.at_level(logging.INFO, logger="contraagent._internal.execution.run"):
         run._on_event("duplicate_key_refused", None, key="k")
         run._on_event("note", None, follow_up_failed="boom")
         run._on_event("retry", Task(kind="read", key="t"))

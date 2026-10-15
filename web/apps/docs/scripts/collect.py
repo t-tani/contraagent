@@ -17,7 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from contraagent import docs
+from contraagent._internal import docs
 
 ROOT = Path(__file__).resolve().parents[4]
 CONTENT = Path(__file__).resolve().parents[1] / "src" / "content" / "docs"

@@ -1,5 +1,5 @@
 """The trends as they were first computed, one journal row at a time: the reference the
-bucketed digests of `contraagent.monitor.trends` must agree with (`test_trends.py`).
+bucketed digests of `contraagent._internal.monitor.trends` must agree with (`test_trends.py`).
 Only the utilization changed shape: each hour's highest reading instead of every reading.
 
 Trends: what the runs of a period add up to, day by day.
@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from contraagent.runs import layout
+from contraagent._internal.runs import layout
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
 DIGEST_VERSION = 1
@@ -271,7 +271,7 @@ def _round(v: float | None, n: int = 6) -> float | None:
 def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
     group it is counted in (the monitor's `groups`), each other kind being its own."""
-    from contraagent.monitor.aggregate import model_usage
+    from contraagent._internal.monitor.aggregate import model_usage
 
     group_of = dict(groups or {})
     days = [d.isoformat() for d in period.days]

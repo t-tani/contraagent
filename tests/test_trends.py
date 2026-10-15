@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.monitor import Monitor, Panel, api, trends
-from contraagent.monitor.trends import Period, PeriodError
-from contraagent.runs.liveness import StaticLiveness
-from contraagent.runs.source import DirectorySource
+from contraagent._internal.monitor import api, trends
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent.monitor import DirectorySource, Monitor, Panel, Period, PeriodError
 
 TOKYO = "Asia/Tokyo"
 
@@ -303,7 +302,7 @@ def test_the_api_serves_trends_and_trend_panels(runs):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     seen = {}
 
@@ -329,7 +328,7 @@ def test_the_api_serves_trends_and_trend_panels(runs):
 
 
 def test_hundreds_of_runs_are_summed_quickly_and_read_back_without_their_logs(tmp_path, monkeypatch):
-    from contraagent.monitor import trends
+    from contraagent._internal.monitor import trends
 
     root = tmp_path / "runs"
     for i in range(300):
@@ -447,7 +446,7 @@ def many_runs(root: Path, seed: int = 7) -> None:
 )
 def test_slot_digests_sum_to_what_the_attempts_sum_to(tmp_path, start, end, tz):
     import trends_reference as reference
-    from contraagent.monitor import trends
+    from contraagent._internal.monitor import trends
 
     many_runs(tmp_path)
     source = DirectorySource(tmp_path)
@@ -459,7 +458,7 @@ def test_slot_digests_sum_to_what_the_attempts_sum_to(tmp_path, start, end, tz):
 
 
 def test_a_source_other_than_a_directory_is_summed_the_same_and_keeps_nothing_on_disk(runs, tmp_path):
-    from contraagent.runs.source import MemorySource
+    from contraagent.monitor import MemorySource
 
     records: dict[str, dict] = {}
     for run in ("r1", "r2"):

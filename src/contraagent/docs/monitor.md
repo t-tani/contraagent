@@ -305,7 +305,7 @@ In another page, `<ca-monitor export="data/">` reads an export, and
 ## Its API and its page
 
 The monitor publishes its contract as OpenAPI at `/api/openapi.json`
-(`contraagent/monitor/openapi.json`), browsable at `/api/docs` when started with
+(`contraagent monitor --openapi PATH` writes it), browsable at `/api/docs` when started with
 `--docs`; every response is checked against its pydantic model before it is
 sent. `curl http://127.0.0.1:8787/api/runs` lists the runs, and every route
 under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,

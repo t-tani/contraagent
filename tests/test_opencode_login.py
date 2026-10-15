@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import AMBIENT, ApiKey, Gateway, Launch, OmpBackend, OpencodeBackend, PiBackend, Subscription
-from contraagent.backends import opencode_key as login
-from contraagent.backends.launch import ACCOUNT_SECRET, account_digest
-from contraagent.backends.omp.backend import dotenv_credentials, omp_dotenv_files
-from contraagent.dispatch.records import QuotaReading, QuotaWindow
-from contraagent.routing.quota import QuotaRests
+from contraagent._internal.backends import opencode_key as login
+from contraagent._internal.backends.launch import ACCOUNT_SECRET
+from contraagent._internal.backends.omp.backend import dotenv_credentials, omp_dotenv_files
+from contraagent.backends import Launch, OmpBackend, OpencodeBackend, PiBackend, account_digest
+from contraagent.config import AMBIENT, ApiKey, Gateway, QuotaReading, QuotaWindow, Subscription
+from contraagent.engine import QuotaRests
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
 KEY = "sk-test-opencode-go-0000"

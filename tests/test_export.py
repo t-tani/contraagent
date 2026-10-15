@@ -10,11 +10,9 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
-from contraagent.cli import main as cli_main
-from contraagent.monitor import Monitor, RunRecords, api
-from contraagent.monitor.core import Panel
-from contraagent.monitor.export import export
-from contraagent.monitor.trends import Period
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.monitor import api
+from contraagent.monitor import Monitor, Panel, Period, RunRecords, export
 from contraagent.testing import StubAgent
 
 
@@ -169,7 +167,7 @@ def test_the_cli_takes_panels_groups_and_task_detail_as_the_monitor_does(tmp_pat
     rd = runs(tmp_path, ids=("only",))
     views = tmp_path / "views.py"
     views.write_text(
-        "from contraagent.monitor import Panel\n"
+        "from contraagent._internal.monitor import Panel\n"
         "def kinds(runs, period):\n"
         "    return {'type': 'tiles', 'tiles': [{'id': 'n', 'label': 'Rows', 'value': sum(len(runs.journal(r)) for r in runs)}]}\n"
         "PANELS = {'kinds': Panel(kinds, scope='trends')}\n"

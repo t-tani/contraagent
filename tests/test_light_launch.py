@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Backend, ClaudeBackend, OmpBackend, Pipeline, PipelineConfig, agent_task
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop, Usage
-from contraagent.cli import main
+from contraagent import Pipeline, PipelineConfig, RoutingError, agent_task
+from contraagent._internal.cli import main
+from contraagent.backends import Backend, CallUsage, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop, Usage
+from contraagent.engine import RoutingPlan
 from contraagent.plugins import new_plugin
-from contraagent.routing.plan import RoutingError, RoutingPlan
 from contraagent.testing import StubAgent
 
 

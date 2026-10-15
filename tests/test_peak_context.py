@@ -8,15 +8,14 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Launch, Limits, OmpBackend, OpencodeBackend, PiBackend, Pipeline, PipelineConfig, Stop, agent_task
-from contraagent.backends.base import Backend, window_of
-from contraagent.backends.launch import CallUsage, LaunchResult, Usage
-from contraagent.backends.omp.catalogue import parse_models as omp_models
-from contraagent.backends.opencode.catalogue import parse_models as opencode_models
-from contraagent.backends.pi import agent_dir
-from contraagent.backends.wire import EventFold
-from contraagent.contracts import fold_spend
-from contraagent.routing.config import ConfigError
+from contraagent import ConfigError, Pipeline, PipelineConfig, agent_task
+from contraagent._internal.backends.base import window_of
+from contraagent._internal.backends.omp.catalogue import parse_models as omp_models
+from contraagent._internal.backends.opencode.catalogue import parse_models as opencode_models
+from contraagent._internal.backends.pi import agent_dir
+from contraagent._internal.contracts.contract import fold_spend
+from contraagent.backends import Backend, CallUsage, EventFold, Launch, LaunchResult, OmpBackend, OpencodeBackend, PiBackend, Stop, Usage
+from contraagent.config import Limits
 from contraagent.testing import StubAgent, writes
 
 

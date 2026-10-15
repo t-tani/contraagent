@@ -38,7 +38,8 @@ pytestmark = [
 
 from pydantic import BaseModel, Field  # noqa: E402
 
-from contraagent import ClaudeBackend, CodexBackend, OmpBackend, OpencodeBackend, Pipeline, agent_task, python_task  # noqa: E402
+from contraagent import Pipeline, agent_task, python_task  # noqa: E402
+from contraagent.backends import ClaudeBackend, CodexBackend, OmpBackend, OpencodeBackend  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
@@ -160,7 +161,7 @@ def run_all(ws):
     rows = {r["key"]: r for r in mon.journal("live")[0]}
     src = Path(__file__).resolve().parents[2] / "src"
     print(
-        f"\n  run kept in {report.run_dir}\n  watch it:  PYTHONPATH={src} {sys.executable} -m contraagent.monitor --runs-dir {ws / 'runs'}"
+        f"\n  run kept in {report.run_dir}\n  watch it:  PYTHONPATH={src} {sys.executable} -m contraagent monitor --runs-dir {ws / 'runs'}"
     )
     return {"report": report, "rows": rows, "handles": handles, "monitor": mon}
 
@@ -270,7 +271,8 @@ LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canar
 def test_a_task_agent_takes_no_instructions_from_the_project(tmp_path, backend, model):
     """Each coding agent would load the project's instruction files and skills: neither may."""
     only(backend.name)
-    from contraagent import Launch, Limits
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
 
     _project_with_its_own_instructions(tmp_path)
     launch = Launch(prompt=ASK, label="isolation", model=model, effort="low", cwd=tmp_path, limits=Limits(timeout_s=120, max_turns=2))
@@ -285,8 +287,8 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     only("omp")
     import importlib.util
 
-    from contraagent.backends.omp.rpc import RpcReader
-    from contraagent.backends.omp.wire import TraceReader
+    from contraagent._internal.backends.omp.rpc import RpcReader
+    from contraagent._internal.backends.omp.wire import TraceReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "omp" / "record.py")
     assert spec and spec.loader
@@ -312,7 +314,7 @@ def test_opencode_sends_only_events_its_reader_knows(tmp_path):
     only("opencode")
     import importlib.util
 
-    from contraagent.backends.opencode.wire import EventReader
+    from contraagent._internal.backends.opencode.wire import EventReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "opencode" / "record.py")
     assert spec and spec.loader
@@ -332,7 +334,8 @@ WIRE_ASK = "Read the file notes.txt, then run the shell command `wc -l notes.txt
 
 
 def _wire_launch(backend, model: str, cwd: Path):
-    from contraagent import Launch, Limits
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
 
     (cwd / "notes.txt").write_text("retry\nqueue\ndead-letter\n")
     launch = Launch(prompt=WIRE_ASK, label="wire", model=model, effort="low", cwd=cwd, limits=Limits(timeout_s=180, max_turns=6))
@@ -444,7 +447,7 @@ def _rows(path: Path) -> list[dict]:
 def flow_runs(ws):
     """Per coding agent: the review flow run, resumed unchanged, then resumed with `revise`'s
     instructions changed. Each step's report, its new journal rows and launches."""
-    from contraagent.execution.estimates import JournalEstimates
+    from contraagent.engine import JournalEstimates
 
     for unit in FLOW_UNITS:
         (ws / "in" / f"{unit}.md").write_text(DOC)
@@ -615,7 +618,7 @@ def test_monitor_serves_the_flow_and_its_loops(flow_runs, agent):
     only(agent)
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     run = flow_runs[agent]
     client = TestClient(server.create_app(Monitor(run["run_dir"].parent)), base_url="http://127.0.0.1")

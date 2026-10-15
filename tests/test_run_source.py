@@ -7,12 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.monitor import Monitor
-from contraagent.runs import layout
-from contraagent.runs.liveness import StaticLiveness
-from contraagent.runs.names import BadName
-from contraagent.runs.procs import ProcLiveness
-from contraagent.runs.source import DirectorySource, MemorySource
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent._internal.runs.names import BadName
+from contraagent._internal.runs.procs import ProcLiveness
+from contraagent.monitor import DirectorySource, MemorySource, Monitor
 
 
 def copy_to_memory(root: Path) -> MemorySource:
@@ -163,7 +162,7 @@ def test_a_relative_contract_path_is_read_under_the_run_cwd_not_the_monitor_cwd(
 
 
 def test_the_run_info_names_the_run_across_hosts_and_keeps_its_uid_on_resume(demo_runs, tmp_path, monkeypatch):
-    from contraagent.execution.run import Run
+    from contraagent.engine import Run
 
     monkeypatch.setenv(layout.HOST_ID_ENV, "build-7")
     first = Run("r1", runs_dir=tmp_path, lock=False)

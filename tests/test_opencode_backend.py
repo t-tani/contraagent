@@ -7,8 +7,10 @@ import time
 
 import pytest
 
-from contraagent import ApiKey, CredentialError, Gateway, Launch, Limits, OpencodeBackend, Stop, Subscription
-from contraagent.backends.opencode.backend import LIGHT_AGENT
+from contraagent import CredentialError
+from contraagent._internal.backends.opencode.backend import LIGHT_AGENT
+from contraagent.backends import Launch, OpencodeBackend, Stop
+from contraagent.config import ApiKey, Gateway, Limits, Subscription
 from test_backends_offline import fake_cli
 
 OPENCODE = r"""
@@ -124,7 +126,7 @@ def test_a_resumable_launch_keeps_its_session_in_its_own_directory(tmp_path):
     backend = OpencodeBackend(base_env={})
     launch = backend.resumable(Launch(prompt="x", label="t", cwd=tmp_path))
     assert backend.env(launch)["OPENCODE_DB"] == str(launch.session_dir.resolve() / "opencode.db")
-    from contraagent import LaunchResult
+    from contraagent.backends import LaunchResult
 
     nxt = backend.resumed(launch, LaunchResult(label="t", session_id="ses_9"), "fix it")
     assert nxt is not None and "--session=ses_9" in backend.argv(nxt) and backend.argv(nxt)[-1] == "fix it"

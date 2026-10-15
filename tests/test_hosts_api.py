@@ -3,12 +3,12 @@
 
 import json
 
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.hub.source import HeartbeatLiveness
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.source import HeartbeatLiveness
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
 from contraagent.monitor import Monitor
-from contraagent.runs import layout
 
 T0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
 AT = "2026-10-13T00:00:00+00:00"

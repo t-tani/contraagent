@@ -24,12 +24,12 @@ from pathlib import Path
 import uvicorn
 
 from contraagent import rundir
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.hub.server import create_hub_app
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.hub.streams import is_stream
-from contraagent.monitor.source import DirectorySource
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.server import create_hub_app
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.hub.streams import is_stream
+from contraagent._internal.monitor.source import DirectorySource
 
 QUIET_S = 600  # how long ago h2 last reported
 LIVE = "docs"  # the run each host reports alive

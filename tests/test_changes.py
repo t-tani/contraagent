@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task
-from contraagent.execution.changes import compare, scan
+from contraagent import Pipeline, PipelineConfig, agent_task
+from contraagent._internal.execution.changes import compare, scan
+from contraagent.backends import Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails
 

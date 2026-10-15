@@ -1,4 +1,4 @@
-"""`contraagent.runs`: a run document is replaced whole, never seen in part; a log is
+"""`contraagent._internal.runs`: a run document is replaced whole, never seen in part; a log is
 appended whole and read by complete lines; one file name per task key; one time format;
 the layers around the run records."""
 
@@ -12,9 +12,9 @@ from pathlib import Path
 import pytest
 
 import contraagent
-from contraagent.runs import layout
-from contraagent.runs.files import append_lines, lines_at, parse_rows, read_lines, read_rows, seek_line, write_document
-from contraagent.runs.times import iso_of, now_iso, parse_iso
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.files import append_lines, lines_at, parse_rows, read_lines, read_rows, seek_line, write_document
+from contraagent._internal.runs.times import iso_of, now_iso, parse_iso
 
 
 def test_write_document_replaces_whole_and_leaves_no_temporary(tmp_path: Path):
@@ -95,8 +95,8 @@ WRITERS = (
     "execution/cursor.py",
     "execution/pipeline_files.py",
     "backends/launch.py",
-    "contracts.py",
-    "calls.py",
+    "contracts/contract.py",
+    "contracts/calls.py",
     "execution/runner.py",
     "execution/python_tasks.py",
     "pipeline/adapter.py",
@@ -107,7 +107,7 @@ WRITERS = (
 
 
 def test_writers_of_run_records_go_through_write_document_and_append_lines():
-    root = Path(contraagent.__file__).parent
+    root = Path(contraagent.__file__).parent / "_internal"
     direct: list[str] = []
     for name in WRITERS:
         tree = ast.parse((root / name).read_text())
@@ -235,17 +235,24 @@ def _imports(path: Path) -> set[str]:
 
 
 def test_the_hub_reads_and_writes_runs_without_the_monitor():
-    """Only `hub/server.py`, which serves the monitor's app, imports `contraagent.monitor`."""
-    hub = Path(contraagent.__file__).parent / "hub"
+    """Only `hub/server.py`, which serves the monitor's app, imports `contraagent._internal.monitor`."""
+    hub = Path(contraagent.__file__).parent / "_internal" / "hub"
     found = sorted(
-        f"{p.name}: {m}" for p in hub.glob("*.py") if p.name != "server.py" for m in _imports(p) if m.startswith("contraagent.monitor")
+        f"{p.name}: {m}"
+        for p in hub.glob("*.py")
+        if p.name != "server.py"
+        for m in _imports(p)
+        if m.startswith("contraagent._internal.monitor")
     )
     assert found == []
 
 
 def test_the_run_records_layer_imports_only_the_standard_library_and_the_leaf_modules():
-    runs = Path(contraagent.__file__).parent / "runs"
-    allowed = ("contraagent.runs", "contraagent.procfs", "contraagent.envvars", "contraagent.telemetry")
+    runs = Path(contraagent.__file__).parent / "_internal" / "runs"
+    allowed = (
+        "contraagent._internal.runs",
+        "contraagent._internal.platform",
+    )
     found = sorted(
         f"{p.name}: {m}"
         for p in runs.glob("*.py")
@@ -256,8 +263,8 @@ def test_the_run_records_layer_imports_only_the_standard_library_and_the_leaf_mo
 
 
 def test_every_writer_of_a_task_file_names_it_by_file_name(tmp_path):
-    from contraagent.dispatch.task import Task
-    from contraagent.pipeline.adapter import SpecAdapter
+    from contraagent import Task
+    from contraagent._internal.pipeline.adapter import SpecAdapter
 
     task = Task("review", unit="a", key="review-a~2")
     assert SpecAdapter("r1", tmp_path).call_path(task) == tmp_path / layout.task_entry(layout.CALLS, task.key)

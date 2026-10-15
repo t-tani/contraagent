@@ -7,9 +7,11 @@ import json
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Partial, Pipeline, PythonTaskRunner, python_task
-from contraagent.dispatch.python_task import make_python_task
-from contraagent.monitor import Monitor, api
+from contraagent import Partial, Pipeline, python_task
+from contraagent._internal.dispatch.python_task import make_python_task
+from contraagent._internal.monitor import api
+from contraagent.engine import PythonTaskRunner
+from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 
 

@@ -10,26 +10,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    AMBIENT,
-    ApiKey,
-    Backend,
-    CallFile,
-    ClaudeBackend,
-    ConfigError,
-    Launch,
-    LaunchResult,
-    Limits,
-    OmpBackend,
-    Pipeline,
-    PipelineConfig,
-    RoutingError,
-    RoutingPlan,
-    Stop,
-    Subscription,
-    agent_task,
-    envvars,
-)
+from contraagent import CallFile, ConfigError, Pipeline, PipelineConfig, RoutingError, agent_task
+from contraagent._internal.platform import envvars
+from contraagent.backends import Backend, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
+from contraagent.config import AMBIENT, ApiKey, Limits, Subscription
+from contraagent.engine import RoutingPlan
 from contraagent.plugins import new_plugin
 
 CONFIG = """

@@ -32,8 +32,9 @@ httpx = pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from contraagent import procfs  # noqa: E402
-from contraagent.monitor import Monitor, server  # noqa: E402
+from contraagent._internal.monitor import server  # noqa: E402
+from contraagent._internal.platform import procfs  # noqa: E402
+from contraagent.monitor import Monitor  # noqa: E402
 from hub_services import (  # noqa: E402
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -54,7 +55,7 @@ LIVE, LIVE_KEY, LONG_KEY = "live", "live-task", "long-task"
 #: The relay, with each records request it sends counted in `$E2E_SENT` (one JSON line each).
 RELAY = """
 import json, os, sys
-from contraagent.hub import client
+from contraagent._internal.hub import client
 send = client.HttpClient.send_records
 def counted(self, batch):
     got = send(self, batch)
@@ -64,7 +65,7 @@ def counted(self, batch):
         f.write(json.dumps(row) + "\\n")
     return got
 client.HttpClient.send_records = counted
-from contraagent.cli import main
+from contraagent._internal.cli import main
 raise SystemExit(main(["relay", *sys.argv[1:]]))
 """
 

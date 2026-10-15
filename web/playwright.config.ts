@@ -1,4 +1,4 @@
-// End-to-end: the built page (src/contraagent/monitor/static), served by the
+// End-to-end: the built page (src/contraagent/_internal/monitor/static), served by the
 // real Python monitor over the demo pipeline's runs, and by a hub over the same
 // runs shipped from two hosts (e2e/hub.py; hub.spec.ts). Run `pnpm build` first
 // (`pnpm e2e` does both).

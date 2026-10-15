@@ -250,7 +250,7 @@ spends a few cents) and run `tests/test_omp_wire.py`: an event `TraceReader` doe
 not know fails it.
 
 After changing a monitor response model or route, regenerate the committed
-contract: `uv run python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`
+contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
 
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
@@ -259,7 +259,7 @@ published at least 14 days ago), in `web/`:
 ```
 pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest (every package)
-pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
+pnpm build              # rebuilds src/contraagent/_internal/monitor/static (committed; CI fails if stale), and the site
 pnpm check:dist         # the built packages type-check as an npm consumer sees them, stay within the gzip budgets in size-budgets.json, and web/consumer builds one component alone (consumer/consumer.test.mjs)
 pnpm tarballs           # builds the three packages into tarballs/*.tgz that npm and pnpm install from this checkout
 pnpm dev                # live-reload UI against a monitor on :8787

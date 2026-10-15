@@ -42,7 +42,8 @@ pytestmark = [
 
 from pydantic import BaseModel  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent_task, time_box  # noqa: E402
+from contraagent import Pipeline, TaskDeferred, agent_task, time_box  # noqa: E402
+from contraagent.backends import ClaudeBackend, OmpBackend  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
 ROUTES = {"claude": ("claude", "claude-haiku-5-5"), "omp": ("omp", "anthropic/claude-haiku-5-5")}
@@ -671,7 +672,7 @@ def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
 def test_each_reading_names_its_account_alike_across_launches(ws, agent):
     """Two launches as `ambient`: each reading names the account, the same both times and the
     one the coding agent's `account` names before any launch."""
-    from contraagent.backends import AMBIENT
+    from contraagent.config import AMBIENT
 
     say = agent_task(
         f"acct_{agent}",

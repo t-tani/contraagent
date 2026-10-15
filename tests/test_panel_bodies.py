@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, api
-from contraagent.monitor.core import panel_body
-from contraagent.runs.source import DirectorySource
+from contraagent._internal.monitor import api
+from contraagent._internal.monitor.core import panel_body
+from contraagent.monitor import DirectorySource, Monitor, Panel, Period, PeriodRuns
 
 BODY = TypeAdapter(api.PanelBody)
 
@@ -150,7 +150,7 @@ def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", ROWS)
     bad = Panel(lambda run: {"type": "hbars", "bars": [{"label": "x"}]}, title="bad")
@@ -167,12 +167,12 @@ def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
 
 def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
-    from contraagent.cli import main as cli_main
-    from contraagent.monitor import server
+    from contraagent._internal.cli import main as cli_main
+    from contraagent._internal.monitor import server
 
     views = tmp_path / "views.py"
     views.write_text(
-        "from contraagent.monitor import Panel\n"
+        "from contraagent._internal.monitor import Panel\n"
         "PANELS = {'facts': Panel(lambda run: {'run': run.id}, title='Facts')}\n"
         "GROUPS = [{'id': 'all', 'label': 'All', 'kinds': ['write']}]\n"
         "def detail(run, key, rows):\n    return {'n': len(rows)}\n"
@@ -190,7 +190,7 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
 
 
 def test_the_example_s_panels_load_as_the_command_would(tmp_path, monkeypatch):
-    from contraagent.commandline import load_attr
+    from contraagent._internal.commandline import load_attr
     from contraagent.docs.examples.panels import views
 
     monkeypatch.chdir(tmp_path)

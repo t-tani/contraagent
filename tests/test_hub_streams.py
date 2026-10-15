@@ -9,15 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.hub.client import DirectClient
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import LogChunk, RecordBatch, RunRef
-from contraagent.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
-from contraagent.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
-from contraagent.runs import layout
-from contraagent.runs.source import PAGE_BYTES, page
+from contraagent._internal.hub.client import DirectClient
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import LogChunk, RecordBatch, RunRef
+from contraagent._internal.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
+from contraagent._internal.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.hub.streams import MemoryStreamLogs, StreamLogs
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.source import PAGE_BYTES, page
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,

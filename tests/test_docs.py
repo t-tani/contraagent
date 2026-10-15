@@ -11,9 +11,11 @@ import sys
 
 import pytest
 
-from contraagent import ClaudeBackend, OmpBackend, PipelineConfig, RoutingPlan, docs
-from contraagent.cli import main
-from contraagent.pipeline.check import CheckReport
+from contraagent import CheckReport, PipelineConfig
+from contraagent._internal import docs
+from contraagent._internal.cli import main
+from contraagent.backends import ClaudeBackend, OmpBackend
+from contraagent.engine import RoutingPlan
 from contraagent.plugins import Plugin
 
 EXAMPLES = docs.DIR / "examples"
@@ -49,7 +51,7 @@ def test_check_errors_name_topics_that_exist():
     report.add("routing", ["routing: x"])
     assert "read: `contraagent docs routing`" in str(report)
     names = {t.name for t in docs.topics()}
-    source = (docs.DIR.parent / "pipeline" / "check.py").read_text()
+    source = (docs.DIR.parent / "_internal" / "pipeline" / "check.py").read_text()
     assert set(re.findall(r'\.add\("(\w+)"', source)) <= names
 
 
@@ -178,7 +180,7 @@ def test_the_implementations_example_launches_each_unit_s_kind_with_its_plugin(t
 
 
 def test_the_reference_config_has_every_task_table_key():
-    from contraagent.routing.kind_config import TASK_TABLE_KEYS
+    from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
 
     text = (EXAMPLES / "reference" / "pipeline.toml").read_text()
     assert [k for k in TASK_TABLE_KEYS if not re.search(rf"^{k} =", text, re.M)] == []

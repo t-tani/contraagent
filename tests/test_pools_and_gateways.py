@@ -4,26 +4,11 @@ import threading
 
 import pytest
 
-from contraagent import (
-    AgentRunner,
-    Backend,
-    ClaudeBackend,
-    ConfigError,
-    Gateway,
-    KindConfig,
-    LaunchResult,
-    OmpBackend,
-    PipelineConfig,
-    QuotaRefusal,
-    Route,
-    Router,
-    RoutingError,
-    RoutingPlan,
-    Stop,
-    Task,
-    TaskAdapter,
-)
-from contraagent.routing.pool import pools_of
+from contraagent import ConfigError, PipelineConfig, RoutingError, Task
+from contraagent._internal.routing.pool import pools_of
+from contraagent.backends import Backend, ClaudeBackend, LaunchResult, OmpBackend, QuotaRefusal, Stop
+from contraagent.config import Gateway, KindConfig, Route
+from contraagent.engine import AgentRunner, Router, RoutingPlan, TaskAdapter
 
 POOLS = """
 [credentials.sub-a]

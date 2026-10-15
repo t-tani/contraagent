@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import docs
-from contraagent.hub.server import read_ingest_tokens, read_read_token
+from contraagent._internal import docs
+from contraagent._internal.hub.server import read_ingest_tokens, read_read_token
 
 HUB = docs.DIR / "examples" / "hub"
 COMPOSE = HUB / "compose.yaml"

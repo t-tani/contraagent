@@ -8,8 +8,8 @@ import pytest
 from pydantic import BaseModel, Field, RootModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task, python_task
-from contraagent.cli import main
-from contraagent.contracts import smallest
+from contraagent._internal.cli import main
+from contraagent._internal.contracts.contract import smallest
 from contraagent.testing import StubAgent, StubTask, fails, writes_nothing, writes_smallest
 
 

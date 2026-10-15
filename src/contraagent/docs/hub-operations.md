@@ -106,7 +106,7 @@ hub; the relays fill in what came after the backup from their hosts.
 
 Build or pull the new image and recreate the hub (`docker compose up -d --build hub`).
 The hub creates or extends its tables on start; it refuses a database written by a
-newer version. Relays and hubs speak the protocol in `contraagent/hub/openapi.json`:
+newer version. Relays and hubs speak the protocol `contraagent hub --openapi PATH` writes:
 upgrade the hub first, then the relays.
 
 ## When something is wrong

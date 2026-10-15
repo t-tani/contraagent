@@ -11,26 +11,12 @@ import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from contraagent import (
-    AgentRunner,
-    Backend,
-    KindConfig,
-    LaunchResult,
-    PipelineConfig,
-    QuotaReading,
-    QuotaWindow,
-    Route,
-    Router,
-    Stop,
-    Task,
-    TaskAdapter,
-)
-from contraagent.backends.claude.backend import ClaudeBackend
-from contraagent.backends.claude.wire import StreamReader
-from contraagent.backends.credentials import AMBIENT, Bedrock, OAuthToken, Secret, Subscription
-from contraagent.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID, Launch, Limits, account_digest
-from contraagent.backends.omp.backend import OmpBackend
-from contraagent.routing.quota import QuotaRests
+from contraagent import PipelineConfig, Task
+from contraagent._internal.backends.claude.wire import StreamReader
+from contraagent._internal.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID
+from contraagent.backends import Backend, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop, account_digest
+from contraagent.config import AMBIENT, Bedrock, KindConfig, Limits, OAuthToken, QuotaReading, QuotaWindow, Route, Secret, Subscription
+from contraagent.engine import AgentRunner, QuotaRests, Router, TaskAdapter
 
 FIXTURES = Path(__file__).parent / "fixtures" / "claude"
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)

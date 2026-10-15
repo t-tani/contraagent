@@ -8,9 +8,9 @@ import threading
 import pytest
 import zstandard
 
-from contraagent.hub import segment_format as fmt
-from contraagent.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
-from contraagent.hub.segments import (
+from contraagent._internal.hub import segment_format as fmt
+from contraagent._internal.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
+from contraagent._internal.hub.segments import (
     BlockCache,
     MemorySegmentIndex,
     PostgresSegmentIndex,
@@ -21,8 +21,8 @@ from contraagent.hub.segments import (
     parse_object_key,
     rebuild_index,
 )
-from contraagent.runs import layout
-from contraagent.runs.source import page
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.source import page
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,

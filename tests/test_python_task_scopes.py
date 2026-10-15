@@ -145,7 +145,9 @@ def test_an_enricher_sees_each_attempt_of_a_retried_python_task(tmp_path):
 
 
 def test_a_refused_input_is_an_attempt_the_scope_and_the_enricher_see(tmp_path):
-    from contraagent import InputContract, PythonTaskRunner, make_python_task
+    from contraagent import InputContract
+    from contraagent._internal.dispatch import make_python_task
+    from contraagent.engine import PythonTaskRunner
 
     seen: list = []
 

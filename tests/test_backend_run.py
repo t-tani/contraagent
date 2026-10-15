@@ -7,10 +7,11 @@ import os
 
 import pytest
 
-from contraagent import ClaudeBackend, Launch, Limits, OmpBackend, OmpRpcBackend, OpencodeBackend, Stop
-from contraagent.backends.claude.wire import StreamReader
-from contraagent.backends.opencode.wire import EventReader
-from contraagent.backends.refusal import Ending, Signals, classify_stop, parse_retry_after
+from contraagent._internal.backends.claude.wire import StreamReader
+from contraagent._internal.backends.opencode.wire import EventReader
+from contraagent._internal.backends.refusal import classify_stop, parse_retry_after
+from contraagent.backends import ClaudeBackend, Ending, Launch, OmpBackend, OmpRpcBackend, OpencodeBackend, Signals, Stop
+from contraagent.config import Limits
 from test_backends_offline import fake_cli
 
 

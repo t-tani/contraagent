@@ -152,8 +152,8 @@ def test_the_retries_example_restores_the_index_and_its_second_attempt_succeeds(
 
 
 def test_make_python_task_takes_the_same_retries():
-    from contraagent import PythonTaskRunner
-    from contraagent.dispatch.python_task import make_python_task
+    from contraagent._internal.dispatch.python_task import make_python_task
+    from contraagent.engine import PythonTaskRunner
 
     left = [ConnectionError("refused")]
 

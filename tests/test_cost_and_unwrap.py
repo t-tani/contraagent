@@ -5,8 +5,9 @@ import json
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task
-from contraagent.contracts import unwrap_json
+from contraagent import Pipeline, PipelineConfig, agent_task
+from contraagent._internal.contracts.contract import unwrap_json
+from contraagent.backends import Stop
 from contraagent.testing import Reply, StubAgent, writes
 
 

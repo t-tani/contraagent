@@ -1,5 +1,5 @@
 """The parts of an output file an agent task keeps (`agent_task(preserve=)`): the pointers
-(`contraagent.pointers`), their checks at declaration, and a run whose agent breaks a part."""
+(`contraagent._internal.contracts.pointers`), their checks at declaration, and a run whose agent breaks a part."""
 
 import json
 from pathlib import Path
@@ -8,10 +8,9 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task
-from contraagent.calls import CallFile
-from contraagent.contracts import OutputContract
-from contraagent.pointers import kept, pointer_of, same, schema_error, segments, select, syntax_error
+from contraagent import CallFile, OutputContract, Pipeline, PipelineConfig, agent_task
+from contraagent._internal.contracts.pointers import kept, pointer_of, same, schema_error, segments, select, syntax_error
+from contraagent.backends import Stop
 from contraagent.testing import StubAgent, fails
 
 

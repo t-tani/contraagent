@@ -33,19 +33,9 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from contraagent import (
-    Backend,
-    CallFile,
-    LaunchResult,
-    Overrides,
-    Pipeline,
-    QuotaReading,
-    QuotaRefusal,
-    Stop,
-    envvars,
-)
-from contraagent.backends.launch import CallUsage, Usage
-from contraagent.backends.process import write_launch_marker
+from contraagent import CallFile, Overrides, Pipeline
+from contraagent.backends import Backend, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage, write_launch_marker
+from contraagent.config import QuotaReading
 from contraagent.docs.examples.demo.tasks import docs
 
 HERE = Path(__file__).resolve().parent
@@ -78,7 +68,9 @@ class DemoAgent(Backend):
     def run(self, launch):
         started = time.monotonic()
         started_at = datetime.now(UTC).isoformat(timespec="seconds")
-        call = CallFile.read(Path(launch.env[envvars.CALL]))
+        call_path = CallFile.path_of(launch)
+        assert call_path is not None, "every launch of the demo is an agent task's"
+        call = CallFile.read(call_path)
         with self._lock:
             n = self.rounds[launch.label] = self.rounds.get(launch.label, 0) + 1
         stream = Path(launch.stream_path) if launch.stream_path else None
@@ -146,7 +138,7 @@ class DemoAgent(Backend):
 
         unit = call.unit
         text(f"## {call.kind} {unit}\nRound {n} on `{launch.model or 'default'}` as `{launch.role}`.\n")
-        tool("read", {"path": launch.env[envvars.CALL]}, json.dumps(call.params, ensure_ascii=False)[:300])
+        tool("read", {"path": str(call_path)}, json.dumps(call.params, ensure_ascii=False)[:300])
         if call.kind == "summarize":
             if launch.model == "primary-model" and unit == "beta":
                 tool("bash", {"command": "curl -s https://api.example/limits"}, "429 Too Many Requests", err=True)

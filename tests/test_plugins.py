@@ -9,12 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, OpencodeBackend, Plugin, PluginError, agent_task
-from contraagent.backends.omp.backend import plugin_extension_args
-from contraagent.backends.pi.backend import plugin_args as pi_plugin_args
-from contraagent.pipeline.adapter import SpecAdapter
-from contraagent.pipeline.graph import Graph
-from contraagent.plugins import hooks, new_plugin
+from contraagent import PluginError, agent_task
+from contraagent._internal.backends.omp.backend import plugin_extension_args
+from contraagent._internal.backends.pi.backend import plugin_args as pi_plugin_args
+from contraagent._internal.pipeline.adapter import SpecAdapter
+from contraagent._internal.pipeline.graph import Graph
+from contraagent._internal.plugins import hooks
+from contraagent.backends import Launch, OpencodeBackend
+from contraagent.plugins import Plugin, new_plugin
 
 
 @pytest.fixture
@@ -228,7 +230,7 @@ def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
 
 
 def test_render_leaves_a_skill_plugin_alone_and_lint_names_what_it_left(tmp_path, capsys):
-    from contraagent.cli import main
+    from contraagent._internal.cli import main
 
     common = skill_plugin(tmp_path / "common")
     assert main(["plugin", "render", str(common)]) == 0

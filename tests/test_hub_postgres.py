@@ -7,9 +7,9 @@ import threading
 import psycopg
 import pytest
 
-from contraagent.hub.postgres import NOTIFY_CHANNEL, PostgresHubStore
-from contraagent.hub.protocol import Heartbeat, LogChunk, RecordBatch, RunRef
-from contraagent.runs import layout
+from contraagent._internal.hub.postgres import NOTIFY_CHANNEL, PostgresHubStore
+from contraagent._internal.hub.protocol import Heartbeat, LogChunk, RecordBatch, RunRef
+from contraagent._internal.runs import layout
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
