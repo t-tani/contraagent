@@ -11,9 +11,9 @@ failover, quotas, deadlines, resume and a live monitor.
 ![Linux](https://img.shields.io/badge/platform-Linux-555)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-![The monitor's overview of a run: its state, problems with their causes, outputs, and the pipeline graph with a review loop](docs/assets/readme/overview.png)
+![The monitor's overview of a finished run: 44 of 44 tasks done, no problems, all 44 outputs passed their checks, the pipeline graph with a review loop, and the totals](docs/assets/readme/overview.png)
 
-<sub>The monitor over the shipped demo pipeline, run on its demo agent: one task failed, one was partly done, one was done after retrying, and a review loop ran a second pass for one unit.</sub>
+<sub>The monitor over the demo pipeline, run on its demo agent: every task done, every output checked; 2 outputs corrected in their own sessions, 1 model switch after a rate limit, and a review loop that ran a second pass for one unit.</sub>
 
 ## A task is a function whose body is a coding agent
 
@@ -148,16 +148,33 @@ or network access. When a task goes wrong, the run can be reproduced:
 recordings back in place of the coding agent with nothing spent, and a stub run
 or `contraagent.testing.StubAgent` in pytest replays scripted replies.
 
-| | |
-|---|---|
-| ![Task detail: the first agent session's output failed two checks; a correction passed](docs/assets/readme/task-detail.png) | ![Task detail in the dark theme: rate limited on the primary model, done after a model switch](docs/assets/readme/model-switch-dark.png) |
-| **Task detail.** The transcript of each agent session, followed live for all five coding agents, with the task's input, output and definition. Here the first output failed its checks, and the correction in the same session passed. | **Model switch.** Rate limited on its first model, the task moved to its fallback; each agent session keeps its own transcript, tokens and cost. |
-| ![History: every attempt with its outcome, coding agent, model, identity, tokens, cost and time](docs/assets/readme/history.png) | ![The pipeline graph of a nested flow: functions drawn open, a loop inside a loop](docs/assets/readme/pipeline-graph.png) |
-| **History.** Every attempt with its outcome, coding agent, model, identity, tokens, cost, time and reason, with counts of corrections and retries. | **Pipeline graph.** The flow by function and loop, a mark per unit, the passes of each loop; tasks that have not started are in it too. |
+**Checked, and corrected in the same session.** The task detail holds the
+transcript of each agent session with the task's input, output and definition.
+Here the note's first version failed two checks; the errors went back to the
+same session, and the correction passed: the task is done.
 
-Besides these: the problems of a run with their causes (a failed task names the
-later tasks it stopped), and the [Trends](docs/assets/readme/trends.png) page,
-which adds up the cost, tasks and models of the runs of a period.
+![Task detail of write_note · alpha, done after 1 correction: the first agent session's transcript, and the two checks its output failed](docs/assets/readme/task-detail.png)
+
+**Every attempt in the history.** One row per attempt: its outcome, coding agent,
+model, identity, tokens, cost and time. Here every summary is done; one after a
+correction, and one after a model switch from a rate-limited model to its
+fallback, which the later tasks of that kind then started on.
+
+![History of the summarize tasks: 8 attempts, all done; delta with 1 correction, beta after a model switch from primary-model (rate limited) to fallback-model](docs/assets/readme/history.png)
+
+**A model switch, session by session** (the dark theme): each agent session
+keeps its own transcript, tokens and cost.
+
+![Task detail of summarize · beta in the dark theme: done after a model switch, with the first agent session on primary-model and the second on fallback-model](docs/assets/readme/model-switch-dark.png)
+
+**The flow as it is written.** The pipeline graph draws the flow by function and
+loop, a mark per unit, the passes of each loop, and tasks that have not started.
+
+![Pipeline graph of a nested flow: a loop inside a loop, every task done](docs/assets/readme/pipeline-graph.png)
+
+**Trends** add up the runs of a period: cost by day and kind, tasks, models.
+
+![Trends over 7 days: 2 runs, 81 attempts, all passed, cost by day and kind, and a table of the kinds](docs/assets/readme/trends.png)
 
 Many hosts: `contraagent relay` on each host sends its runs to a
 `contraagent hub`, which serves one monitor over all of them
