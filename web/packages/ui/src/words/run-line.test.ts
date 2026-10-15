@@ -1,7 +1,7 @@
 // The header's run line and the history bar's count, from `deriveRun`.
 import { deriveRun, emptyRunState, type JournalRow, type Plan, type PlanNode, type RunState, type RunSummary, type Stop } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { runLine, triesLine } from './run-line.js';
+import { runLine, runMark, triesLine } from './run-line.js';
 
 const node = (key: string, state: PlanNode['state'], after: string[] = []): PlanNode => ({
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
@@ -47,5 +47,13 @@ describe('triesLine', () => {
   it('counts attempts and the tasks that did not start', () => {
     expect(triesLine(deriveRun(journal, plan).tries)).toBe('3 attempts | 1 not started');
     expect(triesLine({ tries: 1, notStarted: 0 })).toBe('1 attempt');
+  });
+});
+
+describe('runMark', () => {
+  it('marks a replay with its recordings, a stub run as the stub agent, and nothing else', () => {
+    expect(runMark({ stub: true, replay: '/rec' })).toEqual({ text: 'replay', title: 'Agent sessions played from the recordings in /rec (replay)' });
+    expect(runMark({ stub: true, replay: '' })?.text).toBe('stub agent');
+    expect(runMark({ stub: false })).toBeNull();
   });
 });

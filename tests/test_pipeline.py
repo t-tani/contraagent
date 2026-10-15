@@ -44,7 +44,7 @@ model = "m-write"
 [tasks.read]
 max_turns = 5
 timeout_s = 30
-retries = 2
+retries = 1
 """
 
 
@@ -167,7 +167,7 @@ def test_retry_then_exhausted(tmp_path):
     backend = StubBackend(lambda launch, n: Stop.ERROR)
     run, runner, _ = build(tmp_path, backend)
     seen = []
-    runner.configs["read"] = runner.configs["read"].with_(retries=2, retry_backoff_base=0.0)
+    runner.configs["read"] = runner.configs["read"].with_(retries=1, retry_backoff_base=0.0)
     res = RetryingRunner(runner, on_attempt=run.record_attempt, on_exhausted=lambda t, r: seen.append(t.key)).run(
         Task("read", key="r", unit="u")
     )
@@ -201,7 +201,7 @@ def test_monitor_views(tmp_path):
     q = run.queue(RetryingRunner(runner, on_attempt=run.record_attempt), max_concurrent=1)
     q.add(Task("write", unit="u", key="write-u"))
     q.run()
-    mon = Monitor(run.runs_dir, panels={"facts": lambda r: {"run": r}}, task_detail=lambda r, t, rows: {"extra": len(rows)})
+    mon = Monitor(run.runs_dir, panels={"facts": lambda r: {"run": r.id}}, task_detail=lambda r, t, rows: {"extra": len(rows)})
     runs = mon.runs()
     assert runs[0]["run"] == "r1" and runs[0]["attempts"] == 1 and runs[0]["running"]  # this process is the run
     d = mon.task_detail("r1", "write-u")
@@ -331,7 +331,7 @@ def test_an_off_contract_input_is_refused_once_and_shown_as_not_run(tmp_path):
     backend = StubBackend()
     run, runner, _ = build(tmp_path, backend)
     runner.adapter = Needs()
-    runner.configs["read"] = runner.configs["read"].with_(retries=3, retry_backoff_base=0.0)
+    runner.configs["read"] = runner.configs["read"].with_(retries=2, retry_backoff_base=0.0)
     res = RetryingRunner(runner, on_attempt=run.record_attempt).run(Task("read", key="r", unit="u"))
     assert res.stop == "invalid_input" and backend.launches == []  # refused before any launch
     assert len(run.rows()) == 1  # and not retried: the file will not appear by itself

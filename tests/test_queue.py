@@ -242,6 +242,49 @@ def test_a_task_that_cannot_finish_before_the_deadline_is_deferred_at_once():
     assert stop == "deferred" and reason.startswith("cannot finish before the deadline: needs 120s")
 
 
+def test_priority_breaks_a_tie_of_bottom_levels_highest_first():
+    q, starts = starts_of(max_concurrent=1)
+    q.add(Task("a", key="plain", estimate_s=10))
+    q.add(Task("a", key="low", estimate_s=10, priority=-1))
+    q.add(Task("a", key="high", estimate_s=10, priority=2.5))
+    q.add(Task("a", key="mid", estimate_s=10, priority=1))
+    q.add(Task("a", key="plain2", estimate_s=10))
+    q.run()
+    assert starts == ["high", "mid", "plain", "plain2", "low"]  # equal priorities: arrival
+
+
+def test_priority_does_not_beat_a_larger_bottom_level():
+    q, starts = starts_of(max_concurrent=1)
+    q.add(Task("a", key="urgent", estimate_s=1, priority=100))
+    q.add(Task("a", key="long", estimate_s=10))
+    q.add(Task("a", key="tail", estimate_s=1, tail_s=5))
+    q.run()
+    assert starts == ["long", "tail", "urgent"]
+
+
+def test_priority_does_not_beat_an_overdue_task():
+    def order(overdue_s: float) -> list[str]:
+        q, starts = starts_of(max_concurrent=1, overdue_s=overdue_s)
+        q.add(Task("a", key="first", estimate_s=100, params={"sleep": 0.1}))
+        q.add(Task("a", key="waiting", estimate_s=1))
+        q.follow_up = lambda res: [Task("a", key="late", estimate_s=1, priority=10)] if res.task.key == "first" else []
+        q.run()
+        return starts
+
+    assert order(overdue_s=0.05) == ["first", "waiting", "late"]
+    assert order(overdue_s=60.0) == ["first", "late", "waiting"]
+
+
+def test_in_a_time_box_endgame_priority_breaks_ties_only():
+    q, starts = starts_of(max_concurrent=1, deadline_s=60, slack_s=60, finishing_kinds=("report",))
+    q.add(Task("a", key="plain", estimate_s=1))
+    q.add(Task("a", key="high", estimate_s=1, priority=5))
+    q.add(Task("a", key="short", estimate_s=0.5, priority=-3))
+    q.add(Task("report", key="report", estimate_s=2))
+    q.run()
+    assert starts == ["report", "short", "high", "plain"]
+
+
 class Spans(Runner):
     """Records each task's (start, end) to tell which ran at the same time."""
 

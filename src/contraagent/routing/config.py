@@ -1,7 +1,9 @@
 """Pipeline configuration: one TOML file.
 
     [defaults]              run-wide routing: agent, model, effort, credential, model_failover;
-                            and max_passes
+                            max_passes; preflight; and context_warn_pct
+    [defaults.claim_capacity]  how many running tasks may claim each name: a number, or a
+                            table of what one needs of the host (`PerTask`)
     [[defaults.fallbacks]]  the failover chain every kind without its own shares
     [tasks.<kind>]          a task table: one kind's routing and budgets (see profile.TASK_TABLE_KEYS),
                             and optionally its own [[tasks.<kind>.fallbacks]] chain
@@ -54,6 +56,15 @@ def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, 
     return f"{where} has unknown keys {keys}; expected {', '.join(named)}"
 
 
+#: What a `context_warn_pct` that is not one says.
+WARN_PCT_RANGE = "is not a whole percent from 1 to 99"
+
+
+def _is_warn_pct(value: object) -> bool:
+    """A `context_warn_pct`: an int from 1 to 99."""
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 99
+
+
 def _problem(errors: list[str] | None, message: str) -> None:
     if errors is None:
         raise ConfigError(message)
@@ -69,6 +80,42 @@ def _as_bool(src, where: str, value) -> bool:
     if isinstance(value, bool):
         return value
     raise ConfigError(f"{src}: {where}.model_failover = {value!r} is not a boolean; write true or false")
+
+
+@dataclass(frozen=True)
+class PerTask:
+    """A claim capacity sized by the host: how much of it one running task that claims the
+    name needs. `memory_mb`: memory in MB; `cores`: CPU cores. Give one or both, each a
+    positive integer; a mistake raises `ConfigError`.
+
+    Each time the queue tries to start a task that claims the name, the capacity is the
+    tasks that hold it now plus as many more as the free memory holds, and at most the
+    usable cores divided by `cores`; at least 1 while no task holds the name, so a run
+    always goes on. Free memory is `MemAvailable` of `/proc/meminfo`, less `memory_mb` for
+    each task with a `PerTask` claim started in the last 30 seconds (one just started has
+    not grown yet); where there is no `/proc/meminfo` (not Linux), memory does not limit
+    it. A pattern with a `PerTask` sizes each name it matches on its own: one name,
+    claimed by every such task, shares one limit. `contraagent.routing.capacity` works
+    it out.
+    """
+
+    memory_mb: int | None = None
+    cores: int | None = None
+
+    def __post_init__(self) -> None:
+        problem = per_task_problem(self.memory_mb, self.cores)
+        if problem:
+            raise ConfigError(f"PerTask: {problem}")
+
+
+def per_task_problem(memory_mb: object, cores: object) -> str | None:
+    """What is wrong with a `PerTask`'s fields, or None."""
+    if memory_mb is None and cores is None:
+        return "give memory_mb, cores, or both"
+    for name, value in (("memory_mb", memory_mb), ("cores", cores)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            return f"{name} = {value!r} is not a positive integer"
+    return None
 
 
 @dataclass(frozen=True)
@@ -102,11 +149,24 @@ class PipelineConfig:
 
     def defaults(self, errors: list[str] | None = None) -> dict:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
-        model_failover), and `max_passes` (`Pipeline(max_passes=)`). Its failover chain,
+        model_failover), `max_passes` (`Pipeline(max_passes=)`), `preflight`
+        (`Pipeline(preflight=)`, a `PreflightPolicy`) and `context_warn_pct` (the warning
+        of every kind with a `context_budget` and none of its own). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
-        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "fallbacks", "claim_capacity"}
+        allowed = {
+            "agent",
+            "model",
+            "effort",
+            "credential",
+            "model_failover",
+            "max_passes",
+            "preflight",
+            "fallbacks",
+            "claim_capacity",
+            "context_warn_pct",
+        }
         unknown = set(entry) - allowed - {"_comment"}
         if unknown:
             _problem(errors, f"{self.source}: {_unknown_keys('[defaults]', unknown, allowed, tuple(TASK_TABLE_KEYS))}")
@@ -121,22 +181,44 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].max_passes = {value!r} is not a positive integer")
             else:
                 out["max_passes"] = value
+        if entry.get("context_warn_pct") is not None:
+            value = entry["context_warn_pct"]
+            if not _is_warn_pct(value):
+                _problem(errors, f"{self.source}: [defaults].context_warn_pct = {value!r} {WARN_PCT_RANGE}")
+            else:
+                out["context_warn_pct"] = value
+        if entry.get("preflight") is not None:
+            from contraagent.routing.preflight import check_policy
+
+            try:
+                out["preflight"] = check_policy(entry["preflight"], f"{self.source}: [defaults].preflight")
+            except ValueError as exc:
+                _problem(errors, str(exc))
         return out
 
-    def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int]:
+    def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int | PerTask]:
         """`[defaults.claim_capacity]`: how many running tasks may claim each name at once, by
         the name or an `fnmatch` pattern (`"heavy*" = 2`: each name it matches, two tasks at a
-        time), each a non-negative integer; a name no entry gives is claimed by one at a time.
-        `Pipeline(claim_capacity=)` outranks it, key by key. A malformed entry raises; with
-        `errors`, it is appended there and the rest still read."""
+        time), each a non-negative integer or a table of what one task needs of the host
+        (`index = { memory_mb = 1500, cores = 1 }`, a `PerTask`); a name no entry gives is
+        claimed by one at a time. `Pipeline(claim_capacity=)` outranks it, key by key. A
+        malformed entry raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults").get("claim_capacity", {})
         if not isinstance(entry, dict):
             _problem(errors, f"{self.source}: [defaults].claim_capacity must be a table of name = capacity")
             return {}
-        out: dict[str, int] = {}
+        where = f"{self.source}: [defaults.claim_capacity]"
+        out: dict[str, int | PerTask] = {}
         for name, value in entry.items():
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                _problem(errors, f"{self.source}: [defaults.claim_capacity] {name!r} = {value!r} is not a non-negative integer")
+            if isinstance(value, dict):
+                if unknown := set(value) - {"memory_mb", "cores"}:
+                    _problem(errors, f"{where} {_unknown_keys(repr(name), unknown, ('memory_mb', 'cores'))}")
+                elif problem := per_task_problem(value.get("memory_mb"), value.get("cores")):
+                    _problem(errors, f"{where} {name!r}: {problem}")
+                else:
+                    out[name] = PerTask(memory_mb=value.get("memory_mb"), cores=value.get("cores"))
+            elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                _problem(errors, f"{where} {name!r} = {value!r} is not a non-negative integer or a table of memory_mb and cores")
             else:
                 out[name] = value
         return out
@@ -180,6 +262,8 @@ class PipelineConfig:
                 )
                 continue
             table[key] = val
+        if "context_warn_pct" in table and not _is_warn_pct(table["context_warn_pct"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].context_warn_pct = {table.pop('context_warn_pct')!r} {WARN_PCT_RANGE}")
         denied = entry.get("disallowed_tools")
         if denied is not None:
             ok = isinstance(denied, list)

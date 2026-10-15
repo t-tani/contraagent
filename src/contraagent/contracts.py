@@ -30,13 +30,13 @@ import os
 import re
 import shutil
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from contraagent import rundir
+from contraagent import pointers, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.dispatch.task import kind_name
@@ -78,6 +78,9 @@ class OutputContract(_FileContract):
     rewritten fails the check: a stale document from an earlier run is
     otherwise indistinguishable from this run's answer. `validators` run
     after the schema check, on the parsed value (`contraagent.validators`).
+    `preserve`: JSON pointers (`contraagent.pointers`) to the parts of a JSON file the
+    launch must keep: each value they select in the file as it was before the launch
+    (`before`) must be in it after, equal.
     """
 
     fresh: bool = True
@@ -92,16 +95,58 @@ class OutputContract(_FileContract):
     #: With `from_message`: the message may wrap the JSON document (`unwrap_json`); the
     #: document is written to `path`, the whole message beside it (`message_path`).
     unwrap: bool = False
+    preserve: tuple[str, ...] = ()
+
+    def before(self, cwd: Path) -> Before:
+        """The file as it is now, ahead of a launch: its stamp and, for a contract that
+        preserves parts, its content and the values its pointers select. A file that is
+        missing or does not parse as JSON preserves nothing."""
+        path = self.resolve(cwd)
+        stamp = file_stamp(path)
+        if not self.preserve or stamp is None:
+            return Before(stamp)
+        try:
+            text = path.read_text(encoding="utf-8")
+            document = json.loads(text)
+        except (OSError, UnicodeDecodeError, ValueError):
+            return Before(stamp)
+        return Before(stamp, pointers.select_all(document, self.preserve), text)
 
     def message_path(self, cwd: Path) -> Path:
         """Where an unwrapped output's whole final message is kept: `<output>.message.txt`."""
         path = self.resolve(cwd)
         return path.with_name(path.name + ".message.txt")
 
-    def check(self, cwd: Path, before: tuple[int, int] | None = None) -> Check:
-        """This contract's verdict on its file now (`before`: its stamp ahead of the launch)."""
+    def check(self, cwd: Path, before: Before | None = None) -> Check:
+        """This contract's verdict on its file now (`before`: the file ahead of the launch)."""
         params = self.params() if self.params is not None else None
-        return check_file(self.resolve(cwd), self.schema, before, self.fresh, self.validators, params=params, call=self.call, cwd=cwd)
+        return check_file(
+            self.resolve(cwd),
+            self.schema,
+            before.stamp if before is not None else None,
+            self.fresh,
+            self.validators,
+            params=params,
+            call=self.call,
+            cwd=cwd,
+            preserved=before.preserved if before is not None else None,
+        )
+
+
+@dataclass(frozen=True)
+class Before:
+    """An output file ahead of a launch: its stamp (`file_stamp`; None, no file), the values
+    its contract's `preserve` pointers select in it (by the pointer that names each one
+    alone), and its text when there is a value to keep (`restore`)."""
+
+    stamp: tuple[int, int] | None
+    preserved: Mapping[str, Any] = field(default_factory=dict)
+    text: str | None = None
+
+    def restore(self, path: Path) -> None:
+        """Put the file back as it was, when it held values to keep."""
+        if self.text is not None and self.preserved:
+            rundir.write_document(path, self.text)
 
 
 @dataclass(frozen=True)
@@ -166,12 +211,15 @@ def check_file(
     params: Mapping[str, Any] | None = None,
     call: Path | None = None,
     cwd: Path | None = None,
+    preserved: Mapping[str, Any] | None = None,
 ) -> Check:
     """Validate the file at `path`: its JSON against `schema` (None: any text),
     then every validator on the parsed value.
 
     `before` is the file's stamp from ahead of the launch; with `fresh`, a
-    file whose stamp has not moved counts as unwritten.
+    file whose stamp has not moved counts as unwritten. `preserved`: values the
+    JSON must still hold, by the pointer that names each (`OutputContract.before`);
+    one it no longer holds is an error, reported with the schema's and the validators'.
     """
     path = Path(path)
     now = file_stamp(path)
@@ -186,27 +234,34 @@ def check_file(
     if schema is None:
         return _validated(path, text, validators, params, call, cwd)
     try:
-        json.loads(text)
+        document = json.loads(text)
     except ValueError as exc:
         # Reported apart from the schema errors: pydantic's own message for
         # a syntax error names no line, and "line 40 column 3" is the part
         # the agent needs to find a trailing comma.
         return Check(path, False, [f"{path}: not valid JSON: {exc}"])
+    lost = [f"{path}: {e}" for e in pointers.kept(document, preserved)] if preserved else []
     try:
         value = schema.model_validate_json(text)
     except ValidationError as exc:
-        errors = [f"{path}: {e}" for e in _describe(exc)]
+        errors = [f"{path}: {e}" for e in _describe(exc)] + lost
         # A command checks the file, not the model: it runs too, so one round reports every error.
         commands = [v for v in validators if isinstance(v, CommandValidator)]
         errors += run_validators(commands, path, None, params=params, call=call, cwd=cwd)
         return Check(path, False, errors)
-    return _validated(path, value, validators, params, call, cwd)
+    return _validated(path, value, validators, params, call, cwd, lost)
 
 
 def _validated(
-    path: Path, value: Any, validators: Sequence[Validator], params: Mapping[str, Any] | None, call: Path | None, cwd: Path | None
+    path: Path,
+    value: Any,
+    validators: Sequence[Validator],
+    params: Mapping[str, Any] | None,
+    call: Path | None,
+    cwd: Path | None,
+    lost: Sequence[str] = (),
 ) -> Check:
-    errors = run_validators(validators, path, value, params=params, call=call, cwd=cwd)
+    errors = [*lost, *run_validators(validators, path, value, params=params, call=call, cwd=cwd)]
     return Check(path, not errors, errors, value if not errors else None, schema_ok=True)
 
 
@@ -223,7 +278,7 @@ def _describe(exc: ValidationError) -> list[str]:
     return out
 
 
-def check_all(contracts: Sequence[OutputContract], cwd: Path, before: dict[Path, tuple[int, int] | None]) -> list[Check]:
+def check_all(contracts: Sequence[OutputContract], cwd: Path, before: Mapping[Path, Before]) -> list[Check]:
     checks = []
     for c in contracts:
         p = c.resolve(cwd)
@@ -300,6 +355,7 @@ def record_contracts(
             "fresh": getattr(c, "fresh", None),
             "required": getattr(c, "required", None),
             "validators": [validator_name(v) for v in getattr(c, "validators", ())],
+            "preserve": list(getattr(c, "preserve", ())),
         }
 
     record = {
@@ -334,8 +390,8 @@ def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
 
 
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
-    """Carry the spend, the web searches and the unread events from `total` into `nxt`, the
-    launch after it; everything else is `nxt`'s.
+    """Carry the spend, the web searches, the unread events and a context warning from
+    `total` into `nxt`, the launch after it; everything else is `nxt`'s.
 
     `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
     own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
@@ -357,6 +413,7 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
     nxt.rate_limits = total.rate_limits + nxt.rate_limits
     nxt.hook_errors = total.hook_errors + nxt.hook_errors
     nxt.web_queries = total.web_queries + nxt.web_queries
+    nxt.context_warned = nxt.context_warned or total.context_warned
     for k, v in total.unread_events.items():
         nxt.unread_events[k] = nxt.unread_events.get(k, 0) + v
     for k, v in total.tool_uses.items():
@@ -377,7 +434,9 @@ def run_until_valid(
     `round_errors` holding each failed round's errors. A
     run that exhausts `max_resumes`, or whose session cannot be resumed,
     ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
-    its own stop.
+    its own stop. Each check compares a file with the file as it was before the
+    first round (`OutputContract.before`); a result that is not ok puts back a file
+    that held parts to keep (`preserve`), so the next attempt starts from them.
     """
     if not contracts:
         return backend.run(launch)
@@ -387,8 +446,12 @@ def run_until_valid(
     # or persistence the caller asked for is the caller's to keep.
     scratch = resumable.session_dir if resumable.session_dir != launch.session_dir else None
     result: LaunchResult | None = None
+    before = {c.resolve(launch.cwd): c.before(launch.cwd) for c in contracts}
     try:
-        result = _loop(backend, resumable, contracts, max_resumes)
+        result = _loop(backend, resumable, contracts, max_resumes, before)
+        if not result.ok:
+            for path, was in before.items():
+                was.restore(path)
         return result
     finally:
         if scratch is not None:
@@ -398,8 +461,9 @@ def run_until_valid(
             backend.discard_session(launch, sid)
 
 
-def _loop(backend: Backend, launch: Launch, contracts: Sequence[OutputContract], max_resumes: int) -> LaunchResult:
-    before = {c.resolve(launch.cwd): file_stamp(c.resolve(launch.cwd)) for c in contracts}
+def _loop(
+    backend: Backend, launch: Launch, contracts: Sequence[OutputContract], max_resumes: int, before: Mapping[Path, Before]
+) -> LaunchResult:
     total: LaunchResult | None = None
     rounds = 0
     found: list[list[str]] = []  # each failed round's errors

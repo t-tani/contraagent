@@ -230,7 +230,7 @@ def test_preflight_drops_a_dead_route_and_rebuilds_the_chain(tmp_path):
     configs = {"k": KindConfig(agent="claude", model="dead", max_turns=3, timeout_s=10)}
     routers = {"k": chain(("claude", "dead"), ("omp", "alive"))}
     plan = RoutingPlan(PipelineConfig(), backends, configs=configs, routers=routers)
-    plan.preflight()
+    plan.preflight("substitute")
     assert [str(r) for r in plan.routers["k"].routes] == ["omp/alive"]  # the chain is rebuilt around what answered
     assert plan.routers["k"].routes[0].agent == "omp"
 

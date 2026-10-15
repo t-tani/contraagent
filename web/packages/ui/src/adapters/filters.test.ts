@@ -4,7 +4,7 @@ import { attemptFacts, filterJournal, filterTasks, journalTally, sortTasks } fro
 
 const task = (key: string, kind: string, last_stop = 'completed', outcome: Outcome = 'done', last_ts = ''): TaskRow => ({
   key, kind, unit: key.split('-')[1] ?? '', executor: 'agent', outcome, attempts: [], tries: [], cause: null, deferred: '', deferredIn: '', deferredCause: null,
-  pass: null, wall_s: 1, last_ts, last_stop, waits_for: [], claims: [],
+  pass: null, wall_s: 1, last_ts, last_stop, waits_for: [], claims: [], priority: 0,
 });
 const row = (key: string, kind: string, stop: Stop, extra: Partial<JournalRow> = {}): JournalRow => ({
   ts: '', key, kind, stop, ok: stop === 'completed', ...extra,

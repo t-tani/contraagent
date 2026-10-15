@@ -8,7 +8,7 @@ import sys
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from contraagent import CommandValidator, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent import CommandValidator, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
 from contraagent.cli import main
 from contraagent.dispatch.task import kind_name
 from contraagent.docs.examples.review import flow as example
@@ -346,8 +346,13 @@ def test_a_generator_flow_that_adds_no_task_is_reported():
 
 def test_the_preflight_probes_every_reachable_kind(tmp_path, monkeypatch):
     probed: list[list[str]] = []
-    monkeypatch.setattr(RoutingPlan, "preflight", lambda self: probed.append(sorted(map(kind_name, self.configs))))
+
+    def preflight(self, policy):
+        probed.append(sorted(map(kind_name, self.configs)))
+        return PreflightRecord(policy)
+
+    monkeypatch.setattr(RoutingPlan, "preflight", preflight)
     agent = StubAgent({"summarize": {"unit": "a", "points": ["p"]}, "review": {"approved": True, "note": ""}})
-    p = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, preflight=True, log=lambda line: None)
+    p = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, preflight="substitute", log=lambda line: None)
     assert p.run(example.docs, units=["a"]).ok
     assert probed == [["review", "revise", "summarize"]]  # revise never ran, and was probed

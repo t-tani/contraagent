@@ -19,3 +19,4 @@ export { taskStateStyles } from './graph/words.js';
 export { compound, chooseOpen, doi, interest, notable, placeKey, placeStats, towardOf, type Compound, type OpenChoice, type PlaceStats } from './graph/compound.js';
 export { LOOP_SEGMENT, type FlowBox, type GraphNode, type LayerGraph, type LayerMark, type LayerModel, type LoopBox } from './graph/types.js';
 export * from './transcript/index.js';
+export * from './preflight.js';

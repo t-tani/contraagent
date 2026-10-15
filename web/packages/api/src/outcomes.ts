@@ -212,6 +212,8 @@ export interface TaskRow extends TaskOutcome {
   waits_for: string[];
   /** The names it holds while it runs (`claims`); empty for none. */
   claims: string[];
+  /** Its task call's `priority`: a tie-breaker in the queue's order; 0 by default. */
+  priority: number;
 }
 
 /** The innermost loop pass of a plan node's flow path; null outside a loop (a pass not counted reads as the first). */
@@ -244,6 +246,7 @@ export function taskRows(outcomes: ReadonlyMap<string, TaskOutcome>, plan: Plan)
       waits_for:
         t.outcome === 'waiting' ? (node?.after ?? []).filter((d) => !isFinished(outcomes.get(d)?.outcome ?? 'waiting')) : [],
       claims: node?.claims ?? [],
+      priority: node?.priority ?? 0,
     };
   });
 }

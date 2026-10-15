@@ -60,6 +60,9 @@ class Limits:
     `timeout_s` / `max_turns` / `max_budget_usd` go to the CLI.
     `context_budget` (per-call input ceiling: resident + accumulated reads)
     and `stall_s` are enforced by the wrapper watching the stream.
+    `context_warn_pct` stops nothing: a launch whose peak context
+    (`LaunchResult.peak_context`) passes that % of `context_budget` is
+    recorded as warned (`JournalRow.context_warned`); it needs a `context_budget`.
     `disallowed_tools` becomes `--disallowedTools` (patterns like
     `Bash(git push:*)` allowed). Past `max_denials` permission denials the
     wrapper stops: a denied model burns calls working around with
@@ -70,10 +73,29 @@ class Limits:
     max_turns: int | None = None
     max_budget_usd: float | None = None
     context_budget: int | None = None
+    context_warn_pct: int | None = None
     stall_s: float | None = None
     disallowed_tools: tuple[str, ...] = ()
     # Stop after this many stream `permission_denied` events. None never stops.
     max_denials: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.context_warn_pct is not None:
+            if (
+                isinstance(self.context_warn_pct, bool)
+                or not isinstance(self.context_warn_pct, int)
+                or not 1 <= self.context_warn_pct <= 99
+            ):
+                raise ValueError(f"context_warn_pct = {self.context_warn_pct!r} is not a whole percent from 1 to 99")
+            if not self.context_budget:
+                raise ValueError("context_warn_pct needs a context_budget: it is a percent of it")
+
+    def context_warned(self, peak_context: int | None) -> bool:
+        """Whether a launch with this `peak_context` passed `context_warn_pct`% of
+        `context_budget`; False without them or without a peak context."""
+        if peak_context is None or not self.context_budget or not self.context_warn_pct:
+            return False
+        return peak_context * 100 > self.context_warn_pct * self.context_budget
 
 
 @dataclass(frozen=True)
@@ -154,7 +176,8 @@ class Usage:
     """Per-call counts plus totals.
 
     `resident` is the first call's input (what was loaded before the task
-    started); `peak` the largest input (context at its most grown).
+    started); `peak_context` the largest input of one call (context at its most grown).
+    A call's input is `CallUsage.context`: fresh input, cache read and cache write.
 
     The stream's `assistant` `output_tokens` are running fragments (live
     reading: 7 streamed vs 271 in result for one launch). Output totals
@@ -173,7 +196,7 @@ class Usage:
         return self.calls[0].context if self.calls else 0
 
     @property
-    def peak(self) -> int:
+    def peak_context(self) -> int:
         return max((c.context for c in self.calls), default=0)
 
     @property
@@ -201,7 +224,7 @@ class Usage:
         return {
             "n_calls": self.n_calls,
             "resident": self.resident,
-            "peak": self.peak,
+            "peak_context": self.peak_context,
             "context_total": self.context_total,
             "input": self.input,
             "cache_read": self.cache_read,
@@ -359,13 +382,26 @@ class LaunchResult:
     #: What the plugin's stop hook sent back within the launch, before the agent
     #: ended its turn (Claude Code): one list of errors per time it objected.
     hook_errors: list[list[str]] = field(default_factory=list)
+    #: The `Limits.context_budget` the launch ran under, and whether its peak context passed
+    #: `Limits.context_warn_pct`% of it (`Limits.context_warned`; over folded rounds and
+    #: hops, whether any did). Set by the runner, which knows the limits.
+    context_budget: int | None = None
+    context_warned: bool = False
+
+    @property
+    def peak_context(self) -> int | None:
+        """The launch's peak context: the largest input of one API call, its fresh input,
+        cache read and cache write summed (`CallUsage.context`, as `Usage.resident` is the
+        first call's). Over the rounds and hops `fold_spend` carried in, the largest of
+        them. None when the coding agent's stream reported no API call."""
+        return self.usage.peak_context if self.usage.calls else None
 
     @property
     def context_pct(self) -> float:
-        """Peak input as % of the context window. Falls back to the launch
+        """Peak context as % of the context window. Falls back to the launch
         model when the stream names none."""
         model = next((c.model for c in self.usage.calls if c.model), "") or self.model
-        return round(100.0 * self.usage.peak / context_window(model), 1)
+        return round(100.0 * self.usage.peak_context / context_window(model), 1)
 
     def as_dict(self) -> dict:
         d = {
@@ -411,6 +447,8 @@ class LaunchResult:
             "round_costs": list(self.round_costs),
             "unwrapped": self.unwrapped,
             "hook_errors": [errors[:10] for errors in self.hook_errors],
+            "context_budget": self.context_budget,
+            "context_warned": self.context_warned,
         }
         return d
 

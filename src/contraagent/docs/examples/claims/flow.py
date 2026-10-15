@@ -4,14 +4,16 @@
 no two of them, of either kind, write one topic at once. `merge` writes two
 topics: it claims each topic it names (`{params.topics}`), so it waits while a
 write of either runs. `triage` only reads: it claims nothing, so it runs beside
-anything, a write of the same topic included.
+anything, a write of the same topic included. `lookup` starts a local index
+server of about 1.5 GB: every lookup claims `index`, and `CLAIM_CAPACITY` runs
+as many at once as the host's free memory and cores hold.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel
 
-from contraagent import agent_task
+from contraagent import PerTask, agent_task
 
 
 class Written(BaseModel):
@@ -53,6 +55,18 @@ triage = agent_task(
     max_turns=5,
     timeout_s=300,
 )
+
+lookup = agent_task(
+    "lookup",
+    instructions="Start the local index server, find the passages on params.subject, and stop it.",
+    output=Written,
+    claims=["index"],
+    max_turns=10,
+    timeout_s=300,
+)
+
+#: `Pipeline(claim_capacity=CLAIM_CAPACITY)`: one lookup needs 1.5 GB and one core.
+CLAIM_CAPACITY = {"index": PerTask(memory_mb=1500, cores=1)}
 
 
 def topics(names: list[str]):

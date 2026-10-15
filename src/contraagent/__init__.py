@@ -11,12 +11,13 @@ Layers, bottom up (each imports only the ones above it in this list):
 * `docs/`       the documentation, installed with the package: Markdown topics and the
                 examples they quote; `contraagent docs`
 * `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
-                `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level)
+                `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level, priority)
                 and `FlowDriver` (generator flows over it); `make_python_task`
 * `backends/`   one coding-agent CLI behind `Backend`: one `Launch` in, one `LaunchResult` out
 * `contracts`   `OutputContract`/`InputContract`: files checked by pydantic and
                 `validators`; `run_until_valid` resumes the session until they hold;
-                `calls`: the call file an agent task is handed
+                `calls`: the call file an agent task is handed; `pointers`: the parts of a
+                JSON output a task keeps (`agent_task(preserve=)`)
 * `routing/`    `PipelineConfig` (one TOML file) -> `RoutingPlan`: per-kind
                 `KindConfig` and failover `Router`, with a preflight
 * `execution/`  `AgentRunner` (one task, with failover), `RetryingRunner`, `PythonTaskRunner`,
@@ -93,12 +94,15 @@ from contraagent.errors import ContraagentError
 from contraagent.execution import (
     AgentRunner,
     CursorStore,
+    NoCurrentRun,
     PythonTaskRunner,
     RetryingRunner,
     Run,
     RunExists,
     RunLocked,
     TaskAdapter,
+    log,
+    save,
 )
 from contraagent.pipeline import CheckReport, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
 from contraagent.plugins import Plugin, PluginError
@@ -106,7 +110,11 @@ from contraagent.routing import (
     ConfigError,
     KindConfig,
     Overrides,
+    PerTask,
     PipelineConfig,
+    PreflightPolicy,
+    PreflightRecord,
+    PreflightStopped,
     Route,
     Router,
     RoutingError,
@@ -142,6 +150,7 @@ __all__ = [
     "LaunchError",
     "LaunchResult",
     "Limits",
+    "NoCurrentRun",
     "OAuthToken",
     "OmpBackend",
     "OmpRpcBackend",
@@ -149,10 +158,14 @@ __all__ = [
     "OutputContract",
     "Overrides",
     "Pending",
+    "PerTask",
     "PiBackend",
     "Pipeline",
     "PipelineConfig",
     "Plugin",
+    "PreflightPolicy",
+    "PreflightRecord",
+    "PreflightStopped",
     "PluginError",
     "Pool",
     "PythonTaskRunner",
@@ -186,6 +199,7 @@ __all__ = [
     "configs_from_tables",
     "create_backend",
     "kind_name",
+    "log",
     "make_python_task",
     "normalize_stream_line",
     "python_task",
@@ -194,5 +208,6 @@ __all__ = [
     "register_normalizer",
     "require_budgets",
     "run_until_valid",
+    "save",
     "time_box",
 ]

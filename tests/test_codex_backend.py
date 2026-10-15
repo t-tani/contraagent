@@ -104,6 +104,7 @@ def test_a_launch_reads_its_events_and_its_rollout(fake):
     # Per call, from the rollout: the cached and cache-written parts are not counted as input twice.
     assert [(c.input, c.cache_read, c.cache_creation, c.output) for c in r.usage.calls] == [(2, 0, 8509, 192), (2, 8509, 218, 5)]
     assert r.usage.resident == 8511 and r.usage.output_total == 197 and r.init_model == "gpt-5.6-luna"
+    assert r.peak_context == 2 + 8509 + 218  # the second call's whole input
     assert r.rate_limit is not None and r.rate_limit.five_hour_pct == 42.0 and r.rate_limit.seven_day_pct == 7.5
     env = seen["env"]
     assert env["CODEX_API_KEY"] == "sk-test" and "OPENAI_API_KEY" not in env and "CLAUDECODE" not in env

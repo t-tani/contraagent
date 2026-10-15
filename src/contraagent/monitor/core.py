@@ -6,7 +6,8 @@ a test can use the same views.
 
 A domain extends it two ways, neither touching the framework:
 
-* `panels` — named callables `fn(run) -> dict`. Each shows up as its own
+* `panels` — named callables `fn(run) -> dict`, given the run's records (`RunRecords`:
+  its journal, its other logs, the pipeline's own logs and documents). Each shows up as its own
   tab in the web UI and is pushed over the live feed whenever its value
   changes. A typed body (`api.PanelBody`: tiles, a table, charts, blocks of
   them) is drawn with the monitor's own elements; any other dict is shown as
@@ -42,38 +43,100 @@ from contraagent.monitor import paths, trends
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 from contraagent.monitor.trends import Period
 
-#: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`).
-PanelFn = Callable[[str], Any]
+#: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`), given the run's records (`RunRecords`).
+PanelFn = Callable[["RunRecords"], Any]
 #: A trends panel: `fn(runs, period) -> body`, over the runs of the period (`PeriodRuns`).
 TrendsPanelFn = Callable[["PeriodRuns", Period], Any]
+
+
+def _document(source: RunSource, run: str, name: str) -> Any:
+    text = source.document(run, rundir.pipeline_document(name))
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+class RunRecords:
+    """One run's records, as a run panel receives them, wherever the monitor reads them
+    (a runs directory or a hub): a panel reads its run through this, never through a
+    path of its own. `id` is the run's id."""
+
+    def __init__(self, run: str, source: RunSource) -> None:
+        self.id = run
+        self._source = source
+
+    def __repr__(self) -> str:
+        return f"RunRecords({self.id!r})"
+
+    def info(self) -> dict:
+        """The run's `run.json`; empty when it has none."""
+        return self._source.info(self.id) or {}
+
+    def journal(self) -> list[dict]:
+        """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
+        return self.records(rundir.JOURNAL)
+
+    def records(self, log: str) -> list[dict]:
+        """The rows of one of the logs contraagent writes (`rundir.JOURNAL`, `rundir.DEFERRED`,
+        ...); a line that does not parse is skipped, a log the run does not have is empty."""
+        return _parse(self._source.lines(self.id, log)[0])
+
+    def log(self, name: str) -> list[dict]:
+        """The rows of the pipeline log `name` (what `contraagent.log(name, row)` appended),
+        oldest first; empty when the run has none."""
+        return self.records(rundir.pipeline_log(name))
+
+    def document(self, name: str) -> Any:
+        """The value of the pipeline document `name` (what `contraagent.save(name, value)`
+        last wrote); None when the run has none."""
+        return _document(self._source, self.id, name)
+
+    def dir(self) -> Path | None:
+        """The run's directory, for a file that is not one of its records (an output); None
+        when the runs are not in a directory here (a hub keeps them in its store)."""
+        return self._source.path(self.id) if isinstance(self._source, DirectorySource) else None
 
 
 class PeriodRuns(list[str]):
     """The run ids of a period, newest activity first, as a trends panel receives them, and
     their records wherever the monitor reads them (a runs directory or a hub): a panel
-    reads a run through this, never through a path of its own."""
+    reads a run through this, never through a path of its own. Each method is the
+    `RunRecords` method of the same name, for run `run`; `run(run)` is its `RunRecords`."""
 
     def __init__(self, runs: Iterable[str], source: RunSource) -> None:
         super().__init__(runs)
         self._source = source
 
-    def records(self, run: str, log: str) -> list[dict]:
-        """The rows of one of the run's logs (`rundir.JOURNAL`, `rundir.DEFERRED`, ...); a line
-        that does not parse is skipped, a log the run does not have is empty."""
-        return _parse(self._source.lines(run, log)[0])
-
-    def journal(self, run: str) -> list[dict]:
-        """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
-        return self.records(run, rundir.JOURNAL)
+    def run(self, run: str) -> RunRecords:
+        """Run `run`'s records."""
+        return RunRecords(run, self._source)
 
     def info(self, run: str) -> dict:
         """The run's `run.json`; empty when it has none."""
-        return self._source.info(run) or {}
+        return self.run(run).info()
+
+    def journal(self, run: str) -> list[dict]:
+        """The run's journal rows (`JournalRow`s, as dicts), oldest first."""
+        return self.run(run).journal()
+
+    def records(self, run: str, log: str) -> list[dict]:
+        """The rows of one of the logs contraagent writes (`rundir.JOURNAL`, `rundir.DEFERRED`, ...)."""
+        return self.run(run).records(log)
+
+    def log(self, run: str, name: str) -> list[dict]:
+        """The rows of the run's pipeline log `name`; empty when it has none."""
+        return self.run(run).log(name)
+
+    def document(self, run: str, name: str) -> Any:
+        """The value of the run's pipeline document `name`; None when it has none."""
+        return self.run(run).document(name)
 
     def dir(self, run: str) -> Path | None:
-        """The run's directory, for a file that is not one of its logs (an output); None
-        when the runs are not in a directory here (a hub keeps them in its store)."""
-        return self._source.path(run) if isinstance(self._source, DirectorySource) else None
+        """The run's directory; None when the runs are not in a directory here (a hub)."""
+        return self.run(run).dir()
 
 
 @dataclass
@@ -82,7 +145,7 @@ class Panel:
 
     `fn` returns its body: a typed body (`api.PanelBody`, as a model or as a dict with
     its `type`) drawn as tiles, a table or charts, or any other dict, shown as a JSON
-    tree. `scope` says what it is computed over: `run`, `fn(run)`, a tab of each run;
+    tree. `scope` says what it is computed over: `run`, `fn(run)` (the run's `RunRecords`), a tab of each run;
     `trends`, `fn(runs, period)`, a view of the runs of a period. `title` and
     `description` label it and say what it shows; `icon` is a short glyph. `tab` names
     the tab of the Trends page a trends panel is shown on, with the other panels of that
@@ -335,6 +398,7 @@ class Monitor:
                     "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
                     "stub": info.get("stub") is True,
+                    "replay": info.get("replay") if isinstance(info.get("replay"), str) else "",
                     "row_extras": list(extras),
                 }
             )
@@ -526,6 +590,31 @@ class Monitor:
             "flow_calls": self._flow_calls(run, cwd),
             **self._quota(run),
             "models": model_usage(journal),
+            **self._preflight(run),
+        }
+
+    def _preflight(self, run: str) -> dict:
+        """`preflight`: what the run's preflight did (`run.json`), when it records it."""
+        record = (self.source.info(run) or {}).get("preflight")
+        if not isinstance(record, dict) or record.get("policy") not in ("substitute", "stop", "off"):
+            return {}
+
+        def rows(name: str, fields: tuple[str, ...]) -> list[dict]:
+            items = record.get(name)
+            return [{f: item.get(f, "") for f in fields} for item in (items if isinstance(items, list) else ()) if isinstance(item, dict)]
+
+        dropped = rows("dropped", ("agent", "model", "credential", "reason", "kinds"))
+        for d in dropped:
+            d["kinds"] = [k for k in d["kinds"] if isinstance(k, str)] if isinstance(d["kinds"], list) else []
+        stopped = record.get("stopped")
+        return {
+            "preflight": {
+                "policy": record["policy"],
+                "dropped": dropped,
+                "substituted": rows("substituted", ("kind", "from_agent", "from_model", "to_agent", "to_model")),
+                "kept": rows("kept", ("kind", "agent", "model", "reason")),
+                "stopped": [k for k in stopped if isinstance(k, str)] if isinstance(stopped, list) else [],
+            }
         }
 
     def _quota(self, run: str) -> dict:
@@ -865,11 +954,12 @@ class Monitor:
     # --- panels ------------------------------------------------------------
 
     def panel(self, name: str, run: str) -> dict:
-        """Run panel `name`'s body for `run`. KeyError: no run panel of that name."""
+        """Run panel `name`'s body for `run`: its `fn` given the run's records (`RunRecords`).
+        KeyError: no run panel of that name."""
         panel = self.panels.get(name)
         if panel is None or panel.scope != "run":
             raise KeyError(name)
-        return panel(run)
+        return panel(RunRecords(run, self.source))
 
     def run_panels(self) -> list[str]:
         """The names of the panels computed per run: each run's tabs, and its live feed."""
@@ -1027,15 +1117,27 @@ def model_usage(rows: list[dict]) -> list[dict]:
     """What the agent sessions of journal `rows` spent per model (`api.ModelUsage`), in order
     of first use: each hop on its own model (its agent, tokens, cost and time), and what it
     spent on other models (`Hop.other_models`) on each of them, taken out of its own model's
-    cost. A row of one hop with no tokens of its own gives the hop the row's. Python rows
-    and hops that never launched (`skipped_hops`) are not counted."""
+    cost. A row of one hop with no tokens of its own gives the hop the row's. `peak_context`
+    is the largest of its hops'. Python rows and hops that never launched (`skipped_hops`)
+    are not counted."""
     out: dict[tuple[str, str], dict] = {}
 
     def add(agent: str, model: str, usage: object, cost: float | None, sessions: int, wall_s: float) -> None:
         m = out.setdefault(
             (agent, model),
-            {"agent": agent, "model": model, "sessions": 0, **dict.fromkeys(_TOKENS, 0), "cost_usd": None, "wall_s": 0.0},
+            {
+                "agent": agent,
+                "model": model,
+                "sessions": 0,
+                **dict.fromkeys(_TOKENS, 0),
+                "cost_usd": None,
+                "wall_s": 0.0,
+                "peak_context": None,
+            },
         )
+        peak = usage.get("peak_context") if isinstance(usage, dict) else None
+        if isinstance(peak, int) and not isinstance(peak, bool):
+            m["peak_context"] = max(m["peak_context"] or 0, peak)
         m["sessions"] += sessions
         for k in _TOKENS:
             v = usage.get(k) if isinstance(usage, dict) else None

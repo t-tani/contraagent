@@ -287,7 +287,7 @@ def test_the_api_serves_trends_and_trend_panels(runs):
         return {"type": "tiles", "tiles": [{"id": "q", "label": "Runs", "value": str(len(run_ids))}]}
 
     trend = Panel(quality, title="Quality", scope="trends")
-    m = Monitor(runs, panels={"quality": trend, "targets": lambda run: {"run": run}})
+    m = Monitor(runs, panels={"quality": trend, "targets": lambda run: {"run": run.id}})
     c = TestClient(server.create_app(m), base_url="http://127.0.0.1")
     got = c.get("/api/trends", params={"from": "2026-10-01", "to": "2026-10-03", "tz": TOKYO})
     assert got.status_code == 200, got.text

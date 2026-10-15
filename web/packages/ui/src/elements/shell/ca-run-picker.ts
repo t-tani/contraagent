@@ -6,7 +6,7 @@ import { emit } from '../../core/events.js';
 import type { Page } from '../../core/route.js';
 import { trendsTitle, trendsTip } from '../../words/trends.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
-import { stateCount, stubLabel, stubTip } from '../../words/index.js';
+import { runMark, stateCount } from '../../words/index.js';
 import { accountsLine, accountsTip } from '../../words/quota.js';
 import { hostFact, noReportLabel, hostStateSince, hostsLine, lastReport, runCount } from '../../words/hosts.js';
 import { runTone } from '../../lib/tone.js';
@@ -257,7 +257,7 @@ export class CaRunPicker extends LitElement {
       aria-current=${cur ? (page ? 'page' : 'true') : nothing} @click=${() => this.pick(r)}>
       ${typeof r !== 'string'
         ? html`<span class="dot" data-tone=${toneAttr(runTone(runActivity(r), r.tasks))} aria-hidden="true"></span><span class="nm"
-              title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}${r.stub ? html` ${pill({ text: stubLabel(), tone: 'muted', title: stubTip() })}` : nothing}</span>
+              title=${this.hub ? r.run : nothing}>${this.hub ? runIdOf(r) : r.run}${runMark(r) ? html` ${pill({ ...runMark(r)!, tone: 'muted' })}` : nothing}</span>
             ${this.when(r)}
             <span class="sub">
               ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>

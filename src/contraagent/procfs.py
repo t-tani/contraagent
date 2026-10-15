@@ -1,8 +1,9 @@
-"""Generic `/proc` introspection: read one known PID's identity and footprint.
+"""Generic `/proc` introspection: read one known PID's identity and footprint, and
+the host's free memory and usable cores.
 
 A plain `/proc/<pid>/stat` parse, a cmdline/environ read, a PID-reuse
-identity check, and an RSS sum over a process group. A leaf module with no
-imports from the rest of the package.
+identity check, an RSS sum over a process group, and `MemAvailable` of
+`/proc/meminfo`. A leaf module with no imports from the rest of the package.
 
 `proc_root` is injectable on every function so callers can point it at a
 fake directory tree in tests, instead of the real `/proc`.
@@ -142,3 +143,27 @@ def sample_pgid_rss_kb(pgid: int, proc_root: str = "/proc") -> int:
     and shell processes share the group leader's pgid, so this captures the
     whole tree's footprint."""
     return sum(read_rss_kb(pid, proc_root) for pid in pgid_members(pgid, proc_root))
+
+
+def read_mem_available_mb(proc_root: str = "/proc") -> int | None:
+    """The host's available memory in MB: `MemAvailable` of `/proc/meminfo` (the kernel's
+    estimate of what new work may use without swapping). None where there is no such
+    file or field (not Linux)."""
+    try:
+        text = Path(proc_root, "meminfo").read_text()
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith("MemAvailable:"):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                return int(parts[1]) // 1024
+    return None
+
+
+def usable_cores() -> int:
+    """The cores this process may run on: its CPU affinity where the platform has one,
+    else every core of the host; at least 1."""
+    if hasattr(os, "sched_getaffinity"):
+        return max(1, len(os.sched_getaffinity(0)))
+    return max(1, os.cpu_count() or 1)

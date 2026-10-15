@@ -50,6 +50,9 @@ class TokenUsage(BaseModel):
     #: The whole input of the attempt's first API call (cache included): what the coding agent
     #: loads before the task starts (system prompt, tools, the prompt). None when no call was read.
     resident: int | None = None
+    #: The peak context: the whole input of the largest API call (cache read and cache write
+    #: included), the largest over every hop and round summed here. None when no call was read.
+    peak_context: int | None = None
 
 
 class OtherModel(BaseModel):
@@ -228,6 +231,12 @@ class JournalRow(BaseModel):
     unread_events: dict[str, int] = Field(default_factory=dict)
     #: The files the attempt changed under its task's `changes` patterns; None when it declares none.
     changes: Changes | None = None
+    #: The kind's `context_budget` the attempt's launches ran under (tokens of one API call's
+    #: input); None without one. With `usage.peak_context`: how close the attempt came to it.
+    context_budget: int | None = None
+    #: The attempt's peak context passed the kind's `context_warn_pct`% of `context_budget`
+    #: (the launch was not stopped for it).
+    context_warned: bool = False
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.

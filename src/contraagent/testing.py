@@ -37,6 +37,9 @@ return value (`writes_nothing()`: no output; `fails()`: it raises), from the sam
 script; a callable reply is given a `StubTask`. The kinds in `execute` run their
 functions as in any run. Flow code runs in a stub run as in any run.
 
+A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub plays; a
+route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
+
 Under a name whose coding agent continues its turn when a stop hook objects
 (Claude Code), the stub does what that agent does: once it has written its
 output it runs the Stop hooks of the launch's plugins (their rendered
@@ -66,11 +69,12 @@ from contraagent import envvars
 from contraagent.backends import Backend, ClaudeBackend, backend_class, known_agents
 from contraagent.backends.claude.stream import feedback_errors
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage
 from contraagent.backends.process import write_launch_marker
 from contraagent.backends.streams import resolve_format
 from contraagent.calls import CallFile
 from contraagent.contracts import smallest
+from contraagent.routing.preflight import PROBE_PROMPT
 
 _UNSET: Any = object()
 #: How many times a stop hook may send the output back within one launch.
@@ -86,15 +90,19 @@ class Reply:
     reason: str = ""
     rate_limit: RateLimit | None = None
     cost_usd: float | None = None
+    peak_context: int | None = None
 
 
-def writes(value: Any, *, cost_usd: float | None = None, rate_limit: RateLimit | None = None) -> Reply:
+def writes(value: Any, *, cost_usd: float | None = None, rate_limit: RateLimit | None = None, peak_context: int | None = None) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
     `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
     session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
     running total, as the agent does. `rate_limit`: the utilization reading the launch reports
-    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge."""
-    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit)
+    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge.
+    `peak_context`: the launch reports one API call of this many input tokens, its peak
+    context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
+    launch reports no API call."""
+    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit, peak_context=peak_context)
 
 
 #: The output of `writes_smallest()`: built from the output's schema when it is played.
@@ -242,6 +250,8 @@ class StubAgent(Backend):
     def run(self, launch: Launch) -> LaunchResult:
         started = time.monotonic()
         call_path = launch.env.get(envvars.CALL)
+        if not call_path and launch.prompt == PROBE_PROMPT:
+            return self._result(launch, started, writes_nothing())  # a preflight's probe answers
         if not call_path:
             return self._result(launch, started, fails(reason="stub: no call file (an agent task without a call file)"))
         call = CallFile.read(Path(call_path))
@@ -430,6 +440,7 @@ class StubAgent(Backend):
             rate_limit=reply.rate_limit,
             rate_limits=[_observed(reply.rate_limit)] if _is_reading(reply.rate_limit) else [],
             stderr_tail=reply.reason,
+            usage=Usage(calls=[CallUsage(launch.model, reply.peak_context, 0, 0, 0)]) if reply.peak_context is not None else Usage(),
         )
 
 

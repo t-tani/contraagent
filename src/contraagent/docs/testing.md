@@ -63,6 +63,40 @@ In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
 execute=[...]))` scripts the replies of both kinds of task, as a test does
 (`contraagent/testing.py` lists the replies).
 
+## Record once, replay in CI
+
+```
+contraagent run tasks.py:<flow> --config pipeline.toml --record recordings/ --kwargs '{"units": ["a", "b"]}'
+contraagent run tasks.py:<flow> --config pipeline.toml --replay recordings/ --kwargs '{"units": ["a", "b"]}'
+```
+
+A run with `--record DIR` (`Pipeline(record=DIR)`) runs as any run does and keeps a
+**recording** of each agent task attempt: `DIR/<kind>/<key>.json` with the facts of its
+last launch (how it ended, its final message, turns, agent, model) and its task's
+fingerprint, and beside it the final contents of its output files, the files its
+`changes=` patterns saw created or modified (and the paths they saw deleted), and its
+part of the transcript when transcripts are kept. Nothing else of the working directory
+is kept. A task's first attempt in a run replaces its recording. Record on a real coding
+agent once, and commit the directory with the tests.
+
+A **replay** (`--replay DIR`, `Pipeline(replay=DIR)`) plays those recordings in place of
+every agent task's launch: attempt 1 the first recording, attempt 2 the second, past the
+last the last again. Each writes the recorded outputs and files into place, deletes the
+recorded deletions and adds the recorded transcript; its output checks and the journal
+run as in any run, and it reports no cost and no tokens. Python tasks run their
+functions: they are the pipeline's own code, which is what a replay tests. So a replay
+in CI follows the flow down the path the real outputs led to, with nothing spent.
+
+A replay is a stub run (the monitor marks it "replay" and names its recordings), its run id is
+`<flow>-replay`, and `run.json` names the recordings (`replay`). A task with no
+recording ends `error` with `no recording for <key>` after one attempt; a key minted with `~n` that has
+none of its own plays the first recording of its base key after it that no task has
+played. A recording made by another definition of the task (another fingerprint) is
+played all the same, and the task's reason says so: record again when the change
+matters. A replay walks no failover hop and is not combined with `--stub`, `--record`
+or `--execute`. The module docstring (`contraagent/execution/recording.py`) gives the
+layout of a recording directory.
+
 ## Test: the stub agent
 
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call

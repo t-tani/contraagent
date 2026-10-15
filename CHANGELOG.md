@@ -9,6 +9,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor shows the new run data: a task's priority (when not 0) in its header and in
+  the tasks list; an attempt's peak context with its share of the context limit (history
+  tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak
+  context column in the models of a run and of the trends; the run's preflight in the run
+  card ("Model availability": unavailable models, replaced models, kinds with no available
+  model, and a run it ended before the first agent session); a replay's mark "replay" with
+  its recordings in place of "stub agent" (`RunSummary.replay`); a Python task's retries and
+  retried exceptions, an agent task's `output_of` and the JSON pointers it must keep
+  unchanged (`preserve`) in its definition and its checked output file.
+- Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
+  one of several toolsets, each a kind of its own with its own plugin and the same output
+  schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.
+- A task call's `priority` (`summarize("alpha", priority=2.5)`, default 0): among ready tasks
+  the queue would otherwise start in the order they were queued, the highest priority starts
+  first. It never outranks a longer bottom level, an overdue task or a time box's endgame,
+  and is not part of the fingerprint. `plan.jsonl` and the monitor's plan nodes record it. A
+  params field or a Python task's parameter named `priority`, `key` or `after` is refused
+  where the task is declared.
+- A pipeline's own records in its run: `contraagent.log(name, row)` appends a row to the
+  pipeline log `runs/<id>/pipeline/<name>.jsonl`, `contraagent.save(name, value)` writes the
+  pipeline document `runs/<id>/pipeline/<name>.json`, from flow code and from Python tasks
+  (`NoCurrentRun` anywhere else). A relay ships them to a hub, and a prune removes them with
+  their run. A run panel's function is given the run's records (`RunRecords`: `id`, `info()`,
+  `journal()`, `records(log)`, `log(name)`, `document(name)`, `dir()`) in place of its id, so it
+  reads the same on one host and on a hub; `PeriodRuns` has the same methods for each run
+  (`log(run, name)`, `document(run, name)`, `run(run)`). An export reads a run's `cwd` through
+  the monitor's run source.
+- Peak context: every coding agent's launch reports the whole input of its largest API call
+  (`LaunchResult.peak_context`; `usage.peak_context` per hop and per attempt in the journal,
+  `peak_context` per model in the monitor's models). `context_warn_pct` (a task table,
+  `agent_task(...)`, `[defaults]`) warns once a launch's peak context passes that percent of
+  `context_budget`, without stopping it: the journal row records `context_warned` and
+  `context_budget`, and the run logs a `[context]` line. A `context_warn_pct` without a
+  `context_budget` is refused before anything launches. It replaces `context_warn`, an
+  absolute count of tokens. `writes(value, peak_context=...)` makes the stub agent report one.
+- Retries of a Python task: `@python_task(retries=2, retry_on=(ConnectionError, TimeoutError))`
+  calls the function again after an exception of a class in `retry_on`, up to `retries` more
+  times, each attempt a journal row of its own; any other exception, an off-contract input and
+  an off-contract output fail the task at once. One given without the other raises at the
+  decorator. A task definition shows them (`TaskDefinition.retries`, `retry_on`). Example:
+  `examples/retries/flow.py`.
+- A preflight policy: `Pipeline(preflight="substitute" | "stop" | "off")`, `contraagent run
+  --preflight`, `[defaults] preflight`. `stop` raises `PreflightStopped` before the first
+  launch when a kind has no route that answered, naming each such kind and why each of its
+  routes was dropped; `substitute` runs it on the first route that answered. `run.json`
+  records what the preflight did (`preflight`), and the monitor returns it as
+  `Plan.preflight`. It replaces `Pipeline(preflight=True)`, which is `"substitute"`; there a
+  kind with no failover chain whose route answered stays on it, and a route past the probe
+  cap is kept unprobed.
+- Recordings and replays: `Pipeline(record="recordings/")` (`contraagent run --record DIR`)
+  keeps each agent task attempt's outputs, the files its `changes=` patterns saw change, its
+  transcript and its result; `Pipeline(replay="recordings/")` (`contraagent run --replay DIR`)
+  plays them in place of the launches, attempt by attempt, with nothing spent, while Python
+  tasks run their functions. A replay is a stub run; `run.json` names its recordings (`replay`).
+- A claim capacity sized by the host: `claim_capacity={"index": PerTask(memory_mb=1500, cores=1)}`,
+  or `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`, runs as many
+  tasks that claim `index` at once as the host's free memory (`MemAvailable`, less what tasks
+  started in the last 30 seconds will take) and usable cores hold, and one while none runs.
+  A waiting task starts as memory frees, while the others still run.
+- `agent_task(preserve=["/source", "/items/*/id"])`: the parts of a JSON output file an agent
+  task keeps, as JSON pointers with a segment `*` for every member. Each value they select in
+  the file before the launch must be in it after, equal; one that changed or was removed goes
+  back to the agent as a check error (`/items/1/id changed`), and an attempt that does not pass
+  puts the file back as it was. The pointers are checked against the output's schema when the
+  task is declared, and are in the call file (`output.preserve`), the task's definition and
+  its contract record (`preserve`).
+- `agent_task(output_of=outline)`: an agent task writes the output file of another kind's task
+  for the same unit (the latest one created so far) instead of a file of its own, and waits for
+  the latest task that writes that file; with `preserve`, it fills in what that task wrote.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).
@@ -57,6 +126,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `retries` counts the attempts after the first for agent tasks too (`KindConfig.retries`,
+  `[tasks.<kind>] retries`, `agent_task(retries=)`): `retries=2` is 3 attempts at most. The
+  default is 2, so a kind that sets nothing still makes 3 attempts; a kind that set `retries=N`
+  sets `N - 1` for the same attempts.
 - Panels are offered in the order of the dict given, not by name.
 - A trends panel's body is checked against `PanelBody` as a run panel's is, on
   `/api/trends/panels/<name>` and in an export: a typed body that does not validate is

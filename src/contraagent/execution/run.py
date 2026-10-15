@@ -8,8 +8,8 @@ A `Run` owns `runs/<run-id>/`:
     journal.jsonl           one `JournalRow` per finished task
     launches.jsonl          the full `LaunchResult` of each agent launch
     streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
-    plan.jsonl              every task a queue accepted, with its `after`, its `claims` and
-                            its origin (`flow`, `created_from`, `flow_call`)
+    plan.jsonl              every task a queue accepted, with its `after`, its `claims`, its
+                            `priority` and its origin (`flow`, `created_from`, `flow_call`)
     flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
                             (`state`, `error`)
     deferred.jsonl          one row per deferred task: its key and why it was not launched
@@ -30,6 +30,7 @@ is ok and carries the task's `fingerprint`.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import fcntl
 import json
@@ -53,8 +54,10 @@ from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
 from contraagent.execution.estimates import JournalEstimates, journal_rows, recent_journals
 from contraagent.execution.journal import Journal, utcnow_iso
+from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
+from contraagent.routing.capacity import sized
 from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
 
 _logger = logging.getLogger(__name__)
@@ -147,6 +150,7 @@ class Run:
         self._teardown_lock = threading.Lock()
         self._teardown_callbacks: list[Callable[[], None]] = []
         self._restore_signals: Callable[[], None] | None = None
+        self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
         rundir.write_document(
@@ -201,10 +205,18 @@ class Run:
             self._lock_fd = None
 
     def __enter__(self) -> Run:
+        """The run, as the current run of `contraagent.log` and `save` until the `with` ends."""
+        self._writing = writing_into(self.dir.resolve())
+        self._writing.__enter__()
         return self
 
     def __exit__(self, *exc) -> None:
-        self.close()
+        writing, self._writing = self._writing, None
+        try:
+            self.close()
+        finally:
+            if writing is not None:
+                writing.__exit__(None, None, None)
 
     def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
         """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor
@@ -298,8 +310,9 @@ class Run:
     def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
-        to `inner` (`RetryingRunner(...)`)."""
-        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd)
+        to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
+        a retried one here, the last by the queue."""
+        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt)
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent
@@ -332,8 +345,11 @@ class Run:
         run.record_attempt)`, so nothing is written twice. `resume=True` skips every
         task an earlier attempt finished (`finished_before`). `kwargs` pass through
         (`max_concurrent`, `claim_capacity`, `finishing_kinds`, `deadline_s`...);
-        `retry_on`/`throttle_on` default to the stop sets above.
+        `retry_on`/`throttle_on` default to the stop sets above; a `PerTask` entry of
+        `claim_capacity` is sized by this host (`routing.capacity`).
         """
+        if kwargs.get("claim_capacity"):
+            kwargs["claim_capacity"] = sized(kwargs["claim_capacity"])
         kwargs.setdefault("retry_on", RETRY_ON)
         kwargs.setdefault("throttle_on", THROTTLE_ON)
         kwargs.setdefault("estimate", self.estimator().estimate)
@@ -401,6 +417,14 @@ class Run:
             self._log(logging.INFO, f"[retry] {task.key}: {fields.get('stop') or 'no progress'}; again{wait}")
         elif event == "note" and "follow_up_failed" in fields:
             self._log(logging.WARNING, f"[error] {task.key if task is not None else '?'}: follow_up() raised {fields['follow_up_failed']}")
+        elif event == "note" and isinstance(fields.get("context_warned"), dict) and task is not None:
+            w = fields["context_warned"]
+            peak, budget = w.get("peak_context") or 0, w.get("context_budget") or 0
+            share = f" ({100 * peak // budget}% of context_budget {budget})" if budget else ""
+            self._log(
+                logging.WARNING,
+                f"[context] {task.key}: peak context {peak} tokens{share}, past context_warn_pct {w.get('context_warn_pct')}%",
+            )
 
     def _log(self, level: int, line: str) -> None:
         """A progress line to the caller's `log`, else to this module's logger at `level`:
@@ -424,6 +448,7 @@ class Run:
             "unit": self._unit_of(task),
             "claims": list(task.claims),
             "after": list(task.after),
+            "priority": task.priority,
             "executor": task.executor,
             "flow": frames_row(origin.flow) if origin is not None else [],
             "created_from": list(origin.created_from) if origin is not None else [],

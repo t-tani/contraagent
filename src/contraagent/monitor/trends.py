@@ -41,7 +41,7 @@ from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 8
+DIGEST_VERSION = 9
 
 #: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
 BODY_RUNS = 50
@@ -213,7 +213,7 @@ def run_files(source, run: str, infos: dict | None = None) -> tuple[dict, dict]:
 def _usage(v: object) -> dict | None:
     if not isinstance(v, dict):
         return None
-    return {k: int(n) for k in _TOKENS if (n := _num(v.get(k))) is not None}
+    return {k: int(n) for k in (*_TOKENS, "peak_context") if (n := _num(v.get(k))) is not None}
 
 
 def digest(source, run: str) -> dict:
@@ -425,6 +425,8 @@ def _add_model(models: dict[tuple[str, str], dict], m: Mapping) -> None:
             continue
         if f == "cost_usd":
             into[f] = round((into[f] or 0.0) + v, 6)
+        elif f == "peak_context":
+            into[f] = max(into.get(f) or 0, v)
         elif f == "wall_s":
             into[f] = round(into[f] + v, 1)
         else:

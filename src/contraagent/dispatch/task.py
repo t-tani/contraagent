@@ -133,6 +133,9 @@ class Task:
     `tail_s`: expected wall time of the work that follows this task but is
     not queued yet (a flow creates it from this task's result); the queue's
     bottom level counts it like a successor (see `WorkQueue._blevel`).
+    `priority`: a tie-breaker in the queue's order, higher first: it orders tasks
+    the bottom level, overdue waiting and the deadlines leave equal, never
+    against them. Scheduling, not work: no part of the fingerprint.
     `params`: what the task is given (scalars reach an agent as
     `CONTRAAGENT_PARAMS`).
     `attempt`: retry ordinal; 0 is the first try.
@@ -156,6 +159,7 @@ class Task:
     rerun_on_resume: bool = False
     estimate_s: float | None = None
     tail_s: float | None = None
+    priority: float = 0.0
     params: dict = field(default_factory=dict)
     attempt: int = 0
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
@@ -238,7 +242,10 @@ class TaskResult:
     wall_s: float = 0.0
     # Why it ended the way it did, in one line (empty when nothing needs saying).
     reason: str = ""
-    over_budget: bool = False
+    # What the runner reports beside the verdict, as data: the queue sends it as one
+    # `on_event("note", task, **notes)` when the task finishes (`context_warned`: a launch's
+    # peak context passed its kind's `context_warn_pct`). Empty: no note.
+    notes: dict[str, Any] = field(default_factory=dict)
     # (agent, model) the launch actually ran on. Differs from the Kind's
     # configured model whenever the router failed over, so a postmortem can
     # tell "the model did this" from "the model we asked for did this".
@@ -259,6 +266,9 @@ class TaskResult:
     skipped_hops: tuple[dict, ...] = ()
     # A `deferred` result's cause as data (`Deferral.cause`); None for any other result.
     cause: dict | None = None
+    # False when another attempt cannot end otherwise (a replay with no recording for the
+    # task): a retrying runner stops at this one.
+    retryable: bool = True
     payload: Any = None
 
     @classmethod

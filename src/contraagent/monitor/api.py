@@ -45,7 +45,7 @@ from pydantic import (
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.3.0"
+API_VERSION = "3.4.0"
 
 
 class Closed(BaseModel):
@@ -162,7 +162,11 @@ class RunSummary(Closed):
     host_id: str = Field("", description="the host that drives it; empty when its run.json does not say")
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
-    stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
+    stub: bool = Field(
+        False,
+        description="a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
+    )
+    replay: str = Field("", description="a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise")
     row_extras: list[str] = Field(
         default_factory=list,
         description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
@@ -432,6 +436,7 @@ class PlanNode(Open):
     unit: str = ""
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     after: list[str] = Field(default_factory=list, description="task keys it waits for")
+    priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
     executor: Executor = "agent"
     flow: list[FlowFrame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
     created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
@@ -468,6 +473,45 @@ class CredentialRest(QuotaRest):
     ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
 
 
+class PreflightDropped(Closed):
+    """A route the preflight dropped (`DroppedRoute`)."""
+
+    agent: str
+    model: str = Field(description="empty: the coding agent's default model")
+    credential: str
+    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
+    kinds: list[str] = Field(description="the kinds whose chain held it")
+
+
+class PreflightSubstitution(Closed):
+    """A kind with no route left, run on the first route that answered (`Substitution`)."""
+
+    kind: str
+    from_agent: str
+    from_model: str
+    to_agent: str
+    to_model: str
+
+
+class PreflightKept(Closed):
+    """A kind with no route left, run as configured all the same (`KeptKind`)."""
+
+    kind: str
+    agent: str
+    model: str
+    reason: str
+
+
+class Preflight(Closed):
+    """What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`)."""
+
+    policy: Literal["substitute", "stop", "off"] = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
+    dropped: list[PreflightDropped] = Field(default_factory=list)
+    substituted: list[PreflightSubstitution] = Field(default_factory=list)
+    kept: list[PreflightKept] = Field(default_factory=list)
+    stopped: list[str] = Field(default_factory=list, description="the kinds with no route left that stopped the run (policy `stop`)")
+
+
 class PlanGroup(Closed):
     """A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts
     together), its members counted by state."""
@@ -501,6 +545,9 @@ class ModelUsage(Closed):
     cache_creation: int = 0
     cost_usd: float | None = Field(None, description="what the coding agent reported; null when no session on it reported a cost")
     wall_s: float = 0.0
+    peak_context: int | None = Field(
+        None, description="peak context: the largest input of one API call of a session on it (tokens); null when none reported one"
+    )
 
 
 class Plan(Closed):
@@ -516,6 +563,7 @@ class Plan(Closed):
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
     models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
+    preflight: Preflight | None = Field(None, description="what the run's preflight did (`run.json`); null when its run.json records none")
 
 
 # --- outputs (contracts) -----------------------------------------------------
@@ -555,6 +603,9 @@ class ContractSpec(Open):
     fresh: bool | None = None
     required: bool | None = None
     validators: list[str] = Field(default_factory=list)
+    preserve: list[str] = Field(
+        default_factory=list, description="output: JSON pointers to the parts of the file the task keeps as they were (`*`: every member)"
+    )
     file: FileView
     fields: list[ContractField]
     status: ContractStatus | None = None
@@ -618,6 +669,10 @@ class TaskDefinition(Open):
         None, description="agent task: `file`, the agent writes its output; `message`, its final message is the output"
     )
     validators: list[str] = Field(default_factory=list)
+    preserve: list[str] = Field(
+        default_factory=list, description="agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)"
+    )
+    output_of: str | None = Field(None, description="agent task: the kind whose output file it writes (`agent_task(output_of=)`)")
     tools: list[str] | None = Field(
         None, description="agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
     )
@@ -627,6 +682,11 @@ class TaskDefinition(Open):
     doc: str | None = Field(None, description="Python task: the function's docstring")
     file: str | None = Field(None, description="Python task: the source file, relative to the run's working directory when inside it")
     line: int | None = Field(None, description="Python task: the function's first line in `file`")
+    retries: int | None = Field(
+        None,
+        description="Python task: the fresh attempts after the first, each after an exception of `retry_on` (`@python_task(retries=)`)",
+    )
+    retry_on: list[str] | None = Field(None, description="Python task: the exception classes that give an attempt a fresh one")
 
 
 # --- cursor ----------------------------------------------------------------

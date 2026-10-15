@@ -26,6 +26,25 @@ in the flow's own body: a stub run plays Python tasks and runs flow code as it i
 
 ::code{file="examples/demo/tasks.py" from="@python_task" to="def docs_one_review("}
 
+### Retries
+
+A Python task that talks to a service may fail for a reason a fresh attempt
+cures: a dropped connection, a timeout. `retries` is the number of fresh
+attempts after the first, and `retry_on` the exception classes that earn one;
+any other exception fails the task at once, and so does an off-contract input
+or output. Each attempt is a journal row of its own, with its attempt number
+and its exception, as for an agent task, and waits `RetryingRunner`'s backoff
+first. Declaring one without the other raises at the decorator.
+
+A function that needs a service restores it itself, at its start: a fresh
+attempt then finds the service running again.
+
+::code{file="examples/retries/flow.py" from="@python_task(retries=2" to="summarize = agent_task("}
+
+`retries` and `retry_on` say how a task runs, not what it produces, so they are
+not part of its definition's digest: changing them does not run a finished task
+again on a resume (as with `claims` and `rerun_on_resume`).
+
 ## The flow
 
 A flow is a plain function, with no decorator. `Pipeline` tells a generator flow
@@ -46,6 +65,7 @@ reference to the task's future output:
   summary, score, review and note are refused, and so is the report, which
   needs every summary.
 - `after=` orders tasks without passing data.
+- `priority=` breaks ties in the queue, higher first (see below).
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
@@ -120,7 +140,7 @@ be made (`zeta`) ends its loop there.
   them apart.
 - A `while` loop of flow code is bounded by `max_passes` (see below).
 - Every kind the flow's code reaches (see [Checking and testing](testing.md)) is
-  routed, and probed by `preflight=True`, before the first launch: a config
+  routed, and probed by the preflight (`preflight="substitute"` or `"stop"`), before the first launch: a config
   problem refuses the run. A kind declared inside the flow's body is routed when
   its first task is created: a config problem raises at that task call.
 - A kind is one definition and one `[tasks.<kind>]` table. The flow's code may
@@ -152,6 +172,18 @@ from chains that ran to their end: a chain cut short by a failure, a deferral or
 a flow error would be too short. A task's own duration is the median of its
 kind's completed attempts, in this run once one has finished, else in the
 recent runs.
+
+A task call's `priority` (`summarize("alpha", priority=2)`, a number, default 0)
+orders tasks the queue would otherwise start in the order they were queued:
+among ready tasks with equal work after them, the highest priority starts
+first. It is a tie-breaker only. A task with longer work after it still starts
+first, whatever the priorities; so does a task that has waited past
+`overdue_s`, and near a deadline the time box's order (its finishing kinds,
+then the shortest remaining work) comes before it too. A priority is not part
+of the fingerprint: a resumed run that changes one skips the same tasks.
+`plan.jsonl` records it. A params model with a field named `priority` (or
+`key`, `after`), or a Python task's function with such a parameter, is refused
+where the task is declared: the task call takes these words itself.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
@@ -255,7 +287,7 @@ A claim is a template, filled in when the task is created: `{unit}`, `{kind}`,
 one key claims `<key>~2`), and `{params.<name>}`, a parameter of the task call. A parameter that holds a list gives one name per element, so a task
 over several topics claims each of them.
 
-::code{file="examples/claims/flow.py" from="style = agent_task(" to="def topics("}
+::code{file="examples/claims/flow.py" from="style = agent_task(" to="lookup = agent_task("}
 
 ::code{file="examples/claims/flow.py" from="def topics("}
 
@@ -268,9 +300,28 @@ writes run together.
 `fnmatch` pattern, and a pattern gives each name it matches a capacity of its own
 (`{"heavy:*": 2}`: two tasks at a time on each `heavy:` name). A name's own entry
 outranks a pattern, and the longest matching pattern outranks the others; a
-capacity of 0 starts no task that claims the name. The config holds them as
-`[defaults.claim_capacity]`, and `Pipeline(claim_capacity=)` outranks it key by
-key.
+capacity of 0 starts no task that claims the name. A limit that many tasks share
+needs one name that they all claim: a pattern does not share its capacity. The
+config holds them as `[defaults.claim_capacity]`, and `Pipeline(claim_capacity=)`
+outranks it key by key.
+
+A capacity may instead be what one running task that claims the name needs of the
+host, a `PerTask`: `memory_mb`, `cores`, or both. Tasks that each start a local
+server of about 1.5 GB claim one name, and the host's free memory sets how many
+run at once:
+
+::code{file="examples/claims/flow.py" from="lookup = agent_task(" to="def topics("}
+
+`Pipeline(claim_capacity=CLAIM_CAPACITY)` gives it, or
+`index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`. Each
+time the queue tries to start such a task, the capacity is the tasks that hold the
+name plus as many more as the free memory holds, and at most the usable cores
+divided by `cores`. While no task holds the name it is at least 1, so a run always
+goes on even on a host short of memory. The free memory is `MemAvailable` of
+`/proc/meminfo`, less `memory_mb` for each such task started in the last 30
+seconds, since a server just started has not taken its memory yet; where there is
+no `/proc/meminfo` (not Linux), memory does not limit the name. The capacity grows
+as memory frees, and a waiting task starts then, while the others still run.
 
 A claim that names `{unit}` on a task with no unit, or a parameter the call does
 not give, raises at the task call; so does a parameter that is an output not
@@ -304,6 +355,22 @@ topic:
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
 
+## A pipeline's own records
+
+Flow code and Python tasks keep what the pipeline wants to see of a run in the run
+itself, in its `pipeline/` folder: `contraagent.log(name, row)` appends a row (a dict
+or a pydantic model) as one line to the **pipeline log** `pipeline/<name>.jsonl`, and
+`contraagent.save(name, value)` writes any JSON value whole as the **pipeline
+document** `pipeline/<name>.json`, replacing what it held. `name` is a plain name
+without a suffix. They write into the current run: in flow code, the run
+`Pipeline.run` is running; in a Python task, the run the task belongs to, on whatever
+thread the queue runs it. Anywhere else they raise `NoCurrentRun`. A relay ships them
+to a hub with the rest of the run, and a panel reads them back wherever the monitor
+reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
+plays does not run, so it logs nothing; flow code runs as in any run.
+
+::code{file="examples/panels/records.py" from="@python_task" to="def words("}
+
 ## How a task ends
 
 A result's `stop` says why: `completed`, `invalid_output` (still off-contract
@@ -325,11 +392,11 @@ and receive `TaskResult`s.
 
 | Part | What it does |
 |---|---|
-| `Run` | `runs/<id>/`: run lock, `plan.jsonl`, `journal.jsonl`, `flow_calls.jsonl`, `deferred.jsonl`, in-flight markers, resume by key and fingerprint |
+| `Run` | `runs/<id>/`: run lock, `plan.jsonl`, `journal.jsonl`, `flow_calls.jsonl`, `deferred.jsonl`, in-flight markers, the pipeline's own `pipeline/` (the current run of `contraagent.log` and `save` while it is open), resume by key and fingerprint |
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
-| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
 | `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |

@@ -71,6 +71,30 @@ writes nothing in it; files an earlier render left there (`package.json`,
 `hooks/`, `omp/`, `opencode/`, `pi/`) are named as such by `plugin lint`. The skills' text is part of each task's fingerprint,
 as its role file is: a resume runs a task again after its skills changed.
 
+## An implementation per unit
+
+When one step needs different tools for different units (a Python module and a
+Go package, or units on hosts with different local tools installed), each
+implementation is a kind of its own, with its own plugin and the same output
+schema. The flow chooses the kind from a fact about the unit, with a plain dict:
+
+::code{file="examples/implementations/flow.py" from="review_python = agent_task(" to="#: The monitor"}
+
+Each kind keeps what is its own:
+
+- its definition: its role, skills, permissions and `.mcp.json` (each plugin starts
+  its own MCP servers; a session never loads the other's), and its fingerprint,
+  so a resume runs again only the tasks of the kind whose role or skills changed;
+- its routing: a `[tasks.review-go]` table of its own (coding agent, model,
+  budget, credential), its failover, and its routes probed by the preflight;
+- in the monitor, its row in Definitions and its numbers in the trends.
+
+Both are reachable kinds, so `contraagent check` routes and lints both before the
+first launch, even before the flow creates a task of one of them. `Monitor(groups=)` (`--groups`)
+draws the two kinds as one column of the plan; each task keeps its kind:
+
+::code{file="examples/implementations/flow.py" from="#: The monitor"}
+
 ## What a task agent sees
 
 A task agent's instructions come from its plugin and its call file. Every coding

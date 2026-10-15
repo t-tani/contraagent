@@ -101,3 +101,16 @@ def test_a_quota_refusal_is_read_from_the_log():
     assert refusal_in_log(QUOTA_LOG) == "AI_APICallError: Go usage limit exceeded"
     assert refusal_in_log(QUOTA_LOG.replace("Go usage limit exceeded", "Overloaded")) is None
     assert refusal_in_log('level=ERROR message=process error="rate limit"') is None  # not an API call's error
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_a_recorded_launch_reports_its_peak_context(version):
+    """The largest `step_finish`'s whole input: fresh input, cache read and cache write."""
+    result = read(events(version))
+    tokens = [e["part"]["tokens"] for e in events(version) if e.get("type") == "step_finish"]
+    want = max(t["input"] + t["cache"]["read"] + t["cache"]["write"] for t in tokens)
+    assert result.peak_context == want >= result.usage.resident > 0
+
+
+def test_a_launch_that_reports_no_call_has_no_peak_context():
+    assert read([{"type": "text", "sessionID": "ses_1", "part": {"messageID": "m", "text": "done"}}]).peak_context is None

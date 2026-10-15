@@ -158,10 +158,7 @@ class Redactor:
 def _run_roots(monitor: Monitor, run: str) -> list[Path]:
     """The directories a run's paths are made relative to: its own and its working directory."""
     roots = [monitor.runs_dir / run, (monitor.runs_dir / run).resolve()]
-    try:
-        cwd = json.loads((monitor.runs_dir / run / "run.json").read_text()).get("cwd")
-    except (OSError, ValueError, AttributeError):
-        cwd = None
+    cwd = (monitor.source.info(run) or {}).get("cwd")
     if isinstance(cwd, str) and cwd:
         roots.append(Path(cwd))
     return roots

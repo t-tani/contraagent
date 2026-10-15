@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from contraagent.monitor import Monitor, Panel, Period, api
+from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, api
 from contraagent.monitor.core import panel_body
+from contraagent.monitor.source import DirectorySource
 
 BODY = TypeAdapter(api.PanelBody)
 
@@ -76,7 +77,7 @@ def test_the_hourly_runs_example_draws_a_status_grid_a_note_and_linked_runs(tmp_
     run("c2", "2026-10-14T00:05:00Z", ok=False)  # 09:05
     run("c3", "2026-10-14T01:05:00Z", ok=True, finished=False)  # 10:05, still running
     period = Period.parse("2026-10-13", "2026-10-14", "Asia/Tokyo")
-    body = BODY.validate_python(panel_body(cycles(tmp_path)(["c1", "c2", "c3"], period)))
+    body = BODY.validate_python(panel_body(cycles()(PeriodRuns(["c1", "c2", "c3"], DirectorySource(tmp_path)), period)))
     assert isinstance(body, api.BlocksBody)
     note, grid, table = body.blocks
     assert isinstance(note, api.NoteBody) and isinstance(grid, api.StatusGridBody) and isinstance(table, api.TableBody)
@@ -111,11 +112,11 @@ def test_a_body_names_what_is_wrong_with_it(body, says):
 
 
 def test_run_and_trends_panels(tmp_path):
-    from contraagent.docs.examples.panels.views import panels
+    from contraagent.docs.examples.panels.views import PANELS
 
     write_run(tmp_path, "r1", ROWS[:2])
     write_run(tmp_path, "r2", ROWS[2:])
-    mon = Monitor(tmp_path, panels=panels(tmp_path))
+    mon = Monitor(tmp_path, panels=PANELS)
     assert [(p["name"], p["scope"]) for p in mon.panel_info()] == [("spend", "run"), ("cost", "trends")]  # the dict's order
     assert mon.run_panels() == ["spend"]  # a trends panel is no run's tab, and no run's feed sends it
     spend = BODY.validate_python(mon.panel("spend", "r1"))
@@ -171,7 +172,7 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
     views = tmp_path / "views.py"
     views.write_text(
         "from contraagent.monitor import Panel\n"
-        "PANELS = {'facts': Panel(lambda run: {'run': run}, title='Facts')}\n"
+        "PANELS = {'facts': Panel(lambda run: {'run': run.id}, title='Facts')}\n"
         "GROUPS = [{'id': 'all', 'label': 'All', 'kinds': ['write']}]\n"
         "def detail(run, key, rows):\n    return {'n': len(rows)}\n"
     )

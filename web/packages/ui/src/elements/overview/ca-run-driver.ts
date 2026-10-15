@@ -5,6 +5,8 @@ import { customElement, property } from 'lit/decorators.js';
 import { starts } from '@contraagent/elements';
 import { facts, fmtDur, localTime, sentence } from '../../words/format.js';
 import { hostFact, lastReport, noReportLabel } from '../../words/hosts.js';
+import { preflightLabel, preflightStoppedCause, preflightStoppedTitle, preflightTip } from '../../words/preflight.js';
+import { preflightRows } from '../../adapters/preflight.js';
 import { toneAttr, type Tone } from '@contraagent/elements';
 import { base, factStyles } from '@contraagent/elements/styles';
 import '@contraagent/elements/count/define';
@@ -17,6 +19,8 @@ const MARK: Record<Tone, string> = { failed: '✕', attention: '◌', done: '✓
  * command line), or not running, and then how it finished: with errors, or with
  * tasks not done (from `plan`). On a hub, a run whose host stopped reporting
  * (`summary.unresponsive`) is neither: no report from its host, since `host.last_seen`.
+ * Under it, the models the run's preflight found available, replaced or not
+ * available (`plan.preflight`); a run its preflight ended names the kinds that did it.
  */
 @customElement('ca-run-driver')
 @localized()
@@ -38,6 +42,13 @@ export class CaRunDriver extends LitElement {
       .drv-up { font-family: var(--mono); font-size: 12px; color: var(--status-running); margin-left: 6px; font-weight: 400; }
       .drv-cmd { margin-top: 8px; }
       .drv-cmd summary { cursor: pointer; font-size: 11px; color: var(--text-muted); }
+      .pf { margin-top: 10px; font-size: 12px; }
+      .pf-h { color: var(--text-muted); font-size: 11px; margin-bottom: 4px; }
+      /* a label, then its fact: one row each, the facts in one column */
+      .pf-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 0; }
+      .pf-rows dt { color: var(--text-muted); }
+      .pf-rows dt[data-tone] { color: var(--tone); }
+      .pf-rows dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
       .drv-cmd code { display: block; margin-top: 4px; white-space: pre-wrap; word-break: break-all; color: var(--text-2); max-height: 120px; overflow: auto; }
     `,
   ];
@@ -53,6 +64,7 @@ export class CaRunDriver extends LitElement {
    * (finished), with or without errors, or some tasks never got their turn (stopped).
    */
   private stateTitle(): [text: string, tone: Tone] {
+    if (this.plan.preflight?.stopped?.length) return [preflightStoppedTitle(), 'failed'];
     if (!this.plan.nodes.length) return [msg('Not running'), 'neutral'];
     const r = result(this.plan);
     if (r.failed) return [msg('Finished with errors'), 'failed'];
@@ -74,12 +86,14 @@ export class CaRunDriver extends LitElement {
         <div>
           <div class="drv-t tone-text" data-tone=${tone === 'done' ? nothing : toneAttr(tone)}>${title}</div>
           <div class="meta">${facts(
+            this.plan.preflight?.stopped?.length ? preflightStoppedCause(this.plan.preflight.stopped) : '',
             quiet ? lastReport(this.host) : '',
             !r?.last_ts ? msg('No activity') : quiet ? msg(str`Last activity ${localTime(r.last_ts, true)}`) : msg(str`Ended ${localTime(r.last_ts, true)}`),
             took == null ? '' : msg(str`Took ${fmtDur(took)}`),
             r?.run_group ? msg(str`Run group ${r.run_group}`) : '',
             quiet ? hostFact(r?.host_id ?? '') : '',
           )}</div>
+          ${this.preflight()}
         </div>
       </div>`;
     }
@@ -96,8 +110,24 @@ export class CaRunDriver extends LitElement {
       <div style="min-width:0">
         <div class="drv-t">${msg('Running')} <cae-elapsed class="drv-up" .since=${since}></cae-elapsed></div>
         <div class="drv-facts">${rows.map(([k, v]) => html`<span><i>${k}</i>${v}</span>`)}</div>
+        ${this.preflight()}
         <details class="drv-cmd"><summary>${msg('Command line')}</summary><code>${p.argv.join(' ')}</code></details>
       </div>
+    </div>`;
+  }
+
+  /** The preflight's rows under their label; nothing for a run with no preflight. */
+  private preflight() {
+    const pf = this.plan.preflight;
+    const rows = preflightRows(pf);
+    if (!pf || !rows.length) return nothing;
+    return html`<div class="pf">
+      <div class="pf-h" title=${preflightTip(pf.policy)}>${preflightLabel()}</div>
+      <dl class="pf-rows">
+        ${rows.map(
+          (r) => html`<dt data-tone=${toneAttr(r.tone)} title=${r.tip || nothing}>${r.label}</dt><dd class="jmono">${r.text}</dd>`,
+        )}
+      </dl>
     </div>`;
   }
 }

@@ -24,8 +24,8 @@ would otherwise find out one launch at a time:
   (`Backend.catalogue`, e.g. `omp models`).
 
 Nothing is launched, no run directory is written and no token is spent. The
-one check left to a run is `Pipeline(preflight=True)`, which probes each route
-of the same kinds.
+one check left to a run is the preflight (`Pipeline(preflight="stop")`), which
+probes each route of the same kinds.
 """
 
 from __future__ import annotations

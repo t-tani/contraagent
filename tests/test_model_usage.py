@@ -56,13 +56,14 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
     assert result.ok
     first, second = result.hops
     assert (first["agent"], first["model"], second["agent"], second["model"]) == ("claude", "m1", "omp", "m2")
-    assert first["usage"] == {"input": 100, "output": 10, "cache_read": 1000, "cache_creation": 50, "calls": 1}
-    assert second["usage"] == {"input": 1000, "output": 100, "cache_read": 10000, "cache_creation": 500, "calls": 1}
+    assert first["usage"] == {"input": 100, "output": 10, "cache_read": 1000, "cache_creation": 50, "calls": 1, "peak_context": 1150}
+    assert second["usage"] == {"input": 1000, "output": 100, "cache_read": 10000, "cache_creation": 500, "calls": 1, "peak_context": 11500}
     assert (first["cost_usd"], second["cost_usd"]) == (0.01, 0.04)
 
     journal = Journal(tmp_path / "journal.jsonl", tmp_path / "launches.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
     row = journal.append(result).model_dump()
     assert row["usage"]["input"] == 1100  # the attempt holds both hops' tokens
+    assert row["usage"]["peak_context"] == 11500  # and the larger of their peak contexts
     models = model_usage([row])
     assert [(m["agent"], m["model"]) for m in models] == [("claude", "m1"), ("omp", "m2")]
     assert [(m["sessions"], m["input"], m["cache_read"], m["output"], m["calls"]) for m in models] == [
@@ -71,6 +72,7 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
     ]
     assert [m["cost_usd"] for m in models] == [0.01, 0.04]
     assert [m["wall_s"] for m in models] == [2.0, 5.0]
+    assert [m["peak_context"] for m in models] == [1150, 11500]
 
 
 def test_the_summary_is_in_first_use_order_and_leaves_python_rows_and_unlaunched_hops_out():
@@ -105,6 +107,7 @@ def test_a_hop_s_spend_on_other_models_counts_on_each_of_them():
         ("big", 2, 20, 10, 4, 0.14, 8.0),  # the hop's cost less what it spent on the other model
         ("small", 0, 2400, 200, 0, 0.06, 0.0),  # called by the sessions on `big`: no session, no time
     ]
+    assert [m["peak_context"] for m in models] == [None, None]  # no hop reported one
 
 
 def test_claude_code_s_model_usage_less_the_launch_s_own_model():

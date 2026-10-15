@@ -134,7 +134,8 @@ qualified name alone opens its layer when the run reaches it one way only.
 The words on screen are the reader's, not the code's: a task's `Outcome` is its
 status, an attempt's `stop` its outcome, a round after failed checks a
 correction, a failover a model switch, the `ambient` credential "default (this
-machine's login)". A colour means a status, and only where it applies: red
+machine's login)", a route the preflight dropped an unavailable model and a kind it
+substituted a model replaced, an attempt's `peak_context` its peak context. A colour means a status, and only where it applies: red
 failed, amber not started (or a limit near), green done (in marks and small
 chips), cyan running; totals, cost, tokens and time are in the text colour, and
 a count of a problem is coloured only above 0. A status also has a shape (✓ ✕ ◌,
@@ -179,16 +180,26 @@ included) is an error, never a JSON tree.
 
 A panel's `scope` says what it is computed over: `run` (the default), `fn(run)`,
 a tab of each run; `trends`, `fn(runs, period)`, over the runs of a period, for a
-view of many runs. `runs` (`PeriodRuns`) is the period's run ids, newest activity
-first, and reads each run's records wherever the monitor reads them, a runs
-directory or a hub: `journal(run)`, `records(run, log)` for another log
-(`rundir.DEFERRED`, ...), `info(run)` (its `run.json`), and `dir(run)` for a file
-that is no log (None on a hub). `Period` holds its `start`, `end` and the time zone
+view of many runs. A panel reads runs only through what it is given, never through a
+path of its own, so it shows the same on one host and on a hub. `run`
+(`RunRecords`) is one run's records: its `id`, `info()` (its `run.json`),
+`journal()`, `records(log)` for another log contraagent writes (`rundir.DEFERRED`,
+...), `log(name)` and `document(name)` for the pipeline's own logs and documents
+(what `contraagent.log` and `contraagent.save` wrote; see
+[tasks and flows](tasks.md)), and `dir()` for a file that is none of these, an
+output (None on a hub). `runs` (`PeriodRuns`) is the period's run ids, newest
+activity first, with the same methods taking the run id first (`journal(run)`,
+`log(run, name)`, ...) and `run(run)`, its `RunRecords`. `Period` holds its `start`, `end` and the time zone
 `tz` its days are counted in; `period.day_of(ts)` is the day of a time inside the
 period and None outside it, for a run that began before the period or ended after
 it. The monitor offers the panels in the order of the dict it is given.
 
 ::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
+
+A run panel over the pipeline's own records: the counts a Python task logged, and the
+total the flow saved (both in `examples/panels/records.py`):
+
+::code{file="examples/panels/records.py" from="def words(" to="#: What"}
 
 A pipeline run once an hour, as a trends panel: how each hour's run ended, day
 by day, in a status grid, with a note on how to read it and the runs as a table

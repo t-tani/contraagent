@@ -6,12 +6,18 @@ it (the monitor's `DirectorySource`, `JournalEstimates`). They name each file
 through this module, so the layout is written down once.
 
 Append-only logs (one JSON object per line, never rewritten; a reader keeps a
-line offset): `JOURNAL`, `LAUNCHES`, `PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, and one transcript
-per task, `stream(key)`.
+line offset): `JOURNAL`, `LAUNCHES`, `PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, one transcript
+per task, `stream(key)`, and the pipeline logs, `pipeline_log(name)`.
 
 Documents (a whole JSON file, replaced atomically): `RUN_INFO`, `CURSOR`, and
-one file per entry in the folders `CONTRACTS`, `DEFINITIONS`, `CALLS` and
-`INFLIGHT`. Every writer of a document goes through `write_document`.
+one file per entry in the folders `CONTRACTS`, `DEFINITIONS`, `CALLS`,
+`INFLIGHT` and `PIPELINE` (the pipeline documents, `pipeline_document(name)`).
+Every writer of a document goes through `write_document`.
+
+`PIPELINE` (`pipeline/`) holds the pipeline's own files, written by its flow code and
+its Python tasks with `contraagent.log` (a pipeline log, `<name>.jsonl`) and
+`contraagent.save` (a pipeline document, `<name>.json`); contraagent itself writes
+nothing there.
 
 `TRENDS` is the one document a reader writes: the monitor's digest of a finished
 run for its trends (`monitor.trends`), made again from the logs whenever they
@@ -43,6 +49,7 @@ CONTRACTS = "contracts"
 DEFINITIONS = "definitions"
 CALLS = "calls"
 INFLIGHT = "inflight"
+PIPELINE = "pipeline"
 
 #: The append-only logs every run has, by name (a task's transcript is `stream(key)`).
 LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED, RESTS)
@@ -59,6 +66,29 @@ def stream(key: str) -> str:
 def entry(folder: str, name: str) -> str:
     """The document `name` in `folder` (`contracts/<name>.json`), relative to the run directory."""
     return f"{folder}/{name}.json"
+
+
+def pipeline_name(name: str) -> str:
+    """`name` itself when it names a pipeline log or document: a plain file name (not
+    empty, no `/`, `\\` or control character, no leading `.`, no `..`) without the
+    `.json` or `.jsonl` its file takes. ValueError naming the fault otherwise."""
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"a pipeline log or document needs a name, not {name!r}")
+    if name.startswith(".") or ".." in name or any(c in name for c in "/\\\0") or any(ord(c) < 32 or ord(c) == 127 for c in name):
+        raise ValueError(f"{name!r} is not a plain name for a pipeline log or document (no '/', no leading '.', no '..')")
+    if name.endswith((".json", ".jsonl")):
+        raise ValueError(f"{name!r}: name a pipeline log or document without its suffix ({name.rsplit('.', 1)[0]!r})")
+    return name
+
+
+def pipeline_log(name: str) -> str:
+    """The pipeline log `name`, `pipeline/<name>.jsonl`, relative to the run directory."""
+    return f"{PIPELINE}/{pipeline_name(name)}.jsonl"
+
+
+def pipeline_document(name: str) -> str:
+    """The pipeline document `name`, `pipeline/<name>.json`, relative to the run directory."""
+    return entry(PIPELINE, pipeline_name(name))
 
 
 def host_id() -> str:

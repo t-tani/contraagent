@@ -1,0 +1,6 @@
+{
+  "permissions": {
+    "allow": ["Read", "Write", "Grep", "Glob", "Bash(ruff check:*)", "mcp__python-index"],
+    "deny": ["WebFetch", "WebSearch"]
+  }
+}

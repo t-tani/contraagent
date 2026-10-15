@@ -5,12 +5,13 @@
 Each pass (`Relay.pass_once`) reads every run under the runs directory, in the layout
 `contraagent.rundir` names, and sends the hub what it does not hold yet:
 
-* **Logs** (`rundir.LOGS`, `streams/<key>.stream.jsonl`): complete lines only (a trailing
+* **Logs** (`rundir.LOGS`, `streams/<key>.stream.jsonl`, the pipeline logs
+  `pipeline/<name>.jsonl`): complete lines only (a trailing
   line without its newline waits for the next pass), from the line the hub holds on, read
   by byte offset so a long transcript is not read again each pass. A request carries at
   most `batch_bytes` of lines (a longer line goes alone) and `batch_lines` lines.
 * **Documents** (`run.json`, `cursor.json`, and the files in `contracts/`,
-  `definitions/`, `calls/`, `inflight/`): a document whose content changed; `text: null`
+  `definitions/`, `calls/`, `inflight/`, `pipeline/`): a document whose content changed; `text: null`
   for one that is gone. One that does not parse as JSON is half written and waits.
 * **Files a contract names** (`outputs[].path`, `inputs[].path`): when their size or
   modification time changed, their content as a blob (`has_blob`, `put_blob`) and a
@@ -90,7 +91,7 @@ _SAVE_EVERY_S = 5.0
 _READ_BLOCK = 1 << 20
 
 #: The folders whose `*.json` files are documents.
-_FOLDERS = (rundir.CONTRACTS, rundir.DEFINITIONS, rundir.CALLS, rundir.INFLIGHT)
+_FOLDERS = (rundir.CONTRACTS, rundir.DEFINITIONS, rundir.CALLS, rundir.INFLIGHT, rundir.PIPELINE)
 
 
 def default_progress_path(runs_dir: str | Path) -> Path:
@@ -519,7 +520,11 @@ class Relay:
             keys = sorted(f.name[: -len(suffix)] for f in streams.iterdir() if f.name.endswith(suffix) and f.is_file())
         except OSError:
             keys = []
-        return names + [rundir.stream(k) for k in keys if _plain(k)]
+        try:
+            mine = sorted(f.stem for f in self.source.path(run, rundir.PIPELINE).glob("*.jsonl") if f.is_file() and _plain(f.name))
+        except OSError:
+            mine = []
+        return names + [rundir.stream(k) for k in keys if _plain(k)] + [f"{rundir.PIPELINE}/{n}.jsonl" for n in mine]
 
     def _logs(self, run: str, prog: RunProgress, pending: _Pending, probe: bool, names: list[str] | None = None) -> None:
         budget_bytes, budget_lines = self.batch_bytes, self.batch_lines

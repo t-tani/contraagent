@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
-from contraagent.monitor import Monitor, api
+from contraagent.monitor import Monitor, RunRecords, api
 from contraagent.monitor.core import Panel
 from contraagent.monitor.export import export, main
 from contraagent.monitor.trends import Period
@@ -22,7 +22,7 @@ class Note(BaseModel):
 
 
 # One attempt: note-b's failure is what an export redacts, and retrying it would only wait out a backoff.
-note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60, retries=1)
+note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60, retries=0)
 NOW = lambda: datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 
 
@@ -56,8 +56,8 @@ def files(out: Path) -> dict[str, str]:
     return {str(p.relative_to(out)): p.read_text() for p in sorted(out.rglob("*")) if p.is_file() and p.suffix in (".json", ".html")}
 
 
-def panel(run: str) -> dict:
-    return {"run": run, "where": str(Path.home() / "secret")}
+def panel(run: RunRecords) -> dict:
+    return {"run": run.id, "where": str(Path.home() / "secret")}
 
 
 def test_an_export_holds_each_route_of_the_runs_as_a_file(tmp_path):

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from contraagent import rundir
-from contraagent.monitor import Monitor, Panel, Period, PeriodRuns
+from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, RunRecords
 
 PERIOD = Period.parse("2026-10-13", "2026-10-15", "UTC")
 
@@ -141,7 +141,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
         time.sleep(2.0)
         return {"done": True}
 
-    def slow_run(run: str) -> dict:
+    def slow_run(run: RunRecords) -> dict:
         time.sleep(2.0)
         return {"done": True}
 
@@ -176,7 +176,7 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
 
-    def slow_run(run: str) -> dict:
+    def slow_run(run: RunRecords) -> dict:
         time.sleep(1.0)
         return {"done": True}
 

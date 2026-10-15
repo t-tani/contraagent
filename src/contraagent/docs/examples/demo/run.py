@@ -198,10 +198,10 @@ def main(argv: list[str] | None = None):
         pipeline = Pipeline(HERE / "pipeline.toml", runs_dir="demo-runs", backends={"stub": DemoAgent(pace=0.03 if args.fast else 1.0)})
 
     if not args.no_serve:
-        from contraagent.monitor import Monitor, Panel, serve
+        from contraagent.monitor import Monitor, Panel, RunRecords, serve
 
-        def notes(run: str) -> dict:
-            return {p.stem: p.read_text(encoding="utf-8") for p in sorted(Path("demo-runs", run, "out", "write_note").glob("*.md"))}
+        def notes(run: RunRecords) -> dict:
+            return {p.stem: p.read_text(encoding="utf-8") for p in sorted(Path("demo-runs", run.id, "out", "write_note").glob("*.md"))}
 
         monitor = Monitor(
             "demo-runs",

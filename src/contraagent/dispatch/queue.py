@@ -9,8 +9,12 @@ ready when:
   `claim_capacity` key is a name or an `fnmatch` pattern (`topic:*`); a pattern
   gives each name it matches a capacity of its own, not one shared among them.
   A name's own entry outranks a pattern, and the longest matching pattern
-  outranks the others. A task's kind or unit locks nothing: tasks that claim
-  nothing run together whatever they are;
+  outranks the others. A capacity is a number, or a `ClaimCapacity` worked out
+  each time the queue tries to start a task that claims the name, given how
+  many running tasks hold it (a `PerTask` entry, sized by the host's free memory
+  and cores). It may grow while tasks still run: the queue looks again each
+  second while any task runs (the wait in `run`), not only when one finishes. A task's kind
+  or unit locks nothing: tasks that claim nothing run together whatever they are;
 * the kind's own cap (`runner.config(task).max_concurrent`) has room.
 
 The schedule is a greedy list schedule: whenever a slot is free, the first
@@ -21,6 +25,9 @@ The order:
 * by bottom level, highest first: a task's estimate plus the longer of its
   known dependents' path and its `tail_s` (`_blevel`), so long remaining chains
   start first;
+* tasks of equal bottom level by `Task.priority`, highest first, then by
+  arrival. Priority only breaks ties: it never moves a task before one of a
+  larger bottom level, an overdue task, or a task in a time box's endgame;
 * a task that has waited longer than `overdue_s` since it became startable by
   its dependencies is **overdue**: overdue tasks come first, the longest
   waiting first (a task's wait is bounded however high the levels of later
@@ -70,7 +77,8 @@ run continues while follow-ups queue work, deferred results included: a
 The queue records nothing itself. It reports through callbacks:
 
 * `on_event(event, task, **fields)` for `queued`, `start`, `retry`, `throttle`,
-  `deferred`, `end`, `duplicate_key_refused` and `note`;
+  `deferred`, `end`, `duplicate_key_refused` and `note` (a callback that raised, or
+  what a runner reports beside a result: `TaskResult.notes`);
 * `on_result(result, attempt)` for every result, discarded retries included;
 * `follow_up(result) -> list[Task]` for the follow-up work (main thread only; an
   exception there is reported as a `note` and isolated to that item). Its tasks
@@ -126,6 +134,19 @@ def _named(reason: str, box: TimeBox) -> str:
     return f"{reason} (time box of flow call {box.flow_call})" if box.flow_call is not None else reason
 
 
+class ClaimCapacity(Protocol):
+    """A claim capacity worked out when the queue tries to start a task that claims the
+    name, instead of a fixed number."""
+
+    def allowed(self, held: int) -> int:
+        """How many running tasks may hold the name, given that `held` hold it now."""
+        ...
+
+    def started(self) -> None:
+        """A task that claims the name has started."""
+        ...
+
+
 def _is_pattern(name: str) -> bool:
     """A `claim_capacity` key with an `fnmatch` wildcard."""
     return any(ch in name for ch in "*?[")
@@ -168,7 +189,7 @@ class WorkQueue:
         retry_on: frozenset[str] = frozenset(),
         throttle_on: frozenset[str] = frozenset(),
         finishing_kinds: tuple[str, ...] = (),
-        claim_capacity: Mapping[str, int] | None = None,
+        claim_capacity: Mapping[str, int | ClaimCapacity] | None = None,
         estimate: Callable[[Task], float | None] | None = None,
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
@@ -191,7 +212,7 @@ class WorkQueue:
             if self.deadline_at is not None and deadline_s
             else None
         )
-        self.claim_capacity: dict[str, int] = dict(claim_capacity or {})
+        self.claim_capacity: dict[str, int | ClaimCapacity] = dict(claim_capacity or {})
         # Patterns, the longest first: the first that matches a name no exact entry names wins.
         self._claim_patterns = sorted((k for k in self.claim_capacity if _is_pattern(k)), key=len, reverse=True)
         # A domain's own estimate per task (e.g. from past runs); used when a
@@ -326,7 +347,7 @@ class WorkQueue:
     def _possible(self, task: Task) -> bool:
         """It could start with nothing else running: no capacity of 0 stands in its way."""
         cap = self.runner.config(task).max_concurrent
-        return (cap is None or cap > 0) and all(self.capacity(name) > 0 for name in task.claims)
+        return (cap is None or cap > 0) and all(self._capacity(name, 0) > 0 for name in task.claims)
 
     def _takes(self, task: Task, head: Task) -> bool:
         """Whether starting `task` takes what `head` still needs: the last place on a name
@@ -414,31 +435,40 @@ class WorkQueue:
 
     def _order(self, tasks: list[Task], memo: dict[str, float], now: float) -> list[Task]:
         """The launch order (the module docstring). First the tasks in a time box's
-        endgame: its finishing kinds first, then the smallest bottom level, then
-        arrival. Then overdue tasks, the longest waiting first (tasks that became
-        startable together: the highest bottom level first); then the highest bottom
-        level, then arrival."""
+        endgame: its finishing kinds first, then the smallest bottom level. Then
+        overdue tasks, the longest waiting first (tasks that became startable
+        together: the highest bottom level first); then the highest bottom level.
+        In each, the highest `priority` breaks a tie, then arrival."""
 
         def key(t: Task) -> tuple:
             seq = self._seq.get(t.id, 0)
             box = self._endgame_box(t, now)
             if box is not None:
-                return (0, 0 if t.kind in box.finishing_kinds else 1, self._blevel(t, memo), seq)
+                return (0, 0 if t.kind in box.finishing_kinds else 1, self._blevel(t, memo), -t.priority, seq)
             if self._overdue(t, now):
-                return (1, self._ready_since[t.id], -self._blevel(t, memo), seq)
-            return (2, 0.0, -self._blevel(t, memo), seq)
+                return (1, self._ready_since[t.id], -self._blevel(t, memo), -t.priority, seq)
+            return (2, 0.0, -self._blevel(t, memo), -t.priority, seq)
 
         return sorted(tasks, key=key)
 
-    def capacity(self, name: str) -> int:
-        """How many running tasks may claim `name` at once: its own entry in
-        `claim_capacity`, else the longest pattern that matches it; 1 when none does."""
+    def _entry(self, name: str) -> int | ClaimCapacity:
+        """`name`'s own entry in `claim_capacity`, else the longest pattern that matches it; 1."""
         if name in self.claim_capacity:
             return self.claim_capacity[name]
         for pattern in self._claim_patterns:
             if fnmatch.fnmatchcase(name, pattern):
                 return self.claim_capacity[pattern]
         return 1
+
+    def _capacity(self, name: str, held: int) -> int:
+        entry = self._entry(name)
+        return entry if isinstance(entry, int) else entry.allowed(held)
+
+    def capacity(self, name: str) -> int:
+        """How many running tasks may claim `name` at once, now: its own entry in
+        `claim_capacity`, else the longest pattern that matches it; 1 when none does.
+        A `ClaimCapacity` is asked with the number of running tasks that hold it."""
+        return self._capacity(name, self._held.get(name, 0))
 
     def _start_ready(self, pool: ThreadPoolExecutor) -> None:
         now = time.monotonic()
@@ -507,6 +537,9 @@ class WorkQueue:
     def _occupy(self, task: Task) -> None:
         for name in set(task.claims):
             self._held[name] = self._held.get(name, 0) + 1
+            entry = self._entry(name)
+            if not isinstance(entry, int):
+                entry.started()
 
     def _release(self, task: Task) -> None:
         for name in set(task.claims):
@@ -536,6 +569,8 @@ class WorkQueue:
             self.deferred.append(task)
             self._settle(res)
             return
+        if res.notes:
+            self.on_event("note", task, **res.notes)
         if self._on_result is not None:
             try:
                 self._on_result(res, self._attempt.get(task.id, 0))

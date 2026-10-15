@@ -32,7 +32,7 @@ def test_every_endpoint_carries_what_the_core_computed(demo_runs):
     """The models are a description of the wire, not a change to it: each response
     equals the core's own dict (plus `api_version` on /api/info), so the bundled UI
     reads exactly what it read before."""
-    mon = Monitor(demo_runs, panels={"notes": Panel(lambda r: {"run": r}, title="notes")})
+    mon = Monitor(demo_runs, panels={"notes": Panel(lambda r: {"run": r.id}, title="notes")})
     c = client_for(mon)
     info = c.get("/api/info").json()
     assert info == {"title": mon.title, "panels": raw(mon.panel_info()), "api_version": api.API_VERSION, "hosts": False}
@@ -255,7 +255,7 @@ def test_traversal_is_refused_by_the_python_api(secret_layout):
 
 @pytest.mark.parametrize("bad", BAD_RUNS)
 def test_traversal_is_refused_on_every_endpoint(secret_layout, bad):
-    c = client_for(Monitor(secret_layout, panels={"p": lambda r: {"r": r}}))
+    c = client_for(Monitor(secret_layout, panels={"p": lambda r: {"r": r.id}}))
     for ep in ("journal", "plan", "outputs", "definitions", "cursor", "procs", "task/leak", "stream/leak", "panels/p"):
         r = c.get(f"/api/runs/{bad}/{ep}")
         assert r.status_code == 404, (bad, ep, r.status_code)

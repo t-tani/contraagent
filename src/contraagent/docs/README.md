@@ -39,7 +39,7 @@ and the documentation site print the quoted lines in place.
 - [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test. Start here.
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
-- [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, time boxes, files a task changes, and the engine underneath.
+- [Tasks and flows](tasks.md): agent tasks, Python tasks, the flow, flows that depend on results, time boxes, files a task changes, a pipeline's own records, and the engine underneath.
 - [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
@@ -52,5 +52,6 @@ and the documentation site print the quoted lines in place.
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
+`examples/implementations/flow.py` chooses a task's implementation per unit;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
 test suite runs them all.
