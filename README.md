@@ -125,14 +125,14 @@ adds what a pipeline of them needs.
   file, has a JSON Schema; the monitor's HTTP API has an OpenAPI document.
   [Compatibility](src/contraagent/docs/compatibility.md) says what is public.
 
-## EDR-style telemetry for coding agents
+## Every agent session, recorded and followed live
 
 The monitor (`contraagent monitor`, read-only) follows every agent session as it
 runs, for all five coding agents, and keeps it after the run:
 
 - **Processes**: a live process tree of the agent sessions and Python tasks,
   read from `/proc`.
-- **Per-session events**, in time order, like procmon: each tool call with its
+- **Per-session events**, in time order: each tool call with its
   arguments and result, web searches with their results, pages fetched, the
   agent's messages and reasoning, API requests sent again.
 - **Per-task facts**: the files changed under the task's declared patterns
