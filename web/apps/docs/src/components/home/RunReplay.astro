@@ -268,6 +268,10 @@ const file = TASKS.split('/').slice(-3).join('/');
   .rr-badge {
     position: absolute;
     right: 10px;
+    /* One width for every count: the pill does not move as its text changes. */
+    min-width: 5.4rem;
+    box-sizing: border-box;
+    text-align: center;
     top: 50%;
     transform: translateY(-50%);
     padding: 0 7px;
@@ -295,7 +299,8 @@ const file = TASKS.split('/').slice(-3).join('/');
   .rr-graph .rr-body { min-height: 30rem; }
   .rr-transcript .rr-body { height: 21rem; overflow: hidden; }
   @media (min-width: 72rem) {
-    .rr-transcript .rr-body { flex: 1 1 0; height: 0; min-height: 18rem; }
+    /* A fixed height: the panel does not change size while the graph beside it grows. */
+    .rr-transcript .rr-body { flex: none; height: 19.5rem; }
   }
   .rr-kpis .rr-body { justify-content: flex-start; }
 

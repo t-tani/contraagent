@@ -20,13 +20,17 @@ const LINE_MS = 80;
 const GRAPH_MS = 900;
 /** The least time between two updates of the elements (ms). */
 const FRAME_MS = 90;
+/** The least time between two updates of the transcript (ms): a few new lines a second, as a log reads. */
+const TRANSCRIPT_MS = 250;
+/** No journal rows: the same array each time, so the transcript is not drawn again for it. */
+const NO_ROWS: JournalRow[] = [];
 
 const epoch = (ts = ''): number => Date.parse(ts) / 1000;
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 type Graph = HTMLElement & { plan: Plan; journal: JournalRow[]; run: string; live: boolean };
 type Kpis = HTMLElement & { plan: Plan; journal: JournalRow[] };
-type Transcript = HTMLElement & { events: unknown[] | null; rows: JournalRow[]; live: boolean; run: string };
+type Transcript = HTMLElement & { events: unknown[] | null; rows: JournalRow[]; live: boolean; run: string; updateComplete: Promise<boolean> };
 
 /** A task's attempts as spans of the run (epoch seconds). */
 interface Span { start: number; end: number; ok: boolean }
@@ -56,6 +60,11 @@ class Replay {
   private paused = false;
   private pushed = '';
   private pushedAt = -Infinity;
+  /** What the transcript was last given, when, and whether it is fading to another task's. */
+  private tPushed = '';
+  private tPushedAt = -Infinity;
+  private tSpot = '';
+  private switching = false;
 
   constructor(root: HTMLElement, data: Timeline) {
     this.root = root;
@@ -126,6 +135,7 @@ class Replay {
     if (this.t >= this.total) {
       this.t = 0;
       this.pushed = '';
+      this.tPushed = '';
       this.root.classList.remove('rr-ended');
       this.paused = false;
     } else this.paused = !this.paused;
@@ -234,10 +244,13 @@ class Replay {
     // The transcript of the latest corrected task to start.
     const spot = [...this.data.spots].reverse().find((x) => x.from <= s) ?? this.data.spots[0];
     const started = s >= this.data.t0;
-    const events = started ? spot.events.filter((_, i) => spot.times[i] <= s) : [];
+    // A prefix of the same events: the transcript appends the new ones (ca-transcript).
+    const upTo = started ? spot.times.findIndex((at) => at > s) : 0;
+    const events = spot.events.slice(0, upTo < 0 ? spot.events.length : upTo);
     const live = started && s < spot.to;
+    this.feedTranscript(spot, events, live, force || t >= this.total);
 
-    const key = `${plan.nodes.map((n) => n.state[0]).join('')}|${journal.length}|${spot.key}:${events.length}|${live}|${ended}`;
+    const key = `${plan.nodes.map((n) => n.state[0]).join('')}|${journal.length}|${ended}`;
     const now = performance.now();
     if (key === this.pushed || (!force && !ended && now - this.pushedAt < FRAME_MS)) return;
     this.pushed = key;
@@ -247,10 +260,37 @@ class Replay {
     this.graph.journal = journal;
     this.kpis.plan = plan;
     this.kpis.journal = journal;
-    this.spotName.textContent = spot.name;
-    this.transcript.live = live;
-    this.transcript.rows = live ? [] : spot.rows;
-    this.transcript.events = events;
+  }
+
+  /**
+   * The transcript, at most every TRANSCRIPT_MS: the new events of the same task appended;
+   * another task's transcript after the panel faded out, then in again (once per task).
+   */
+  private feedTranscript(spot: Timeline['spots'][number], events: Timeline['spots'][number]['events'], live: boolean, atOnce: boolean): void {
+    const key = `${spot.key}:${events.length}|${live}`;
+    if (key === this.tPushed || this.switching) return;
+    const now = performance.now();
+    const other = this.tSpot !== '' && spot.key !== this.tSpot;
+    if (!atOnce && !other && now - this.tPushedAt < TRANSCRIPT_MS) return;
+    this.tPushed = key;
+    this.tPushedAt = now;
+    const give = (): void => {
+      this.tSpot = spot.key;
+      this.spotName.textContent = spot.name;
+      this.transcript.live = live;
+      this.transcript.rows = live ? NO_ROWS : spot.rows;
+      this.transcript.events = events;
+    };
+    const body = this.transcript.parentElement;
+    if (!other || atOnce || !body || matchMedia('(prefers-reduced-motion: reduce)').matches) return give();
+    this.switching = true;
+    body.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-in', fill: 'forwards' }).onfinish = () => {
+      give();
+      void this.transcript.updateComplete.then(() => {
+        body.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, easing: 'ease-out', fill: 'forwards' });
+        this.switching = false;
+      });
+    };
   }
 }
 
