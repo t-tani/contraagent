@@ -149,7 +149,7 @@ def test_a_text_output_with_a_linter(tmp_path, plugin_dir):
 
 
 def test_a_failed_upstream_refuses_its_consumers_before_launch(tmp_path, plugin_dir):
-    summarize, review = declare(plugin_dir, retries=1)
+    summarize, review = declare(plugin_dir, retries=0)
     # The upstream fails outright: the rounds that lead to invalid_output are the contracts' tests.
     agent = StubAgent({"summarize": fails(Stop.INVALID_OUTPUT), "review": good_answer})
 

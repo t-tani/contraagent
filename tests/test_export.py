@@ -22,7 +22,7 @@ class Note(BaseModel):
 
 
 # One attempt: note-b's failure is what an export redacts, and retrying it would only wait out a backoff.
-note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60, retries=1)
+note = agent_task("note", instructions="Write a note on ${unit}.", output=Note, max_turns=3, timeout_s=60, retries=0)
 NOW = lambda: datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
 
 

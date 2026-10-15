@@ -4864,6 +4864,33 @@
             ],
             "title": "Line",
             "description": "Python task: the function's first line in `file`"
+          },
+          "retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retries",
+            "description": "Python task: the fresh attempts after the first, each after an exception of `retry_on` (`@python_task(retries=)`)"
+          },
+          "retry_on": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry On",
+            "description": "Python task: the exception classes that give an attempt a fresh one"
           }
         },
         "additionalProperties": true,

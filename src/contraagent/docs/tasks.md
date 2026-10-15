@@ -26,6 +26,25 @@ in the flow's own body: a stub run plays Python tasks and runs flow code as it i
 
 ::code{file="examples/demo/tasks.py" from="@python_task" to="def docs_one_review("}
 
+### Retries
+
+A Python task that talks to a service may fail for a reason a fresh attempt
+cures: a dropped connection, a timeout. `retries` is the number of fresh
+attempts after the first, and `retry_on` the exception classes that earn one;
+any other exception fails the task at once, and so does an off-contract input
+or output. Each attempt is a journal row of its own, with its attempt number
+and its exception, as for an agent task, and waits `RetryingRunner`'s backoff
+first. Declaring one without the other raises at the decorator.
+
+A function that needs a service restores it itself, at its start: a fresh
+attempt then finds the service running again.
+
+::code{file="examples/retries/flow.py" from="@python_task(retries=2" to="summarize = agent_task("}
+
+`retries` and `retry_on` say how a task runs, not what it produces, so they are
+not part of its definition's digest: changing them does not run a finished task
+again on a resume (as with `claims` and `rerun_on_resume`).
+
 ## The flow
 
 A flow is a plain function, with no decorator. `Pipeline` tells a generator flow

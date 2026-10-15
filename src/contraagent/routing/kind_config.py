@@ -51,8 +51,9 @@ class KindConfig:
     #: A light launch (`agent_task(tools=())`): every route's coding agent must run one (`Backend.light_launch`).
     light: bool = False
     # Retry policy for a dispatch that comes back without progress (see
-    # `RetryingRunner`): attempts, and the base of the exponential backoff.
-    retries: int = 3
+    # `RetryingRunner`): the fresh attempts after the first, and the base of the
+    # exponential backoff.
+    retries: int = 2
     retry_backoff_base: float = 2.0
 
     @classmethod

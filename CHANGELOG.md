@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `context_budget`, and the run logs a `[context]` line. A `context_warn_pct` without a
   `context_budget` is refused before anything launches. It replaces `context_warn`, an
   absolute count of tokens. `writes(value, peak_context=...)` makes the stub agent report one.
+- Retries of a Python task: `@python_task(retries=2, retry_on=(ConnectionError, TimeoutError))`
+  calls the function again after an exception of a class in `retry_on`, up to `retries` more
+  times, each attempt a journal row of its own; any other exception, an off-contract input and
+  an off-contract output fail the task at once. One given without the other raises at the
+  decorator. A task definition shows them (`TaskDefinition.retries`, `retry_on`). Example:
+  `examples/retries/flow.py`.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).
@@ -83,6 +89,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `retries` counts the attempts after the first for agent tasks too (`KindConfig.retries`,
+  `[tasks.<kind>] retries`, `agent_task(retries=)`): `retries=2` is 3 attempts at most. The
+  default is 2, so a kind that sets nothing still makes 3 attempts; a kind that set `retries=N`
+  sets `N - 1` for the same attempts.
 - Panels are offered in the order of the dict given, not by name.
 - A trends panel's body is checked against `PanelBody` as a run panel's is, on
   `/api/trends/panels/<name>` and in an export: a typed body that does not validate is

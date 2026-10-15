@@ -81,7 +81,7 @@ summarize = agent_task(
     retry_backoff_base=0.5,
 )
 review = agent_task(
-    "review", plugin="plugins/docs", role="reviewer", output=Verdict, max_turns=10, timeout_s=300, retries=3, retry_backoff_base=0.5
+    "review", plugin="plugins/docs", role="reviewer", output=Verdict, max_turns=10, timeout_s=300, retries=2, retry_backoff_base=0.5
 )
 revise = agent_task("revise", plugin="plugins/docs", role="reviser", output=Summary, validators=[three_points], max_turns=10, timeout_s=300)
 write_note = agent_task(

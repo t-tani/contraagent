@@ -25,6 +25,7 @@ from typing import Any, Literal, TypeVar, overload
 
 from pydantic import BaseModel, RootModel
 
+from contraagent.dispatch.python_task import checked_retries
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.plugins.plugin import body
@@ -328,6 +329,10 @@ class PythonTask[Out]:
     claims: tuple[str, ...] = ()
     #: A resume runs its tasks again even when an earlier attempt finished them.
     rerun_on_resume: bool = False
+    #: Fresh attempts after the first, each after an exception of `retry_on`.
+    retries: int = 0
+    #: The exception classes that give an attempt a fresh one; any other fails the task.
+    retry_on: tuple[type[Exception], ...] = ()
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -383,6 +388,9 @@ class PythonTask[Out]:
             "output": _type_name(self.output_schema) if self.output_schema is not None else "none",
             "validators": [getattr(v, "name", None) or getattr(v, "__name__", type(v).__name__) for v in self.validators],
         }
+        if self.retries:
+            body["retries"] = self.retries
+            body["retry_on"] = [_class_name(c) for c in self.retry_on]
         try:
             try:  # annotations as written (`str`, not `'str'` under `from __future__ import annotations`)
                 sig = inspect.signature(fn, eval_str=True)
@@ -417,7 +425,13 @@ class PythonTask[Out]:
 def python_task[Out](fn: Callable[..., Out], /) -> PythonTask[Out]: ...
 @overload
 def python_task(
-    *, name: str | None = None, validators: Sequence[Validator] = (), claims: Sequence[str] = (), rerun_on_resume: bool = False
+    *,
+    name: str | None = None,
+    validators: Sequence[Validator] = (),
+    claims: Sequence[str] = (),
+    rerun_on_resume: bool = False,
+    retries: int = 0,
+    retry_on: tuple[type[Exception], ...] = (),
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -429,23 +443,35 @@ def python_task(
     validators: Sequence[Validator] = (),
     claims: Sequence[str] = (),
     rerun_on_resume: bool = False,
+    retries: int = 0,
+    retry_on: tuple[type[Exception], ...] = (),
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
     `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
-    `agent_task`: a resume runs its tasks again (a step that publishes the work's state)."""
+    `agent_task`: a resume runs its tasks again (a step that publishes the work's state).
+
+    `retries`: the fresh attempts a task may make after its first, each after an attempt
+    that raised an instance of a class in `retry_on` (a tuple of exception classes,
+    `(ConnectionError, TimeoutError)`); any other exception fails the task at once, and so
+    do an off-contract input (`invalid_input`) and output (`invalid_output`). Each attempt is
+    a journal row of its own. The two go together: `retries` above 0 with no `retry_on`, or
+    `retry_on` with `retries=0`, raises here. A function that needs a service restores it
+    itself at its start, so a fresh attempt finds it running."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
-        checked = _checked_claims(f"python_task({kind!r})", claims)
+        owner = f"python_task({kind!r})"
+        checked = _checked_claims(owner, claims)
+        tries, on = checked_retries(owner, retries, retry_on)
         try:
             taken = sorted(RESERVED_PARAMS & set(inspect.signature(f).parameters))
         except (TypeError, ValueError):
             taken = []
         if taken:
             raise TypeError(
-                f"python_task({kind!r}): the function has a parameter named {', '.join(taken)}; "
+                f"{owner}: the function has a parameter named {', '.join(taken)}; "
                 f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the parameter"
             )
         return PythonTask(
@@ -455,9 +481,16 @@ def python_task(
             validators=tuple(validators),
             claims=checked,
             rerun_on_resume=bool(rerun_on_resume),
+            retries=tries,
+            retry_on=on,
         )
 
     return wrap(fn) if fn is not None else wrap
+
+
+def _class_name(cls: type) -> str:
+    """`ConnectionError` for a built-in class; `module.qualname` for any other."""
+    return cls.__qualname__ if cls.__module__ == "builtins" else f"{cls.__module__}.{cls.__qualname__}"
 
 
 def _output_schema_of(fn: Callable) -> type[BaseModel] | None:

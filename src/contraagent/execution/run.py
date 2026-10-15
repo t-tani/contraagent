@@ -309,8 +309,9 @@ class Run:
     def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
-        to `inner` (`RetryingRunner(...)`)."""
-        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd)
+        to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
+        a retried one here, the last by the queue."""
+        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt)
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent
