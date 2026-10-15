@@ -114,7 +114,7 @@ function promptSection(c: TaskContext) {
       : html`<div class="meta">${d.stream
           ? msg('Loading…')
           : hadSession(d)
-            ? msg('Prompt not saved (keep_transcripts = false)')
+            ? facts(msg('No prompt'), msg('not saved (keep_transcripts = false)'))
             : facts(msg('No prompt'), outcomeLabel(state))}</div>`}`;
 }
 

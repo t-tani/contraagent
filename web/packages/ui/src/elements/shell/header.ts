@@ -22,10 +22,8 @@ export const nowLine = (host: EventTarget, acts: readonly Activity[]): TemplateR
     ? msg(html`Running ${acts.slice(0, 3).map((a) => taskChip(host, kindUnit(a), { key: a.key }))}${acts.length > 3 ? html` <span>+${acts.length - 3}</span>` : nothing}`)
     : nothing}</span>`;
 
-/** Whether the feed is connected: a dot, and its words for a screen reader and a tooltip. */
-export const connection = (connected: boolean): TemplateResult =>
-  html`<span title=${connected ? msg('Connected to the monitor server') : msg('Not connected to the monitor server')}
-    ><span class="live-dot ${connected ? '' : 'off'}"></span><span class="sr">${connected
-      ? msg('Connected to the monitor server')
-      : msg('Not connected to the monitor server')}</span></span
-  >`;
+/** Whether the feed is connected: a dot, with its words as its accessible name and its tooltip. */
+export const connection = (connected: boolean): TemplateResult => {
+  const words = connected ? msg('Connected to the monitor server') : msg('Not connected to the monitor server');
+  return html`<span role="img" aria-label=${words} title=${words}><span class="live-dot ${connected ? '' : 'off'}"></span></span>`;
+};

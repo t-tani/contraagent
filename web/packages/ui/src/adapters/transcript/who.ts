@@ -47,7 +47,7 @@ export function whoTags(w: Who | null | undefined): TranscriptTag[] {
   if (!w) return [];
   const tags: TranscriptTag[] = [];
   if (w.agent) tags.push({ label: msg('coding agent'), value: w.agent, tip: msg('The CLI that ran the task (claude, omp)') });
-  if (w.model) tags.push({ label: msg('model'), value: w.model, tip: msg('The language model the coding agent used'), look: 'mono' });
+  if (w.model) tags.push({ label: msg('model'), value: w.model, tip: msg('The model the agent session ran on'), look: 'mono' });
   if (w.role) tags.push({ label: msg('role'), value: w.role, tip: msg('The agent definition the coding agent ran as (agents/<role>.md)'), look: 'quiet' });
   return tags;
 }

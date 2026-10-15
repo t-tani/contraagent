@@ -56,7 +56,7 @@ describe('kpiTiles', () => {
   it('shows a 0 of a problem neutral, with its words', () => {
     const t = tiles([r('prepare-a', 'completed')]);
     expect(t.get('bad')?.tone).toBe('neutral');
-    expect(line(t.get('bad'))).toContain('All attempts passed');
+    expect(line(t.get('bad'))).toContain('All attempts done');
     expect(t.get('notstarted')?.tone).toBe('neutral');
     expect(t.get('bad')?.action).toBeUndefined();
   });

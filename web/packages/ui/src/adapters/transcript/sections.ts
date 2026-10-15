@@ -43,7 +43,7 @@ function footer(info: RoundInfo, run: string): TranscriptSection['footer'] {
       tone: 'attention',
       title: msg('Output failed checks'),
       list: info.rejectedWith.map((e) => runRelative(e, run)),
-      note: msg('The errors are in the correction prompt'),
+      note: msg('Sent in the correction prompt'),
     };
   }
   if (info.result === 'switched') return { tone: 'failed', title: switchText(info) };

@@ -21,8 +21,7 @@ export function noTranscript(c: TaskContext): TemplateResult {
     return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${facts(msg('No transcript'), notInExport())}</b></div>`;
   }
   if (hadSession(d)) {
-    return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${msg('No transcript')}</b>
-      <span>${msg('Transcript not saved (keep_transcripts = false)')}</span></div>`;
+    return html`<div class="blank notrans"><span class="ic" aria-hidden="true">✦</span><b>${facts(msg('No transcript'), msg('not saved (keep_transcripts = false)'))}</b></div>`;
   }
   // A deferred task never ran, though the run goes on: "not run", as the tasks list says.
   const deferred = state === 'waiting' && !!c.plan?.nodes.find((n) => n.key === d.key)?.deferred;

@@ -5,6 +5,9 @@ import { fmtDur } from './format.js';
 import { skippedHopStep } from './rests.js';
 import { stopLabel } from './stop.js';
 
+/** What a model switch is, for tooltips and the transcript's legend. */
+export const modelSwitchTip = (): string => msg('A new agent session on the next model after a failed one (Router hops)');
+
 /** One hop's model, or its route when the journal names no model. */
 const hopModel = (h: Pick<Hop, 'model' | 'route'>): string => h.model || h.route || '—';
 

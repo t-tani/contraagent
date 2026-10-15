@@ -11,6 +11,8 @@ import { base, meterStyles } from '@contraagent/elements/styles';
 import { executorIconStyles } from '../../words/executor.js';
 import { tableStrings } from '../../words/table.js';
 import { replayedTip } from '../../words/run-line.js';
+import { retryTip } from '../../words/attempts.js';
+import { correctionTip } from '../../words/contract.js';
 import { filterJournal, hadFixup, journalTally, retriedKeys } from '../../adapters/filters.js';
 import { journalColumns, shortStop } from '../../adapters/journal-columns.js';
 
@@ -110,8 +112,8 @@ export class CaJournalTable extends LitElement {
     const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows, extras: this.extras, replayMarks: this.replayMarks });
     return html`<div class="jtally">
         ${journalTally(this.rows).map(([k, c]) => chip(k, shortStop(k), c, k, stopTone(k)))}
-        ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, msg('Attempts with at least one correction')) : nothing}
-        ${retried ? chip('retried', msg('tasks retried'), retried, msg('Tasks retried after a failed attempt')) : nothing}
+        ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, correctionTip()) : nothing}
+        ${retried ? chip('retried', msg('tasks retried'), retried, retryTip()) : nothing}
         ${replayed ? chip('replayed', msg('attempts replayed'), replayed, replayedTip()) : nothing}
       </div>
       <cae-data-table

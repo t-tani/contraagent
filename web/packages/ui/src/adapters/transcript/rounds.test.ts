@@ -33,8 +33,8 @@ describe('rounds', () => {
     ];
     const [first, second] = classifyRounds([launch(), launch()], rows);
     expect(roundLabel(second!, 1)).toBe('Model switch');
-    expect(switchText(first!)).toBe('primary-model: rate limited; switched to fallback-model');
-    expect(roundMark(first!, 'run')).toEqual(['✕', 'rate limited', 'primary-model: rate limited; switched to fallback-model']);
+    expect(switchText(first!)).toBe('primary-model: rate limited → fallback-model');
+    expect(roundMark(first!, 'run')).toEqual(['✕', 'rate limited', 'primary-model: rate limited → fallback-model']);
     expect(roundMark(second!, 'run')[0]).toBe('✓');
   });
 });

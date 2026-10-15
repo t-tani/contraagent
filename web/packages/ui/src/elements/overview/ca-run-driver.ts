@@ -61,15 +61,15 @@ export class CaRunDriver extends LitElement {
 
   /**
    * How a run that is not running ended, as its title: everything scheduled ran
-   * (finished), with or without errors, or some tasks never got their turn (stopped).
+   * (finished), with or without failed or not-started tasks, or some tasks never got their turn (stopped).
    */
   private stateTitle(): [text: string, tone: Tone] {
     if (this.plan.preflight?.stopped?.length) return [preflightStoppedTitle(), 'failed'];
     if (!this.plan.nodes.length) return [msg('Not running'), 'neutral'];
     const r = result(this.plan);
-    if (r.failed) return [msg('Finished with errors'), 'failed'];
+    if (r.failed) return [r.failed === 1 ? msg('Finished with 1 task failed') : msg(str`Finished with ${r.failed} tasks failed`), 'failed'];
     if (r.left) return [r.left === 1 ? msg('Finished with 1 task not done') : msg(str`Finished with ${r.left} tasks not done`), 'attention'];
-    if (r.notStarted) return [msg('Finished with errors'), 'attention'];
+    if (r.notStarted) return [r.notStarted === 1 ? msg('Finished with 1 task not started') : msg(str`Finished with ${r.notStarted} tasks not started`), 'attention'];
     return [msg('Finished'), 'done'];
   }
 

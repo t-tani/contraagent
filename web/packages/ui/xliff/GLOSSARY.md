@@ -90,7 +90,11 @@ wherever the UI shows a state or a count to the reader.
 | error (stop `error`: the process failed without a result) | エラー |
 | correction (the agent asked to fix its output in the same session) | 修正依頼（「差し戻し」は使わない） |
 | model switch (to the next failover hop, after a failure) | モデル切り替え |
-| checked file / failed checks / passed | 検証対象のファイル / 検証エラー / OK |
+| retry (an attempt after a failed attempt of the same task) | リトライ |
+| permission denied (stop `denied`) / Denied tool calls (the trends' table; never "refused") | 権限エラー / 権限エラーになったツール呼び出し |
+| Done / Tasks done / Done 97% / Attempts not done (the trends' counts of attempts and tasks) | 完了 / 完了したタスク / 完了 97% / 完了しなかった試行 |
+| Totals of the runs in a period (the trends page's tooltip) | 期間内の実行の合計 |
+| checked file / failed checks / passed (a checked file only; attempts and tasks are done: 完了) | 検証対象のファイル / 検証エラー / OK |
 | time | 所要時間 |
 | agent session | エージェントのセッション |
 | running at once | 同時実行 |
@@ -98,7 +102,7 @@ wherever the UI shows a state or a count to the reader.
 | task detail (the stream tab) | タスク詳細 |
 | scheduled tasks | 登録済みのタスク |
 | not running / finished | 実行中ではありません / 終了 |
-| finished with errors (a run with failed or not-started tasks) | エラーで終了 |
+| Finished with 2 tasks failed / Finished with 3 tasks not started / Finished with 1 task not done (how a run that is not running ended) | 終了（失敗したタスク 2 件） / 終了（未実行のタスク 3 件） / 終了（未完了のタスク 1 件） |
 | defined in Python code | Python コードで定義 |
 | custom view (a `monitor.Panel`: an extra view the pipeline's code adds) | カスタムビュー |
 | Show table / Show chart (a chart's switch to a table of its values, and back) | 表で表示 / グラフで表示 |
@@ -140,7 +144,7 @@ wherever the UI shows a state or a count to the reader.
 | N passes / number of passes / Passes (how many passes a unit ran of a loop) | N 周 / 周回数 / 周回数 |
 | 1 pass: 4 \| 2 passes: 1 (how many units ran each number of passes; tooltip: units by number of passes) | 1 周: 4 \| 2 周: 1（ツールチップ: ユニットごとの周回数） |
 | next pass (a loop box's dotted return from its last layer to its first) | 次の周 |
-| has an inner view (a function node's layer, a loop box's passes; the legend of their two-card mark) | 内部の表示あり |
+| has a level below (a function node's layer, a loop box's passes; the legend of their two-card mark) | 下の階層あり |
 | Show inside / Hide inside (a function drawn open as a box of its layer, or closed as a node; not "open", which goes into a layer) | 中を表示 / 中を隠す |
 | Show all inside / Hide all inside | すべての中を表示 / すべての中を隠す |
 | Outline of the flow (the tree of functions and loops beside the graph) | フローの構成 |
@@ -165,7 +169,7 @@ wherever the UI shows a state or a count to the reader.
 | Waits for / Created after / Later tasks (the graph's table and a node's label) | 依存先 / 作成元 / 後続タスク |
 | Loop at flow.py:130 / Nested loop at flow.py:130 (a loop named by where it is in the flow's code: file and first line; `line N` when the file is not known; also each loop's level in the breadcrumb) | flow.py:130 のループ / flow.py:130 の入れ子のループ（`line N` は「N 行目」） |
 | input X is missing because Y failed (why an input stopped a task) | 入力 X がありません（Y が失敗） |
-| input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルの不足または検証エラー）; 未実行（入力ファイルなし） |
+| input missing / input failed checks (why a task did not start; `not started (input missing)` for the stop `invalid_input`; both: `not started (input missing and input failed checks)`) | 入力ファイルなし / 入力ファイルに検証エラー（両方: 入力ファイルなし、入力ファイルに検証エラー）; 未実行（入力ファイルなし） |
 | earlier task Y failed (why a task did not start: the failed task it waited for) | 依存先タスク Y が失敗 |
 | waits for output of Y / of N earlier tasks (why a waiting task has not run: the earlier tasks that have not finished) | 依存先タスク Y の出力待ち / 依存先タスク N 件の出力待ち |
 | not written (task failed) / not written yet (task running) (an output file's state, then its cause) | 書き込みなし（タスクが失敗） / 書き込み待ち（タスクが実行中） |

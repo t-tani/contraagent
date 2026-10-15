@@ -112,8 +112,8 @@ export function nodeLabel(n: GraphNode, g: Pick<LayerGraph, 'nodes' | 'edges' | 
   return [
     n.type === 'flow' ? facts(msg(str`Function ${n.label}`), doneOf(c)) : facts(n.label, executorWord(n), doneOf(c)),
     ...exceptions(n, live).map(([, t]) => t),
-    waits.length ? msg(str`Waits for ${listText(waits)}`) : '',
-    after.length ? msg(str`Created after ${listText(after)}`) : '',
+    waits.length ? msg(str`Waits for: ${listText(waits)}`) : '',
+    after.length ? msg(str`Created after: ${listText(after)}`) : '',
     feeds.length ? msg(str`Later tasks: ${listText(feeds)}`) : '',
   ]
     .filter(Boolean)

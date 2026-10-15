@@ -22,7 +22,7 @@ there: one word, one meaning, on every screen. Japanese follows
 
 | Code term | UI (English) | UI (Japanese) |
 |---|---|---|
-| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; a trends column: Partly done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
@@ -33,10 +33,12 @@ there: one word, one meaning, on every screen. Japanese follows
 | the quota rule (`Pipeline(quota_rule=)`) and what it said | Usage rule; Usage rule: `text` | 利用率のルール |
 | a skipped hop (`skipped_hops`), in a model switch | `model` (identity paused) → `model` | （認証情報が休止中） |
 | attempt | attempt N | N 回目 |
+| a retry (an attempt after a failed attempt of the same task) | retry; tooltip: An attempt after a failed attempt (retries) | リトライ |
 | stop `error` | error | エラー |
-| round after contract errors | correction | 修正依頼 |
-| hop, failover | model switch | モデル切り替え |
-| contract, off-contract, valid | checked file, failed checks, passed | 検証対象のファイル, 検証エラー, OK |
+| stop `denied` (a tool call the permissions did not allow) | permission denied; trends: Denied tool calls (never "refused") | 権限エラー; 権限エラーになったツール呼び出し |
+| round after contract errors | correction; tooltip: Another round in the same agent session after failed checks (rounds) | 修正依頼 |
+| hop, failover | model switch; tooltip: A new agent session on the next model after a failed one (Router hops) | モデル切り替え |
+| contract, off-contract, valid | checked file, failed checks, passed (a checked file only; attempts and tasks are done) | 検証対象のファイル, 検証エラー, OK |
 | wall, wall_s | time | 所要時間 |
 | launch | agent session | エージェントのセッション |
 | worker, max_concurrent | running at once | 同時実行 |
@@ -89,7 +91,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | a time box (`time_box`, `FlowCallNode.time_box`): a flow call's own deadline | Deadline (a function node's and a flow call's row); deferred: Past the deadline of `function`; tooltip: A deadline of its own (time_box) | 締め切り; `function` の締め切りを過ぎた |
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
-| a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |
+| a function node or a loop box (their layer, their passes) | has a level below | 下の階層あり |
 | a function drawn open (`FlowBox`), its control; every function's | Show inside / Hide inside; Show all inside / Hide all inside | 中を表示 / 中を隠す; すべての中を表示 / すべての中を隠す |
 | a chain of functions in one box (`FlowBox.parts`) | `a › b › c` (each part a link to its layer) | `a › b › c` |
 | the outline (`outlineTree`); an item folded or unfolded | Outline of the flow; Fold `x` / Unfold `x` | フローの構成; `x` を折りたたむ / `x` を展開 |
@@ -103,7 +105,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | `RunSummary.unresponsive`, `RunActivity` `unresponsive` (its host stopped reporting while the run was alive) | no report from host; N with no report from host (a count) | ホストからの報告なし; ホストからの報告なし N 件 |
 | a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
 | a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
-| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
+| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Totals of the runs in a period (tooltip) | 推移 |
 | a tab of the Trends page (`Panel.tab`, view route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
 | a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
 | a task's `priority` (`PlanNode.priority`), only when not 0 | Priority 2; tooltip: Tie-breaker in the queue's order (priority) | 優先度 2 |
@@ -157,7 +159,7 @@ for each kind of text.
 - **Global English.** Common words; no idioms, phrasal verbs or slang; no
   abbreviations but API, JSON, CLI, USD and units (B, k, M). Labels may be noun
   phrases; a string that states a cause or a relation keeps its verbs and
-  articles. Positive forms ("All attempts passed"). The text must keep its
+  articles. Positive forms ("All attempts done"). The text must keep its
   meaning through machine translation.
 
 ## Kept on purpose

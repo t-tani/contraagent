@@ -34,7 +34,7 @@ export function contextWarnedText(r: Pick<JournalRow, 'usage' | 'context_budget'
 }
 
 /** What that state means, for its tooltip. */
-export const contextWarnedTip = (): string => msg('Peak context past the warning threshold of the context limit (context_warned)');
+export const contextWarnedTip = (): string => msg('Peak context above the warning threshold (context_warned)');
 
 /** Of `tries`, the one with the largest peak context; null when none reported one. */
 export function peakTry<T extends Pick<JournalRow, 'usage'>>(tries: readonly T[]): T | null {

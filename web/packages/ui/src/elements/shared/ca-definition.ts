@@ -6,7 +6,8 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight, mdFile } from '@contraagent/elements/markdown';
 import { instructionsHtml, markInstructions } from '../../words/prompt.js';
 import { facts as row } from '../../words/format.js';
-import { implementationOfLabel, implementationOfTip, outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText, retriesTip } from '../../words/task-definition.js';
+import { retryTip } from '../../words/attempts.js';
+import { implementationOfLabel, implementationOfTip, outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText } from '../../words/task-definition.js';
 import { RememberedSet } from '../../core/memory.js';
 import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
@@ -135,7 +136,7 @@ export class CaDefinition extends LitElement {
       [msg('Parameters'), def.params && def.params !== 'none' ? def.params : msg('none', { id: 'none', desc: 'An empty value' })],
       [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output && def.output !== 'none' ? def.output : msg('none', { id: 'none', desc: 'An empty value' })],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
-      ...(def.retries ? [[retriesLabel(), html`<span title=${retriesTip()}>${retriesText(def.retries)}</span>`] as [string, TemplateResult]] : []),
+      ...(def.retries ? [[retriesLabel(), html`<span title=${retryTip()}>${retriesText(def.retries)}</span>`] as [string, TemplateResult]] : []),
       ...(def.retries && retryOn.length
         ? [[retriedExceptionsLabel(), html`<span class="jmono" title=${retriedExceptionsTip()}>${retryOn.join(', ')}</span>`] as [string, TemplateResult]]
         : []),
