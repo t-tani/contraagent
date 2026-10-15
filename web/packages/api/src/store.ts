@@ -147,18 +147,24 @@ export class MonitorStore {
     } finally {
       this.refreshing = false;
     }
-    // The trends are asked for again only when the runs' records changed, and not awaited
-    // here: a slow trend panel holds back no run list.
+    // The trends are asked for again only when the runs' records or the trend panels (a
+    // panel list that arrived after them) changed, and not awaited here: a slow trend
+    // panel holds back no run list.
     const query = this.trendsQuery;
-    if (query && !this.trendsBusy && !this.stopped && this.runsKey() !== this.trendsOver) {
+    if (query && !this.trendsBusy && !this.stopped && this.trendsKey() !== this.trendsOver) {
       this.trendsBusy = true;
       void this.fetchTrends(query).finally(() => (this.trendsBusy = false));
     }
   }
 
-  /** What the trends are made of, as far as the run list says: each run and its last record. */
-  private runsKey(): string {
-    return this.snap.runs.map((r) => `${r.run}\t${r.last_ts}\t${r.attempts}`).join('\n');
+  /** What the trends are made of, as far as the run list says: each run and its last record; and the trend panels asked for over them. */
+  private trendsKey(): string {
+    const runs = this.snap.runs.map((r) => `${r.run}\t${r.last_ts}\t${r.attempts}`).join('\n');
+    return `${runs}\n\n${this.trendPanelNames().join('\n')}`;
+  }
+
+  private trendPanelNames(): string[] {
+    return this.snap.info.panels.filter((p) => p.scope === 'trends').map((p) => p.name);
   }
 
   /**
@@ -185,9 +191,9 @@ export class MonitorStore {
    */
   private async fetchTrends(query: TrendsQuery): Promise<void> {
     const asked = ++this.trendsAsked;
-    this.trendsOver = this.runsKey();
+    this.trendsOver = this.trendsKey();
     const view = (): TrendsView | null => (asked === this.trendsAsked && !this.stopped ? this.snap.trends : null);
-    const names = this.snap.info.panels.filter((p) => p.scope === 'trends').map((p) => p.name);
+    const names = this.trendPanelNames();
     const trends = this.client.trends(query).then(
       (data) => {
         const v = view();

@@ -6,6 +6,8 @@ import { getLocale } from '../core/i18n.js';
 export const trendsTitle = (): string => msg('Trends');
 /** What the trends page shows, for the run picker's entry and the page's tooltip. */
 export const trendsTip = (): string => msg('Cost, tasks and models over the runs of a period');
+/** The trends page's first tab: the trends, with the custom views that name no tab. */
+export const trendsFirstTab = (): string => msg('Summary', { desc: "The trends page's first tab: what the runs of the period add up to, beside the tabs of the custom views" });
 
 /** A day of the period (YYYY-MM-DD) with its month as a word: `Oct 14`. */
 export function dayLabel(day: string, locale: string = getLocale()): string {

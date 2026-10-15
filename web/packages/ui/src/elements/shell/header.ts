@@ -13,7 +13,7 @@ export const brand = (title: string): TemplateResult =>
       <circle class="logo-ring" cx="12" cy="12" r="9.5" fill="none" stroke-width="1.5" stroke-dasharray="4 3" />
       <circle class="logo-core" cx="12" cy="12" r="4" />
     </svg>
-    <span>${title}</span>
+    <span title=${title}>${title}</span>
   </div>`;
 
 /** The tasks running now, the first three by name; each chip opens its task (sent from `host`). */

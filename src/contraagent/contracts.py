@@ -320,12 +320,25 @@ def record_contracts(
         pass
 
 
+def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
+    """Two launches' `other_models`, summed per model."""
+    out = {m: dict(v) for m, v in a.items()}
+    for m, v in b.items():
+        had = out.setdefault(m, {})
+        for k, x in v.items():
+            if k == "cost_usd":
+                had[k] = None if x is None and had.get(k) is None else (had.get(k) or 0.0) + (x or 0.0)
+            elif isinstance(x, (int, float)):
+                had[k] = had.get(k, 0) + x
+    return out
+
+
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
     """Carry the spend, the web searches and the unread events from `total` into `nxt`, the
     launch after it; everything else is `nxt`'s.
 
     `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
-    own (a failover hop, a pool member). The costs add up, but a resumed launch whose
+    own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
     coding agent reports the session's cost so far (`session_total`,
     `Backend.cost_is_session_total`) already holds the earlier rounds', so it stands. The
     turns of a resumed session's rounds add up (`num_turns`); tokens and API calls are
@@ -337,6 +350,8 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
         nxt.cost_usd = (nxt.cost_usd or 0.0) + total.cost_usd
     if resumed and total.num_turns is not None:
         nxt.num_turns = total.num_turns + (nxt.num_turns or 0)
+    if not (resumed and session_total and nxt.other_models):
+        nxt.other_models = add_other_models(total.other_models, nxt.other_models)
     nxt.usage.calls = total.usage.calls + nxt.usage.calls
     nxt.usage.output_total += total.usage.output_total
     nxt.rate_limits = total.rate_limits + nxt.rate_limits

@@ -138,7 +138,8 @@ machine's login)". A colour means a status, and only where it applies: red
 failed, amber not started (or a limit near), green done (in marks and small
 chips), cyan running; totals, cost, tokens and time are in the text colour, and
 a count of a problem is coloured only above 0. A status also has a shape (✓ ✕ ◌,
-a round or a square mark) and its word, so it reads without colour. Times show the month as a word (`Oct 12, 10:38:40`), so they
+a round or a square mark) and its word, so it reads without colour; in a status grid,
+the states that share a tone differ by a texture as well. Times show the month as a word (`Oct 12, 10:38:40`), so they
 read the same in every locale.
 
 Live processes are found through the `CONTRAAGENT_*` environment each launch
@@ -233,6 +234,13 @@ again every few seconds and gets it back, and one that asks while it is being ma
 waits for that one. Panels, a pipeline's own code, run on threads of their own, so a
 panel that takes a minute holds no other route back.
 
+Many trend panels make a long page. A trend panel's `tab` (`Panel(scope="trends",
+tab="Reliability")`) puts it on a tab of the Trends page with the other panels of the
+same `tab`; the tabs follow the order of the first panel of each, after a first tab
+that holds the trends and the trend panels of no `tab`. The page's address names the
+open tab (`?page=trends&tab=Reliability`), and an export's Trends page has the same
+tabs. With no `tab` on any panel, the page has no tabs.
+
 The monitor reads only the runs that started before the period ends and did not
 finish before it begins, and of each, only a digest of its logs: what it did per
 15 minutes of UTC and per kind (attempts, passes, time, cost, tokens, outcomes, each
@@ -294,7 +302,9 @@ a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
 carries each task's origin (`flow`, each frame with its loops and their passes; `created_from`, `flow_call`)
 and the run's `flow_calls` (each with `flow`, its parent's frames where it was
 yielded), and `models`: what the agent sessions spent on each model (`ModelUsage`,
-summed from each journal row's hops, which record their own tokens, cost and time);
+summed from each journal row's hops, which record their own tokens, cost and time;
+a hop's spend on other models, such as Claude Code's summary of a fetched page on a
+smaller model, counts on each of them, `Hop.other_models`);
 a run whose tasks no flow created (queued through `Run.queue` by hand) has
 none. A file of flow code under the run's working directory (`run.json`
 `cwd`) is given relative to it. Its page is built from two npm packages that

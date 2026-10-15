@@ -77,6 +77,7 @@ class PanelInfo(Closed):
     description: str
     icon: str
     scope: Literal["run", "trends"] = "run"
+    tab: str = Field("", description="a trends panel's tab of the Trends page, with the panels of the same `tab`; '': on the first tab")
 
 
 class ExportInfo(Closed):
@@ -484,12 +485,15 @@ class PlanGroup(Closed):
 
 class ModelUsage(Closed):
     """What a run's agent sessions spent on one model of one coding agent, from each
-    journal row's hops (a failover's hops on two models count apart). Python tasks have
-    no model and are not counted."""
+    journal row's hops (a failover's hops on two models count apart), a hop's spend on
+    other models (`Hop.other_models`) on each of them. Python tasks have no model and are
+    not counted."""
 
     agent: str
     model: str
-    sessions: int = Field(description="hops: agent sessions launched on it (pool members tried on one hop count once)")
+    sessions: int = Field(
+        description="hops: agent sessions launched on it (pool members tried on one hop count once); 0 for an other model only"
+    )
     calls: int = Field(0, description="API calls")
     input: int = 0
     output: int = 0

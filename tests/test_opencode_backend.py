@@ -104,7 +104,8 @@ def test_a_plugin_reaches_opencode_as_config(tmp_path):
     assert cfg["skills"] == {"paths": [str(plug / "skills")]}
     assert cfg["plugin"] == [f"file://{plug.resolve()}/opencode/index.js"]
     assert cfg["mcp"] == {"db": {"type": "local", "command": ["db-mcp", "--ro"]}, "web": {"type": "remote", "url": "https://m"}}
-    assert cfg["permission"] == {"*": "deny", "read": "allow", "bash": {"git push*": "deny"}, "skill": "allow"}
+    # opencode takes the last rule that matches: bash stays allowed but for the pattern.
+    assert cfg["permission"] == {"*": "deny", "read": "allow", "bash": {"*": "allow", "git push*": "deny"}, "skill": "allow"}
     assert cfg["agent"] == {"build": {"steps": 7}}
 
 

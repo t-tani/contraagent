@@ -1,5 +1,5 @@
 // The trends page's request, from where the monitor is (its route).
-import type { RunSummary, TrendsQuery } from '@contraagent/api';
+import type { PanelInfo, RunSummary, TrendsQuery } from '@contraagent/api';
 import type { Route } from '../core/route.js';
 
 /** The browser's time zone (an IANA name), `UTC` when it names none. */
@@ -36,3 +36,9 @@ export function trendsQuery(r: Pick<Route, 'days' | 'from' | 'to' | 'tz' | 'grou
 
 /** The run groups of the runs, each once, in the order the runs list them. */
 export const runGroups = (runs: readonly RunSummary[]): string[] => [...new Set(runs.map((r) => r.run_group).filter((g): g is string => !!g))];
+
+/** The tabs of the trends page: '' (the trends, with the trends panels of no `tab`), then each panel's `tab` once, in the order the first of its panels comes; only '' when no panel names one. */
+export const trendsTabs = (panels: readonly PanelInfo[]): string[] => [
+  '',
+  ...new Set(panels.filter((p) => p.scope === 'trends' && p.tab).map((p) => p.tab!)),
+];

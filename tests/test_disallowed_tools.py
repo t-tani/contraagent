@@ -1,5 +1,7 @@
 """`disallowed_tools`: tools a kind's launches may not use, set in its task table or its declaration."""
 
+import os
+
 import pytest
 
 from contraagent import ClaudeBackend, OmpBackend, PipelineConfig, agent_task
@@ -66,3 +68,30 @@ def test_pi_denies_whole_tools_and_codex_none():
     assert CodexBackend.tool_deny_problem(("WebFetch",)) == "codex has no way to deny a tool"
     assert CodexBackend.tool_deny_problem(()) is None
     assert OpencodeBackend.tool_deny_problem(DENIED) is None
+    assert OpencodeBackend.tool_deny_problem(("Read(secrets/**)", "WebFetch(domain:x.com)", "Skill(deploy)")) is None
+    assert OpencodeBackend.tool_deny_problem(("Grep(*.env)", "WebFetch(https://x.com)")) == (
+        "opencode denies these tools whole only, not Grep(*.env), WebFetch(https://x.com)"
+    )
+
+
+def test_opencode_denies_a_pattern_after_the_rule_the_tool_had(tmp_path):
+    from contraagent.backends.opencode.backend import permission_rules
+
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    (repo / "app").mkdir()
+    denied = ("Read(secrets/**)", "Edit(//etc/hosts)", "Bash(git push:*)", "WebFetch(domain:x.com)")
+    # No role: every tool is allowed but for the patterns; a path is matched from the worktree.
+    assert permission_rules(denied, {}, repo / "app") == {
+        "read": {"*": "allow", "app/secrets/**": "deny"},
+        "edit": {"*": "allow", os.path.relpath("/etc/hosts", repo): "deny"},
+        "bash": {"*": "allow", "git push*": "deny"},
+        "webfetch": {"*": "allow", "https://x.com": "deny", "https://x.com/*": "deny", "http://x.com": "deny", "http://x.com/*": "deny"},
+    }
+    # A role that allows Read only: the pattern narrows read, bash stays denied whole.
+    role = {"*": "deny", "read": "allow"}
+    assert permission_rules(("Read(secrets/**)", "Bash(git push:*)"), role, tmp_path) == {
+        "*": "deny",
+        "read": {"*": "allow", f"{tmp_path.relative_to('/').as_posix()}/secrets/**": "deny"},  # outside git: from /
+    }
+    assert permission_rules(("Bash",), {"bash": {"*": "allow", "rm*": "deny"}}, tmp_path) == {"bash": "deny"}

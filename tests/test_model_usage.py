@@ -95,6 +95,45 @@ def test_the_summary_is_in_first_use_order_and_leaves_python_rows_and_unlaunched
     assert model_usage([{"executor": "agent", "hops": [hop("claude", "x")]}])[0]["cost_usd"] is None  # no cost reported: none
 
 
+def test_a_hop_s_spend_on_other_models_counts_on_each_of_them():
+    hop = {
+        "agent": "claude", "model": "big", "cost_usd": 0.1, "wall_s": 4.0, "usage": {"input": 10, "output": 5, "calls": 2},
+        "other_models": {"small": {"cost_usd": 0.03, "input": 1200, "output": 100, "cache_read": 0, "cache_creation": 0}},
+    }  # fmt: skip
+    models = model_usage([{"executor": "agent", "hops": [hop]}, {"executor": "agent", "hops": [hop]}])
+    assert [(m["model"], m["sessions"], m["input"], m["output"], m["calls"], m["cost_usd"], m["wall_s"]) for m in models] == [
+        ("big", 2, 20, 10, 4, 0.14, 8.0),  # the hop's cost less what it spent on the other model
+        ("small", 0, 2400, 200, 0, 0.06, 0.0),  # called by the sessions on `big`: no session, no time
+    ]
+
+
+def test_claude_code_s_model_usage_less_the_launch_s_own_model():
+    from contraagent.backends.claude.backend import other_models
+
+    used = {
+        "big-1": {"inputTokens": 8, "outputTokens": 900, "costUSD": 0.05},
+        "small-1": {"inputTokens": 1200, "outputTokens": 100, "cacheReadInputTokens": 3, "costUSD": 0.01},
+    }
+    small = {"cost_usd": 0.01, "input": 1200, "output": 100, "cache_read": 3, "cache_creation": 0}
+    assert other_models(used, "big-1") == {"small-1": small}
+    assert other_models(used, "big") == {"small-1": small}  # an alias: its own is the one that wrote the most
+    assert other_models({"big-1": used["big-1"]}, "big-1") == {}
+    assert other_models(None, "big-1") == {}
+
+
+def test_the_rounds_of_a_session_hold_its_spend_on_other_models():
+    from contraagent.contracts import fold_spend
+
+    def launch(cost, small):
+        return LaunchResult(label="t", cost_usd=cost, other_models={"small": {"cost_usd": small, "input": 10}})
+
+    # A coding agent that reports each launch's own spend: the rounds add up.
+    assert fold_spend(launch(0.1, 0.01), launch(0.2, 0.02), resumed=True).other_models == {"small": {"cost_usd": 0.03, "input": 20}}
+    # One that reports the session's so far: the last round's stands.
+    folded = fold_spend(launch(0.1, 0.01), launch(0.3, 0.03), resumed=True, session_total=True)
+    assert folded.other_models == {"small": {"cost_usd": 0.03, "input": 10}}
+
+
 def test_the_monitor_s_plan_carries_the_models(tmp_path):
     from pydantic import BaseModel
 

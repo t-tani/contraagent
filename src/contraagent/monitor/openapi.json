@@ -2163,6 +2163,13 @@
                 "type": "null"
               }
             ]
+          },
+          "other_models": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OtherModel"
+            },
+            "type": "object",
+            "title": "Other Models"
           }
         },
         "additionalProperties": true,
@@ -2841,7 +2848,7 @@
           "sessions": {
             "type": "integer",
             "title": "Sessions",
-            "description": "hops: agent sessions launched on it (pool members tried on one hop count once)"
+            "description": "hops: agent sessions launched on it (pool members tried on one hop count once); 0 for an other model only"
           },
           "calls": {
             "type": "integer",
@@ -2895,7 +2902,7 @@
           "sessions"
         ],
         "title": "ModelUsage",
-        "description": "What a run's agent sessions spent on one model of one coding agent, from each\njournal row's hops (a failover's hops on two models count apart). Python tasks have\nno model and are not counted."
+        "description": "What a run's agent sessions spent on one model of one coding agent, from each\njournal row's hops (a failover's hops on two models count apart), a hop's spend on\nother models (`Hop.other_models`) on each of them. Python tasks have no model and are\nnot counted."
       },
       "NoteBody": {
         "properties": {
@@ -2990,6 +2997,45 @@
         ],
         "title": "OtherEvent",
         "description": "Any other event: omp's bare lifecycle markers (`agent_start`, `agent_end`,\n`turn_start`, `auto_retry_end`) and whatever a custom backend's registered\nnormalizer emits, including a known `type` whose fields do not match above."
+      },
+      "OtherModel": {
+        "properties": {
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "input": {
+            "type": "integer",
+            "title": "Input",
+            "default": 0
+          },
+          "output": {
+            "type": "integer",
+            "title": "Output",
+            "default": 0
+          },
+          "cache_read": {
+            "type": "integer",
+            "title": "Cache Read",
+            "default": 0
+          },
+          "cache_creation": {
+            "type": "integer",
+            "title": "Cache Creation",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "OtherModel",
+        "description": "What a hop spent on a model other than its own (`Hop.other_models`)."
       },
       "OutputTally": {
         "properties": {
@@ -3097,6 +3143,12 @@
             ],
             "title": "Scope",
             "default": "run"
+          },
+          "tab": {
+            "type": "string",
+            "title": "Tab",
+            "description": "a trends panel's tab of the Trends page, with the panels of the same `tab`; '': on the first tab",
+            "default": ""
           }
         },
         "additionalProperties": false,

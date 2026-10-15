@@ -41,7 +41,7 @@ from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 7
+DIGEST_VERSION = 8
 
 #: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
 BODY_RUNS = 50
@@ -281,7 +281,8 @@ def digest(source, run: str) -> dict:
             pairs += [slot, int(ok)]
         hops = [
             {"agent": h.get("agent", ""), "model": h.get("model", ""), "cost_usd": _num(h.get("cost_usd")),
-             "wall_s": _num(h.get("wall_s")) or 0.0, "usage": _usage(h.get("usage"))}
+             "wall_s": _num(h.get("wall_s")) or 0.0, "usage": _usage(h.get("usage")),
+             "other_models": h.get("other_models") if isinstance(h.get("other_models"), dict) else {}}
             for h in e.get("hops") or () if isinstance(h, dict)
         ]  # fmt: skip
         rows_of.setdefault(slot, []).append({"executor": executor, "agent": e.get("agent", ""), "usage": usage, "hops": hops})

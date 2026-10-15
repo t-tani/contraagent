@@ -2911,6 +2911,11 @@
   <source>Hide inside</source>
   <target>中を隠す</target>
 </trans-unit>
+<trans-unit id="sc9474bf7a0668d73">
+  <source>Summary</source>
+  <target>全体</target>
+  <note from="lit-localize">The trends page's first tab: what the runs of the period add up to, beside the tabs of the custom views</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

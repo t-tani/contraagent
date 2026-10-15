@@ -37,6 +37,36 @@ describe('ca-trends', () => {
     expect(root.querySelector('.period')?.textContent).toBe('Oct 13 to Oct 14, 2026 | Asia/Tokyo');
   });
 
+  it('has no tabs while no trend panel names one', async () => {
+    const root = (await mount({ panels: [{ name: 'quality', title: 'Quality', description: '', icon: '✓', scope: 'trends', tab: '' }] })).shadowRoot!;
+    expect(root.querySelector('[role="tablist"]')).toBeNull();
+  });
+
+  it('puts the trend panels of each tab on a tab of their own, the trends and the panels of no tab first', async () => {
+    const panel = (name: string, tab: string) => ({ name, title: name, description: '', icon: '▤', scope: 'trends' as const, tab });
+    const panels = [panel('latency', 'Reliability'), panel('quality', ''), panel('spend', 'Cost'), panel('errors', 'Reliability')];
+    const el = await mount({ panels });
+    const root = el.shadowRoot!;
+    const tabs = () => [...root.querySelectorAll('[role="tab"]')].map((t) => [t.textContent?.trim(), t.getAttribute('aria-selected')]);
+    const shown = () => [...root.querySelectorAll('[data-panel]')].map((s) => s.getAttribute('data-panel'));
+    expect(tabs()).toEqual([['Summary', 'true'], ['Reliability', 'false'], ['Cost', 'false']]);
+    expect(shown()).toEqual(['quality']);
+    expect(root.querySelector('[data-section="totals"]')).not.toBeNull();
+    const seen: unknown[] = [];
+    el.addEventListener('ca-navigate', (e) => seen.push((e as CustomEvent).detail));
+    root.querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]!.click();
+    expect(seen).toEqual([{ trendsTab: 'Reliability' }]);
+    el.tab = 'Reliability';
+    await el.updateComplete;
+    expect(tabs()[1]).toEqual(['Reliability', 'true']);
+    expect(shown()).toEqual(['latency', 'errors']);
+    expect(root.querySelector('[data-section]')).toBeNull();
+    expect(root.querySelector('.period')).not.toBeNull(); // the period is every tab's
+    el.tab = 'Gone';
+    await el.updateComplete;
+    expect(shown()).toEqual(['quality']); // a tab no panel names: the first
+  });
+
   it('asks for another period, as the page address', async () => {
     const el = await mount({ days: 14 });
     const seen: unknown[] = [];

@@ -52,6 +52,19 @@ class TokenUsage(BaseModel):
     resident: int | None = None
 
 
+class OtherModel(BaseModel):
+    """What a hop spent on a model other than its own (`Hop.other_models`)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    #: Part of the hop's `cost_usd`; None when the coding agent reported none.
+    cost_usd: float | None = None
+    input: int = 0
+    output: int = 0
+    cache_read: int = 0
+    cache_creation: int = 0
+
+
 class Hop(BaseModel):
     """One launch in a failover walk: where it ran and how it ended."""
 
@@ -70,6 +83,9 @@ class Hop(BaseModel):
     #: This hop's tokens (its rounds, and pool members tried on it, summed); None when it
     #: reported no API call. The attempt's `usage` is every hop's.
     usage: TokenUsage | None = None
+    #: What the hop spent on models other than `model`, by model (Claude Code summarizes a
+    #: fetched page on a smaller one); their cost is in `cost_usd`, their tokens not in `usage`.
+    other_models: dict[str, OtherModel] = Field(default_factory=dict)
 
 
 class QuotaReading(BaseModel):

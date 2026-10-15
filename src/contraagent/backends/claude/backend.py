@@ -70,6 +70,32 @@ _HOLLOW_RE = re.compile(r"\b(Bash|Read|Write|Edit|Skill|Agent|WebFetch|WebSearch
 _SESSION_ID_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z-]{0,63}$")
 
 
+def other_models(model_usage: object, own: str) -> dict[str, dict]:
+    """The result's `modelUsage` (`{model: {"costUSD", "inputTokens", ...}}`) less the
+    launch's own model (`own`, the session's model; else the one that wrote the most),
+    as `LaunchResult.other_models`."""
+    if not isinstance(model_usage, dict):
+        return {}
+    used = {m: u for m, u in model_usage.items() if isinstance(u, dict)}
+    if own not in used and used:
+        own = max(used, key=lambda m: _int(used[m].get("outputTokens")))
+    return {
+        m: {
+            "cost_usd": u.get("costUSD") if isinstance(u.get("costUSD"), (int, float)) else None,
+            "input": _int(u.get("inputTokens")),
+            "output": _int(u.get("outputTokens")),
+            "cache_read": _int(u.get("cacheReadInputTokens")),
+            "cache_creation": _int(u.get("cacheCreationInputTokens")),
+        }
+        for m, u in used.items()
+        if m != own
+    }
+
+
+def _int(v: object) -> int:
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+
+
 class ClaudeBackend(Backend):
     """Headless Claude Code: `claude -p` with stream-json output."""
 
@@ -468,6 +494,7 @@ class ClaudeBackend(Backend):
             structured_output=res.get("structured_output"),
             cost_usd=res.get("total_cost_usd"),
             usage=reader.usage,
+            other_models=other_models(res.get("modelUsage"), reader.init_model or launch.model),
             rate_limit=reader.rate_limit,
             rate_limits=list(reader.rate_limits),
             permission_denials=list(res.get("permission_denials") or []) or list(reader.denied),

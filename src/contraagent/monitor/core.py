@@ -84,8 +84,11 @@ class Panel:
     its `type`) drawn as tiles, a table or charts, or any other dict, shown as a JSON
     tree. `scope` says what it is computed over: `run`, `fn(run)`, a tab of each run;
     `trends`, `fn(runs, period)`, a view of the runs of a period. `title` and
-    `description` label it and say what it shows; `icon` is a short glyph. A bare
-    callable works too, as a run panel (the dict key becomes the title).
+    `description` label it and say what it shows; `icon` is a short glyph. `tab` names
+    the tab of the Trends page a trends panel is shown on, with the other panels of that
+    `tab`, in the order the first of them comes; a trends panel of no `tab` is shown
+    under the trends, on the first tab. A run panel is a tab of its own and takes none.
+    A bare callable works too, as a run panel (the dict key becomes the title).
     """
 
     fn: PanelFn | TrendsPanelFn
@@ -93,6 +96,16 @@ class Panel:
     description: str = ""
     icon: str = "▤"
     scope: Literal["run", "trends"] = "run"
+    tab: str = ""
+
+    def __post_init__(self) -> None:
+        if self.tab and self.scope != "trends":
+            raise ValueError(f"Panel {self.title or self.fn!r}: tab= is for a trends panel; a run panel is a tab of its own")
+
+    def info(self, name: str) -> dict:
+        """What /api/info says of it (`api.PanelInfo`), as panel `name`."""
+        title = self.title or name
+        return {"name": name, "title": title, "description": self.description, "icon": self.icon, "scope": self.scope, "tab": self.tab}
 
     def __call__(self, *args: Any) -> dict:
         return panel_body(self.fn(*args))
@@ -864,10 +877,7 @@ class Monitor:
 
     def panel_info(self) -> list[dict]:
         """Every panel, in the order of the `panels` given."""
-        return [
-            {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon, "scope": p.scope}
-            for n, p in self.panels.items()
-        ]
+        return [p.info(n) for n, p in self.panels.items()]
 
     # --- trends --------------------------------------------------------------
 
@@ -886,11 +896,7 @@ class Monitor:
         out = {
             **view,
             "bodies": trends.bodies(view),
-            "panels": [
-                {"name": n, "title": p.title or n, "description": p.description, "icon": p.icon}
-                for n, p in self.panels.items()
-                if p.scope == "trends"
-            ],
+            "panels": [p.info(n) for n, p in self.panels.items() if p.scope == "trends"],
         }
         self._trends = (made_of, out)
         return out
@@ -1019,10 +1025,25 @@ _TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
 
 def model_usage(rows: list[dict]) -> list[dict]:
     """What the agent sessions of journal `rows` spent per model (`api.ModelUsage`), in order
-    of first use: each hop on its own model (its agent, tokens, cost and time). A row of
-    one hop with no tokens of its own gives the hop the row's. Python rows and hops that
-    never launched (`skipped_hops`) are not counted."""
+    of first use: each hop on its own model (its agent, tokens, cost and time), and what it
+    spent on other models (`Hop.other_models`) on each of them, taken out of its own model's
+    cost. A row of one hop with no tokens of its own gives the hop the row's. Python rows
+    and hops that never launched (`skipped_hops`) are not counted."""
     out: dict[tuple[str, str], dict] = {}
+
+    def add(agent: str, model: str, usage: object, cost: float | None, sessions: int, wall_s: float) -> None:
+        m = out.setdefault(
+            (agent, model),
+            {"agent": agent, "model": model, "sessions": 0, **dict.fromkeys(_TOKENS, 0), "cost_usd": None, "wall_s": 0.0},
+        )
+        m["sessions"] += sessions
+        for k in _TOKENS:
+            v = usage.get(k) if isinstance(usage, dict) else None
+            m[k] += int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
+        if cost is not None:
+            m["cost_usd"] = round((m["cost_usd"] or 0.0) + cost, 6)
+        m["wall_s"] = round(m["wall_s"] + wall_s, 1)
+
     for row in rows:
         if row.get("executor") == "python":
             continue
@@ -1031,17 +1052,13 @@ def model_usage(rows: list[dict]) -> list[dict]:
             agent, model = str(h.get("agent") or row.get("agent") or ""), str(h.get("model") or "")
             if not model:
                 continue
-            m = out.setdefault(
-                (agent, model),
-                {"agent": agent, "model": model, "sessions": 0, **dict.fromkeys(_TOKENS, 0), "cost_usd": None, "wall_s": 0.0},
-            )
-            m["sessions"] += 1
             usage = h.get("usage") if isinstance(h.get("usage"), dict) else (row.get("usage") if len(hops) == 1 else None)
-            for k in _TOKENS:
-                v = (usage or {}).get(k)
-                m[k] += int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
             cost = _number(h.get("cost_usd"))
-            if cost is not None:
-                m["cost_usd"] = round((m["cost_usd"] or 0.0) + cost, 6)
-            m["wall_s"] = round(m["wall_s"] + (_number(h.get("wall_s")) or 0.0), 1)
+            given = h.get("other_models")
+            others = {str(n): spent for n, spent in given.items() if isinstance(spent, dict)} if isinstance(given, dict) else {}
+            parts = [p for spent in others.values() if (p := _number(spent.get("cost_usd"))) is not None]
+            own = max(0.0, cost - sum(parts)) if cost is not None else None
+            add(agent, model, usage, own, 1, _number(h.get("wall_s")) or 0.0)
+            for name, spent in others.items():
+                add(agent, name, spent, _number(spent.get("cost_usd")), 0, 0.0)
     return list(out.values())

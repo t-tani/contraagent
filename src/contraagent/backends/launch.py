@@ -315,6 +315,10 @@ class LaunchResult:
     structured_output: dict | list | None = None
     cost_usd: float | None = None
     usage: Usage = field(default_factory=Usage)
+    #: What the launch spent on models other than its own, as the coding agent reports
+    #: it: `{model: {"cost_usd", "input", "output", "cache_read", "cache_creation"}}`.
+    #: Their cost is in `cost_usd`; their tokens are not in `usage`.
+    other_models: dict[str, dict] = field(default_factory=dict)
     rate_limit: RateLimit | None = None
     #: Every utilization reading the launch received, oldest first (Claude Code sends
     #: one when a session starts or resumes; omp's is read at the launch's start);

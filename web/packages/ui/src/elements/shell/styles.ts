@@ -8,12 +8,15 @@ export const monitorStyles = css`
   header { flex: none; display: flex; gap: 14px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--bg) 75%, transparent); backdrop-filter: blur(10px); position: relative; z-index: 20; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
-  .brand svg { width: 22px; height: 22px; }
+  /* the name stays on one line and whole up to a third of the width; the run button gives up its width instead */
+  .brand { flex: none; max-width: 30vw; white-space: nowrap; }
+  .brand span { overflow: hidden; text-overflow: ellipsis; }
+  .brand svg { width: 22px; height: 22px; flex: none; }
   .logo-core { fill: var(--accent); transform-origin: 12px 12px; }
   .logo-ring { stroke: var(--accent); opacity: 0.5; transform-origin: 12px 12px; }
   :host([live]) .logo-core { animation: core-beat 1.8s var(--ease) infinite; }
   :host([live]) .logo-ring { animation: turn 7s linear infinite; }
-  .runbtn { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 52vw; cursor: pointer; padding: 6px 13px;
+  .runbtn { display: flex; align-items: center; gap: 10px; min-width: 150px; max-width: 52vw; cursor: pointer; padding: 6px 13px;
     border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--text); transition: border-color 0.2s, background 0.2s; }
   .runbtn:hover { border-color: var(--line2); background: var(--panel2); }
   .rn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 40%; }
@@ -24,7 +27,8 @@ export const monitorStyles = css`
     border-radius: 999px; white-space: nowrap; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
   .runbtn .pill { flex: none; font-size: 11px; }
   ca-run-picker { inset-inline-start: 110px; }
-  .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 12px; min-width: 0; }
+  /* the controls keep their width; the name and the run button give theirs */
+  .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex: none; white-space: nowrap; }
   .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40vw;
     display: inline-flex; align-items: center; gap: 4px; }
   .clock { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
@@ -42,12 +46,16 @@ export const monitorStyles = css`
   .api-error:empty { padding: 0; }
   main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
   main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
+  /* too narrow for one line: the controls go under the name and the run button */
+  @media (max-width: 1000px) {
+    header { flex-wrap: wrap; row-gap: 8px; }
+  }
   @media (max-width: 760px) {
     header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
     .runbtn { max-width: calc(100vw - 130px); }
     /* the run picker spans the header, 16px from each side */
     ca-run-picker { inset-inline: 16px; width: auto; }
-    .hdr-right { width: 100%; margin-left: 0; }
+    .hdr-right { width: 100%; margin-left: 0; flex-wrap: wrap; }
     .nowline { max-width: none; flex: 1; }
     nav { padding: 4px 8px 0; }
     main { padding: 12px 12px 40px; }

@@ -48,10 +48,45 @@ export function stateMark(tone: Tone): string {
 /** The order of the tones in a legend: the exceptions first, what ended well after. */
 const TONE_ORDER: readonly Tone[] = ['failed', 'attention', 'running', 'done', 'muted', 'neutral'];
 
+/** The textures that tell the states of one tone apart, after the first (plain): stripes, dots, crosshatch, lines. */
+export const TEXTURES = ['', 'stripes', 'dots', 'cross', 'lines'] as const;
+export type Texture = (typeof TEXTURES)[number];
+
+/** Each state's texture, by `tone` and `label`: the first state of a tone plain, the next ones in `TEXTURES` order (again from the start past the fifth). */
+export function texturesOf(states: readonly StateCell[]): Map<string, Texture> {
+  const n = new Map<Tone, number>();
+  const out = new Map<string, Texture>();
+  for (const s of states) {
+    const i = n.get(s.tone) ?? 0;
+    n.set(s.tone, i + 1);
+    out.set(stateKey(s), TEXTURES[i % TEXTURES.length]!);
+  }
+  return out;
+}
+
+const stateKey = (c: StateCell): string => `${c.tone}\u0000${c.label}`;
+
+/** A texture as a CSS background over a legend key's fill. */
+function textureCss(t: Texture): string {
+  const ink = 'color-mix(in srgb, var(--text) 45%, transparent)';
+  switch (t) {
+    case 'stripes':
+      return `repeating-linear-gradient(45deg, ${ink} 0 1.5px, transparent 1.5px 4px)`;
+    case 'dots':
+      return `radial-gradient(${ink} 1px, transparent 1.3px) 0 0 / 4px 4px`;
+    case 'cross':
+      return `repeating-linear-gradient(45deg, ${ink} 0 1px, transparent 1px 4px), repeating-linear-gradient(-45deg, ${ink} 0 1px, transparent 1px 4px)`;
+    case 'lines':
+      return `repeating-linear-gradient(0deg, ${ink} 0 1.5px, transparent 1.5px 4px)`;
+    default:
+      return '';
+  }
+}
+
 /** Each state of the cells once: by tone (failed, attention, running, done, muted, neutral), then in the order the cells first give it. */
 export function statesOf(cells: readonly (readonly (StateCell | null | undefined)[])[]): StateCell[] {
   const seen = new Map<string, StateCell>();
-  for (const row of cells) for (const c of row) if (c && !seen.has(`${c.tone}\u0000${c.label}`)) seen.set(`${c.tone}\u0000${c.label}`, c);
+  for (const row of cells) for (const c of row) if (c && !seen.has(stateKey(c))) seen.set(stateKey(c), c);
   return [...seen.values()].sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone));
 }
 
@@ -59,7 +94,8 @@ export function statesOf(cells: readonly (readonly (StateCell | null | undefined
  * A state per row (`y`) and column (`x`), each cell coloured by its tone
  * (`cells[row][column]`; a null cell is left empty): the states of hourly runs by day,
  * say. The colour is never alone: a cell wide enough holds its tone's mark (✓ ✕ ◌), the
- * legend names every state, and pointing at a cell, or moving to it with the arrow keys
+ * states of one tone differ by a texture (the first plain, then stripes, dots,
+ * crosshatch, lines), the legend names every state with its texture, and pointing at a cell, or moving to it with the arrow keys
  * (up and down by a row), shows its row, column, state and fact; the switch shows them
  * all as a table of words.
  *
@@ -91,10 +127,16 @@ export class CaeStateGrid extends ChartElement {
   }
 
   protected legendItems(): LegendItem[] {
-    return statesOf(this.cells).map((s) => ({
-      label: s.label,
-      icon: html`<span class="key" aria-hidden="true" style="background: ${stateFill(s.tone)}">${stateMark(s.tone)}</span>`,
-    }));
+    const states = statesOf(this.cells);
+    const textures = texturesOf(states);
+    return states.map((s) => {
+      const t = textureCss(textures.get(stateKey(s)) ?? '');
+      return {
+        label: s.label,
+        icon: html`<span class="key" aria-hidden="true" data-texture=${textures.get(stateKey(s)) || nothing}
+          style="background: ${t ? `${t}, ` : ''}${stateFill(s.tone)}">${stateMark(s.tone)}</span>`,
+      };
+    });
   }
 
   protected itemCount(): number {
@@ -116,6 +158,7 @@ export class CaeStateGrid extends ChartElement {
     const stride = labelStride(nx, pw, Math.max(...this.x.map(textWidth)) + LABEL_GAP);
     const a = this.active;
     const marked = cw - GAP >= MARK_MIN;
+    const textures = texturesOf(statesOf(this.cells));
     const cells: TemplateResult[] = [];
     for (let r = 0; r < ny; r++)
       for (let c = 0; c < nx; c++) {
@@ -130,14 +173,17 @@ export class CaeStateGrid extends ChartElement {
           continue;
         }
         const mark = marked ? stateMark(cell.tone) : '';
+        const texture = textures.get(stateKey(cell)) ?? '';
         cells.push(svg`<g @mouseenter=${() => (this.active = i)}>
           <rect x=${box.x} y=${box.y} width=${box.w} height=${box.h} rx="2" fill=${stateFill(cell.tone)}
             stroke=${a === i ? 'var(--text)' : 'none'} stroke-width="1.5"></rect>
+          ${texture ? svg`<rect class="texture" data-texture=${texture} x=${box.x} y=${box.y} width=${box.w} height=${box.h} rx="2" fill=${`url(#${this.patternId(texture)})`} pointer-events="none"></rect>` : nothing}
           ${mark ? svg`<text class=${cell.tone === 'done' ? 'mark quiet' : 'mark'} x=${box.x + box.w / 2} y=${box.y + box.h / 2} dy="0.35em" text-anchor="middle" aria-hidden="true">${mark}</text>` : nothing}
         </g>`);
       }
     const at = a !== null && a < nx * ny ? { r: Math.floor(a / nx), c: a % nx } : null;
     return html`<svg width=${w} height=${h} role="img" aria-label=${this.label || nothing}>
+        ${this.patterns(new Set(textures.values()))}
         ${this.y.map((label, r) => svg`<text class="axis" x=${left - 6} y=${M.top + r * CELL_H + CELL_H / 2} dy="0.32em" text-anchor="end">${label}</text>`)}
         ${cells}
         ${this.x.map((label, c) =>
@@ -145,6 +191,29 @@ export class CaeStateGrid extends ChartElement {
         )}
       </svg>
       ${at ? this.tip(left + at.c * cw + cw / 2, M.top + (at.r + 1) * CELL_H, this.tipBody(at.r, at.c)) : nothing}`;
+  }
+
+  /** One id per element and texture: two grids in a page keep their own patterns. */
+  private readonly uid = `sg${Math.random().toString(36).slice(2, 8)}`;
+
+  private patternId(t: Texture): string {
+    return `${this.uid}-${t}`;
+  }
+
+  /** The SVG patterns of the textures in use, drawn in the text's colour over a cell's fill. */
+  private patterns(used: ReadonlySet<Texture>): TemplateResult {
+    const line = (d: string) => svg`<path d=${d} stroke="var(--text)" stroke-opacity="0.45" stroke-width="1.2"></path>`;
+    const body = (t: Texture) =>
+      t === 'stripes'
+        ? line('M-1 1 L1 -1 M0 5 L5 0 M4 6 L6 4')
+        : t === 'dots'
+          ? svg`<circle cx="2.5" cy="2.5" r="0.9" fill="var(--text)" fill-opacity="0.5"></circle>`
+          : t === 'cross'
+            ? line('M0 0 L5 5 M5 0 L0 5')
+            : line('M0 2.5 L5 2.5');
+    return svg`<defs>${[...used].filter((t) => t).map(
+      (t) => svg`<pattern id=${this.patternId(t)} width="5" height="5" patternUnits="userSpaceOnUse">${body(t)}</pattern>`,
+    )}</defs>`;
   }
 
   private tipBody(r: number, c: number): TemplateResult {

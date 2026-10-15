@@ -30,8 +30,11 @@ Every key: the reference at the end.
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
 tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
-role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode a
-`Bash(...)` pattern as a command pattern and any other tool whole; pi whole tools
+role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode
+whole tools and a pattern of a command (`Bash(git push:*)`), a path (`Read(secrets/**)`,
+`Edit(...)`), a domain (`WebFetch(domain:example.com)`) or a skill (`Skill(deploy)`),
+each after the rule the tool had, so the rest of the tool stays allowed; a pattern of
+another tool there is refused; pi whole tools
 (`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
 deny a tool, and a route on them is refused before anything launches
 (`Backend.tool_deny_problem`), failover hops included.

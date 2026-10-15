@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -79,21 +80,62 @@ _RULE_RE = re.compile(r"^(\w+)(?:\((.*)\))?$")
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n?", re.S)
 
 
-def permission_rules(denied: tuple[str, ...]) -> dict:
-    """`Limits.disallowed_tools` (Claude Code's patterns: `Bash(git push:*)`, `WebFetch`) as
-    opencode's `permission`: a whole tool denied, or a `bash` command pattern."""
-    out: dict = {}
+#: The opencode permissions whose rules take a pattern of what the tool is given: a
+#: command (`bash`), a path from the worktree (`read`, `edit`), a URL (`webfetch`), a
+#: skill's name (`skill`).
+PATTERNED = ("bash", "read", "edit", "webfetch", "skill")
+
+
+def worktree(cwd: Path) -> Path:
+    """The directory opencode matches a `read` or `edit` pattern from: the git worktree
+    `cwd` is in, or `/` outside one."""
+    here = cwd.resolve()
+    for d in (here, *here.parents):
+        if (d / ".git").exists():
+            return d
+    return Path("/")
+
+
+def _patterns(key: str, pattern: str, cwd: Path) -> list[str]:
+    """Claude Code's pattern for a tool (`git push:*`, `secrets/**`, `domain:example.com`)
+    as opencode's for permission `key`. A path is Claude Code's: `//` absolute, `~/` from
+    home, anything else from `cwd`; opencode's `*` crosses `/`, so `src/*.md` denies
+    deeper files too."""
+    if key == "bash":
+        return [pattern.replace(":*", "*")]
+    if key in ("read", "edit"):
+        if pattern.startswith("//"):
+            path = Path(pattern[1:])
+        elif pattern.startswith("~/"):
+            path = Path(pattern).expanduser()
+        else:
+            path = cwd.resolve() / pattern.lstrip("/").removeprefix("./")
+        return [Path(os.path.relpath(path, worktree(cwd))).as_posix()]
+    if key == "webfetch" and pattern.startswith("domain:"):
+        host = pattern.removeprefix("domain:")
+        return [f"{scheme}://{host}{tail}" for scheme in ("https", "http") for tail in ("", "/*")]
+    return [pattern]
+
+
+def permission_rules(denied: tuple[str, ...], permission: dict, cwd: Path) -> dict:
+    """`permission` (opencode's, from a role's `tools:`) narrowed by `Limits.disallowed_tools`
+    (Claude Code's names and patterns: `Bash(git push:*)`, `Read(secrets/**)`, `WebFetch`):
+    a whole tool denied, or a pattern after the rule the tool had (`{"*": "allow", "git
+    push*": "deny"}`; opencode takes the last rule that matches). A pattern of a tool
+    already denied adds nothing."""
+    out = dict(permission)
     for rule in denied:
         m = _RULE_RE.match(rule.strip())
         if not m:
             continue
         key = PERMISSION_OF.get(m.group(1), m.group(1).lower())
         pattern = m.group(2)
-        if pattern and key == "bash":
-            rules = out.get(key)
-            out[key] = {**(rules if isinstance(rules, dict) else {}), pattern.replace(":*", "*"): "deny"}
-        else:
+        had = out.get(key, out.get("*", "allow"))
+        if not pattern:
             out[key] = "deny"
+        elif had != "deny":
+            rules = had if isinstance(had, dict) else {"*": had}
+            out[key] = {**rules, **dict.fromkeys(_patterns(key, pattern, cwd), "deny")}
     return out
 
 
@@ -147,9 +189,20 @@ class OpencodeBackend(OneShotBackend):
 
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
-        """opencode denies tools by its permissions (`permission_rules`): a `Bash(...)` pattern as a
-        bash command pattern, any other tool whole."""
-        return None
+        """opencode denies tools by its permissions (`permission_rules`): a whole tool, or a
+        pattern of a command, a path, a URL's domain or a skill (`PATTERNED`), not of another tool."""
+        rules = [(rule, _RULE_RE.match(rule.strip())) for rule in denied]
+        odd = [
+            rule
+            for rule, m in rules
+            if m
+            and m.group(2)
+            and (
+                (key := PERMISSION_OF.get(m.group(1), m.group(1).lower())) not in PATTERNED
+                or (key == "webfetch" and not m.group(2).startswith("domain:"))
+            )
+        ]
+        return f"opencode denies these tools whole only, not {', '.join(odd)}" if odd else None
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)
@@ -209,7 +262,7 @@ class OpencodeBackend(OneShotBackend):
             allowed = list(launch.tools)
         if allowed is not None:
             permission = {"*": "deny", **{PERMISSION_OF.get(t, t.lower()): "allow" for t in allowed}}
-        permission.update(permission_rules(launch.limits.disallowed_tools))
+        permission = permission_rules(launch.limits.disallowed_tools, permission, Path(launch.cwd))
         if permission:
             cfg["permission"] = permission
         if launch.limits.max_turns is not None:

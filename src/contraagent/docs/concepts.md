@@ -82,6 +82,7 @@ documentation. No other word is used for the same thing.
 | **launch** | one run of a coding agent, and its result | `Launch`, `Backend.run`, `LaunchResult` |
 | **light launch** | the launch of an agent task declared with no tools: its role's text (or its instructions) replaces the coding agent's system prompt, its params and output schema are in the prompt, no plugin, settings or MCP server is loaded, and its final message is its output | `agent_task(tools=())`, `AgentTask.light`, `KindConfig.light`, `Backend.light_launch` |
 | **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
+| **other model** | a model a launch called besides the one it ran on (Claude Code summarizes a fetched page on a smaller model): its cost is in the launch's, its tokens are not in the launch's `usage`, and the models' spend counts it apart | `LaunchResult.other_models`, `Hop.other_models` (`OtherModel`) |
 | **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
@@ -134,7 +135,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |
 | **place** | where a function node is across every layer: its layer and its id there | `placeKey`, `<layer>/<id>` |
 | **outline** | the pipeline graph's list of every function of the flow and the loops they are in, as a tree | `outlineTree`, `nav.outline` |
-| **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`) | `Tab`, route `tab` |
+| **tab** | one top-level view (`overview`, `journal`, ..., `panel:<name>`); on the Trends page, the trends with the trends panels of no `tab`, or the trends panels of one `tab` | `Tab`, route `tab`; `Panel.tab`, `PanelInfo.tab`, route `trendsTab` (`?page=trends&tab=`) |
 | **panel** / **panel body** | a view a pipeline adds to the monitor: computed per run (`scope="run"`, a tab of each run) or over the runs of a period (`scope="trends"`, `fn(runs, period)`) / what it returns: a typed body (`tiles`, `table`, `columns`, `lines`, `heatmap`, `status_grid`, `hbars`, `note`, `blocks` of them) the monitor draws, or any other JSON object, shown as a JSON tree | `monitor.Panel`, `Period`; `api.PanelBody`; `contraagent monitor --panels` |
 | **status grid** / **note** | a panel body of a state per row and column, each named by its label and coloured by its tone (a `heatmap` is a number per cell, in shades of one colour) / a panel body of text beside the figures, markdown shown escaped | `api.StatusGridBody`, `GridCell`; `api.NoteBody`; the element `cae-state-grid` |
 | **task view** | what the stream tab shows of a task: `transcript`, `input`, `output`, `definition` | `TaskView`, route `view` |

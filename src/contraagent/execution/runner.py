@@ -104,6 +104,7 @@ def _hop(label: str, result: TaskResult) -> dict:
             if u is not None and (u.calls or u.output_total)
             else None
         ),
+        **({"other_models": o.other_models} if o is not None and o.other_models else {}),
     }
 
 

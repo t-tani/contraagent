@@ -304,11 +304,14 @@ export class CaMonitor extends LitElement {
   }
 
   private onRoute(route: Route, cause: RouteCause): void {
+    const before = this.route;
     this.route = route;
     if (cause !== 'replace') this.qDraft = null;
     this.store.selectRun(route.run);
-    if (route.page === 'trends') void this.store.loadTrends(trendsQuery(route));
-    else this.store.closeTrends();
+    // Another tab of the same trends shows what is loaded already.
+    const sameTrends = before?.page === 'trends' && JSON.stringify(trendsQuery(before)) === JSON.stringify(trendsQuery(route));
+    if (route.page !== 'trends') this.store.closeTrends();
+    else if (!sameTrends) void this.store.loadTrends(trendsQuery(route));
     this.pickDefaultRun();
     if (cause !== 'replace') this.pendingScroll = cause;
   }
@@ -436,7 +439,7 @@ export class CaMonitor extends LitElement {
         : trendsPage
         ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${route.days} from=${route.from} to=${route.to}
             tz=${route.tz || browserZone()} group=${route.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
-            ?exported=${!!snap.info.export}></ca-trends></main>`
+            tab=${route.trendsTab} ?exported=${!!snap.info.export}></ca-trends></main>`
         : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
             <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
               >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}

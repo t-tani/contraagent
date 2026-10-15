@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
+  the panels of each `tab` on a tab of their own, after a first tab of the trends and the
+  panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).
+  A page whose panels name no `tab` has no tabs.
 - The stub agent reports a utilization reading: `writes(value, rate_limit=RateLimit(...))` lands
   in the launch's readings, so a test on the stub rests a credential past its quota cap or its
   `quota_rule` and follows the task to its next hop or to `deferred`.
@@ -894,6 +898,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- opencode: a `Bash(...)` pattern in `disallowed_tools` replaced the role's `bash` allow, so
+  every command was denied; a pattern is now added after the rule the tool had
+  (`{"*": "allow", "git push*": "deny"}`). A path pattern (`Read(secrets/**)`, `Edit(...)`), a
+  domain (`WebFetch(domain:...)`) and a skill (`Skill(...)`) deny only what they name, where
+  they denied the whole tool; a pattern of another tool is refused before anything launches.
+- What each model was spent on (`Plan.models`, the trends' models) counted every cost of a
+  Claude Code session on the model it ran on, a smaller model's summaries of fetched pages
+  included. A hop records its spend on other models (`Hop.other_models`, from the result's
+  `modelUsage`), and each counts on its own model; the hop's `cost_usd` is still the whole.
+- A status grid (`cae-state-grid`) gave the states of one tone the same colour and mark, told
+  apart only in the tooltip: the states after the first of a tone have a texture (stripes,
+  dots, crosshatch, lines), in the cells and in the legend.
+- The monitor's header keeps the name on one line: the run button gives up its width first,
+  a long name ends in an ellipsis past a third of the width, and below 1000px the controls
+  go under it. An export's mark pushed the name onto two lines at 1440px.
+- The Trends page asks for the trend panels once the panel list arrives: opened before it,
+  the panels stayed "Loading…" until the run list changed.
 - `retry_backoff_base` is the wait in seconds before the first fresh attempt, doubled per
   attempt (each wait a random draw up to it), as the config documents: it was raised to the
   attempt's power, so a base of 0 still waited up to a second.

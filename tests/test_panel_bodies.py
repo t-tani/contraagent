@@ -135,6 +135,16 @@ def test_run_and_trends_panels(tmp_path):
         mon.trends_panel("spend", period)
 
 
+def test_a_trends_panel_names_its_tab_of_the_trends_page(tmp_path):
+    body = lambda runs, period: {"type": "tiles", "tiles": []}
+    mon = Monitor(tmp_path, panels={"latency": Panel(body, scope="trends", tab="Reliability"), "quality": Panel(body, scope="trends")})
+    assert [(p["name"], p["tab"]) for p in mon.panel_info()] == [("latency", "Reliability"), ("quality", "")]
+    trends = api.Trends.model_validate(mon.trends(Period.parse("2026-10-13", "2026-10-15")))
+    assert [(p.name, p.scope, p.tab) for p in trends.panels] == [("latency", "trends", "Reliability"), ("quality", "trends", "")]
+    with pytest.raises(ValueError, match="a run panel is a tab of its own"):
+        Panel(lambda run: {}, title="spend", tab="Reliability")
+
+
 def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

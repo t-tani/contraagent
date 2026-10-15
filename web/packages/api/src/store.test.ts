@@ -130,6 +130,23 @@ describe('MonitorStore', () => {
     expect(Object.keys(store.snapshot.trends!.panels)).toEqual(['q']); // a run panel is no trend panel
     store.stop();
   });
+
+  it('asks for the trend panels once their list arrives, after the trends', async () => {
+    const info: Info = { title: 't', panels: [{ name: 'q', title: 'q', description: '', icon: '', scope: 'trends' }], api_version: '1' };
+    const client = {
+      baseUrl: '',
+      info: () => Promise.resolve(info),
+      runs: () => Promise.resolve([]),
+      trends: () => Promise.resolve({ period: { from: '2026-10-01' } }),
+      trendsPanel: (name: string) => Promise.resolve({ panel: name }),
+    } as unknown as MonitorClient;
+    const store = new MonitorStore({ client, runsEveryMs: 0 });
+    await store.loadTrends({ from: '2026-10-01', to: '2026-10-14', tz: 'UTC' }); // before the panel list
+    expect(store.snapshot.trends!.panels).toEqual({});
+    await store.start();
+    await vi.waitFor(() => expect(store.snapshot.trends!.panels).toEqual({ q: { panel: 'q' } }));
+    store.stop();
+  });
 });
 
 describe('MonitorStore refreshes', () => {

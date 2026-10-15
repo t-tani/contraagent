@@ -81,5 +81,8 @@ describe('route', () => {
     expect(parseRoute('?page=trends&from=2026-10-01&to=2026-10-14')).toMatchObject({ days: 0, from: '2026-10-01', to: '2026-10-14' });
     expect(parseRoute('?page=trends&days=9')).toMatchObject({ days: 14 }); // a length it does not offer
     expect(parseRoute('?page=trends&from=10/01&to=x')).toMatchObject({ days: 14, from: '', to: '' });
+    expect(formatRoute({ ...r, trendsTab: 'Reliability' })).toBe('?page=trends&tab=Reliability');
+    expect(parseRoute('?page=trends&tab=tasks')).toMatchObject({ tab: 'overview', trendsTab: 'tasks' }); // a tab of the page, not of a run
+    expect(parseRoute('?run=a&tab=tasks')).toMatchObject({ tab: 'tasks', trendsTab: '' });
   });
 });

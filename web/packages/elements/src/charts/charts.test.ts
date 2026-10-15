@@ -6,7 +6,7 @@ import { CaeColumnChart } from './column-chart.js';
 import { CaeHeatmap, heatStep } from './heatmap.js';
 import { CaeLineChart, linePath } from './line-chart.js';
 import { foldSeries, labelStride, niceAxis, OTHER_COLOUR } from './scale.js';
-import { CaeStateGrid, stateFill, statesOf } from './state-grid.js';
+import { CaeStateGrid, stateFill, statesOf, texturesOf } from './state-grid.js';
 
 defineElement('cae-column-chart', CaeColumnChart);
 defineElement('cae-state-grid', CaeStateGrid);
@@ -172,6 +172,25 @@ describe('cae-state-grid', () => {
     expect(rects[1]!.getAttribute('fill')).toBe(stateFill('failed'));
     expect(rects[2]!.getAttribute('fill')).toBe('none');
     expect([...root(el).querySelectorAll('svg text.mark')].map((t) => t.textContent)).toEqual(['✓', '✕', '◌', '✓', '✓']);
+  });
+
+  it('tells the states of one tone apart by a texture, in the cells and in the legend', async () => {
+    const late = { label: 'late', tone: 'attention' as const };
+    const capped = { label: 'capped', tone: 'attention' as const };
+    const grid = [[paused, late, capped, ok]];
+    expect([...texturesOf(statesOf(grid)).values()]).toEqual(['', 'stripes', 'dots', '']);
+    const el = await mount<CaeStateGrid>('cae-state-grid', { x: ['00', '01', '02', '03'], y: ['Mon'], cells: grid });
+    const keys = [...root(el).querySelectorAll('[part="legend"] .key')];
+    expect(keys.map((k) => [k.textContent, k.getAttribute('data-texture')])).toEqual([
+      ['◌', null],
+      ['◌', 'stripes'],
+      ['◌', 'dots'],
+      ['✓', null],
+    ]);
+    const textured = [...root(el).querySelectorAll('svg rect.texture')];
+    expect(textured.map((r) => r.getAttribute('data-texture'))).toEqual(['stripes', 'dots']);
+    const id = textured[0]!.getAttribute('fill')!.slice(5, -1);
+    expect(root(el).querySelector(`pattern[id="${id}"]`)).not.toBeNull();
   });
 
   it('says a cell\'s row, column, state and fact; the arrow keys move by a row with up and down', async () => {

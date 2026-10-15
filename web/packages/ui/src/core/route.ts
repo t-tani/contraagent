@@ -50,6 +50,8 @@ export interface Route {
   tz: string;
   /** trends page: only the runs of this run group. */
   group: string;
+  /** trends page: the open tab, a trends panel's `tab` ('': the first, the trends). */
+  trendsTab: string;
 }
 
 export type RoutePatch = Partial<Route>;
@@ -73,6 +75,7 @@ export const DEFAULT_ROUTE: Route = {
   to: '',
   tz: '',
   group: '',
+  trendsTab: '',
 };
 
 const isTab = (t: string): t is Tab => (BUILTIN_TABS as readonly string[]).includes(t) || /^panel:.+/.test(t);
@@ -92,7 +95,8 @@ export function parseRoute(search: string): Route {
     page,
     // A page of no run names none.
     run: page ? '' : (p.get('run') ?? ''),
-    tab: isTab(tab) ? tab : 'overview',
+    // The trends page's `tab` is its own (`trendsTab`), not a run's.
+    tab: page !== 'trends' && isTab(tab) ? tab : 'overview',
     key: p.get('key') || null,
     view: isTaskView(view) ? view : 'transcript',
     round: Number.isInteger(round) && round > 0 ? round : null,
@@ -108,6 +112,7 @@ export function parseRoute(search: string): Route {
     to: range ? to : '',
     tz: p.get('tz') ?? '',
     group: p.get('group') ?? '',
+    trendsTab: page === 'trends' ? (p.get('tab') ?? '') : '',
   };
 }
 
@@ -122,6 +127,7 @@ export function formatRoute(r: Route): string {
     } else if (r.days !== DEFAULT_ROUTE.days) p.set('days', String(r.days));
     if (r.tz) p.set('tz', r.tz);
     if (r.group) p.set('group', r.group);
+    if (r.trendsTab) p.set('tab', r.trendsTab);
     return `?${p.toString()}`;
   }
   const p = new URLSearchParams();

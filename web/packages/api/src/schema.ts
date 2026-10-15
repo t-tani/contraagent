@@ -984,6 +984,10 @@ export type components = {
             /** Cost Usd */
             cost_usd?: number | null;
             usage?: components["schemas"]["TokenUsage"] | null;
+            /** Other Models */
+            other_models?: {
+                [key: string]: components["schemas"]["OtherModel"];
+            };
         } & {
             [key: string]: unknown;
         };
@@ -1310,8 +1314,9 @@ export type components = {
         /**
          * ModelUsage
          * @description What a run's agent sessions spent on one model of one coding agent, from each
-         *     journal row's hops (a failover's hops on two models count apart). Python tasks have
-         *     no model and are not counted.
+         *     journal row's hops (a failover's hops on two models count apart), a hop's spend on
+         *     other models (`Hop.other_models`) on each of them. Python tasks have no model and are
+         *     not counted.
          */
         ModelUsage: {
             /** Agent */
@@ -1320,7 +1325,7 @@ export type components = {
             model: string;
             /**
              * Sessions
-             * @description hops: agent sessions launched on it (pool members tried on one hop count once)
+             * @description hops: agent sessions launched on it (pool members tried on one hop count once); 0 for an other model only
              */
             sessions: number;
             /**
@@ -1416,6 +1421,36 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * OtherModel
+         * @description What a hop spent on a model other than its own (`Hop.other_models`).
+         */
+        OtherModel: {
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /**
+             * Input
+             * @default 0
+             */
+            input?: number;
+            /**
+             * Output
+             * @default 0
+             */
+            output?: number;
+            /**
+             * Cache Read
+             * @default 0
+             */
+            cache_read?: number;
+            /**
+             * Cache Creation
+             * @default 0
+             */
+            cache_creation?: number;
+        } & {
+            [key: string]: unknown;
+        };
         /** OutputTally */
         OutputTally: {
             /** Valid */
@@ -1467,6 +1502,12 @@ export type components = {
              * @enum {string}
              */
             scope?: "run" | "trends";
+            /**
+             * Tab
+             * @description a trends panel's tab of the Trends page, with the panels of the same `tab`; '': on the first tab
+             * @default
+             */
+            tab?: string;
         };
         /**
          * PanelMessage
