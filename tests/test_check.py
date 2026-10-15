@@ -258,7 +258,7 @@ def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, m
     assert main(["run", *args]) == 0
     assert re.search(r"✓ 1/1 tasks done in \d+\.\ds; run in runs/flow", capsys.readouterr().out)
     assert main(["run", *args]) == 1  # the run id holds a run
-    assert "`contraagent run --resume`" in capsys.readouterr().out
+    assert "continue it with --resume, or start a new one with another --run-id" in capsys.readouterr().out
     assert main(["run", *args, "--resume"]) == 0
     assert main(["run", "steps.py:failing"]) == 1
     assert "python:fail: error" in capsys.readouterr().out

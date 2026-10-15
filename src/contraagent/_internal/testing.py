@@ -109,9 +109,9 @@ class StubLaunch:
     #: The launch's LLM (the route's model on a failover hop).
     model: str
     role: str | None
-    #: 1-based count of this task's replies in this run: fix-up rounds, retries, hops and replies in a turn all count.
+    #: 1-based count of this task's replies in this run: correction rounds, retries, hops and replies in a turn all count.
     n: int
-    #: True for a fix-up round: the same session, sent the failed checks.
+    #: True for a correction round: the same session, sent the failed checks.
     resumed: bool
     #: The launch's prompt, or for a reply within the turn what the stop hook said.
     prompt: str

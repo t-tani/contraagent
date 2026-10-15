@@ -142,7 +142,7 @@ class Backend(abc.ABC):
     light_launch: bool = False
     # True when the cost a resumed launch reports (`LaunchResult.cost_usd`) is the
     # session's so far, the earlier launches of the session included, not that launch's
-    # alone. A fix-up round resumes the session, so its cost replaces the rounds' total
+    # alone. A correction round resumes the session, so its cost replaces the rounds' total
     # rather than adding to it (`contracts.fold_spend`). Measured per CLI: Claude Code's
     # `total_cost_usd` is the session's; omp reports each launch's own.
     cost_is_session_total: bool = False

@@ -48,6 +48,7 @@ import importlib.util
 import ipaddress
 import json
 import logging
+import socket
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -70,6 +71,7 @@ except ModuleNotFoundError:
     if TYPE_CHECKING:
         raise
 
+from contraagent._internal.backends.streams import agent_formats
 from contraagent._internal.commandline import (
     MissingExtra,
     add_command,
@@ -77,7 +79,11 @@ from contraagent._internal.commandline import (
     add_http,
     add_openapi,
     add_runs_dir,
+    address,
+    bind,
+    bind_option,
     load_extensions,
+    serve_on,
     setup_logging,
     write_openapi,
 )
@@ -491,12 +497,18 @@ def serve(
     docs: bool = False,
 ) -> None:
     """Serve `monitor` on `host`:`port` until stopped (`create_app`). `allowed_hosts` adds
-    `Host` names to the local ones and the bound address (`host_names`)."""
-    import uvicorn
+    `Host` names to the local ones and the bound address (`host_names`). A port it cannot
+    listen on raises `OSError` (`EADDRINUSE` when another server holds it)."""
+    _serve(monitor, bind(host, port), host, allowed_hosts=allowed_hosts, cors_origins=cors_origins, docs=docs)
 
-    log.info("%s on http://%s:%s  runs=%s", monitor.title, host, port, monitor.runs_dir)
+
+def _serve(
+    monitor: Monitor, sock: socket.socket, host: str, *, allowed_hosts: Iterable[str], cors_origins: Iterable[str], docs: bool
+) -> None:
+    """Serve `monitor` on the bound `sock`, announcing its address first."""
     app = create_app(monitor, allowed_hosts=host_names(host, allowed_hosts), cors_origins=cors_origins, docs=docs)
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    log.info("%s on %s  runs=%s", monitor.title, address(sock), monitor.runs_dir)
+    serve_on(app, sock)
 
 
 # --- the command -----------------------------------------------------------------------
@@ -513,7 +525,8 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="AGENT=FORMAT",
-        help="render a custom coding agent's transcript as a built-in format (claude or omp), e.g. --stream-format myagent=claude",
+        help=f"render a custom coding agent's transcript as a built-in format ({', '.join(agent_formats())}), "
+        "e.g. --stream-format myagent=claude",
     )
     add_extensions(ap)
     ap.add_argument("--docs", action="store_true", help="serve interactive API docs at /api/docs")
@@ -531,5 +544,6 @@ def run(args: argparse.Namespace) -> int:
     setup_logging()
     formats = dict(item.split("=", 1) for item in args.stream_format if "=" in item)
     monitor = Monitor(args.runs_dir, title=args.title, stream_formats=formats, **load_extensions(args))
-    serve(monitor, args.host, args.port, allowed_hosts=args.allow_host, cors_origins=args.cors_origin, docs=args.docs)
+    sock = bind_option(args.host, args.port)
+    _serve(monitor, sock, args.host, allowed_hosts=args.allow_host, cors_origins=args.cors_origin, docs=args.docs)
     return 0

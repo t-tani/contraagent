@@ -1,0 +1,1 @@
+- A refused run (its run id already holds a run, not resumed) writes nothing: its `run.json` and lock file stay as they were.

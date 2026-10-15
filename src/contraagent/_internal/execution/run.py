@@ -58,7 +58,7 @@ from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
 from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import append_lines, parse_rows, write_document
+from contraagent._internal.runs.files import append_lines, parse_rows, read_rows, write_document
 from contraagent._internal.runs.source import DirectorySource, parse_info
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -109,7 +109,17 @@ class RunLocked(ContraagentError):
 
 
 class RunExists(ContraagentError):
-    """The run id already holds a run, and the caller did not ask to resume it."""
+    """The run id already holds a run, and the caller did not ask to resume it.
+    `run_dir` is the run's directory and `rows` the number of its journal rows."""
+
+    run_dir: Path
+    rows: int
+
+    def __init__(self, run_dir: Path, rows: int):
+        self.run_dir, self.rows = run_dir, rows
+        super().__init__(
+            f"{run_dir} already holds a run ({rows} journal rows): continue it with resume=True, or start a new one with another run_id"
+        )
 
 
 class RunFormatError(ContraagentError):
@@ -152,6 +162,7 @@ class Run:
         *,
         run_group: str = "",
         lock: bool = True,
+        fresh: bool = False,
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
         unit_of: Callable[[Task], str] | None = None,
         log: Callable[[str], None] | None = None,
@@ -168,12 +179,16 @@ class Run:
         process's); `run.json` records it, and the monitor shows the flow code
         files under it relative to it.
         `config` is the config file the run was started with; its pipeline tables are what
-        `contraagent.pipeline_table` reads in the run (none without it)."""
+        `contraagent.pipeline_table` reads in the run (none without it).
+        `fresh` refuses a run id whose journal already has rows (`RunExists`), before
+        anything is written: not its `run.json`, nor its lock file."""
         self.run_id = run_id
         self.run_group: str = run_group or run_id
         self.runs_dir: Path = Path(runs_dir)
         self.dir: Path = self.runs_dir / run_id
         self.config = config
+        if fresh:
+            self._refuse_existing()
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / layout.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
@@ -197,6 +212,12 @@ class Run:
         self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
+        if fresh:  # rows another process wrote before this one held the lock
+            try:
+                self._refuse_existing()
+            except RunExists:
+                self.close()
+                raise
         self._check_format()
         write_document(
             self.dir / layout.RUN_INFO,
@@ -230,6 +251,11 @@ class Run:
             f"{self.dir} is of run format {info.get('format')!r}; this contraagent reads run format "
             f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
         )
+
+    def _refuse_existing(self) -> None:
+        rows = len(read_rows(self.dir / layout.JOURNAL))
+        if rows:
+            raise RunExists(self.dir, rows)
 
     def _previous_uid(self) -> str | None:
         """The `run_uid` of an earlier attempt of this run id: a resumed run keeps it."""
@@ -350,7 +376,7 @@ class Run:
         rounds = launched.rounds if launched is not None else None
         line = f"[end] {result.task.key}: {result.stop} in {result.wall_s:.1f}s"
         if rounds and rounds > 1 and launched is not None and launched.round_errors and launched.round_errors[0]:
-            # Why the first round went back: the fix-up is otherwise only a count here.
+            # Why the first round went back: the correction is otherwise only a count here.
             first = " ".join(launched.round_errors[0][0].split())
             # A path in the run's directory as the run names it, so the cause fits in the line.
             for root in (str(self.dir.resolve()) + os.sep, str(self.dir) + os.sep):

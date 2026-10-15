@@ -11,10 +11,12 @@ can use it.
 from __future__ import annotations
 
 import argparse
+import errno
 import importlib
 import importlib.util
 import logging
 import signal
+import socket
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -105,6 +107,43 @@ def add_http(parser: argparse.ArgumentParser, *, port: int) -> None:
         metavar="ORIGIN",
         help="let a page from this origin read the monitor API, e.g. http://localhost:5173 for a UI dev server",
     )
+
+
+def bind(host: str, port: int) -> socket.socket:
+    """A TCP socket bound to `host`:`port` (`OSError` when it cannot be), for `serve_on`:
+    a server announces its address only once it holds it."""
+    sock = socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind((host, port))
+    except OSError:
+        sock.close()
+        raise
+    return sock
+
+
+def bind_option(host: str, port: int) -> socket.socket:
+    """`bind` for a command given `--host` and `--port`: a failure is a `CommandError`
+    naming the option to change."""
+    try:
+        return bind(host, port)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            raise CommandError(f"port {port} on {host} is already in use (--port)") from None
+        raise CommandError(f"cannot listen on {host} port {port} (--host, --port): {exc.strerror or exc}") from None
+
+
+def serve_on(app: Any, sock: socket.socket) -> None:
+    """Serve the ASGI `app` on the bound `sock` (uvicorn) until stopped."""
+    import uvicorn
+
+    uvicorn.Server(uvicorn.Config(app, log_level="warning")).run(sockets=[sock])
+
+
+def address(sock: socket.socket) -> str:
+    """`http://host:port` of a bound socket (the port it got when it asked for 0)."""
+    host, port = sock.getsockname()[:2]
+    return f"http://[{host}]:{port}" if ":" in host else f"http://{host}:{port}"
 
 
 def add_openapi(parser: argparse.ArgumentParser, document: str) -> None:

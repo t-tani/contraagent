@@ -26,7 +26,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from contraagent._internal.backends import backend_class
+from contraagent._internal.backends import backend_class, known_agents
 
 #: Stream formats a caller registered (`register_normalizer`), and their plain-text readers.
 _NORMALIZERS: dict[str, Callable[..., Any]] = {}
@@ -60,6 +60,13 @@ def register_normalizer(
     _NORMALIZERS[format] = normalize_event
     if plaintext is not None:
         _PLAINTEXT_FALLBACK[format] = plaintext
+
+
+def agent_formats() -> tuple[str, ...]:
+    """The stream formats of the registered coding agents (`known_agents`), those with a
+    `Backend.wire`: what `--stream-format` may name. A format `register_normalizer` added
+    lives only in the process that added it."""
+    return tuple(a for a in known_agents() if _normalizers(a)[0] is not None)
 
 
 def resolve_format(agent: str, aliases: dict[str, str] | None = None) -> str:

@@ -36,7 +36,7 @@ from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
-from contraagent._internal.execution.run import Run, RunExists
+from contraagent._internal.execution.run import Run
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.check import CheckReport, check_flow
@@ -112,12 +112,12 @@ class _InputsFirst:
 
 def attempt_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Over journal rows: `attempts`, `cost_usd` (None when no row reports a cost) and
-    `fixups` (rounds after the first, plus each objection of a stop hook)."""
+    `corrections` (correction rounds: rounds after the first, plus each objection of a stop hook)."""
     costs = [r["cost_usd"] for r in rows if r.get("cost_usd") is not None]
     return {
         "attempts": len(rows),
         "cost_usd": round(sum(costs), 6) if costs else None,
-        "fixups": sum(max((r.get("rounds") or 1) - 1, 0) + len(r.get("hook_errors") or []) for r in rows),
+        "corrections": sum(max((r.get("rounds") or 1) - 1, 0) + len(r.get("hook_errors") or []) for r in rows),
     }
 
 
@@ -347,7 +347,7 @@ class Pipeline:
         the tasks already queued.
 
         `run_id` defaults to the flow's name (`<flow>-stub` in a stub run). A run id that already holds a run is
-        refused (`RunExists`) unless `resume=True`, which runs the flow again from the
+        refused (`RunExists`, before anything is written) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory (a task declared
         `rerun_on_resume` runs again, and so does a task whose last result was `partial`,
@@ -360,17 +360,14 @@ class Pipeline:
         """
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{flow.__name__}{suffix}"
-        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config) as run:
+        with Run(
+            run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
+        ) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
                 run.update_info(stub=not self.replay.record_missing, replay=str(self.replay.directory.resolve()))
-            if not resume and run.rows():
-                raise RunExists(
-                    f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
-                    "continue it with resume=True (`contraagent run --resume`), or start a new one with another run_id"
-                )
             run_dir = run.dir.resolve()  # call files and outputs are read from the agent's cwd
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail

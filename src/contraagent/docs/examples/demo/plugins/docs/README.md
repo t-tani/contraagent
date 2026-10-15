@@ -1,6 +1,6 @@
 # docs
 
-The implementation of agent tasks: a plugin Claude Code and omp load with `--plugin-dir`, one role per kind of work.
+The implementation of agent tasks, one role per kind of work: a plugin that the coding agents load (`claude`, `omp`, `opencode`, `pi`, `codex`).
 Each task's interface (parameters, output schema, budget) is the `agent_task(..., plugin=..., role=...)` that names it.
 
 | File | What it decides |
@@ -9,7 +9,7 @@ Each task's interface (parameters, output schema, budget) is the `agent_task(...
 | `skills/` | detail the agent loads when it needs it |
 | `settings.json` | what the agent may do |
 | `hooks.toml` | hooks, declared once (the stop hook checks the output in-session) |
-| `hooks/hooks.json`, `codex/`, `package.json`, `omp/` | **generated** from `hooks.toml` by `contraagent plugin render` |
+| `hooks/hooks.json`, `codex/hooks.json`, `package.json`, `omp/index.ts`, `opencode/index.js`, `pi/index.ts` | **generated** from `hooks.toml` by `contraagent plugin render` |
 
 Each task's data arrives in a call file the prompt names; nothing here mentions a run or a path.
 `contraagent plugin lint .` checks that the parts agree.

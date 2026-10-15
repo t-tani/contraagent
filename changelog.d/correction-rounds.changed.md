@@ -1,0 +1,1 @@
+- The CLI and the log say "correction round" where they said "fix-up"; `RunReport.summary` names the count `corrections` (was `fixups`).

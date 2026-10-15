@@ -81,3 +81,29 @@ def test_every_command_s_help_matches_the_snapshot():
     if written_with != snapshot.header().rstrip("\n"):
         pytest.skip(f"argparse's output depends on the Python version; the snapshot is {written_with}")
     assert snapshot.render() == committed, "stale: run `uv run python tests/cli/help.py`"
+
+
+def test_a_taken_port_ends_the_monitor_before_it_announces_an_address(tmp_path, capsys, caplog):
+    import socket
+
+    from contraagent._internal.commandline import address, bind
+
+    caplog.set_level("INFO")
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen()
+        port = taken.getsockname()[1]
+        assert main(["monitor", "--runs-dir", str(tmp_path), "--port", str(port)]) == 2
+    err = capsys.readouterr().err
+    assert err == f"contraagent monitor: port {port} on 127.0.0.1 is already in use (--port)\n"
+    assert " on http://" not in caplog.text
+    with bind("127.0.0.1", 0) as sock:  # the address announced is the one bound
+        assert address(sock) == f"http://127.0.0.1:{sock.getsockname()[1]}"
+
+
+def test_the_stream_format_help_lists_every_registered_format():
+    from contraagent._internal.backends import known_agents
+
+    [commands] = [a for a in parser("monitor")._actions if isinstance(a, argparse._SubParsersAction)]
+    [option] = [a for a in commands.choices["monitor"]._actions if a.dest == "stream_format"]
+    assert f"built-in format ({', '.join(known_agents())})" in (option.help or "")

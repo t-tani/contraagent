@@ -94,6 +94,31 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert pi_plugin_args([str(plugin)])[-2:] == ["-e", str(plugin / "pi" / "index.ts")]
 
 
+def test_the_template_names_every_agent_and_file_it_renders_for(plugin):
+    from contraagent._internal.backends import backend_class, known_agents
+    from contraagent._internal.plugins.scaffold import rendered_comment
+
+    p = Plugin.load(plugin)
+    for agent, (files, _) in hooks.RENDERED_FILES.items():  # what each renderer says it writes
+        assert set(hooks.render(p, [agent])[0]) <= {*files, "settings.json"}
+    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    add_hooks(plugin, '\n[[hooks]]\non = "pre_tool"\ntool = "bash"\nscript = "hooks/pre.sh"\n')
+    p = Plugin.load(plugin)
+    for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
+        assert set(hooks.render(p, [agent])[0]) == {*files, *tool_files}
+    toml = (plugin / "hooks.toml").read_text()
+    assert toml.startswith(rendered_comment() + "\n")
+    for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
+        assert f"#   {agent} " in toml and all(f in toml for f in (*files, *tool_files))
+    readme = (plugin / "README.md").read_text()
+    for agent in known_agents():
+        assert f"`{backend_class(agent).binary}`" in readme
+    examples = Path(__file__).parents[1] / "src/contraagent/docs/examples"
+    for copy in (examples / "demo/plugins/docs", examples / "tutorial/plugins/triage"):  # the template's copies
+        assert (copy / "hooks.toml").read_text().startswith(rendered_comment() + "\n")
+        assert readme.splitlines()[2] in (copy / "README.md").read_text()
+
+
 def test_a_new_agent_registers_its_own_renderer(plugin):
     hooks.register_renderer("fake", lambda p: ({"fake.txt": ",".join(h["on"] for h in p.hooks)}, []))
     try:

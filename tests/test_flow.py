@@ -8,6 +8,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.cli import _spent
 from contraagent._internal.contracts.calls import validate_call
 from contraagent._internal.platform import envvars
 from contraagent.backends import CallFile, Stop
@@ -114,7 +115,7 @@ def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
             ]
         }
     )
-    # omp: no stop hook continues its turn, so every check comes back as a fix-up round
+    # omp: no stop hook continues its turn, so every check comes back as a correction round
     rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(lambda: summarize("u", path="x"), run_id="v")
     [res] = rep.results.values()
     assert res.ok and res.launch_result.rounds == 3
@@ -122,7 +123,8 @@ def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
     assert "[has_two_points] points: give at least two" in prompts[1]
     assert "[no-todo] found TODO" in prompts[2]
     assert "Required JSON Schema" not in prompts[1]  # the file met its schema; only validators failed
-    assert rep.summary["fixups"] == 2 and rep.summary["attempts"] == 1
+    assert rep.summary["corrections"] == 2 and rep.summary["attempts"] == 1
+    assert _spent(rep.summary).endswith(", 2 correction rounds")  # the CLI's closing line
     # the command validator travels in the call file, so the in-session hook runs it too
     assert agent.launches[0].call.output.commands[0]["name"] == "no-todo"
 
@@ -296,9 +298,45 @@ def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_di
 
     summarize, _ = declare(plugin_dir)
     pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
-    with pytest.raises(RunExists, match="continue it with resume=True"):
+    with pytest.raises(RunExists, match="continue it with resume=True, or start a new one with another run_id"):
         pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
     assert pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r", resume=True).ok
+
+
+def _files(root: Path) -> dict[str, tuple[bytes, int]]:
+    return {str(p.relative_to(root)): (p.read_bytes(), p.stat().st_mtime_ns) for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def test_a_refused_run_writes_nothing(tmp_path, plugin_dir):
+    from contraagent import RunExists
+
+    summarize, _ = declare(plugin_dir)
+    pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="rj")
+    runs = tmp_path / "runs"
+    before = _files(runs)
+    assert "rj.lock" in before and "rj/run.json" in before
+    with pytest.raises(RunExists) as refused:
+        pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="rj")
+    assert refused.value.rows == 1 and refused.value.run_dir == runs / "rj"
+    assert _files(runs) == before  # run.json (argv, pid, started_at) and the lock file as they were
+
+
+def test_the_cli_refusal_names_its_flags(tmp_path, monkeypatch, capsys):
+    from contraagent._internal.cli import main
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    flow = tmp_path / "flow.py"
+    flow.write_text(
+        "from contraagent import python_task\n\n@python_task\ndef one() -> str:\n    return 'x'\n\ndef flow():\n    return one()\n"
+    )
+    args = ["run", f"{flow}:flow", "--stub", "--run-id", "rj", "--runs-dir", str(tmp_path / "runs")]
+    assert main(args) == 0, capsys.readouterr().out
+    capsys.readouterr()
+    assert main(args) == 1
+    out = capsys.readouterr().out
+    assert "already holds a run (1 journal rows): continue it with --resume, or start a new one with another --run-id" in out
+    assert "resume=True" not in out and "run_id" not in out
 
 
 def test_the_result_carries_the_rounds_of_a_correction(tmp_path, plugin_dir):
@@ -337,7 +375,7 @@ def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
     assert "[start] summarize-u" in lines
     assert any(line.startswith("[switch] summarize-u: rate limited on hop 1/2 claude/m1") for line in lines)
     assert any(
-        line.startswith("[fix-up] summarize-u: round 1 failed its checks, sent back:") and "not valid JSON" in line for line in lines
+        line.startswith("[correction] summarize-u: round 1 failed its checks, sent back:") and "not valid JSON" in line for line in lines
     )
     assert any(line.startswith("[end] summarize-u: completed") and "2 rounds" in line for line in lines)
 
