@@ -85,11 +85,11 @@ describe('layoutGraph', () => {
     }
   };
 
-  it('puts a point on every layer a long edge crosses, and routes it around what is between', () => {
+  it('puts a point on every layer a long edge crosses, and its edge path goes around what is between', () => {
     // a -> b -> c -> d, and a -> d: the long edge passes layers 1 and 2 beside b and c.
     const plan = planOf([node('a-u', 'u', 'a', 'done'), node('b-u', 'u', 'b', 'done', { after: ['a-u'] }), node('c-u', 'u', 'c', 'done', { after: ['b-u'] }), node('d-u', 'u', 'd', 'done', { after: ['c-u', 'a-u'] })]);
     const g = layerGraph(plan);
-    const long = g.routes.find((r) => r.from === 'kind:a' && r.to === 'kind:d');
+    const long = g.edgePaths.find((r) => r.from === 'kind:a' && r.to === 'kind:d');
     expect(long?.steps.map((s) => (isPoint(s.id) ? 'point' : s.id))).toEqual(['kind:a', 'point', 'point', 'kind:d']);
     expect(g.slots['']?.map((row) => row.length)).toEqual([1, 2, 2, 1]);
     for (const down of [false, true]) {
@@ -148,9 +148,9 @@ describe('layoutGraph', () => {
     ]);
     for (const down of [false, true]) {
       const g = layerGraph(plan, [RUN, LOOP], undefined, down);
-      const into = g.routes.find((r) => r.from === 'kind:s' && r.to === `kind:c@${AT}`);
+      const into = g.edgePaths.find((r) => r.from === 'kind:s' && r.to === `kind:c@${AT}`);
       expect(into?.steps.map((x) => (x.id.includes('|by:') ? 'beside' : isPoint(x.id) ? 'point' : x.id))).toEqual(['kind:s', 'beside', `loop:${AT}`, `kind:c@${AT}`]);
-      const out = g.routes.find((r) => r.from === `kind:b@${AT}` && r.to === 'kind:w');
+      const out = g.edgePaths.find((r) => r.from === `kind:b@${AT}` && r.to === 'kind:w');
       expect(out?.steps.map((x) => (x.id.includes('|by:') ? 'beside' : isPoint(x.id) ? 'point' : x.id))).toEqual([`kind:b@${AT}`, `loop:${AT}`, 'beside', 'kind:w']);
       const sizes = sizesOf(g);
       check(g, layoutGraph(g, sizes, down), sizes);

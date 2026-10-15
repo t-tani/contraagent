@@ -292,7 +292,7 @@ export class CaeLayeredGraph extends LitElement {
     const sizes = new Map<string, Size>();
     for (const el of dagEl.querySelectorAll<HTMLElement>('[data-id]')) sizes.set(el.dataset['id'] ?? '', { w: el.offsetWidth, h: el.offsetHeight });
     const a = this.arr;
-    const key = JSON.stringify([this.key, a.slots, a.routes.map((r) => r.steps.map((s) => s.id)), this.down, [...sizes]]);
+    const key = JSON.stringify([this.key, a.slots, a.edgePaths.map((r) => r.steps.map((s) => s.id)), this.down, [...sizes]]);
     if (key === this.layKey) return this.fit();
     this.layKey = key;
     this.layFor = this.key;

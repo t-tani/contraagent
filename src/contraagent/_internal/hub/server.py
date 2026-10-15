@@ -15,7 +15,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   tokens. A token given for one host (`host_id token` in the token file) answers 403 to a
   batch or heartbeat of another host. A records batch is capped at `MAX_RECORDS_BYTES`
   and a blob at `max_blob_bytes`, after `Content-Encoding: gzip` is undone; beyond the
-  cap the answer is 413. The routes' contract, for a relay in any language, is
+  cap the answer is 413. The endpoints' contract, for a relay in any language, is
   `contraagent/_internal/hub/openapi.json` (`contraagent hub --openapi PATH`).
 * **The monitor** answers 401 without the read token, as `Authorization: Bearer <token>`
   or as the cookie `/login` sets (HttpOnly, SameSite=Strict; an EventSource cannot send
@@ -207,7 +207,7 @@ class ReadGuard:
 
 class BodyLimit:
     """Reads an ingest request's body whole, undoing `Content-Encoding: gzip`, and answers
-    413 once it passes the route's cap; the app downstream reads the plain body."""
+    413 once it passes the endpoint's cap; the app downstream reads the plain body."""
 
     def __init__(self, app: ASGIApp, *, max_records_bytes: int, max_blob_bytes: int) -> None:
         self.app = app
@@ -330,7 +330,7 @@ class HealthCheck:
             return dict(self._running)
 
     def check(self) -> Health:
-        """Run the reads and wait for them (blocking; the route calls it in a thread)."""
+        """Run the reads and wait for them (blocking; the endpoint calls it in a thread)."""
         futures = self._start()
         concurrent.futures.wait(futures.values(), timeout=self.timeout_s)
         failed: dict[str, str] = {}
@@ -363,7 +363,7 @@ def create_ingest_app(
     max_records_bytes: int = MAX_RECORDS_BYTES,
     max_blob_bytes: int = MAX_BLOB_BYTES,
 ) -> FastAPI:
-    """The ingest routes of `protocol.py` as a FastAPI app (the `/ingest/` part of `create_hub_app`).
+    """The ingest endpoints of `protocol.py` as a FastAPI app (the `/ingest/` part of `create_hub_app`).
 
     `ingest_tokens` maps each token to the host it was given for (`None`: any host), or
     lists tokens good for any host."""
@@ -481,7 +481,7 @@ def create_hub_app(
     max_records_bytes: int = MAX_RECORDS_BYTES,
     max_blob_bytes: int = MAX_BLOB_BYTES,
 ) -> ASGIApp:
-    """The hub as one ASGI app: the ingest routes and the monitor (`hub_monitor`).
+    """The hub as one ASGI app: the ingest endpoints and the monitor (`hub_monitor`).
 
     `ingest_tokens`: see `create_ingest_app`. `read_token=None` leaves the monitor open.
     `allowed_hosts` and `cors_origins` are the monitor's (`monitor.server.create_app`)."""

@@ -10,8 +10,8 @@ then `OPENCODE_API_KEY`, omp in `OPENCODE_API_KEY`, which it also reads from `.e
 * `stored_login` / `stored_key`: the login opencode keeps for a provider;
 * `account_of_key`: the account a key bills, as `account_digest` of the key, so the same key
   is the same account on every agent and in an `api_key` credential;
-* `go_usage`: the Go subscription's windows, from the usage route opencode's own console
-  serves (`GET <base>/v1/usage`, `Authorization: Bearer <key>`; the route omp reads too),
+* `go_usage`: the Go subscription's windows, from the usage endpoint opencode's own console
+  serves (`GET <base>/v1/usage`, `Authorization: Bearer <key>`; the endpoint omp reads too),
   as a `QuotaReading`. Every failure is None: a reading that cannot be had loses nothing else;
 * `OpencodeKeyAccount`: an agent's account and Go usage from the key it bills (opencode, pi).
 
@@ -38,12 +38,12 @@ KEY_VAR = "OPENCODE_API_KEY"
 PROVIDERS = frozenset({"opencode", "opencode-zen", "opencode-go"})
 #: The Go subscription, the one product with usage windows.
 GO = "opencode-go"
-#: Where the Go usage route lives (`/v1/usage` under it), unless a gateway says otherwise.
+#: Where the Go usage endpoint lives (`/v1/usage` under it), unless a gateway says otherwise.
 GO_ENDPOINT = "https://opencode.ai/zen/go"
-#: The usage route answers 403 to a request with no user agent of its own.
+#: The usage endpoint answers 403 to a request with no user agent of its own.
 USER_AGENT = "contraagent"
 USAGE_TIMEOUT_S = 10.0
-#: The route's windows, by the names a Claude Code reading gives them.
+#: The endpoint's windows, by the names a Claude Code reading gives them.
 _GO_WINDOWS = {"rolling": "five_hour", "weekly": "seven_day", "monthly": "monthly"}
 
 
@@ -93,7 +93,7 @@ def _status(window: Mapping) -> str:
 
 
 def go_reading(body: object, key: str = "") -> QuotaReading | None:
-    """The Go usage route's answer as a `QuotaReading`: the rolling window as `five_hour`, the
+    """The Go usage endpoint's answer as a `QuotaReading`: the rolling window as `five_hour`, the
     weekly as `seven_day`, the monthly by name in `windows`; `status` the windows' states
     but `ok` (`allowed` when every one is), as omp reports them. None for an answer missing
     a window: a partial reading would be read as a whole one."""
@@ -188,7 +188,7 @@ class OpencodeKeyAccount:
 
     def usage_reading(self, launch: Launch) -> QuotaReading | None:
         """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
-        route (the agent reports none itself); None for another model or when it cannot be read."""
+        endpoint (the agent reports none itself); None for another model or when it cannot be read."""
         if not launch.model.startswith(GO + "/"):
             return None
         try:

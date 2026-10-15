@@ -21,7 +21,7 @@ change. The version is `MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)).
   editor that reads the directive (Taplo, Even Better TOML).
 - **The files a run writes**: the layout of `runs/<run>/` and the records in it, of
   the run format its `run.json` names (below).
-- **The monitor's HTTP API**: the routes and responses of the OpenAPI document
+- **The monitor's HTTP API**: the endpoints and responses of the OpenAPI document
   `contraagent monitor --openapi PATH` writes, versioned by its `api_version`
   (`/api/info`): its major part goes up when a field is removed, renamed or changes
   meaning, its minor part when one is added.

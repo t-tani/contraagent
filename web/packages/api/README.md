@@ -46,7 +46,7 @@ The live feeds are discriminated unions on the SSE event name, so a `switch` on
 
 ## The client
 
-`createMonitorClient({ baseUrl })` has one typed method per JSON route
+`createMonitorClient({ baseUrl })` has one typed method per JSON endpoint
 (`src/client.ts`); each throws `ApiError` when it gets no JSON answer: its
 `failure` is `network`, `status` or `not-json` (such as an HTML page from a
 server without the API), with the `url`, `status` and media `type`.

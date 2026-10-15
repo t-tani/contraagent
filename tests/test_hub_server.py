@@ -1,4 +1,4 @@
-"""`contraagent hub` over HTTP: the ingest routes and their tokens and limits, the monitor
+"""`contraagent hub` over HTTP: the ingest endpoints and their tokens and limits, the monitor
 behind the read token, and runs shipped over the wire serving what the core computes."""
 
 import asyncio
@@ -54,7 +54,7 @@ def make(read_token: str | None = READ, **kwargs) -> tuple[Hub, TestClient]:
 
 
 class HttpClient:
-    """A `HubClient` that speaks the protocol over the hub's HTTP routes."""
+    """A `HubClient` that speaks the protocol over the hub's HTTP endpoints."""
 
     def __init__(self, c: TestClient) -> None:
         self.c = c

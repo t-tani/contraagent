@@ -1,5 +1,5 @@
 """How panels are served: a trends panel made once per period over the same runs, the runs
-it reads through, checked as a run panel is, and a slow panel holding no other route back."""
+it reads through, checked as a run panel is, and a slow panel holding no other endpoint back."""
 
 import asyncio
 import json
@@ -152,7 +152,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1", timeout=60) as c:
             q = "?from=2026-10-13&to=2026-10-15"
-            # More requests than the threads that answer the other routes (40).
+            # More requests than the threads that answer the other endpoints (40).
             heavy = [asyncio.create_task(c.get(f"/api/trends/panels/slow{i % 2}{q}")) for i in range(80)]
             heavy += [asyncio.create_task(c.get("/api/runs/r1/panels/slowrun")) for _ in range(2)]
             await asyncio.sleep(0.5)  # every slow request is in
