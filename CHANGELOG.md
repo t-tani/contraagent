@@ -859,6 +859,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A run's Overview lists only its own panels under "Custom views" (a trends panel waited
+  there for a body no run sends), and none at all when it has none. A typed body's card is
+  summed up by its title or its first tile, not by its JSON keys.
+- `MonitorStore` refreshes no longer overlap: the next one starts after the last ended,
+  however slow the server. The Trends page asks for the trends and the trend panels again
+  only when the run list's records changed, and shows each answer as it arrives, so a slow
+  trend panel holds back neither the run list nor another panel.
+- The Overview's top row (the run, its problems, its outputs) shares one height, and its
+  breakdowns pair up two to a row of one height, one alone taking the whole row.
 - omp reads `.env` files at start (its working directory's, its agent directory's, its config
   root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
   there came back after contraagent removed it: an isolated omp binding now names the file

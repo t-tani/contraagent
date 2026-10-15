@@ -467,3 +467,29 @@ test.describe('functions drawn open: the whole flow in one drawing', () => {
     await expect(part.locator('nav.outline .oname').first()).toBeVisible();
   });
 });
+
+test.describe('the overview’s cards', () => {
+  const card = (page: Page, cls: string) => page.locator(`ca-overview .band.status .${cls}`);
+
+  test('the run, its problems and its outputs share one row of one height on a wide screen', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await open(page, 'docs');
+    const boxes = await Promise.all(['stack', 'problems', 'outputs'].map((c) => card(page, c).boundingBox()));
+    const tops = boxes.map((b) => Math.round(b!.y));
+    const heights = boxes.map((b) => Math.round(b!.height));
+    expect(new Set(tops).size).toBe(1);
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+  });
+
+  test('a breakdown alone on its row takes the whole row', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await open(page, 'docs');
+    const parts = page.locator('ca-overview .band.parts > .panel');
+    const n = await parts.count();
+    expect(n).toBeGreaterThan(0);
+    const band = (await page.locator('ca-overview .band.parts').boundingBox())!;
+    const last = (await parts.nth(n - 1).boundingBox())!;
+    if (n % 2 === 1) expect(Math.round(last.width)).toBe(Math.round(band.width));
+    else expect(last.width).toBeLessThan(band.width / 2 + 1);
+  });
+});

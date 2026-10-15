@@ -24,9 +24,9 @@ function procs(running: number, maxWorkers: number | null = 4): Procs {
   } as unknown as Procs;
 }
 
-async function overview(state: Partial<RunState>): Promise<ShadowRoot> {
+async function overview(state: Partial<RunState>, info: Info = INFO): Promise<ShadowRoot> {
   const el = document.createElement('ca-overview');
-  Object.assign(el, { state: { ...emptyRunState(), ...state }, info: INFO, run: 'r' });
+  Object.assign(el, { state: { ...emptyRunState(), ...state }, info, run: 'r' });
   document.body.append(el);
   await el.updateComplete;
   return el.shadowRoot!;
@@ -89,5 +89,33 @@ describe('ca-overview', () => {
     document.body.replaceChildren();
     const unknown = await overview({ procs: procs(2, null) });
     expect(unknown.querySelector('.row h3 .r')?.textContent?.trim()).toBe('2 running at once');
+  });
+
+  const panel = (name: string, scope?: 'run' | 'trends') => ({ name, title: name, description: '', icon: '', ...(scope ? { scope } : {}) });
+
+  it('lists the run panels as custom views, never a trends panel, and none at all without a run panel', async () => {
+    const both = await overview({ journal: [row('a', true)] }, { ...INFO, panels: [panel('cycle'), panel('quality', 'trends'), panel('cost', 'trends')] });
+    expect([...both.querySelectorAll('.views .pcard b')].map((b) => b.textContent)).toEqual(['cycle']);
+    document.body.replaceChildren();
+    const trendsOnly = await overview({ journal: [row('a', true)] }, { ...INFO, panels: [panel('quality', 'trends')] });
+    expect(headings(trendsOnly)).not.toContain('Custom views');
+  });
+
+  it('sums up a typed body by its title or first tile, an untyped one by its keys', async () => {
+    const info = { ...INFO, panels: [panel('a'), panel('b'), panel('c'), panel('d')] };
+    const root = await overview(
+      {
+        journal: [row('a', true)],
+        panels: {
+          a: { type: 'blocks', blocks: [{ type: 'tiles', tiles: [{ id: 'n', label: 'Topics', value: 12 }] }] },
+          b: { type: 'table', title: 'Sources', columns: [], rows: [] },
+          c: { type: 'columns', x: [], series: [] },
+          d: { open: 1, closed: 2 },
+        },
+      },
+      info,
+    );
+    const peeks = [...root.querySelectorAll('.views .pcard')].map((c) => c.querySelector('.pc-peek')?.textContent ?? null);
+    expect(peeks).toEqual(['Topics: 12', 'Sources', null, '2 keys: open, closed']);
   });
 });

@@ -2,6 +2,9 @@ import {
   deriveRun,
   isPython,
   isRunLive,
+  isRunPanel,
+  typedBody,
+  type TypedPanelBody,
   liveActivities,
   progress,
   result,
@@ -45,9 +48,28 @@ const OUTPUTS_SHOWN = 5;
 
 const CT_ORDER = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'] as const satisfies readonly (keyof OutputTally)[];
 
-/** A one-line peek at a panel's body. */
+/** A typed body in one line: its title, else its first tile's label and value; '' when it has neither. */
+function typedPeek(b: TypedPanelBody): string {
+  if (b.title) return b.title;
+  if (b.type === 'tiles') {
+    const t = b.tiles[0];
+    return t ? `${t.label}: ${String(t.value)}` : '';
+  }
+  if (b.type === 'blocks') {
+    for (const block of b.blocks) {
+      const inner = typedBody(block);
+      const line = inner ? typedPeek(inner) : '';
+      if (line) return line;
+    }
+  }
+  return '';
+}
+
+/** A one-line peek at a panel's body: a typed body by what it says, any other object by its keys. */
 function peek(v: unknown): string {
   if (v === undefined) return msg('Loading…');
+  const typed = typedBody(v);
+  if (typed) return typedPeek(typed);
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
   const keys = Object.keys(v);
   if (!keys.length) return msg('Empty');
@@ -79,22 +101,27 @@ export class CaOverview extends LitElement {
          totals' tiles, the timeline) runs the whole width. */
       :host { display: block; container-type: inline-size; }
       .ov { display: flex; flex-direction: column; gap: 14px; }
-      .band.status { display: grid; gap: 14px; align-items: start; }
+      /* the cards of a row share its height: no card ends above its neighbours */
+      .band.status { display: grid; gap: 14px; align-items: stretch; }
       .stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-      /* the breakdowns flow in columns, so cards of different heights fill them */
-      .band.parts { columns: 2 440px; column-gap: 14px; }
-      .band.parts > .panel { break-inside: avoid; margin-bottom: 14px; display: block; }
-      .band.parts > .panel:last-child { margin-bottom: 0; }
+      .stack > .panel:first-child { flex: 1; }
+      /* the breakdowns pair up, two to a row of one height; one alone (the last of an odd
+         count, or the only one) takes the whole row */
+      .band.parts { display: grid; gap: 14px; align-items: stretch;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, max(440px, calc((100% - 14px) / 2))), 1fr)); }
+      @container (min-width: 894px) {
+        .band.parts > .panel:last-child:nth-child(odd) { grid-column: 1 / -1; }
+      }
       .stack { grid-area: stack; }
       .problems { grid-area: problems; }
       .outputs { grid-area: outputs; }
       .row { grid-area: running; }
       .band.status { grid-template-areas: 'stack' 'problems' 'outputs' 'running'; }
       @container (min-width: 760px) {
-        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.7fr); grid-template-areas: 'stack problems' 'outputs outputs' 'running running'; }
+        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.4fr); grid-template-areas: 'stack problems' 'outputs outputs' 'running running'; }
       }
       @container (min-width: 1100px) {
-        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.7fr) minmax(0, 1.5fr); grid-template-areas: 'stack problems outputs' 'running running running'; }
+        .band.status { grid-template-columns: minmax(240px, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr); grid-template-areas: 'stack problems outputs' 'running running running'; }
       }
       .ok { display: flex; align-items: baseline; gap: 6px; color: var(--text-2); }
       .ok span[aria-hidden] { color: var(--status-done); }
@@ -156,7 +183,8 @@ export class CaOverview extends LitElement {
     const busy = live ? liveActivities(s.procs).length : 0;
     /** The run's limit (`run.json` `max_workers`); null when the run did not record one. */
     const max = s.procs?.max_workers || null;
-    const panels = this.info.panels;
+    // A run's own views: a trends panel is computed over a period, not for this run (the Trends page).
+    const panels = this.info.panels.filter(isRunPanel);
     // Running tasks need the width of their cards; while none runs, one line under the run's state.
     // A run that is over runs nothing: its state says so.
     const running = live && busy > 0;
@@ -224,13 +252,13 @@ export class CaOverview extends LitElement {
               ${this.cursor()}
             </section>`
           : nothing}
-        ${panels.length
-          ? html`<section class="panel enter">
-              <h3 title=${msg('monitor.Panel')}>${msg('Custom views')}</h3>
-              ${this.panelCards()}
-            </section>`
-          : nothing}
       </div>
+      ${panels.length
+        ? html`<section class="panel enter views">
+            <h3 title=${msg('monitor.Panel')}>${msg('Custom views')}</h3>
+            ${this.panelCards(panels)}
+          </section>`
+        : nothing}
       <section class="panel enter">
         <h3>${msg('Timeline')}
           <span class="r">${this.triesLine()}</span></h3>
@@ -342,20 +370,23 @@ export class CaOverview extends LitElement {
   }
 
   // One card per view the pipeline added: what it is, a one-line peek, and where to open it.
-  private panelCards() {
+  private panelCards(panels: Info['panels']) {
     return html`<div class="pcards">
       ${repeat(
-        this.info.panels,
+        panels,
         (p) => p.name,
-        (p) => html`<button type="button" class="pcard" @click=${() => this.go(`panel:${p.name}`)}>
+        (p) => {
+          const line = peek(this.state.panels[p.name]);
+          return html`<button type="button" class="pcard" @click=${() => this.go(`panel:${p.name}`)}>
           <span class="pc-ic" aria-hidden="true">${p.icon || '▤'}</span>
           <div>
             <b>${p.title || p.name}</b>
             ${p.description ? html`<div class="meta">${p.description}</div>` : nothing}
-            <div class="pc-peek">${peek(this.state.panels[p.name])}</div>
+            ${line ? html`<div class="pc-peek">${line}</div>` : nothing}
           </div>
           <span class="pc-go">${msg(str`Show ${p.title || p.name}`)}</span>
-        </button>`,
+        </button>`;
+        },
       )}
     </div>`;
   }
