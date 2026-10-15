@@ -381,8 +381,9 @@ class LaunchResult:
     context_budget: int | None = None
     context_warned: bool = False
     #: The context window of the model the launch ran on (tokens of one API call's input),
-    #: as the coding agent reports it; None when it reports none. Over folded rounds and
-    #: hops, the window of the launch whose call is the peak context (`fold_spend`).
+    #: as the coding agent reports it: in its stream, else in its model catalogue for the
+    #: model as launched (`Backend.context_window`); None when it reports none. Over folded
+    #: rounds and hops, the window of the launch whose call is the peak context (`fold_spend`).
     context_window: int | None = None
 
     @property

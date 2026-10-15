@@ -450,15 +450,16 @@ class OmpBackend(OneShotBackend):
             isolation += "; omp reads " + ", ".join(f"{n} from {f}" for n, f in sorted(back.items()))
         return CredentialBinding(out, args=args, isolated=verified, isolation=isolation)
 
-    def catalogue(self) -> set[str] | None:
-        """Model ids from `omp models`, or None when it cannot be read.
+    def read_models(self) -> dict[str, int | None] | None:
+        """Model ids and their context windows from `omp models --json`, or None when it
+        cannot be read. omp lists a window for each model (`contextWindow`): exact.
 
-        A local registry read, no network: it took ~1.7s here. Worth the
-        second because the failure it removes is a model typo that
-        otherwise costs one launch each and reads as a generic error.
-        None (not an empty set) on any failure, so a missing binary or a
-        changed table format defers to the live probe instead of
-        reporting every model as unknown.
+        A local registry read, no network: it took ~1s here. Worth it because the
+        failure it removes is a model typo that otherwise costs one launch each and
+        reads as a generic error, and omp's `-p` stream names the model but not its
+        window. None (not an empty dict) on any failure, so a missing binary or a
+        changed format defers to the live probe instead of reporting every model as
+        unknown.
         """
         import subprocess
 
@@ -466,7 +467,7 @@ class OmpBackend(OneShotBackend):
             return None
         try:
             proc = subprocess.run(
-                [self.binary, "models"],
+                [self.binary, "models", "--json"],
                 capture_output=True,
                 text=True,
                 timeout=CATALOGUE_TIMEOUT_S,

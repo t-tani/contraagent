@@ -23,7 +23,7 @@ would otherwise find out one launch at a time:
 * routing: the config against those kinds (budgets, efforts, failover chains,
   credentials and the traits tasks require), the coding agents' programs on
   PATH, and each model against the list its coding agent keeps locally
-  (`Backend.catalogue`, e.g. `omp models`).
+  (`Backend.catalogue`, e.g. `omp models --json`).
 
 Nothing is launched, no run directory is written and no token is spent. The
 one check left to a run is the preflight (`Pipeline(preflight="stop")`), which

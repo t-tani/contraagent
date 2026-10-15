@@ -14,6 +14,10 @@ from contraagent.backends.pi.backend import MCP_EXTENSION, parse_models
 
 PI = r"""
 import json, os, sys
+if "--list-models" in sys.argv:
+    print("provider  model         context  max-out  thinking  images")
+    print("openai    gpt-5.6-luna  272K     128K     yes       yes")
+    sys.exit(0)
 json.dump({"argv": sys.argv[1:], "env": dict(os.environ)}, open(os.environ["FAKE_DUMP"], "w"))
 print(json.dumps({"type": "session", "version": 3, "id": "s-1", "cwd": os.getcwd()}))
 for n in (1, 2):
@@ -192,3 +196,12 @@ anthropic  claude-haiku-5-5           1M       128K     yes       yes
 openai     gpt-5.6-luna               272K     128K     yes       yes
 """
     assert parse_models(table) == {"anthropic/claude-haiku-5-5", "openai/gpt-5.6-luna"}
+
+
+def test_a_launch_s_window_is_the_one_pi_s_model_catalogue_lists(tmp_path, home):
+    """pi's stream names the model but not its window: the user's model catalogue has it, exact."""
+    (home / "models-store.json").write_text((Path(__file__).parent / "fixtures" / "pi" / "1.2.0" / "models-store.json").read_text())
+    be = backend(tmp_path, home)
+    result, _, _ = run(be, tmp_path, model="openai/gpt-5.6-luna")
+    assert result.context_window == 272_000 and result.context_pct == round(100 * (4 + 1000 + 50) / 272_000, 1)
+    assert be.catalogue() == {"openai/gpt-5.6-luna"}
