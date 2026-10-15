@@ -282,7 +282,7 @@ reading their logs the first time takes about half a minute
 
 `contraagent monitor export` writes the monitor's views of the newest runs as files a
 static server or a site serves, with no monitor running: the page (`index.html`,
-`app.js`, `ja.js`) and `data/`, the JSON each endpoint of the API would answer
+`app.js`, `ja.js`, and its icons) and `data/`, the JSON each endpoint of the API would answer
 (`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
 cursor, each task and each panel), and the trends of a period over every run with
 its trend panels (`--days 14`, or `--from` and `--to`; `--tz`, default UTC). The

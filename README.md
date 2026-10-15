@@ -1,4 +1,10 @@
-# contraagent
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/contraagent-logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/contraagent-logo-light.svg">
+    <img src="docs/assets/brand/contraagent-logo-light.svg" width="330" alt="contraagent">
+  </picture>
+</h1>
 
 contraagent runs coding agents as typed, checked and supervised tasks. Claude Code,
 Codex CLI, opencode, oh-my-pi and pi become the steps of a Python pipeline. Each

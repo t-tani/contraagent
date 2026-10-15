@@ -1,0 +1,1 @@
+The contraagent logo: at the top of the root README (light and dark), in the documentation site's header, favicon and landing page, and as the monitor's favicon, home-screen icon and the mark beside its title, drawn in each theme's colours (the spark beats while the run is live). `contraagent monitor` serves the page's icons, and an export carries them.
