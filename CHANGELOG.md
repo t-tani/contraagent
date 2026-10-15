@@ -109,7 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plays them in place of the launches, attempt by attempt, with nothing spent. A replay is a
   stub run; `run.json` names its recordings (`replay`).
 - More of record and replay: a recording keeps Python task attempts too (how the call ended
-  and its output), and a replay plays them without calling the function;
+  and its output, and the rows and documents its call wrote with `contraagent.log` and
+  `contraagent.save`), and a replay plays them without calling the function, writing those
+  rows and documents into the run's `pipeline/` again;
   `Pipeline(replay=DIR, execute=["fetch"])` (`--replay DIR --execute fetch`) runs the named
   Python task kinds instead. A Python task with no recording ends `error` like an agent task.
   `Pipeline(replay=DIR, record_missing=True)` (`--replay DIR --record-missing`) plays the

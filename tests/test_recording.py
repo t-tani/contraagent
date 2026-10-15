@@ -421,3 +421,75 @@ def test_a_scope_and_an_enricher_see_each_replayed_python_attempt(tmp_path):
     played = pipeline.run(flow, units=["alpha", "beta"])
     assert played.ok, played.failed
     assert seen[-3:] == ["enter python:count", "exit python:count", "python:count replayed=True"]
+
+
+tallied: list[str] = []
+
+
+@python_task
+def tally(unit: str, words: int) -> Note:
+    import contraagent
+
+    tallied.append(unit)
+    contraagent.log("counts", {"unit": unit, "words": words})
+    contraagent.log("counts", {"unit": unit, "words": words + 1})
+    contraagent.save("total", {"last": unit, "words": words})
+    contraagent.save("total", {"last": unit, "words": words * 2})
+    return Note(title=unit)
+
+
+def tally_flow(units: list[str]):
+    yield [tally(u, words=len(u)) for u in units]
+
+
+def counts_panel(run) -> dict:
+    return {"rows": run.log("counts"), "total": run.document("total")}
+
+
+def pipeline_files(report) -> dict[str, str]:
+    folder = report.run_dir / "pipeline"
+    return {p.name: p.read_text() for p in sorted(folder.iterdir())}
+
+
+def test_a_python_task_logs_and_saves_are_recorded_and_played_back(tmp_path):
+    from contraagent.monitor import Panel
+
+    agent = StubAgent(execute=["tally"])
+    live = Pipeline(runs_dir=tmp_path / "runs", cwd=tmp_path, stub=agent, record=tmp_path / "rec").run(tally_flow, units=["alpha"])
+    assert live.ok, live.failed
+    tallied.clear()
+    played = replay(tmp_path, flow_=tally_flow, units=["alpha"])
+    assert played.ok, played.failed
+    assert tallied == []  # nothing called: the rows and the document come from the recording
+    assert pipeline_files(played) == pipeline_files(live)
+    assert json.loads(pipeline_files(played)["total.json"]) == {"last": "alpha", "words": 10}
+    panels = {"counts": Panel(counts_panel)}
+    assert Monitor(tmp_path / "replay-runs", panels=panels).panel("counts", played.run_id) == Monitor(
+        tmp_path / "runs", panels=panels
+    ).panel("counts", live.run_id)
+
+    # record_missing: one unit plays its recording, the other runs and is recorded.
+    tallied.clear()
+    runs, cwd = tmp_path / "fill-runs", tmp_path / "fill"
+    cwd.mkdir()
+    filled = Pipeline(runs_dir=runs, cwd=cwd, replay=tmp_path / "rec", record_missing=True).run(tally_flow, units=["alpha", "beta"])
+    assert filled.ok, filled.failed
+    assert tallied == ["beta"]
+    rows = [json.loads(line) for line in pipeline_files(filled)["counts.jsonl"].splitlines()]
+    assert sorted((r["unit"], r["words"]) for r in rows) == [("alpha", 5), ("alpha", 6), ("beta", 4), ("beta", 5)]
+    body = json.loads((tmp_path / "rec" / "tally" / "python_tally-beta.json").read_text())
+    assert body["attempts"][0]["pipeline"] == {"logs": ["counts"], "documents": ["total"]}
+
+
+def test_a_pipeline_document_over_the_cap_makes_the_attempt_unplayable(tmp_path):
+    lines: list[str] = []
+    agent = StubAgent(execute=["tally"])
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", cwd=tmp_path, stub=agent, record=rec, record_max_file_mb=1e-5, log=lines.append)
+    assert pipeline.run(tally_flow, units=["alpha"]).ok
+    assert any(line.startswith("[record] python:tally-alpha: pipeline/counts.jsonl") for line in lines), lines
+    body = json.loads((rec / "tally" / "python_tally-alpha.json").read_text())
+    assert {k["path"] for k in body["attempts"][0]["by_hash"]} >= {"pipeline/counts.jsonl", "pipeline/total.json"}
+    played = replay(tmp_path, flow_=tally_flow, units=["alpha"])
+    assert "by hash only: run kind tally with --execute" in played.results["python:tally-alpha"].reason
+    assert not (played.run_dir / "pipeline").exists()
