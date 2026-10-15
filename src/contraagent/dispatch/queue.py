@@ -21,6 +21,9 @@ The order:
 * by bottom level, highest first: a task's estimate plus the longer of its
   known dependents' path and its `tail_s` (`_blevel`), so long remaining chains
   start first;
+* tasks of equal bottom level by `Task.priority`, highest first, then by
+  arrival. Priority only breaks ties: it never moves a task before one of a
+  larger bottom level, an overdue task, or a task in a time box's endgame;
 * a task that has waited longer than `overdue_s` since it became startable by
   its dependencies is **overdue**: overdue tasks come first, the longest
   waiting first (a task's wait is bounded however high the levels of later
@@ -414,19 +417,19 @@ class WorkQueue:
 
     def _order(self, tasks: list[Task], memo: dict[str, float], now: float) -> list[Task]:
         """The launch order (the module docstring). First the tasks in a time box's
-        endgame: its finishing kinds first, then the smallest bottom level, then
-        arrival. Then overdue tasks, the longest waiting first (tasks that became
-        startable together: the highest bottom level first); then the highest bottom
-        level, then arrival."""
+        endgame: its finishing kinds first, then the smallest bottom level. Then
+        overdue tasks, the longest waiting first (tasks that became startable
+        together: the highest bottom level first); then the highest bottom level.
+        In each, the highest `priority` breaks a tie, then arrival."""
 
         def key(t: Task) -> tuple:
             seq = self._seq.get(t.id, 0)
             box = self._endgame_box(t, now)
             if box is not None:
-                return (0, 0 if t.kind in box.finishing_kinds else 1, self._blevel(t, memo), seq)
+                return (0, 0 if t.kind in box.finishing_kinds else 1, self._blevel(t, memo), -t.priority, seq)
             if self._overdue(t, now):
-                return (1, self._ready_since[t.id], -self._blevel(t, memo), seq)
-            return (2, 0.0, -self._blevel(t, memo), seq)
+                return (1, self._ready_since[t.id], -self._blevel(t, memo), -t.priority, seq)
+            return (2, 0.0, -self._blevel(t, memo), -t.priority, seq)
 
         return sorted(tasks, key=key)
 

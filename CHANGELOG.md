@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
   one of several toolsets, each a kind of its own with its own plugin and the same output
   schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.
+- A task call's `priority` (`summarize("alpha", priority=2.5)`, default 0): among ready tasks
+  the queue would otherwise start in the order they were queued, the highest priority starts
+  first. It never outranks a longer bottom level, an overdue task or a time box's endgame,
+  and is not part of the fingerprint. `plan.jsonl` and the monitor's plan nodes record it. A
+  params field or a Python task's parameter named `priority`, `key` or `after` is refused
+  where the task is declared.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

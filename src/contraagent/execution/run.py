@@ -8,8 +8,8 @@ A `Run` owns `runs/<run-id>/`:
     journal.jsonl           one `JournalRow` per finished task
     launches.jsonl          the full `LaunchResult` of each agent launch
     streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
-    plan.jsonl              every task a queue accepted, with its `after`, its `claims` and
-                            its origin (`flow`, `created_from`, `flow_call`)
+    plan.jsonl              every task a queue accepted, with its `after`, its `claims`, its
+                            `priority` and its origin (`flow`, `created_from`, `flow_call`)
     flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
                             (`state`, `error`)
     deferred.jsonl          one row per deferred task: its key and why it was not launched
@@ -424,6 +424,7 @@ class Run:
             "unit": self._unit_of(task),
             "claims": list(task.claims),
             "after": list(task.after),
+            "priority": task.priority,
             "executor": task.executor,
             "flow": frames_row(origin.flow) if origin is not None else [],
             "created_from": list(origin.created_from) if origin is not None else [],
