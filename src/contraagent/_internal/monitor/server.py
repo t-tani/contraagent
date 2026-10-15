@@ -18,7 +18,7 @@ Endpoints (all GET; response models in `api.py`):
   /api/runs/<run>/panels/<name>      one registered panel, a `PanelBody`
 
 Panels, a domain's own code, run on threads of their own (`PANEL_WORKERS`), so a slow
-one never holds the other routes back; the views a run feed sends are read off the
+one never holds the other endpoints back; the views a run feed sends are read off the
 event loop.
   /api/openapi.json                  this contract as OpenAPI (also `openapi.json` here)
   /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / panel:<name>,
@@ -138,7 +138,7 @@ def is_loopback(bind: str) -> bool:
 
 
 #: Threads that compute panels, a domain's own code that may take a minute: apart from the
-#: threads that answer every other route, so a slow panel (or a page asking for many) never
+#: threads that answer every other endpoint, so a slow panel (or a page asking for many) never
 #: holds the run list or a run's views back. Its threads start on first use.
 PANEL_WORKERS = 2
 _PANEL_POOL = ThreadPoolExecutor(max_workers=PANEL_WORKERS, thread_name_prefix="contraagent-panel")
@@ -165,7 +165,7 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
     """One client's live feed. Each view is recomputed every tick but only sent
     when its value changed. The first tick sends everything (the whole journal
     included) and ends with `ready`. The journal goes row by row and the cursor is
-    `null` for a run that keeps none; the other views are as their routes answer them
+    `null` for a run that keeps none; the other views are as their endpoints answer them
     (`VIEWS`)."""
     jpos, replayed = 0, False
     sigs: dict[str, str] = {}
@@ -284,11 +284,11 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     async def bad_name(request: Request, exc: BadName) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=404)
 
-    def route(path: str, model: Any):
-        """A JSON route checked against its contract model; `exclude_unset`: see `api`."""
+    def endpoint(path: str, model: Any):
+        """A JSON endpoint checked against its contract model; `exclude_unset`: see `api`."""
         return app.get(path, response_model=model, response_model_exclude_unset=True)
 
-    def view_route(view: View) -> None:
+    def view_endpoint(view: View) -> None:
         """`/api/runs/{run}/<name>`: a view of a run, as `VIEWS` reads it."""
 
         def answer(run: str) -> Any:
@@ -297,17 +297,17 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         path = f"/api/runs/{{run}}/{view.name}"
         app.get(path, name=f"api_{view.name}", description=view.doc, response_model=view.model, response_model_exclude_unset=True)(answer)
 
-    @route("/api/info", api.Info)
+    @endpoint("/api/info", api.Info)
     def api_info() -> dict:
         """The title, the panel tabs to offer, and the version of this contract."""
         return {"title": monitor.title, "panels": monitor.panel_info(), "api_version": api.API_VERSION, "hosts": monitor.many_hosts}
 
-    @route("/api/runs", list[api.RunSummary])
+    @endpoint("/api/runs", list[api.RunSummary])
     def api_runs() -> list[dict]:
         """Every run directory, newest activity first."""
         return monitor.runs()
 
-    @route("/api/hosts", api.Hosts)
+    @endpoint("/api/hosts", api.Hosts)
     def api_hosts() -> dict:
         """The hosts that drive the runs, and each account's utilization over every run."""
         return monitor.hosts()
@@ -366,14 +366,14 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
     for view in VIEWS.values():
         if view is not journal:
-            view_route(view)
+            view_endpoint(view)
 
-    @route("/api/runs/{run}/task/{key}", api.TaskDetail)
+    @endpoint("/api/runs/{run}/task/{key}", api.TaskDetail)
     def api_task(run: str, key: str) -> dict:
         """One task, by its key: journal rows, live launches, definition, input/output, transcript name."""
         return monitor.task_detail(run, key)
 
-    @route("/api/runs/{run}/stream/{key}", api.StreamPage)
+    @endpoint("/api/runs/{run}/stream/{key}", api.StreamPage)
     def api_stream(run: str, key: str, since: int = 0) -> dict:
         """A page of task `key`'s normalized transcript from line `since`; `since=0` is the tail page."""
         page, total = monitor.stream(run, key, since)
@@ -457,7 +457,7 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
 
 def _openapi(app: FastAPI) -> dict:
-    """FastAPI's document plus the SSE message models, which no JSON route
+    """FastAPI's document plus the SSE message models, which no JSON endpoint
     references: each feed's `text/event-stream` response points at them."""
     doc = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
     schemas = doc.setdefault("components", {}).setdefault("schemas", {})

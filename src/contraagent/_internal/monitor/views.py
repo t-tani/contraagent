@@ -2,7 +2,7 @@
 
 Each `View` in `VIEWS` is answered three ways from the same `read` and `model`:
 
-* the HTTP route `/api/runs/<run>/<name>` (`server.create_app`; `doc` is its description);
+* the HTTP endpoint `/api/runs/<run>/<name>` (`server.create_app`; `doc` is its description);
 * the run feed's `<name>` event, sent when its value changed (`server.run_feed`, for the
   views the feed sends: the journal row by row, `procs`, `plan`, `outputs`, `cursor`);
 * the export's `data/runs/<run>/<name>.json` (`export.export`, for the views with `export`).
@@ -26,9 +26,9 @@ from contraagent._internal.monitor.core import Monitor
 
 @dataclass(frozen=True)
 class View:
-    """One view of a run: `name` (its route's last part, its feed event, its export file),
+    """One view of a run: `name` (its endpoint's last part, its feed event, its export file),
     `read(monitor, run)` its value, `model` the contract it is checked against, `doc` the
-    route's description; `export` when an export holds it."""
+    endpoint's description; `export` when an export holds it."""
 
     name: str
     read: Callable[[Monitor, str], Any]
@@ -42,7 +42,7 @@ def _journal(monitor: Monitor, run: str) -> dict:
     return {"entries": entries, "total": total}
 
 
-#: The views of a run, in the order the API lists them. The journal's route takes the line
+#: The views of a run, in the order the API lists them. The journal's endpoint takes the line
 #: offset `since` (its `read` is the whole journal, as the export holds it).
 VIEWS: dict[str, View] = {
     v.name: v

@@ -247,7 +247,7 @@ takes the period's runs (`PeriodRuns`) and the `Period`, and it is served at
 for the same period over the same runs, as they were, and kept: a page asks for it
 again every few seconds and gets it back, and one that asks while it is being made
 waits for that one. Panels, a pipeline's own code, run on threads of their own, so a
-panel that takes a minute holds no other route back.
+panel that takes a minute holds no other endpoint back.
 
 Many trend panels make a long page. A trend panel's `tab` (`Panel(scope="trends",
 tab="Reliability")`) puts it on a tab of the Trends page with the other panels of the
@@ -275,7 +275,7 @@ reading their logs the first time takes about half a minute
 
 `contraagent monitor export` writes the monitor's views of the newest runs as files a
 static server or a site serves, with no monitor running: the page (`index.html`,
-`app.js`, `ja.js`) and `data/`, the JSON each route of the API would answer
+`app.js`, `ja.js`) and `data/`, the JSON each endpoint of the API would answer
 (`/api/info`, `/api/runs`, and for each run its journal, plan, outputs, definitions,
 cursor, each task and each panel), and the trends of a period over every run with
 its trend panels (`--days 14`, or `--from` and `--to`; `--tz`, default UTC). The
@@ -311,7 +311,7 @@ In another page, `<ca-monitor export="data/">` reads an export, and
 The monitor publishes its contract as OpenAPI at `/api/openapi.json`
 (`contraagent monitor --openapi PATH` writes it), browsable at `/api/docs` when started with
 `--docs`; every response is checked against its pydantic model before it is
-sent. `curl http://127.0.0.1:8787/api/runs` lists the runs, and every route
+sent. `curl http://127.0.0.1:8787/api/runs` lists the runs, and every endpoint
 under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,
 a task's transcript) is in that document. The plan (`/api/runs/<run>/plan`)
 carries each task's origin (`flow`, each frame with its loops and their passes; `created_from`, `flow_call`)

@@ -229,7 +229,7 @@ describe('single derivation', () => {
 
 // From P8 on, @contraagent/elements is the generic package: it names nothing
 // after contraagent's glossary (src/contraagent/docs/concepts.md).
-const GLOSSARY = ['plan', 'journal', 'kind', 'unit', 'attempt', 'stop', 'outcome', 'task', 'contract', 'round', 'launch', 'hop', 'pass', 'run'];
+const GLOSSARY = ['plan', 'journal', 'kind', 'unit', 'attempt', 'stop', 'outcome', 'task', 'contract', 'round', 'launch', 'hop', 'pass', 'run', 'route'];
 
 /** The glossary words in an identifier (`planNode`, `PLAN_NODE`, `plan-node`, plurals too). */
 function glossaryWords(name: string): string[] {

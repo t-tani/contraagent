@@ -8,7 +8,7 @@ import { LOOP_SEGMENT, type LayerGraph } from './types.js';
 
 /**
  * The layer `path` of the plan's flow. Pass the `order` of the last graph of this layer as
- * `prev` to keep its nodes in place; `down` routes the edges for a drawing top to bottom
+ * `prev` to keep its nodes in place; `down` lays out the edge paths for a drawing top to bottom
  * (a box's label is then on the side its edges come in).
  */
 export function layerGraph(plan: Plan, path: readonly string[] = [], prev?: GraphOrder, down = false): LayerGraph {

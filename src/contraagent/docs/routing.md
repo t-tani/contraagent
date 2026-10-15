@@ -194,7 +194,7 @@ window, the identity paused until when, and its rests over the run.
 The readings are those the coding agents report: Claude Code when a session
 starts or resumes, omp at each launch, Codex with each API call of a ChatGPT
 login. opencode and pi report none, so for an `opencode-go` model contraagent reads
-the OpenCode Go subscription's usage itself at each launch, from the route OpenCode's
+the OpenCode Go subscription's usage itself at each launch, from the endpoint OpenCode's
 console serves (`<base>/v1/usage` with the key; omp reads the same): the 5-hour and
 weekly windows, and the monthly one by name in `windows`. The run starts
 from the newest of recent runs' journals and takes each launch's as it ends, so

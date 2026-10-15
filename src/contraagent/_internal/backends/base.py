@@ -163,7 +163,7 @@ class Backend(abc.ABC):
 
     def usage_reading(self, launch: Launch) -> QuotaReading | None:
         """The utilization of the account `launch` bills, read before it starts, where the agent
-        reports it outside its stream (omp's `omp usage`, OpenCode Go's usage route); first in
+        reports it outside its stream (omp's `omp usage`, OpenCode Go's usage endpoint); first in
         `LaunchResult.quota`. Default: none."""
         return None
 

@@ -48,7 +48,7 @@ export interface ClientOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-/** Typed calls for every JSON route of the monitor. Each throws `ApiError` when it gets no JSON answer. */
+/** Typed calls for every JSON endpoint of the monitor. Each throws `ApiError` when it gets no JSON answer. */
 export interface MonitorClient {
   readonly baseUrl: string;
   info(): Promise<Info>;
@@ -66,23 +66,23 @@ export interface MonitorClient {
   trendsPanel(name: string, query?: TrendsQuery): Promise<JsonObject>;
 }
 
-/** The monitor's GET routes. */
-type Route = { [P in keyof paths]: paths[P] extends { get: object } ? P : never }[keyof paths];
-type Operation<P extends Route> = paths[P] extends { get: infer O } ? O : never;
-/** A route's parameters: `path` fills its `{name}` parts, `query` is its query string. */
-type Params<P extends Route> = Operation<P> extends { parameters: infer X } ? X : never;
-/** A route's JSON answer (status 200). */
-type Answer<P extends Route> =
+/** The monitor's GET endpoints. */
+type Endpoint = { [P in keyof paths]: paths[P] extends { get: object } ? P : never }[keyof paths];
+type Operation<P extends Endpoint> = paths[P] extends { get: infer O } ? O : never;
+/** An endpoint's parameters: `path` fills its `{name}` parts, `query` is its query string. */
+type Params<P extends Endpoint> = Operation<P> extends { parameters: infer X } ? X : never;
+/** An endpoint's JSON answer (status 200). */
+type Answer<P extends Endpoint> =
   Operation<P> extends { responses: { 200: { content: { 'application/json': infer T } } } } ? T : never;
 
 export function createMonitorClient(options: ClientOptions = {}): MonitorClient {
   const baseUrl = (options.baseUrl ?? '').replace(/\/$/, '');
   const origin = (baseUrl || globalThis.location?.origin || '').replace(/\/$/, '');
   const fetch = options.fetch ?? globalThis.fetch;
-  /** The JSON answer of GET `route`; `ApiError` when there is none. */
-  async function get<P extends Route>(route: P, params?: Params<P>): Promise<Answer<P>> {
+  /** The JSON answer of GET `endpoint`; `ApiError` when there is none. */
+  async function get<P extends Endpoint>(endpoint: P, params?: Params<P>): Promise<Answer<P>> {
     const { path = {}, query = {} } = (params ?? {}) as { path?: Record<string, string>; query?: Record<string, number> };
-    const url = origin + route.replace(/\{(\w+)\}/g, (part, name: string) => (name in path ? encodeURIComponent(path[name]!) : part));
+    const url = origin + endpoint.replace(/\{(\w+)\}/g, (part, name: string) => (name in path ? encodeURIComponent(path[name]!) : part));
     const search = Object.entries(query)
       .filter(([, v]) => v !== undefined && v !== null)
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)

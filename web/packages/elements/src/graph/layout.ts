@@ -1,7 +1,7 @@
 // The drawing of a layered graph: coordinates from the measured sizes, and each
 // edge as straight runs that bend only between layers.
 import { isPoint } from './arrange.js';
-import type { Arrangement, EdgeStyle, RouteStep } from './types.js';
+import type { Arrangement, EdgeStyle, EdgePathStep } from './types.js';
 
 export interface Size {
   w: number;
@@ -29,7 +29,7 @@ export interface GraphLayout {
   h: number;
   /** Every node, stub and cluster, by id. */
   at: Record<string, Rect>;
-  /** Every route, with its runs. */
+  /** Every edge path, with its runs. */
   edges: { from: string; to: string; style: EdgeStyle; runs: Stretch[] }[];
   /** Each cycling cluster's return to its next round. */
   returns: LoopReturn[];
@@ -106,7 +106,7 @@ function placeRow(want: readonly number[], gaps: readonly number[], weight: read
  * bends only in the gap between two layers; it enters and leaves a box where its
  * point inside is, and never passes a node or a box's label.
  */
-export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'routes'>, sizes: ReadonlyMap<string, Size>, down = false): GraphLayout {
+export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'edgePaths'>, sizes: ReadonlyMap<string, Size>, down = false): GraphLayout {
   const S = SPACE[down ? 'down' : 'across'];
   const len = (s: Size) => (down ? s.h : s.w);
   const brd = (s: Size) => (down ? s.w : s.h);
@@ -141,12 +141,12 @@ export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'routes'
   // Where an edge meets a slot, across the flow from the slot's top: a node's middle,
   // a point, or (a box) where the edge's step inside it is.
   const attach = (ri: number, si: number): number => {
-    const steps = g.routes[ri]?.steps ?? [];
-    const s = steps[si] as RouteStep;
+    const steps = g.edgePaths[ri]?.steps ?? [];
+    const s = steps[si] as EdgePathStep;
     if (isPoint(s.id)) return 0;
     if (!boxIds.has(s.id)) return slotSize(s.id).v / 2;
     const inner = steps[si - 1]?.in === s.id ? si - 1 : si + 1;
-    const step = steps[inner] as RouteStep;
+    const step = steps[inner] as EdgePathStep;
     return padOf(s.id).v0 + (local.get(s.id)?.top.get(step.id) ?? 0) + attach(ri, inner);
   };
   for (const c of containers) {
@@ -158,7 +158,7 @@ export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'routes'
     width.forEach((_, i) => start.push(i ? (start[i - 1] as number) + (width[i - 1] as number) + gap : 0));
     // The joins inside this container: slot a of layer l to slot b of layer l + 1.
     const links: { a: string; b: string; oa: number; ob: number }[] = [];
-    g.routes.forEach((r, ri) =>
+    g.edgePaths.forEach((r, ri) =>
       r.steps.forEach((s, si) => {
         const p = r.steps[si - 1];
         if (si && p && p.in === c && s.in === c && layerIn.get(c)?.get(p.id) !== layerIn.get(c)?.get(s.id)) links.push({ a: p.id, b: s.id, oa: attach(ri, si - 1), ob: attach(ri, si) });
@@ -250,10 +250,10 @@ export function layoutGraph(g: Pick<Arrangement, 'clusters' | 'slots' | 'routes'
     return [c0, c0 + (lc.width[l] ?? 0)];
   };
   const layer = (c: string, id: string) => layerIn.get(c)?.get(id) ?? 0;
-  const byOf = (s: RouteStep | undefined): string => (s && isPoint(s.id) ? (/\|by:([^|]*)\|/.exec(s.id)?.[1] ?? '') : '');
-  const edges = g.routes.map((r, ri) => {
+  const byOf = (s: EdgePathStep | undefined): string => (s && isPoint(s.id) ? (/\|by:([^|]*)\|/.exec(s.id)?.[1] ?? '') : '');
+  const edges = g.edgePaths.map((r, ri) => {
     const vOf = (si: number): number => {
-      const s = r.steps[si] as RouteStep;
+      const s = r.steps[si] as EdgePathStep;
       const o = origin.get(s.in) ?? { u: 0, v: 0 };
       return o.v + (local.get(s.in)?.top.get(s.id) ?? 0) + attach(ri, si);
     };

@@ -365,7 +365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An OpenCode key is one account on every agent that runs its models:
   opencode, pi and omp give the digest of the key they would send, so a quota rest on one
   holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
-  launch of an `opencode-go` model, from the route omp reads (5-hour, weekly, and monthly by
+  launch of an `opencode-go` model, from the endpoint omp reads (5-hour, weekly, and monthly by
   name), so caps and rests apply there too. On pi, a `subscription` for `opencode` or
   `opencode-go` with no login in its agent directory uses opencode's stored login.
 - Task agents take their instructions from their plugin and call file only, and
@@ -460,7 +460,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `contraagent monitor --panels views.py:PANELS` (also `--groups` and `--task-detail`):
   a pipeline's own views from a file or a module, with no script of its own.
 - `contraagent monitor export`: the monitor's views of the newest runs written as files
-  (the page and `data/`, the JSON each route answers) that a static server or a site
+  (the page and `data/`, the JSON each endpoint answers) that a static server or a site
   serves with no monitor running (`<ca-monitor export="data/">`, `createExportClient`,
   `openExportFeed`). It holds no transcripts and no processes; this machine's paths
   are made relative or taken out and its host name left blank (`--keep`, `--exclude`),
@@ -906,7 +906,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flow file as `--panels` loads one: anew, under its own name. An extension that does not
   load is reported as `contraagent monitor: --panels <spec>: <error>`.
 - One table of a run's views, `contraagent.monitor.views.VIEWS` (`View`: name, read, model),
-  answers the routes `/api/runs/<run>/<view>`, the run feed's events and an export's files;
+  answers the endpoints `/api/runs/<run>/<view>`, the run feed's events and an export's files;
   `serialize(model, value)` writes each of them.
 - `contraagent monitor export` (and `export()`) writes the page of `Monitor(static_dir=)`
   when it is given.
@@ -1156,7 +1156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an error, never a JSON tree.
 - A trends panel is made once for the same period over the same runs and kept; a request
   for one being made waits for it. Panels run on threads of their own, and a run feed reads
-  its views off the event loop, so a panel that takes a minute holds no other route back
+  its views off the event loop, so a panel that takes a minute holds no other endpoint back
   (`/api/runs` waited for every request thread before).
 - Trends count utilization per credential, account and window: a token replaced mid-period
   is two lines, and a model's own window (`seven_day_opus`) is counted beside the
@@ -1274,6 +1274,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Web packages
 
+- `@contraagent/elements/graph` names an edge's slots an edge path, apart from a failover
+  route: `EdgePath` (was `EdgeRoute`), `EdgePathStep` (was `RouteStep`) and
+  `Arrangement.edgePaths` (was `Arrangement.routes`). The documentation calls the HTTP
+  API's paths endpoints.
 - The monitor's view route is named apart from a failover route: `@contraagent/ui/core`
   exports `ViewRoute` (was `Route`), `ViewRoutePatch` (was `RoutePatch`),
   `DEFAULT_VIEW_ROUTE` (was `DEFAULT_ROUTE`), `parseViewRoute` and `formatViewRoute`

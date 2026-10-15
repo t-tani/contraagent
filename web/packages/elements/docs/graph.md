@@ -46,7 +46,7 @@ same graph changes (a run in progress), so the reader's zoom and pan stay.
 ## Order and drawing
 
 `arrange` gives each item its layer by the longest path to it, orders each layer to
-reduce crossings, and routes each edge through a point on every layer it crosses.
+reduce crossings, and gives each edge its edge path: a point on every layer it crosses.
 The order depends on the structure only. Give the element the `order` of an earlier
 drawing of the same graph to keep its items in place: an item that appears later is
 added at the end of its layer. `layoutGraph` places everything from the measured

@@ -1,7 +1,7 @@
 """`contraagent monitor export`: the monitor's views of some runs, written as files.
 
 An export is the page (`index.html`, `app.js`, `ja.js`) and `data/`, the JSON each
-route of the API would answer, one file per route:
+endpoint of the API would answer, one file per endpoint:
 
     data/info.json                       /api/info, with `export` (`api.ExportInfo`)
     data/runs.json                       /api/runs: the runs it holds
@@ -29,7 +29,7 @@ running at the time (a task's `launches`). What it takes out by default (`REDACT
 * `host`: `host_id`, the host's name.
 
 `keep` puts either back; `exclude` takes out a key wherever it appears (`params`, say).
-A new view of a run is one entry in `VIEWS` (`views.py`), a new route of no run one entry
+A new view of a run is one entry in `VIEWS` (`views.py`), a new endpoint of no run one entry
 in `SITE_FILES`; each is one method in `createExportClient`.
 """
 
@@ -75,7 +75,7 @@ CONTENT_KEYS = frozenset({"content", "text"})
 
 @dataclass(frozen=True)
 class SiteExportFile:
-    """One route of no run as a file under `data/`: `read(monitor, period)` its body, over
+    """One endpoint of no run as a file under `data/`: `read(monitor, period)` its body, over
     the export's period, `model` its contract."""
 
     file: str
@@ -83,14 +83,14 @@ class SiteExportFile:
     model: Any
 
 
-#: The routes of no run, beside `info.json` and `runs.json` (which the export writes
+#: The endpoints of no run, beside `info.json` and `runs.json` (which the export writes
 #: itself: they say what it holds); panels of `scope="trends"` are written under
 #: `trends/panels/` (`_panels`).
 SITE_FILES: tuple[SiteExportFile, ...] = (SiteExportFile("trends.json", lambda m, period: m.trends(period), api.Trends),)
 
 
 def _dump(model: Any, value: Any) -> Any:
-    """`value` as the route answers it (`serialize`), as JSON data."""
+    """`value` as the endpoint answers it (`serialize`), as JSON data."""
     return json.loads(serialize(model, value))
 
 
@@ -257,7 +257,7 @@ def export(
 
 
 def _panels(monitor: Monitor, scope: str, run: str, where: Path, red: Redactor, period: Period | None = None) -> int:
-    """Write each panel of `scope` under `where`, as its route answers it (`run`: the run
+    """Write each panel of `scope` under `where`, as its endpoint answers it (`run`: the run
     `run`'s, `/api/runs/<run>/panels/<name>`; `trends`: over the runs of `period`,
     `/api/trends/panels/<name>`); the bytes written."""
     n = 0

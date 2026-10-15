@@ -158,7 +158,7 @@ export interface GraphOrder {
 }
 
 /** One place an edge passes: a slot (`id`) of a container (`in`: '' for the top level, else a cluster id). */
-export interface RouteStep {
+export interface EdgePathStep {
   id: string;
   in: string;
 }
@@ -168,11 +168,11 @@ export interface RouteStep {
  * a point (`~...`) on every layer it crosses, and a cluster's id where it leaves or
  * enters that cluster.
  */
-export interface EdgeRoute {
+export interface EdgePath {
   from: string;
   to: string;
   style: EdgeStyle;
-  steps: RouteStep[];
+  steps: EdgePathStep[];
 }
 
 /** A cluster as arranged: its items (node and cluster ids) by layer, each layer in drawing order. */
@@ -197,6 +197,6 @@ export interface Arrangement {
   /** Each container's slots by layer, in drawing order: '' for the top level, a cluster's id for its inside. */
   slots: Record<string, string[][]>;
   /** The drawn edges and the stubs' edges, with the slots they pass. */
-  routes: EdgeRoute[];
+  edgePaths: EdgePath[];
   order: GraphOrder;
 }

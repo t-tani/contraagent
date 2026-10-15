@@ -8,7 +8,7 @@
 // reduced by barycentre sweeps. `layoutGraph` then places it from measured sizes.
 // The order depends on the structure only, and keeps a previous order: items that
 // appear later are appended to their layer.
-import type { Arrangement, EdgeStyle, GraphClusterInput, GraphEdgeInput, GraphNodeInput, GraphOrder, GraphStubInput, RouteStep } from './types.js';
+import type { Arrangement, EdgeStyle, GraphClusterInput, GraphEdgeInput, GraphNodeInput, GraphOrder, GraphStubInput, EdgePathStep } from './types.js';
 
 const push = <K, V>(m: Map<K, V[]>, k: K, v: V): void => {
   const xs = m.get(k);
@@ -167,7 +167,7 @@ const arranged = new WeakMap<GraphShape, { prev: GraphOrder | undefined; down: b
  * cluster, a cluster being one item of its parent), the order within each layer,
  * and the slots each edge passes. Pass a previous `order` of the same graph as
  * `prev` to keep its items where they are (new ones are appended to their layer);
- * `down` routes the edges for a drawing top to bottom (a cluster's label is then on
+ * `down` lays out the edge paths for a drawing top to bottom (a cluster's label is then on
  * the side its edges come in). The same `g`, `prev` and `down` give the same object.
  */
 export function arrange(g: GraphShape, prev?: GraphOrder, down = false): Arrangement {
@@ -272,11 +272,11 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
     rows.set(c, r);
   }
 
-  // Routes: the drawn edges through points on the layers they cross. The points of
+  // Edge paths: the drawn edges through points on the layers they cross. The points of
   // edges from one place (of one style) are shared, so their lines run as one.
-  const routes: Arrangement['routes'] = [];
+  const edgePaths: Arrangement['edgePaths'] = [];
   const points = new Set<string>();
-  const point = (c: string, origin: string, style: string, l: number): RouteStep => {
+  const point = (c: string, origin: string, style: string, l: number): EdgePathStep => {
     const id = `~${c}|${origin}|${style}|${l}`;
     if (!points.has(id)) {
       points.add(id);
@@ -286,7 +286,7 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   };
   // A point beside a cluster, in its layer of the container around it: an edge that leaves or
   // enters the cluster through its side, between two of its layers, passes there.
-  const byPoint = (c: string, box: string, origin: string, style: string): RouteStep => {
+  const byPoint = (c: string, box: string, origin: string, style: string): EdgePathStep => {
     const l = layerOf(c, box);
     const id = `~${c}|by:${box}|${origin}|${style}|${l}`;
     if (!points.has(id)) {
@@ -299,11 +299,11 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
   // top to bottom, not even then: the cluster's label is on that side); else through its
   // side, next to the layer it goes to. It leaves at the far side only from the cluster's
   // last layer, else through its side. So it runs inside a cluster only where it starts or ends.
-  const route = (from: string, to: string, style: EdgeStyle): RouteStep[] => {
+  const edgePath = (from: string, to: string, style: EdgeStyle): EdgePathStep[] => {
     const c = isStub.has(from) ? '' : commonBox(from, to);
     let curIn = containerOf(from);
     let cur = from;
-    const steps: RouteStep[] = [{ id: from, in: curIn }];
+    const steps: EdgePathStep[] = [{ id: from, in: curIn }];
     // Out of the clusters around the source, up to the common container.
     while (curIn !== c) {
       const up = parentOf.get(curIn) ?? '';
@@ -329,19 +329,19 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
     return steps;
   };
   g.edges.forEach((e, i) => {
-    if (!back[i]) routes.push({ from: e.from, to: e.to, style: e.style, steps: route(e.from, e.to, e.style) });
+    if (!back[i]) edgePaths.push({ from: e.from, to: e.to, style: e.style, steps: edgePath(e.from, e.to, e.style) });
   });
-  for (const s of g.stubs) routes.push({ from: s.id, to: s.to, style: s.style, steps: route(s.id, s.to, s.style) });
+  for (const s of g.stubs) edgePaths.push({ from: s.id, to: s.to, style: s.style, steps: edgePath(s.id, s.to, s.style) });
 
   // The order within each layer.
   const slots: Record<string, string[][]> = {};
   for (const c of containers) {
     const links: [string, string][] = [];
     const lv = new Map((rows.get(c) ?? []).flatMap((r, i) => r.map((id) => [id, i] as const)));
-    for (const r of routes)
+    for (const r of edgePaths)
       for (let i = 1; i < r.steps.length; i++) {
-        const a = r.steps[i - 1] as RouteStep;
-        const b = r.steps[i] as RouteStep;
+        const a = r.steps[i - 1] as EdgePathStep;
+        const b = r.steps[i] as EdgePathStep;
         if (a.in === c && b.in === c && lv.get(a.id) !== lv.get(b.id)) links.push([a.id, b.id]);
       }
     const hasPrev = c === '' ? !!prev : !!prev?.clusters[c];
@@ -365,7 +365,7 @@ function arrangeNew(g: GraphShape, prev: GraphOrder | undefined, down: boolean):
     clusters,
     back,
     slots,
-    routes,
+    edgePaths,
     order: { layers: real(slots[''] ?? []), clusters: Object.fromEntries(clusters.map((c) => [c.id, real(slots[c.id] ?? [])])) },
   };
 }
