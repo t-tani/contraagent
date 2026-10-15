@@ -53,7 +53,8 @@ export const taskViewStyles = css`
   .tview.sel { color: var(--text); border-bottom-color: var(--accent); }
   .tview .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); }
 
-  .pane { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  /* A positioned box: what is placed in it (a screen reader's text) scrolls with it, not past the view's end. */
+  .pane { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; }
   .upstream { margin-bottom: 12px; }
   .up-hd { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; }
   .down { display: flex; flex-wrap: wrap; gap: 8px; }

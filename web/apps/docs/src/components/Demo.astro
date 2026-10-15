@@ -4,7 +4,10 @@
 // keys (`=<json>`: that value; `@client`: a client of the demo export,
 // public/demo/data/, with its transcripts); `theme` is a built-in theme (`data-ca-theme`), `custom` a class of @contraagent/ui's
 // docs/examples/theme.css (a theme of one's own) on top of it;
-// `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it.
+// `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it;
+// `height` is the element's own (one that fills the box it is given, as `<ca-monitor>` does), and `page`
+// an element that is a whole page with its own background (the frame gives it no room around it);
+// `scroll` the most a long list's frame grows to, then it scrolls (`data-scroll="y"`).
 import { describe as describeTag } from '../lib/elements';
 import { inlineMd } from '../lib/repo';
 
@@ -13,20 +16,22 @@ interface Props {
   props: Record<string, string>;
   attrs?: Record<string, string>;
   height?: string;
+  page?: boolean;
+  scroll?: string;
   theme?: string;
   custom?: string;
   caption?: string;
   describe?: boolean;
 }
-const { tag: Tag, props, attrs = {}, height, theme = 'contraagent-dark', custom, caption, describe = false } = Astro.props;
+const { tag: Tag, props, attrs = {}, height, page = false, scroll, theme = 'contraagent-dark', custom, caption, describe = false } = Astro.props;
 const description = describe ? describeTag(Tag) : undefined;
 ---
 
 {description && <p set:html={inlineMd(description)} />}
 
-<figure class:list={['ca-demo', custom]} data-ca-theme={theme} style={height ? `--h:${height}` : undefined}>
-  <div class="ca-demo-frame">
-    <Tag data-ca-demo={JSON.stringify(props)} {...attrs} />
+<figure class:list={['ca-demo', custom]} data-ca-theme={theme}>
+  <div class="ca-demo-frame" data-page={page ? '' : undefined} data-scroll={scroll ? 'y' : undefined} style={scroll ? `max-height:${scroll}` : undefined}>
+    <Tag data-ca-demo={JSON.stringify(props)} {...attrs} {...(height ? { style: `height:${height}` } : {})} />
   </div>
   {caption && <figcaption>{caption}</figcaption>}
 </figure>

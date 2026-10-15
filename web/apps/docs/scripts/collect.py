@@ -70,22 +70,28 @@ NO_ELEMENT = {"node/elements/strings"}
 def demo(tag: str, props: dict[str, str], **more: object) -> dict:
     """A `ca-*` view fed with the demo run (src/fixtures/demo-run.json): `props` maps its
     properties to the fixture's keys (`=<json>`: that value; `@client`: a client of the
-    demo export, public/demo/data/); `attrs` are its attributes."""
+    demo export, public/demo/data/); `attrs` are its attributes; `height` is the element's own (one
+    that fills the box it is given); `page=True`: a whole page, which fills its frame; `scroll`: the most a long list's frame
+    grows to before it scrolls (Demo.astro)."""
     return {"demo": tag, "props": props, "tags": [tag], **more}
 
 
 def example(name: str, *tags: str, **more: object) -> dict:
-    """`@contraagent/elements`' example `docs/examples/<name>.ts`, mounted; `tags` are the elements it shows."""
+    """`@contraagent/elements`' example `docs/examples/<name>.ts`, mounted; `tags` are the elements it shows;
+    `page=True`: the example builds a whole page, which fills its frame (Example.astro)."""
     return {"example": name, "tags": list(tags), **more}
 
 
 RUN = {"plan": "plan", "journal": "journal", "run": "run"}
+#: The most a long list's frame grows to before it scrolls.
+LONG = "640px"
 MONITOR = demo(
     "ca-monitor",
     {},
     attrs={"export": "/demo/data/", "history": "memory", "shortcuts": "element", "theme": "contraagent-light"},
     theme="contraagent-light",
     height="720px",
+    page=True,
 )
 
 #: A page (section/name) and its live elements, in order; `at`: the screenshot each takes the place of.
@@ -97,22 +103,20 @@ LIVE: dict[str, list[dict]] = {
             "ca-task-view",
             {**RUN, "client": "@client", "live": "=false", "taskKey": '="write_note-alpha"'},
             at="docs/images/task-view.webp",
-            height="640px",
         ),
         demo(
             "ca-journal-table",
             {"rows": "journal", "plan": "plan", "kind": '="summarize"'},
             at="docs/images/journal-table.webp",
-            height="420px",
         ),
-        demo("ca-task-table", {**RUN, "kind": '="summarize"'}, at="docs/images/task-table.webp", height="420px"),
-        demo("ca-contracts", {**RUN, "outputs": "outputs"}, at="docs/images/contracts.webp", height="480px"),
-        demo("ca-definitions", {**RUN, "client": "@client", "live": "=false"}, at="docs/images/definitions.webp", height="560px"),
+        demo("ca-task-table", {**RUN, "kind": '="summarize"'}, at="docs/images/task-table.webp"),
+        demo("ca-contracts", {**RUN, "outputs": "outputs"}, at="docs/images/contracts.webp", scroll=LONG),
+        demo("ca-definitions", {**RUN, "client": "@client", "live": "=false"}, at="docs/images/definitions.webp"),
         demo("ca-kpis", {"journal": "journal", "plan": "plan"}, at="docs/images/kpis.webp"),
         demo("ca-timeline", RUN, at="docs/images/timeline.webp"),
     ],
     "node/ui/embed": [MONITOR],
-    "node/ui/live-data": [demo("ca-journal-table", {"rows": "journal", "plan": "plan"}, height="360px")],
+    "node/ui/live-data": [demo("ca-journal-table", {"rows": "journal", "plan": "plan"}, scroll=LONG)],
     "node/ui/events": [demo("ca-pipeline-graph", RUN)],
     "node/ui/theming": [
         demo("ca-kpis", {"journal": "journal", "plan": "plan"}, caption="contraagent-dark"),
@@ -126,14 +130,14 @@ LIVE: dict[str, list[dict]] = {
         ),
     ],
     "node/elements/index": [
-        example("ci-pipeline", "cae-segmented", "cae-stat-tiles", "cae-data-table", "cae-layered-graph", height="640px")
+        example("ci-pipeline", "cae-segmented", "cae-stat-tiles", "cae-data-table", "cae-layered-graph", page=True)
     ],
     "node/elements/primitives": [
         example("status", at="images/primitives.webp"),
         example("segmented", "cae-segmented", at="images/primitives.webp"),
     ],
     "node/elements/theming": [
-        example("ci-pipeline", at="images/theming-dark.webp", height="640px", caption="contraagent-dark"),
+        example("ci-pipeline", at="images/theming-dark.webp", page=True, caption="contraagent-dark"),
         example(
             "tiles",
             "cae-stat-tiles",
@@ -144,7 +148,7 @@ LIVE: dict[str, list[dict]] = {
         ),
     ],
     "node/elements/data-table": [example("data-table", "cae-data-table", at="images/data-table.webp")],
-    "node/elements/graph": [example("graph", "cae-layered-graph", at="images/graph.webp", height="420px")],
+    "node/elements/graph": [example("graph", "cae-layered-graph", at="images/graph.webp")],
     "node/elements/matrix": [example("matrix", "cae-mark-matrix", at="images/matrix.webp")],
     "node/elements/tiles": [example("tiles", "cae-stat-tiles", at="images/tiles.webp")],
     "node/elements/lanes": [example("lanes", "cae-lanes", at="images/lanes.webp")],
@@ -153,7 +157,7 @@ LIVE: dict[str, list[dict]] = {
     ],
     "node/elements/check-table": [example("check-table", "cae-check-table", at="images/check-table.webp")],
     "node/elements/transcript": [example("transcript", "cae-transcript", at="images/transcript.webp")],
-    "node/elements/page": [example("ci-pipeline", at="images/page.webp", height="640px")],
+    "node/elements/page": [example("ci-pipeline", at="images/page.webp", page=True)],
 }
 
 

@@ -1,17 +1,24 @@
-/* Live element demos: a frame like the monitor's own page, in the demo's theme (data-ca-theme, or a theme of one's own). */
+/* Live element demos (Demo.astro, Example.astro): one frame for all, in the demo's theme (data-ca-theme, or a theme
+   of one's own), as tall as what it shows, with the same room on every side. Its surface is the theme's well, the
+   surface a graph's frame is drawn on, so an element that draws one is not a panel in a panel. An element with a
+   height of its own (the monitor) has it set on the element. A whole page (data-page: the monitor, a page built of
+   the elements) brings its own background and room, and fills the frame to its edges. */
 .ca-demo { margin: 1.5rem 0; }
 .ca-demo-frame {
-  background: var(--ca-backdrop);
+  display: flow-root;
+  background: var(--ca-well);
+  color: var(--ca-text);
   border: 1px solid var(--ca-line);
   border-radius: 12px;
   padding: 16px;
-  height: var(--h, auto);
-  max-height: 640px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
   font: 13px/1.5 system-ui, sans-serif;
 }
+.ca-demo-frame[data-page] { padding: 0; overflow: clip; }
+/* A long list: as tall as its content up to its max-height, then it scrolls. */
+.ca-demo-frame[data-scroll='y'] { overflow-y: auto; }
+/* What an example writes under its element ("Opened: ..."): a line under it, no room while it is empty. */
+.ca-demo-frame > p { margin: 8px 0 0; }
+.ca-demo-frame > p:empty { display: none; }
 .ca-demo[data-last-event]::after {
   content: 'sent: ' attr(data-last-event);
   display: block;

@@ -179,8 +179,8 @@ export const graphStyles = css`
       linear-gradient(transparent, var(--well) 70%) center bottom / 100% 28px no-repeat local,
       radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--text-muted) 30%, transparent), transparent) center bottom / 100% 12px no-repeat scroll,
       var(--well); }
-  /* On a narrow screen it keeps room for its relations and scrolls across. */
-  table.list { width: 100%; min-width: 64rem; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* As wide as the frame; on a narrow screen it keeps room for its relations and scrolls across inside the frame. */
+  table.list { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
   .list th, .list td { text-align: left; vertical-align: middle; padding: 6px 10px; border-bottom: 1px solid var(--line); }
   .list .fit { width: 1%; white-space: nowrap; }
   /* A header is as wide as its words, and stays at the top of the frame. */
@@ -188,6 +188,8 @@ export const graphStyles = css`
     white-space: nowrap; padding-top: 10px; }
   .list tbody th { font-weight: 600; }
   .list td { color: var(--text-2); }
+  /* A relation wraps between its names, and keeps room for a name or two (a table cell's own min-width does not hold). */
+  .list .rel > span { display: block; min-width: 14ch; }
   .list tbody tr { cursor: pointer; }
   .list tbody tr:hover > * { background-color: color-mix(in srgb, var(--text-muted) 8%, transparent); }
   .list tbody tr.sel > * { background-color: var(--accent-bg); }

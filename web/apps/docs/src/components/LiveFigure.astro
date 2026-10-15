@@ -13,6 +13,8 @@ interface Figure {
   example?: string;
   tags: string[];
   height?: string;
+  page?: boolean;
+  scroll?: string;
   theme?: string;
   custom?: string;
   caption?: string;
@@ -24,9 +26,9 @@ const { figure: f } = Astro.props;
 <div class="ca-live not-content">
   {
     f.demo ? (
-      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} theme={f.theme} custom={f.custom} caption={f.caption} />
+      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} />
     ) : (
-      <Example name={f.example!} height={f.height} theme={f.theme} custom={f.custom} caption={f.caption} source="none" />
+      <Example name={f.example!} page={f.page} theme={f.theme} custom={f.custom} caption={f.caption} source="none" />
     )
   }
   {f.tags.length > 0 && <ElementLinks tags={f.tags} />}

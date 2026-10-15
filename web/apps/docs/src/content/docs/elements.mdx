@@ -15,7 +15,7 @@ hand-written data of their examples. What an element sends shows under it.
 
 ### `<ca-monitor>`
 
-<Demo tag="ca-monitor" props={{}} attrs={{ export: '/demo/data/', history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" describe />
+<Demo tag="ca-monitor" props={{}} attrs={{ export: '/demo/data/', history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" page describe />
 <ElementLinks tags={['ca-monitor']} links={[{ href: '/node/ui/embed/', label: 'Embed the monitor' }]} />
 
 ### `<ca-pipeline-graph>`
@@ -25,17 +25,17 @@ hand-written data of their examples. What an element sends shows under it.
 
 ### `<ca-transcript>`
 
-<Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
+<Demo tag="ca-transcript" props={{ events: 'transcript' }} describe />
 <ElementLinks tags={['ca-transcript']} />
 
 ### `<ca-task-view>`
 
-<Demo tag="ca-task-view" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false', taskKey: '="write_note-alpha"' }} height="640px" describe />
+<Demo tag="ca-task-view" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false', taskKey: '="write_note-alpha"' }} describe />
 <ElementLinks tags={['ca-task-view']} />
 
 ### `<ca-definitions>`
 
-<Demo tag="ca-definitions" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false' }} height="560px" describe />
+<Demo tag="ca-definitions" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false' }} describe />
 <ElementLinks tags={['ca-definitions']} />
 
 ### `<ca-timeline>`
@@ -50,17 +50,17 @@ hand-written data of their examples. What an element sends shows under it.
 
 ### `<ca-journal-table>`
 
-<Demo tag="ca-journal-table" props={{ rows: 'journal', plan: 'plan' }} height="360px" describe />
+<Demo tag="ca-journal-table" props={{ rows: 'journal', plan: 'plan' }} scroll="640px" describe />
 <ElementLinks tags={['ca-journal-table']} links={[{ href: '/node/ui/live-data/', label: 'Live data' }]} />
 
 ### `<ca-task-table>`
 
-<Demo tag="ca-task-table" props={{ journal: 'journal', plan: 'plan', run: 'run' }} height="360px" describe />
+<Demo tag="ca-task-table" props={{ journal: 'journal', plan: 'plan', run: 'run' }} scroll="640px" describe />
 <ElementLinks tags={['ca-task-table']} />
 
 ### `<ca-contracts>`
 
-<Demo tag="ca-contracts" props={{ outputs: 'outputs' }} height="420px" describe />
+<Demo tag="ca-contracts" props={{ outputs: 'outputs' }} scroll="640px" describe />
 <ElementLinks tags={['ca-contracts']} />
 
 ## Elements of @contraagent/elements
@@ -70,7 +70,7 @@ hand-written data of their examples. What an element sends shows under it.
 A CI pipeline's page built from the elements below: a theme switch, stat
 tiles, a sortable table and a layered graph with a detail panel.
 
-<Example name="ci-pipeline" height="640px" source="details" />
+<Example name="ci-pipeline" page source="details" />
 <ElementLinks tags={['cae-segmented', 'cae-stat-tiles', 'cae-data-table', 'cae-layered-graph']} links={[{ href: '/node/elements/page/', label: 'Building a page' }]} />
 
 ### `<cae-data-table>`
@@ -80,7 +80,7 @@ tiles, a sortable table and a layered graph with a detail panel.
 
 ### `<cae-layered-graph>`
 
-<Example name="graph" height="420px" source="details" />
+<Example name="graph" source="details" />
 <ElementLinks tags={['cae-layered-graph']} links={[{ href: '/node/elements/graph/', label: 'Layered graph' }]} />
 
 ### `<cae-mark-matrix>`
