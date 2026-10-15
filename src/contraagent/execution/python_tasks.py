@@ -11,6 +11,9 @@ from the cause. `PythonTaskRunner` checks, around each Python task:
 * after: every output contract (`invalid_output`, not ok), including the
   freshness check, so a stale file from an earlier run does not pass.
 
+A function that returns a `Partial` (a service it needs was unavailable) finishes ok
+with stop `partial`: its output is checked like any other, and a resume runs it again.
+
 There is no resume: a Python task is deterministic, so running it again with
 the same inputs would write the same file. The failure is the result, except
 for an exception the task names in `retry_on` (`@python_task(retries=, retry_on=)`):
@@ -39,7 +42,9 @@ from contraagent.dispatch.task import (
     STOP_ERROR,
     STOP_INVALID_INPUT,
     STOP_INVALID_OUTPUT,
+    STOP_PARTIAL,
     Deferral,
+    Partial,
     Task,
     TaskResult,
 )
@@ -190,7 +195,7 @@ class PythonTaskRunner:
             return refused, None
         before = {c.resolve(self._cwd): c.before(self._cwd) for c in outs}
         res, exc = self._call(task)
-        if res.stop != STOP_COMPLETED or not outs:
+        if not res.ok or not outs:
             return res, exc  # the function itself failed; its own error is the story
         t0 = time.monotonic()
         errors: list[str] = []
@@ -207,8 +212,9 @@ class PythonTaskRunner:
 
     def _call(self, task: Task) -> tuple[TaskResult, Exception | None]:
         """Call the function: its result, and the exception it raised. An exception is the
-        task's result, never a crash of the queue. With a run directory, it is the current
-        run of `contraagent.log`, `save` and `pipeline_table` while the function runs, on whichever thread the
+        task's result, never a crash of the queue; a returned `Partial` is an ok result with
+        stop `partial` and its `reason`. With a run directory, it is the current run of
+        `contraagent.log`, `save` and `pipeline_table` while the function runs, on whichever thread the
         queue calls it."""
         assert task.fn is not None
         t0 = time.monotonic()
@@ -216,10 +222,13 @@ class PythonTaskRunner:
         error: Exception | None = None
         try:
             with writing_into(self._run_dir.resolve(), self._config) if self._run_dir is not None else contextlib.nullcontext():
-                task.fn()
+                returned = task.fn()
             stop = STOP_COMPLETED
+            if isinstance(returned, Partial):
+                stop, reason = STOP_PARTIAL, " ".join(returned.reason.split())[:300]
         except Exception as exc:  # a Python task's failure is its result
             stop, error = STOP_ERROR, exc
             reason = f"{type(exc).__name__}: {exc}"[:300]
-        result = TaskResult(task=task, ok=stop == STOP_COMPLETED, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
+        ok = stop in (STOP_COMPLETED, STOP_PARTIAL)
+        result = TaskResult(task=task, ok=ok, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
         return result, error

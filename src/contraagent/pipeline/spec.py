@@ -19,6 +19,7 @@ import json
 import math
 import re
 import string
+import types
 import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -28,6 +29,7 @@ from typing import Any, Literal, TypeVar, overload
 from pydantic import BaseModel, RootModel
 
 from contraagent.dispatch.python_task import checked_retries
+from contraagent.dispatch.task import Partial
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.plugins.plugin import body
@@ -673,7 +675,10 @@ def python_task(
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
-    any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
+    any JSON-able type (kept as a JSON file), or None (no output). A function that could do
+    only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
+    `value` is its output as usual, the task finishes ok with stop `partial`, and a resume
+    runs it again. `claims` (templates), as for
     `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
     `agent_task`: a resume runs its tasks again (a step that publishes the work's state).
     `output_name`, as for `agent_task`: the output file's path relative to `<run>/out/`
@@ -731,11 +736,26 @@ def _output_schema_of(fn: Callable) -> type[BaseModel] | None:
         ann = Any
     if ann is inspect.Signature.empty:
         ann = Any
+    ann = _without_partial(ann)
     if ann is None or ann is type(None):
         return None
     if isinstance(ann, type) and issubclass(ann, BaseModel):
         return ann
     return RootModel[ann]
+
+
+def _without_partial(ann: Any) -> Any:
+    """A return annotation without its `Partial`: `Index | Partial[Index]` and
+    `Partial[Index]` are `Index`, the output either way."""
+    if ann is Partial or typing.get_origin(ann) is Partial:
+        args = typing.get_args(ann)
+        return args[0] if args else Any
+    if typing.get_origin(ann) in (typing.Union, types.UnionType):
+        members = typing.get_args(ann)
+        kept = tuple(a for a in members if not (a is Partial or typing.get_origin(a) is Partial))
+        if len(kept) != len(members):
+            return typing.Union[kept] if kept else Any  # noqa: UP007 (a union built from a tuple)
+    return ann
 
 
 def _digest(body: dict) -> str:

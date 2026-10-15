@@ -41,7 +41,10 @@ from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 10
+DIGEST_VERSION = 11
+
+#: A task's last attempt in a digest's `tasks` pairs, when its result was `partial` (1: passed, 0: not).
+PARTIAL = 2
 
 #: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
 BODY_RUNS = 50
@@ -219,15 +222,17 @@ def _usage(v: object) -> dict | None:
 def digest(source, run: str) -> dict:
     """What a run did, by 15-minute slot of UTC (`SLOT_S`), as much as its trends need.
 
-    `slots`: `[slot, {"last_ts", "kinds": {kind: {n, ok, wall, cost, tokens, stops, walls}},
-    "models": [...]}]`, oldest first: per kind its attempts, how many passed, their wall
+    `slots`: `[slot, {"last_ts", "kinds": {kind: {n, ok, partial, wall, cost, tokens, stops, walls}},
+    "models": [...]}]`, oldest first: per kind its attempts, how many passed and how many
+    were `partial` (ok, and counted apart from those that passed), their wall
     time, cost (null when none reported one), tokens (`_TOKENS` order), outcomes, and their
     wall times, sorted (a median over a period stays exact, and joining runs is a list's
     `extend` and one sort); per model what its hops spent (`model_usage`, in order of first use).
-    `kinds`: per kind its executor, and its tasks and the tasks whose last attempt passed,
-    over the whole run, and an implementation kind's `base_kind` (`plan.jsonl`); `tasks`: per kind,
-    per task, its attempts as `slot, ok, slot, ok ...`
-    (each slot counted from `span[0]`; the last attempt of a slot), for a period that cuts
+    `kinds`: per kind its executor, its tasks, and the tasks whose last attempt passed
+    (`tasks_ok`) and was partial (`tasks_partial`), over the whole run, and an implementation
+    kind's `base_kind` (`plan.jsonl`); `tasks`: per kind, per task, its attempts as
+    `slot, end, slot, end ...` (`end` 1 passed, `PARTIAL`, 0 neither;
+    each slot counted from `span[0]`; the last attempt of a slot), for a period that cuts
     the run. `span`: the first and last slot
     of an attempt; `total`: the slots summed, in the same shape, for a period that holds
     the whole run within one of its days (most runs: a period then adds one entry per run,
@@ -257,15 +262,18 @@ def digest(source, run: str) -> dict:
                 peaks[at] = max(peaks.get(at, 0.0), pct)
         if slot is None:
             continue
-        ok, wall, cost, usage = bool(e.get("ok")), _num(e.get("wall_s")) or 0.0, _num(e.get("cost_usd")), _usage(e.get("usage"))
+        partial = e.get("stop") == "partial"  # ok, and counted apart: not passed, not failed
+        ok = bool(e.get("ok")) and not partial
+        wall, cost, usage = _num(e.get("wall_s")) or 0.0, _num(e.get("cost_usd")), _usage(e.get("usage"))
         executor = e.get("executor") or "agent"
         s = slots.setdefault(slot, {"last_ts": "", "kinds": {}})
         s["last_ts"] = max(s["last_ts"], str(e.get("ts", "")))
         k = s["kinds"].setdefault(
-            kind, {"n": 0, "ok": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+            kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
         )
         k["n"] += 1
         k["ok"] += ok
+        k["partial"] += partial
         k["wall"] += wall
         if cost is not None:
             k["cost"] = (k["cost"] or 0.0) + cost
@@ -274,12 +282,13 @@ def digest(source, run: str) -> dict:
         stop = str(e.get("stop", ""))
         k["stops"][stop] = k["stops"].get(stop, 0) + 1
         k["walls"].append(wall)
-        kinds.setdefault(kind, {"executor": executor, "tasks": 0, "tasks_ok": 0})
+        kinds.setdefault(kind, {"executor": executor, "tasks": 0, "tasks_ok": 0, "tasks_partial": 0})
         pairs = attempts.setdefault(kind, {}).setdefault(key, [])
+        end = PARTIAL if partial else int(ok)
         if pairs and pairs[-2] == slot:
-            pairs[-1] = int(ok)
+            pairs[-1] = end
         else:
-            pairs += [slot, int(ok)]
+            pairs += [slot, end]
         hops = [
             {"agent": h.get("agent", ""), "model": h.get("model", ""), "cost_usd": _num(h.get("cost_usd")),
              "wall_s": _num(h.get("wall_s")) or 0.0, "usage": _usage(h.get("usage")),
@@ -289,7 +298,8 @@ def digest(source, run: str) -> dict:
         rows_of.setdefault(slot, []).append({"executor": executor, "agent": e.get("agent", ""), "usage": usage, "hops": hops})
     for kind, keys in attempts.items():
         kinds[kind]["tasks"] = len(keys)
-        kinds[kind]["tasks_ok"] = sum(pairs[-1] for pairs in keys.values())
+        kinds[kind]["tasks_ok"] = sum(pairs[-1] == 1 for pairs in keys.values())
+        kinds[kind]["tasks_partial"] = sum(pairs[-1] == PARTIAL for pairs in keys.values())
     for row in _parse(line for line in source.lines(run, rundir.PLAN)[0] if '"base_kind"' in line):
         if row.get("kind") in kinds and row.get("base_kind"):
             kinds[row["kind"]]["base_kind"] = str(row["base_kind"])
@@ -300,10 +310,11 @@ def digest(source, run: str) -> dict:
         for kind, k in s["kinds"].items():
             k["walls"].sort()
             t = total["kinds"].setdefault(
-                kind, {"n": 0, "ok": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
+                kind, {"n": 0, "ok": 0, "partial": 0, "wall": 0.0, "cost": None, "tokens": [0] * len(_TOKENS), "stops": {}, "walls": []}
             )
             t["n"] += k["n"]
             t["ok"] += k["ok"]
+            t["partial"] += k["partial"]
             t["wall"] += k["wall"]
             if k["cost"] is not None:
                 t["cost"] = (t["cost"] or 0.0) + k["cost"]
@@ -470,7 +481,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     at = _Slots(period)
     days = [d.isoformat() for d in period.days]
     hours = (at.end - at.first) * SLOT_S // 3600
-    daily = [{"day": d, "cost_usd": {}, "attempts": 0, "ok": 0} for d in days]
+    daily = [{"day": d, "cost_usd": {}, "attempts": 0, "ok": 0, "partial": 0} for d in days]
     kinds: dict[str, dict] = {}
     walls: dict[str, list[float]] = {}
     stops: dict[str, dict] = {}
@@ -479,7 +490,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     peaks: dict[tuple[str, str, str], dict] = {}
     rests, deferred, runs = [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
-    totals = {"runs": 0, "attempts": 0, "ok": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
+    totals = {"runs": 0, "attempts": 0, "ok": 0, "partial": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
     for dg in digests:
         run = dg["run"]
         span = dg["span"]
@@ -494,7 +505,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             t = when(dg["started_at"]).astimezone(period.zone)  # type: ignore[union-attr]
             starts[t.weekday()][t.hour] += 1
         cost: float | None = None
-        n = ok = 0
+        n = ok = partial = 0
         wall = 0.0
         last = ""
         for slot, s in mine:
@@ -504,17 +515,19 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 group = group_of.get(kind) or dg["kinds"][kind].get("base_kind") or kind
                 d["attempts"] += k["n"]
                 d["ok"] += k["ok"]
+                d["partial"] += k["partial"]
                 if k["cost"] is not None:
                     d["cost_usd"][group] = round(d["cost_usd"].get(group, 0.0) + k["cost"], 6)
                     cost = (cost or 0.0) + k["cost"]
                 into = kinds.setdefault(
                     kind,
                     {"kind": kind, "group": group, "executor": dg["kinds"][kind]["executor"], "tasks": 0, "tasks_ok": 0,
-                     "attempts": 0, "ok": 0, "wall_s": 0.0, "wall_s_median": 0.0, "cost_usd": None,
+                     "tasks_partial": 0, "attempts": 0, "ok": 0, "partial": 0, "wall_s": 0.0, "wall_s_median": 0.0, "cost_usd": None,
                      "tokens": dict.fromkeys(_TOKENS, 0)},
                 )  # fmt: skip
                 into["attempts"] += k["n"]
                 into["ok"] += k["ok"]
+                into["partial"] += k["partial"]
                 into["wall_s"] += k["wall"]
                 if k["cost"] is not None:
                     into["cost_usd"] = (into["cost_usd"] or 0.0) + k["cost"]
@@ -528,6 +541,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                     st["kinds"][kind] = st["kinds"].get(kind, 0) + c
                 n += k["n"]
                 ok += k["ok"]
+                partial += k["partial"]
                 wall += k["wall"]
             for m in s["models"]:
                 _add_model(models, m)
@@ -535,25 +549,29 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
         whole = dg["span"] is not None and at.holds(dg["span"][0]) and at.holds(dg["span"][1])
         for kind, keys in dg["tasks"].items():
             if whole:
-                counted, passed = dg["kinds"][kind]["tasks"], dg["kinds"][kind]["tasks_ok"]
+                k = dg["kinds"][kind]
+                counted, passed, partly = k["tasks"], k["tasks_ok"], k["tasks_partial"]
             else:
-                counted = passed = 0
+                counted = passed = partly = 0
                 first = dg["span"][0] if dg["span"] is not None else 0
                 for pairs in keys:
-                    last_ok = None
+                    end = None
                     for i in range(0, len(pairs), 2):
                         if at.holds(first + pairs[i]):
-                            last_ok = pairs[i + 1]
-                    if last_ok is not None:
+                            end = pairs[i + 1]
+                    if end is not None:
                         counted += 1
-                        passed += last_ok
+                        passed += end == 1
+                        partly += end == PARTIAL
             if counted and kind in kinds:
                 kinds[kind]["tasks"] += counted
                 kinds[kind]["tasks_ok"] += passed
+                kinds[kind]["tasks_partial"] += partly
         if cost is not None:
             totals["cost_usd"] = (totals["cost_usd"] or 0.0) + cost
         totals["attempts"] += n
         totals["ok"] += ok
+        totals["partial"] += partial
         totals["wall_s"] += wall
         for slot, credential, account, window, pct in dg["quota"]:
             if at.holds(slot):
@@ -580,6 +598,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 "last_ts": last,
                 "attempts": n,
                 "ok": ok,
+                "partial": partial,
                 "cost_usd": _round(cost),
                 "wall_s": round(wall, 1),
                 "stub": dg["stub"],
@@ -643,6 +662,13 @@ def _blocks(*items: dict | None) -> dict:
     return {"type": "blocks", "blocks": [x for x in items if x is not None]}
 
 
+def _kind_tone(k: dict) -> dict:
+    """A kind row's tone: failed when a task failed, attention when one was partial."""
+    if k["tasks_ok"] + k["tasks_partial"] < k["tasks"]:
+        return {"_tone": "failed"}
+    return {"_tone": "attention"} if k["tasks_partial"] else {}
+
+
 def bodies(view: dict) -> dict[str, dict]:
     """The trends as panel bodies (`{"type": "blocks", "blocks": [...]}`), one per section, in
     English: for a page that draws them without words of its own (a static export, a
@@ -678,6 +704,7 @@ def bodies(view: dict) -> dict[str, dict]:
             {"id": "kind", "label": "Kind"},
             {"id": "tasks", "label": "Tasks", "align": "end"},
             {"id": "passed", "label": "Passed", "align": "end", "format": "pct"},
+            {"id": "partial", "label": "Partial", "align": "end"},
             {"id": "attempts", "label": "Attempts", "align": "end"},
             {"id": "wall", "label": "Median time", "align": "end", "format": "duration"},
             {"id": "tokens", "label": "Tokens", "align": "end", "format": "tokens"},
@@ -688,11 +715,12 @@ def bodies(view: dict) -> dict[str, dict]:
                 "kind": k["kind"],
                 "tasks": k["tasks"],
                 "passed": k["tasks_ok"] / k["tasks"] if k["tasks"] else None,
+                "partial": k["tasks_partial"],
                 "attempts": k["attempts"],
                 "wall": k["wall_s_median"],
                 "tokens": sum(k["tokens"][x] for x in ("input", "output", "cache_read", "cache_creation")),
                 "cost": k["cost_usd"],
-                **({"_tone": "failed"} if k["tasks"] and k["tasks_ok"] < k["tasks"] else {}),
+                **_kind_tone(k),
             }
             for k in view["kinds"]
         ],
@@ -733,7 +761,7 @@ def bodies(view: dict) -> dict[str, dict]:
         "rows": [
             {"stop": s["stop"], "attempts": s["attempts"], "kinds": ", ".join(sorted(s["kinds"])), "_tone": "failed"}
             for s in view["stops"]
-            if s["stop"] not in ("completed", "skipped")
+            if s["stop"] not in ("completed", "skipped", "partial")
         ],
     }
     denials = {

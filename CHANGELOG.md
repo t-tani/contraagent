@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checks their keys, and a `pipeline.<name>` that is not a table is refused. `Run(config=)`
   and `PythonTaskRunner(config=)` take the config file the run was started with.
 
+- A partial result: a Python task returns `Partial(value, reason=)` (annotated
+  `-> Out | Partial[Out]`) when a service it needs is unavailable. It finishes ok with stop
+  `partial`, its `value` its output, so the flow and later tasks go on; a resume runs it
+  again with the tasks that wait for it. `RunReport.partial` lists such results; the
+  monitor's API has the plan state `partial` and counts partial tasks and attempts apart
+  from those that passed (`TaskCounts.partial`, `PlanGroup.partial`, `RunSummary.partial`,
+  and in the trends `partial` and `TrendKind.tasks_partial`).
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history
   tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak
