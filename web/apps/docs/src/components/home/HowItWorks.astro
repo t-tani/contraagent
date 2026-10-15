@@ -1,0 +1,176 @@
+---
+// The landing page's "how it works" scene: you install contraagent and ask your coding
+// agent for a pipeline; the agent reads the installed docs, writes the pipeline, checks
+// it, fixes what `contraagent check` names, tests it on a stub agent; you run it and
+// watch it. Each stage shows the real thing (./how.ts runs the CLI when the site is
+// built). On a wide screen with motion, the scene stays in place while the reader
+// scrolls through its stages (./how.css, ./how-stages.css); elsewhere the stages follow
+// one another.
+import '@contraagent/elements/count/define';
+import { how, KWARGS } from './how';
+import './how.css';
+import './how-stages.css';
+
+const h = how();
+/** Each stage's share of the scroll through the scene (scripts/how_css.py has the same; a test checks). */
+const WEIGHTS = [1, 1, 1, 1, 2, 1, 1];
+const STAGES = WEIGHTS.length;
+const RUN = `contraagent run tasks.py:docs --config pipeline.toml --kwargs '${KWARGS}'`;
+const CHECK = `contraagent check tasks.py:docs --config pipeline.toml --stub --kwargs`;
+/** A line of the CLI's output, its tone by how it starts. */
+const tone = (l: string) => (/^✓/.test(l) ? 'ok' : /^✗/.test(l) || /^\s*error:/.test(l) ? 'bad' : /^\s*warning:/.test(l) ? 'warn' : /^\s*read:/.test(l) ? 'read' : '');
+const out = (text: string) => text.split('\n').map((l) => ({ l, t: tone(l) }));
+
+interface Step { who: 'You' | 'The agent'; title: string; text: string; link?: { href: string; text: string } }
+const steps: Step[] = [
+  { who: 'You', title: 'Install contraagent', text: 'Linux, Python 3.12 or later, and one or more coding agents on PATH.', link: { href: '/python/#install', text: 'Install' } },
+  {
+    who: 'You',
+    title: 'Point your coding agent at the docs',
+    text: 'The documentation is installed with the package and matches its version. contraagent docs --pointer prints a block that points a coding agent at it; add it to the instructions your agent reads.',
+  },
+  { who: 'You', title: 'Ask for the pipeline in plain words', text: 'To Claude Code, Codex CLI, opencode, oh-my-pi or pi.' },
+  {
+    who: 'The agent',
+    title: 'Reads the docs and writes the pipeline',
+    text: 'The topics of contraagent docs, then tasks.py: the models, the agent tasks and the flow, and a plugin with a role for each kind.',
+    link: { href: '/python/tasks/', text: 'Tasks and flows' },
+  },
+  {
+    who: 'The agent',
+    title: 'Checks it and fixes what check names',
+    text: 'contraagent check launches nothing and reports every problem at once, each with the topic that explains it.',
+    link: { href: '/python/testing/', text: 'Checking and testing' },
+  },
+  { who: 'The agent', title: 'Tests the flow on a stub agent', text: 'The stub agent plays the coding agent: the checks, corrections and failover are the real ones, and nothing is spent.' },
+  {
+    who: 'You',
+    title: 'Run it and watch it',
+    text: 'On the coding agent and model that pipeline.toml names for each kind. contraagent monitor shows the run live, as in the replay above.',
+    link: { href: '#rr-title', text: 'The replay above' },
+  },
+];
+const LOOP = [
+  { word: 'write', from: 3 },
+  { word: 'check', from: 4 },
+  { word: 'fix', from: 4 },
+  { word: 'stub run', from: 5 },
+  { word: 'done', from: 6 },
+];
+---
+
+<section class="how not-content" aria-labelledby="how-title">
+  <div class="how-track" data-how data-weights={WEIGHTS.join(',')} style={`--stages:${STAGES};--shares:${WEIGHTS.reduce((a, b) => a + b, 0)}`}>
+    <div class="how-pin">
+      <div class="how-depth" aria-hidden="true"></div>
+      <div class="how-left">
+        <h2 id="how-title" class="how-title">Your coding agent writes the pipeline. You run it.</h2>
+        <p class="how-lede">
+          contraagent is made for a coding agent to build with. Its documentation is installed with it, contraagent check names
+          every problem and where it is explained, and a stub agent tests the flow with nothing spent. Nothing runs on a real
+          coding agent until you run it.
+        </p>
+        <ol class="how-loop" aria-label="The agent's loop">
+          {LOOP.map((s) => <li class="how-loop-step" data-from={s.from}>{s.word}</li>)}
+        </ol>
+        <ol class="how-steps" style={`--n:${STAGES}`}>
+          {/* The rail behind the numbers: grid items under the steps (the numbers are opaque). */}
+          <li class="how-rail how-rail-track" aria-hidden="true" />
+          <li class="how-rail how-rail-fill" aria-hidden="true" />
+          {
+            steps.map((s, k) => (
+              <li class="how-step" data-k={k} style={`--r:${k + 1}`}>
+                <span class="how-n" aria-hidden="true">{k + 1}</span>
+                <span class="how-glow" aria-hidden="true" />
+                <div class="how-words">
+                  <p class="how-who">{s.who}</p>
+                  <h3 class="how-step-title">{s.title}</h3>
+                  <p class="how-text">{s.text}</p>
+                  {s.link && <a class="how-link" href={s.link.href}>{s.link.text}</a>}
+                </div>
+                <div class="how-stage" data-k={k}>
+                  {k === 0 && (
+                    <div class="term">
+                      <p class="term-cmd"><span class="term-p">$</span> uv add 'contraagent[monitor]'</p>
+                      <p class="term-cmd"><span class="term-p">$</span> contraagent --version</p>
+                      <pre class="term-out">{h.version}</pre>
+                    </div>
+                  )}
+                  {k === 1 && (
+                    <div class="term">
+                      <p class="term-cmd"><span class="term-p">$</span> contraagent docs --pointer</p>
+                      <div class="term-out term-md">{h.pointer.split(/\n\s*\n/).map((para) => <p>{para.replace(/\n/g, ' ')}</p>)}</div>
+                    </div>
+                  )}
+                  {k === 2 && (
+                    <div class="chat">
+                      <p class="chat-who">You, to your coding agent</p>
+                      <p class="chat-msg">
+                        Use contraagent to write a pipeline that summarizes each document in inputs/, has a reviewer approve each
+                        summary or send it back for a revision, then writes a note for each document and one report. Check it with
+                        contraagent check and test it on a stub agent.
+                      </p>
+                    </div>
+                  )}
+                  {k === 3 && (
+                    <div class="term">
+                      <p class="term-cmd"><span class="term-p">$</span> contraagent docs</p>
+                      <ul class="term-topics">{h.topics.map((t) => <li>{t}</li>)}</ul>
+                      <p class="term-file">tasks.py</p>
+                      <div class="term-code">
+                        {h.code.map((l) => (l.n ? <div class="code-l"><span class="code-n">{l.n}</span><code set:html={l.html || ' '} /></div> : <div class="code-l code-gap"><span class="code-n">⋮</span></div>))}
+                      </div>
+                    </div>
+                  )}
+                  {k === 4 && (
+                    <div class="term term-loop">
+                      <div class="slip slip-1">
+                        <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{h.slip.kwargs}'</p>
+                        <pre class="term-out">{out(h.slip.output).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                      </div>
+                      <div class="slip slip-2">
+                        <p class="term-file">The agent's fix</p>
+                        <pre class="term-out term-diff"><span class="ln ln-del">- --kwargs '{h.slip.kwargs}'{'\n'}</span><span class="ln ln-add">+ --kwargs '{KWARGS}'{'\n'}</span><span class="ln ln-del">- {h.slip.to}{'\n'}</span><span class="ln ln-add">+ {h.slip.from}</span></pre>
+                      </div>
+                      <div class="slip slip-3">
+                        <p class="term-cmd"><span class="term-p">$</span> {CHECK} '{KWARGS}'</p>
+                        <pre class="term-out">{out(h.check).map((x) => <span class:list={['ln', x.t && `ln-${x.t}`]}>{x.l}{'\n'}</span>)}</pre>
+                      </div>
+                    </div>
+                  )}
+                  {k === 5 && (
+                    <div class="term">
+                      <p class="term-cmd"><span class="term-p">$</span> pytest test_demo.py -v</p>
+                      <pre class="term-out">{h.tests.map((l) => <span class:list={['ln', / passed/.test(l) ? 'ln-ok' : 'ln-pass']}>{l}{'\n'}</span>)}</pre>
+                    </div>
+                  )}
+                  {k === 6 && (
+                    <div class="term">
+                      <p class="term-cmd"><span class="term-p">$</span> {RUN}</p>
+                      <div class="run-marks">
+                        {h.marks.map((m, i) => <span class:list={['run-mark', m.agent ? 'is-agent' : 'is-python', m.corrected && 'is-fixed', m.switched && 'is-switched']} style={`--i:${i}`} />)}
+                      </div>
+                      <dl class="run-figs">
+                        <div><dt>Tasks done</dt><dd><cae-count data-value={h.done} /> of {h.total}</dd></div>
+                        <div><dt>Corrections</dt><dd><cae-count data-value={h.corrections} /></dd></div>
+                        <div><dt>Model switches</dt><dd><cae-count data-value={h.switches} /></dd></div>
+                      </dl>
+                      <p class="term-cmd"><span class="term-p">$</span> contraagent monitor --runs-dir runs</p>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+      <div class="how-window" aria-hidden="true">
+        <div class="how-window-bar"><i></i><i></i><i></i><span>Your terminal and your coding agent</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import './how-scene';
+</script>

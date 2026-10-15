@@ -1,50 +1,17 @@
 /*
- * The landing page below the replay, as the reader scrolls to it: the path's line
- * fills, each step's number lights and its command slides in with a sheen; the
- * runner's cards and the entry points rise into place, a little tilted at first.
+ * The landing page after the "how it works" scene, as the reader scrolls to it:
+ * the runner's cards gather into their grid from scattered places, and the entry
+ * points rise into place with a light passing over each.
  *
  * Scroll-driven animations (view timelines, longhand properties: the minifier
  * folds a shorthand, which resets the timeline) where the browser has them;
- * elsewhere ./reveal.ts adds .is-in as each part comes into view and the same
- * end state is reached by a transition. The motion is visual only: everything is
- * in the page, readable and focusable, at every scroll position; each part is
- * fully shown before it is fully on screen. Transforms and opacity only. Narrow
- * screens: shorter moves, no tilt. Reduced motion: none of it.
+ * elsewhere ./reveal.ts adds .is-in as each part comes into view and the same end
+ * state is reached by a transition. The motion is visual only: everything is in
+ * the page, readable and focusable, at every scroll position; each part is fully
+ * in place before it is fully on screen. Transforms and opacity only. Narrow
+ * screens: shorter moves, no scatter. Reduced motion: none of it.
  */
 
-/* The path: one line behind the step numbers, and the line that fills it. */
-.steps { position: relative; view-timeline: --ca-steps block; }
-.steps::before,
-.steps::after {
-  content: '';
-  position: absolute;
-  left: calc(1.125rem - 1px);
-  top: 1.2rem;
-  bottom: 3rem;
-  width: 2px;
-  border-radius: 2px;
-  pointer-events: none;
-}
-.steps::before { background: var(--sl-color-gray-5); }
-.steps::after {
-  background: linear-gradient(to bottom, var(--sl-color-accent), color-mix(in srgb, var(--sl-color-accent) 40%, hsl(268 90% 66%)));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
-  transform-origin: 50% 0;
-}
-.step { z-index: 0; }
-.step-n { position: relative; z-index: 1; transition: box-shadow 0.3s ease; }
-.step-cmd { position: relative; overflow: hidden; }
-/* A sheen across a command as it arrives. */
-.step-cmd::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--sl-color-accent) 22%, transparent) 50%, transparent 70%);
-  transform: translateX(-110%);
-  pointer-events: none;
-}
-
-/* The runner's cards and the entry points: panels with depth. */
 .ca-runner .card {
   transform-origin: 50% 100%;
   border-radius: 14px;
@@ -53,6 +20,8 @@
     var(--sl-color-black);
 }
 .ca-start section {
+  position: relative;
+  overflow: hidden;
   padding: 1.25rem;
   border-radius: 16px;
   border: 1px solid var(--sl-color-gray-5);
@@ -60,10 +29,20 @@
     radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--sl-color-accent) 9%, transparent), transparent 60%),
     var(--sl-color-black);
   transform-origin: 50% 100%;
+  isolation: isolate;
 }
-.ca-start .sl-link-card {
-  transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease;
+/* A light that passes over an entry panel as it arrives. */
+.ca-start section::after {
+  content: '';
+  position: absolute;
+  inset: -20% -60%;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 40%, color-mix(in srgb, var(--sl-color-accent) 18%, transparent) 50%, transparent 60%);
+  transform: translateX(-60%);
+  opacity: 0;
+  pointer-events: none;
 }
+.ca-start .sl-link-card { transition: border-color 0.2s ease, box-shadow 0.25s ease, transform 0.25s ease; }
 .ca-start .sl-link-card:hover,
 .ca-start .sl-link-card:focus-within {
   border-color: color-mix(in srgb, var(--sl-color-accent) 70%, transparent);
@@ -73,88 +52,63 @@
   transform: translateY(-2px);
 }
 
+/* Where each card starts, scattered: its own offset and turn (two columns). */
+.ca-runner .card:nth-child(1) { --sx: -3rem; --sy: 4rem; --sr: -6deg; }
+.ca-runner .card:nth-child(2) { --sx: 4rem; --sy: 6rem; --sr: 5deg; }
+.ca-runner .card:nth-child(3) { --sx: -5rem; --sy: 3rem; --sr: 4deg; }
+.ca-runner .card:nth-child(4) { --sx: 3rem; --sy: 5rem; --sr: -5deg; }
+.ca-runner .card:nth-child(5) { --sx: -2rem; --sy: 7rem; --sr: -3deg; }
+.ca-runner .card:nth-child(6) { --sx: 5rem; --sy: 4rem; --sr: 6deg; }
+
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
-    .steps::after {
-      animation-name: ca-fill;
-      animation-timing-function: linear;
-      animation-fill-mode: both;
-      animation-timeline: --ca-steps;
-      animation-range: entry 55% cover 72%;
-    }
-    .step-n {
-      animation-name: ca-light;
-      animation-timing-function: linear;
-      animation-fill-mode: both;
-      animation-timeline: view();
-      animation-range: entry 70% cover 42%;
-    }
-    .step-words, .step-cmds {
-      animation-name: ca-up;
+    .ca-runner .card, .ca-start section, .ca-start section::after {
       animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
       animation-fill-mode: both;
       animation-timeline: view();
-      animation-range: entry 0% entry 80%;
     }
-    .step-cmds { animation-name: ca-in-right; animation-range: entry 10% entry 90%; }
-    .step-cmd::after {
-      animation-name: ca-sheen;
-      animation-timing-function: ease-out;
-      animation-fill-mode: both;
-      animation-timeline: view();
-      animation-range: entry 60% cover 50%;
-    }
-    .ca-runner .card, .ca-start section {
-      animation-name: ca-rise-card;
-      animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-      animation-fill-mode: both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 85%;
-    }
-    .ca-runner .card:nth-child(even), .ca-start section:nth-child(2) { animation-range: entry 12% entry 95%; }
-    .ca-start section:nth-child(3) { animation-range: entry 24% entry 100%; }
+    .ca-runner .card { animation-name: ca-gather; animation-range: entry 0% entry 90%; }
+    .ca-runner .card:nth-child(even) { animation-range: entry 8% entry 98%; }
+    .ca-start section { animation-name: ca-rise-card; animation-range: entry 0% entry 85%; }
+    .ca-start section:nth-child(2) { animation-range: entry 10% entry 92%; }
+    .ca-start section:nth-child(3) { animation-range: entry 20% entry 100%; }
+    .ca-start section::after { animation-name: ca-sweep; animation-timing-function: ease-in-out; animation-range: entry 50% cover 55%; }
   }
 
   /* Without scroll-driven animations: the same end state, by a transition once in view (./reveal.ts). */
   @supports not (animation-timeline: view()) {
-    .ca-reveal-js .steps::after { transform: scaleY(0); transition: transform 1.6s cubic-bezier(0.3, 0.7, 0.2, 1) 0.15s; }
-    .ca-reveal-js .steps.is-in::after { transform: none; }
-    .ca-reveal-js .step:not(.is-in) .step-words { opacity: 0; transform: translate3d(0, 1.25rem, 0); }
-    .ca-reveal-js .step:not(.is-in) .step-cmds { opacity: 0; transform: translate3d(2rem, 0, 0); }
-    .ca-reveal-js .step-words, .ca-reveal-js .step-cmds { transition: opacity 0.5s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
-    .ca-reveal-js .step-cmds { transition-delay: 0.08s; }
-    .ca-reveal-js .ca-runner .card:not(.is-in), .ca-reveal-js .ca-start section:not(.is-in) {
-      opacity: 0;
-      transform: perspective(900px) translate3d(0, 3rem, 0) rotateX(12deg) scale(0.96);
-    }
-    .ca-reveal-js .ca-runner .card, .ca-reveal-js .ca-start section { transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .ca-reveal-js .ca-runner .card:not(.is-in) { opacity: 0; transform: translate3d(var(--sx), var(--sy), 0) rotate(var(--sr)) scale(0.94); }
+    .ca-reveal-js .ca-start section:not(.is-in) { opacity: 0; transform: perspective(900px) translate3d(0, 3rem, 0) rotateX(12deg) scale(0.96); }
+    .ca-reveal-js .ca-runner .card, .ca-reveal-js .ca-start section { transition: opacity 0.6s ease, transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
     .ca-reveal-js .ca-runner .card:nth-child(even), .ca-reveal-js .ca-start section:nth-child(2) { transition-delay: 0.1s; }
     .ca-reveal-js .ca-start section:nth-child(3) { transition-delay: 0.2s; }
+    .ca-reveal-js .ca-start section.is-in::after { animation: ca-sweep 1.4s ease-in-out 0.3s both; }
   }
 }
 
-@keyframes ca-fill { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-@keyframes ca-light {
-  from { transform: scale(0.82); opacity: 0.55; box-shadow: none; }
-  to { transform: none; opacity: 1; box-shadow: 0 0 0 4px color-mix(in srgb, var(--sl-color-accent) 18%, transparent), 0 0 18px color-mix(in srgb, var(--sl-color-accent) 45%, transparent); }
+@keyframes ca-gather {
+  from { opacity: 0; transform: translate3d(var(--sx), var(--sy), 0) rotate(var(--sr)) scale(0.94); }
+  to { opacity: 1; transform: none; }
 }
-@keyframes ca-up { from { opacity: 0; transform: translate3d(0, 1.25rem, 0); } to { opacity: 1; transform: none; } }
-@keyframes ca-in-right { from { opacity: 0; transform: translate3d(2rem, 0, 0); } to { opacity: 1; transform: none; } }
-@keyframes ca-sheen { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
 @keyframes ca-rise-card {
   from { opacity: 0; transform: perspective(900px) translate3d(0, 3rem, 0) rotateX(12deg) scale(0.96); }
   to { opacity: 1; transform: perspective(900px); }
 }
-
-/* A narrow screen: shorter moves, no tilt. */
-@media (max-width: 49.99rem) and (prefers-reduced-motion: no-preference) {
-  @keyframes ca-rise-card { from { opacity: 0; transform: translate3d(0, 1.5rem, 0); } to { opacity: 1; transform: none; } }
-  @keyframes ca-in-right { from { opacity: 0; transform: translate3d(0, 1rem, 0); } to { opacity: 1; transform: none; } }
+@keyframes ca-sweep {
+  0% { opacity: 0; transform: translateX(-60%); }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(60%); }
 }
 
-/* Reduced motion: the line filled, the numbers lit, nothing moving. */
+/* A narrow screen: a short rise, no scatter. */
+@media (max-width: 49.99rem) and (prefers-reduced-motion: no-preference) {
+  @keyframes ca-gather { from { opacity: 0; transform: translate3d(0, 1.5rem, 0); } to { opacity: 1; transform: none; } }
+  @keyframes ca-rise-card { from { opacity: 0; transform: translate3d(0, 1.5rem, 0); } to { opacity: 1; transform: none; } }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .step-cmd::after { display: none; }
+  .ca-start section::after { display: none; }
   .ca-start .sl-link-card { transition: none; }
   .ca-start .sl-link-card:hover, .ca-start .sl-link-card:focus-within { transform: none; }
 }

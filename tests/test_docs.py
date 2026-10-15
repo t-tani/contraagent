@@ -513,3 +513,20 @@ def test_the_demo_takes_every_registered_coding_agent(capsys):
         demo(["--help"])
     help = " ".join(capsys.readouterr().out.split())
     assert f"({', '.join(known_agents())})" in help
+
+
+def test_the_landing_scenes_stage_css_is_current():
+    """how-stages.css is what scripts/how_css.py writes, and its stages' shares are the
+    ones HowItWorks.astro gives the track (and how-scene.ts reads from it)."""
+    import importlib.util
+    import re
+
+    root = docs.DIR.parents[2] / "web/apps/docs"
+    spec = importlib.util.spec_from_file_location("how_css", root / "scripts/how_css.py")
+    assert spec and spec.loader
+    how = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(how)
+    assert (root / "src/components/home/how-stages.css").read_text() == how.css(), "run web/apps/docs/scripts/how_css.py"
+    astro = (root / "src/components/home/HowItWorks.astro").read_text()
+    weights = re.search(r"const WEIGHTS = \[([\d, ]+)\]", astro)
+    assert weights and [int(w) for w in weights.group(1).split(",")] == how.WEIGHTS
