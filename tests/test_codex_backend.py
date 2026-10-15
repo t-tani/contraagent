@@ -135,6 +135,25 @@ def test_codex_sees_only_its_plugins_skills_and_its_commands_the_real_home(fake,
     assert (task / "skills" / "notes" / "SKILL.md").exists()  # a later launch's cleanup removes links only
 
 
+def test_the_projects_own_skills_are_turned_off_by_path(fake, tmp_path):
+    work = tmp_path / "work"
+    (tmp_path / ".git").mkdir()  # the repository's root: codex looks from cwd up to here
+    plugin = work / ".agents"  # a plugin whose skills are where codex looks for the project's
+    for d, name in (
+        (work / ".codex" / "skills", "mine"),
+        (tmp_path / ".agents" / "skills", "above"),
+        (plugin / "skills", "write-output"),
+    ):
+        (d / name).mkdir(parents=True)
+        (d / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+    _, r, seen = fake(plugin_dirs=(str(plugin),))
+    assert r.ok
+    table = next(a for a in seen["argv"] if a.startswith("skills.config="))
+    assert str(work / ".codex" / "skills" / "mine" / "SKILL.md") in table
+    assert str(tmp_path / ".agents" / "skills" / "above" / "SKILL.md") in table
+    assert "write-output" not in table and table.count('"enabled"=false') == 2
+
+
 def test_the_rollout_of_a_session_nobody_keeps_is_removed(fake, tmp_path):
     backend, r, seen = fake(credential=ApiKey(name="k", provider="openai", key="env:MY_KEY"))
     assert not list((tmp_path / "cache").rglob("rollout-*.jsonl"))

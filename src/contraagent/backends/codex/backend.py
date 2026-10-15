@@ -8,10 +8,11 @@ what the events do not carry: per-call tokens, the model, the plan's usage.
 What a launch sees (checked against codex-cli 0.162.1): no AGENTS.md
 (`project_doc_max_bytes=0`), no hooks, plugins or execpolicy rules, and of the
 skills only its plugins' and codex's own. Codex finds skills only in fixed
-places (`$HOME/.agents/skills`, a repository's `.agents/skills`, `/etc/codex/skills`,
-its bundled ones), so codex runs with a `HOME` of its own whose `.agents/skills`
-links to each plugin's `skills/<name>`; the commands it runs get the real `HOME`
-back (`shell_environment_policy.set.HOME`). Codex has no named-agent flag, so the
+places (`$HOME/.agents/skills`, a project's `.agents/skills` and `.codex/skills`,
+`/etc/codex/skills`, its bundled ones), so codex runs with a `HOME` of its own whose
+`.agents/skills` links to each plugin's `skills/<name>`, and each project skill is
+turned off by its path (`skills.config`, `project_skills`); the commands it runs get
+the real `HOME` back (`shell_environment_policy.set.HOME`). Codex has no named-agent flag, so the
 role's file is inlined into the prompt, as for omp. `Launch.system_prompt`
 replaces codex's own instructions (`model_instructions_file`),
 `append_system_prompt` is added as developer instructions, `json_schema`
@@ -78,6 +79,29 @@ def toml(value: object) -> str:
     if isinstance(value, (list, tuple)):
         return "[" + ",".join(toml(v) for v in value) + "]"
     return json.dumps(str(value), ensure_ascii=False)
+
+
+#: Where codex finds a project's skills, in the working directory and each directory above
+#: it up to the repository's root (checked against codex-cli 0.162.1).
+PROJECT_SKILL_DIRS = (".agents/skills", ".codex/skills")
+
+
+def project_skills(cwd: Path, keep: set[Path]) -> list[Path]:
+    """The project's skill files codex would load in `cwd` (`PROJECT_SKILL_DIRS`, from `cwd`
+    up to the nearest directory holding `.git`, or `cwd` alone outside a repository), except
+    those under a directory in `keep` (a plugin's skills)."""
+    cwd = cwd.resolve()
+    chain = [cwd, *cwd.parents]
+    root = next((d for d in chain if (d / ".git").exists()), None)
+    dirs = chain[: chain.index(root) + 1] if root is not None else [cwd]
+    found: list[Path] = []
+    for d in dirs:
+        for sub in PROJECT_SKILL_DIRS:
+            for f in sorted((d / sub).rglob("SKILL.md")):
+                f = f.resolve()
+                if not any(f.is_relative_to(k) for k in keep):
+                    found.append(f)
+    return found
 
 
 def mcp_servers(path: str) -> dict[str, dict]:
@@ -245,6 +269,11 @@ class CodexBackend(ResumeById, Backend):
         a += ["--json", "--skip-git-repo-check", *ISOLATION_ARGS]
         # codex runs with the launch's own HOME (`skill_home`); the commands it runs do not.
         a += ["-c", f"shell_environment_policy.set.HOME={toml(self.real_home())}"]
+        # The project's own skills: codex has no switch for them, only a per-file `enabled = false`.
+        keep = {(Path(p) / "skills").resolve() for p in launch.plugin_dirs}
+        disabled = [{"path": str(f), "enabled": False} for f in project_skills(Path(launch.cwd), keep)]
+        if disabled:
+            a += ["-c", f"skills.config={toml(disabled)}"]
         a += ["-c", f"sandbox_mode={toml(SANDBOX.get(launch.permission_mode or '', 'workspace-write'))}"]
         if launch.model:
             a += ["-m", launch.model]
