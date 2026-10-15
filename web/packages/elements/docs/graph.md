@@ -7,6 +7,10 @@ the graph. Register it with `@contraagent/elements/graph/define` (it registers
 `<cae-mark-matrix>` and `<cae-segmented>` too); the types, `arrange` and
 `layoutGraph` are in `@contraagent/elements/graph`.
 
+![A layered graph: commit, then build, then a retry loop of test and deploy, a mark per series in each node, and the legend](images/graph.webp)
+
+Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-layered-graph>`.
+
 ::code{file="examples/graph.ts"}
 
 ## The model

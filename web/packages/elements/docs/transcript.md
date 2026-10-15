@@ -7,6 +7,10 @@ lists the pages it returned as links; a page read shows its URL. Register it
 with `@contraagent/elements/transcript/define`; the types are in
 `@contraagent/elements/transcript`.
 
+![A transcript of two sessions: an API request sent again, a web search with 2 results, a log line, and the assistant's answer](images/transcript.webp)
+
+Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-transcript>`.
+
 ::code{file="examples/transcript.ts"}
 
 ## Sections and items

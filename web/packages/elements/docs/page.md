@@ -6,6 +6,10 @@ beside a detail panel of the page's own. The whole example is
 `docs/examples/ci-pipeline.ts`; it uses only the package's public entry points,
 and `mount(host)` builds the page in any element.
 
+![A CI pipeline's page in the light theme: a theme switch, stat tiles, the layered graph of its steps beside a detail panel, and a table of its jobs](images/page.webp)
+
+Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under "A whole page".
+
 ## What the page holds
 
 The elements keep no state of their own that the page needs: each one draws

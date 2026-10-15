@@ -6,6 +6,8 @@ look comes from the element's styles, which start from `base`
 (`@contraagent/elements/styles`: the tokens, the status rules, chips, layout
 and motion).
 
+![Status pills (passed, failed, running, queued), a row of facts, and a legend](images/primitives.webp)
+
 ## Tones
 
 A tone is the status colour a value takes: `failed`, `attention`, `done`,

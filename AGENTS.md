@@ -348,7 +348,7 @@ pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
 pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
-pnpm screenshots        # the root README's screenshots: the showcase runs (scripts/showcase.py), the real monitor, Playwright (about a minute)
+pnpm screenshots        # the screenshots of the root README and of the packages' docs (docs/images/): the showcase runs (scripts/showcase.py) in the real monitor, and each elements example alone (scripts/examples-page/); --only readme,ui,elements
 ```
 
 ## Documentation
