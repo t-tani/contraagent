@@ -10,7 +10,7 @@ seeing the task before and (for enrichers) the result after.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
@@ -36,12 +36,21 @@ class ResultEnricher(Protocol):
     back to the caller. `AgentRunner.run()` (an attempt of an agent task) and
     `PythonTaskRunner` (an attempt of a Python task) call `snapshot()` once
     before the attempt and `enrich()` once after, in the order `enrichers`
-    were given; `enrich()` mutates `result` in place (`.payload`, and optionally
-    `.ok`/`.stop`) rather than returning a value to merge, matching how
-    `TaskResult`'s own domain fields were already set post-construction
-    before this split.
+    were given. `task` and `result` are frozen: `enrich()` returns the result as it should
+    be (`dataclasses.replace(result, payload=..., ok=..., stop=...)`), or None to leave
+    it as it was; the next enricher is given what it returned.
     """
 
     def snapshot(self, task: Task) -> Any: ...
 
-    def enrich(self, task: Task, before: Any, result: TaskResult) -> None: ...
+    def enrich(self, task: Task, before: Any, result: TaskResult) -> TaskResult | None: ...
+
+
+def enriched(snapshots: Iterable[tuple[ResultEnricher, Any]], task: Task, result: TaskResult) -> TaskResult:
+    """`result` after each enricher in turn, given its snapshot: the result it returned,
+    or the one it was given when it returned None."""
+    for enricher, before in snapshots:
+        new = enricher.enrich(task, before, result)
+        if new is not None:
+            result = new
+    return result

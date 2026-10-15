@@ -37,11 +37,11 @@ import json
 import time
 import traceback
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from contraagent._internal.contracts.contract import check_input, record_contracts
-from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
+from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.task import (
     STOP_COMPLETED,
     STOP_ERROR,
@@ -169,7 +169,7 @@ class PythonTaskRunner:
         retry_on = tuple(getattr(task.payload, "retry_on", ()))
         attempt = 0
         while True:
-            task.attempt = attempt
+            task = replace(task, attempt=attempt)
             res, retry = self._attempt(task, outs, ins, retry_on)
             if not retry or attempt >= retries:
                 return res
@@ -192,9 +192,7 @@ class PythonTaskRunner:
             for scope in self._scopes:
                 stack.enter_context(scope(task))
             res, retry = self._checked_call(task, outs, ins, retry_on)
-        for enricher, before in snapshots:
-            enricher.enrich(task, before, res)
-        return res, retry
+        return enriched(snapshots, task, res), retry
 
     def _checked_call(self, task: Task, outs: list, ins: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """Check the inputs, call the function, check the outputs it wrote."""
@@ -217,12 +215,9 @@ class PythonTaskRunner:
         for c in outs:
             p = c.resolve(self._cwd)
             errors += c.check(self._cwd, before.get(p)).errors
-        res.wall_s += time.monotonic() - t0
-        res.rounds = 1
+        res = replace(res, wall_s=res.wall_s + time.monotonic() - t0, rounds=1)
         if errors:
-            res.ok, res.stop = False, STOP_INVALID_OUTPUT
-            res.reason = "; ".join(errors)[:240]
-            res.round_errors = (tuple(errors[:5]),)
+            res = replace(res, ok=False, stop=STOP_INVALID_OUTPUT, reason="; ".join(errors)[:240], round_errors=(tuple(errors[:5]),))
         return res, retry
 
     def _call(self, task: Task, outs: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:

@@ -164,6 +164,6 @@ def test_make_python_task_takes_the_same_retries():
     failed: list = []
     task = make_python_task("ping", fn, retries=1, retry_on=(ConnectionError,))
     result = PythonTaskRunner(on_failed_attempt=failed.append).run(task)
-    assert result.ok and task.attempt == 1 and [r.reason for r in failed] == ["ConnectionError: refused"]
+    assert result.ok and result.task.attempt == 1 and task.attempt == 0 and [r.reason for r in failed] == ["ConnectionError: refused"]
     with pytest.raises(ValueError, match=r"make_python_task\('ping'\): retries=1 with no retry_on"):
         make_python_task("ping", fn, retries=1)

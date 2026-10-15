@@ -243,3 +243,15 @@ def test_serve_and_create_app_are_published_when_first_named():
 def test_internal_helpers_are_not_public(name):
     for module in PUBLIC:
         assert name not in importlib.import_module(module).__all__
+
+
+def test_the_task_and_the_result_a_callback_is_given_are_frozen():
+    from contraagent import Task, TaskResult
+
+    task = Task("summarize", unit="alpha")
+    result = TaskResult(task=task, ok=True, stop="completed")
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        task.attempt = 1  # type: ignore[misc]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        result.ok = False  # type: ignore[misc]
+    assert dataclasses.replace(result, ok=False).ok is False and result.ok

@@ -3,6 +3,7 @@ to its runner (`scopes`, `enrichers`, `row_extras`)."""
 
 import contextlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -135,7 +136,7 @@ def test_scopes_enrichers_and_row_extras_reach_each_attempt(tmp_path, plugin_dir
 
         def enrich(self, task, before, result):
             # Built-in changes are recorded before a pipeline's own enrichers run.
-            result.payload = {"effect": "new" if result.changes and result.changes.created else "none", "before": before}
+            return replace(result, payload={"effect": "new" if result.changes and result.changes.created else "none", "before": before})
 
     report = run(
         tmp_path,

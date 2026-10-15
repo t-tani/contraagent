@@ -75,7 +75,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Callable, Generator, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import GeneratorType
 from typing import Any, Literal
 
@@ -393,7 +393,7 @@ class FlowDriver:
         for task in tasks:
             if task.key not in self._queued_keys and task.key not in self.done:
                 if boxes and not task.time_boxes:
-                    task.time_boxes = boxes
+                    task = replace(task, time_boxes=boxes)
                 self._queued_keys.add(task.key)
                 self._outbox.append(task)
 

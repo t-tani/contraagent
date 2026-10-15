@@ -98,7 +98,7 @@ class TimeBox:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Task:
     """One schedulable unit of work.
 
@@ -168,9 +168,9 @@ class Task:
         # they exist so a bare `Task("kind")` from a hypothetical second
         # domain, or a test, is still self-consistent on its own.
         if not self.key:
-            self.key = self.id
+            object.__setattr__(self, "key", self.id)
         if not self.unit:
-            self.unit = self.key
+            object.__setattr__(self, "unit", self.key)
 
     @property
     def declared_unit(self) -> str:
@@ -228,7 +228,7 @@ class Deferral:
     cause: DeferralCause
 
 
-@dataclass
+@dataclass(frozen=True)
 class TaskResult:
     """A task's final result. `payload` is opaque domain data (e.g. a state
     delta) a `ResultEnricher` attaches -- never read by this module."""

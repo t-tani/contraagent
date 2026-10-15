@@ -381,9 +381,10 @@ Python. A scope (`TaskScope`) is a context manager around it: around every hop o
 agent task, around the input check, the call and the output check of a Python task.
 A scope that raises fails the task. A Python task's exception is the attempt's result,
 so the scope exits without one. An enricher (`ResultEnricher`) sees the task before
-and the result after (an agent task's after its changes are recorded), and may add a
-`payload` or change `ok` and `stop`; `row_extras(result)` adds columns to the journal
-row. The monitor shows each such
+and the result after (an agent task's after its changes are recorded), and may return
+the result with a `payload` added or `ok` and `stop` changed
+(`dataclasses.replace(result, ...)`: a task and a result are frozen);
+`row_extras(result)` adds columns to the journal row. The monitor shows each such
 column under its own name, in the history and in the task's attempts (the API names
 them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
 topic:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from contraagent._internal.dispatch.records import Changes
@@ -116,14 +116,14 @@ class ChangesEnricher:
         files, dirs = scan(self._cwd, patterns)
         return Snapshot(patterns, files, dirs)
 
-    def enrich(self, task: Task, before: Snapshot | None, result: TaskResult) -> None:
+    def enrich(self, task: Task, before: Snapshot | None, result: TaskResult) -> TaskResult | None:
         if before is None:
-            return
+            return None
         after, dirs = scan(self._cwd, before.patterns)
         changes = compare(before.files, after)
         if not result.ok and changes.created:
             changes = changes.model_copy(update={"removed": self._remove(changes.created, dirs - before.dirs)})
-        result.changes = changes
+        return replace(result, changes=changes)
 
     def _remove(self, created: Sequence[str], new_dirs: frozenset[str]) -> tuple[str, ...]:
         """Remove `created`, then each of `new_dirs` (directories the patterns match that did

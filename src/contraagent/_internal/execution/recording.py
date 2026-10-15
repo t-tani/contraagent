@@ -69,7 +69,7 @@ import shutil
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -588,19 +588,20 @@ class Replay:
                 )
         return ""
 
-    def enrich(self, task: Task, before: None, result: TaskResult) -> None:
+    def enrich(self, task: Task, before: None, result: TaskResult) -> TaskResult | None:
         """A played attempt is `replayed`; a task with no recording is not retried (no attempt
         finds one), unless it launched (`record_missing`)."""
         with self._lock:
             playing = self._playing.get(task.key)
         if playing is None:
-            return
+            return None
         if playing.blocked:
-            result.retryable = False
-        elif playing.key is not None and result.launch_result is not None:
-            result.replayed = True
-        elif playing.key is None and not self.record_missing:
-            result.retryable = False
+            return replace(result, retryable=False)
+        if playing.key is not None and result.launch_result is not None:
+            return replace(result, replayed=True)
+        if playing.key is None and not self.record_missing:
+            return replace(result, retryable=False)
+        return None
 
     def _choose(self, key: str) -> str | None:
         """The key's own recording; for a `~n` key with none, the first recording of its base

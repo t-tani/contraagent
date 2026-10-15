@@ -29,6 +29,7 @@ import json
 import os
 import shutil
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -164,7 +165,7 @@ class Effect:
     def enrich(self, task, before, result):
         c = result.changes
         if result.ok and c is not None:
-            result.payload = {"effect": "new" if c.created else "updated" if c.modified else "unchanged"}
+            return replace(result, payload={"effect": "new" if c.created else "updated" if c.modified else "unchanged"})
 
 
 STALL_ROLE = """---

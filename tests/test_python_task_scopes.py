@@ -3,6 +3,7 @@ attempt of an agent task."""
 
 import contextlib
 import json
+from dataclasses import replace
 
 from pydantic import BaseModel
 
@@ -105,9 +106,10 @@ def test_an_enricher_changes_a_python_task_s_verdict_and_adds_a_payload(tmp_path
         def enrich(self, task, before, result):
             calls.append(f"enrich {task.attempt} {result.stop}")
             n = json.loads(next((tmp_path / "runs").glob("*/out/count/a.json")).read_text())["n"]
-            result.payload = {"n": n, "before": before}
+            result = replace(result, payload={"n": n, "before": before})
             if n == 0:
-                result.ok, result.stop, result.reason = False, "empty", "count is 0"
+                result = replace(result, ok=False, stop="empty", reason="count is 0")
+            return result
 
     @python_task
     def count(unit: str) -> Count:
@@ -131,7 +133,7 @@ def test_an_enricher_sees_each_attempt_of_a_retried_python_task(tmp_path):
 
         def enrich(self, task, before, result):
             seen.append((task.attempt, result.stop))
-            result.payload = {"seen": len(seen)}
+            return replace(result, payload={"seen": len(seen)})
 
     @python_task(retries=1, retry_on=(ConnectionError,))
     def count(unit: str) -> Count:

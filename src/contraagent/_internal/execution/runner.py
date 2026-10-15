@@ -31,7 +31,7 @@ from contraagent._internal.backends.credentials import AMBIENT, CredentialBase, 
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.backends.process import signal_of
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_until_valid
-from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
+from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
 from contraagent._internal.execution.adapter import TaskAdapter
@@ -357,15 +357,15 @@ class AgentRunner:
             for scope in self.scopes:
                 stack.enter_context(scope(task))
             result = self._run(task)
-        for enricher, before in snapshots:
-            enricher.enrich(task, before, result)
+        result = enriched(snapshots, task, result)
         o = result.launch_result
         if o is not None and o.context_warned:
-            result.notes["context_warned"] = {
+            warned = {
                 "peak_context": o.peak_context,
                 "context_budget": o.context_budget,
                 "context_warn_pct": self.config(task).context_warn_pct,
             }
+            result = replace(result, notes={**result.notes, "context_warned": warned})
         return result
 
     def _record_contracts(self, task: Task) -> None:
@@ -418,8 +418,8 @@ class AgentRunner:
             result = self._run_once(task, None)
             o = result.launch_result
             if o is not None:
-                result.route = Route(o.agent, o.model, o.credential).label(1, 1)
-                result.hops = (_hop(result.route, result),)
+                label = Route(o.agent, o.model, o.credential).label(1, 1)
+                result = replace(result, route=label, hops=(_hop(label, result),))
             return result
         return self._run_with_failover(task, router)
 
@@ -442,9 +442,7 @@ class AgentRunner:
                 if usable is None:
                     if last is None:  # nothing launched: deferred, not failed
                         return TaskResult.deferred(task, _rest_deferral(skipped))
-                    last.reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
-                    last.skipped_hops = tuple(skipped)
-                    return last
+                    return replace(last, reason="; ".join([prior_reason, *notes] if prior_reason else notes), skipped_hops=tuple(skipped))
                 if usable != route:
                     prior_reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
                     _logger.info(f"[route] {task.key}: {notes[-1]}; on {router.label_of(usable)}")
@@ -453,48 +451,44 @@ class AgentRunner:
                 # Every hop refused and the chain is spent: a plain error, not
                 # a silent stall.
                 result = self._refuse(task, Stop.RATE_LIMITED, "all hops rate limited")
-                result.reason = f"{kind_name(task.kind)}: all {len(router.routes)} hops rate limited"
-                result.hops = tuple(trail)
-                return result
+                return replace(result, reason=f"{kind_name(task.kind)}: all {len(router.routes)} hops rate limited", hops=tuple(trail))
             label = router.label_of(route)
             if not trail and pinned is None and route != router.routes[0]:
                 # Not this task's 429: the kind's breaker is still open after another task's.
                 _logger.info(f"[route] {task.key}: starting on {label}; {router.label_of(router.routes[0])} rests after a 429")
             started = router.now()
-            result = last = self._run_once(task, route)
-            result.skipped_hops = tuple(skipped)
+            result = self._run_once(task, route)
             trail.append(_hop(label, result))
             # Tokens and cost of the hops before this one belong to the attempt too.
             if result.launch_result is not None:
                 if spent is not None:
                     fold_spend(spent, result.launch_result)
                 spent = result.launch_result
-            result.hops = tuple(trail)
+            own_reason = result.reason
             # The attempt's time is every hop's, not only the last one's: a model
             # switch after a rate limit still spent the time before it.
-            result.wall_s = round(sum(h.wall_s for h in trail), 1)
-            own_reason = result.reason
-            if prior_reason:
-                result.reason = prior_reason
+            result = last = replace(
+                result,
+                skipped_hops=tuple(skipped),
+                hops=tuple(trail),
+                wall_s=round(sum(h.wall_s for h in trail), 1),
+                reason=prior_reason or result.reason,
+            )
             if result.stop != Stop.RATE_LIMITED and _fails_over(result):
                 nxt_route = router.next_route_after(route)
                 if nxt_route is None:
-                    result.route = label
-                    return result
+                    return replace(result, route=label)
                 what = "safeguard refusal" if result.stop == Stop.REFUSED else result.stop
                 prior_reason = (
                     f"{what} on {label}" + (f" ({own_reason})" if own_reason else "") + f"; failing over to {router.label_of(nxt_route)}"
                 )
                 _logger.warning(f"[switch] {task.key}: {prior_reason}")
-                result.reason = prior_reason
+                last = replace(result, reason=prior_reason)
                 pinned = nxt_route
                 continue
             if result.stop != Stop.RATE_LIMITED:
                 router.succeeded(route, started=started)
-                result.route = label
-                if prior_reason:
-                    result.reason = f"{prior_reason}; ran on {label}"
-                return result
+                return replace(result, route=label, reason=f"{prior_reason}; ran on {label}" if prior_reason else result.reason)
             hops += 1
             nxt = router.rate_limited(
                 route,
@@ -505,14 +499,11 @@ class AgentRunner:
                 ),
             )
             if not nxt or hops >= len(router.routes):
-                result.route = label
-                result.reason = (
-                    f"rate limited on {label}; no hop left of {len(router.routes)}" if not nxt else f"rate limited on {label} and {nxt}"
-                )
-                return result
+                reason = f"rate limited on {label} and {nxt}" if nxt else f"rate limited on {label}; no hop left of {len(router.routes)}"
+                return replace(result, route=label, reason=reason)
             prior_reason = f"rate limited on {label}; failing over to {nxt}"
             _logger.warning(f"[switch] {task.key}: {prior_reason}")
-            result.reason = prior_reason
+            last = replace(result, reason=prior_reason)
 
     def _run_once(self, task: Task, route: Route | None) -> TaskResult:
         """One launch on one route; on a pool credential, as many as it takes to find a
@@ -544,17 +535,18 @@ class AgentRunner:
                 if last is None:
                     last = self._refuse(task, Stop.RATE_LIMITED, f"every member of pool {pool.name} is cooling down")
                 if tried:
-                    last.reason = (f"pool {pool.name}: {', '.join(tried)} rate limited" + (f"; {last.reason}" if last.reason else ""))[:240]
+                    reason = (f"pool {pool.name}: {', '.join(tried)} rate limited" + (f"; {last.reason}" if last.reason else ""))[:240]
+                    last = replace(last, reason=reason)
                 return last
             prior = last.launch_result if last is not None else None
             last = self._run_as(task, route, member)
-            last.wall_s += spent
+            last = replace(last, wall_s=last.wall_s + spent)
             if prior is not None and last.launch_result is not None:
                 fold_spend(prior, last.launch_result)  # members that were rate limited spent tokens too
             if last.stop != Stop.RATE_LIMITED:
                 if tried:
                     note = f"pool {pool.name}: {', '.join(tried)} rate limited, ran on {member.label}"
-                    last.reason = f"{note}; {last.reason}" if last.reason else note
+                    last = replace(last, reason=f"{note}; {last.reason}" if last.reason else note)
                 return last
             refusal = last.launch_result.quota_refusal if last.launch_result is not None else None
             pool.rate_limited(member, model, refusal.retry_after_s if refusal is not None else None)
@@ -654,10 +646,10 @@ class RetryingRunner:
         last: TaskResult | None = None
         notes: dict = {}  # every attempt's, for the one result the queue sees
         for attempt in range(attempts):
-            task.attempt = attempt
+            task = replace(task, attempt=attempt)
             last = self._runner.run(task)
             notes.update(last.notes)
-            last.notes = dict(notes)
+            last = replace(last, notes=dict(notes))
             if last.stop == STOP_DEFERRED:  # nothing launched: not an attempt, nothing to journal
                 return last
             if self._on_attempt is not None:
