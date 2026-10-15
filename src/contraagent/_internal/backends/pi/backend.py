@@ -24,7 +24,7 @@ from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
-    CredentialBase,
+    Credential,
     CredentialBinding,
     CredentialError,
     Gateway,
@@ -175,7 +175,7 @@ class PiBackend(OpencodeKeyAccount, Backend):
 
     # --- the account and its usage ---------------------------------------------
 
-    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+    def billed_key(self, credential: Credential, model: str) -> tuple[str, str]:
         """The OpenCode key a launch of `model` as `credential` bills and its endpoint ('' for
         opencode.ai's), as pi picks it: the binding's key variable, else pi's own login, else
         (`ambient`) `OPENCODE_API_KEY`. ('', '') for another provider."""
@@ -211,7 +211,7 @@ class PiBackend(OpencodeKeyAccount, Backend):
     # --- credentials -------------------------------------------------------
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """With `env` None a check only: nothing is read and no directory is made."""
         c = credential

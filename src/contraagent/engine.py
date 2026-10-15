@@ -1,12 +1,15 @@
-"""The engine underneath a pipeline: the runners, the schedulers, a run's directory.
+"""The engine underneath a pipeline: the runners, the schedulers, the contracts they check,
+a run's directory.
 
 `Pipeline` (in `contraagent`) assembles these; a program that schedules tasks of its
 own builds on them directly.
 """
 
-from contraagent._internal.contracts.contract import run_until_valid
-from contraagent._internal.dispatch.flow import FlowDriver
+from contraagent._internal.contracts.contract import Before, Check, InputContract, OutputContract, run_until_valid
+from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.queue import ClaimCapacity, RunnerConfig, TaskRunner, WorkQueue
+from contraagent._internal.dispatch.records import Rest
+from contraagent._internal.dispatch.task import Deferral
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.cursor import CursorStore
 from contraagent._internal.execution.estimates import JournalEstimates
@@ -21,15 +24,22 @@ from contraagent._internal.routing.router import Router
 
 __all__ = [
     "AgentRunner",
+    "Before",
+    "Check",
     "ClaimCapacity",
     "Cursor",
     "CursorStore",
+    "Deferral",
+    "FlowCall",
     "FlowDriver",
     "HistoryEntry",
     "Inflight",
+    "InputContract",
     "JournalEstimates",
+    "OutputContract",
     "PythonTaskRunner",
     "QuotaRests",
+    "Rest",
     "RetryingRunner",
     "Router",
     "RoutingPlan",

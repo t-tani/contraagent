@@ -33,8 +33,8 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from contraagent import CallFile, Overrides, Pipeline
-from contraagent.backends import Backend, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage, write_launch_marker
+from contraagent import Overrides, Pipeline
+from contraagent.backends import Backend, CallFile, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage
 from contraagent.config import QuotaReading
 from contraagent.docs.examples.demo.tasks import docs
 
@@ -74,7 +74,7 @@ class DemoAgent(Backend):
         with self._lock:
             n = self.rounds[launch.label] = self.rounds.get(launch.label, 0) + 1
         stream = Path(launch.stream_path) if launch.stream_path else None
-        write_launch_marker(self.argv(launch), launch)  # one marker per round
+        self.mark_launch(launch)  # one marker per round
 
         def emit(event, pause=0.5):
             if stream:

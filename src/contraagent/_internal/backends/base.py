@@ -27,9 +27,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import Protocol
 
-from contraagent._internal.backends.credentials import Ambient, CredentialBase, CredentialBinding, CredentialError
+from contraagent._internal.backends.credentials import Ambient, Credential, CredentialBinding, CredentialError
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
-from contraagent._internal.backends.process import LaunchError, Sink, run_process
+from contraagent._internal.backends.process import LaunchError, Sink, run_process, write_launch_marker
 from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 from contraagent._internal.dispatch.records import QuotaReading
@@ -181,6 +181,13 @@ class Backend(abc.ABC):
 
         return run_process(argv, env, launch, sink=sink, stderr_sink=self.watch_stderr(launch))
 
+    def mark_launch(self, launch: Launch) -> None:
+        """Write the `launch` marker at the head of what `launch` adds to its stream file: its
+        command line (`argv(launch)`) and its prompt, where the monitor splits a task's
+        transcript into its launches. `run` writes it for a process; a backend that overrides
+        `run` writes it once per launch, before its first event."""
+        write_launch_marker(self.argv(launch), launch)
+
     def run(self, launch: Launch) -> LaunchResult:
         """Run one launch to completion and return its LaunchResult (the template above)."""
         started_at = now_iso()
@@ -292,7 +299,7 @@ class Backend(abc.ABC):
         return d
 
     def bind_credential(
-        self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
     ) -> CredentialBinding:
         """How this agent authenticates as `credential` for a launch of `model`.
 
@@ -306,7 +313,7 @@ class Backend(abc.ABC):
             return CredentialBinding(isolation="ambient: whatever the agent loads by default")
         raise CredentialError(f"{self.name} cannot use {credential.type} credentials")
 
-    def account(self, credential: CredentialBase, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """The account a launch of `model` as `credential` bills, as `account_digest`: the
         same value for the same account, never the secret or anything it can be turned
         back into. '' when this agent cannot tell (the default). Read from local state only
@@ -314,7 +321,7 @@ class Backend(abc.ABC):
         way; cheap enough to ask once per credential per run."""
         return ""
 
-    def attest(self, launch_result: LaunchResult, credential: CredentialBase) -> str | None:
+    def attest(self, launch_result: LaunchResult, credential: Credential) -> str | None:
         """After a launch: a reason when the agent reports using a different credential than
         `credential`, else None. Default: the agent reports nothing to check against."""
         return None

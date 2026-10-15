@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from contraagent._internal.backends.credentials import AMBIENT, CredentialBase
+from contraagent._internal.backends.credentials import AMBIENT, Credential
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, TokenUsage
 from contraagent._internal.runs.files import append_lines
 
@@ -136,7 +136,7 @@ class Launch:
     persist_session: bool = False
     exclude_dynamic_sections: bool = False
     limits: Limits = field(default_factory=Limits)
-    credential: CredentialBase = AMBIENT
+    credential: Credential = AMBIENT
     cwd: Path = field(default_factory=Path.cwd)
     env: dict[str, str] = field(default_factory=dict)
     stream_path: Path | None = None

@@ -8,9 +8,10 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from contraagent import CallFile, OutputContract, Pipeline, PipelineConfig, agent_task
+from contraagent import Pipeline, PipelineConfig, agent_task
 from contraagent._internal.contracts.pointers import kept, pointer_of, same, schema_error, segments, select, syntax_error
-from contraagent.backends import Stop
+from contraagent.backends import CallFile, Stop
+from contraagent.engine import OutputContract
 from contraagent.testing import StubAgent, fails
 
 

@@ -259,8 +259,8 @@ class Doc(BaseModel):
 
 
 def test_python_tasks_are_checked_by_contracts(tmp_path):
-    from contraagent import InputContract, OutputContract
     from contraagent._internal.dispatch import make_python_task
+    from contraagent.engine import InputContract, OutputContract
 
     run = Run("rc", tmp_path / "runs", log=lambda line: None)
     out, src = tmp_path / "out.json", tmp_path / "src.json"
@@ -306,7 +306,7 @@ def test_python_tasks_are_checked_by_contracts(tmp_path):
 
 
 def test_an_off_contract_input_is_refused_once_and_shown_as_not_run(tmp_path):
-    from contraagent import InputContract, OutputContract
+    from contraagent.engine import InputContract, OutputContract
 
     class Needs(TaskAdapter):
         def input_contracts(self, task):

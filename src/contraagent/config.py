@@ -10,7 +10,6 @@ from contraagent._internal.backends.credentials import (
     ApiKey,
     Bedrock,
     Credential,
-    CredentialBase,
     Gateway,
     OAuthToken,
     Pool,
@@ -20,7 +19,7 @@ from contraagent._internal.backends.credentials import (
     WorkloadIdentity,
 )
 from contraagent._internal.backends.launch import Limits
-from contraagent._internal.dispatch.records import QuotaReading, QuotaWindow, Window
+from contraagent._internal.dispatch.records import QuotaReading, QuotaWindow
 from contraagent._internal.public import publish
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.router import Route
@@ -31,7 +30,6 @@ __all__ = [
     "ApiKey",
     "Bedrock",
     "Credential",
-    "CredentialBase",
     "Gateway",
     "KindConfig",
     "Limits",
@@ -43,7 +41,6 @@ __all__ = [
     "Secret",
     "Subscription",
     "Vertex",
-    "Window",
     "WorkloadIdentity",
 ]
 

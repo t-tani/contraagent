@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from contraagent._internal.backends import opencode_key as login
-from contraagent._internal.backends.launch import ACCOUNT_SECRET
+from contraagent._internal.backends.launch import ACCOUNT_SECRET, account_digest
 from contraagent._internal.backends.omp.backend import dotenv_credentials, omp_dotenv_files
-from contraagent.backends import Launch, OmpBackend, OpencodeBackend, PiBackend, account_digest
+from contraagent.backends import Launch, OmpBackend, OpencodeBackend, PiBackend
 from contraagent.config import AMBIENT, ApiKey, Gateway, QuotaReading, QuotaWindow, Subscription
 from contraagent.engine import QuotaRests
 

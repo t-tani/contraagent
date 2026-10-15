@@ -31,8 +31,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from contraagent._internal.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop, TimeBoxRecord
-from contraagent._internal.runs.times import iso_of, now_iso
+from contraagent._internal.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop
 
 #: The key prefix of a Python task (`Task.fn`): `python:<kind>` or `python:<kind>-<unit>`.
 PYTHON_KEY_PREFIX = "python:"
@@ -85,17 +84,6 @@ class TimeBox:
         """A deferral's cause (`Deferral.cause`) under this box: `flow_call` names it."""
         box = {"flow_call": self.flow_call} if self.flow_call is not None else {}
         return DeferralCause.model_validate({"cause": name, **fields, **box})
-
-    def record(self, started_at: float | None) -> TimeBoxRecord:
-        """The box as `flow_calls.jsonl` records it; `started_at`: when its flow call
-        started (`time.time()`), now when None."""
-        return TimeBoxRecord(
-            started_at=iso_of(started_at) if started_at is not None else now_iso(),
-            deadline_s=self.deadline_s,
-            grace_s=self.grace_s,
-            slack_s=self.slack_s,
-            finishing_kinds=tuple(sorted(self.finishing_kinds)),
-        )
 
 
 @dataclass(frozen=True)

@@ -14,11 +14,11 @@ import threading
 import time
 from collections.abc import Callable, Collection, Mapping
 
-from contraagent._internal.backends.credentials import CredentialBase, Pool
+from contraagent._internal.backends.credentials import Credential, Pool
 
 
 class CredentialPool:
-    def __init__(self, pool: Pool, members: list[CredentialBase], clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, pool: Pool, members: list[Credential], clock: Callable[[], float] = time.monotonic) -> None:
         self.pool = pool
         self.members = list(members)
         self._clock = clock
@@ -30,7 +30,7 @@ class CredentialPool:
     def name(self) -> str:
         return self.pool.label
 
-    def pick(self, model: str = "", exclude: Collection[str] = ()) -> CredentialBase | None:
+    def pick(self, model: str = "", exclude: Collection[str] = ()) -> Credential | None:
         """The member the next launch of `model` uses, or None when every one is cooling or excluded."""
         now = self._clock()
         with self._lock:
@@ -45,7 +45,7 @@ class CredentialPool:
                 return member
             return None
 
-    def rate_limited(self, member: CredentialBase, model: str = "", retry_after_s: float | None = None) -> None:
+    def rate_limited(self, member: Credential, model: str = "", retry_after_s: float | None = None) -> None:
         """`member` answered 429 on `model`: rest it for the provider's stated time, or the pool's cooldown."""
         wait = retry_after_s or self.pool.cooldown_s
         with self._lock:
@@ -63,12 +63,12 @@ class CredentialPool:
         return f"{self.name} [{self.pool.strategy}]: " + ", ".join(parts)
 
 
-def pools_of(credentials: Mapping[str, CredentialBase], clock: Callable[[], float] = time.monotonic) -> dict[str, CredentialPool]:
+def pools_of(credentials: Mapping[str, Credential], clock: Callable[[], float] = time.monotonic) -> dict[str, CredentialPool]:
     """A `CredentialPool` for every pool in `credentials`."""
     return {name: CredentialPool(c, [credentials[m] for m in c.members], clock) for name, c in credentials.items() if isinstance(c, Pool)}
 
 
-def first_member(credentials: Mapping[str, CredentialBase], name: str) -> CredentialBase | None:
+def first_member(credentials: Mapping[str, Credential], name: str) -> Credential | None:
     """`name`'s credential, or a pool's first member: what a single probe launches as."""
     c = credentials.get(name)
     if isinstance(c, Pool):

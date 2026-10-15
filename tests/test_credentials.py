@@ -10,9 +10,9 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import CallFile, ConfigError, Pipeline, PipelineConfig, RoutingError, agent_task
+from contraagent import ConfigError, Pipeline, PipelineConfig, RoutingError, agent_task
 from contraagent._internal.platform import envvars
-from contraagent.backends import Backend, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
+from contraagent.backends import Backend, CallFile, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
 from contraagent.config import AMBIENT, ApiKey, Limits, Subscription
 from contraagent.engine import RoutingPlan
 from contraagent.plugins import new_plugin

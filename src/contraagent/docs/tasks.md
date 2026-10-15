@@ -450,5 +450,5 @@ and receive `TaskResult`s.
 | `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
-| `run_until_valid` (with `OutputContract` / `InputContract` from `contraagent`) | files checked by schema and validators; resume until they pass |
+| `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |
 | `CursorStore` | resume cursor: stage, per-unit step, in-flight work, markers |

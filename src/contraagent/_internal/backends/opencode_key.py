@@ -27,7 +27,7 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from contraagent._internal.backends.credentials import CredentialBase, CredentialError
+from contraagent._internal.backends.credentials import Credential, CredentialError
 from contraagent._internal.backends.launch import ACCOUNT_SECRET, Launch, account_digest
 from contraagent._internal.dispatch.records import QuotaReading, QuotaWindow
 from contraagent._internal.runs.times import iso_of, now_iso, parse_iso
@@ -172,12 +172,12 @@ class OpencodeKeyAccount:
     """The account and the Go usage of an agent that bills OpenCode models to an OpenCode key
     it finds its own way (`opencode_key`); opencode and pi. omp reports its own usage."""
 
-    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+    def billed_key(self, credential: Credential, model: str) -> tuple[str, str]:
         """The OpenCode key a launch of `model` as `credential` bills, and the endpoint it goes
         to ('' for opencode.ai's); ('', '') for another provider."""
         raise NotImplementedError
 
-    def account(self, credential: CredentialBase, model: str = "") -> str:
+    def account(self, credential: Credential, model: str = "") -> str:
         """For an OpenCode model: the account of the key the launch bills, the same digest
         opencode, omp and pi give for that key. '' for any other provider."""
         try:

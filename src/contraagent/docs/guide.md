@@ -105,10 +105,10 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 ## The API
 
 The docstrings are the reference. A pipeline imports from the public modules only:
-`contraagent` (`agent_task`, `python_task`, `Pipeline`, `Pipeline.check`, contracts,
+`contraagent` (`agent_task`, `python_task`, `Pipeline`, `Pipeline.check`,
 validators, the task and result a callback is given, the errors), `contraagent.config`
-(credentials, routes, budgets), `contraagent.backends` (the coding agents),
-`contraagent.engine` (the runners and schedulers underneath a pipeline),
+(credentials, routes, budgets), `contraagent.backends` (the coding agents, the call file),
+`contraagent.engine` (the runners, schedulers and contracts underneath a pipeline),
 `contraagent.plugins`, `contraagent.monitor` and `contraagent.testing`. Their code is
 under `contraagent/_internal/`; the layer list is in `contraagent/_internal/__init__.py`.
 `contraagent docs --path` prints where they are.
