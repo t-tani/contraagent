@@ -54,7 +54,7 @@ from contraagent.dispatch.task import (
     Task,
     TaskResult,
 )
-from contraagent.execution.pipeline_files import writing_into
+from contraagent.execution.pipeline_files import Written, capturing, writing_into
 from contraagent.execution.runner import RetryingRunner
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.kind_config import KindConfig
@@ -235,14 +235,18 @@ class PythonTaskRunner:
         if self._recorder is not None:
             self._recorder.declare(outs)
         if self._replay is not None:
-            played = self._replay.play_python(task, outs, self._cwd)
+            played = self._replay.play_python(task, outs, self._cwd, self._run_dir)
             if played is not None:
                 return played
         t0 = time.monotonic()
         reason = ""
         error: Exception | None = None
+        written = Written()
         try:
-            with writing_into(self._run_dir.resolve(), self._config) if self._run_dir is not None else contextlib.nullcontext():
+            with (
+                writing_into(self._run_dir.resolve(), self._config) if self._run_dir is not None else contextlib.nullcontext(),
+                capturing() if self._recorder is not None else contextlib.nullcontext(written) as written,
+            ):
                 returned = task.fn()
             stop = STOP_COMPLETED
             if isinstance(returned, Partial):
@@ -254,5 +258,5 @@ class PythonTaskRunner:
         result = TaskResult(task=task, ok=ok, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
         retry = error is not None and isinstance(error, retry_on)
         if self._recorder is not None:
-            self._recorder.record_python(task, result, outs, retry)
+            self._recorder.record_python(task, result, outs, retry, written)
         return result, retry

@@ -11,6 +11,12 @@ and a panel reads them back wherever the monitor reads runs (`RunRecords.log`,
 They act on the current run: the one a `Run` opened (`Pipeline.run` opens it around
 the flow), and, in a Python task, the run its `PythonTaskRunner` runs it for, on
 whichever thread the queue runs it. Called outside a run, they raise `NoCurrentRun`.
+An agent task cannot call them: its coding agent runs in another process, which has no
+current run.
+
+`capturing()` keeps, beside the files, what `log` and `save` write in its context (a
+recording keeps a Python task attempt's writes with it), and `restore` writes them into a
+run again (a replay plays them back).
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ import json
 import threading
 from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -39,6 +46,43 @@ class _Current(NamedTuple):
 
 _current: ContextVar[_Current | None] = ContextVar("contraagent_current_run", default=None)
 _append = threading.Lock()
+
+
+@dataclass
+class Written:
+    """What `log` and `save` wrote in a `capturing()` context: each log's lines (JSON text,
+    one row each, in order) and each document's last text, by name."""
+
+    logs: dict[str, list[str]] = field(default_factory=dict)
+    documents: dict[str, str] = field(default_factory=dict)
+
+
+_capture: ContextVar[Written | None] = ContextVar("contraagent_capture", default=None)
+
+
+@contextlib.contextmanager
+def capturing() -> Iterator[Written]:
+    """Keep what `log` and `save` write in this context (they still write their files)."""
+    written = Written()
+    token = _capture.set(written)
+    try:
+        yield written
+    finally:
+        _capture.reset(token)
+
+
+def restore(run_dir: str | Path, written: Written) -> None:
+    """Write `written` into the run `run_dir`: each log's lines appended, each document
+    replaced, as `log` and `save` would have."""
+    folder = Path(run_dir) / rundir.PIPELINE
+    for name, lines in written.logs.items():
+        path = Path(run_dir) / rundir.pipeline_log(name)
+        folder.mkdir(exist_ok=True)
+        with _append, open(path, "a", encoding="utf-8") as f:
+            f.writelines(line if line.endswith("\n") else line + "\n" for line in lines)
+    for name, text in written.documents.items():
+        folder.mkdir(exist_ok=True)
+        rundir.write_document(Path(run_dir) / rundir.pipeline_document(name), text)
 
 
 class NoCurrentRun(ContraagentError):
@@ -102,6 +146,9 @@ def log(name: str, row: Mapping[str, Any] | BaseModel) -> None:
     path.parent.mkdir(exist_ok=True)
     with _append, open(path, "a", encoding="utf-8") as f:
         f.write(line)
+    captured = _capture.get()
+    if captured is not None:
+        captured.logs.setdefault(name, []).append(line)
 
 
 def save(name: str, value: Any) -> None:
@@ -115,3 +162,6 @@ def save(name: str, value: Any) -> None:
     text = _json(value, f"pipeline document {name!r}")
     path.parent.mkdir(exist_ok=True)
     rundir.write_document(path, text)
+    captured = _capture.get()
+    if captured is not None:
+        captured.documents[name] = text

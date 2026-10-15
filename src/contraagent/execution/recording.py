@@ -10,6 +10,8 @@ without a launch or a call of the function:
         output-<n>.message.txt           the whole final message beside an unwrapped output
         files/<path>                     what its `changes=` patterns saw created or modified
         stream.jsonl                     its part of the transcript, when transcripts are kept
+        pipeline/<name>.jsonl            a Python task's rows of `contraagent.log(name, ...)`, in order
+        pipeline/<name>.json             a Python task's last `contraagent.save(name, ...)`
 
 A file over the recording's cap (`max_file_mb`, default 4 MB, `Pipeline(record_max_file_mb=)`,
 `--record-max-file-mb`) is kept by its SHA-256 and size only (the entry's `by_hash`), so a
@@ -19,7 +21,11 @@ An agent task attempt's entry holds the facts of its last launch (stop, ok, fina
 structured output, turns, agent, model, ...), the task's fingerprint, and the paths its
 patterns saw deleted. A Python task attempt's entry holds how its call ended (stop, ok,
 reason, and `retry_on`: whether it raised an exception of its task's `retry_on`) and the
-output file its return value was written to, which is what the flow receives. Only what
+output file its return value was written to, which is what the flow receives, and what
+its call wrote with `contraagent.log` and `contraagent.save` (`pipeline_files.capturing`):
+a replay writes those rows and documents into the run's `pipeline/` as it plays the
+attempt, so a panel reads the same. An agent task cannot call them (its coding agent runs
+in another process), so it has none. Only what
 the task declares is kept: its outputs and its `changes=`, never the rest of the working
 directory. A task's first attempt in a run replaces its recording;
 each later attempt adds to it. The entry file is replaced whole after the files it names
@@ -77,6 +83,7 @@ from contraagent.contracts import OutputContract
 from contraagent.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution.changes import compare, scan, scan_tree
+from contraagent.execution.pipeline_files import Written, restore
 
 VERSION = 1
 
@@ -140,6 +147,22 @@ def base_key(key: str) -> tuple[str, int]:
 def _outputs(contracts: Sequence[OutputContract], cwd: Path) -> list[tuple[Path, Path]]:
     """Each output's file and the file beside it that keeps an unwrapped output's final message."""
     return [(c.resolve(cwd), c.message_path(cwd)) for c in contracts]
+
+
+def _written(files: Path, pipeline: dict) -> Written:
+    """What a recorded attempt wrote with `contraagent.log` and `save`, read back from its files."""
+    written = Written()
+    for name in pipeline.get("logs") or ():
+        try:
+            written.logs[name] = (files / rundir.pipeline_log(name)).read_text(encoding="utf-8").splitlines(keepends=True)
+        except OSError:
+            continue
+    for name in pipeline.get("documents") or ():
+        try:
+            written.documents[name] = (files / rundir.pipeline_document(name)).read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return written
 
 
 def _write(path: Path, data: bytes) -> None:
@@ -266,9 +289,12 @@ class Recorder:
         }
         self._keep(task, "agent", attempt)
 
-    def record_python(self, task: Task, result: TaskResult, outputs: Sequence[OutputContract], retry: bool) -> None:
+    def record_python(
+        self, task: Task, result: TaskResult, outputs: Sequence[OutputContract], retry: bool, written: Written | None = None
+    ) -> None:
         """Keep one call of a Python task's function: how it ended, `retry` (it raised an
-        exception of its task's `retry_on`), and, when it finished ok (a `Partial` too), its output files."""
+        exception of its task's `retry_on`), when it finished ok (a `Partial` too) its output
+        files, and `written`, what it wrote with `contraagent.log` and `save`, whatever its end."""
         token, files = self._attempt_dir(task)
         by_hash: list[dict[str, Any]] = []
         kept: list[dict[str, Any]] = []
@@ -277,8 +303,33 @@ class Recorder:
             stored = result.ok and self._store(task, out, files / name, by_hash)
             beside = result.ok and self._store(task, message, files / f"{name}.message.txt", by_hash)
             kept.append({"file": name if stored else None, "message": f"{name}.message.txt" if beside else None})
-        facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "by_hash": by_hash}
+        pipeline: dict[str, list[str]] = {"logs": [], "documents": []}
+        for name, lines in (written.logs if written is not None else {}).items():
+            data = "".join(lines).encode()
+            if self._store_bytes(task, data, files / rundir.pipeline_log(name), rundir.pipeline_log(name), by_hash):
+                pipeline["logs"].append(name)
+        for name, text in (written.documents if written is not None else {}).items():
+            data = text.encode()
+            if self._store_bytes(task, data, files / rundir.pipeline_document(name), rundir.pipeline_document(name), by_hash):
+                pipeline["documents"].append(name)
+        facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "pipeline": pipeline, "by_hash": by_hash}
         self._keep(task, "python", facts)
+
+    def _store_bytes(self, task: Task, data: bytes, dst: Path, shown: str, by_hash: list[dict[str, Any]]) -> bool:
+        """`_store` for content held in memory, shown in a line as `shown`."""
+        if len(data) <= self.max_file_mb * _MB:
+            _write(dst, data)
+            self._count(len(data))
+            return True
+        by_hash.append({"path": shown, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)})
+        self._hashed_by(task, shown, len(data))
+        return False
+
+    def _hashed_by(self, task: Task, shown: str, size: int) -> None:
+        with self._lock:
+            self._hashed += 1
+            self._unplayable[task.key] = kind_name(task.kind)
+        self._log(f"[record] {task.key}: {shown} ({megabytes(size)}) stored by hash only, over {self.max_file_mb:g} MB")
 
     def declare(self, outputs: Sequence[OutputContract], patterns: Sequence[str] = (), result: TaskResult | None = None) -> None:
         """What a task attempt declares it changes: its output files, its `changes=` patterns,
@@ -352,10 +403,7 @@ class Recorder:
             by_hash.append({"path": shown, "sha256": _sha256(src), "bytes": size})
         except OSError:
             return False
-        with self._lock:
-            self._hashed += 1
-            self._unplayable[task.key] = kind_name(task.kind)
-        self._log(f"[record] {task.key}: {shown} ({megabytes(size)}) stored by hash only, over {self.max_file_mb:g} MB")
+        self._hashed_by(task, shown, size)
         return False
 
     def _count(self, size: int) -> None:
@@ -570,11 +618,14 @@ class Replay:
 
     # --- playing ---------------------------------------------------------------
 
-    def play_python(self, task: Task, outputs: Sequence[OutputContract], cwd: Path) -> tuple[TaskResult, bool] | None:
-        """A Python task's recorded call for its attempt, its output files written into place,
-        and whether that call raised an exception of its `retry_on`; None for a kind in
-        `execute`, whose function runs, and for a task with no recording with `record_missing`. A task with no
-        recording ends `error` otherwise, not retried."""
+    def play_python(
+        self, task: Task, outputs: Sequence[OutputContract], cwd: Path, run_dir: Path | None = None
+    ) -> tuple[TaskResult, bool] | None:
+        """A Python task's recorded call for its attempt, its output files written into place
+        and its pipeline log rows and documents into `run_dir`'s `pipeline/`, and whether that
+        call raised an exception of its `retry_on`; None for a kind in `execute`, whose function
+        runs, and for a task with no recording with `record_missing`. A task with no recording
+        ends `error` otherwise, not retried."""
         if kind_name(task.kind) in self.execute:
             return None
         started = time.monotonic()
@@ -586,7 +637,10 @@ class Replay:
         if playing.blocked:
             return TaskResult(task=task, ok=False, stop=STOP_ERROR, reason=playing.blocked, retryable=False), False
         attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)]
-        self._place(playing.folder / str(attempt.get("files", "")), attempt, outputs, cwd)
+        files = playing.folder / str(attempt.get("files", ""))
+        self._place(files, attempt, outputs, cwd)
+        if run_dir is not None:
+            restore(run_dir, _written(files, attempt.get("pipeline") or {}))
         reason = "; ".join([*self._notes(playing, task, attempt), *([attempt["reason"]] if attempt.get("reason") else [])])
         result = TaskResult(
             task=task,

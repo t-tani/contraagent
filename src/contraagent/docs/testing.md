@@ -77,7 +77,10 @@ fingerprint, and beside it the final contents of its output files, the files its
 `changes=` patterns saw created or modified (and the paths they saw deleted), and its
 part of the transcript when transcripts are kept. A Python task attempt's recording holds
 how its call ended (a `Partial` is played as `partial` again, its reason too) and its output
-file, which is what the flow receives from it. Nothing
+file, which is what the flow receives from it, and the rows and documents its call wrote with
+`contraagent.log` and `contraagent.save` (a replay writes them into the run's `pipeline/` again,
+so a panel reads the same; a file over the cap makes the attempt unplayable, as an output
+does). An agent task has none: its coding agent runs in another process, with no current run. Nothing
 else of the working directory is kept. A task's first attempt in a run replaces its
 recording. Record on a real coding agent once, and commit the directory with the tests.
 
