@@ -18,7 +18,7 @@ from contraagent._internal.execution.cursor import CursorStore
 from contraagent._internal.execution.journal import Journal
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.python_tasks import PythonTaskRunner
-from contraagent._internal.execution.run import Run, RunExists, RunLocked
+from contraagent._internal.execution.run import Run, RunExists, RunFormatError, RunLocked
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 
 __all__ = [
@@ -30,6 +30,7 @@ __all__ = [
     "RetryingRunner",
     "Run",
     "RunExists",
+    "RunFormatError",
     "RunLocked",
     "TaskAdapter",
     "log",

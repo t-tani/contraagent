@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `flow_calls.jsonl` in a run directory of run format 1.",
+  "$defs": {
+    "Frame": {
+      "additionalProperties": false,
+      "description": "One frame of a flow path (outermost first): a call site in flow code where a task\nwas created. A comprehension is not a loop.",
+      "properties": {
+        "function": {
+          "description": "`module.qualname`",
+          "title": "Function",
+          "type": "string"
+        },
+        "file": {
+          "description": "relative to the run's working directory when under it, else as recorded",
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "title": "Line",
+          "type": "integer"
+        },
+        "loops": {
+          "default": [],
+          "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
+          "items": {
+            "$ref": "#/$defs/Loop"
+          },
+          "title": "Loops",
+          "type": "array"
+        }
+      },
+      "required": [
+        "function",
+        "file",
+        "line"
+      ],
+      "title": "Frame",
+      "type": "object"
+    },
+    "Loop": {
+      "additionalProperties": false,
+      "description": "A `for` or `while` loop of a generator around a call site, and the pass the call\nsite was in.",
+      "properties": {
+        "line": {
+          "description": "the loop's first line, which names it",
+          "title": "Line",
+          "type": "integer"
+        },
+        "pass": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted",
+          "title": "Pass"
+        }
+      },
+      "required": [
+        "line",
+        "pass"
+      ],
+      "title": "Loop",
+      "type": "object"
+    },
+    "TimeBoxRecord": {
+      "additionalProperties": false,
+      "description": "A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it.",
+      "properties": {
+        "started_at": {
+          "description": "when the flow call started, where its deadline counts from (UTC ISO 8601)",
+          "title": "Started At",
+          "type": "string"
+        },
+        "deadline_s": {
+          "description": "seconds from `started_at` to the deadline",
+          "title": "Deadline S",
+          "type": "number"
+        },
+        "grace_s": {
+          "description": "seconds past the deadline its `finishing_kinds` still launch",
+          "title": "Grace S",
+          "type": "number"
+        },
+        "slack_s": {
+          "description": "seconds before the deadline from which its tasks are ordered for it",
+          "title": "Slack S",
+          "type": "number"
+        },
+        "finishing_kinds": {
+          "default": [],
+          "description": "the kinds that still launch past the deadline",
+          "items": {
+            "type": "string"
+          },
+          "title": "Finishing Kinds",
+          "type": "array"
+        }
+      },
+      "required": [
+        "started_at",
+        "deadline_s",
+        "grace_s",
+        "slack_s"
+      ],
+      "title": "TimeBoxRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,\n`flow` (the flow path where the parent yielded it; empty for a top flow call) and, for a\nflow call yielded through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,\n`closed`) and `error` (`\"<type>: <message>\"` or null). A row holds only its event's fields.",
+  "properties": {
+    "ts": {
+      "title": "Ts",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "event": {
+      "enum": [
+        "start",
+        "end"
+      ],
+      "title": "Event",
+      "type": "string"
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent"
+    },
+    "function": {
+      "default": "",
+      "title": "Function",
+      "type": "string"
+    },
+    "flow": {
+      "items": {
+        "$ref": "#/$defs/Frame"
+      },
+      "title": "Flow",
+      "type": "array"
+    },
+    "time_box": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeBoxRecord"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "anyOf": [
+        {
+          "enum": [
+            "running",
+            "returned",
+            "raised",
+            "closed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "State"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    }
+  },
+  "required": [
+    "ts",
+    "id",
+    "event"
+  ],
+  "title": "FlowCallRow",
+  "type": "object"
+}

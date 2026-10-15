@@ -42,6 +42,15 @@ class ConfigError(ContraagentError, ValueError):
 #: a pipeline's own, read by its code (`PipelineConfig.table`), their keys never checked.
 TABLES = ("defaults", "tasks", "credentials", "pipeline", "_comment")
 
+#: The routing keys of `[defaults]` and of a task table: where a kind runs.
+ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fallbacks")
+
+#: The keys of `[defaults]` (and `_comment`, anywhere).
+DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
+
+#: The keys of a task table beside `TASK_TABLE_KEYS` (and `_comment`).
+TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools")
+
 
 def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, ...] = ()) -> str:
     """`elsewhere`: keys of another table, named when an unknown key is close to one of them."""
@@ -167,18 +176,7 @@ class PipelineConfig:
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
-        allowed = {
-            "agent",
-            "model",
-            "effort",
-            "credential",
-            "model_failover",
-            "max_passes",
-            "preflight",
-            "fallbacks",
-            "claim_capacity",
-            "context_warn_pct",
-        }
+        allowed = set(DEFAULTS_KEYS)
         unknown = set(entry) - allowed - {"_comment"}
         if unknown:
             _problem(errors, f"{self.source}: {_unknown_keys('[defaults]', unknown, allowed, tuple(TASK_TABLE_KEYS))}")
@@ -251,7 +249,7 @@ class PipelineConfig:
 
     def _task_table(self, kind: str, entry: object, errors: list[str] | None) -> dict:
         routing = ("agent", "model", "effort", "credential")
-        allowed = set(routing) | set(TASK_TABLE_KEYS) | {"fallbacks", "model_failover", "disallowed_tools", "_comment"}
+        allowed = set(TASK_ROUTING_KEYS) | set(TASK_TABLE_KEYS) | {"_comment"}
         named = ", ".join(sorted(allowed - {"_comment"}))
         if not isinstance(entry, dict):
             _problem(errors, f"{self.source}: [tasks.{kind}] must be a table with any of {named}")

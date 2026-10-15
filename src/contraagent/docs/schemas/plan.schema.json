@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `plan.jsonl` in a run directory of run format 1.",
+  "$defs": {
+    "Frame": {
+      "additionalProperties": false,
+      "description": "One frame of a flow path (outermost first): a call site in flow code where a task\nwas created. A comprehension is not a loop.",
+      "properties": {
+        "function": {
+          "description": "`module.qualname`",
+          "title": "Function",
+          "type": "string"
+        },
+        "file": {
+          "description": "relative to the run's working directory when under it, else as recorded",
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "title": "Line",
+          "type": "integer"
+        },
+        "loops": {
+          "default": [],
+          "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
+          "items": {
+            "$ref": "#/$defs/Loop"
+          },
+          "title": "Loops",
+          "type": "array"
+        }
+      },
+      "required": [
+        "function",
+        "file",
+        "line"
+      ],
+      "title": "Frame",
+      "type": "object"
+    },
+    "Loop": {
+      "additionalProperties": false,
+      "description": "A `for` or `while` loop of a generator around a call site, and the pass the call\nsite was in.",
+      "properties": {
+        "line": {
+          "description": "the loop's first line, which names it",
+          "title": "Line",
+          "type": "integer"
+        },
+        "pass": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted",
+          "title": "Pass"
+        }
+      },
+      "required": [
+        "line",
+        "pass"
+      ],
+      "title": "Loop",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies\nand its origin. A task with no origin (built by hand) has an empty `flow` and\n`created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind.",
+  "properties": {
+    "ts": {
+      "default": "",
+      "description": "when it was queued (absent for a node rebuilt from the journal)",
+      "title": "Ts",
+      "type": "string"
+    },
+    "key": {
+      "title": "Key",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "unit": {
+      "default": "",
+      "title": "Unit",
+      "type": "string"
+    },
+    "claims": {
+      "description": "the names it holds while it runs, its kind's `claims` filled in",
+      "items": {
+        "type": "string"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "after": {
+      "description": "task keys it waits for",
+      "items": {
+        "type": "string"
+      },
+      "title": "After",
+      "type": "array"
+    },
+    "priority": {
+      "default": 0.0,
+      "description": "its task call's `priority`: a tie-breaker in the queue, higher first",
+      "title": "Priority",
+      "type": "number"
+    },
+    "executor": {
+      "default": "agent",
+      "enum": [
+        "agent",
+        "python"
+      ],
+      "title": "Executor",
+      "type": "string"
+    },
+    "flow": {
+      "description": "the flow path: frames of flow code that created it, outermost first",
+      "items": {
+        "$ref": "#/$defs/Frame"
+      },
+      "title": "Flow",
+      "type": "array"
+    },
+    "created_from": {
+      "description": "keys whose results its flow call had received when it created it",
+      "items": {
+        "type": "string"
+      },
+      "title": "Created From",
+      "type": "array"
+    },
+    "flow_call": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the id of the flow call that created it; null for a task with no origin",
+      "title": "Flow Call"
+    },
+    "base_kind": {
+      "default": "",
+      "description": "an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
+      "title": "Base Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "key",
+    "kind"
+  ],
+  "title": "PlanRow",
+  "type": "object"
+}

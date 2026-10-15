@@ -31,7 +31,7 @@ from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResul
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
-from contraagent._internal.execution.run import RunExists, RunLocked
+from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
 from contraagent._internal.pipeline.check import CheckReport
 from contraagent._internal.pipeline.graph import Pending, TextOutput, TooManyPasses
 from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
@@ -73,6 +73,7 @@ __all__ = [
     "ResultEnricher",
     "RoutingError",
     "RunExists",
+    "RunFormatError",
     "RunLocked",
     "RunReport",
     "SkippedHop",

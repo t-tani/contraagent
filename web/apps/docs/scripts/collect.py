@@ -6,7 +6,9 @@ Writes every page an index lists into src/content/docs/<section>/ (not
 committed): the title from the page's heading, the order and description from
 its index, each `::code{...}` expanded by `contraagent._internal.docs.expand` (the one
 implementation `contraagent docs` uses too), each link pointed at the page it
-names. A quote or a link that does not resolve stops it.
+names. A quote or a link that does not resolve stops it. The JSON Schemas of the
+Python package's files (`contraagent/docs/schemas/`) go into public/schemas/, served
+as they are.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from contraagent._internal import docs
 
 ROOT = Path(__file__).resolve().parents[4]
 CONTENT = Path(__file__).resolve().parents[1] / "src" / "content" / "docs"
+SCHEMAS = Path(__file__).resolve().parents[1] / "public" / "schemas"
 
 #: Each package's index, the directory its quotes are relative to, and the site section it becomes.
 SECTIONS = [
@@ -51,7 +54,9 @@ def main() -> None:
     for source, page in pages.items():
         page["out"].parent.mkdir(parents=True, exist_ok=True)
         page["out"].write_text(render(source, page, pages))
-    sys.stdout.write(f"collected {len(pages)} pages\n")
+    shutil.rmtree(SCHEMAS, ignore_errors=True)
+    shutil.copytree(docs.DIR / "schemas", SCHEMAS)
+    sys.stdout.write(f"collected {len(pages)} pages and {len(list(SCHEMAS.glob('*.json')))} schemas\n")
 
 
 def render(source: Path, page: dict, pages: dict[Path, dict]) -> str:
