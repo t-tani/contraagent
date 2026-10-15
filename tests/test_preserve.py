@@ -179,3 +179,68 @@ def test_an_attempt_that_does_not_pass_leaves_the_file_as_it_was(tmp_path):
     assert not report.ok
     out = json.loads((report.run_dir / "out" / "outline" / "alpha.json").read_text())
     assert [(i["id"], i["summary"]) for i in out["items"]] == [("alpha-1", ""), ("alpha-2", "")]
+
+
+class Notes(BaseModel):
+    text: str = ""
+    seen: int = 0
+
+
+def test_output_of_is_refused_where_it_cannot_name_a_file_of_the_same_format():
+    from contraagent import python_task
+
+    @python_task
+    def start(unit: str) -> Notes:
+        return Notes()
+
+    @python_task
+    def nothing(unit: str) -> None:
+        return None
+
+    def declare(**options):
+        return agent_task("grow", instructions="x", max_turns=1, timeout_s=1, **{"output": Notes, "output_of": start, **options})
+
+    assert declare().output_of is start
+    assert declare().digest() != agent_task("grow", instructions="x", output=Notes, max_turns=1, timeout_s=1).digest()
+    text = agent_task("draft", instructions="x", output=str, max_turns=1, timeout_s=1)
+    with pytest.raises(TypeError, match="drop output_name"):
+        declare(output_name="{unit}.json")
+    with pytest.raises(TypeError, match="needs output="):
+        declare(output=None)
+    with pytest.raises(TypeError, match="writes no output file"):
+        declare(output_of=nothing)
+    with pytest.raises(TypeError, match="writes a text file, and this output is json"):
+        declare(output_of=text)
+    with pytest.raises(TypeError, match="takes a task declaration"):
+        declare(output_of="start")
+
+
+def test_output_of_writes_the_file_of_the_latest_task_of_that_kind_for_the_unit_and_waits_for_it(tmp_path):
+    start = agent_task("start", instructions="x", output=Notes, max_turns=1, timeout_s=1)
+    grow = agent_task("grow", instructions="x", output=Notes, output_of=start, preserve=["/text"], max_turns=1, timeout_s=1)
+
+    def flow():
+        start("a")
+        grow("a")  # out/start/a.json, after start-a
+        start("a")  # start-a~2: out/start/a~2.json
+        grow("a")  # grow-a~2: out/start/a~2.json, after start-a~2
+        grow("a")  # grow-a~3: the same file, after grow-a~2, its last writer
+        grow("b")  # no start for b: out/start/b.json, waiting for nothing
+
+    def reply(launch):
+        path = Path(launch.call.output.path)
+        doc = json.loads(path.read_text()) if path.exists() else {"text": launch.key}
+        return {**doc, "seen": doc.get("seen", 0) + 1}
+
+    stub = StubAgent({"start": reply, "grow": reply})
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", backends=stub.backends(), cwd=tmp_path).run(flow)
+    assert report.ok, report.failed
+    out = report.run_dir / "out" / "start"
+    paths = {launch.key: Path(launch.call.output.path) for launch in stub.launches}
+    assert paths["grow-a"] == out / "a.json" and paths["grow-b"] == out / "b.json"
+    assert paths["grow-a~2"] == paths["grow-a~3"] == paths["start-a~2"] == out / "a~2.json"
+    rows = [json.loads(line) for line in (report.run_dir / "plan.jsonl").read_text().splitlines()]
+    after = {row["key"]: row.get("after", []) for row in rows if "key" in row}
+    assert "start-a" in after["grow-a"] and "start-a~2" in after["grow-a~2"] and "grow-a~2" in after["grow-a~3"]
+    assert after["grow-b"] == []
+    assert json.loads((out / "a~2.json").read_text()) == {"text": "start-a~2", "seen": 3}

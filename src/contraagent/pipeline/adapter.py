@@ -168,5 +168,6 @@ class SpecAdapter(TaskAdapter):
             "validators": [getattr(v, "name", "") or getattr(v, "__name__", "") for v in spec.validators],
             "output_from": spec.output_from,
             "preserve": list(spec.preserve),
+            "output_of": spec.output_of.kind if spec.output_of is not None else None,
             "tools": list(spec.tools) if spec.tools is not None else None,
         }

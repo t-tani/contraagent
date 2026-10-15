@@ -1,7 +1,7 @@
 """An agent task that fills in a file a Python task wrote, and keeps what that task wrote.
 
 `outline` writes each report's source and its items, with empty summaries. `fill` writes
-the same file (its `output_name` names it) with the summaries filled in; `preserve` names
+the same file (`output_of=outline`) with the summaries filled in; `preserve` names
 the parts it must keep as they were, so an item's id or title that changed goes back to
 the agent as a check error.
 """
@@ -34,7 +34,7 @@ fill = agent_task(
     "fill",
     instructions="Write the summary of each item of the report from its source document.",
     output=Report,
-    output_name="../outline/{unit}.json",  # the file outline wrote: out/outline/<unit>.json
+    output_of=outline,  # the file outline wrote for the same unit
     preserve=["/source", "/items/*/id", "/items/*/title"],
     max_turns=20,
     timeout_s=600,
@@ -43,4 +43,5 @@ fill = agent_task(
 
 def reports(units: dict[str, list[str]]):
     for unit, titles in units.items():
-        fill(unit, after=[outline(unit, titles=titles)])
+        outline(unit, titles=titles)
+        fill(unit)  # writes outline's file for the unit, after outline

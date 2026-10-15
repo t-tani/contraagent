@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   puts the file back as it was. The pointers are checked against the output's schema when the
   task is declared, and are in the call file (`output.preserve`), the task's definition and
   its contract record (`preserve`).
+- `agent_task(output_of=outline)`: an agent task writes the output file of another kind's task
+  for the same unit (the latest one created so far) instead of a file of its own, and waits for
+  the latest task that writes that file; with `preserve`, it fills in what that task wrote.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

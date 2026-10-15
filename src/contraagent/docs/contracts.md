@@ -58,11 +58,16 @@ no document is checked as it is, and goes back as before.
 
 A task may fill in a file that holds values already: a Python task writes a
 report's items, and an agent task writes their summaries into the same file.
+`output_of` names the task declaration whose file it writes: for each task, the
+file of the latest task of that kind created so far for the same unit (or `key=`),
+else the file that kind's `output_name` names for it. The task waits for the
+latest task created so far that writes that file, of any kind, so two never write
+it at once. `output` is the schema of the whole file after the task.
 `preserve` names the parts the agent must keep as they were, as JSON pointers
 (RFC 6901: `/source`, `/items/0/id`), with one extension: a segment `*` is every
 member of an array or object, so `/items/*/id` is the id of every item.
 
-::code{file="examples/preserve/flow.py" from="class Item(" to="def reports("}
+::code{file="examples/preserve/flow.py" from="class Item("}
 
 Before the first round the runner reads the file and takes the values the
 pointers select in it. After each round, each of them must still be in the file,
