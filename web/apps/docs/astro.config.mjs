@@ -18,6 +18,8 @@ export default defineConfig({
       title: 'contraagent',
       description: 'Run coding agents as typed, checked, supervised tasks.',
       // A live demo can show @contraagent/elements' example of a theme of one's own.
+      // The landing page's first screen (the only page with a `hero`).
+      components: { Hero: './src/components/home/Hero.astro' },
       customCss: ['./src/styles/site.css', '../../packages/elements/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
