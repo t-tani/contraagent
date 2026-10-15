@@ -6,7 +6,6 @@ adding a factory (one that cannot run here skips itself)."""
 
 import hashlib
 import json
-import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -276,20 +275,6 @@ def ship(root: Path, client: HubClient, host_id: str) -> None:
                 got = source.file(run, spec["path"])
                 files.append(FileRef(path=spec["path"], sha256=sha, size=len(data), mtime=got[2] if got else ""))
         client.send_records(RecordBatch(run=ref, logs=logs, documents=documents, files=files))
-
-
-@pytest.fixture(scope="module")
-def demo_runs(tmp_path_factory) -> Path:
-    from contraagent.docs.examples.demo import run as demo
-
-    where = tmp_path_factory.mktemp("demo")
-    old = Path.cwd()
-    os.chdir(where)
-    try:
-        demo.main(["--no-serve", "--fast"])
-    finally:
-        os.chdir(old)
-    return where / "demo-runs"
 
 
 def views(mon: Monitor, run: str) -> dict:

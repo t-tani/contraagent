@@ -11,8 +11,10 @@ const HUB_PORT = Number(process.env["E2E_HUB_PORT"] ?? 18794);
 export default defineConfig({
   testDir: 'e2e',
   globalSetup: './e2e/global-setup.ts',
+  // A spec file runs on one worker, in order; three files at once against the same servers,
+  // which the specs only read.
   fullyParallel: false,
-  workers: 1,
+  workers: 3,
   timeout: 30_000,
   use: { baseURL: `http://127.0.0.1:${PORT}`, viewport: { width: 1280, height: 800 } },
   webServer: [

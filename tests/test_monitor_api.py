@@ -19,21 +19,6 @@ from contraagent.monitor import Monitor, Panel, api, procs, server
 from contraagent.monitor.paths import BadName, check_name
 
 
-@pytest.fixture(scope="module")
-def demo_runs(tmp_path_factory):
-    """The demo pipeline's runs: failover, resends, refused inputs, transcripts, contracts."""
-    from contraagent.docs.examples.demo import run as demo
-
-    where = tmp_path_factory.mktemp("demo")
-    old = Path.cwd()
-    os.chdir(where)
-    try:
-        demo.main(["--no-serve", "--fast"])
-    finally:
-        os.chdir(old)
-    return where / "demo-runs"
-
-
 def client_for(monitor: Monitor, **kwargs) -> TestClient:
     return TestClient(server.create_app(monitor, **kwargs), base_url="http://127.0.0.1")
 

@@ -894,6 +894,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `retry_backoff_base` is the wait in seconds before the first fresh attempt, doubled per
+  attempt (each wait a random draw up to it), as the config documents: it was raised to the
+  attempt's power, so a base of 0 still waited up to a second.
 - On omp, pi and opencode a `post_tool` hook that exits 2 has its words added to the
   tool's result, so the agent fixes what it says in the same session, as on Claude Code
   (they were dropped). The hook script reads the tool input in Claude Code's names on every

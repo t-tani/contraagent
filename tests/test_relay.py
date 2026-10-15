@@ -85,20 +85,6 @@ def relay(client, runs: Path, **kw) -> Relay:
     return Relay(client, runs, runs.parent / "progress.json", host_id="h1", **kw)
 
 
-@pytest.fixture(scope="module")
-def demo_runs(tmp_path_factory) -> Path:
-    from contraagent.docs.examples.demo import run as demo
-
-    where = tmp_path_factory.mktemp("demo")
-    old = Path.cwd()
-    os.chdir(where)
-    try:
-        demo.main(["--no-serve", "--fast"])
-    finally:
-        os.chdir(old)
-    return where / "demo-runs"
-
-
 def views(mon: Monitor, run: str) -> dict:
     plan = mon.plan(run)
     keys = [n["key"] for n in plan["nodes"]]

@@ -125,11 +125,17 @@ def test_tail_s_counts_toward_the_critical_path():
 
 
 def test_a_dependency_chain_longer_than_the_recursion_limit_is_ordered():
-    n = sys.getrecursionlimit() + 200
-    q = WorkQueue(Runner(), max_concurrent=1)
-    for i in range(n):
-        q.add(Task("step", key=f"k{i}", after=(f"k{i - 1}",) if i else ()))
-    summary = q.run()
+    # A low limit for the run proves the same as a chain of thousands: nothing recurses per task.
+    limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(250)
+    try:
+        n = sys.getrecursionlimit() + 200
+        q = WorkQueue(Runner(), max_concurrent=1)
+        for i in range(n):
+            q.add(Task("step", key=f"k{i}", after=(f"k{i - 1}",) if i else ()))
+        summary = q.run()
+    finally:
+        sys.setrecursionlimit(limit)
     assert summary["ok"] == n
 
 

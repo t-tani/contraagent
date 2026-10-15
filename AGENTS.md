@@ -223,6 +223,12 @@ uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (
 uv run pytest -m e2e    # the hub and relays as processes over Postgres and MinIO (docker)
 ```
 
+pytest runs in parallel (pytest-xdist, at most 6 processes; `-n0` runs it in one).
+Tests that share something across a module (one hub, the `live-demo` directory, an agent's
+rate limits) carry an `xdist_group` so one worker runs them in order; the live and perf
+tests get theirs in `tests/conftest.py`. A test does not wait out a retry's backoff
+(`RetryingRunner.backoff` is 0 there; `backoff_s` has its own test).
+
 After an omp upgrade, record its wire (`uv run python tests/fixtures/omp/record.py`,
 spends a few cents) and run `tests/test_omp_wire.py`: an event `TraceReader` does
 not know fails it.

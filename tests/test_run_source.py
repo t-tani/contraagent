@@ -3,7 +3,6 @@ same views from any of them. The demo's runs are read from their directory, copi
 memory record by record, and every view of the copy must equal the original's."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -12,20 +11,6 @@ from contraagent import rundir
 from contraagent.monitor import Monitor
 from contraagent.monitor.paths import BadName
 from contraagent.monitor.source import DirectorySource, MemorySource, ProcLiveness, StaticLiveness
-
-
-@pytest.fixture(scope="module")
-def demo_runs(tmp_path_factory) -> Path:
-    from contraagent.docs.examples.demo import run as demo
-
-    where = tmp_path_factory.mktemp("demo")
-    old = Path.cwd()
-    os.chdir(where)
-    try:
-        demo.main(["--no-serve", "--fast"])
-    finally:
-        os.chdir(old)
-    return where / "demo-runs"
 
 
 def copy_to_memory(root: Path) -> MemorySource:

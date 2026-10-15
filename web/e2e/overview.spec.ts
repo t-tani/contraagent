@@ -474,11 +474,15 @@ test.describe('the overview’s cards', () => {
   test('the run, its problems and its outputs share one row of one height on a wide screen', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await open(page, 'docs');
-    const boxes = await Promise.all(['stack', 'problems', 'outputs'].map((c) => card(page, c).boundingBox()));
-    const tops = boxes.map((b) => Math.round(b!.y));
-    const heights = boxes.map((b) => Math.round(b!.height));
-    expect(new Set(tops).size).toBe(1);
-    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
+    // Measured once the cards have entered: they slide in, and mid-way their tops differ.
+    const row = async () => {
+      const boxes = await Promise.all(['stack', 'problems', 'outputs'].map((c) => card(page, c).boundingBox()));
+      const tops = boxes.map((b) => Math.round(b!.y));
+      const heights = boxes.map((b) => Math.round(b!.height));
+      return { tops: new Set(tops).size, spread: Math.max(...heights) - Math.min(...heights) };
+    };
+    await expect.poll(row).toEqual({ tops: 1, spread: expect.any(Number) });
+    expect((await row()).spread).toBeLessThanOrEqual(1);
   });
 
   test('a breakdown alone on its row takes the whole row', async ({ page }) => {
