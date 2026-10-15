@@ -1,0 +1,4 @@
+# The output check, inside the session: the agent fixes its file before it stops.
+[[hooks]]
+on = "stop"
+run = "validate"

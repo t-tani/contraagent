@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "python-index": {"command": "python-index", "args": ["serve", "--stdio"]}
+  }
+}

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
+  one of several toolsets, each a kind of its own with its own plugin and the same output
+  schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

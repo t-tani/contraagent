@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "go-index": {"command": "go-index", "args": ["serve", "--stdio"]}
+  }
+}
