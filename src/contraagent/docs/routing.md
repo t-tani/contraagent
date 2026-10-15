@@ -57,9 +57,7 @@ Each kind gets its own failover breaker: on a 429 the task walks its chain of
 (agent, model, credential) hops, and a half-open probe returns to the primary
 once the provider's stated cool-off has passed. Until then every task of that
 kind starts on the hop, not only the one that was rate limited (the log says so:
-`[route] <key>: starting on hop 2/2 ...`). `Pipeline(preflight=True)`
-probes every distinct route once before the first task and drops the ones that
-cannot answer.
+`[route] <key>: starting on hop 2/2 ...`).
 
 Any other failure of a launch (an error, a refusal, a timeout, an output still
 off-contract after its fix-ups, ...) moves only that task to the next hop; the
@@ -71,6 +69,29 @@ identity than its credential (`credential_mismatch`). A launch ended by a signal
 An override of the agent or the model (`contraagent run --agent omp`) runs every
 kind there and nowhere else: no kind has failover hops. An override of the
 credential (`Overrides(credential=...)`) is every hop's credential as well.
+
+## Preflight
+
+The preflight probes every distinct route of the run's reachable kinds once,
+before the first task: a model its coding agent does not list is dropped
+without a launch, and every other route gets one minimal launch (`max_turns=1`);
+a route whose probe does not complete (a 429, an error, a timeout) is dropped.
+Past the first 8 routes (`DEFAULT_CAP` in `routing/preflight.py`) the rest are
+kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
+happens to a kind with no route left:
+
+| Policy | A kind with no route left |
+|---|---|
+| `substitute` | runs on the first route that answered, when that route runs as the kind's own credential; else it runs as configured |
+| `stop` | the run raises `PreflightStopped`, naming each such kind and why each of its routes was dropped; nothing launches |
+| `off` | nothing is probed (the default) |
+
+`Pipeline(preflight="stop")`, `contraagent run --preflight stop`, or
+`preflight = "stop"` in `[defaults]`; the argument and the flag outrank the
+config. `run.json` records what the preflight did (`preflight`: the policy, the
+routes dropped and the kinds that held them, each kind moved from one route to
+another, each kind left as configured and why, and the kinds that stopped the
+run), and the monitor returns it with the run's plan (`Plan.preflight`).
 
 ## Credentials
 

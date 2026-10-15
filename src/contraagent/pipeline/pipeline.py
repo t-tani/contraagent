@@ -42,6 +42,7 @@ from contraagent.pipeline.graph import MAX_PASSES, Graph
 from contraagent.pipeline.reach import reachable
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.plan import Overrides, RoutingPlan, check_task_tables
+from contraagent.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent.routing.quota import QuotaRule
 
 
@@ -94,7 +95,7 @@ class Pipeline:
         overrides: Overrides = Overrides(),
         cwd: str | Path | None = None,
         max_concurrent: int = 4,
-        preflight: bool = False,
+        preflight: PreflightPolicy | None = None,
         keep_transcripts: bool = True,
         env: Mapping[str, str] | None = None,
         log: Callable[[str], None] | None = None,
@@ -115,8 +116,12 @@ class Pipeline:
         `cwd`: where the agents run (default: this process's directory).
         `max_concurrent`: tasks running at once, across kinds (a kind's own
         `max_concurrent` caps it further).
-        `preflight`: probe every route once before the first task and drop the
-        ones that cannot answer (it launches each, so it spends a little).
+        `preflight`: before the first task, probe every route once (a launch each, so it
+        spends a little), drop the ones that cannot answer, and for a kind left with no
+        route `"substitute"` (run it on the first route that answered, of its own
+        credential), `"stop"` (raise `PreflightStopped`; nothing launches), or `"off"`
+        (no probe); default `[defaults] preflight`, else `"off"`. `run.json` records what
+        it did (`preflight`, a `PreflightRecord`).
         `keep_transcripts`: write each launch's stream file (`streams/<key>.stream.jsonl`).
         `env`: extra variables for every launch (a tool's own API key: a chosen
         credential removes every other secret-looking variable from the child).
@@ -157,7 +162,10 @@ class Pipeline:
         self.overrides = overrides
         self.cwd = Path(cwd) if cwd else Path.cwd()
         self.max_concurrent = max_concurrent
-        self.preflight = preflight
+        # A malformed [defaults] preflight is reported by the routing plan, with the rest.
+        self.preflight: PreflightPolicy = check_policy(
+            preflight if preflight is not None else config.defaults([]).get("preflight", "off"), "Pipeline: preflight"
+        )
         self.keep_transcripts = keep_transcripts
         self.log = log
         self.env = dict(env or {})
@@ -248,8 +256,12 @@ class Pipeline:
                         light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=not driven,
                     )
-                    if self.preflight:
-                        plan.preflight()
+                    try:
+                        preflight = plan.preflight(self.preflight)
+                    except PreflightStopped as exc:
+                        run.update_info(preflight=exc.record.as_dict())
+                        raise
+                    run.update_info(preflight=preflight.as_dict())
                     plan.log()
                     rests = run.quota_rests(
                         plan.credentials,

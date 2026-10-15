@@ -9,6 +9,7 @@ contraagent call validate [--call PATH]  # what a plugin's Stop hook runs (defau
 contraagent check tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}'
                                          # a flow, checked without launching anything
 contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}' [--run-id ID] [--resume]
+                                         [--preflight substitute|stop|off]
                                          # the same flow, run (exit 1 when a task or the flow failed)
 contraagent run tasks.py:docs --stub [--execute KIND]
                                          # a stub run: the stub agent plays every task with the smallest
@@ -77,6 +78,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--run-id", default="", help="the run's id (default: the flow's name)")
     run.add_argument("--resume", action="store_true", help="continue the run: skip the tasks it already finished")
     run.add_argument("--runs-dir", default="runs", help="where run directories are written (default: runs)")
+    run.add_argument(
+        "--preflight",
+        choices=("substitute", "stop", "off"),
+        default=None,
+        help="probe every route before the first task; a kind left with no route that answered runs on the first route "
+        "that answered (substitute) or refuses the run (stop); off: no probe (default: [defaults] preflight, else off)",
+    )
     run.add_argument(
         "--stub",
         action="store_true",
@@ -183,7 +191,14 @@ def _flow_command(args) -> int:
             print("--execute: only with --stub", file=sys.stderr)
             return 2
         overrides = Overrides(agent=args.agent, model=args.model)
-        pipeline = Pipeline(args.config, runs_dir=getattr(args, "runs_dir", "runs"), backends=backends, overrides=overrides, stub=stub)
+        pipeline = Pipeline(
+            args.config,
+            runs_dir=getattr(args, "runs_dir", "runs"),
+            backends=backends,
+            overrides=overrides,
+            stub=stub,
+            preflight=getattr(args, "preflight", None),
+        )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "
         print(f"✗ {args.flow}\n  error: {where(exc)}{kind}{exc}\n  read: `contraagent docs tasks`")
@@ -196,7 +211,7 @@ def _flow_command(args) -> int:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     try:
         result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)
-    except ContraagentError as exc:  # refused before anything ran: routing, a run id that holds a run
+    except ContraagentError as exc:  # refused before anything ran: routing, a run id that holds a run, the preflight
         print(f"✗ {args.flow}\n  error: {exc}")
         return 1
     done = len(result.results) - len(result.failed)

@@ -589,6 +589,31 @@ class Monitor:
             "flow_calls": self._flow_calls(run, cwd),
             **self._quota(run),
             "models": model_usage(journal),
+            **self._preflight(run),
+        }
+
+    def _preflight(self, run: str) -> dict:
+        """`preflight`: what the run's preflight did (`run.json`), when it records it."""
+        record = (self.source.info(run) or {}).get("preflight")
+        if not isinstance(record, dict) or record.get("policy") not in ("substitute", "stop", "off"):
+            return {}
+
+        def rows(name: str, fields: tuple[str, ...]) -> list[dict]:
+            items = record.get(name)
+            return [{f: item.get(f, "") for f in fields} for item in (items if isinstance(items, list) else ()) if isinstance(item, dict)]
+
+        dropped = rows("dropped", ("agent", "model", "credential", "reason", "kinds"))
+        for d in dropped:
+            d["kinds"] = [k for k in d["kinds"] if isinstance(k, str)] if isinstance(d["kinds"], list) else []
+        stopped = record.get("stopped")
+        return {
+            "preflight": {
+                "policy": record["policy"],
+                "dropped": dropped,
+                "substituted": rows("substituted", ("kind", "from_agent", "from_model", "to_agent", "to_model")),
+                "kept": rows("kept", ("kind", "agent", "model", "reason")),
+                "stopped": [k for k in stopped if isinstance(k, str)] if isinstance(stopped, list) else [],
+            }
         }
 
     def _quota(self, run: str) -> dict:

@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.3.0"
+    "version": "3.4.0"
   },
   "paths": {
     "/api/info": {
@@ -3373,6 +3373,17 @@
             "type": "array",
             "title": "Models",
             "description": "each model the run's agent sessions ran on, in order of first use"
+          },
+          "preflight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Preflight"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "what the run's preflight did (`run.json`); null when its run.json records none"
           }
         },
         "additionalProperties": false,
@@ -3608,6 +3619,162 @@
         ],
         "title": "PlanNode",
         "description": "A queued task (a `plan.jsonl` row, passed through) with its state and\nlayout. The journal fields (`wall_s` .. `attempts`) appear once it finished.\nThe origin fields (`flow` .. `flow_call`) say where the flow created it."
+      },
+      "Preflight": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "enum": [
+              "substitute",
+              "stop",
+              "off"
+            ],
+            "title": "Policy",
+            "description": "`Pipeline(preflight=)`; `off`: no route was probed"
+          },
+          "dropped": {
+            "items": {
+              "$ref": "#/components/schemas/PreflightDropped"
+            },
+            "type": "array",
+            "title": "Dropped"
+          },
+          "substituted": {
+            "items": {
+              "$ref": "#/components/schemas/PreflightSubstitution"
+            },
+            "type": "array",
+            "title": "Substituted"
+          },
+          "kept": {
+            "items": {
+              "$ref": "#/components/schemas/PreflightKept"
+            },
+            "type": "array",
+            "title": "Kept"
+          },
+          "stopped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "the kinds with no route left that stopped the run (policy `stop`)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy"
+        ],
+        "title": "Preflight",
+        "description": "What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`)."
+      },
+      "PreflightDropped": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "empty: the coding agent's default model"
+          },
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "not in its coding agent's model list, or how its probe ended (`rate limited`, ...)"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "the kinds whose chain held it"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "agent",
+          "model",
+          "credential",
+          "reason",
+          "kinds"
+        ],
+        "title": "PreflightDropped",
+        "description": "A route the preflight dropped (`DroppedRoute`)."
+      },
+      "PreflightKept": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "agent",
+          "model",
+          "reason"
+        ],
+        "title": "PreflightKept",
+        "description": "A kind with no route left, run as configured all the same (`KeptKind`)."
+      },
+      "PreflightSubstitution": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "from_agent": {
+            "type": "string",
+            "title": "From Agent"
+          },
+          "from_model": {
+            "type": "string",
+            "title": "From Model"
+          },
+          "to_agent": {
+            "type": "string",
+            "title": "To Agent"
+          },
+          "to_model": {
+            "type": "string",
+            "title": "To Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "from_agent",
+          "from_model",
+          "to_agent",
+          "to_model"
+        ],
+        "title": "PreflightSubstitution",
+        "description": "A kind with no route left, run on the first route that answered (`Substitution`)."
       },
       "ProcNode": {
         "properties": {
