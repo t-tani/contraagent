@@ -24,6 +24,7 @@ import urllib.request
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,11 @@ import pytest
 POSTGRES_IMAGE = "postgres:16.4"
 MINIO_IMAGE = "minio/minio:RELEASE.2025-04-03T14-56-28Z"
 LABEL = "contraagent-test=hub"
+#: The pytest process a container belongs to (the xdist controller, or the process itself):
+#: a container whose owner is gone was left by a run that was killed before `atexit` ran.
+OWNER = "contraagent-test-owner"
+#: A container from before the owner label is left alone while younger than this.
+_UNOWNED_GRACE_S = 3600
 
 MINIO_USER, MINIO_PASSWORD, MINIO_BUCKET = "contraagent", "contraagent-secret", "hub"
 
@@ -57,10 +63,50 @@ def _require_docker() -> None:
                 if not _docker("version", "--format", "{{.Server.Version}}", timeout=20):
                     raise RuntimeError("no docker server")
                 _unavailable.append("")
+                _reap_orphans()
             except (RuntimeError, subprocess.TimeoutExpired) as e:
                 _unavailable.append(f"docker is not available: {e}")
     if _unavailable[0]:
         pytest.skip(_unavailable[0])
+
+
+def _owner() -> int:
+    """The pytest process this one's containers belong to: the xdist controller for a worker."""
+    return os.getppid() if os.environ.get("PYTEST_XDIST_WORKER") else os.getpid()
+
+
+def _reap_orphans() -> None:
+    """Remove the hub containers of test runs that were killed (SIGKILL, a timeout) before they
+    could remove their own: those whose owner process is gone, and those from before the owner
+    label once they are older than `_UNOWNED_GRACE_S`. A run still going keeps its containers."""
+    try:
+        rows = _docker("ps", "-a", "--filter", f"label={LABEL}", "--format", f'{{{{.ID}}}} {{{{.Label "{OWNER}"}}}}', timeout=30)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        return
+    for row in rows.splitlines():
+        cid, _, owner = row.partition(" ")
+        if owner.strip().isdigit():
+            if _pid_alive(int(owner)):
+                continue
+        else:
+            try:
+                created = _docker("inspect", "-f", "{{.Created}}", cid, timeout=30)
+                started = datetime.fromisoformat(created.split(".")[0].rstrip("Z")).replace(tzinfo=UTC)
+            except (RuntimeError, subprocess.TimeoutExpired, ValueError):
+                continue
+            if (datetime.now(UTC) - started).total_seconds() < _UNOWNED_GRACE_S:
+                continue
+        subprocess.run(["docker", "rm", "-f", cid], capture_output=True, timeout=60)
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _shared_file(controller: int | None = None) -> Path | None:
@@ -110,7 +156,21 @@ def _run(image: str, port: int, *args: str, env: dict[str, str], shared: dict | 
     """Start `image` with `port` published on a random local port; its id and that port. A
     container started for xdist's workers is the controller's to remove, not this process's."""
     flags = [f"-e{k}={v}" for k, v in env.items()]
-    cid = _docker("run", "-d", "--rm", "--label", LABEL, "-p", f"127.0.0.1::{port}", *flags, image, *args, timeout=300)
+    cid = _docker(
+        "run",
+        "-d",
+        "--rm",
+        "--label",
+        LABEL,
+        "--label",
+        f"{OWNER}={_owner()}",
+        "-p",
+        f"127.0.0.1::{port}",
+        *flags,
+        image,
+        *args,
+        timeout=300,
+    )
     if shared is None:
         _containers.append(cid)
     else:
