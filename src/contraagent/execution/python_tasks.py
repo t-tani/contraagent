@@ -20,6 +20,12 @@ for an exception the task names in `retry_on` (`@python_task(retries=, retry_on=
 a call that raised one gets a fresh attempt, up to `retries` of them, after
 `RetryingRunner`'s backoff. Each attempt is its own journal row.
 
+With a recorder (`execution.recording.Recorder`), each call is recorded: how it ended (a
+`Partial`'s stop and reason included) and its output files. With a replay
+(`execution.recording.Replay`), a call is played from its recording instead, and the
+function does not run (but for the kinds the replay executes). A played call is an attempt
+like any other: inside the scopes, seen by the enrichers, its outputs checked.
+
 Contracts come from the task itself (`make_python_task(..., input_contracts=, output_contracts=)`)
 and, when given, from a `TaskAdapter`, exactly as for agent tasks.
 """
@@ -77,6 +83,9 @@ class PythonTaskRunner:
     attempt of an agent task (`TaskScope`, `ResultEnricher`): the input check, the call and
     the output check. The function's exception is the attempt's result, so a scope exits
     without one.
+
+    `recorder` (`Recorder.record_python`) keeps each call's recording; `replay`
+    (`Replay.play_python`) plays a call from its recording in place of the function.
     """
 
     def __init__(
@@ -90,6 +99,8 @@ class PythonTaskRunner:
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         config: PipelineConfig | None = None,
+        recorder=None,
+        replay=None,
     ) -> None:
         """`config`: the config file the run was started with, read by
         `contraagent.pipeline_table` in a Python task."""
@@ -97,6 +108,8 @@ class PythonTaskRunner:
         self._scopes = tuple(scopes)
         self._enrichers = tuple(enrichers)
         self._config = config
+        self._recorder = recorder
+        self._replay = replay
         self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
@@ -156,8 +169,8 @@ class PythonTaskRunner:
         attempt = 0
         while True:
             task.attempt = attempt
-            res, exc = self._attempt(task, outs, ins)
-            if exc is None or attempt >= retries or not isinstance(exc, retry_on):
+            res, retry = self._attempt(task, outs, ins, retry_on)
+            if not retry or attempt >= retries:
                 return res
             if self._on_failed_attempt is not None:
                 try:
@@ -167,21 +180,22 @@ class PythonTaskRunner:
             time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
             attempt += 1
 
-    def _attempt(self, task: Task, outs: list, ins: list) -> tuple[TaskResult, Exception | None]:
+    def _attempt(self, task: Task, outs: list, ins: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """One attempt, as `AgentRunner.run` brackets one of an agent task: each enricher
         snapshots, every scope is entered in order, the attempt runs, the scopes exit in
         reverse, and each enricher enriches the result. A scope that raises fails the task
-        the way it fails an agent task: the exception leaves `run`."""
+        the way it fails an agent task: the exception leaves `run`. With it, whether the
+        attempt raised an exception of `retry_on`."""
         snapshots = [(e, e.snapshot(task)) for e in self._enrichers]
         with contextlib.ExitStack() as stack:
             for scope in self._scopes:
                 stack.enter_context(scope(task))
-            res, exc = self._checked_call(task, outs, ins)
+            res, retry = self._checked_call(task, outs, ins, retry_on)
         for enricher, before in snapshots:
             enricher.enrich(task, before, res)
-        return res, exc
+        return res, retry
 
-    def _checked_call(self, task: Task, outs: list, ins: list) -> tuple[TaskResult, Exception | None]:
+    def _checked_call(self, task: Task, outs: list, ins: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
         """Check the inputs, call the function, check the outputs it wrote."""
         bad = [e for c in ins for e in check_input(c, self._cwd)]
         if bad:
@@ -192,11 +206,11 @@ class PythonTaskRunner:
                 reason=f"invalid input: {bad[0]}"[:240],
                 rounds=0,
             )
-            return refused, None
+            return refused, False
         before = {c.resolve(self._cwd): c.before(self._cwd) for c in outs}
-        res, exc = self._call(task)
+        res, retry = self._call(task, outs, retry_on)
         if not res.ok or not outs:
-            return res, exc  # the function itself failed; its own error is the story
+            return res, retry  # the function itself failed; its own error is the story
         t0 = time.monotonic()
         errors: list[str] = []
         for c in outs:
@@ -208,15 +222,22 @@ class PythonTaskRunner:
             res.ok, res.stop = False, STOP_INVALID_OUTPUT
             res.reason = "; ".join(errors)[:240]
             res.round_errors = (tuple(errors[:5]),)
-        return res, exc
+        return res, retry
 
-    def _call(self, task: Task) -> tuple[TaskResult, Exception | None]:
-        """Call the function: its result, and the exception it raised. An exception is the
+    def _call(self, task: Task, outs: list, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
+        """Call the function: its result, and whether it raised an exception of `retry_on`; a
+        replay plays the call instead, when it can, and a recorder keeps it. An exception is the
         task's result, never a crash of the queue; a returned `Partial` is an ok result with
         stop `partial` and its `reason`. With a run directory, it is the current run of
         `contraagent.log`, `save` and `pipeline_table` while the function runs, on whichever thread the
         queue calls it."""
         assert task.fn is not None
+        if self._recorder is not None:
+            self._recorder.declare(outs)
+        if self._replay is not None:
+            played = self._replay.play_python(task, outs, self._cwd)
+            if played is not None:
+                return played
         t0 = time.monotonic()
         reason = ""
         error: Exception | None = None
@@ -231,4 +252,7 @@ class PythonTaskRunner:
             reason = f"{type(exc).__name__}: {exc}"[:300]
         ok = stop in (STOP_COMPLETED, STOP_PARTIAL)
         result = TaskResult(task=task, ok=ok, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
-        return result, error
+        retry = error is not None and isinstance(error, retry_on)
+        if self._recorder is not None:
+            self._recorder.record_python(task, result, outs, retry)
+        return result, retry

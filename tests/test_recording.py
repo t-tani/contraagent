@@ -1,6 +1,7 @@
 """Recordings and replays (`Pipeline(record=)`, `Pipeline(replay=)`, `contraagent run
---record/--replay`): a run's agent task attempts kept, then played with nothing spent."""
+--record/--replay`): a run's task attempts kept, then played with nothing spent."""
 
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task, python_task
+from contraagent import Partial, Pipeline, PipelineConfig, Stop, agent_task, python_task
 from contraagent.cli import main
 from contraagent.execution.recording import RecordingError, base_key
 from contraagent.monitor import Monitor
@@ -76,7 +77,7 @@ def stub() -> StubAgent:
             "summarize": lambda launch: Note(title="summary").model_dump_json().join(["Here it is:\n", "\nDone."]),
         },
         default={"title": "x"},
-        execute=["count"],
+        execute=["count", "flaky"],
     )
 
 
@@ -86,9 +87,9 @@ def record(tmp_path, agent=None, flow_=flow, **kwargs):
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
-def replay(tmp_path, flow_=flow, name="replay", **kwargs):
+def replay(tmp_path, flow_=flow, name="replay", execute=(), **kwargs):
     cwd = tree(tmp_path / name)
-    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec")
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec", execute=execute)
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
@@ -97,6 +98,7 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     live = record(tmp_path)
     assert live.ok, live.failed
     assert sorted(p.relative_to(tmp_path / "rec").as_posix() for p in (tmp_path / "rec").glob("*/*.json")) == [
+        "count/python_count.json",
         "summarize/summarize-alpha.json",
         "write/write-alpha.json",
         "write/write-beta.json",
@@ -105,7 +107,7 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     played = replay(tmp_path)
     assert played.ok, played.failed
     assert played.run_id == "flow-replay" and played.value == 2
-    assert ran == ["count"]  # a Python task runs its function in a replay
+    assert ran == []  # a Python task plays its recording: its function does not run
     assert outputs(played) == outputs(live)
     assert "summarize/alpha.json.message.txt" in outputs(played)  # the whole final message, beside the unwrapped output
     assert topics(tmp_path / "replay") == topics(tmp_path / "live")
@@ -118,6 +120,53 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     assert info["stub"] is True and info["replay"] == str((tmp_path / "rec").resolve())
     stream = "streams/write-alpha.stream.jsonl"
     assert (played.run_dir / stream).read_text() == (live.run_dir / stream).read_text()
+
+
+def test_a_python_task_of_a_kind_executed_runs_its_function(tmp_path):
+    record(tmp_path)
+    ran.clear()
+    played = replay(tmp_path, execute=["count"])
+    assert played.ok, played.failed
+    assert ran == ["count"] and played.value == 2
+
+
+calls: list[int] = []
+
+
+@python_task(retries=2, retry_on=(ConnectionError,))
+def flaky(n: int) -> Note:
+    calls.append(n)
+    if len(calls) == 1:
+        raise ConnectionError("the index server is not up yet")
+    if n < 0:
+        raise ValueError("negative")
+    return Note(title=f"n={n}")
+
+
+def test_a_python_task_plays_each_recorded_call_its_retries_included(tmp_path):
+    calls.clear()
+    live = record(tmp_path, flow_=lambda units: flaky(n=3))
+    assert live.ok, live.failed
+    assert [r["stop"] for r in journal(live)] == ["error", "completed"]
+    body = json.loads((tmp_path / "rec" / "flaky" / "python_flaky.json").read_text())
+    assert body["executor"] == "python"
+    assert [(a["stop"], a["retry_on"]) for a in body["attempts"]] == [("error", True), ("completed", False)]
+    calls.clear()
+    played = replay(tmp_path, flow_=lambda units: flaky(n=3))
+    assert played.ok, played.failed
+    assert calls == []  # the function is not called
+    assert [r["stop"] for r in journal(played)] == ["error", "completed"]
+    assert played.results["python:flaky"].reason == ""
+    assert outputs(played) == outputs(live)
+
+
+def test_a_python_task_with_no_recording_ends_on_an_error_that_names_it(tmp_path):
+    record(tmp_path, flow_=lambda units: write(units[0]))
+    ran.clear()
+    played = replay(tmp_path, flow_=lambda units: count(notes=[]))
+    assert ran == []
+    assert played.results["python:count"].stop == "error"
+    assert played.results["python:count"].reason == "no recording for python:count"
 
 
 def test_each_attempt_is_played_in_order_and_the_last_repeats(tmp_path):
@@ -182,7 +231,10 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert json.loads((tmp_path / "runs" / "cli_flow-replay" / "run.json").read_text())["replay"] == str(tmp_path / "rec")
     assert main([*args, "--replay", "rec", "--stub"]) == 2
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
-    assert main([*args, "--replay", "rec", "--execute", "count"]) == 2
+    assert main([*args, "--replay", "rec", "--execute", "count", "--run-id", "executed"]) == 0
+    assert main([*args, "--execute", "count"]) == 2
+    assert main([*args, "--record-missing"]) == 2
+    assert main([*args, "--replay", "rec", "--record-missing", "--stub"]) == 2
 
 
 def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
@@ -193,3 +245,179 @@ def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
     assert runs[played.run_id]["replay"] == str((tmp_path / "rec").resolve())
     assert {r["replay"] for r in Monitor(tmp_path / "runs").runs()} == {""}
     assert live.ok
+
+
+def test_record_missing_fills_in_one_missing_recording_and_plays_the_rest(tmp_path):
+    record(tmp_path, flow_=lambda units: [write(units[0]), count(notes=[])])
+    agent = stub()
+    ran.clear()
+    cwd = tree(tmp_path / "fill")
+    runs, rec = tmp_path / "fill-runs", tmp_path / "rec"
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=runs, cwd=cwd, replay=rec, record_missing=True, backends=agent.backends())
+    filled = pipeline.run(lambda units: [write(u) for u in units] + [count(notes=[])], run_id="fill", units=["alpha", "beta"])
+    assert filled.ok, filled.failed
+    assert [launch.key for launch in agent.launches] == ["write-beta"]  # only the task with no recording launched
+    assert ran == []  # the Python task played its recording
+    assert {r["key"]: r["replayed"] for r in journal(filled)} == {"write-alpha": True, "write-beta": False, "python:count": True}
+    assert (tmp_path / "rec" / "write" / "write-beta.json").exists()
+    info = json.loads((filled.run_dir / "run.json").read_text())
+    assert info["stub"] is False and info["replay"] == str((tmp_path / "rec").resolve())
+    # The directory filled in replays every task, nothing launched.
+    played = replay(tmp_path, flow_=lambda units: [write(u) for u in units], name="again")
+    assert played.ok, played.failed
+    assert all(r["replayed"] for r in journal(played))
+
+
+def test_record_missing_runs_a_python_task_with_no_recording_and_records_it(tmp_path):
+    ran.clear()
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, replay=tmp_path / "new", record_missing=True)
+    report = pipeline.run(lambda: count(notes=[Note(title="a")]), run_id="fill")
+    assert report.ok and ran == ["count"]
+    assert json.loads((tmp_path / "new" / "count" / "python_count.json").read_text())["attempts"][0]["stop"] == "completed"
+
+
+def test_a_file_over_the_cap_is_kept_by_hash_and_its_task_cannot_be_replayed(tmp_path):
+    lines: list[str] = []
+    cwd = tree(tmp_path / "live")
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=stub(), record=rec, record_max_file_mb=1e-6, log=lines.append)
+    live = pipeline.run(lambda units: [write(units[0]), count(notes=[Note(title="a")] * 10)], units=["alpha"])
+    assert live.ok, live.failed
+    hashed = [line for line in lines if "stored by hash only" in line]
+    assert any(line.startswith("[record] write-alpha: out/write/alpha.json (<0.1 MB)") for line in hashed), lines
+    body = json.loads((tmp_path / "rec" / "write" / "write-alpha.json").read_text())
+    assert {k["path"] for k in body["attempts"][0]["by_hash"]} >= {"out/write/alpha.json", "topics/alpha/old.md"}
+    assert not list((tmp_path / "rec" / "write" / "write-alpha").rglob("alpha.json"))
+    summary = lines[-1]
+    assert summary.startswith(f"[record] {rec}: ")
+    assert summary.endswith("files stored by hash | 2 tasks cannot be replayed: kinds count, write")
+
+    played = replay(tmp_path, flow_=lambda units: [write(units[0]), count(notes=[Note(title="a")] * 10)], units=["alpha"])
+    agent, python = played.results["write-alpha"], played.results["python:count"]
+    assert agent.stop == python.stop == "error"
+    assert agent.reason.startswith("the recording of write-alpha holds out/write/alpha.json (<0.1 MB) by hash only: record it again")
+    assert python.reason.endswith("by hash only: run kind count with --execute, or use --record-missing")
+    assert [r["key"] for r in journal(played)].count("write-alpha") == 1  # not retried
+
+    ran.clear()
+    executed = replay(tmp_path, flow_=lambda units: count(notes=[]), name="executed", execute=["count"])
+    assert executed.ok and ran == ["count"]
+
+    agent = stub()
+    runs, cwd = tmp_path / "fill-runs", tree(tmp_path / "fill")
+    filled = Pipeline(PipelineConfig({}), runs_dir=runs, cwd=cwd, replay=rec, record_missing=True, backends=agent.backends())
+    assert filled.run(lambda: write("alpha")).ok
+    assert [launch.key for launch in agent.launches] == ["write-alpha"]  # a recording by hash counts as missing
+    assert json.loads((rec / "write" / "write-alpha.json").read_text())["attempts"][0]["by_hash"] == []
+
+
+def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
+    with pytest.raises(TypeError, match="give replay= the recordings directory"):
+        Pipeline(record_missing=True)
+    for given in ({"stub": StubAgent()}, {"record": tmp_path / "x"}):
+        with pytest.raises(TypeError, match=f"not with {next(iter(given))}="):
+            Pipeline(replay=tmp_path / "rec", record_missing=True, **given)
+    with pytest.raises(TypeError, match="execute= is for a replay"):
+        Pipeline(execute=["count"])
+    with pytest.raises(TypeError, match="record_max_file_mb= caps a recording's files"):
+        Pipeline(record_max_file_mb=10)
+    with pytest.raises(ValueError, match="not a positive number"):
+        Pipeline(record=tmp_path / "x", record_max_file_mb=0)
+
+
+stray: list[Path] = []
+
+
+@python_task
+def publish(title: str) -> Note:
+    for path in stray:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(title)
+    return Note(title=title)
+
+
+def test_a_recording_run_reports_the_changes_no_task_declared(tmp_path):
+    cwd = tree(tmp_path / "live")
+    (cwd / ".git").mkdir()
+    (cwd / "old-report.txt").write_text("old")
+    stray[:] = [cwd / "report.txt", cwd / ".git" / "index", cwd / "pkg" / "__pycache__" / "m.pyc"]
+
+    def flow(units):
+        (cwd / "old-report.txt").unlink()  # the flow's own side effect
+        yield write(units[0])
+        return (yield publish(title="done"))
+
+    lines: list[str] = []
+    agent = StubAgent({"write": edit}, execute=["publish"])
+    rec = tmp_path / "rec"
+    report = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=agent, record=rec, log=lines.append).run(flow, units=["alpha"])
+    assert report.ok, report.failed
+    body = json.loads((rec / "undeclared.json").read_text())
+    # topics/alpha/** is write's changes=, so its files are declared; .git and __pycache__ are left out.
+    assert body == {"run": report.run_id, "created": ["report.txt"], "modified": [], "deleted": ["old-report.txt"]}
+    warned = [line for line in lines if "undeclared" in line]
+    assert warned == ["[record] undeclared change: old-report.txt", "[record] undeclared change: report.txt"]
+
+
+def test_with_the_run_directory_as_cwd_only_its_outputs_are_compared(tmp_path):
+    runs = tmp_path / "runs"
+    cwd = runs / "inside"
+    cwd.mkdir(parents=True)
+    stray[:] = [cwd / "out" / "extra.json"]
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=runs, cwd=cwd, stub=StubAgent(default={"title": "x"}, execute=["publish"]), record=rec)
+    report = pipeline.run(lambda: [write("alpha"), publish(title="t")], run_id="inside")
+    assert report.ok, report.failed
+    assert (cwd / "journal.jsonl").exists() and (cwd / "out" / "write" / "alpha.json").exists()
+    body = json.loads((rec / "undeclared.json").read_text())
+    assert body["created"] == ["out/extra.json"] and body["modified"] == body["deleted"] == []
+
+
+looked_up: list[str] = []
+
+
+@python_task
+def look_up(topic: str) -> Note | Partial[Note]:
+    looked_up.append(topic)
+    return Partial(Note(title=f"{topic}, from the cache"), reason="the local index server is not up")
+
+
+def test_a_replayed_partial_is_partial_again_and_a_resume_runs_it(tmp_path):
+    agent = StubAgent(execute=["look_up"])
+    live = Pipeline(runs_dir=tmp_path / "runs", cwd=tmp_path, stub=agent, record=tmp_path / "rec").run(lambda: look_up(topic="alpha"))
+    assert live.results["python:look_up"].stop == "partial"
+    looked_up.clear()
+    played = replay(tmp_path, flow_=lambda units: look_up(topic="alpha"))
+    result = played.results["python:look_up"]
+    assert looked_up == [] and result.ok and result.stop == "partial"
+    assert result.reason == "the local index server is not up"
+    assert played.value.output.title == "alpha, from the cache"
+    assert outputs(played) == outputs(live)
+    # A resume runs a partial task again: here it plays its recording again.
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "replay-runs", cwd=tmp_path / "replay", replay=tmp_path / "rec")
+    again = pipeline.run(lambda units: look_up(topic="alpha"), resume=True, units=["alpha"])
+    assert [r["stop"] for r in journal(again)] == ["partial", "partial"] and all(r["replayed"] for r in journal(again))
+
+
+def test_a_scope_and_an_enricher_see_each_replayed_python_attempt(tmp_path):
+    record(tmp_path)
+    seen: list[str] = []
+
+    @contextlib.contextmanager
+    def scope(task):
+        seen.append(f"enter {task.key}")
+        yield
+        seen.append(f"exit {task.key}")
+
+    class Enricher:
+        def snapshot(self, task):
+            return None
+
+        def enrich(self, task, before, result):
+            seen.append(f"{task.key} replayed={result.replayed}")
+
+    cwd = tree(tmp_path / "scoped")
+    pipeline = Pipeline(runs_dir=tmp_path / "scoped-runs", cwd=cwd, replay=tmp_path / "rec", scopes=[scope], enrichers=[Enricher()])
+    played = pipeline.run(flow, units=["alpha", "beta"])
+    assert played.ok, played.failed
+    assert seen[-3:] == ["enter python:count", "exit python:count", "python:count replayed=True"]

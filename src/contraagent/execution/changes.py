@@ -15,6 +15,7 @@ directory (`{unit}` in the pattern) or keep them from overlapping (a unit, a tag
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +61,33 @@ def scan(cwd: Path, patterns: Sequence[str]) -> tuple[dict[str, tuple[int, int]]
                     elif sub.is_dir():
                         dirs.add(sub.relative_to(cwd).as_posix())
     return files, frozenset(dirs)
+
+
+def scan_tree(cwd: Path, skip: Callable[[Path], bool]) -> dict[str, tuple[int, int]]:
+    """Every file under `cwd`, with its `(mtime_ns, size)`, by POSIX path relative to `cwd`;
+    `skip(path)` leaves out a file or a whole directory. Symbolic links to directories are
+    not followed."""
+    files: dict[str, tuple[int, int]] = {}
+    pending = [cwd]
+    while pending:
+        folder = pending.pop()
+        try:
+            entries = list(os.scandir(folder))
+        except OSError:
+            continue
+        for entry in entries:
+            path = Path(entry.path)
+            if skip(path):
+                continue
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(path)
+                    continue
+                st = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            files[path.relative_to(cwd).as_posix()] = (st.st_mtime_ns, st.st_size)
+    return files
 
 
 def compare(before: dict[str, tuple[int, int]], after: dict[str, tuple[int, int]]) -> Changes:

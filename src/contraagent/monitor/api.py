@@ -168,7 +168,11 @@ class RunSummary(Closed):
         False,
         description="a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
     )
-    replay: str = Field("", description="a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise")
+    replay: str = Field(
+        "",
+        description="a replay: the directory of the recordings it played (`Pipeline(replay=)`), and with `record_missing` "
+        "recorded into (then `stub` is false, and each played attempt's journal row says `replayed`); empty otherwise",
+    )
     row_extras: list[str] = Field(
         default_factory=list,
         description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",

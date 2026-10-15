@@ -340,12 +340,15 @@ class Run:
         *,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
+        recorder=None,
+        replay=None,
     ) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
         a retried one here, the last by the queue. `scopes` / `enrichers` wrap each
-        attempt of a Python task (`PythonTaskRunner`)."""
+        attempt of a Python task, `recorder` keeps each attempt's recording and `replay` plays
+        it (`PythonTaskRunner`)."""
         return PythonTaskRunner(
             inner,
             adapter=adapter,
@@ -355,6 +358,8 @@ class Run:
             scopes=scopes,
             enrichers=enrichers,
             config=self.config,
+            recorder=recorder,
+            replay=replay,
         )
 
     def estimator(self) -> JournalEstimates:
@@ -467,6 +472,11 @@ class Run:
                 logging.WARNING,
                 f"[context] {task.key}: peak context {peak} tokens{share}, past context_warn_pct {w.get('context_warn_pct')}%",
             )
+
+    def progress(self, line: str, *, warning: bool = False) -> None:
+        """A progress line of the run's (a recording's file kept by hash, its summary): to
+        the caller's `log`, else to this module's logger, at WARNING with `warning`."""
+        self._log(logging.WARNING if warning else logging.INFO, line)
 
     def _log(self, level: int, line: str) -> None:
         """A progress line to the caller's `log`, else to this module's logger at `level`:

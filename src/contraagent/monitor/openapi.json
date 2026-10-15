@@ -2645,6 +2645,11 @@
               }
             ],
             "title": "Flow Call"
+          },
+          "replayed": {
+            "type": "boolean",
+            "title": "Replayed",
+            "default": false
           }
         },
         "additionalProperties": true,
@@ -4394,7 +4399,7 @@
           "replay": {
             "type": "string",
             "title": "Replay",
-            "description": "a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise",
+            "description": "a replay: the directory of the recordings it played (`Pipeline(replay=)`), and with `record_missing` recorded into (then `stub` is false, and each played attempt's journal row says `replayed`); empty otherwise",
             "default": ""
           },
           "row_extras": {

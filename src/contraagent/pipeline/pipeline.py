@@ -34,7 +34,7 @@ from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult
-from contraagent.execution.recording import Recorder, Replay
+from contraagent.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
 from contraagent.pipeline.adapter import SpecAdapter
@@ -114,6 +114,9 @@ class Pipeline:
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
+        execute: Sequence[str] = (),
+        record_missing: bool = False,
+        record_max_file_mb: float | None = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -155,13 +158,32 @@ class Pipeline:
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
-        `record`: a directory each agent task attempt's recording is written to
+        `record`: a directory each task attempt's recording is written to
         (`<record>/<kind>/<key>.json` and its files: `execution/recording.py`): its outputs,
-        the files its `changes=` patterns saw change, its transcript and its result.
-        `replay`: a directory of recordings, played in place of every agent task's launch,
-        attempt by attempt; nothing is spent. A replay is a stub run (`run.json` `stub: true`,
-        and `replay`, the directory) whose Python tasks run their functions; its run id
-        defaults to `<flow>-replay`. Not with `record`, `stub`, `backends` or `preflight`.
+        the files its `changes=` patterns saw change, its transcript and its result; for a
+        Python task, how its call ended and its output.
+        `replay`: a directory of recordings, played in place of every agent task's launch and
+        every Python task's function, attempt by attempt; nothing is spent. A task with no
+        recording ends `error`. A replay is a stub run (`run.json` `stub: true`, and `replay`,
+        the directory); its run id defaults to `<flow>-replay`. Not with `record`, `stub`,
+        `backends` or `preflight`.
+        `execute`: with `replay`, the Python task kinds whose functions run instead of being
+        played (as `StubAgent(execute=)` in a stub run).
+        `record_missing`: with `replay`, a task with no recording launches on the coding agents
+        (`backends`, default every registered one) through the config's routing, or runs its
+        function, and its recording is written into the `replay` directory (which may be empty);
+        the tasks with one are played. It can spend tokens, so the run is no stub run
+        (`run.json` `stub: false`, `replay` the directory); each played attempt's journal row
+        says `replayed`. With it, `backends` and `preflight` are allowed; `record` and `stub`
+        are not.
+        `record_max_file_mb`: with `record` or `record_missing`, the size in MB (MiB) above
+        which a recorded output or changed file is kept by its SHA-256 and size only, and a
+        warning names it (default 4); such a recording cannot be played. The run ends with
+        one line on what it recorded (files, size, files kept by hash, tasks that cannot be
+        replayed). A recording run also compares the working directory at its start and its
+        end (but `.git`, `__pycache__`, the recordings and the run's own files): each path
+        created, modified or deleted that no task's outputs or `changes=` cover is an
+        undeclared change, written to `<recordings>/undeclared.json` and named in a warning.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
@@ -175,18 +197,33 @@ class Pipeline:
         self.runs_dir = Path(runs_dir)
         if stub is not None and backends is not None:
             raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
+        if record_max_file_mb is not None and record is None and not record_missing:
+            raise TypeError("Pipeline: record_max_file_mb= caps a recording's files; give record= (or replay= with record_missing=True)")
+        if record_max_file_mb is not None and not record_max_file_mb > 0:
+            raise ValueError(f"Pipeline: record_max_file_mb={record_max_file_mb!r} is not a positive number of MB")
+        self.record_max_file_mb = record_max_file_mb if record_max_file_mb is not None else MAX_FILE_MB
+        if record_missing and replay is None:
+            raise TypeError("Pipeline: record_missing= fills in a replay's recordings; give replay= the recordings directory")
         if replay is not None:
-            given = [name for name, value in (("record", record), ("stub", stub), ("backends", backends)) if value is not None]
-            if preflight:
-                given.append("preflight")
+            given = [name for name, value in (("record", record), ("stub", stub)) if value is not None]
+            if not record_missing:  # with nothing to launch, a coding agent or a probe has no use
+                given += ["backends"] if backends is not None else []
+                given += ["preflight"] if preflight else []
             if given:
-                raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}=")
+                fills = " (record_missing records into the replay directory)" if record_missing else ""
+                raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}={fills}")
+        if execute and replay is None:
+            where = "give it to the stub agent: StubAgent(execute=)" if stub is not None else "it names what a replay does not play"
+            raise TypeError(f"Pipeline: execute= is for a replay ({where})")
         self.stub = stub
         self.record = Path(record) if record is not None else None
         #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
-        self.replay = Replay(replay) if replay is not None else None
+        self.replay = Replay(replay, execute=execute, record_missing=record_missing) if replay is not None else None
         if stub is not None:
             backends = stub.backends()
+        elif self.replay is not None and record_missing:
+            real = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
+            backends = self.replay.backends(real=real)
         elif self.replay is not None:
             backends = self.replay.backends()
         self.backends = dict(backends) if backends is not None else {n: create_backend(n) for n in known_agents()}
@@ -249,7 +286,7 @@ class Pipeline:
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
-                run.update_info(stub=True, replay=str(self.replay.directory.resolve()))
+                run.update_info(stub=not self.replay.record_missing, replay=str(self.replay.directory.resolve()))
             if not resume and run.rows():
                 raise RunExists(
                     f"{run.dir} already holds a run ({len(run.rows())} journal rows): "
@@ -259,6 +296,21 @@ class Pipeline:
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
+            adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
+            recorder = None
+            into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
+            if into is not None:
+                recorder = Recorder(
+                    into,
+                    adapter.output_contracts,
+                    cwd=self.cwd,
+                    run_dir=run_dir,
+                    run_id=run.run_id,
+                    max_file_mb=self.record_max_file_mb,
+                    log=lambda line: run.progress(line, warning=True),
+                    patterns=adapter.changes,
+                )
+                recorder.start()  # before the flow runs: its own side effects count too
 
             def on_flow_call(event: str, call: FlowCall) -> None:
                 if event == "start":
@@ -309,18 +361,18 @@ class Pipeline:
                         finishing_kinds=self.queue_options.get("finishing_kinds", ()),
                         grace_s=self.queue_options.get("grace_s", GRACE_S),
                     )
-                    adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
                     enrichers = list(self.enrichers)
                     if self.replay is not None:
                         self.replay.start(adapter.output_contracts, self.cwd)
                         enrichers.insert(0, self.replay)
-                    if self.record is not None:  # last: it records the result the enrichers leave
-                        enrichers.append(Recorder(self.record, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id))
+                    if recorder is not None:  # last: it records the result the enrichers leave
+                        enrichers.append(recorder)
+                    # A pure replay plays each attempt's last launch: it walks no failover hop.
+                    pure = self.replay is not None and not self.replay.record_missing
                     runner = run.agent_runner(
                         self.backends,
                         plan.configs,
-                        # A replay plays each attempt's last launch: it walks no failover hop.
-                        routers=plan.routers if self.replay is None else {},
+                        routers=plan.routers if not pure else {},
                         credentials=plan.credentials,
                         adapter=adapter,
                         keep_transcripts=self.keep_transcripts,
@@ -337,6 +389,8 @@ class Pipeline:
                             cwd=self.cwd,
                             scopes=self.scopes,
                             enrichers=self.enrichers,
+                            recorder=recorder,
+                            replay=self.replay,
                         ),
                         follow_up=follow_up,
                         resume=resume,
@@ -355,6 +409,10 @@ class Pipeline:
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
+            if recorder is not None:
+                for path in recorder.finish():
+                    run.progress(f"[record] undeclared change: {path}", warning=True)
+                run.progress(recorder.summary())
             run.finish()
             errors = [c for c in driver.calls.values() if c.parent is None and c.state == "raised"]
             return RunReport(
@@ -378,7 +436,7 @@ class Pipeline:
         )
         plan.log()
         runner.configs = {**runner.configs, **plan.configs}
-        if self.replay is None:
+        if self.replay is None or self.replay.record_missing:
             runner.routers.update(plan.routers)
 
 

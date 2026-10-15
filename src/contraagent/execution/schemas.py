@@ -241,6 +241,8 @@ class JournalRow(BaseModel):
     fingerprint: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
+    #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
+    replayed: bool = False
 
 
 # --- resume cursor ---------------------------------------------------------
