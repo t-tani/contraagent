@@ -43,6 +43,7 @@ from typing import Any
 
 from contraagent._internal.contracts.contract import check_input, record_contracts
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
+from contraagent._internal.dispatch.python_task import InvalidInput
 from contraagent._internal.dispatch.queue import RunnerConfig, TaskRunner
 from contraagent._internal.dispatch.task import (
     STOP_COMPLETED,
@@ -248,11 +249,14 @@ class PythonTaskRunner:
             stop = STOP_COMPLETED
             if isinstance(returned, Partial):
                 stop, reason = STOP_PARTIAL, " ".join(returned.reason.split())[:300]
+        except InvalidInput as exc:  # refused before the function ran: no retry
+            stop, reason = STOP_INVALID_INPUT, f"invalid input: {exc}"[:300]
         except Exception as exc:  # a Python task's failure is its result
             stop, error = STOP_ERROR, exc
             reason = f"{type(exc).__name__}: {exc}"[:300]
         ok = stop in (STOP_COMPLETED, STOP_PARTIAL)
-        result = TaskResult(task=task, ok=ok, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
+        refused = stop == STOP_INVALID_INPUT  # as for an input that fails its contract: no round
+        result = TaskResult(task=task, ok=ok, stop=stop, wall_s=time.monotonic() - t0, reason=reason, rounds=0 if refused else None)
         retry = error is not None and isinstance(error, retry_on)
         if self._recorder is not None:
             self._recorder.record_python(task, result, outs, retry, written)

@@ -682,7 +682,8 @@ export type components = {
          * DeferralCause
          * @description Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
          *     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
-         *     `dependency_not_queued`, `rest` (the credential of every hop it could take rests:
+         *     `dependency_not_queued`, `dependency_deferred` (a task whose output it reads was
+         *     deferred: `dependency`), `rest` (the credential of every hop it could take rests:
          *     `rests`), or a runner's own name. A field a cause does not have is left unset, and
          *     `deferred.jsonl` records only the fields set.
          */
@@ -710,6 +711,11 @@ export type components = {
              * @default []
              */
             rests?: components["schemas"]["SkippedHop"][];
+            /**
+             * Dependency
+             * @description `dependency_deferred`: the key of the deferred task whose output it reads
+             */
+            dependency?: string | null;
         };
         /**
          * DefinitionFile

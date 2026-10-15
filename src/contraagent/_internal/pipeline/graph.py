@@ -59,11 +59,13 @@ from pydantic_core import to_jsonable_python
 from contraagent._internal.contracts.contract import InputContract, OutputContract, check_file
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.python_task import PythonTaskPayload
-from contraagent._internal.dispatch.records import Frame
+from contraagent._internal.dispatch.records import DeferralCause, Frame
 from contraagent._internal.dispatch.task import (
     PYTHON_KEY_PREFIX,
+    STOP_DEFERRED,
     STOP_DUPLICATE_KEY,
     STOP_INVALID_OUTPUT,
+    Deferral,
     Origin,
     Partial,
     Task,
@@ -401,6 +403,20 @@ class Graph:
         new, self._taken = self.nodes[self._taken :], len(self.nodes)
         return [self.task_of(n) for n in new]
 
+    def input_deferral(self, task: Task) -> Deferral | None:
+        """Why `task` is not launched: an earlier task whose output it reads was deferred
+        (cause `dependency_deferred`, `dependency` its key), so its input will not be there.
+        None when every task it reads from was not deferred. A task that only waits for
+        another (`after=`) is not deferred with it."""
+        node = self._by_key.get(task.key)
+        if node is None:
+            return None
+        for up in node.upstream:
+            result = self.results.get(up.key)
+            if result is not None and result.stop == STOP_DEFERRED:
+                return Deferral(f"input from {up.key} was deferred", DeferralCause(cause="dependency_deferred", dependency=up.key))
+        return None
+
     def record(self, result: TaskResult) -> None:
         """Remember a task's final result (a refused duplicate never replaces its key's own)."""
         if result.stop != STOP_DUPLICATE_KEY or result.task.key not in self.results:
@@ -586,6 +602,7 @@ class Graph:
             partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = node.resolved_params()
+                node.spec.arguments(node.unit, params)  # a stub run refuses what a run refuses
                 json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
                 has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
                 if not has_output:

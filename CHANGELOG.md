@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `RunReport.deferred`: the deferred tasks' results (not launched: past a deadline, or with
+  every hop on a resting credential), each with its `reason` and `cause`.
+- A Python task's parameters are its input types: each argument is checked and converted
+  against its parameter's annotation before the call (one pydantic `TypeAdapter` per
+  parameter, built when the task is declared), so a dict given to a model parameter arrives
+  as the model and a list of dicts given to `list[Model]` as a list of models. An argument
+  that does not match ends the task `invalid_input` (`invalid input: parameter
+  items[0].name: Field required`) without calling the function, in a stub run too.
+- A task that reads the output of a deferred task is deferred too, with the cause
+  `dependency_deferred` (`DeferralCause.dependency`: the deferred task's key), instead of
+  being refused for its missing input; the monitor says "An earlier task was not run". A task
+  only ordered after it (`after=`) still launches.
+
 - Plugin hooks on Codex: `contraagent plugin render` writes `codex/hooks.json` (Codex's
   own hook format) from `hooks.toml`, and a Codex launch passes it as config, each hook
   trusted by the hash Codex asks for, with the user's own hooks turned off. The stop
@@ -730,6 +743,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A deferred task is no failure: it is in `RunReport.deferred`, no longer in
+  `RunReport.failed`, and `RunReport.ok` is True when no task failed and no top flow call
+  raised, whatever was deferred. A flow that catches `TaskDeferred` and returns (the time
+  box pattern) leaves the run ok, and `contraagent run` exits 0 and counts the deferred
+  tasks (`1/2 tasks done, 1 deferred`). A `TaskDeferred` the flow does not catch is a flow
+  error (`flow_errors`): the run is not ok.
+
 #### Public API and names
 
 - One public path per name. The implementation moved under `contraagent._internal`; the
@@ -1389,6 +1409,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `fn(run, key, rows)`.
 
 ### Fixed
+
+- `TaskResult.rounds` and `TaskResult.round_errors` of an agent task carry its output
+  checks' rounds and each failed round's errors (they were None and empty, while the
+  journal row had them). `help(contraagent.TaskResult)` documents every field.
 
 - A Codex launch no longer writes into `/tmp` itself: its Linux sandbox left empty `.git`,
   `.agents` and `.codex` paths in each writable root, and an empty `/tmp/.git` made `/tmp`

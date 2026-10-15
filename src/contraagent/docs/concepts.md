@@ -149,10 +149,13 @@ other name, and every file named `_internal/...`, is implementation, under
 The runners: `AgentRunner` (one agent task, with failover), `RetryingRunner`,
 `PythonTaskRunner`. Queue callbacks: `on_event`, `on_result`, `follow_up`.
 A task not launched by the deadline (of a time box it is in), whose remaining
-work cannot finish before it, or with every hop on a resting credential, finishes `deferred`, and
-`deferred.jsonl` records why (`DeferredRow`): a `Deferral`, its reason in one line and its cause
-as data (`DeferralCause`: `deadline`, `grace_window`, `cannot_finish`, each with the `flow_call`
-whose time box it was, `dependency_not_queued`, `rest`; `AgentRunner.deferral`); a follow-up task the
+work cannot finish before it, with every hop on a resting credential, or whose input is the
+output of a deferred task, finishes `deferred`: not launched, nothing spent, and no failure
+(`RunReport.deferred`, never `RunReport.failed`). `deferred.jsonl` records why (`DeferredRow`): a
+`Deferral`, its reason in one line and its cause as data (`DeferralCause`: `deadline`,
+`grace_window`, `cannot_finish`, each with the `flow_call` whose time box it was,
+`dependency_not_queued`, `dependency_deferred` with the `dependency` it reads, `rest`;
+`AgentRunner.deferral`, `Graph.input_deferral`); a follow-up task the
 queue refuses because its key is in flight finishes `duplicate_key`. A task a
 flow waited for that did not succeed raises `TaskFailed` at the `yield`
 (`TaskDeferred` when it was deferred). A text output a flow receives is a

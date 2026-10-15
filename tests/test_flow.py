@@ -299,6 +299,20 @@ def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_di
     assert pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r", resume=True).ok
 
 
+def test_the_result_carries_the_rounds_of_a_correction(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    agent = StubAgent({"summarize": lambda launch: {"unit": "u", "summary": "s", "points": []} if launch.resumed else "{"})
+    rep = pipeline(tmp_path, agent).run(lambda: summarize("u", path="x"))
+    result = rep.results["summarize-u"]
+    assert rep.ok and result.rounds == 2 and result.rounds == result.launch_result.rounds
+    [errors] = result.round_errors
+    assert isinstance(errors, tuple) and "not valid JSON" in errors[0]
+    row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
+    assert row["rounds"] == 2 and row["round_errors"] == [list(errors)]
+    plain = pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="plain").results["summarize-u"]
+    assert plain.rounds == 1 and plain.round_errors == ()
+
+
 def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
     import logging
 

@@ -18,7 +18,13 @@ it is.
 
 A function becomes a task with the same contract machinery: its return
 annotation is its output contract, a function with a `unit` parameter is given
-the unit, and a raised exception fails the task. It runs in this process and
+the unit, and a raised exception fails the task. Its parameters' annotations are
+its input types: each argument is checked and converted before the call (pydantic,
+lax mode), so a dict given to a model parameter arrives as the model, a list of
+dicts given to `list[Model]` as a list of models, and an output of another task as
+its value. An argument that does not match refuses the task (`invalid_input`, the
+parameter named in its reason) and the function is not called; an unannotated
+parameter takes its argument as it is. It runs in this process and
 has no budget: budgets cap coding-agent launches. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is
@@ -92,8 +98,12 @@ reference to the task's future output:
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
 the command line, with the arguments `contraagent check` takes, and exits 1 when
 a task or the flow failed. A program calls `Pipeline.run`, which returns a
-`RunReport`: `ok`, `failed`, the results by task key, `flow_errors`, and `value`,
-whatever the flow returned (a `Pending` in it reads its task's output).
+`RunReport`: `ok`, `failed`, `deferred`, the results by task key, `flow_errors`,
+and `value`, whatever the flow returned (a `Pending` in it reads its task's output).
+A deferred task (not launched: past a deadline, or on a resting credential) is in
+`deferred`, with its cause, and is no failure: `ok` holds when no task failed and
+the flow returned. A `TaskDeferred` the flow does not catch ends the flow without
+its value, so it is a flow error and `ok` is False.
 
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
@@ -296,7 +306,9 @@ first, and one whose known remaining work cannot finish in time is deferred at
 once; past the deadline only its `finishing_kinds` launch, for `grace_s`; every
 other task it creates is deferred, and the flow receives `TaskDeferred` at its
 `yield`. A box whose flow does not catch it raises it to the flow call that
-yielded the box, which may catch it and go on.
+yielded the box, which may catch it and go on. The deferred tasks are in
+`RunReport.deferred`, not `failed`: a flow that caught the deferral and returned
+leaves the run ok, and `contraagent run` exits 0.
 
 A task is held to every time box it is in: the run's and each enclosing box. So
 the earliest deadline stops it, and a finishing kind launches past a deadline only

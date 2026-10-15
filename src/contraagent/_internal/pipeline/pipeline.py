@@ -33,7 +33,7 @@ from contraagent._internal.backends import Backend, create_backend, known_agents
 from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S
-from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent._internal.execution.run import Run, RunExists
@@ -54,7 +54,13 @@ class RunReport:
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`). A `partial`
-    result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them)."""
+    result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them).
+
+    A deferred task (stop `deferred`: not launched, nothing spent) is not a failure: it is
+    in `deferred`, never in `failed`. `ok` is True when no task failed and no top flow call
+    raised. A flow that catches `TaskDeferred` and returns is ok; a `TaskDeferred` the flow
+    does not catch ends the flow without its value, so it is in `flow_errors` and the run
+    is not ok."""
 
     run_id: str
     run_dir: Path
@@ -68,16 +74,40 @@ class RunReport:
 
     @property
     def ok(self) -> bool:
-        return all(r.ok for r in self.results.values()) and not self.summary.get("deferred") and not self.flow_errors
+        """No task failed and no top flow call raised; deferred tasks do not count."""
+        return not self.failed and not self.flow_errors
 
     @property
     def failed(self) -> list[TaskResult]:
-        return [r for r in self.results.values() if not r.ok]
+        """The results that are not ok, but for the deferred ones."""
+        return [r for r in self.results.values() if not r.ok and r.stop != STOP_DEFERRED]
+
+    @property
+    def deferred(self) -> list[TaskResult]:
+        """The deferred tasks' results: not launched, each with its `reason` and `cause` (a `DeferralCause`)."""
+        return [r for r in self.results.values() if r.stop == STOP_DEFERRED]
 
     @property
     def partial(self) -> list[TaskResult]:
         """The results with stop `partial`: ok, their outputs placeholders a resume makes again."""
         return [r for r in self.results.values() if r.stop == STOP_PARTIAL]
+
+
+class _InputsFirst:
+    """The queue's runner: `runner`, but a task that reads the output of a deferred task is
+    deferred too (`Graph.input_deferral`), not refused for its missing input."""
+
+    def __init__(self, graph: Graph, runner: Any) -> None:
+        self._graph, self._runner = graph, runner
+
+    def config(self, task: Task) -> Any:
+        return self._runner.config(task)
+
+    def deferral(self, task: Task) -> Deferral | None:
+        return self._graph.input_deferral(task) or self._runner.deferral(task)
+
+    def run(self, task: Task) -> TaskResult:
+        return self._runner.run(task)
 
 
 def attempt_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -385,15 +415,18 @@ class Pipeline:
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
-                        recording(
-                            run.python_runner(
-                                RetryingRunner(runner, on_attempt=run.record_attempt),
-                                cwd=self.cwd,
-                                scopes=self.scopes,
-                                enrichers=self.enrichers,
+                        _InputsFirst(
+                            graph,
+                            recording(
+                                run.python_runner(
+                                    RetryingRunner(runner, on_attempt=run.record_attempt),
+                                    cwd=self.cwd,
+                                    scopes=self.scopes,
+                                    enrichers=self.enrichers,
+                                ),
+                                recorder,
+                                self.replay,
                             ),
-                            recorder,
-                            self.replay,
                         ),
                         follow_up=follow_up,
                         resume=resume,
