@@ -196,8 +196,13 @@ class Node:
                 call=call,
                 from_message=from_message,
                 unwrap=getattr(self.spec, "unwrap", False),
+                preserve=getattr(self.spec, "preserve", ()),
             )
         ]
+
+
+#: The `~n` after a file's stem: the file of the n-th task under one key.
+_NUMBERED = re.compile(r"~[0-9]+$")
 
 
 class Graph:
@@ -245,6 +250,21 @@ class Graph:
         finally:
             _current.reset(token)
 
+    def _output_of(self, other: Any, name: str, base: str) -> tuple[Path, str | None]:
+        """The output file of an `agent_task(output_of=other)` task named `name` (its unit, or
+        its key), and the key of the task to wait for. The file is that of the latest task of
+        `other`'s kind so far whose file, its `~n` aside, is `other`'s template filled in for
+        this name; with none, the template's file itself. The task to wait for is the latest
+        so far that writes the file, of any kind: two tasks never write it at once."""
+        path = self.out_dir / other.kind / Path(other.output_name.format(unit=name, key=base, kind=other.kind))
+        for node in reversed(self.nodes):
+            p = node.output_path
+            if node.spec.kind == other.kind and p is not None and p.with_name(_NUMBERED.sub("", p.stem) + p.suffix) == path:
+                path = p
+                break
+        writer = next((node.key for node in reversed(self.nodes) if node.output_path == path), None)
+        return path, writer
+
     def add(
         self,
         spec: Any,
@@ -280,10 +300,16 @@ class Graph:
         if spec.output_format is not None and (spec.executor == "agent" or spec.output_schema is not None):
             # A task given key= writes a file of its own: two keys on one unit never share one.
             name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(":", "_")
-            file = Path(spec.output_name.format(unit=name, key=base, kind=spec.kind))
-            if n > 1:
-                file = file.with_name(f"{file.stem}~{n}{file.suffix}")
-            out = self.out_dir / spec.kind / file
+            other = getattr(spec, "output_of", None)
+            if other is not None:
+                out, writer = self._output_of(other, name, base)
+                if writer is not None and writer not in deps:
+                    deps.append(writer)
+            else:
+                file = Path(spec.output_name.format(unit=name, key=base, kind=spec.kind))
+                if n > 1:
+                    file = file.with_name(f"{file.stem}~{n}{file.suffix}")
+                out = self.out_dir / spec.kind / file
         origin = Origin(flow=frames, created_from=call.frontier if call is not None else (), flow_call=call_id)
         filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
         node = Node(

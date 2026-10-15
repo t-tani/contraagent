@@ -599,6 +599,9 @@ class ContractSpec(Open):
     fresh: bool | None = None
     required: bool | None = None
     validators: list[str] = Field(default_factory=list)
+    preserve: list[str] = Field(
+        default_factory=list, description="output: JSON pointers to the parts of the file the task keeps as they were (`*`: every member)"
+    )
     file: FileView
     fields: list[ContractField]
     status: ContractStatus | None = None
@@ -662,6 +665,10 @@ class TaskDefinition(Open):
         None, description="agent task: `file`, the agent writes its output; `message`, its final message is the output"
     )
     validators: list[str] = Field(default_factory=list)
+    preserve: list[str] = Field(
+        default_factory=list, description="agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)"
+    )
+    output_of: str | None = Field(None, description="agent task: the kind whose output file it writes (`agent_task(output_of=)`)")
     tools: list[str] | None = Field(
         None, description="agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
     )

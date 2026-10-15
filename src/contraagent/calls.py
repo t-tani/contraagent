@@ -7,7 +7,7 @@ skills, hooks); what changes per task is data. The runner writes that data to
     {"key": "summarize-alpha", "kind": "summarize", "unit": "alpha",
      "params": {"path": "in/alpha.md"},
      "output": {"path": ".../out/summarize/alpha.json", "format": "json", "from": "file",
-                "json_schema": {...}, "schema_ref": {...}, "commands": [...]}}
+                "json_schema": {...}, "schema_ref": {...}, "commands": [...], "preserve": [...]}}
 
 The same file is what the plugin's Stop hook reads (`contraagent call validate`,
 found through `CONTRAAGENT_CALL`), so the agent checks its output against the
@@ -50,6 +50,9 @@ class CallOutput(BaseModel):
     schema_ref: SchemaRef | None = None
     #: Command validators (`validators.CommandValidator.to_dict()`); Python validators run in the runner only.
     commands: list[dict[str, Any]] = Field(default_factory=list)
+    #: JSON pointers to the parts of the file the agent must keep as they are
+    #: (`agent_task(preserve=)`, `contraagent.pointers`): `*` is every member.
+    preserve: list[str] = Field(default_factory=list)
 
 
 class CallFile(BaseModel):
@@ -143,6 +146,14 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
                 f"Write {what} to `{call.output.path}`. It is checked when you stop; if the "
                 "check fails you will be sent the errors, so fix the file and stop again.",
             ]
+        if call.output.preserve and call.output.from_ == "file":
+            kept = ", ".join(f"`{p}`" for p in call.output.preserve)
+            lines += [
+                "",
+                f"The file may already hold values you must keep exactly as they are: {kept} "
+                "(JSON pointers; `*` is every member of an array or object). Read the file first, "
+                "keep those values, and fill in the rest.",
+            ]
     if instructions:
         lines = [instructions.rstrip(), "", *lines]
     return "\n".join(lines)
@@ -183,8 +194,8 @@ def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env
     Exit 2 with the errors tells the coding agent to keep going and fix the
     file in the same turn. `stop_hook_active` (this hook already blocked once)
     ends the loop: the runner checks again after the turn and resumes the
-    session if it must. Freshness is the runner's to judge; the hook sees no
-    "before".
+    session if it must. Freshness and the parts to keep (`output.preserve`) are
+    the runner's to judge; the hook sees no "before".
     """
     env = dict(os.environ if env is None else env)
     try:

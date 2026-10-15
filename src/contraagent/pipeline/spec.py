@@ -29,6 +29,7 @@ from contraagent.dispatch.python_task import checked_retries
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.plugins.plugin import body
+from contraagent.pointers import schema_error, syntax_error
 from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.validators import Validator, validator_name
 
@@ -61,6 +62,10 @@ class AgentTask[Out]:
     tools: tuple[str, ...] | None = None
     #: A resume runs its tasks again even when an earlier attempt finished them.
     rerun_on_resume: bool = False
+    #: JSON pointers to the parts of the output file a launch must keep (`contraagent.pointers`).
+    preserve: tuple[str, ...] = ()
+    #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
+    output_of: AgentTask | PythonTask | None = None
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -98,8 +103,8 @@ class AgentTask[Out]:
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
         instructions, its role file's content, the skills of its plugins, its output schema,
-        its validators, its params schema, its `changes` patterns, where its output arrives and,
-        for a light launch, that it has no tools."""
+        its validators, its params schema, its `changes` patterns, where its output arrives,
+        whose output file it writes (`output_of`), the parts of it to keep (`preserve`) and, for a light launch, that it has no tools."""
         return _digest(self._defined())
 
     def differences(self, other: AgentTask) -> list[str]:
@@ -138,6 +143,8 @@ class AgentTask[Out]:
             "changes": list(self.changes),
             "output_from": self.output_from,
             **({"unwrap": True} if self.unwrap else {}),
+            **({"preserve": list(self.preserve)} if self.preserve else {}),
+            **({"output_of": self.output_of.kind} if self.output_of is not None else {}),
             **({"tools": list(self.tools)} if self.tools is not None else {}),
         }
 
@@ -175,6 +182,8 @@ def agent_task[Out](
     changes: Sequence[str] = (),
     tools: Sequence[str] | None = None,
     rerun_on_resume: bool = False,
+    preserve: Sequence[str] = (),
+    output_of: AgentTask | PythonTask | None = None,
     **config: Any,
 ) -> AgentTask[Out]:
     """Declare an agent task.
@@ -229,6 +238,21 @@ def agent_task[Out](
     no plugin, settings, skill, hook or MCP server is loaded. It needs `output_from="message"`.
     Tool names are each coding agent's own, so a list of them is not taken here: a role names
     its tools in its frontmatter, a plugin's `settings.json` what they may do.
+    `preserve`: JSON pointers (RFC 6901, and a segment `*` for every member of an array or
+    object: `["/items/*/id", "/source"]`) to the parts of the output file the agent must keep,
+    for a task that fills in a file that holds values already (`output_of`). Each value they
+    select in the file as it was before the launch must be in the file after it, equal; one
+    that changed or was removed goes back to the agent as a check error (`/items/3/id
+    changed`), and an attempt that does not pass leaves the file as it was. A file that is
+    missing before the launch keeps nothing. It takes a JSON output (a pydantic model) the
+    agent writes, and each pointer must name a part of its schema.
+    `output_of`: another task declaration (`agent_task` or `@python_task`) whose output file
+    this kind writes, for a task that fills in that file: the file of the latest task of that
+    kind created so far for the same unit (or key=), else the file its `output_name` names for
+    it (a `~n` of this task's own key does not change it). A task waits for the latest task
+    created so far that writes that file, of any kind, so two never write it at once; one
+    created later is not waited for. `output` is the schema of the whole file after this
+    task, JSON or text as the other kind's; `output_name` is not taken with it.
     `rerun_on_resume`: a resume (`Pipeline.run(resume=True)`) runs its tasks again even when
     an earlier attempt of the run finished them, for a final step that reports or publishes
     the state of the work. A task that takes the output of a task that ran again already
@@ -257,6 +281,8 @@ def agent_task[Out](
         raise TypeError(
             f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
         )
+    checked_preserve = _checked_preserve(kind, preserve, output, output_from)
+    _check_output_of(kind, output_of, output, output_name)
     checked_tools = _checked_tools(kind, tools)
     if checked_tools == () and output_from != "message":
         raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
@@ -300,7 +326,47 @@ def agent_task[Out](
         unwrap=bool(unwrap),
         tools=checked_tools,
         rerun_on_resume=bool(rerun_on_resume),
+        preserve=checked_preserve,
+        output_of=output_of,
     )
+
+
+def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None) -> None:
+    """`output_of`: a task declaration that writes an output file of the same format as `output`."""
+    if other is None:
+        return
+    if not isinstance(other, (AgentTask, PythonTask)):
+        raise TypeError(f"agent_task({kind!r}): output_of takes a task declaration (agent_task, @python_task), not {other!r}")
+    if output_name is not None:
+        raise TypeError(f"agent_task({kind!r}): output_of names the output file; drop output_name")
+    if output is None:
+        raise TypeError(f"agent_task({kind!r}): output_of needs output=, the schema of the whole file after this task")
+    if other.kind == kind:
+        raise TypeError(f"agent_task({kind!r}): output_of names this kind itself")
+    if other.output_format is None or (other.executor == "python" and other.output_schema is None):
+        raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes no output file")
+    mine = "text" if output is str else "json"
+    if other.output_format != mine:
+        raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes a {other.output_format} file, and this output is {mine}")
+
+
+def _checked_preserve(kind: str, preserve: Sequence[str], output: Any, output_from: str) -> tuple[str, ...]:
+    """`preserve` as declared, each pointer checked against its syntax and the output's schema."""
+    if isinstance(preserve, str):
+        raise TypeError(f"agent_task({kind!r}): preserve takes a list of JSON pointers, not one string: [{preserve!r}]")
+    pointers = tuple(dict.fromkeys(preserve))
+    if not pointers:
+        return ()
+    if not (isinstance(output, type) and issubclass(output, BaseModel)):
+        raise TypeError(f"agent_task({kind!r}): preserve keeps parts of a JSON output: give output= a pydantic model")
+    if output_from != "file":
+        raise TypeError(f'agent_task({kind!r}): preserve keeps parts of a file the agent writes, not of output_from="message"')
+    json_schema = output.model_json_schema()
+    for pointer in pointers:
+        error = syntax_error(pointer) or schema_error(pointer, json_schema)
+        if error:
+            raise TypeError(f"agent_task({kind!r}): preserve {error}")
+    return pointers
 
 
 def _checked_tools(kind: str, tools: Sequence[str] | None) -> tuple[str, ...] | None:

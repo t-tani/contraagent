@@ -20,7 +20,7 @@ Their field descriptions reach the agent in the call file's JSON Schema.
   model and runs the command validators. A failure keeps the agent working in
   the same turn.
 - **By the runner, after the turn.** The schema, freshness (a file left by an
-  earlier run does not pass) and every validator. A failure resumes the same
+  earlier run does not pass), the parts to keep (`preserve`, below) and every validator. A failure resumes the same
   session with the errors as the next turn, until the file passes or the
   resumes are spent (`invalid_output`).
 
@@ -53,6 +53,37 @@ and `launches.jsonl` (`unwrapped`) say that it was taken out. A message that hol
 no document is checked as it is, and goes back as before.
 
 ::code{file="examples/review/flow.py" from="# A verdict needs no tool" to="revise = agent_task("}
+
+## Parts of a file to keep
+
+A task may fill in a file that holds values already: a Python task writes a
+report's items, and an agent task writes their summaries into the same file.
+`output_of` names the task declaration whose file it writes: for each task, the
+file of the latest task of that kind created so far for the same unit (or `key=`),
+else the file that kind's `output_name` names for it. The task waits for the
+latest task created so far that writes that file, of any kind, so two never write
+it at once. `output` is the schema of the whole file after the task.
+`preserve` names the parts the agent must keep as they were, as JSON pointers
+(RFC 6901: `/source`, `/items/0/id`), with one extension: a segment `*` is every
+member of an array or object, so `/items/*/id` is the id of every item.
+
+::code{file="examples/preserve/flow.py" from="class Item("}
+
+Before the first round the runner reads the file and takes the values the
+pointers select in it. After each round, each of them must still be in the file,
+equal; one that is not is an error like any other check's, and goes back to the
+same session: `/items/1/id changed: it must stay "alpha-2" (now "alpha-9")`,
+`/source removed: it must stay "inputs/alpha.md"`. A pointer selects by
+position, so an agent that reorders a list changes the values at its indexes.
+An attempt that does not pass puts the file back as it was, so the next attempt
+starts from the same values. A file that is missing before the launch, or that
+does not parse, keeps nothing.
+
+The call file lists the pointers (`output.preserve`), and the prompt tells the
+agent to read the file first. The stop hook does not judge them: it sees the file
+after the turn only. `preserve` takes a JSON output the agent writes, not a text
+output nor one in the final message, and each pointer is checked against the
+output's schema when the task is declared: `/sorce` is refused there.
 
 ## A judgement in one turn: a light launch
 

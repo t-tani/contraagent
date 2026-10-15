@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from contraagent import rundir
-from contraagent.contracts import check_input, file_stamp, record_contracts
+from contraagent.contracts import check_input, record_contracts
 from contraagent.dispatch.task import (
     STOP_COMPLETED,
     STOP_ERROR,
@@ -123,7 +123,7 @@ class PythonTaskRunner:
                 reason=f"invalid input: {bad[0]}"[:240],
                 rounds=0,
             )
-        before = {c.resolve(self._cwd): file_stamp(c.resolve(self._cwd)) for c in outs}
+        before = {c.resolve(self._cwd): c.before(self._cwd) for c in outs}
         res = self._attempts(task)
         if res.stop != STOP_COMPLETED:
             return res  # the function itself failed; its own error is the story
