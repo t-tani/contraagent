@@ -4,6 +4,7 @@ import { hostOf, isRunLive, latestTask, runActivity, runRow, type MonitorClient,
 import { msg } from '@lit/localize';
 import { html, nothing, type TemplateResult } from 'lit';
 import type { Route } from '../../core/route.js';
+import { mixedReplay } from '../../words/run-line.js';
 import '../overview/ca-overview.js';
 import '../lists/ca-task-table.js';
 import '../lists/ca-journal-table.js';
@@ -44,7 +45,7 @@ export function tabView({ snap, route, derived, q, client, baseUrl }: TabViewDat
       return html`<ca-task-table .run=${route.run} .journal=${state.journal} .plan=${state.plan} .kind=${route.kind} .q=${q} ?live=${live}></ca-task-table>`;
     case 'journal':
       return html`<ca-journal-table .run=${route.run} .rows=${state.journal} .plan=${state.plan} .fresh=${snap.fresh} .kind=${route.kind} .stop=${route.stop} .q=${q}
-        .extras=${summary?.row_extras ?? []}></ca-journal-table>`;
+        .extras=${summary?.row_extras ?? []} ?replay-marks=${mixedReplay(summary)}></ca-journal-table>`;
     case 'outputs':
       return html`<ca-contracts .run=${route.run} .outputs=${state.outputs} .journal=${state.journal} .plan=${state.plan}></ca-contracts>`;
     case 'definitions':
@@ -56,7 +57,7 @@ export function tabView({ snap, route, derived, q, client, baseUrl }: TabViewDat
     case 'stream':
       return html`<ca-task-view .client=${client} .journal=${state.journal} .plan=${state.plan} base-url=${baseUrl} .run=${route.run}
         .taskKey=${route.key ?? latestTask(derived.rows)} .view=${route.view} .round=${route.round} .live=${live}
-        ?exported=${!!snap.info.export}></ca-task-view>`;
+        ?exported=${!!snap.info.export} ?replay-marks=${mixedReplay(summary)}></ca-task-view>`;
     default: {
       const name = route.tab.slice('panel:'.length);
       const info = snap.info.panels.find((p) => p.name === name);

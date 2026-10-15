@@ -3,8 +3,8 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import { styleMap } from 'lit/directives/style-map.js';
 import { toneAttr, type Tone } from '../core/tone.js';
 
-/** The shape of a status mark: done round, failed square, not started hatched, waiting a ring. */
-export type MarkShape = 'round' | 'square' | 'hatched' | 'ring';
+/** The shape of a status mark: done round, failed square, not started hatched, waiting a ring, partly done a round with its lower half filled. */
+export type MarkShape = 'round' | 'square' | 'hatched' | 'ring' | 'half';
 
 export interface LegendItem {
   label: string;
@@ -51,5 +51,6 @@ export const legendStyles = css`
   .legend i[data-shape='round'] { border-radius: 50%; }
   .legend i[data-shape='square'] { border-radius: 2px; }
   .legend i[data-shape='ring'] { background: none; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--tone, var(--line2)); }
+  .legend i[data-shape='half'] { border-radius: 50%; background: linear-gradient(0deg, var(--tone, var(--line2)) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--tone, var(--line2)); }
   .legend i[data-shape='hatched'] { border-radius: 2px; background: repeating-linear-gradient(135deg, transparent 0 2px, var(--tone, var(--line2)) 2px 3px); }
 `;

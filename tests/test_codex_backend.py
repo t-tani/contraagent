@@ -50,7 +50,8 @@ d = home / "sessions" / "2026" / "10" / "15"
 d.mkdir(parents=True, exist_ok=True)
 def tc(i, c, w, o, limits=None):
     return {"type": "event_msg", "payload": {"type": "token_count", "info": {"last_token_usage": {
-        "input_tokens": i, "cached_input_tokens": c, "cache_write_input_tokens": w, "output_tokens": o}},
+        "input_tokens": i, "cached_input_tokens": c, "cache_write_input_tokens": w, "output_tokens": o},
+        "model_context_window": 258400},
         "rate_limits": limits or {"primary": None, "secondary": None}}}
 lines = [
     {"type": "session_meta", "payload": {"id": thread, "cli_version": "0.162.1"}},
@@ -105,6 +106,7 @@ def test_a_launch_reads_its_events_and_its_rollout(fake):
     assert [(c.input, c.cache_read, c.cache_creation, c.output) for c in r.usage.calls] == [(2, 0, 8509, 192), (2, 8509, 218, 5)]
     assert r.usage.resident == 8511 and r.usage.output_total == 197 and r.init_model == "gpt-5.6-luna"
     assert r.peak_context == 2 + 8509 + 218  # the second call's whole input
+    assert (r.context_window, r.context_pct) == (258400, round(100 * (2 + 8509 + 218) / 258400, 1))  # as the rollout reports it
     assert r.rate_limit is not None and r.rate_limit.five_hour_pct == 42.0 and r.rate_limit.seven_day_pct == 7.5
     env = seen["env"]
     assert env["CODEX_API_KEY"] == "sk-test" and "OPENAI_API_KEY" not in env and "CLAUDECODE" not in env
@@ -244,7 +246,7 @@ def test_a_rollout_without_windows_has_no_reading(tmp_path):
     f.write_text(
         json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": None, "rate_limits": {"primary": None}}}) + "\n"
     )
-    assert read_rollout(f).rate_limits == [] and read_rollout(f).calls == []
+    assert read_rollout(f).rate_limits == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
 
 
 def test_a_web_search_names_its_query_and_pages_when_it_ends():

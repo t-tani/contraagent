@@ -8,7 +8,7 @@ import sys
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from contraagent import CommandValidator, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
+from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
 from contraagent.cli import main
 from contraagent.dispatch.task import kind_name
 from contraagent.docs.examples.review import flow as example
@@ -176,6 +176,41 @@ def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
         "routing: effort 'ultra' for kinds review, summarize on agent claude is not accepted",
         "routing: <config> [[tasks.review.fallbacks]]: block 1 (hop 2) names unknown agent 'clade' (did you mean claude?)",
     ]
+
+
+def test_a_pipeline_table_passes_check_unread_and_table_returns_it(plugin_dir, tmp_path):
+    summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
+    f = tmp_path / "pipeline.toml"
+    f.write_text('[pipeline.report]\ntitle = "Weekly"\nany_key = [1, 2]\n\n[pipeline.index]\nport = 8080\n')
+    config = PipelineConfig.load(f)
+
+    def flow():
+        summarize("a")
+
+    assert Pipeline(config).check(flow).errors == []
+    assert config.table("report") == {"title": "Weekly", "any_key": [1, 2]}
+    assert config.table("index") == {"port": 8080}
+    assert config.table("absent") == {}
+
+
+def test_another_top_level_table_is_refused_with_where_a_pipeline_table_goes():
+    errors: list[str] = []
+    PipelineConfig({"report": {"title": "x"}, "defualts": {}}).unknown_tables(errors)
+    assert errors == [
+        "<config>: the file has unknown keys 'defualts' (did you mean defaults?), 'report'; "
+        "expected credentials, defaults, pipeline, tasks; a pipeline's own table goes under [pipeline.<name>]"
+    ]
+
+
+def test_a_pipeline_value_that_is_not_a_table_is_refused():
+    errors: list[str] = []
+    PipelineConfig({"pipeline": {"report": "x", "index": {}}}).unknown_tables(errors)
+    assert errors == ["<config>: pipeline.report = 'x' is not a table; write [pipeline.report]"]
+    errors = []
+    PipelineConfig({"pipeline": 3}).unknown_tables(errors)
+    assert errors == ["<config>: pipeline = 3 is not a table; write [pipeline.<name>]"]
+    with pytest.raises(ConfigError, match=r"pipeline.report = 'x' is not a table"):
+        PipelineConfig({"pipeline": {"report": "x"}}).table("report")
 
 
 def test_a_call_file_validator_on_a_python_task_is_reported():
@@ -356,3 +391,113 @@ def test_the_preflight_probes_every_reachable_kind(tmp_path, monkeypatch):
     p = Pipeline(None, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, preflight="substitute", log=lambda line: None)
     assert p.run(example.docs, units=["a"]).ok
     assert probed == [["review", "revise", "summarize"]]  # revise never ran, and was probed
+
+
+# --- classes of flow code: their methods reach the tasks they create ---------------
+
+EDIT_TASKS = """
+from contraagent import agent_task
+start = agent_task("start", instructions="s", output=str, max_turns=5, timeout_s=60)
+refine = agent_task("refine", instructions="r", output=str, max_turns=5, timeout_s=60)
+polish = agent_task("polish", instructions="p", output=str, max_turns=5, timeout_s=60)
+"""
+
+EDIT_BOARD = """
+from edit_tasks import polish, refine, start
+
+
+def rounds(unit):
+    draft = yield refine(unit)
+    return (yield polish(unit, draft=draft))
+
+
+class Base:
+    def inherited(self, unit):
+        return (yield from rounds(unit))
+
+
+class Board(Base):
+    def __init__(self, unit=""):
+        self.unit = unit
+
+    def step(self, unit):
+        return (yield from rounds(unit))
+
+    @staticmethod
+    def run(unit):
+        return (yield from rounds(unit))
+
+    @classmethod
+    def create(cls, unit):
+        return (yield from rounds(unit))
+
+    @property
+    def drafts(self):
+        return rounds(self.unit)
+
+
+BOARD = Board()
+
+
+def by_method(unit):
+    return (yield from Board().step(unit))
+
+
+def by_staticmethod(unit):
+    return (yield from Board.run(unit))
+
+
+def by_classmethod(unit):
+    return (yield from Board.create(unit))
+
+
+def by_property(unit):
+    return (yield from Board(unit).drafts)
+
+
+def by_instance(unit):
+    return (yield from BOARD.step(unit))
+
+
+def by_base(unit):
+    return (yield from Board().inherited(unit))
+
+
+def flow(helper):
+    yield start("a")
+    return (yield from helper("a"))
+"""
+
+
+@pytest.fixture
+def edit_board(tmp_path, monkeypatch):
+    (tmp_path / "edit_tasks.py").write_text(EDIT_TASKS)
+    (tmp_path / "edit_board.py").write_text(EDIT_BOARD)
+    monkeypatch.setattr(sys, "path", [str(tmp_path), *sys.path])
+    import edit_board  # type: ignore[import-not-found]
+
+    yield edit_board
+    sys.modules.pop("edit_board", None)
+    sys.modules.pop("edit_tasks", None)
+
+
+@pytest.mark.parametrize("helper", ["by_method", "by_staticmethod", "by_classmethod", "by_property", "by_instance", "by_base"])
+def test_a_class_of_flow_code_reaches_the_tasks_its_methods_create(edit_board, helper):
+    reaches = getattr(edit_board, helper)
+    assert sorted(spec.kind for spec in reachable(edit_board.flow, reaches)) == ["polish", "refine", "start"]
+    tables = {"refine": {"max_turns": 3}, "polish": {"max_turns": 3}, "polsh": {"max_turns": 3}, "zzz": {"max_turns": 3}}
+    report = pipeline({"tasks": tables}).check(edit_board.flow, reaches)
+    assert report.ok, report
+    assert report.kinds == {"start": 1}
+    assert sorted(report.later_kinds) == ["polish", "refine"]
+    unknown = [w for w in report.warnings if "is not a kind of this run" in w]
+    assert len(unknown) == 2, report.warnings
+    assert unknown[0].startswith("routing: [tasks.polsh]") and unknown[0].endswith("ignored (did you mean polish?)")
+    assert unknown[1].startswith("routing: [tasks.zzz]") and unknown[1].endswith("ignored (a typo?)")
+
+
+def test_a_class_of_other_code_is_not_followed(edit_board):
+    shelf = type("Shelf", (), {"__module__": "pathlib", "step": edit_board.refine, "go": lambda self: edit_board.polish("a")})
+    assert reachable(shelf) == []
+    assert reachable(shelf()) == []
+    assert [spec.kind for spec in reachable(edit_board.Board)] == ["refine", "polish"]

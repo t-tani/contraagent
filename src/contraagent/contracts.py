@@ -40,7 +40,7 @@ from contraagent import pointers, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.dispatch.task import kind_name
-from contraagent.validators import CommandValidator, Validator, run_validators, validator_name
+from contraagent.validators import CommandValidator, Validator, run_validators, validator_name, wanted_context
 
 _logger = logging.getLogger(__name__)
 
@@ -97,19 +97,30 @@ class OutputContract(_FileContract):
     unwrap: bool = False
     preserve: tuple[str, ...] = ()
 
+    @property
+    def compares(self) -> bool:
+        """Some validator takes `before`: the file ahead of the task is read for it."""
+        return any("before" in wanted_context(v) for v in self.validators)
+
     def before(self, cwd: Path) -> Before:
         """The file as it is now, ahead of a launch: its stamp and, for a contract that
-        preserves parts, its content and the values its pointers select. A file that is
-        missing or does not parse as JSON preserves nothing."""
+        preserves parts, the values its pointers select. Its text is kept for a contract that
+        preserves parts or `compares`. A file that is missing or does not parse as JSON
+        preserves nothing."""
         path = self.resolve(cwd)
         stamp = file_stamp(path)
-        if not self.preserve or stamp is None:
+        if not (self.preserve or self.compares) or stamp is None:
             return Before(stamp)
         try:
             text = path.read_text(encoding="utf-8")
-            document = json.loads(text)
-        except (OSError, UnicodeDecodeError, ValueError):
+        except (OSError, UnicodeDecodeError):
             return Before(stamp)
+        if not self.preserve:
+            return Before(stamp, text=text)
+        try:
+            document = json.loads(text)
+        except ValueError:
+            return Before(stamp, text=text if self.compares else None)
         return Before(stamp, pointers.select_all(document, self.preserve), text)
 
     def message_path(self, cwd: Path) -> Path:
@@ -130,6 +141,7 @@ class OutputContract(_FileContract):
             call=self.call,
             cwd=cwd,
             preserved=before.preserved if before is not None else None,
+            before_value=(lambda: before.value(self.schema)) if before is not None else None,
         )
 
 
@@ -137,15 +149,27 @@ class OutputContract(_FileContract):
 class Before:
     """An output file ahead of a launch: its stamp (`file_stamp`; None, no file), the values
     its contract's `preserve` pointers select in it (by the pointer that names each one
-    alone), and its text when there is a value to keep (`restore`)."""
+    alone), and its text when there is a value to keep or a validator takes `before`
+    (`OutputContract.compares`)."""
 
     stamp: tuple[int, int] | None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     text: str | None = None
 
+    def value(self, schema: type[BaseModel] | None) -> Any:
+        """The text parsed as a check parses the file: the model instance (`schema`), or the
+        text itself (None). None when there is no text, or it does not meet the schema."""
+        if self.text is None or schema is None:
+            return self.text
+        try:
+            return schema.model_validate_json(self.text)
+        except ValueError:
+            return None
+
     def restore(self, path: Path) -> None:
-        """Put the file back as it was, when it held values to keep."""
-        if self.text is not None and self.preserved:
+        """Put the file back as it was, when its text is kept (values to keep, a validator
+        that takes `before`)."""
+        if self.text is not None:
             rundir.write_document(path, self.text)
 
 
@@ -212,6 +236,7 @@ def check_file(
     call: Path | None = None,
     cwd: Path | None = None,
     preserved: Mapping[str, Any] | None = None,
+    before_value: Callable[[], Any] | None = None,
 ) -> Check:
     """Validate the file at `path`: its JSON against `schema` (None: any text),
     then every validator on the parsed value.
@@ -220,6 +245,8 @@ def check_file(
     file whose stamp has not moved counts as unwritten. `preserved`: values the
     JSON must still hold, by the pointer that names each (`OutputContract.before`);
     one it no longer holds is an error, reported with the schema's and the validators'.
+    `before_value`: the file's value ahead of the task, for the validators that take
+    `before` (called only for them).
     """
     path = Path(path)
     now = file_stamp(path)
@@ -232,7 +259,7 @@ def check_file(
     except (OSError, UnicodeDecodeError) as exc:
         return Check(path, False, [f"{path}: unreadable: {exc}"])
     if schema is None:
-        return _validated(path, text, validators, params, call, cwd)
+        return _validated(path, text, validators, params, call, cwd, before=before_value)
     try:
         document = json.loads(text)
     except ValueError as exc:
@@ -249,7 +276,7 @@ def check_file(
         commands = [v for v in validators if isinstance(v, CommandValidator)]
         errors += run_validators(commands, path, None, params=params, call=call, cwd=cwd)
         return Check(path, False, errors)
-    return _validated(path, value, validators, params, call, cwd, lost)
+    return _validated(path, value, validators, params, call, cwd, lost, before_value)
 
 
 def _validated(
@@ -260,8 +287,9 @@ def _validated(
     call: Path | None,
     cwd: Path | None,
     lost: Sequence[str] = (),
+    before: Callable[[], Any] | None = None,
 ) -> Check:
-    errors = [*lost, *run_validators(validators, path, value, params=params, call=call, cwd=cwd)]
+    errors = [*lost, *run_validators(validators, path, value, params=params, call=call, cwd=cwd, before=before)]
     return Check(path, not errors, errors, value if not errors else None, schema_ok=True)
 
 
@@ -391,7 +419,9 @@ def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
 
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
     """Carry the spend, the web searches, the unread events and a context warning from
-    `total` into `nxt`, the launch after it; everything else is `nxt`'s.
+    `total` into `nxt`, the launch after it; everything else is `nxt`'s, but for
+    `context_window`: the window of the launch whose call is the peak context (the other
+    launch's when that one reports none on the same model).
 
     `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
     own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
@@ -408,6 +438,9 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
         nxt.num_turns = total.num_turns + (nxt.num_turns or 0)
     if not (resumed and session_total and nxt.other_models):
         nxt.other_models = add_other_models(total.other_models, nxt.other_models)
+    peak, other = (total, nxt) if total.usage.peak_context > nxt.usage.peak_context else (nxt, total)
+    same_model = peak.model == other.model
+    nxt.context_window = peak.context_window or (other.context_window if same_model else None)
     nxt.usage.calls = total.usage.calls + nxt.usage.calls
     nxt.usage.output_total += total.usage.output_total
     nxt.rate_limits = total.rate_limits + nxt.rate_limits

@@ -102,17 +102,18 @@ describe('deriveRun', () => {
 });
 
 describe('progress', () => {
-  it('counts done and skipped apart; both are finished', () => {
+  it('counts done, partly done and skipped apart; all three are finished', () => {
     expect(progress({ nodes: [], groups: [group('a', { total: 4, done: 1, skipped: 1 }), group('b', { total: 4 })] })).toEqual({
-      total: 8, done: 1, skipped: 1, pct: 25,
+      total: 8, done: 1, partial: 0, skipped: 1, pct: 25,
     });
+    expect(progress({ nodes: [], groups: [group('a', { total: 4, done: 1, partial: 1 })] })).toEqual({ total: 4, done: 1, partial: 1, skipped: 0, pct: 50 });
     expect(progress({ nodes: [], groups: [] }).pct).toBe(0);
   });
 });
 
 describe('run result', () => {
   it('counts how the scheduled tasks ended', () => {
-    expect(result(plan)).toEqual({ done: 3, skipped: 1, failed: 1, notStarted: 1, left: 1 });
+    expect(result(plan)).toEqual({ done: 3, partial: 0, skipped: 1, failed: 1, notStarted: 1, left: 1 });
   });
 
   it('counts tries and tasks that never started the one way the UI shows them', () => {

@@ -100,18 +100,35 @@ def effort_problem(kinds: list[str], agent: str, effort: str) -> str | None:
     )
 
 
-def check_task_tables(tables: Mapping[str, dict], kinds: Iterable) -> list[str]:
-    """`[tasks.<name>]` tables naming no kind of this run, said out loud.
+def check_task_tables(tables: Mapping[str, dict], kinds: Iterable, bases: Mapping[str, str] | None = None) -> list[str]:
+    """`[tasks.<name>]` tables naming no kind of this run, nor the base kind of one
+    (`bases`, as `RoutingPlan.build` takes them), said out loud.
 
     Not an error: one config file often serves several flows. But a table nothing
     reads is also what a typo looks like, so each one is logged as a warning.
     """
-    known = {kind_name(k) for k in kinds}
+    known = {kind_name(k) for k in kinds} | {b for b in (bases or {}).values() if b}
     unknown = sorted(set(tables) - known)
     for name in unknown:
-        guess = did_you_mean(name, known) or " — a typo?"
+        guess = did_you_mean(name, known) or " (a typo?)"
         _logger.warning(f"[config] [tasks.{name}] is not a kind of this run (kinds: {', '.join(sorted(known))}); ignored{guess}")
     return unknown
+
+
+def resolved_task_tables(
+    file_tables: Mapping[str, dict], kinds: Iterable, declared: Mapping[str, Mapping], bases: Mapping[str, str]
+) -> dict[str, dict]:
+    """Each kind's task table, key by key, lowest first: what its code declares
+    (`declared`), the config file's table of its base kind (`bases`: an implementation
+    kind's, `agent_task(implementations=)`), the config file's table of the kind itself.
+    A key the kind's own table gives replaces the base kind's whole (`fallbacks` too).
+    The config file's other tables are kept as they are; a kind with an empty table has none."""
+    names = {*map(kind_name, kinds), *file_tables}
+    tables = {
+        name: {**declared.get(name, {}), **(file_tables.get(bases[name], {}) if bases.get(name) else {}), **file_tables.get(name, {})}
+        for name in names
+    }
+    return {name: table for name, table in tables.items() if table}
 
 
 def resolve_routing(
@@ -322,6 +339,7 @@ class RoutingPlan:
         overrides: Overrides = Overrides(),
         *,
         declared: Mapping[str, Mapping] | None = None,
+        bases: Mapping[str, str] | None = None,
         requirements: Mapping[str, Iterable[str]] | None = None,
         light: Iterable[str] = (),
         budgets_required: bool = True,
@@ -331,6 +349,8 @@ class RoutingPlan:
 
         `declared` is each kind's own task table as its code declares it (the keys a
         `[tasks.<kind>]` table takes); the config file's table outranks it.
+        `bases` maps an implementation kind to its base kind (`agent_task(implementations=)`):
+        the config file's `[tasks.<base kind>]` table is its too, below its own (`resolved_task_tables`).
         With `budgets_required` (the default) a kind whose budgets
         (`max_turns`, `timeout_s`) neither set is refused: the generic
         `KindConfig` field defaults are not a budget. `requirements` are the
@@ -349,10 +369,8 @@ class RoutingPlan:
         config.claim_capacity(errors)
         file_tables = config.task_tables(errors)
         if all_kinds:
-            check_task_tables(file_tables, kinds)
-        declared = declared or {}
-        tables = {name: {**declared.get(name, {}), **file_tables.get(name, {})} for name in {*map(kind_name, kinds), *file_tables}}
-        tables = {name: table for name, table in tables.items() if table}
+            check_task_tables(file_tables, kinds, bases)
+        tables = resolved_task_tables(file_tables, kinds, declared or {}, bases or {})
         configs = with_context_warn(configs_from_tables(kinds, tables), defaults.get("context_warn_pct"))
         errors += context_warn_problems(configs)
         if budgets_required:

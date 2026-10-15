@@ -57,6 +57,8 @@ export class CaTaskView extends LitElement {
   @property({ attribute: false }) plan: Plan | null = null;
   /** Read from an export (`Info.export`): it holds no transcript. */
   @property({ type: Boolean }) exported = false;
+  /** The run is a replay that also launched (`mixedReplay`): each attempt played from its recording is marked. */
+  @property({ type: Boolean, attribute: 'replay-marks' }) replayMarks = false;
 
   private readonly detail = new TaskDetailController(this);
   @query('ca-transcript') private transcriptEl?: CaTranscript;
@@ -105,6 +107,7 @@ export class CaTaskView extends LitElement {
       shownRound: this.shownRound,
       rounds: this.rounds,
       exported: this.exported,
+      replayMarks: this.replayMarks,
     };
     const view = this.shownView(d);
     return html`${taskHeader(c, key, (q, nth) => this.revealSearch(q, nth))} ${this.renderViews(d, view)}

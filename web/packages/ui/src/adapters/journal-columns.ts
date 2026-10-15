@@ -9,7 +9,7 @@ import { html, nothing } from 'lit';
 import { stopTone } from '../lib/tone.js';
 import { executorIcon } from '../words/executor.js';
 import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents, usd } from '../words/format.js';
-import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../words/index.js';
+import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, replayedLabel, replayedTip, stopLabel } from '../words/index.js';
 import { accountReading, readingShort } from '../words/quota.js';
 import { customColumnTip, customValue } from '../words/row-extras.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine } from '../words/context.js';
@@ -26,6 +26,8 @@ export interface JournalColumnsContext {
   rows: readonly JournalRow[];
   /** The pipeline's own columns (`RunSummary.row_extras`): one column each, after the reason. */
   extras?: readonly string[];
+  /** Mark each attempt played from its recording (`JournalRow.replayed`): the run is a replay that also launched (`mixedReplay`). */
+  replayMarks?: boolean;
 }
 
 /** A stop as a short column label: a task that never ran is just "not started"; the cause goes to the reason. */
@@ -59,8 +61,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
   };
 
   /**
-   * What the reason column says: the model switch, then (for a row that failed
-   * or never ran) the reason, run-relative, then the attempt that later did the task,
+   * What the reason column says: the model switch, then (for a row that failed,
+   * never ran, or was partly done) the reason, run-relative, then the attempt that later did the task,
    * then its peak context when it passed the warning threshold of the context limit.
    */
   const reason = (e: JournalRow) => {
@@ -69,7 +71,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
     const run = ctx.run || e.run_id || '';
     const own = ctx.outcomes.get(e.key);
     const cause = e.stop === 'invalid_input' && own ? notStartedCause({ attempts: [e], cause: null }, ctx.outcomes, run) : '';
-    const why = cause ? sentence(cause) : (!e.ok || !ran) && e.reason ? runRelative(e.reason, run) : '';
+    const why = cause ? sentence(cause) : (!e.ok || !ran || e.stop === 'partial') && e.reason ? runRelative(e.reason, run) : '';
     const n = laterTry(e);
     const later = n ? msg(str`The task was done on attempt ${n}`) : '';
     const warned = e.context_warned ? contextWarnedText(e) : '';
@@ -117,9 +119,10 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
         const ran = isLaunched(e);
         const numbered = ran && (tries.get(e.key)?.count ?? 1) > 1;
         const corrections = ran ? correctionsText((e.rounds ?? 1) - 1) : '';
+        const played = ctx.replayMarks && e.replayed ? replayedLabel() : '';
         return statusWord({
-          text: html`<span class="nw">${shortStop(e.stop)}</span>${numbered || corrections
-            ? html`<span class="sub">${facts(numbered ? attemptLabel(e.attempt) : '', corrections)}</span>`
+          text: html`<span class="nw">${shortStop(e.stop)}</span>${numbered || corrections || played
+            ? html`<span class="sub" title=${played ? replayedTip() : nothing}>${facts(numbered ? attemptLabel(e.attempt) : '', corrections, played)}</span>`
             : nothing}`,
           tone: stopTone(e.stop),
           cls: 'two',

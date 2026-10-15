@@ -11,6 +11,8 @@ export function outcomeLabel(o: Outcome): string {
       return msg('done', { id: 'outcome-done', desc: 'The status of a task: done' });
     case 'recovered':
       return msg('done after retrying');
+    case 'partial':
+      return msg('partly done', { id: 'outcome-partial', desc: 'The status of a task whose output is a placeholder: a service it needed was unavailable (partial)' });
     case 'failed':
       return msg('failed');
     case 'not_started':
@@ -41,6 +43,8 @@ export function stateCount(s: Outcome | 'not_run', n: number): string {
       return msg(str`${n} done`);
     case 'recovered':
       return msg(str`${n} done after retrying`);
+    case 'partial':
+      return msg(str`${n} partly done`);
     case 'failed':
       return msg(str`${n} failed`);
     case 'not_started':

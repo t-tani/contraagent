@@ -16,6 +16,7 @@ import dataclasses
 import os
 import shutil
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Protocol
@@ -153,21 +154,43 @@ class Backend(abc.ABC):
         `credential`, else None. Default: the agent reports nothing to check against."""
         return None
 
+    def read_models(self) -> dict[str, int | None] | None:
+        """The agent's own model catalogue, read once (`models`): each provider-qualified
+        model id it lists, with the context window it lists for that model (tokens; None
+        where it lists none). None when the agent publishes no catalogue or it cannot be
+        read, never an exception. Default: no catalogue.
+
+        Implementations own their own CLI's output format, which is the whole reason this
+        lives on the backend: the list omp prints is omp's, and a caller that parsed it
+        would be omp-specific by accident."""
+        return None
+
+    def models(self) -> dict[str, int | None] | None:
+        """`read_models()`, read on the first call and kept for the backend's life: one
+        local read per backend per run, however many launches ask."""
+        own: dict = vars(self)
+        with own.setdefault("_models_lock", threading.Lock()):
+            if "_models" not in own:
+                own["_models"] = self.read_models()
+            return own["_models"]
+
     def catalogue(self) -> set[str] | None:
-        """Provider-qualified model ids this agent advertises, or None.
+        """Provider-qualified model ids this agent advertises (`models`), or None.
 
         The cheap half of a preflight: a model name that is not in the
         agent's own list is a typo, and finding that out from the list
         costs one local read instead of one failed launch. None means
         "this agent publishes no list" — a different answer from an empty
         set, and the caller falls back to probing.
-
-        Implementations own their own CLI's output format, which is the
-        whole reason this lives on the backend: the table omp prints is
-        omp's, and a caller that parsed it would be omp-specific by
-        accident.
         """
-        return None
+        listed = self.models()
+        return set(listed) if listed is not None else None
+
+    def context_window(self, model: str) -> int | None:
+        """The context window the agent's catalogue (`models`) lists for `model`, the
+        model a launch ran on as it was launched (`window_of`); None when it lists none.
+        Fills `LaunchResult.context_window` when the launch's stream reports none."""
+        return window_of(self.models() or {}, model)
 
     def resumable(self, launch: Launch) -> Launch:
         """`launch`, adjusted so the session it starts can be resumed.
@@ -304,6 +327,8 @@ class OneShotBackend(Backend):
                 stderr_tail=f"credential: {exc}",
             )
         launch_result = self.parse(launch, out, exit_code, killed)
+        if launch_result.context_window is None and launch_result.model:
+            launch_result.context_window = self.context_window(launch_result.model)
         launch_result.argv = argv
         launch_result.credential = launch.credential.label
         launch_result.wall_s = time.monotonic() - t0
@@ -312,6 +337,25 @@ class OneShotBackend(Backend):
         self.reclassify(launch_result, err)
         apply_attestation(self, launch_result, launch)
         return launch_result
+
+
+#: The reasoning suffix a model selector may carry (`model:high`), dropped by `window_of`.
+_THINKING_SUFFIXES = frozenset({"off", "minimal", "low", "medium", "high", "xhigh", "max"})
+
+
+def window_of(windows: dict[str, int | None], model: str) -> int | None:
+    """The context window `windows` (`Backend.models`) lists for `model`: its
+    provider-qualified id, the same with a reasoning suffix (`:high`) dropped, or a bare
+    id that every provider listing it gives one window. None when none is listed."""
+    if model in windows:
+        return windows[model]
+    head, sep, tail = model.rpartition(":")
+    if sep and tail in _THINKING_SUFFIXES and head in windows:
+        return windows[head]
+    if "/" in model:
+        return None
+    found = {w for key, w in windows.items() if key.rpartition("/")[2] == model}
+    return found.pop() if len(found) == 1 else None
 
 
 def apply_attestation(backend: Backend, launch_result: LaunchResult, launch: Launch) -> None:

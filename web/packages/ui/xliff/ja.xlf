@@ -3044,6 +3044,68 @@
   <source>near the context limit (<x id="0" equiv-text="${Math.round((100 * peak) / budget)}"/>%)</source>
   <target>コンテキストの上限に接近（<x id="0" equiv-text="${Math.round((100 * peak) / budget)}"/>%）</target>
 </trans-unit>
+<trans-unit id="sa116cd3e2e650be3">
+  <source>attempts replayed</source>
+  <target>リプレイした試行</target>
+</trans-unit>
+<trans-unit id="sd951292b03e4bc8b">
+  <source>Partly done: <x id="0" equiv-text="${why}"/></source>
+  <target>一部のみ完了: <x id="0" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s9f246e834b1d2865">
+  <source>Partly done</source>
+  <target>一部のみ完了</target>
+</trans-unit>
+<trans-unit id="s044f7ee7915b22a3">
+  <source><x id="0" equiv-text="${n}"/> partly done</source>
+  <target>一部のみ完了 <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s8ae6aab00e87a555">
+  <source>Agent sessions played from the recordings in <x id="0" equiv-text="${dir}"/>, and new agent sessions recorded there (replay, record_missing)</source>
+  <target><x id="0" equiv-text="${dir}"/> の記録から再生したエージェントのセッションと、そこに記録した新しいセッション（replay, record_missing）</target>
+</trans-unit>
+<trans-unit id="s525c011dcf23c207">
+  <source>Played from a recording (replayed)</source>
+  <target>記録から再生した試行（replayed）</target>
+</trans-unit>
+<trans-unit id="s10898e41e6443952">
+  <source>Implementation of <x id="0" equiv-text="${kind}"/></source>
+  <target><x id="0" equiv-text="${kind}"/> の実装</target>
+</trans-unit>
+<trans-unit id="s0b3691d630f51b62">
+  <source>Kind with several implementations, each a kind of its own (base_kind)</source>
+  <target>複数の実装を持つ種別。実装ごとに別の種別になる（base_kind）</target>
+</trans-unit>
+<trans-unit id="trends-partial">
+  <source>Partly done</source>
+  <target>一部のみ完了</target>
+  <note from="lit-localize">A column: tasks or attempts whose output is a placeholder (partial)</note>
+</trans-unit>
+<trans-unit id="se751edc73f4d0062">
+  <source>replay and new sessions</source>
+  <target>リプレイと新しいセッション</target>
+  <note from="lit-localize">A run that played some attempts from recordings and ran the others as new agent sessions</note>
+</trans-unit>
+<trans-unit id="s9cb7a149bc9abd88">
+  <source>Implementation of</source>
+  <target>実装する種別</target>
+  <note from="lit-localize">A task definition: the kind that this kind is one implementation of</note>
+</trans-unit>
+<trans-unit id="s28a2fc439aac9783">
+  <source>replayed</source>
+  <target>リプレイ</target>
+  <note from="lit-localize">An attempt played from its recording, not run again</note>
+</trans-unit>
+<trans-unit id="stop-partial">
+  <source>partly done</source>
+  <target>一部のみ完了</target>
+  <note from="lit-localize">How an attempt ended: partial, its output a placeholder</note>
+</trans-unit>
+<trans-unit id="outcome-partial">
+  <source>partly done</source>
+  <target>一部のみ完了</target>
+  <note from="lit-localize">The status of a task whose output is a placeholder: a service it needed was unavailable (partial)</note>
+</trans-unit>
 </body>
 </file>
 </xliff>

@@ -1,7 +1,7 @@
 // The header's run line and the history bar's count, from `deriveRun`.
 import { deriveRun, emptyRunState, type JournalRow, type Plan, type PlanNode, type RunState, type RunSummary, type Stop } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { runLine, runMark, triesLine } from './run-line.js';
+import { mixedReplay, runLine, runMark, triesLine } from './run-line.js';
 
 const node = (key: string, state: PlanNode['state'], after: string[] = []): PlanNode => ({
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
@@ -55,5 +55,15 @@ describe('runMark', () => {
     expect(runMark({ stub: true, replay: '/rec' })).toEqual({ text: 'replay', title: 'Agent sessions played from the recordings in /rec (replay)' });
     expect(runMark({ stub: true, replay: '' })?.text).toBe('stub agent');
     expect(runMark({ stub: false })).toBeNull();
+  });
+
+  it('marks a replay that also launched apart, and only then its played attempts', () => {
+    expect(runMark({ stub: false, replay: '/rec' })).toEqual({
+      text: 'replay and new sessions',
+      title: 'Agent sessions played from the recordings in /rec, and new agent sessions recorded there (replay, record_missing)',
+    });
+    expect(mixedReplay({ stub: false, replay: '/rec' })).toBe(true);
+    expect(mixedReplay({ stub: true, replay: '/rec' })).toBe(false);
+    expect(mixedReplay({ stub: false, replay: '' })).toBe(false);
   });
 });

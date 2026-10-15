@@ -24,13 +24,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from contraagent.backends.launch import Stop
-from contraagent.dispatch.task import STOP_SKIPPED
+from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 
 # --- journal ---------------------------------------------------------------
 
-#: The `stop` values contraagent writes: every `Stop`, and `skipped`. The schema lists
-#: them as an enum; a row a domain's own code wrote with another value still validates.
-JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED)
+#: The `stop` values contraagent writes: every `Stop`, `skipped`, and a Python task's `partial`.
+#: The schema lists them as an enum; a row a domain's own code wrote with another value still validates.
+JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
 
 
 class TokenUsage(BaseModel):
@@ -53,6 +53,9 @@ class TokenUsage(BaseModel):
     #: The peak context: the whole input of the largest API call (cache read and cache write
     #: included), the largest over every hop and round summed here. None when no call was read.
     peak_context: int | None = None
+    #: The context window of the model whose call is the peak context, as the coding agent
+    #: reports it (`LaunchResult.context_window`); None when it reports none.
+    context_window: int | None = None
 
 
 class OtherModel(BaseModel):
@@ -241,6 +244,8 @@ class JournalRow(BaseModel):
     fingerprint: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
+    #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
+    replayed: bool = False
 
 
 # --- resume cursor ---------------------------------------------------------

@@ -16,15 +16,15 @@ export function problemTone(n: number, tone: Exclude<Tone, 'neutral'>): Tone {
 
 /**
  * A run's own status: running; attention when its host stopped reporting (a hub);
- * then how it ended: failed (a task failed), attention (only tasks not started),
- * done; neutral before it has tasks.
+ * then how it ended: failed (a task failed), attention (tasks not started, or
+ * partly done), done; neutral before it has tasks.
  */
-export function runTone(activity: RunActivity, tasks: { total: number; failed: number; not_started: number } | undefined): Tone {
+export function runTone(activity: RunActivity, tasks: { total: number; failed: number; not_started: number; partial?: number } | undefined): Tone {
   if (activity === 'running') return 'running';
   if (activity === 'unresponsive') return 'attention';
   if (!tasks?.total) return 'neutral';
   if (tasks.failed) return 'failed';
-  if (tasks.not_started) return 'attention';
+  if (tasks.not_started || tasks.partial) return 'attention';
   return 'done';
 }
 
@@ -34,6 +34,7 @@ export function runTone(activity: RunActivity, tasks: { total: number; failed: n
  */
 const STOP_TONE: Readonly<Record<Stop, Tone>> = {
   completed: 'done',
+  partial: 'attention',
   invalid_input: 'attention',
   skipped: 'muted',
   timeout: 'failed',
@@ -73,6 +74,7 @@ export function outcomeTone(o: Outcome): Tone {
       return 'done';
     case 'failed':
       return 'failed';
+    case 'partial':
     case 'not_started':
       return 'attention';
     case 'running':

@@ -71,31 +71,87 @@ contraagent run tasks.py:<flow> --config pipeline.toml --replay recordings/ --kw
 ```
 
 A run with `--record DIR` (`Pipeline(record=DIR)`) runs as any run does and keeps a
-**recording** of each agent task attempt: `DIR/<kind>/<key>.json` with the facts of its
-last launch (how it ended, its final message, turns, agent, model) and its task's
+**recording** of each task attempt: `DIR/<kind>/<key>.json` with the facts of an agent
+task's last launch (how it ended, its final message, turns, agent, model) and its task's
 fingerprint, and beside it the final contents of its output files, the files its
 `changes=` patterns saw created or modified (and the paths they saw deleted), and its
-part of the transcript when transcripts are kept. Nothing else of the working directory
-is kept. A task's first attempt in a run replaces its recording. Record on a real coding
-agent once, and commit the directory with the tests.
+part of the transcript when transcripts are kept. A Python task attempt's recording holds
+how its call ended (a `Partial` is played as `partial` again, its reason too) and its output
+file, which is what the flow receives from it, and the rows and documents its call wrote with
+`contraagent.log` and `contraagent.save` (a replay writes them into the run's `pipeline/` again,
+so a panel reads the same; a file over the cap makes the attempt unplayable, as an output
+does). An agent task has none: its coding agent runs in another process, with no current run. Nothing
+else of the working directory is kept. A task's first attempt in a run replaces its
+recording. Record on a real coding agent once, and commit the directory with the tests.
+
+A recorded file larger than 4 MB (`--record-max-file-mb N`, `Pipeline(record_max_file_mb=N)`)
+is kept by its SHA-256 and size only, so the directory stays small enough to commit; a
+warning names each one (`[record] <key>: <path> (<size>) stored by hash only`), and the run
+ends with one line on what it recorded:
+
+```
+[record] recordings/: 1,284 files, 212 MB | 3 files stored by hash | 2 tasks cannot be replayed: kinds extract, index
+```
+
+A task whose recording holds a file by hash only cannot be played: in a replay it ends
+`error` at once, its reason naming the file and its size. Run its kind with `--execute`
+(a Python task), record it again with a larger cap, or let `--record-missing` record it again.
 
 A **replay** (`--replay DIR`, `Pipeline(replay=DIR)`) plays those recordings in place of
-every agent task's launch: attempt 1 the first recording, attempt 2 the second, past the
-last the last again. Each writes the recorded outputs and files into place, deletes the
-recorded deletions and adds the recorded transcript; its output checks and the journal
-run as in any run, and it reports no cost and no tokens. Python tasks run their
-functions: they are the pipeline's own code, which is what a replay tests. So a replay
-in CI follows the flow down the path the real outputs led to, with nothing spent.
+every agent task's launch and every Python task's function: attempt 1 the first
+recording, attempt 2 the second, past the last the last again. Each writes the recorded
+outputs and files into place, deletes the recorded deletions and adds the recorded
+transcript; its output checks and the journal run as in any run, and it reports no cost
+and no tokens. A Python task that calls a service (a local index server) needs nothing
+running in CI. `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
+Python task kind's function instead, as in a stub run: the pipeline's own code under
+test. So a replay in CI follows the flow down the path the real outputs led to, with
+nothing spent.
 
 A replay is a stub run (the monitor marks it "replay" and names its recordings), its run id is
 `<flow>-replay`, and `run.json` names the recordings (`replay`). A task with no
-recording ends `error` with `no recording for <key>` after one attempt; a key minted with `~n` that has
+recording, agent or Python (but a kind it executes), ends `error` with `no recording for <key>`
+after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change
-matters. A replay walks no failover hop and is not combined with `--stub`, `--record`
-or `--execute`. The module docstring (`contraagent/execution/recording.py`) gives the
+matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. The module docstring (`contraagent/execution/recording.py`) gives the
 layout of a recording directory.
+
+### Undeclared changes
+
+A replay writes only what a recording holds, and a recording holds only what a task
+declares: its outputs and its `changes=` files. A file the recorded run wrote anywhere
+else (a cache a Python task fills, a report the flow's own body writes, a file an agent
+edited outside its patterns) is not there in a replay, and a later task that reads it
+finds it missing, or finds what the CI checkout holds. So a recording run compares the
+working directory at its start and its end (by each file's modification time and size;
+`.git`, `__pycache__`, the recordings and the run's own files are left out, but its `out/`
+is compared like any other folder). Each path created, modified or deleted that no task's
+outputs or `changes=` cover is an **undeclared change**: the run warns once per path
+
+```
+[record] undeclared change: cache/index.json
+```
+
+and writes them to `DIR/undeclared.json` (`created`, `modified`, `deleted`). Tasks run at
+once, so a change is the run's, not a task's. Declare it where it is made: a `changes=`
+pattern on the agent task, the Python task's output, or a Python task in place of the
+flow's own side effect.
+
+### Fill in what is missing
+
+```
+contraagent run tasks.py:<flow> --config pipeline.toml --replay recordings/ --record-missing --kwargs '{"units": ["a", "b", "c"]}'
+```
+
+When the flow gains a task, or a unit, record only what is new: with `--record-missing`
+(`Pipeline(replay=DIR, record_missing=True)`) a task with a recording plays it, and a task
+with none launches (or runs its function) as in any run, on the config's routing with its
+failover, and its recording is written into the same directory. The directory may start
+empty. Such a run can spend tokens, so it is not a stub run (`run.json` `stub` is false);
+each attempt that played a recording says so in its journal row (`replayed`). `--preflight`
+and `backends=` apply to the launches it makes; `--stub` and `--record` are refused.
 
 ## Test: the stub agent
 

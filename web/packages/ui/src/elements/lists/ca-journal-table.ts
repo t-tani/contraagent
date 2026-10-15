@@ -10,6 +10,7 @@ import { markOf } from '@contraagent/elements/primitives';
 import { base, meterStyles } from '@contraagent/elements/styles';
 import { executorIconStyles } from '../../words/executor.js';
 import { tableStrings } from '../../words/table.js';
+import { replayedTip } from '../../words/run-line.js';
 import { filterJournal, hadFixup, journalTally, retriedKeys } from '../../adapters/filters.js';
 import { journalColumns, shortStop } from '../../adapters/journal-columns.js';
 
@@ -89,6 +90,8 @@ export class CaJournalTable extends LitElement {
   @property() run = '';
   /** The pipeline's own journal columns (`RunSummary.row_extras`): a column each. */
   @property({ attribute: false }) extras: readonly string[] = [];
+  /** The run is a replay that also launched (`mixedReplay`): each attempt played from its recording is marked, and counted in a filter. */
+  @property({ type: Boolean, attribute: 'replay-marks' }) replayMarks = false;
 
   private open(rows: readonly JournalRow[], id: string): void {
     const e = rows.find((r) => rowId(r) === id);
@@ -99,15 +102,17 @@ export class CaJournalTable extends LitElement {
     const rows = filterJournal(this.rows, this.kind, this.stop, this.q).reverse();
     const fixups = this.rows.filter(hadFixup).length;
     const retried = retriedKeys(this.rows).size;
+    const replayed = this.replayMarks ? this.rows.filter((r) => r.replayed).length : 0;
     const chip = (k: string, label: string, n: number, tip: string, tone: Tone = 'neutral') =>
       html`<button type="button" class="jchip ${this.stop === k ? 'on' : ''}" data-tone=${toneAttr(tone)} data-mark=${markOf(tone) ?? nothing}
         aria-pressed=${this.stop === k} title=${tip}
         @click=${() => emit(this, 'ca-filter', { stop: this.stop === k ? '' : k })}>${label} <b>${n}</b></button>`;
-    const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows, extras: this.extras });
+    const columns = journalColumns({ run: this.run, outcomes: deriveRun(this.rows, this.plan).outcomes, journal: this.rows, rows, extras: this.extras, replayMarks: this.replayMarks });
     return html`<div class="jtally">
         ${journalTally(this.rows).map(([k, c]) => chip(k, shortStop(k), c, k, stopTone(k)))}
         ${fixups ? chip('fixup', msg('attempts with corrections'), fixups, msg('Attempts with at least one correction')) : nothing}
         ${retried ? chip('retried', msg('tasks retried'), retried, msg('Tasks retried after a failed attempt')) : nothing}
+        ${replayed ? chip('replayed', msg('attempts replayed'), replayed, replayedTip()) : nothing}
       </div>
       <cae-data-table
         .columns=${columns}

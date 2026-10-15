@@ -1,0 +1,216 @@
+opencode/gpt-5.6-luna
+{
+  "id": "gpt-5.6-luna",
+  "providerID": "opencode",
+  "name": "GPT-5.6 Luna",
+  "family": "gpt-luna",
+  "api": {
+    "id": "gpt-5.6-luna",
+    "url": "https://opencode.ai/inference/v1",
+    "npm": "@ai-sdk/openai"
+  },
+  "status": "active",
+  "headers": {},
+  "options": {},
+  "cost": {
+    "input": 0.2,
+    "output": 1.2,
+    "cache": {
+      "read": 0.02,
+      "write": 0.25
+    },
+    "tiers": [
+      {
+        "input": 0.4,
+        "output": 1.8,
+        "cache": {
+          "read": 0.04,
+          "write": 0.5
+        },
+        "tier": {
+          "type": "context",
+          "size": 272000
+        }
+      }
+    ],
+    "experimentalOver200K": {
+      "cache": {
+        "read": 0.04,
+        "write": 0.5
+      },
+      "input": 0.4,
+      "output": 1.8
+    }
+  },
+  "limit": {
+    "context": 1050000,
+    "input": 922000,
+    "output": 128000
+  },
+  "capabilities": {
+    "temperature": false,
+    "reasoning": true,
+    "attachment": true,
+    "toolcall": true,
+    "input": {
+      "text": true,
+      "audio": false,
+      "image": true,
+      "video": false,
+      "pdf": true
+    },
+    "output": {
+      "text": true,
+      "audio": false,
+      "image": false,
+      "video": false,
+      "pdf": false
+    },
+    "interleaved": false
+  },
+  "release_date": "2026-07-09",
+  "variants": {
+    "none": {
+      "reasoningEffort": "none",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    },
+    "low": {
+      "reasoningEffort": "low",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    },
+    "medium": {
+      "reasoningEffort": "medium",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    },
+    "high": {
+      "reasoningEffort": "high",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    },
+    "xhigh": {
+      "reasoningEffort": "xhigh",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    },
+    "max": {
+      "reasoningEffort": "max",
+      "reasoningSummary": "auto",
+      "include": [
+        "reasoning.encrypted_content"
+      ]
+    }
+  }
+}
+opencode-go/claude-haiku-5-5
+{
+  "id": "claude-haiku-5-5",
+  "providerID": "opencode-go",
+  "name": "Claude Haiku 5.5",
+  "family": "claude-haiku",
+  "api": {
+    "id": "claude-haiku-5-5",
+    "url": "https://opencode.ai/inference/go/v1",
+    "npm": "@ai-sdk/anthropic"
+  },
+  "status": "active",
+  "headers": {},
+  "options": {},
+  "cost": {
+    "input": 0.1,
+    "output": 0.5,
+    "cache": {
+      "read": 0.01,
+      "write": 0.125
+    },
+    "tiers": [
+      {
+        "input": 0.5,
+        "output": 2.5,
+        "cache": {
+          "read": 0.05,
+          "write": 0.625
+        },
+        "tier": {
+          "type": "context",
+          "size": 100000
+        }
+      }
+    ]
+  },
+  "limit": {
+    "context": 1000000,
+    "output": 128000
+  },
+  "capabilities": {
+    "temperature": false,
+    "reasoning": true,
+    "attachment": true,
+    "toolcall": true,
+    "input": {
+      "text": true,
+      "audio": false,
+      "image": true,
+      "video": false,
+      "pdf": true
+    },
+    "output": {
+      "text": true,
+      "audio": false,
+      "image": false,
+      "video": false,
+      "pdf": false
+    },
+    "interleaved": false
+  },
+  "release_date": "2026-10-07",
+  "variants": {
+    "low": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "effort": "low"
+    },
+    "medium": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "effort": "medium"
+    },
+    "high": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "effort": "high"
+    },
+    "xhigh": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "effort": "xhigh"
+    },
+    "max": {
+      "thinking": {
+        "type": "adaptive",
+        "display": "summarized"
+      },
+      "effort": "max"
+    }
+  }
+}

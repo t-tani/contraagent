@@ -48,7 +48,7 @@ export function parseSelection(g: LayerGraph, matrix: PassMatrix | null, sel: st
 
 /** The tasks of a layer's nodes by state, added up. */
 export function layerCounts(nodes: readonly Pick<GraphNode, 'counts'>[]): NodeCounts {
-  const c: NodeCounts = { total: 0, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
+  const c: NodeCounts = { total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
   for (const n of nodes) for (const k of Object.keys(c) as (keyof NodeCounts)[]) c[k] += n.counts[k];
   return c;
 }

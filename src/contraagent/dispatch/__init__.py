@@ -15,7 +15,19 @@ from contraagent.dispatch.flow import FlowCall, FlowDriver, TaskDeferred, TaskFa
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import PythonTaskPayload, make_python_task
 from contraagent.dispatch.queue import ClaimCapacity, TaskRunner, WorkQueue
-from contraagent.dispatch.task import PYTHON_KEY_PREFIX, Changes, Deferral, Frame, Loop, Origin, Task, TaskResult, TimeBox, kind_name
+from contraagent.dispatch.task import (
+    PYTHON_KEY_PREFIX,
+    Changes,
+    Deferral,
+    Frame,
+    Loop,
+    Origin,
+    Partial,
+    Task,
+    TaskResult,
+    TimeBox,
+    kind_name,
+)
 
 __all__ = [
     "PYTHON_KEY_PREFIX",
@@ -27,6 +39,7 @@ __all__ = [
     "Frame",
     "Loop",
     "Origin",
+    "Partial",
     "PythonTaskPayload",
     "ResultEnricher",
     "Task",

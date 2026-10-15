@@ -32,6 +32,7 @@ def _usage(o) -> TokenUsage | None:
         calls=u.n_calls,
         resident=u.resident if u.calls else None,
         peak_context=u.peak_context if u.calls else None,
+        context_window=o.context_window,
     )
 
 
@@ -110,6 +111,7 @@ class Journal:
             context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,
             flow_call=task.origin.flow_call if task.origin is not None else None,
+            replayed=result.replayed,
             **(self._row_extras(result) if self._row_extras else {}),
         )
 

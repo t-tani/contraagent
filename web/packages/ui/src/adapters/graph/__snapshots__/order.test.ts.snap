@@ -6748,27 +6748,27 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     "at": [
       "kind:prepare 16,48 118x52",
       "kind:summarize 190,48 126x52",
-      "loop:130 372,16 442x108",
-      "kind:score@130 384,48 110x52",
-      "kind:review@130 534,48 114x52",
-      "kind:revise@130 688,48 114x52",
+      "loop:134 372,16 442x108",
+      "kind:score@134 384,48 110x52",
+      "kind:review@134 534,48 114x52",
+      "kind:revise@134 688,48 114x52",
       "kind:write_note 870,48 130x52",
     ],
     "boxes": [
-      "loop:130 <  passes 2 spread [[1,4],[2,1]] [["kind:score@130"],["kind:review@130"],["kind:revise@130"]]",
+      "loop:134 <  passes 2 spread [[1,4],[2,1]] [["kind:score@134"],["kind:review@134"],["kind:revise@134"]]",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
-      "kind:summarize > kind:score@130 after 5",
-      "kind:summarize > kind:review@130 after 5",
-      "kind:score@130 > kind:review@130 after 6",
+      "kind:summarize > kind:score@134 after 5",
+      "kind:summarize > kind:review@134 after 5",
+      "kind:score@134 > kind:review@134 after 6",
       "kind:summarize > kind:write_note after 4",
-      "kind:review@130 > kind:write_note created 5",
-      "kind:summarize > kind:revise@130 after 1",
-      "kind:review@130 > kind:revise@130 after 1",
-      "kind:revise@130 > kind:score@130 after 1 back",
-      "kind:revise@130 > kind:review@130 after 1 back",
-      "kind:revise@130 > kind:write_note after 1",
+      "kind:review@134 > kind:write_note created 5",
+      "kind:summarize > kind:revise@134 after 1",
+      "kind:review@134 > kind:revise@134 after 1",
+      "kind:revise@134 > kind:score@134 after 1 back",
+      "kind:revise@134 > kind:review@134 after 1 back",
+      "kind:revise@134 > kind:write_note after 1",
     ],
     "layers": [
       [
@@ -6778,7 +6778,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
         "kind:summarize",
       ],
       [
-        "loop:130",
+        "loop:134",
       ],
       [
         "kind:write_note",
@@ -6786,34 +6786,34 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,74 L190,74",
-      "kind:summarize > kind:score@130: M316,74 L372,74 L384,74",
-      "kind:summarize > kind:review@130: M316,74 C344,74 344,152 372,152 L494,152 C514,152 514,74 534,74",
-      "kind:score@130 > kind:review@130: M494,74 L534,74",
+      "kind:summarize > kind:score@134: M316,74 L372,74 L384,74",
+      "kind:summarize > kind:review@134: M316,74 C344,74 344,152 372,152 L494,152 C514,152 514,74 534,74",
+      "kind:score@134 > kind:review@134: M494,74 L534,74",
       "kind:summarize > kind:write_note: M316,74 C344,74 344,164 372,164 L814,164 C842,164 842,74 870,74",
-      "kind:review@130 > kind:write_note: M648,74 C668,74 668,140 688,140 L814,140 C842,140 842,74 870,74",
-      "kind:summarize > kind:revise@130: M316,74 C344,74 344,152 372,152 L648,152 C668,152 668,74 688,74",
-      "kind:review@130 > kind:revise@130: M648,74 L688,74",
-      "kind:revise@130 > kind:write_note: M802,74 L814,74 L870,74",
+      "kind:review@134 > kind:write_note: M648,74 C668,74 668,140 688,140 L814,140 C842,140 842,74 870,74",
+      "kind:summarize > kind:revise@134: M316,74 C344,74 344,152 372,152 L648,152 C668,152 668,74 688,74",
+      "kind:review@134 > kind:revise@134: M648,74 L688,74",
+      "kind:revise@134 > kind:write_note: M802,74 L814,74 L870,74",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-epsilon python:prepare-zeta] []",
       "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
-      "kind:score@130 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
-      "kind:review@130 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
-      "kind:revise@130 [- - revise-gamma - - -] []",
+      "kind:score@134 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
+      "kind:review@134 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
+      "kind:revise@134 [- - revise-gamma - - -] []",
       "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon -] []",
     ],
     "order": {
       "boxes": {
-        "loop:130": [
+        "loop:134": [
           [
-            "kind:score@130",
+            "kind:score@134",
           ],
           [
-            "kind:review@130",
+            "kind:review@134",
           ],
           [
-            "kind:revise@130",
+            "kind:revise@134",
           ],
         ],
       },
@@ -6825,7 +6825,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:130",
+          "loop:134",
         ],
         [
           "kind:write_note",
@@ -6833,18 +6833,18 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       ],
     },
     "returns": [
-      "loop:130: M745,103 L745,106 Q745,112 739,112 L445,112 Q439,112 439,106 L439,103",
+      "loop:134: M745,103 L745,106 Q745,112 739,112 L445,112 Q439,112 439,106 L439,103",
     ],
     "routes": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:summarize@ | loop:130@ | kind:score@130@loop:130",
-      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:review@130@loop:130",
-      "after: kind:score@130@loop:130 | kind:review@130@loop:130",
+      "after: kind:summarize@ | loop:134@ | kind:score@134@loop:134",
+      "after: kind:summarize@ | ~|by:loop:134|>:kind:summarize|after|2@ | loop:134@ | kind:review@134@loop:134",
+      "after: kind:score@134@loop:134 | kind:review@134@loop:134",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
-      "created: kind:review@130@loop:130 | loop:130@ | ~|by:loop:130|kind:review@130|created|2@ | kind:write_note@",
-      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:revise@130@loop:130",
-      "after: kind:review@130@loop:130 | kind:revise@130@loop:130",
-      "after: kind:revise@130@loop:130 | loop:130@ | kind:write_note@",
+      "created: kind:review@134@loop:134 | loop:134@ | ~|by:loop:134|kind:review@134|created|2@ | kind:write_note@",
+      "after: kind:summarize@ | ~|by:loop:134|>:kind:summarize|after|2@ | loop:134@ | kind:revise@134@loop:134",
+      "after: kind:review@134@loop:134 | kind:revise@134@loop:134",
+      "after: kind:revise@134@loop:134 | loop:134@ | kind:write_note@",
     ],
     "size": "1016x180",
     "slots": {
@@ -6856,24 +6856,24 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:130",
-          "~|by:loop:130|kind:review@130|created|2",
-          "~|by:loop:130|>:kind:summarize|after|2",
+          "loop:134",
+          "~|by:loop:134|kind:review@134|created|2",
+          "~|by:loop:134|>:kind:summarize|after|2",
           "~|kind:summarize|after|2",
         ],
         [
           "kind:write_note",
         ],
       ],
-      "loop:130": [
+      "loop:134": [
         [
-          "kind:score@130",
+          "kind:score@134",
         ],
         [
-          "kind:review@130",
+          "kind:review@134",
         ],
         [
-          "kind:revise@130",
+          "kind:revise@134",
         ],
       ],
     },
@@ -6891,27 +6891,27 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     "at": [
       "kind:prepare 152,16 118x52",
       "kind:summarize 148,108 126x52",
-      "loop:130 16,200 164x280",
-      "kind:score@130 28,250 110x52",
-      "kind:review@130 26,334 114x52",
-      "kind:revise@130 26,418 114x52",
+      "loop:134 16,200 164x280",
+      "kind:score@134 28,250 110x52",
+      "kind:review@134 26,334 114x52",
+      "kind:revise@134 26,418 114x52",
       "kind:write_note 18,520 130x52",
     ],
     "boxes": [
-      "loop:130 <  passes 2 spread [[1,4],[2,1]] [["kind:score@130"],["kind:review@130"],["kind:revise@130"]]",
+      "loop:134 <  passes 2 spread [[1,4],[2,1]] [["kind:score@134"],["kind:review@134"],["kind:revise@134"]]",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
-      "kind:summarize > kind:score@130 after 5",
-      "kind:summarize > kind:review@130 after 5",
-      "kind:score@130 > kind:review@130 after 6",
+      "kind:summarize > kind:score@134 after 5",
+      "kind:summarize > kind:review@134 after 5",
+      "kind:score@134 > kind:review@134 after 6",
       "kind:summarize > kind:write_note after 4",
-      "kind:review@130 > kind:write_note created 5",
-      "kind:summarize > kind:revise@130 after 1",
-      "kind:review@130 > kind:revise@130 after 1",
-      "kind:revise@130 > kind:score@130 after 1 back",
-      "kind:revise@130 > kind:review@130 after 1 back",
-      "kind:revise@130 > kind:write_note after 1",
+      "kind:review@134 > kind:write_note created 5",
+      "kind:summarize > kind:revise@134 after 1",
+      "kind:review@134 > kind:revise@134 after 1",
+      "kind:revise@134 > kind:score@134 after 1 back",
+      "kind:revise@134 > kind:review@134 after 1 back",
+      "kind:revise@134 > kind:write_note after 1",
     ],
     "layers": [
       [
@@ -6921,7 +6921,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
         "kind:summarize",
       ],
       [
-        "loop:130",
+        "loop:134",
       ],
       [
         "kind:write_note",
@@ -6929,34 +6929,34 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M211,68 L211,108",
-      "kind:summarize > kind:score@130: M211,160 C211,180 208,180 208,200 L208,230 C208,240 83,240 83,250",
-      "kind:summarize > kind:review@130: M211,160 C211,180 208,180 208,200 L208,302 C208,318 83,318 83,334",
-      "kind:score@130 > kind:review@130: M83,302 L83,334",
+      "kind:summarize > kind:score@134: M211,160 C211,180 208,180 208,200 L208,230 C208,240 83,240 83,250",
+      "kind:summarize > kind:review@134: M211,160 C211,180 208,180 208,200 L208,302 C208,318 83,318 83,334",
+      "kind:score@134 > kind:review@134: M83,302 L83,334",
       "kind:summarize > kind:write_note: M211,160 C211,180 220,180 220,200 L220,480 C220,500 83,500 83,520",
-      "kind:review@130 > kind:write_note: M83,386 C83,402 196,402 196,418 L196,480 C196,500 83,500 83,520",
-      "kind:summarize > kind:revise@130: M211,160 C211,180 208,180 208,200 L208,386 C208,402 83,402 83,418",
-      "kind:review@130 > kind:revise@130: M83,386 L83,418",
-      "kind:revise@130 > kind:write_note: M83,470 L83,480 L83,520",
+      "kind:review@134 > kind:write_note: M83,386 C83,402 196,402 196,418 L196,480 C196,500 83,500 83,520",
+      "kind:summarize > kind:revise@134: M211,160 C211,180 208,180 208,200 L208,386 C208,402 83,402 83,418",
+      "kind:review@134 > kind:revise@134: M83,386 L83,418",
+      "kind:revise@134 > kind:write_note: M83,470 L83,480 L83,520",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-epsilon python:prepare-zeta] []",
       "kind:summarize [summarize-alpha summarize-beta summarize-gamma summarize-delta summarize-epsilon summarize-zeta] []",
-      "kind:score@130 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
-      "kind:review@130 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
-      "kind:revise@130 [- - revise-gamma - - -] []",
+      "kind:score@134 [python:score-alpha python:score-beta python:score-gamma~2 python:score-delta python:score-epsilon -] []",
+      "kind:review@134 [review-alpha review-beta review-gamma~2 review-delta review-epsilon -] []",
+      "kind:revise@134 [- - revise-gamma - - -] []",
       "kind:write_note [write_note-alpha write_note-beta write_note-gamma write_note-delta write_note-epsilon -] []",
     ],
     "order": {
       "boxes": {
-        "loop:130": [
+        "loop:134": [
           [
-            "kind:score@130",
+            "kind:score@134",
           ],
           [
-            "kind:review@130",
+            "kind:review@134",
           ],
           [
-            "kind:revise@130",
+            "kind:revise@134",
           ],
         ],
       },
@@ -6968,7 +6968,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:130",
+          "loop:134",
         ],
         [
           "kind:write_note",
@@ -6976,18 +6976,18 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       ],
     },
     "returns": [
-      "loop:130: M143,444 L146,444 Q152,444 152,438 L152,282 Q152,276 146,276 L141,276",
+      "loop:134: M143,444 L146,444 Q152,444 152,438 L152,282 Q152,276 146,276 L141,276",
     ],
     "routes": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:score@130@loop:130",
-      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:review@130@loop:130",
-      "after: kind:score@130@loop:130 | kind:review@130@loop:130",
+      "after: kind:summarize@ | ~|by:loop:134|>:kind:summarize|after|2@ | loop:134@ | kind:score@134@loop:134",
+      "after: kind:summarize@ | ~|by:loop:134|>:kind:summarize|after|2@ | loop:134@ | kind:review@134@loop:134",
+      "after: kind:score@134@loop:134 | kind:review@134@loop:134",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
-      "created: kind:review@130@loop:130 | loop:130@ | ~|by:loop:130|kind:review@130|created|2@ | kind:write_note@",
-      "after: kind:summarize@ | ~|by:loop:130|>:kind:summarize|after|2@ | loop:130@ | kind:revise@130@loop:130",
-      "after: kind:review@130@loop:130 | kind:revise@130@loop:130",
-      "after: kind:revise@130@loop:130 | loop:130@ | kind:write_note@",
+      "created: kind:review@134@loop:134 | loop:134@ | ~|by:loop:134|kind:review@134|created|2@ | kind:write_note@",
+      "after: kind:summarize@ | ~|by:loop:134|>:kind:summarize|after|2@ | loop:134@ | kind:revise@134@loop:134",
+      "after: kind:review@134@loop:134 | kind:revise@134@loop:134",
+      "after: kind:revise@134@loop:134 | loop:134@ | kind:write_note@",
     ],
     "size": "290x588",
     "slots": {
@@ -6999,24 +6999,24 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
           "kind:summarize",
         ],
         [
-          "loop:130",
-          "~|by:loop:130|kind:review@130|created|2",
-          "~|by:loop:130|>:kind:summarize|after|2",
+          "loop:134",
+          "~|by:loop:134|kind:review@134|created|2",
+          "~|by:loop:134|>:kind:summarize|after|2",
           "~|kind:summarize|after|2",
         ],
         [
           "kind:write_note",
         ],
       ],
-      "loop:130": [
+      "loop:134": [
         [
-          "kind:score@130",
+          "kind:score@134",
         ],
         [
-          "kind:review@130",
+          "kind:review@134",
         ],
         [
-          "kind:revise@130",
+          "kind:revise@134",
         ],
       ],
     },
@@ -7030,25 +7030,25 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       "zeta",
     ],
   },
-  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | loop:130": {
+  "contraagent.docs.examples.demo.tasks.docs / contraagent.docs.examples.demo.tasks.review_loop | loop:134": {
     "columns": [
-      "kind:score@130|1",
-      "kind:review@130|1",
-      "kind:revise@130|1",
-      "kind:score@130|2",
-      "kind:review@130|2",
+      "kind:score@134|1",
+      "kind:review@134|1",
+      "kind:revise@134|1",
+      "kind:score@134|2",
+      "kind:review@134|2",
     ],
     "head": [
       [
-        "pass loop:130 1 3x1",
-        "pass loop:130 2 2x1",
+        "pass loop:134 1 3x1",
+        "pass loop:134 2 2x1",
       ],
       [
-        "kind:score@130 1x1",
-        "kind:review@130 1x1",
-        "kind:revise@130 1x1",
-        "kind:score@130 1x1",
-        "kind:review@130 1x1",
+        "kind:score@134 1x1",
+        "kind:review@134 1x1",
+        "kind:revise@134 1x1",
+        "kind:score@134 1x1",
+        "kind:review@134 1x1",
       ],
     ],
     "rows": [
@@ -7056,7 +7056,7 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
       "beta 1 done: python:score-beta review-beta - - -",
       "gamma 2 done: python:score-gamma review-gamma revise-gamma python:score-gamma~2 review-gamma~2",
       "delta 1 done: python:score-delta review-delta - - -",
-      "epsilon 1 done: python:score-epsilon review-epsilon - - -",
+      "epsilon 1 partial: python:score-epsilon review-epsilon - - -",
     ],
   },
   "contraagent.docs.examples.demo.tasks.docs | across": {

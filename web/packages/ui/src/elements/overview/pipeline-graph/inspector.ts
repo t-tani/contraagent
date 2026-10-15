@@ -57,6 +57,7 @@ function inspect(h: PipelineHost, s: Selected) {
     return html`<h4>${n.executor && n.executor !== 'mixed' ? executorIcon(n.executor === 'python') : nothing}${n.label}</h4>
       <div class="sub">${executorWord(n)}</div>
       <dl>
+        ${n.kinds.length > 1 ? row(msg('Kinds'), listText(n.kinds)) : nothing}
         ${row(msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), html`${doneOf(c)}${states}`)}
         ${row(msg('Waits for'), list(waits))}
         ${after.length ? row(msg('Created after'), list(after)) : nothing}
@@ -65,9 +66,10 @@ function inspect(h: PipelineHost, s: Selected) {
       <div class="acts">${link(msg(str`Tasks of ${n.label}`), () => primary(h, s), true)}${clear}</div>`;
   }
   const { node, mark: m, passes } = s;
-  const name = kindUnit({ kind: node.label, unit: m.unit });
+  const task = m.flow || m.count !== 1 ? undefined : h.links.byKey.get(m.key);
+  const name = kindUnit({ kind: task?.kind ?? node.label, unit: m.unit });
   const cause = !m.flow && m.state === 'blocked' ? causeOf(h)(m.key) : '';
-  const status = html`<span data-status class=${m.state === 'failed' ? 'err' : m.state === 'blocked' ? 'warn' : ''}>${stateWord(m.state, h.live)}</span>`;
+  const status = html`<span data-status class=${m.state === 'failed' ? 'err' : m.state === 'blocked' || m.state === 'partial' ? 'warn' : ''}>${stateWord(m.state, h.live)}</span>`;
   const look = taskStateStyles(h.live)[m.state];
   const head = html`<h4 title=${m.flow ? msg(str`Flow call ${m.key}`) : m.key}><i class="mark" data-tone=${toneAttr(look?.tone)} data-shape=${look?.shape ?? nothing} aria-hidden="true"></i>${name}</h4>`;
   const pass = passes.length ? listText(passes.map(passLabel)) : m.passes ? passesRan(m.passes) : '';

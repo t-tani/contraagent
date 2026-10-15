@@ -4,13 +4,12 @@ Each launch can load one static plugin dir (`--plugin-dir`), so the
 invocation sees exactly one agent, its skill bundle, its command prompt,
 and its settings — never the working tree's top-level .claude/ directory.
 
-Ported from an earlier `claude -p` wrapper (`ClaudeCLI`): the full
-argv surface, the live stream reader (per-call usage, rate limits,
-denials, retries, budget/context/stall/denial stops), and the
-result classifier. Env isolation (PARENT_SESSION_ENV + DEFAULT_ENV) and the
+It holds the full argv surface, the live stream reader (per-call usage,
+rate limits, denials, retries, budget/context/stall/denial stops), and
+the result classifier. Env isolation (PARENT_SESSION_ENV + DEFAULT_ENV) and the
 provider identity (`Credential`) are shared with the omp backend.
-Plugin isolation rides on top: `--plugin-dir`, where a pipeline passes
-`--agent` resolved from `.claude/agents/`.
+Plugin isolation rides on top: `--plugin-dir`, with `--agent` naming the
+task's role in that plugin.
 """
 
 from __future__ import annotations
@@ -74,11 +73,8 @@ def other_models(model_usage: object, own: str) -> dict[str, dict]:
     """The result's `modelUsage` (`{model: {"costUSD", "inputTokens", ...}}`) less the
     launch's own model (`own`, the session's model; else the one that wrote the most),
     as `LaunchResult.other_models`."""
-    if not isinstance(model_usage, dict):
-        return {}
-    used = {m: u for m, u in model_usage.items() if isinstance(u, dict)}
-    if own not in used and used:
-        own = max(used, key=lambda m: _int(used[m].get("outputTokens")))
+    used = _model_usage(model_usage)
+    own = _own_model(used, own)
     return {
         m: {
             "cost_usd": u.get("costUSD") if isinstance(u.get("costUSD"), (int, float)) else None,
@@ -90,6 +86,27 @@ def other_models(model_usage: object, own: str) -> dict[str, dict]:
         for m, u in used.items()
         if m != own
     }
+
+
+def context_window(model_usage: object, own: str) -> int | None:
+    """The context window of the launch's own model (`own`, chosen as `other_models`
+    chooses it): the result's `modelUsage[<model>].contextWindow`, as
+    `LaunchResult.context_window`; None when the result reports none."""
+    used = _model_usage(model_usage)
+    window = used.get(_own_model(used, own), {}).get("contextWindow")
+    return int(window) if isinstance(window, int) and not isinstance(window, bool) and window > 0 else None
+
+
+def _model_usage(model_usage: object) -> dict[str, dict]:
+    if not isinstance(model_usage, dict):
+        return {}
+    return {m: u for m, u in model_usage.items() if isinstance(u, dict)}
+
+
+def _own_model(used: dict[str, dict], own: str) -> str:
+    if own not in used and used:
+        return max(used, key=lambda m: _int(used[m].get("outputTokens")))
+    return own
 
 
 def _int(v: object) -> int:
@@ -495,6 +512,7 @@ class ClaudeBackend(Backend):
             cost_usd=res.get("total_cost_usd"),
             usage=reader.usage,
             other_models=other_models(res.get("modelUsage"), reader.init_model or launch.model),
+            context_window=context_window(res.get("modelUsage"), reader.init_model or launch.model),
             rate_limit=reader.rate_limit,
             rate_limits=list(reader.rate_limits),
             permission_denials=list(res.get("permission_denials") or []) or list(reader.denied),

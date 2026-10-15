@@ -7,11 +7,12 @@ import type { DeferralCause, JournalRow, Plan, PlanNode, TaskState } from './typ
 /**
  * - `done`: its last attempt completed, first time.
  * - `recovered`: a try that ran failed at least once, then its last attempt completed.
+ * - `partial`: its last attempt was partial (stop `partial`): ok, its output a placeholder; not done, not failed.
  * - `failed`: it ran and its last attempt failed.
  * - `not_started`: it never ran: an input was missing or off-contract, or it waits behind a task that failed.
  * - `running`, `waiting` (queued, not started yet), `skipped`.
  */
-export type Outcome = 'done' | 'recovered' | 'failed' | 'not_started' | 'running' | 'waiting' | 'skipped';
+export type Outcome = 'done' | 'recovered' | 'partial' | 'failed' | 'not_started' | 'running' | 'waiting' | 'skipped';
 
 export interface TaskOutcome {
   key: string;
@@ -59,6 +60,7 @@ export function outcomeOf(node: Pick<PlanNode, 'state'> | undefined, attempts: r
   if (!last) return node?.state === 'blocked' ? 'not_started' : 'waiting';
   if (last.stop === 'skipped') return 'skipped';
   if (last.stop === 'invalid_input') return 'not_started';
+  if (last.stop === 'partial') return 'partial';
   if (isOk(last)) return attempts.some((a) => isLaunched(a) && !isOk(a)) ? 'recovered' : 'done';
   return 'failed';
 }
@@ -94,8 +96,8 @@ export function planOutcome(state: TaskState): Outcome {
   }
 }
 
-/** Nothing is left to do for the task: done, done after retrying, or skipped. */
-export const isFinished = (o: Outcome): boolean => o === 'done' || o === 'recovered' || o === 'skipped';
+/** Nothing is left to do for the task in this run: done, done after retrying, partial (its later tasks run on its output), or skipped. */
+export const isFinished = (o: Outcome): boolean => o === 'done' || o === 'recovered' || o === 'partial' || o === 'skipped';
 
 /** Every task of the run (from the plan, and from the journal for tasks the plan does not list), by key. */
 export function taskOutcomes(journal: readonly JournalRow[], plan: Plan): Map<string, TaskOutcome> {
@@ -156,6 +158,8 @@ export interface Problems {
   failed: Problem[];
   /** Tasks that did not start for a reason of their own. */
   notStarted: TaskOutcome[];
+  /** Partial tasks: ok, their output a placeholder. */
+  partial: TaskOutcome[];
   /** Tasks done after retrying. */
   recovered: TaskOutcome[];
 }
@@ -180,13 +184,14 @@ export function problems(outcomes: ReadonlyMap<string, TaskOutcome>): Problems {
   return {
     failed: [...failed.values()].sort((a, b) => lastTs(b.task).localeCompare(lastTs(a.task))),
     notStarted,
+    partial: [...outcomes.values()].filter((t) => t.outcome === 'partial'),
     recovered: [...outcomes.values()].filter((t) => t.outcome === 'recovered'),
   };
 }
 
 /** How many tasks the run has, and how they ended. */
 export function outcomeCounts(outcomes: ReadonlyMap<string, TaskOutcome>): Record<Outcome, number> & { total: number } {
-  const c = { done: 0, recovered: 0, failed: 0, not_started: 0, running: 0, waiting: 0, skipped: 0, total: 0 };
+  const c = { done: 0, recovered: 0, partial: 0, failed: 0, not_started: 0, running: 0, waiting: 0, skipped: 0, total: 0 };
   for (const t of outcomes.values()) {
     c[t.outcome]++;
     c.total++;

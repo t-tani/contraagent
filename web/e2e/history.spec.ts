@@ -39,7 +39,7 @@ test('a filter refines the place: it is in the URL but adds no history entry', a
   await expect.poll(() => params(page).tab).toBe('journal');
   const depth = await page.evaluate(() => history.length);
 
-  await page.locator('ca-journal-table .jchip', { hasText: 'done' }).click();
+  await page.locator('ca-journal-table .jchip', { hasText: /^done/ }).click();
   await expect.poll(() => params(page).stop).toBe('completed'); // the URL keeps the stop value; the chip says it in words
   await page.locator('ca-monitor .bar input').fill('beta');
   await expect.poll(() => params(page).q).toBe('beta');

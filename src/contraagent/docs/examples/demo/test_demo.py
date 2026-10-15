@@ -21,7 +21,7 @@ from contraagent.testing import StubAgent, fails, rate_limited
 
 HERE = Path(__file__).resolve().parent
 
-UNITS = ["alpha", "beta", "delta", "zeta"]
+UNITS = ["alpha", "beta", "delta", "epsilon", "zeta"]
 
 
 def summary(launch):
@@ -56,7 +56,7 @@ def inputs(tmp_path, monkeypatch):
 def test_the_flow_checks_clean():
     report = Pipeline(HERE / "pipeline.toml", backends=StubAgent().backends()).check(docs, units=UNITS)
     assert report.ok, report
-    assert report.kinds == {"prepare": 4, "summarize": 4}  # what the flow creates before its first wait
+    assert report.kinds == {"prepare": 5, "summarize": 5}  # what the flow creates before its first wait
     assert {"score", "review", "revise", "write_note", "report"} <= set(report.later_kinds)  # what its code reaches
 
 
@@ -73,6 +73,9 @@ def test_the_flow_runs_on_the_stub(inputs):
     assert "exactly three expected" in agent.launches_of("summarize-delta")[1].prompt
     assert len(agent.launches_of("review-alpha")) == 2  # retried after the scripted error; the review does not approve
     assert [stops[k] for k in ("revise-alpha", "review-alpha~2", "write_note-alpha")] == ["completed"] * 3  # pass 2 approves
+    assert stops["python:score-epsilon"] == "partial"  # its word counter is unavailable: ok, and its review runs on it
+    assert [r.task.key for r in report.partial] == ["python:score-epsilon"]
+    assert stops["review-epsilon"] == "completed"
 
 
 def test_the_report_covers_the_approved_summaries(inputs):

@@ -33,6 +33,8 @@ export const taskViewStyles = css`
   .usage tr.hop td:first-child { padding-left: 28px; }
   .runchip { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line2); color: var(--text-2); }
   .runchip.ok > [aria-hidden] { color: var(--status-done); font-weight: 700; }
+  .runchip.part { border-color: color-mix(in srgb, var(--status-attention) 45%, transparent); background: var(--status-attention-bg); }
+  .runchip.part > [aria-hidden] { color: var(--status-attention); font-weight: 700; }
   .runchip.bad { border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); color: var(--status-failed); background: var(--status-failed-bg); }
   .io-fold { margin-top: 6px; }
   .io-fold > summary, .launch > summary { cursor: pointer; color: var(--text-muted); }

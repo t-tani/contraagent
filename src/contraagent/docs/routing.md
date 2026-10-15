@@ -18,6 +18,14 @@ and any credential problem (below). A `[tasks.<name>]` table that names no task
 of the flow is reported, not fatal: one config file often serves several flows,
 but it may be a typo.
 
+A pipeline keeps its own settings in the same file, each in a **pipeline table**
+`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+`contraagent.pipeline_table(name)` ([tasks](tasks.md)), other code with
+`PipelineConfig.table(name)`; either is an empty table when the file has none.
+contraagent never checks the keys inside; a `pipeline.<name>` that is not a table is
+refused. Any other top-level table is refused before
+anything launches.
+
 ## Budgets
 
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
@@ -34,7 +42,13 @@ each call's tokens but are not stopped. `context_warn_pct` (1 to 99, in a task
 table, `agent_task(...)` or `[defaults]`) is a percent of `context_budget` and
 stops nothing: an attempt whose peak context passed it is recorded
 (`context_warned` in the journal, beside `context_budget` and
-`usage.peak_context`) and logged (`[context] <key>: peak context ...`). A kind with
+`usage.peak_context`) and logged (`[context] <key>: peak context ...`). The
+journal's `usage.context_window` is the window of the model the peak context was
+on, as the coding agent reports it: in its stream (Claude Code, Codex, omp RPC) or,
+when the stream gives none, in its model catalogue for the model the launch ran on
+(omp `-p`, pi, opencode; `Backend.context_window`). `launches.jsonl` holds it and
+`context_pct`, the peak context as a percent of it, both null when the coding agent
+reports no window. A kind with
 a `context_warn_pct` but no `context_budget` is refused before anything launches;
 `[defaults].context_warn_pct` applies to every kind with a `context_budget` and
 none of its own.

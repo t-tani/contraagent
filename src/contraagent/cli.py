@@ -14,6 +14,10 @@ contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha
 contraagent run tasks.py:docs --stub [--execute KIND]
                                          # a stub run: the stub agent plays every task with the smallest
                                          # output, and the tasks the flow created are listed
+contraagent run tasks.py:docs --record DIR   # a run that keeps each task attempt's recording in DIR
+contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
+                                         # a replay: every task plays its recording, nothing is spent;
+                                         # with --record-missing, a task with none runs and is recorded
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
 """
@@ -96,21 +100,35 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         metavar="KIND",
-        help="with --stub: run the function of this Python task kind instead of playing it (repeatable)",
+        help="with --stub or --replay: run the function of this Python task kind instead of playing it (repeatable)",
     )
     run.add_argument(
         "--record",
         default=None,
         metavar="DIR",
-        help="write each agent task attempt's recording to DIR: its outputs, the files its changes= patterns saw change, "
+        help="write each task attempt's recording to DIR: its outputs, the files its changes= patterns saw change, "
         "its transcript and its result",
     )
     run.add_argument(
         "--replay",
         default=None,
         metavar="DIR",
-        help="a replay: play the recordings in DIR in place of every agent task's launch; Python tasks run their functions, "
-        "nothing is spent (run id: <flow>-replay). Not with --stub or --record",
+        help="a replay: play the recordings in DIR in place of every agent task's launch and every Python task's function "
+        "(but the kinds of --execute); nothing is spent (run id: <flow>-replay). Not with --stub or --record",
+    )
+    run.add_argument(
+        "--record-max-file-mb",
+        type=float,
+        default=None,
+        metavar="N",
+        help="with --record or --record-missing: keep a recorded file larger than N MB by its SHA-256 and size only "
+        "(default 4); its task cannot be replayed",
+    )
+    run.add_argument(
+        "--record-missing",
+        action="store_true",
+        help="with --replay: a task with no recording in DIR launches (or runs its function) as in any run, and its "
+        "recording is written into DIR; this can spend tokens",
     )
 
     docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
@@ -201,11 +219,14 @@ def _flow_command(args) -> int:
             from contraagent.testing import StubAgent, writes_smallest
 
             stub = StubAgent(default=writes_smallest(), execute=args.execute)
-        elif args.cmd == "run" and args.execute:
-            print("--execute: only with --stub", file=sys.stderr)
-            return 2
         record = getattr(args, "record", None)
         replay = getattr(args, "replay", None)
+        if args.cmd == "run" and args.execute and not args.stub and replay is None:
+            print("--execute: only with --stub or --replay", file=sys.stderr)
+            return 2
+        if args.cmd == "run" and args.record_missing and replay is None:
+            print("--record-missing: only with --replay", file=sys.stderr)
+            return 2
         if replay is not None and (args.stub or record is not None):
             print(f"--replay: not with {'--stub' if args.stub else '--record'}", file=sys.stderr)
             return 2
@@ -219,6 +240,9 @@ def _flow_command(args) -> int:
             preflight=getattr(args, "preflight", None),
             record=record,
             replay=replay,
+            execute=args.execute if replay is not None else (),
+            record_missing=bool(getattr(args, "record_missing", False)),
+            record_max_file_mb=getattr(args, "record_max_file_mb", None),
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "

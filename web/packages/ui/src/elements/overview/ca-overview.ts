@@ -319,13 +319,14 @@ export class CaOverview extends LitElement {
     const r = result(plan);
     if (live || r.left) {
       const p = progress(plan);
-      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`), p.skipped ? stateCount('skipped', p.skipped) : '');
+      return facts(msg(str`${p.pct}%`), msg(str`${p.done} of ${p.total} tasks done`), p.partial ? stateCount('partial', p.partial) : '', p.skipped ? stateCount('skipped', p.skipped) : '');
     }
     return facts(
       stateCount('done', r.done),
       r.skipped ? stateCount('skipped', r.skipped) : '',
       r.failed ? stateCount('failed', r.failed) : '',
       r.notStarted ? stateCount('not_started', r.notStarted) : '',
+      r.partial ? stateCount('partial', r.partial) : '',
     );
   }
 
@@ -408,8 +409,8 @@ export class CaOverview extends LitElement {
 
   private problems(live: boolean) {
     const { outcomes, problems } = deriveRun(this.state.journal, this.state.plan);
-    const { failed, notStarted, recovered } = problems;
-    if (!failed.length && !notStarted.length && !recovered.length) {
+    const { failed, notStarted, partial, recovered } = problems;
+    if (!failed.length && !notStarted.length && !partial.length && !recovered.length) {
       return html`<div class="ok"><span aria-hidden="true">✓</span>${msg('No problems')}</div>`;
     }
     const reason = (t: TaskOutcome) => runRelative(t.attempts[t.attempts.length - 1]?.reason || '—', this.run).slice(0, 200);
@@ -443,6 +444,15 @@ export class CaOverview extends LitElement {
         </div>`,
       )}
       ${repeat(
+        partial,
+        (t) => t.key,
+        (t) => html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, t)}>
+          ${statusWord({ text: outcomeLabel('partial'), tone: outcomeTone('partial') })}
+          ${this.nameButton(t)}<span></span>
+          <div class="meta">${reason(t)}</div>
+        </div>`,
+      )}
+      ${repeat(
         recovered,
         (t) => t.key,
         (t) => {
@@ -457,14 +467,15 @@ export class CaOverview extends LitElement {
           </div>`;
         },
       )}
-      ${this.nextStep(live, failed.length + notStarted.length)}`;
+      ${this.nextStep(live, failed.length + notStarted.length + partial.length)}`;
   }
 
   /** For a finished run with problems: how many tasks are not done (the tasks resume=True runs again). */
   private nextStep(live: boolean, problemCount: number) {
     if (live || !problemCount) return nothing;
     const c = deriveRun(this.state.journal, this.state.plan).counts;
-    const again = c.total - c.finished;
+    // A partly done task is finished in this run, and not done: a resume runs it again.
+    const again = c.total - c.finished + c.partial;
     if (!again) return nothing;
     return html`<div class="next" title="resume=True">${msg(str`${again} of ${c.total} tasks not done`)}</div>`;
   }

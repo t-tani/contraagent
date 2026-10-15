@@ -44,6 +44,24 @@ describe('trendSections', () => {
     expect(trendSections({ ...TRENDS, totals: { ...TRENDS.totals, runs: 0 } }, 'en')).toEqual([]);
   });
 
+  it('counts partly done tasks and attempts apart, in a column only when the period has them', () => {
+    const cols = (b: unknown) => (b as TableBody).columns.map((c) => c.id);
+    expect(cols(by('kinds'))).not.toContain('partial');
+    expect(cols(by('runs'))).not.toContain('partial');
+    const t = {
+      ...TRENDS,
+      totals: { ...TRENDS.totals, partial: 1 },
+      kinds: TRENDS.kinds.map((k, i) => (i ? k : { ...k, tasks_ok: 2, tasks_partial: 1 })),
+      runs: TRENDS.runs.map((r, i) => (i ? r : { ...r, partial: 1 })),
+    } as Trends;
+    const s = trendSections(t, 'en');
+    const body = (id: string) => s.find((x) => x.id === id)?.body as TableBody;
+    expect(cols(body('kinds'))).toContain('partial');
+    expect(body('kinds').rows.map((r) => [r['kind'], r['partial']])).toEqual([['writer', 0], ['triage', 1]]);
+    expect(body('runs').rows.map((r) => r['partial'])).toEqual([1, 0]);
+    expect((s[0]?.body as TilesBody).tiles.find((x) => x.id === 'attempts')?.sub).toEqual([['Passed 90%', '1 partly done']]);
+  });
+
   it('stacks the cost of each day by kind, the costliest kind first, a day without it empty', () => {
     const c = by('cost-by-day') as ColumnsBody;
     expect(c.x).toEqual(['Oct 13', 'Oct 14']);

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { NodeCounts } from './types.js';
 import { countOf, doneOf, exceptions, notDone, stateCounts, stateWord, where } from './words.js';
 
-const counts = (c: Partial<NodeCounts>): NodeCounts => ({ total: 0, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, ...c });
+const counts = (c: Partial<NodeCounts>): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, ...c });
 
 describe('pipeline graph words', () => {
   it('counts the tasks done (done after retrying included), and skipped ones apart', () => {
@@ -21,6 +21,10 @@ describe('pipeline graph words', () => {
       ['live', '1 running'],
       ['mut', '3 waiting'],
       ['mut', '1 skipped'],
+    ]);
+    expect(exceptions({ counts: counts({ total: 3, done: 1, partial: 1, blocked: 1 }), errors: 0 }, false)).toEqual([
+      ['warn', '1 not started'],
+      ['warn', '1 partly done'],
     ]);
     expect(exceptions({ counts: counts({ total: 1, done: 1 }), errors: 1 }, true)).toEqual([['err', '1 flow call stopped with an error']]);
     expect(exceptions({ counts: counts({ total: 1, done: 1 }), errors: 0 }, true)).toEqual([]);

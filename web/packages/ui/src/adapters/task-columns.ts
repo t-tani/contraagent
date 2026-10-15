@@ -1,6 +1,6 @@
 // The tasks list's columns (`ca-task-table`): a row per task of the run
 // (`TaskRow`), its attempts, time, tokens, cost and status.
-import { addRow, emptySpend, isPython, type JournalRow, type Spend, type TaskOutcome, type TaskRow } from '@contraagent/api';
+import { addRow, emptySpend, isPython, runRelative, type JournalRow, type Spend, type TaskOutcome, type TaskRow } from '@contraagent/api';
 import type { DataColumn } from '@contraagent/elements/data-table';
 import { pill } from '@contraagent/elements/primitives';
 import { msg, str } from '@lit/localize';
@@ -27,9 +27,10 @@ export interface TaskColumnsContext {
 
 const none = () => msg('none', { id: 'none', desc: 'An empty value' });
 
-/** Why a task that never ran did not run: what stopped it, or the earlier tasks it waits for; '' when unknown. */
+/** Why a task that never ran did not run (what stopped it, or the earlier tasks it waits for), or why a task was partly done; '' when unknown. */
 function cause(t: TaskRow, ctx: TaskColumnsContext): string {
   if (t.outcome === 'not_started') return notStartedCause(t, ctx.outcomes, ctx.run);
+  if (t.outcome === 'partial') return runRelative(t.attempts[t.attempts.length - 1]?.reason ?? '', ctx.run);
   if (t.outcome === 'waiting' && t.deferred) return deferredText(t.deferredCause, t.deferred, t.deferredIn);
   if (t.outcome === 'waiting') return waitCause(t.waits_for.map((k) => ctx.outcomes.get(k) ?? { kind: k }));
   return '';

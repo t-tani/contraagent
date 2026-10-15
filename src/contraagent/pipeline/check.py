@@ -14,6 +14,8 @@ would otherwise find out one launch at a time:
   caller replaces): a warning, since only creating tasks of both is an error,
   and the kind is checked as the first one found;
 * each task created: its parameters fit its `params` model;
+* the output files: no two kinds, reachable ones included, whose `output_name`
+  templates name one file (`Graph.layout`);
 * each kind: an agent task's output schema has a JSON Schema and can be
   imported by the in-session hook (in a fresh interpreter, as the hook does),
   its command validators' programs are on PATH;
@@ -21,7 +23,7 @@ would otherwise find out one launch at a time:
 * routing: the config against those kinds (budgets, efforts, failover chains,
   credentials and the traits tasks require), the coding agents' programs on
   PATH, and each model against the list its coding agent keeps locally
-  (`Backend.catalogue`, e.g. `omp models`).
+  (`Backend.catalogue`, e.g. `omp models --json`).
 
 Nothing is launched, no run directory is written and no token is spent. The
 one check left to a run is the preflight (`Pipeline(preflight="stop")`), which
@@ -53,7 +55,7 @@ from contraagent.calls import schema_ref_of
 from contraagent.dispatch.flow import FlowDriver
 from contraagent.dispatch.task import kind_name
 from contraagent.errors import ContraagentError, did_you_mean
-from contraagent.pipeline.graph import Graph, Node, Pending
+from contraagent.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent.pipeline.reach import reachable
 from contraagent.routing.plan import RoutingError, RoutingPlan
 from contraagent.validators import CommandValidator
@@ -142,8 +144,11 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     for node in graph.nodes:
         report.kinds[node.spec.kind] = report.kinds.get(node.spec.kind, 0) + 1
     specs = {node.spec.kind: node.spec for node in graph.nodes}
+    found = reachable(flow, *args, *kwargs.values()) if driven else []
+    report.add("tasks", _kind_clashes([*dict.fromkeys(node.spec for node in graph.nodes), *found]))
     if driven:
-        _add_reachable(specs, reachable(flow, *args, *kwargs.values()), report)
+        _add_reachable(specs, found, report)
+        report.add("tasks", _layout_errors(graph, found))
     keys = {n.key for n in graph.nodes}
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
@@ -152,6 +157,18 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("plugins", _plugin_errors(agent_specs))
     _check_routing(pipeline, agent_specs, report)
     return report
+
+
+def _kind_clashes(declarations: list[Any]) -> list[str]:
+    """Every pair of declarations whose kinds cannot be in one run (`kind_clash`), once."""
+    out: list[str] = []
+    seen: list[Any] = []
+    for spec in declarations:
+        if any(spec is s for s in seen):
+            continue
+        out += [f"flow: {m}" for s in seen if (m := kind_clash(s, spec)) and f"flow: {m}" not in out]
+        seen.append(spec)
+    return out
 
 
 def _add_reachable(specs: dict[str, Any], found: list[Any], report: CheckReport) -> None:
@@ -173,6 +190,19 @@ def _add_reachable(specs: dict[str, Any], found: list[Any], report: CheckReport)
         f"a run raises if it creates tasks of two of them; checked as the first one found"
         for kind, parts in differ.items()
     ]
+
+
+def _layout_errors(graph: Graph, found: list[Any]) -> list[str]:
+    """Reachable kinds whose output file template names the file of another kind's
+    (`Graph.layout`), each once."""
+    errors: list[str] = []
+    for spec in found:
+        try:
+            graph.layout(spec)
+        except ValueError as exc:
+            if f"flow: {exc}" not in errors:
+                errors.append(f"flow: {exc}")
+    return errors
 
 
 def where(exc: BaseException) -> str:
@@ -316,6 +346,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 pipeline.backends,
                 pipeline.overrides,
                 declared={kind: spec.config for kind, spec in specs.items()},
+                bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                 requirements={kind: spec.requires for kind, spec in specs.items()},
                 light=[kind for kind, spec in specs.items() if spec.light],
             )

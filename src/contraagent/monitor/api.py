@@ -118,6 +118,7 @@ class TaskCounts(Closed):
 
     total: int
     done: int
+    partial: int = Field(0, description="tasks whose last result was `partial`: ok, the output a placeholder; not in `done`")
     failed: int
     not_started: int
     running: int = 0
@@ -146,7 +147,8 @@ class RunSummary(Closed):
     run: str
     run_group: str = Field(description="the label grouping runs (`Run(run_group=)`); the run id when none was given")
     attempts: int = Field(description="journal rows: finished task attempts")
-    ok: int
+    ok: int = Field(description="journal rows that passed, not counting `partial` ones")
+    partial: int = Field(0, description="journal rows with stop `partial`")
     not_run: int = Field(0, description="journal rows of tasks that never ran: refused for an input (`invalid_input`) or skipped")
     tasks: TaskCounts
     cost_usd: float | None = Field(None, description="what the coding agents reported the run cost, in USD; null when none reported")
@@ -166,7 +168,11 @@ class RunSummary(Closed):
         False,
         description="a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
     )
-    replay: str = Field("", description="a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise")
+    replay: str = Field(
+        "",
+        description="a replay: the directory of the recordings it played (`Pipeline(replay=)`), and with `record_missing` "
+        "recorded into (then `stub` is false, and each played attempt's journal row says `replayed`); empty otherwise",
+    )
     row_extras: list[str] = Field(
         default_factory=list,
         description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",
@@ -214,7 +220,8 @@ class TrendTotals(Closed):
 
     runs: int = Field(description="runs with an attempt in the period, or started in it")
     attempts: int
-    ok: int
+    ok: int = Field(description="attempts that passed, not counting `partial` ones")
+    partial: int = Field(0, description="attempts with stop `partial`: ok, counted apart from `ok`")
     cost_usd: float | None = Field(description="what the coding agents reported; null when no attempt reported a cost")
     wall_s: float
     tokens: TokenUsage
@@ -226,7 +233,8 @@ class TrendDay(Closed):
     day: str
     cost_usd: dict[str, float] = Field(description="group -> cost, USD; a group with no cost reported is absent")
     attempts: int
-    ok: int
+    ok: int = Field(description="attempts that passed, not counting `partial` ones")
+    partial: int = Field(0, description="attempts with stop `partial`: ok, counted apart from `ok`")
 
 
 class TrendKind(Closed):
@@ -236,9 +244,11 @@ class TrendKind(Closed):
     group: str
     executor: Executor
     tasks: int
-    tasks_ok: int
+    tasks_ok: int = Field(description="tasks whose last attempt passed, not counting `partial` ones")
+    tasks_partial: int = Field(0, description="tasks whose last attempt was `partial`")
     attempts: int
-    ok: int
+    ok: int = Field(description="attempts that passed, not counting `partial` ones")
+    partial: int = Field(0, description="attempts with stop `partial`: ok, counted apart from `ok`")
     wall_s: float = Field(description="every attempt's wall time, summed")
     wall_s_median: float = Field(description="the median attempt's wall time")
     cost_usd: float | None
@@ -306,7 +316,8 @@ class TrendRun(Closed):
     finished_at: str
     last_ts: str = Field(description="when its last attempt in the period ended; empty when it has none")
     attempts: int
-    ok: int
+    ok: int = Field(description="attempts that passed, not counting `partial` ones")
+    partial: int = Field(0, description="attempts with stop `partial`: ok, counted apart from `ok`")
     cost_usd: float | None
     wall_s: float
     stub: bool
@@ -354,9 +365,10 @@ class JournalPage(Closed):
 
 # --- plan ------------------------------------------------------------------
 
-#: `failed`: ran and failed. `blocked`: did not start (refused for a missing or
+#: `failed`: ran and failed. `partial`: its last result was `partial` (ok, its output a
+#: placeholder a resume makes again). `blocked`: did not start (refused for a missing or
 #: off-contract input, or waiting behind a failed or blocked task).
-TaskState = Literal["pending", "running", "done", "failed", "skipped", "blocked"]
+TaskState = Literal["pending", "running", "done", "partial", "failed", "skipped", "blocked"]
 
 
 #: A flow call's state: `running` until it `returned`, `raised` or was `closed`.
@@ -442,6 +454,10 @@ class PlanNode(Open):
     created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
     flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
     ts: str = Field("", description="when it was queued (absent for a node rebuilt from the journal)")
+    base_kind: str = Field(
+        "",
+        description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
+    )
     state: TaskState
     level: int = Field(description="depth in the dependency graph, 0 for a task that waits for nothing")
     group: str
@@ -513,13 +529,14 @@ class Preflight(Closed):
 
 
 class PlanGroup(Closed):
-    """A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts
-    together), its members counted by state."""
+    """A group: a column of the pipeline view (a kind, the kinds `Monitor(groups=)` puts
+    together, or the implementation kinds of a base kind), its members counted by state."""
 
     id: str
     label: str
     total: int
     done: int
+    partial: int = 0
     failed: int
     running: int
     pending: int
@@ -547,6 +564,9 @@ class ModelUsage(Closed):
     wall_s: float = 0.0
     peak_context: int | None = Field(
         None, description="peak context: the largest input of one API call of a session on it (tokens); null when none reported one"
+    )
+    context_window: int | None = Field(
+        None, description="its context window (tokens of one API call's input) as the coding agent reported it; null when none did"
     )
 
 
@@ -673,6 +693,7 @@ class TaskDefinition(Open):
         default_factory=list, description="agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)"
     )
     output_of: str | None = Field(None, description="agent task: the kind whose output file it writes (`agent_task(output_of=)`)")
+    base_kind: str | None = Field(None, description="agent task: an implementation kind's base kind (`agent_task(implementations=)`)")
     tools: list[str] | None = Field(
         None, description="agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
     )

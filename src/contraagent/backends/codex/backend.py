@@ -417,6 +417,7 @@ class CodexBackend(Backend):
             rate_limits=rate_limits,
             unread_events=dict(reader.unread),
             init_model=model,
+            context_window=rollout.context_window if rollout is not None else None,
             api_retries=reader.api_retries,
             retry_errors=dict(reader.retry_errors),
             stderr_tail="\n".join(x for x in (reader.failure, stderr_tail) if x)[-2000:],

@@ -12,13 +12,16 @@ written).
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import inspect
 import json
 import math
+import re
 import string
+import types
 import typing
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, overload
@@ -26,6 +29,7 @@ from typing import Any, Literal, TypeVar, overload
 from pydantic import BaseModel, RootModel
 
 from contraagent.dispatch.python_task import checked_retries
+from contraagent.dispatch.task import Partial
 from contraagent.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent.plugins import Plugin, PluginError
 from contraagent.plugins.plugin import body
@@ -34,6 +38,9 @@ from contraagent.routing.config import ConfigError, PipelineConfig
 from contraagent.validators import Validator, validator_name
 
 Out = TypeVar("Out")
+
+#: Where a task's JSON output file goes, relative to `<run>/out/` (`.md` for a text output).
+DEFAULT_OUTPUT_NAME = "{kind}/{unit}.json"
 
 
 @dataclass(frozen=True, eq=False)
@@ -66,6 +73,8 @@ class AgentTask[Out]:
     preserve: tuple[str, ...] = ()
     #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
     output_of: AgentTask | PythonTask | None = None
+    #: The base kind of an implementation kind (`agent_task(implementations=)`); empty for any other.
+    base_kind: str = ""
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
@@ -109,8 +118,8 @@ class AgentTask[Out]:
 
     def differences(self, other: AgentTask) -> list[str]:
         """What `other`, a declaration of the same kind, declares otherwise: the parts of the
-        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name` and
-        `rerun_on_resume`. None:
+        digest, the plugin, `skills_from`, `config`, `requires`, `claims`, `output_name`,
+        `rerun_on_resume` and `base_kind`. None:
         one kind, declared twice the same way."""
         if other is self:
             return []
@@ -122,7 +131,7 @@ class AgentTask[Out]:
             parts.append("skills_from")
         return parts + [
             name
-            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume")
+            for name in ("config", "requires", "claims", "output_name", "rerun_on_resume", "base_kind")
             if getattr(self, name) != getattr(other, name)
         ]
 
@@ -164,6 +173,7 @@ class AgentTask[Out]:
         return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=params)
 
 
+@overload
 def agent_task[Out](
     kind: str,
     *,
@@ -184,8 +194,60 @@ def agent_task[Out](
     rerun_on_resume: bool = False,
     preserve: Sequence[str] = (),
     output_of: AgentTask | PythonTask | None = None,
+    implementations: None = None,
     **config: Any,
-) -> AgentTask[Out]:
+) -> AgentTask[Out]: ...
+
+
+@overload
+def agent_task[Out](
+    kind: str,
+    *,
+    output: type[Out] | None = None,
+    params: type[BaseModel] | None = None,
+    plugin: str | Path | None = None,
+    skills_from: Sequence[str | Path] = (),
+    role: str | None = None,
+    instructions: str | None = None,
+    validators: Sequence[Validator] = (),
+    output_name: str | None = None,
+    output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
+    requires: Sequence[str] = (),
+    claims: Sequence[str] = (),
+    changes: Sequence[str] = (),
+    tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
+    preserve: Sequence[str] = (),
+    output_of: AgentTask | PythonTask | None = None,
+    implementations: Mapping[str, str | Path],
+    **config: Any,
+) -> Implementations[Out]: ...
+
+
+def agent_task[Out](
+    kind: str,
+    *,
+    output: type[Out] | None = None,
+    params: type[BaseModel] | None = None,
+    plugin: str | Path | None = None,
+    skills_from: Sequence[str | Path] = (),
+    role: str | None = None,
+    instructions: str | None = None,
+    validators: Sequence[Validator] = (),
+    output_name: str | None = None,
+    output_from: Literal["file", "message"] = "file",
+    unwrap: bool = False,
+    requires: Sequence[str] = (),
+    claims: Sequence[str] = (),
+    changes: Sequence[str] = (),
+    tools: Sequence[str] | None = None,
+    rerun_on_resume: bool = False,
+    preserve: Sequence[str] = (),
+    output_of: AgentTask | PythonTask | None = None,
+    implementations: Mapping[str, str | Path] | None = None,
+    **config: Any,
+) -> AgentTask[Out] | Implementations[Out]:
     """Declare an agent task.
 
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
@@ -220,9 +282,13 @@ def agent_task[Out](
     pattern cannot be told apart: put `{unit}` in it.
     `instructions`: a text put before the call protocol, for a task with no plugin. Such a
     task runs with the permissions of the plugin template's `settings.json` (Claude Code).
-    `output_name`: the output file's name under `<run>/out/<kind>/`, a template:
+    `output_name`: the output file's path relative to `<run>/out/`, a template:
     `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
-    `{key}` and `{kind}`. Default `{unit}.json` (`{unit}.md` for a text output).
+    `{key}` and `{kind}`. Default `{kind}/{unit}.json` (`{kind}/{unit}.md` for a text
+    output); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
+    `..`, `.` or empty segment, or another field raises here. Two kinds whose templates name
+    one file, or two tasks given one file, raise when the flow reaches the second
+    (`Pipeline.check` reports it before a run).
     `output_from`: `"file"` (default), the agent writes the output file; `"message"`, its
     final message is the output: the runner writes it to the output file and checks it
     there, and a message that fails its checks goes back to the same session. For a task
@@ -257,11 +323,52 @@ def agent_task[Out](
     an earlier attempt of the run finished them, for a final step that reports or publishes
     the state of the work. A task that takes the output of a task that ran again already
     runs again, through its fingerprint.
+    `implementations`: one step done in several ways, by name: `{"python": "plugins/review-python",
+    "go": "plugins/review-go"}` (plugin directories, relative as `plugin` is; it takes the place
+    of `plugin`). Each is a kind of its own, `<kind>-<name>` (`review-go`), with that plugin
+    and every other argument given here; `kind` is their **base kind**. A name is letters,
+    digits and `_`. It returns an `Implementations`, indexed by name: `review["go"](unit)`.
+    Each implementation kind takes the `[tasks.<kind>]` table of the base kind, then its own
+    `[tasks.<kind>-<name>]` table key by key (its `fallbacks` replace the base kind's); the
+    monitor draws its tasks in the base kind's group, unless `Monitor(groups=)` lists the kind.
     `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
     (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
     outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
     `contraagent docs routing` lists every key.
     """
+    base = _caller_dir()
+    if implementations is not None:
+        plugins = _checked_implementations(kind, implementations, plugin, instructions)
+        shared_dirs = [_relative_to(base, p) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from)]
+        return Implementations(
+            kind,
+            {
+                name: dataclasses.replace(
+                    agent_task(
+                        f"{kind}-{name}",
+                        output=output,
+                        params=params,
+                        plugin=_relative_to(base, path),
+                        skills_from=shared_dirs,
+                        role=role,
+                        validators=validators,
+                        output_name=output_name,
+                        output_from=output_from,
+                        unwrap=unwrap,
+                        requires=requires,
+                        claims=claims,
+                        changes=changes,
+                        tools=tools,
+                        rerun_on_resume=rerun_on_resume,
+                        preserve=preserve,
+                        output_of=output_of,
+                        **config,
+                    ),
+                    base_kind=kind,
+                )
+                for name, path in plugins.items()
+            },
+        )
     if plugin is None and instructions is None:
         raise TypeError(f"agent_task({kind!r}): give plugin= (its implementation) or, for a task without one, instructions=")
     if output is not None and output is not str and not (isinstance(output, type) and issubclass(output, BaseModel)):
@@ -283,6 +390,8 @@ def agent_task[Out](
         )
     checked_preserve = _checked_preserve(kind, preserve, output, output_from)
     _check_output_of(kind, output_of, output, output_name)
+    if output_name is not None:
+        _check_output_name(f"agent_task({kind!r})", output_name)
     checked_tools = _checked_tools(kind, tools)
     if checked_tools == () and output_from != "message":
         raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
@@ -298,7 +407,6 @@ def agent_task[Out](
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
     checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
-    base = _caller_dir()
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
     for p in shared:
@@ -321,7 +429,7 @@ def agent_task[Out](
         claims=checked_claims,
         skills_from=shared,
         changes=changes,
-        output_name=output_name or ("{unit}.md" if output is str else "{unit}.json"),
+        output_name=output_name or ("{kind}/{unit}.md" if output is str else DEFAULT_OUTPUT_NAME),
         output_from=output_from,
         unwrap=bool(unwrap),
         tools=checked_tools,
@@ -329,6 +437,59 @@ def agent_task[Out](
         preserve=checked_preserve,
         output_of=output_of,
     )
+
+
+#: An implementation's name: what follows its base kind in its kind (`review-go`).
+_IMPLEMENTATION_NAME = re.compile(r"[A-Za-z0-9_]+")
+
+
+def _checked_implementations(kind: str, implementations: Any, plugin: Any, instructions: Any) -> dict[str, str | Path]:
+    """`implementations` as declared: a non-empty mapping of names to plugin directories."""
+    where = f"agent_task({kind!r})"
+    if plugin is not None:
+        raise TypeError(f"{where}: implementations names each implementation's plugin; drop plugin=")
+    if instructions is not None:
+        raise TypeError(f"{where}: implementations takes plugins, and instructions= is for a task without one; drop instructions=")
+    if not isinstance(implementations, Mapping) or not implementations:
+        raise TypeError(
+            f'{where}: implementations takes a dict of names to plugin directories ({{"go": "plugins/{kind}-go"}}), not {implementations!r}'
+        )
+    for name, path in implementations.items():
+        if not isinstance(name, str) or not _IMPLEMENTATION_NAME.fullmatch(name):
+            raise TypeError(f"{where}: implementation name {name!r} is not letters, digits and _ (its kind is {kind}-<name>)")
+        if not isinstance(path, (str, Path)):
+            raise TypeError(f"{where}: implementation {name!r} takes a plugin directory, not {path!r}")
+    return dict(implementations)
+
+
+class Implementations[Out](Mapping[str, AgentTask[Out]]):
+    """One step declared with several implementations (`agent_task(implementations=)`): an
+    agent task per implementation, by name. `review["go"]` is the kind `review-go`; call it as
+    any agent task (`yield review["go"](unit)`). `kind` is their base kind."""
+
+    def __init__(self, kind: str, tasks: Mapping[str, AgentTask[Out]]) -> None:
+        self.kind = kind
+        self._tasks = dict(tasks)
+
+    @property
+    def kinds(self) -> list[str]:
+        """The implementation kinds, in the order declared (`review-python`, `review-go`)."""
+        return [t.kind for t in self._tasks.values()]
+
+    def __getitem__(self, name: str) -> AgentTask[Out]:
+        try:
+            return self._tasks[name]
+        except KeyError:
+            raise KeyError(f"{self.kind} has no implementation {name!r}; its implementations: {', '.join(self._tasks)}") from None
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._tasks)
+
+    def __len__(self) -> int:
+        return len(self._tasks)
+
+    def __repr__(self) -> str:
+        return f"Implementations({self.kind!r}, {', '.join(self.kinds)})"
 
 
 def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None) -> None:
@@ -399,6 +560,8 @@ class PythonTask[Out]:
     retries: int = 0
     #: The exception classes that give an attempt a fresh one; any other fails the task.
     retry_on: tuple[type[Exception], ...] = ()
+    #: The output file's path relative to `<run>/out/`, a template (`python_task(output_name=)`).
+    output_name: str = DEFAULT_OUTPUT_NAME
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
@@ -407,10 +570,6 @@ class PythonTask[Out]:
     @property
     def kind(self) -> str:
         return self.name
-
-    @property
-    def output_name(self) -> str:
-        return "{unit}.json"
 
     def __call__(
         self,
@@ -498,6 +657,7 @@ def python_task(
     rerun_on_resume: bool = False,
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
+    output_name: str | None = None,
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -511,12 +671,18 @@ def python_task(
     rerun_on_resume: bool = False,
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
+    output_name: str | None = None,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
     name). Its return annotation is its output: a pydantic model (the schema),
-    any JSON-able type (kept as a JSON file), or None (no output). `claims` (templates), as for
+    any JSON-able type (kept as a JSON file), or None (no output). A function that could do
+    only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
+    `value` is its output as usual, the task finishes ok with stop `partial`, and a resume
+    runs it again. `claims` (templates), as for
     `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
     `agent_task`: a resume runs its tasks again (a step that publishes the work's state).
+    `output_name`, as for `agent_task`: the output file's path relative to `<run>/out/`
+    (default `{kind}/{unit}.json`).
 
     `retries`: the fresh attempts a task may make after its first, each after an attempt
     that raised an instance of a class in `retry_on` (a tuple of exception classes,
@@ -531,6 +697,8 @@ def python_task(
         owner = f"python_task({kind!r})"
         checked = _checked_claims(owner, claims)
         tries, on = checked_retries(owner, retries, retry_on)
+        if output_name is not None:
+            _check_output_name(owner, output_name)
         try:
             taken = sorted(RESERVED_PARAMS & set(inspect.signature(f).parameters))
         except (TypeError, ValueError):
@@ -549,6 +717,7 @@ def python_task(
             rerun_on_resume=bool(rerun_on_resume),
             retries=tries,
             retry_on=on,
+            output_name=output_name or DEFAULT_OUTPUT_NAME,
         )
 
     return wrap(fn) if fn is not None else wrap
@@ -567,11 +736,26 @@ def _output_schema_of(fn: Callable) -> type[BaseModel] | None:
         ann = Any
     if ann is inspect.Signature.empty:
         ann = Any
+    ann = _without_partial(ann)
     if ann is None or ann is type(None):
         return None
     if isinstance(ann, type) and issubclass(ann, BaseModel):
         return ann
     return RootModel[ann]
+
+
+def _without_partial(ann: Any) -> Any:
+    """A return annotation without its `Partial`: `Index | Partial[Index]` and
+    `Partial[Index]` are `Index`, the output either way."""
+    if ann is Partial or typing.get_origin(ann) is Partial:
+        args = typing.get_args(ann)
+        return args[0] if args else Any
+    if typing.get_origin(ann) in (typing.Union, types.UnionType):
+        members = typing.get_args(ann)
+        kept = tuple(a for a in members if not (a is Partial or typing.get_origin(a) is Partial))
+        if len(kept) != len(members):
+            return typing.Union[kept] if kept else Any  # noqa: UP007 (a union built from a tuple)
+    return ann
 
 
 def _digest(body: dict) -> str:
@@ -634,6 +818,29 @@ def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
             if field not in ("unit", "key", "kind") and not CLAIM_PARAM.fullmatch(field):
                 raise ValueError(f"{owner}: claim {claim!r} names {field}; it may name unit, key, kind and params.<name>")
     return out
+
+
+def _check_output_name(owner: str, template: Any) -> None:
+    """`output_name`: a relative path under `<run>/out/` naming only `{unit}`, `{key}` and
+    `{kind}`, with no `..`, `.` or empty segment."""
+    if not isinstance(template, str) or not template:
+        raise TypeError(f"{owner}: output_name must be a path relative to the run's out/, not {template!r}")
+    try:
+        parts = list(string.Formatter().parse(template))
+    except ValueError as exc:
+        raise ValueError(f"{owner}: output_name {template!r}: {exc}") from None
+    for _, field, spec, conversion in parts:
+        if field is None:
+            continue
+        if field not in ("unit", "key", "kind"):
+            raise ValueError(f"{owner}: output_name {template!r} names {{{field}}}; it may name unit, key and kind")
+        if spec or conversion:
+            raise ValueError(f"{owner}: output_name {template!r}: {{{field}}} takes no format or conversion")
+    if template.startswith("/") or Path(template).is_absolute():
+        raise ValueError(f"{owner}: output_name {template!r} is absolute; it is a path relative to the run's out/")
+    if bad := [seg for seg in template.split("/") if seg in ("", ".", "..")]:
+        segment = repr(bad[0]) if bad[0] else "empty"
+        raise ValueError(f"{owner}: output_name {template!r} has a {segment} segment; it is a path inside the run's out/")
 
 
 def _check_changes_pattern(kind: str, pattern: str) -> None:

@@ -27,7 +27,7 @@ export interface LayerMark {
   deadlineAt?: string;
 }
 
-export type NodeCounts = Pick<PlanGroup, 'total' | 'done' | 'failed' | 'running' | 'pending' | 'skipped' | 'blocked'>;
+export type NodeCounts = Required<Pick<PlanGroup, 'total' | 'done' | 'partial' | 'failed' | 'running' | 'pending' | 'skipped' | 'blocked'>>;
 
 export interface GraphNode {
   id: string;

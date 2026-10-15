@@ -112,6 +112,7 @@ export const graphStyles = css`
   .sbar i[data-tone='done'] { opacity: 0.85; }
   .sbar i[data-tone='muted'] { opacity: 0.5; }
   .sbar i[data-shape='hatched'] { background: repeating-linear-gradient(135deg, var(--tone-bg) 0 2px, color-mix(in srgb, var(--tone) 60%, transparent) 2px 3px); }
+  .sbar i[data-shape='half'] { background: linear-gradient(0deg, var(--tone) 50%, var(--tone-bg) 50%); }
   .fails { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 220px; font-size: 11px; color: var(--text-muted); }
   .fails .taskchip { color: var(--status-failed); border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); }
   .fails .taskchip:focus-visible { outline: var(--focus-width) solid var(--text); outline-offset: 1px; }
@@ -130,6 +131,7 @@ export const graphStyles = css`
   .legend i.mark { border-radius: 3px; }
   .legend i.mark:is([data-shape='square'], [data-shape='hatched']) { border-radius: 2px; }
   .legend i.mark[data-shape='hatched'] { background: repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in srgb, var(--tone) 55%, transparent) 2px 3px); }
+  .legend i.mark[data-shape='half'] { border-radius: 50%; }
   .legend svg path { stroke: var(--line2); stroke-width: 1.5; fill: none; }
 
   .main { position: relative; min-width: 0; }

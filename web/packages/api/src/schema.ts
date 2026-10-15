@@ -1176,7 +1176,7 @@ export type components = {
              * Stop
              * @enum {string}
              */
-            stop: "completed" | "timeout" | "max_turns" | "budget" | "context_budget" | "stalled" | "auth_failed" | "api_error" | "rate_limited" | "refused" | "aborted" | "denied" | "error" | "no_output" | "launch_failed" | "invalid_output" | "invalid_input" | "credential_mismatch" | "skipped";
+            stop: "completed" | "timeout" | "max_turns" | "budget" | "context_budget" | "stalled" | "auth_failed" | "api_error" | "rate_limited" | "refused" | "aborted" | "denied" | "error" | "no_output" | "launch_failed" | "invalid_output" | "invalid_input" | "credential_mismatch" | "skipped" | "partial";
             /** Ok */
             ok: boolean;
             /**
@@ -1225,6 +1225,11 @@ export type components = {
             fingerprint?: string;
             /** Flow Call */
             flow_call?: string | null;
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed?: boolean;
         } & {
             [key: string]: unknown;
         };
@@ -1381,6 +1386,11 @@ export type components = {
              * @description peak context: the largest input of one API call of a session on it (tokens); null when none reported one
              */
             peak_context?: number | null;
+            /**
+             * Context Window
+             * @description its context window (tokens of one API call's input) as the coding agent reported it; null when none did
+             */
+            context_window?: number | null;
         };
         /**
          * NoteBody
@@ -1604,8 +1614,8 @@ export type components = {
         };
         /**
          * PlanGroup
-         * @description A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts
-         *     together), its members counted by state.
+         * @description A group: a column of the pipeline view (a kind, the kinds `Monitor(groups=)` puts
+         *     together, or the implementation kinds of a base kind), its members counted by state.
          */
         PlanGroup: {
             /** Id */
@@ -1616,6 +1626,11 @@ export type components = {
             total: number;
             /** Done */
             done: number;
+            /**
+             * Partial
+             * @default 0
+             */
+            partial?: number;
             /** Failed */
             failed: number;
             /** Running */
@@ -1696,10 +1711,16 @@ export type components = {
              */
             ts?: string;
             /**
+             * Base Kind
+             * @description an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty
+             * @default
+             */
+            base_kind?: string;
+            /**
              * State
              * @enum {string}
              */
-            state: "pending" | "running" | "done" | "failed" | "skipped" | "blocked";
+            state: "pending" | "running" | "done" | "partial" | "failed" | "skipped" | "blocked";
             /**
              * Level
              * @description depth in the dependency graph, 0 for a task that waits for nothing
@@ -2032,8 +2053,17 @@ export type components = {
              * @description journal rows: finished task attempts
              */
             attempts: number;
-            /** Ok */
+            /**
+             * Ok
+             * @description journal rows that passed, not counting `partial` ones
+             */
             ok: number;
+            /**
+             * Partial
+             * @description journal rows with stop `partial`
+             * @default 0
+             */
+            partial?: number;
             /**
              * Not Run
              * @description journal rows of tasks that never ran: refused for an input (`invalid_input`) or skipped
@@ -2103,7 +2133,7 @@ export type components = {
             stub?: boolean;
             /**
              * Replay
-             * @description a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise
+             * @description a replay: the directory of the recordings it played (`Pipeline(replay=)`), and with `record_missing` recorded into (then `stub` is false, and each played attempt's journal row says `replayed`); empty otherwise
              * @default
              */
             replay?: string;
@@ -2297,6 +2327,12 @@ export type components = {
             total: number;
             /** Done */
             done: number;
+            /**
+             * Partial
+             * @description tasks whose last result was `partial`: ok, the output a placeholder; not in `done`
+             * @default 0
+             */
+            partial?: number;
             /** Failed */
             failed: number;
             /** Not Started */
@@ -2360,6 +2396,11 @@ export type components = {
              * @description agent task: the kind whose output file it writes (`agent_task(output_of=)`)
              */
             output_of?: string | null;
+            /**
+             * Base Kind
+             * @description agent task: an implementation kind's base kind (`agent_task(implementations=)`)
+             */
+            base_kind?: string | null;
             /**
              * Tools
              * @description agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows
@@ -2578,6 +2619,8 @@ export type components = {
             resident?: number | null;
             /** Peak Context */
             peak_context?: number | null;
+            /** Context Window */
+            context_window?: number | null;
         } & {
             [key: string]: unknown;
         };
@@ -2704,8 +2747,17 @@ export type components = {
             };
             /** Attempts */
             attempts: number;
-            /** Ok */
+            /**
+             * Ok
+             * @description attempts that passed, not counting `partial` ones
+             */
             ok: number;
+            /**
+             * Partial
+             * @description attempts with stop `partial`: ok, counted apart from `ok`
+             * @default 0
+             */
+            partial?: number;
         };
         /**
          * TrendDeferral
@@ -2755,12 +2807,30 @@ export type components = {
             executor: "agent" | "python";
             /** Tasks */
             tasks: number;
-            /** Tasks Ok */
+            /**
+             * Tasks Ok
+             * @description tasks whose last attempt passed, not counting `partial` ones
+             */
             tasks_ok: number;
+            /**
+             * Tasks Partial
+             * @description tasks whose last attempt was `partial`
+             * @default 0
+             */
+            tasks_partial?: number;
             /** Attempts */
             attempts: number;
-            /** Ok */
+            /**
+             * Ok
+             * @description attempts that passed, not counting `partial` ones
+             */
             ok: number;
+            /**
+             * Partial
+             * @description attempts with stop `partial`: ok, counted apart from `ok`
+             * @default 0
+             */
+            partial?: number;
             /**
              * Wall S
              * @description every attempt's wall time, summed
@@ -2879,8 +2949,17 @@ export type components = {
             last_ts: string;
             /** Attempts */
             attempts: number;
-            /** Ok */
+            /**
+             * Ok
+             * @description attempts that passed, not counting `partial` ones
+             */
             ok: number;
+            /**
+             * Partial
+             * @description attempts with stop `partial`: ok, counted apart from `ok`
+             * @default 0
+             */
+            partial?: number;
             /** Cost Usd */
             cost_usd: number | null;
             /** Wall S */
@@ -2926,8 +3005,17 @@ export type components = {
             runs: number;
             /** Attempts */
             attempts: number;
-            /** Ok */
+            /**
+             * Ok
+             * @description attempts that passed, not counting `partial` ones
+             */
             ok: number;
+            /**
+             * Partial
+             * @description attempts with stop `partial`: ok, counted apart from `ok`
+             * @default 0
+             */
+            partial?: number;
             /**
              * Cost Usd
              * @description what the coding agents reported; null when no attempt reported a cost

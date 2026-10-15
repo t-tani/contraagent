@@ -78,6 +78,7 @@ from contraagent.calls import CallFile
 from contraagent.contracts import InputContract, OutputContract, check_input, run_until_valid
 from contraagent.dispatch import (
     FlowDriver,
+    Partial,
     ResultEnricher,
     Task,
     TaskDeferred,
@@ -102,9 +103,10 @@ from contraagent.execution import (
     RunLocked,
     TaskAdapter,
     log,
+    pipeline_table,
     save,
 )
-from contraagent.pipeline import CheckReport, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
+from contraagent.pipeline import CheckReport, Implementations, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
 from contraagent.plugins import Plugin, PluginError
 from contraagent.routing import (
     ConfigError,
@@ -144,6 +146,7 @@ __all__ = [
     "CursorStore",
     "FlowDriver",
     "Gateway",
+    "Implementations",
     "InputContract",
     "KindConfig",
     "Launch",
@@ -157,6 +160,7 @@ __all__ = [
     "OpencodeBackend",
     "OutputContract",
     "Overrides",
+    "Partial",
     "Pending",
     "PerTask",
     "PiBackend",
@@ -202,6 +206,7 @@ __all__ = [
     "log",
     "make_python_task",
     "normalize_stream_line",
+    "pipeline_table",
     "python_task",
     "read_stream",
     "register_backend",

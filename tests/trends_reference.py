@@ -176,7 +176,8 @@ def digest(source, run: str) -> dict:
                 "kind": e.get("kind", "?"),
                 "executor": e.get("executor") or "agent",
                 "agent": e.get("agent", ""),
-                "ok": bool(e.get("ok")),
+                "ok": bool(e.get("ok")) and e.get("stop") != "partial",
+                "partial": e.get("stop") == "partial",
                 "stop": str(e.get("stop", "")),
                 "wall_s": _num(e.get("wall_s")) or 0.0,
                 "cost_usd": _num(e.get("cost_usd")),
@@ -274,17 +275,17 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
 
     group_of = dict(groups or {})
     days = [d.isoformat() for d in period.days]
-    daily = {d: {"day": d, "cost_usd": {}, "attempts": 0, "ok": 0} for d in days}
+    daily = {d: {"day": d, "cost_usd": {}, "attempts": 0, "ok": 0, "partial": 0} for d in days}
     kinds: dict[str, dict] = {}
     walls: dict[str, list[float]] = {}
-    tasks: dict[str, dict[tuple[str, str], bool]] = {}
+    tasks: dict[str, dict[tuple[str, str], int]] = {}
     stops: dict[str, dict] = {}
     denied: dict[str, dict] = {}
     peaks: dict[tuple[str, str, str], float] = {}
     readings: dict[tuple[str, str], dict[int, float]] = {}
     rests, deferred, runs, rows_in = [], [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
-    totals = {"runs": 0, "attempts": 0, "ok": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
+    totals = {"runs": 0, "attempts": 0, "ok": 0, "partial": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
     for dg in digests:
         run = dg["run"]
         mine = [r for r in dg["rows"] if period.day_of(r["ts"]) is not None]
@@ -302,6 +303,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             d = daily[day]
             d["attempts"] += 1
             d["ok"] += r["ok"]
+            d["partial"] += r["partial"]
             if r["cost_usd"] is not None:
                 d["cost_usd"][group] = round(d["cost_usd"].get(group, 0.0) + r["cost_usd"], 6)
                 cost = (cost or 0.0) + r["cost_usd"]
@@ -313,8 +315,10 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                     "executor": r["executor"],
                     "tasks": 0,
                     "tasks_ok": 0,
+                    "tasks_partial": 0,
                     "attempts": 0,
                     "ok": 0,
+                    "partial": 0,
                     "wall_s": 0.0,
                     "wall_s_median": 0.0,
                     "cost_usd": None,
@@ -323,6 +327,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             )
             k["attempts"] += 1
             k["ok"] += r["ok"]
+            k["partial"] += r["partial"]
             k["wall_s"] += r["wall_s"]
             walls.setdefault(kind, []).append(r["wall_s"])
             if r["cost_usd"] is not None:
@@ -330,12 +335,13 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             _add_usage(k["tokens"], r["usage"])
             _add_usage(totals["tokens"], r["usage"])
             # A task is one key of one run; its last attempt in the period says how it ended.
-            tasks.setdefault(kind, {})[(run, r["key"])] = r["ok"]
+            tasks.setdefault(kind, {})[(run, r["key"])] = 2 if r["partial"] else int(r["ok"])
             s = stops.setdefault(r["stop"], {"stop": r["stop"], "attempts": 0, "kinds": {}})
             s["attempts"] += 1
             s["kinds"][kind] = s["kinds"].get(kind, 0) + 1
             totals["attempts"] += 1
             totals["ok"] += r["ok"]
+            totals["partial"] += r["partial"]
             totals["wall_s"] += r["wall_s"]
             rows_in.append(r)
         if cost is not None:
@@ -370,6 +376,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
                 "last_ts": max((r["ts"] for r in mine), default=""),
                 "attempts": len(mine),
                 "ok": sum(r["ok"] for r in mine),
+                "partial": sum(r["partial"] for r in mine),
                 "cost_usd": _round(cost),
                 "wall_s": round(sum(r["wall_s"] for r in mine), 1),
                 "stub": dg["stub"],
@@ -377,7 +384,8 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
         )
     for kind, k in kinds.items():
         ended = tasks.get(kind, {})
-        k["tasks"], k["tasks_ok"] = len(ended), sum(ended.values())
+        k["tasks"], k["tasks_ok"] = len(ended), sum(v == 1 for v in ended.values())
+        k["tasks_partial"] = sum(v == 2 for v in ended.values())
         k["wall_s"] = round(k["wall_s"], 1)
         k["wall_s_median"] = round(statistics.median(walls[kind]), 1) if walls.get(kind) else 0.0
         k["cost_usd"] = _round(k["cost_usd"])

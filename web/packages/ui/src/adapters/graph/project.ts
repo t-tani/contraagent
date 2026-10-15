@@ -124,7 +124,7 @@ export function deadlineOf(box: TimeBoxInfo): string {
 
 /** Tasks by state. */
 function taskCounts(ts: readonly FlowTask[]): NodeCounts {
-  const c: NodeCounts = { total: ts.length, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
+  const c: NodeCounts = { total: ts.length, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 };
   for (const t of ts) c[t.n.state] += 1;
   return c;
 }
