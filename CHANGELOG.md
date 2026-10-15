@@ -186,6 +186,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- One type per fact a run records, in `contraagent.dispatch.records` (pydantic): `Executor`,
+  `Loop`, `Frame`, `Changes`, `TokenUsage`, `OtherModel`, `Hop`, `Rest`, `SkippedHop`,
+  `RestEvent` (a `rests.jsonl` row), `DeferralCause`, `TimeBoxRecord`. `TaskResult.hops` is a
+  tuple of `Hop`, `TaskResult.skipped_hops` of `SkippedHop`, `TaskResult.cause` and
+  `Deferral.cause` a `DeferralCause` (also what `on_event("deferred", cause=)` gives), and
+  `TimeBox.cause` returns one; `TimeBox.record(started_at)` is the box as `flow_calls.jsonl`
+  records it. `Frame`, `Loop` and `Changes` are pydantic models built by keyword
+  (`Loop(line=3, pass_=1)`). The files a run writes and the monitor's JSON keep their keys
+  and values.
+- Removed duplicates: `execution.schemas.Hop`, `OtherModel`, `TokenUsage`, `SkippedHop`,
+  `Changes` and `QuotaRest` (now `dispatch.records`; `QuotaRest` is `Rest`);
+  `routing.quota.Rest` (the dataclass); `monitor.api.Executor`, `FlowCallState` (use
+  `dispatch.flow.FlowState`), `FlowLoop` and `FlowFrame` (`Loop`, `Frame`), `TimeBoxInfo`
+  (`TimeBoxRecord`), `DeferralCause` (the record's), `QuotaCap` (`routing.quota.QuotaCap`),
+  `Preflight`, `PreflightDropped`, `PreflightSubstitution`, `PreflightKept`
+  (`routing.preflight.PreflightRecord`, `DroppedRoute`, `Substitution`, `KeptKind`, now
+  pydantic models); `execution.run.frames_row`; `hub.store.RunEntry` (`hub.protocol.RunRef`).
+  The OpenAPI schemas and the `@contraagent/api` types take the same names (`Frame`, `Loop`,
+  `FlowState`, `TimeBoxRecord`, `PreflightRecord`, `DroppedRoute`, `Substitution`, `KeptKind`;
+  `QuotaRest` is `Rest`). `api.TrendRest` is a `RestEvent` with its `run`; `api.PlanNode`
+  extends `execution.schemas.PlanRow`.
+- New row types in `execution.schemas`: `PlanRow` (`plan.jsonl`), `FlowCallRow`
+  (`flow_calls.jsonl`), `DeferredRow` (`deferred.jsonl`). `routing.quota.caps_of` returns a
+  list of `QuotaCap`; `PreflightRecord.as_dict()` is `model_dump(mode="json")`.
+- `execution.cursor.SCHEMA_VERSION` is `CURSOR_SCHEMA_VERSION`.
 - `output_name` is the output file's path relative to the run's `out/`, a template with
   `{kind}`, `{unit}` and `{key}` (default `{kind}/{unit}.json`, `{kind}/{unit}.md` for a text
   output): `output_name="reports/{unit}.json"` writes `out/reports/alpha.json`.

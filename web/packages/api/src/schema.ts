@@ -415,17 +415,29 @@ export type components = {
         };
         /**
          * Changes
-         * @description The files one attempt changed under its task's `changes` patterns, relative to
-         *     the working directory (`dispatch.Changes`).
+         * @description The files one attempt changed under its task's `changes` patterns, as paths relative
+         *     to the working directory: those it `created`, `modified` and `deleted`.
          */
         Changes: {
-            /** Created */
+            /**
+             * Created
+             * @default []
+             */
             created?: string[];
-            /** Modified */
+            /**
+             * Modified
+             * @default []
+             */
             modified?: string[];
-            /** Deleted */
+            /**
+             * Deleted
+             * @default []
+             */
             deleted?: string[];
-            /** Removed */
+            /**
+             * Removed
+             * @default []
+             */
             removed?: string[];
         } & {
             [key: string]: unknown;
@@ -668,10 +680,11 @@ export type components = {
         };
         /**
          * DeferralCause
-         * @description Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,
+         * @description Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,
          *     `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
          *     `dependency_not_queued`, `rest` (the credential of every hop it could take rests:
-         *     `rests`), or a runner's own name.
+         *     `rests`), or a runner's own name. A field a cause does not have is left unset, and
+         *     `deferred.jsonl` records only the fields set.
          */
         DeferralCause: {
             /** Cause */
@@ -694,6 +707,7 @@ export type components = {
             /**
              * Rests
              * @description `rest`: each hop passed over and why its credential rests
+             * @default []
              */
             rests?: components["schemas"]["SkippedHop"][];
         };
@@ -724,6 +738,32 @@ export type components = {
              * @enum {string}
              */
             executor: "agent" | "python";
+        };
+        /**
+         * DroppedRoute
+         * @description A route the preflight dropped: not in its agent's model list, or its probe did not
+         *     complete. `kinds`: the kinds whose chain held it.
+         */
+        DroppedRoute: {
+            /** Agent */
+            agent: string;
+            /**
+             * Model
+             * @description empty: the coding agent's default model
+             */
+            model: string;
+            /** Credential */
+            credential: string;
+            /**
+             * Reason
+             * @description not in its coding agent's model list, or how its probe ended (`rate limited`, ...)
+             */
+            reason: string;
+            /**
+             * Kinds
+             * @description the kinds whose chain held it
+             */
+            kinds: string[];
         };
         /**
          * ExportInfo
@@ -810,7 +850,7 @@ export type components = {
              * Flow
              * @description the flow path where the parent yielded it, with its loops' passes; empty for a top flow
              */
-            flow?: components["schemas"]["FlowFrame"][];
+            flow?: components["schemas"]["Frame"][];
             /**
              * State
              * @enum {string}
@@ -822,13 +862,14 @@ export type components = {
              */
             error?: string | null;
             /** @description its own deadline, for a flow call yielded through `time_box`; else null */
-            time_box?: components["schemas"]["TimeBoxInfo"] | null;
+            time_box?: components["schemas"]["TimeBoxRecord"] | null;
         };
         /**
-         * FlowFrame
-         * @description One frame of a flow path (outermost first): a call site in flow code.
+         * Frame
+         * @description One frame of a flow path (outermost first): a call site in flow code where a task
+         *     was created. A comprehension is not a loop.
          */
-        FlowFrame: {
+        Frame: {
             /**
              * Function
              * @description `module.qualname`
@@ -844,24 +885,9 @@ export type components = {
             /**
              * Loops
              * @description the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame
+             * @default []
              */
-            loops?: components["schemas"]["FlowLoop"][];
-        };
-        /**
-         * FlowLoop
-         * @description A loop of a generator around a call site, and the pass the call site was in.
-         */
-        FlowLoop: {
-            /**
-             * Line
-             * @description the loop's first line, which names it
-             */
-            line: number;
-            /**
-             * Pass
-             * @description one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted
-             */
-            pass: number | null;
+            loops?: components["schemas"]["Loop"][];
         };
         /**
          * GridCell
@@ -953,7 +979,8 @@ export type components = {
         };
         /**
          * Hop
-         * @description One launch in a failover walk: where it ran and how it ended.
+         * @description One launch of an attempt on one route of its failover chain: where it ran and how
+         *     it ended.
          */
         Hop: {
             /**
@@ -1234,6 +1261,20 @@ export type components = {
             [key: string]: unknown;
         };
         /**
+         * KeptKind
+         * @description A kind with no route left, run as configured all the same (`substitute`), and why.
+         */
+        KeptKind: {
+            /** Kind */
+            kind: string;
+            /** Agent */
+            agent: string;
+            /** Model */
+            model: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
          * LaunchEvent
          * @description Head of one invocation: the exact argv, cwd and the submitted prompt.
          */
@@ -1291,6 +1332,23 @@ export type components = {
             series: components["schemas"]["ChartSeries"][];
             /** Unit */
             unit?: ("usd" | "pct" | "duration" | "tokens" | "datetime" | "number") | null;
+        };
+        /**
+         * Loop
+         * @description A `for` or `while` loop of a generator around a call site, and the pass the call
+         *     site was in.
+         */
+        Loop: {
+            /**
+             * Line
+             * @description the loop's first line, which names it
+             */
+            line: number;
+            /**
+             * Pass
+             * @description one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted
+             */
+            pass: number | null;
         };
         /**
          * MessageEvent
@@ -1610,7 +1668,7 @@ export type components = {
              */
             models?: components["schemas"]["ModelUsage"][];
             /** @description what the run's preflight did (`run.json`); null when its run.json records none */
-            preflight?: components["schemas"]["Preflight"] | null;
+            preflight?: components["schemas"]["PreflightRecord"] | null;
         };
         /**
          * PlanGroup
@@ -1658,6 +1716,12 @@ export type components = {
          *     The origin fields (`flow` .. `flow_call`) say where the flow created it.
          */
         PlanNode: {
+            /**
+             * Ts
+             * @description when it was queued (absent for a node rebuilt from the journal)
+             * @default
+             */
+            ts?: string;
             /** Key */
             key: string;
             /** Kind */
@@ -1693,7 +1757,7 @@ export type components = {
              * Flow
              * @description the flow path: frames of flow code that created it, outermost first
              */
-            flow?: components["schemas"]["FlowFrame"][];
+            flow?: components["schemas"]["Frame"][];
             /**
              * Created From
              * @description keys whose results its flow call had received when it created it
@@ -1704,12 +1768,6 @@ export type components = {
              * @description the id of the flow call that created it; null for a task with no origin
              */
             flow_call?: string | null;
-            /**
-             * Ts
-             * @description when it was queued (absent for a node rebuilt from the journal)
-             * @default
-             */
-            ts?: string;
             /**
              * Base Kind
              * @description an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty
@@ -1760,10 +1818,12 @@ export type components = {
             [key: string]: unknown;
         };
         /**
-         * Preflight
-         * @description What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`).
+         * PreflightRecord
+         * @description What a preflight did, as `run.json` records it (`preflight`): its policy, the routes
+         *     it dropped, and, for each kind left with no route, its substitution, the kind kept
+         *     as configured, or the kind that stopped the run (`stopped`).
          */
-        Preflight: {
+        PreflightRecord: {
             /**
              * Policy
              * @description `Pipeline(preflight=)`; `off`: no route was probed
@@ -1771,71 +1831,16 @@ export type components = {
              */
             policy: "substitute" | "stop" | "off";
             /** Dropped */
-            dropped?: components["schemas"]["PreflightDropped"][];
+            dropped?: components["schemas"]["DroppedRoute"][];
             /** Substituted */
-            substituted?: components["schemas"]["PreflightSubstitution"][];
+            substituted?: components["schemas"]["Substitution"][];
             /** Kept */
-            kept?: components["schemas"]["PreflightKept"][];
+            kept?: components["schemas"]["KeptKind"][];
             /**
              * Stopped
              * @description the kinds with no route left that stopped the run (policy `stop`)
              */
             stopped?: string[];
-        };
-        /**
-         * PreflightDropped
-         * @description A route the preflight dropped (`DroppedRoute`).
-         */
-        PreflightDropped: {
-            /** Agent */
-            agent: string;
-            /**
-             * Model
-             * @description empty: the coding agent's default model
-             */
-            model: string;
-            /** Credential */
-            credential: string;
-            /**
-             * Reason
-             * @description not in its coding agent's model list, or how its probe ended (`rate limited`, ...)
-             */
-            reason: string;
-            /**
-             * Kinds
-             * @description the kinds whose chain held it
-             */
-            kinds: string[];
-        };
-        /**
-         * PreflightKept
-         * @description A kind with no route left, run as configured all the same (`KeptKind`).
-         */
-        PreflightKept: {
-            /** Kind */
-            kind: string;
-            /** Agent */
-            agent: string;
-            /** Model */
-            model: string;
-            /** Reason */
-            reason: string;
-        };
-        /**
-         * PreflightSubstitution
-         * @description A kind with no route left, run on the first route that answered (`Substitution`).
-         */
-        PreflightSubstitution: {
-            /** Kind */
-            kind: string;
-            /** From Agent */
-            from_agent: string;
-            /** From Model */
-            from_model: string;
-            /** To Agent */
-            to_agent: string;
-            /** To Model */
-            to_model: string;
         };
         /**
          * ProcNode
@@ -1912,7 +1917,8 @@ export type components = {
         };
         /**
          * QuotaCap
-         * @description One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`).
+         * @description One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`):
+         *     the utilization (%) of a window past which it rests; None for a window with no cap.
          */
         QuotaCap: {
             /** Credential */
@@ -2193,7 +2199,10 @@ export type components = {
         } & {
             [key: string]: unknown;
         };
-        /** StageEntry */
+        /**
+         * StageEntry
+         * @description One transition of the cursor (`HistoryEntry`), its time as `datetime.isoformat` gives it.
+         */
         StageEntry: {
             /** Name */
             name: string;
@@ -2257,6 +2266,22 @@ export type components = {
             total: number;
             /** Behind */
             behind: number;
+        };
+        /**
+         * Substitution
+         * @description A kind with no route left, run on the first route that answered (`substitute`).
+         */
+        Substitution: {
+            /** Kind */
+            kind: string;
+            /** From Agent */
+            from_agent: string;
+            /** From Model */
+            from_model: string;
+            /** To Agent */
+            to_agent: string;
+            /** To Model */
+            to_model: string;
         };
         /**
          * TableBody
@@ -2554,10 +2579,10 @@ export type components = {
             tiles: components["schemas"]["PanelTile"][];
         };
         /**
-         * TimeBoxInfo
-         * @description A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it.
+         * TimeBoxRecord
+         * @description A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it.
          */
-        TimeBoxInfo: {
+        TimeBoxRecord: {
             /**
              * Started At
              * @description when the flow call started, where its deadline counts from (UTC ISO 8601)
@@ -2581,6 +2606,7 @@ export type components = {
             /**
              * Finishing Kinds
              * @description the kinds that still launch past the deadline
+             * @default []
              */
             finishing_kinds?: string[];
         };
@@ -2900,30 +2926,49 @@ export type components = {
         };
         /**
          * TrendRest
-         * @description A start or end of a credential's rest (`rests.jsonl`), with its run.
+         * @description A start or end of a credential's rest (a `rests.jsonl` row), with its run.
          */
         TrendRest: {
-            /** Run */
-            run: string;
-            /** Ts */
-            ts?: string | null;
-            /** Event */
-            event?: string | null;
             /** Credential */
-            credential?: string | null;
+            credential: string;
+            /**
+             * Window
+             * @default
+             * @enum {string}
+             */
+            window?: "" | "five_hour" | "seven_day";
+            /** Pct */
+            pct?: number | null;
+            /** Cap */
+            cap?: number | null;
+            /**
+             * Rule
+             * @default
+             */
+            rule?: string;
+            /**
+             * Until
+             * @default
+             */
+            until?: string;
             /**
              * Account
-             * @description the account whose reading it is (`QuotaRest.account`); empty when not known
              * @default
              */
             account?: string;
-            /**
-             * Reading
-             * @description for the quota rule's rest, the reading it judged (`QuotaRest.reading`)
-             */
+            /** Reading */
             reading?: {
                 [key: string]: unknown;
             } | null;
+            /** Ts */
+            ts: string;
+            /**
+             * Event
+             * @enum {string}
+             */
+            event: "start" | "end";
+            /** Run */
+            run: string;
         } & {
             [key: string]: unknown;
         };

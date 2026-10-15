@@ -107,7 +107,7 @@ describe('trendSections', () => {
       { credential: 'sub', account: 'bbbbbb222222', window: 'seven_day_opus', daily_peak: [10, 20], hourly_peak: [] },
       { credential: 'other', account: 'cccccc333333', window: 'five_hour', daily_peak: [5, 5], hourly_peak: [] },
     ];
-    const rests = [{ ts: '2026-10-14T02:00:00+00:00', credential: 'sub', account: 'bbbbbb222222', event: 'start', run: 'r2' }];
+    const rests: Trends['rests'] = [{ ts: '2026-10-14T02:00:00+00:00', credential: 'sub', account: 'bbbbbb222222', event: 'start', run: 'r2' }];
     const s = trendSections({ ...TRENDS, quota, rests }, 'en');
     const names = (s.find((x) => x.id === 'usage')!.body as LinesBody).series.map((x) => x.name);
     expect(names).toEqual(['sub | account aaaaaa | weekly', 'sub | account bbbbbb | weekly (opus)', 'other | 5-hour']);
