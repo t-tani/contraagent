@@ -1,5 +1,5 @@
 """Recordings and replays (`Pipeline(record=)`, `Pipeline(replay=)`, `contraagent run
---record/--replay`): a run's agent task attempts kept, then played with nothing spent."""
+--record/--replay`): a run's task attempts kept, then played with nothing spent."""
 
 import json
 import sys
@@ -76,7 +76,7 @@ def stub() -> StubAgent:
             "summarize": lambda launch: Note(title="summary").model_dump_json().join(["Here it is:\n", "\nDone."]),
         },
         default={"title": "x"},
-        execute=["count"],
+        execute=["count", "flaky"],
     )
 
 
@@ -86,9 +86,9 @@ def record(tmp_path, agent=None, flow_=flow, **kwargs):
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
-def replay(tmp_path, flow_=flow, name="replay", **kwargs):
+def replay(tmp_path, flow_=flow, name="replay", execute=(), **kwargs):
     cwd = tree(tmp_path / name)
-    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec")
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec", execute=execute)
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
@@ -97,6 +97,7 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     live = record(tmp_path)
     assert live.ok, live.failed
     assert sorted(p.relative_to(tmp_path / "rec").as_posix() for p in (tmp_path / "rec").glob("*/*.json")) == [
+        "count/python_count.json",
         "summarize/summarize-alpha.json",
         "write/write-alpha.json",
         "write/write-beta.json",
@@ -105,7 +106,7 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     played = replay(tmp_path)
     assert played.ok, played.failed
     assert played.run_id == "flow-replay" and played.value == 2
-    assert ran == ["count"]  # a Python task runs its function in a replay
+    assert ran == []  # a Python task plays its recording: its function does not run
     assert outputs(played) == outputs(live)
     assert "summarize/alpha.json.message.txt" in outputs(played)  # the whole final message, beside the unwrapped output
     assert topics(tmp_path / "replay") == topics(tmp_path / "live")
@@ -118,6 +119,53 @@ def test_a_replay_leaves_the_outputs_and_changes_the_recorded_run_left(tmp_path)
     assert info["stub"] is True and info["replay"] == str((tmp_path / "rec").resolve())
     stream = "streams/write-alpha.stream.jsonl"
     assert (played.run_dir / stream).read_text() == (live.run_dir / stream).read_text()
+
+
+def test_a_python_task_of_a_kind_executed_runs_its_function(tmp_path):
+    record(tmp_path)
+    ran.clear()
+    played = replay(tmp_path, execute=["count"])
+    assert played.ok, played.failed
+    assert ran == ["count"] and played.value == 2
+
+
+calls: list[int] = []
+
+
+@python_task(retries=2, retry_on=(ConnectionError,))
+def flaky(n: int) -> Note:
+    calls.append(n)
+    if len(calls) == 1:
+        raise ConnectionError("the index server is not up yet")
+    if n < 0:
+        raise ValueError("negative")
+    return Note(title=f"n={n}")
+
+
+def test_a_python_task_plays_each_recorded_call_its_retries_included(tmp_path):
+    calls.clear()
+    live = record(tmp_path, flow_=lambda units: flaky(n=3))
+    assert live.ok, live.failed
+    assert [r["stop"] for r in journal(live)] == ["error", "completed"]
+    body = json.loads((tmp_path / "rec" / "flaky" / "python_flaky.json").read_text())
+    assert body["executor"] == "python"
+    assert [(a["stop"], a["retry_on"]) for a in body["attempts"]] == [("error", True), ("completed", False)]
+    calls.clear()
+    played = replay(tmp_path, flow_=lambda units: flaky(n=3))
+    assert played.ok, played.failed
+    assert calls == []  # the function is not called
+    assert [r["stop"] for r in journal(played)] == ["error", "completed"]
+    assert played.results["python:flaky"].reason == ""
+    assert outputs(played) == outputs(live)
+
+
+def test_a_python_task_with_no_recording_ends_on_an_error_that_names_it(tmp_path):
+    record(tmp_path, flow_=lambda units: write(units[0]))
+    ran.clear()
+    played = replay(tmp_path, flow_=lambda units: count(notes=[]))
+    assert ran == []
+    assert played.results["python:count"].stop == "error"
+    assert played.results["python:count"].reason == "no recording for python:count"
 
 
 def test_each_attempt_is_played_in_order_and_the_last_repeats(tmp_path):
@@ -182,7 +230,8 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert json.loads((tmp_path / "runs" / "cli_flow-replay" / "run.json").read_text())["replay"] == str(tmp_path / "rec")
     assert main([*args, "--replay", "rec", "--stub"]) == 2
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
-    assert main([*args, "--replay", "rec", "--execute", "count"]) == 2
+    assert main([*args, "--replay", "rec", "--execute", "count", "--run-id", "executed"]) == 0
+    assert main([*args, "--execute", "count"]) == 2
 
 
 def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):

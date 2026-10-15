@@ -108,6 +108,7 @@ class Pipeline:
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
+        execute: Sequence[str] = (),
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -147,13 +148,17 @@ class Pipeline:
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
-        `record`: a directory each agent task attempt's recording is written to
+        `record`: a directory each task attempt's recording is written to
         (`<record>/<kind>/<key>.json` and its files: `execution/recording.py`): its outputs,
-        the files its `changes=` patterns saw change, its transcript and its result.
-        `replay`: a directory of recordings, played in place of every agent task's launch,
-        attempt by attempt; nothing is spent. A replay is a stub run (`run.json` `stub: true`,
-        and `replay`, the directory) whose Python tasks run their functions; its run id
-        defaults to `<flow>-replay`. Not with `record`, `stub`, `backends` or `preflight`.
+        the files its `changes=` patterns saw change, its transcript and its result; for a
+        Python task, how its call ended and its output.
+        `replay`: a directory of recordings, played in place of every agent task's launch and
+        every Python task's function, attempt by attempt; nothing is spent. A task with no
+        recording ends `error`. A replay is a stub run (`run.json` `stub: true`, and `replay`,
+        the directory); its run id defaults to `<flow>-replay`. Not with `record`, `stub`,
+        `backends` or `preflight`.
+        `execute`: with `replay`, the Python task kinds whose functions run instead of being
+        played (as `StubAgent(execute=)` in a stub run).
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
@@ -173,10 +178,13 @@ class Pipeline:
                 given.append("preflight")
             if given:
                 raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}=")
+        if execute and replay is None:
+            where = "give it to the stub agent: StubAgent(execute=)" if stub is not None else "it names what a replay does not play"
+            raise TypeError(f"Pipeline: execute= is for a replay ({where})")
         self.stub = stub
         self.record = Path(record) if record is not None else None
         #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
-        self.replay = Replay(replay) if replay is not None else None
+        self.replay = Replay(replay, execute=execute) if replay is not None else None
         if stub is not None:
             backends = stub.backends()
         elif self.replay is not None:
@@ -304,8 +312,10 @@ class Pipeline:
                     if self.replay is not None:
                         self.replay.start(adapter.output_contracts, self.cwd)
                         enrichers.insert(0, self.replay)
+                    recorder = None
                     if self.record is not None:  # last: it records the result the enrichers leave
-                        enrichers.append(Recorder(self.record, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id))
+                        recorder = Recorder(self.record, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id)
+                        enrichers.append(recorder)
                     runner = run.agent_runner(
                         self.backends,
                         plan.configs,
@@ -322,7 +332,9 @@ class Pipeline:
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
-                        run.python_runner(RetryingRunner(runner, on_attempt=run.record_attempt), cwd=self.cwd),
+                        run.python_runner(
+                            RetryingRunner(runner, on_attempt=run.record_attempt), cwd=self.cwd, recorder=recorder, replay=self.replay
+                        ),
                         follow_up=follow_up,
                         resume=resume,
                         max_concurrent=self.max_concurrent,

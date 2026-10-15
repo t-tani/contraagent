@@ -61,8 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recordings and replays: `Pipeline(record="recordings/")` (`contraagent run --record DIR`)
   keeps each agent task attempt's outputs, the files its `changes=` patterns saw change, its
   transcript and its result; `Pipeline(replay="recordings/")` (`contraagent run --replay DIR`)
-  plays them in place of the launches, attempt by attempt, with nothing spent, while Python
-  tasks run their functions. A replay is a stub run; `run.json` names its recordings (`replay`).
+  plays them in place of the launches, attempt by attempt, with nothing spent. A replay is a
+  stub run; `run.json` names its recordings (`replay`).
+- More of record and replay: a recording keeps Python task attempts too (how the call ended
+  and its output), and a replay plays them without calling the function;
+  `Pipeline(replay=DIR, execute=["fetch"])` (`--replay DIR --execute fetch`) runs the named
+  Python task kinds instead. A Python task with no recording ends `error` like an agent task.
 - A claim capacity sized by the host: `claim_capacity={"index": PerTask(memory_mb=1500, cores=1)}`,
   or `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`, runs as many
   tasks that claim `index` at once as the host's free memory (`MemAvailable`, less what tasks

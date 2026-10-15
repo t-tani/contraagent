@@ -14,6 +14,9 @@ contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha
 contraagent run tasks.py:docs --stub [--execute KIND]
                                          # a stub run: the stub agent plays every task with the smallest
                                          # output, and the tasks the flow created are listed
+contraagent run tasks.py:docs --record DIR   # a run that keeps each task attempt's recording in DIR
+contraagent run tasks.py:docs --replay DIR [--execute KIND]
+                                         # a replay: every task plays its recording, nothing is spent
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
 """
@@ -96,21 +99,21 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         default=[],
         metavar="KIND",
-        help="with --stub: run the function of this Python task kind instead of playing it (repeatable)",
+        help="with --stub or --replay: run the function of this Python task kind instead of playing it (repeatable)",
     )
     run.add_argument(
         "--record",
         default=None,
         metavar="DIR",
-        help="write each agent task attempt's recording to DIR: its outputs, the files its changes= patterns saw change, "
+        help="write each task attempt's recording to DIR: its outputs, the files its changes= patterns saw change, "
         "its transcript and its result",
     )
     run.add_argument(
         "--replay",
         default=None,
         metavar="DIR",
-        help="a replay: play the recordings in DIR in place of every agent task's launch; Python tasks run their functions, "
-        "nothing is spent (run id: <flow>-replay). Not with --stub or --record",
+        help="a replay: play the recordings in DIR in place of every agent task's launch and every Python task's function "
+        "(but the kinds of --execute); nothing is spent (run id: <flow>-replay). Not with --stub or --record",
     )
 
     docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
@@ -201,11 +204,11 @@ def _flow_command(args) -> int:
             from contraagent.testing import StubAgent, writes_smallest
 
             stub = StubAgent(default=writes_smallest(), execute=args.execute)
-        elif args.cmd == "run" and args.execute:
-            print("--execute: only with --stub", file=sys.stderr)
-            return 2
         record = getattr(args, "record", None)
         replay = getattr(args, "replay", None)
+        if args.cmd == "run" and args.execute and not args.stub and replay is None:
+            print("--execute: only with --stub or --replay", file=sys.stderr)
+            return 2
         if replay is not None and (args.stub or record is not None):
             print(f"--replay: not with {'--stub' if args.stub else '--record'}", file=sys.stderr)
             return 2
@@ -219,6 +222,7 @@ def _flow_command(args) -> int:
             preflight=getattr(args, "preflight", None),
             record=record,
             replay=replay,
+            execute=args.execute if replay is not None else (),
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "

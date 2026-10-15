@@ -1,7 +1,8 @@
-"""Recordings: what each attempt of an agent task left behind, kept to be played again.
+"""Recordings: what each task attempt left behind, kept to be played again.
 
 A **recording** (`Pipeline(record="recordings/")`, `contraagent run --record DIR`) keeps,
-per agent task attempt, what a later run needs to play it again without a launch:
+per task attempt (agent tasks and Python tasks), what a later run needs to play it again
+without a launch or a call of the function:
 
     recordings/<kind>/<key>.json         the task's recording: one entry per attempt, in order
     recordings/<kind>/<key>/<id>/        the files of one attempt:
@@ -10,18 +11,22 @@ per agent task attempt, what a later run needs to play it again without a launch
         files/<path>                     what its `changes=` patterns saw created or modified
         stream.jsonl                     its part of the transcript, when transcripts are kept
 
-An attempt's entry holds the facts of its last launch (stop, ok, final message, structured
-output, turns, agent, model, ...), the task's fingerprint, and the paths its patterns saw
-deleted. Only what the task declares is kept: its outputs and its `changes=`, never the
-rest of the working directory. A task's first attempt in a run replaces its recording;
+An agent task attempt's entry holds the facts of its last launch (stop, ok, final message,
+structured output, turns, agent, model, ...), the task's fingerprint, and the paths its
+patterns saw deleted. A Python task attempt's entry holds how its call ended (stop, ok,
+reason, and `retry_on`: whether it raised an exception of its task's `retry_on`) and the
+output file its return value was written to, which is what the flow receives. Only what
+the task declares is kept: its outputs and its `changes=`, never the rest of the working
+directory. A task's first attempt in a run replaces its recording;
 each later attempt adds to it. The entry file is replaced whole after the files it names
 are written, so a reader sees the old recording or the new one.
 
-A **replay** (`Pipeline(replay="recordings/")`, `contraagent run --replay DIR`) plays an
-agent task's recording in place of a launch: attempt 1 the first entry, attempt 2 the
-second, past the last the last again. It writes the recorded outputs and changed files
-into place, deletes the recorded deletions, appends the recorded transcript, and returns
-the recorded result with no cost and no tokens: nothing was spent in this run. A key
+A **replay** (`Pipeline(replay="recordings/")`, `contraagent run --replay DIR`) plays a
+task's recording in place of a launch, or of a Python task's function: attempt 1 the first
+entry, attempt 2 the second, past the last the last again. It writes the recorded outputs
+and changed files into place, deletes the recorded deletions, appends the recorded
+transcript, and returns the recorded result with no cost and no tokens: nothing was spent
+in this run. A Python task of a kind in `execute` runs its function instead. A key
 minted with `~n` that has no recording of its own plays the first recording of its base
 key after it (`summarize-alpha~3`, `summarize-alpha~4`, ... for `summarize-alpha~2`)
 that no task of this run has played. A task
@@ -49,7 +54,7 @@ from contraagent.backends.base import Backend
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.contracts import OutputContract
-from contraagent.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, Task, TaskResult, kind_name
+from contraagent.dispatch.task import STOP_COMPLETED, STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
 
 VERSION = 1
@@ -117,9 +122,10 @@ class _Mark:
 
 
 class Recorder:
-    """The `ResultEnricher` that writes each agent task attempt's recording under `directory`.
+    """The `ResultEnricher` that writes each agent task attempt's recording under `directory`,
+    and the recorder of each Python task attempt (`record_python`, by `PythonTaskRunner`).
 
-    `outputs(task)`: the task's output contracts (`TaskAdapter.output_contracts`); `cwd`:
+    `outputs(task)`: an agent task's output contracts (`TaskAdapter.output_contracts`); `cwd`:
     where its changes and outputs are resolved; `run_dir`: the run whose transcripts are
     copied. It runs after the enricher that records the task's changes, so it sees them.
     """
@@ -152,13 +158,7 @@ class Recorder:
         # Nothing was launched: a deferral, or an input refused before launch.
         if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None:
             return
-        kind = kind_name(task.kind)
-        home = self.directory / safe_name(kind)
-        entry_file = home / f"{safe_name(task.key)}.json"
-        folder = home / safe_name(task.key)
-        token = f"{task.attempt + 1}-{secrets.token_hex(4)}"
-        files = folder / token
-        files.mkdir(parents=True, exist_ok=True)
+        token, files = self._attempt_dir(task)
 
         outputs: list[dict[str, Any]] = []
         for n, (out, message) in enumerate(_outputs(self._outputs(task), self._cwd)):
@@ -193,6 +193,37 @@ class Recorder:
         launch = {name: getattr(o, name) for name in LAUNCH_FIELDS}
         launch["stop"] = o.stop.value
         attempt = {
+            **self._facts(task, token, result),
+            "route": result.route,
+            "launch": launch,
+            "outputs": outputs,
+            "written": written,
+            "deleted": deleted,
+            "stream": stream,
+        }
+        self._keep(task, "agent", attempt)
+
+    def record_python(self, task: Task, result: TaskResult, outputs: Sequence[OutputContract], retry: bool) -> None:
+        """Keep one call of a Python task's function: how it ended, `retry` (it raised an
+        exception of its task's `retry_on`), and, when it completed, its output files."""
+        token, files = self._attempt_dir(task)
+        kept: list[dict[str, Any]] = []
+        for n, (out, message) in enumerate(_outputs(outputs, self._cwd)):
+            name = f"output-{n}"
+            stored = result.stop == STOP_COMPLETED and _copy(out, files / name)
+            beside = result.stop == STOP_COMPLETED and _copy(message, files / f"{name}.message.txt")
+            kept.append({"file": name if stored else None, "message": f"{name}.message.txt" if beside else None})
+        self._keep(task, "python", {**self._facts(task, token, result), "retry_on": retry, "outputs": kept})
+
+    def _attempt_dir(self, task: Task) -> tuple[str, Path]:
+        """A fresh folder for one attempt's files: its name and its path."""
+        token = f"{task.attempt + 1}-{secrets.token_hex(4)}"
+        files = self.directory / safe_name(kind_name(task.kind)) / safe_name(task.key) / token
+        files.mkdir(parents=True, exist_ok=True)
+        return token, files
+
+    def _facts(self, task: Task, token: str, result: TaskResult) -> dict[str, Any]:
+        return {
             "attempt": task.attempt + 1,
             "files": token,
             "run": self._run_id,
@@ -201,13 +232,14 @@ class Recorder:
             "ok": result.ok,
             "stop": result.stop,
             "reason": result.reason,
-            "route": result.route,
-            "launch": launch,
-            "outputs": outputs,
-            "written": written,
-            "deleted": deleted,
-            "stream": stream,
         }
+
+    def _keep(self, task: Task, executor: str, attempt: dict[str, Any]) -> None:
+        """Add `attempt` to the task's recording (its first attempt in this run replaces it)."""
+        kind = kind_name(task.kind)
+        home = self.directory / safe_name(kind)
+        entry_file = home / f"{safe_name(task.key)}.json"
+        folder = home / safe_name(task.key)
         with self._lock:
             earlier: list[dict] = []
             if task.attempt > 0:
@@ -215,7 +247,14 @@ class Recorder:
                     earlier = json.loads(entry_file.read_text(encoding="utf-8")).get("attempts", [])
                 except (OSError, ValueError):
                     earlier = []
-            body = {"version": VERSION, "key": task.key, "kind": kind, "unit": task.declared_unit, "attempts": [*earlier, attempt]}
+            body = {
+                "version": VERSION,
+                "key": task.key,
+                "kind": kind,
+                "executor": executor,
+                "unit": task.declared_unit,
+                "attempts": [*earlier, attempt],
+            }
             rundir.write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
             # The attempts the entry no longer names: an earlier run's recording of this key.
             named = {a.get("files") for a in body["attempts"]}
@@ -235,15 +274,18 @@ class _Playing:
 
 
 class Replay:
-    """A recording directory, played in place of the coding agents (`backends()`).
+    """A recording directory, played in place of the coding agents (`backends()`) and of
+    the Python tasks' functions (`play_python`, by `PythonTaskRunner`).
 
     It is the `ResultEnricher` that tells its agents which task each launch is: give it
     to the runner's enrichers, and its `backends()` as the runner's backends. Bind it to a
     run's output contracts and working directory with `start` before the run.
+    `execute`: the Python task kinds whose functions run instead of being played.
     """
 
-    def __init__(self, directory: str | Path) -> None:
+    def __init__(self, directory: str | Path, *, execute: Iterable[str] = ()) -> None:
         self.directory = Path(directory)
+        self.execute: frozenset[str] = frozenset(execute)
         if not self.directory.is_dir():
             raise RecordingError(f"replay: {self.directory} is not a directory of recordings")
         #: Recorded key -> (its entry, the folder of its attempts' files).
@@ -282,10 +324,14 @@ class Replay:
 
     def snapshot(self, task: Task) -> None:
         """Choose the recording `task` plays, on its first attempt in this run."""
+        self._take(task)
+
+    def _take(self, task: Task) -> _Playing:
+        """The recording `task` plays: chosen on its first attempt in this run."""
         with self._lock:
             if task.key in self._playing:
                 self._playing[task.key].task = task
-                return
+                return self._playing[task.key]
             key = self._choose(task.key)
             playing = _Playing(task=task, key=key)
             if key is not None:
@@ -293,6 +339,7 @@ class Replay:
                 body, folder = self.recordings[key]
                 playing.attempts, playing.folder = list(body["attempts"]), folder
             self._playing[task.key] = playing
+            return playing
 
     def enrich(self, task: Task, before: None, result: TaskResult) -> None:
         """A task with no recording is not retried: no attempt finds one."""
@@ -314,6 +361,51 @@ class Replay:
 
     # --- playing ---------------------------------------------------------------
 
+    def play_python(self, task: Task, outputs: Sequence[OutputContract], cwd: Path) -> tuple[TaskResult, bool] | None:
+        """A Python task's recorded call for its attempt, its output files written into place,
+        and whether that call raised an exception of its `retry_on`; None for a kind in
+        `execute`, whose function runs. A task with no recording ends `error`, not retried."""
+        if kind_name(task.kind) in self.execute:
+            return None
+        started = time.monotonic()
+        playing = self._take(task)
+        if playing.key is None or playing.folder is None:
+            return TaskResult(task=task, ok=False, stop=STOP_ERROR, reason=f"no recording for {task.key}", retryable=False), False
+        attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)]
+        self._place(playing.folder / str(attempt.get("files", "")), attempt, outputs, cwd)
+        reason = "; ".join([*self._notes(playing, task, attempt), *([attempt["reason"]] if attempt.get("reason") else [])])
+        result = TaskResult(
+            task=task,
+            ok=bool(attempt.get("ok")),
+            stop=str(attempt.get("stop") or STOP_ERROR),
+            wall_s=time.monotonic() - started,
+            reason=reason,
+        )
+        return result, bool(attempt.get("retry_on"))
+
+    @staticmethod
+    def _place(files: Path, attempt: dict, outputs: Sequence[OutputContract], cwd: Path) -> None:
+        """Write an attempt's recorded outputs and changed files into place, and delete its deletions."""
+        for (out, message), recorded in zip(_outputs(outputs, cwd), attempt.get("outputs") or (), strict=False):
+            if recorded.get("file"):
+                _copy(files / recorded["file"], out)
+            if recorded.get("message"):
+                _copy(files / recorded["message"], message)
+        for rel in attempt.get("written") or ():
+            _copy(files / "files" / rel, cwd / rel)
+        for rel in attempt.get("deleted") or ():
+            (cwd / rel).unlink(missing_ok=True)
+
+    @staticmethod
+    def _notes(playing: _Playing, task: Task, attempt: dict) -> list[str]:
+        """What the result says about the recording played: another key's, another fingerprint."""
+        notes = []
+        if playing.key != task.key:
+            notes.append(f"played the recording of {playing.key}")
+        if attempt.get("fingerprint") and task.fingerprint and attempt["fingerprint"] != task.fingerprint:
+            notes.append(f"the recording has another fingerprint ({attempt['fingerprint'][:12]}, task {task.fingerprint[:12]})")
+        return notes
+
     def play(self, launch: Launch, agent: str) -> LaunchResult:
         """The recorded result of the launch's task for its attempt, its files written."""
         started = time.monotonic()
@@ -334,15 +426,7 @@ class Replay:
         task = playing.task
         attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)]
         files = playing.folder / str(attempt.get("files", ""))
-        for (out, message), recorded in zip(_outputs(self._outputs(task), launch.cwd), attempt.get("outputs") or (), strict=False):
-            if recorded.get("file"):
-                _copy(files / recorded["file"], out)
-            if recorded.get("message"):
-                _copy(files / recorded["message"], message)
-        for rel in attempt.get("written") or ():
-            _copy(files / "files" / rel, launch.cwd / rel)
-        for rel in attempt.get("deleted") or ():
-            (launch.cwd / rel).unlink(missing_ok=True)
+        self._place(files, attempt, self._outputs(task), launch.cwd)
         if attempt.get("stream") and launch.stream_path is not None:
             try:
                 part = (files / attempt["stream"]).read_bytes()
@@ -352,11 +436,7 @@ class Replay:
             with open(launch.stream_path, "ab") as f:
                 f.write(part)
         recorded = dict(attempt.get("launch") or {})
-        notes = []
-        if playing.key != key:
-            notes.append(f"played the recording of {playing.key}")
-        if attempt.get("fingerprint") and task.fingerprint and attempt["fingerprint"] != task.fingerprint:
-            notes.append(f"the recording has another fingerprint ({attempt['fingerprint'][:12]}, task {task.fingerprint[:12]})")
+        notes = self._notes(playing, task, attempt)
         tail = str(recorded.get("stderr_tail") or "")
         return LaunchResult(
             label=launch.label,

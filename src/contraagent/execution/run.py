@@ -307,12 +307,14 @@ class Run:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
         return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
 
-    def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None) -> PythonTaskRunner:
+    def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None, recorder=None, replay=None) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
-        a retried one here, the last by the queue."""
-        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt)
+        a retried one here, the last by the queue. `recorder` and `replay`: see `PythonTaskRunner`."""
+        return PythonTaskRunner(
+            inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt, recorder=recorder, replay=replay
+        )
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent

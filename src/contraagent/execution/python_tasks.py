@@ -17,6 +17,10 @@ for an exception the task names in `retry_on` (`@python_task(retries=, retry_on=
 a call that raised one gets a fresh attempt, up to `retries` of them, after
 `RetryingRunner`'s backoff. Each attempt is its own journal row.
 
+With a recorder (`execution.recording.Recorder`), each call is recorded: how it ended and
+its output files. With a replay (`execution.recording.Replay`), a call is played from its
+recording instead, and the function does not run (but for the kinds the replay executes).
+
 Contracts come from the task itself (`make_python_task(..., input_contracts=, output_contracts=)`)
 and, when given, from a `TaskAdapter`, exactly as for agent tasks.
 """
@@ -65,6 +69,9 @@ class PythonTaskRunner:
     an exception of its `retry_on`. `on_failed_attempt` sees each attempt a fresh one
     follows (`Run.record_attempt` journals it); the last attempt is the task's result,
     which the queue records.
+
+    `recorder` (`Recorder.record_python`) keeps each call's recording; `replay`
+    (`Replay.play_python`) plays a call from its recording in place of the function.
     """
 
     def __init__(
@@ -75,8 +82,12 @@ class PythonTaskRunner:
         run_dir: str | Path | None = None,
         cwd: str | Path | None = None,
         on_failed_attempt: Callable[[TaskResult], None] | None = None,
+        recorder=None,
+        replay=None,
     ) -> None:
         self._inner = inner
+        self._recorder = recorder
+        self._replay = replay
         self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
@@ -162,8 +173,8 @@ class PythonTaskRunner:
         attempt = 0
         while True:
             task.attempt = attempt
-            res, exc = self._call(task)
-            if exc is None or attempt >= retries or not isinstance(exc, retry_on):
+            res, retry = self._call(task, retry_on)
+            if not retry or attempt >= retries:
                 return res
             if self._on_failed_attempt is not None:
                 try:
@@ -173,12 +184,17 @@ class PythonTaskRunner:
             time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
             attempt += 1
 
-    def _call(self, task: Task) -> tuple[TaskResult, Exception | None]:
-        """Call the function: its result, and the exception it raised. An exception is the
-        task's result, never a crash of the queue. With a run directory, it is the current
-        run of `contraagent.log` and `save` while the function runs, on whichever thread the
-        queue calls it."""
+    def _call(self, task: Task, retry_on: tuple[type[Exception], ...]) -> tuple[TaskResult, bool]:
+        """Call the function: its result, and whether it raised an exception of `retry_on`. An
+        exception is the task's result, never a crash of the queue. With a run directory, it
+        is the current run of `contraagent.log` and `save` while the function runs, on
+        whichever thread the queue calls it. A replay plays the call instead, when it can."""
         assert task.fn is not None
+        outs = self.contracts(task)[0]
+        if self._replay is not None:
+            played = self._replay.play_python(task, outs, self._cwd)
+            if played is not None:
+                return played
         t0 = time.monotonic()
         reason = ""
         error: Exception | None = None
@@ -190,4 +206,7 @@ class PythonTaskRunner:
             stop, error = STOP_ERROR, exc
             reason = f"{type(exc).__name__}: {exc}"[:300]
         result = TaskResult(task=task, ok=stop == STOP_COMPLETED, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
-        return result, error
+        retry = error is not None and isinstance(error, retry_on)
+        if self._recorder is not None:
+            self._recorder.record_python(task, result, outs, retry)
+        return result, retry
