@@ -178,10 +178,14 @@ def test_time_box_takes_a_generator_and_a_positive_deadline():
 slept: list[str] = []
 
 
+#: The clock `slow` spends on: the test's `clock`.
+spent: list["FakeTime"] = []
+
+
 @python_task
 def slow(unit: str) -> str:
     slept.append(unit)
-    time.sleep(0.3)
+    spent[-1].spend(0.3)  # past the box's 0.15 s
     return unit
 
 
@@ -210,12 +214,45 @@ def cycle(unit: str):
     return done
 
 
+class FakeTime:
+    """The queue's and the flow driver's clock (`time.monotonic`), moved only by `spend`: a
+    deadline is crossed by the work a test says took time, never by how loaded the machine
+    is. `sleep` and `time` stay real."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self._lock = threading.Lock()
+
+    def monotonic(self) -> float:
+        with self._lock:
+            return self.now
+
+    def spend(self, seconds: float) -> None:
+        with self._lock:
+            self.now += seconds
+
+    sleep = staticmethod(time.sleep)
+    time = staticmethod(time.time)
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    import contraagent.dispatch.flow as flow_module
+    import contraagent.dispatch.queue as queue_module
+
+    fake = FakeTime()
+    monkeypatch.setattr(queue_module, "time", fake)
+    monkeypatch.setattr(flow_module, "time", fake)
+    return fake
+
+
 def rows(path):
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
-def test_a_pipeline_records_the_box_and_a_resume_starts_its_clock_again(tmp_path):
+def test_a_pipeline_records_the_box_and_a_resume_starts_its_clock_again(tmp_path, clock):
     slept.clear()
+    spent[:] = [clock]
     pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None)
     first = pipeline.run(cycle, run_id="c", unit="a")
     assert first.value == "cut"
@@ -238,11 +275,15 @@ def test_a_pipeline_records_the_box_and_a_resume_starts_its_clock_again(tmp_path
     assert second.value == "whole" and slept == ["a"]
 
 
-def test_the_time_box_example_cuts_the_writes_and_still_summarizes_and_publishes(tmp_path):
+def test_the_time_box_example_cuts_the_writes_and_still_summarizes_and_publishes(tmp_path, clock):
     from contraagent.docs.examples.time_box.flow import cycle as topics_cycle
     from contraagent.testing import StubAgent
 
-    agent = StubAgent({"write": lambda launch: {"topic": launch.unit, "summary": "s"}, "summarize": {"text": "t"}}, delay_s=0.25)
+    def write(launch):
+        clock.spend(0.25)  # each write takes a quarter second: a and b start before 0.4 s, c after
+        return {"topic": launch.unit, "summary": "s"}
+
+    agent = StubAgent({"write": write, "summarize": {"text": "t"}})
     pipeline = Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, backends=agent.backends(), log=lambda line: None)
     report = pipeline.run(topics_cycle, topics=["a", "b", "c", "d"], deadline_s=0.4)
     assert report.value == ["a", "b"]  # c was created past the deadline
