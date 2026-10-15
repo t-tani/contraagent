@@ -7,9 +7,10 @@
 //
 // The monitor shows the showcase runs (showcase.py: the demo pipelines on the demo agent, every
 // task done, no coding agent, nothing spent), written into a temporary directory and served by
-// `contraagent monitor` on a free port. Each screenshot is the region that matters, at device
-// scale 2, in full colour: the PNGs are optimized losslessly (oxipng), the WebP files are
-// lossless (Pillow); both through `uv run --with`.
+// `contraagent monitor` on a free port. Each screenshot is the region that matters (or a few
+// regions, one under the other), at device scale 2, in full colour, never scaled: the PNGs are
+// optimized losslessly (oxipng), the WebP files are lossless (Pillow); both through
+// `uv run --with`.
 //
 //   pnpm --dir web screenshots                       # all of them
 //   pnpm --dir web screenshots --only ui,elements    # some sets
@@ -54,68 +55,84 @@ const DOCS_LOOP = 'contraagent.docs.examples.demo.tasks.review_loop';
 /**
  * Each screenshot: its set and file, the monitor's page (`url`) or an example of
  * @contraagent/elements (`example`), the theme, the viewport, and the region it keeps
- * (`clip(page)`, in CSS pixels). The README's are 1200 px wide; the packages' are at most
- * 900, so GitHub (about 880 px) shows them near their size.
+ * (`clip(page)`, in CSS pixels; a list of regions is stacked into one image, top to bottom).
+ * Every image is at most 900 CSS px wide (the README's at most 880, GitHub's column), so a
+ * page shows its text at its own size; the README gives each `<img>` its width in CSS px.
  */
 const SHOTS = [
   // The root README.
   {
+    // The hero: the run, finished, and its pipeline graph with the review loop. At 680 px the
+    // graph is drawn top to bottom at its own size; wider, it would be scaled down to fit.
     set: 'readme',
-    name: 'overview', // the hero: a finished run, every task done, the review loop's layer, and the totals
+    name: 'overview',
     url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`,
-    width: 1200,
-    height: 1100,
+    width: 680,
+    height: 1500,
     ready: 'ca-pipeline-graph .dag',
-    clip: async (page) => rows(page, 0, bottom(await boxOf(page, 'ca-kpis')) + 12),
+    clip: async (page) => [await card(page, 'section >> nth=0'), await card(page, 'section:has(ca-pipeline-graph)')],
   },
   {
+    // An output checked, sent back with its failed checks, and corrected in the same session.
     set: 'readme',
-    name: 'pipeline-graph', // a nested flow's inner layer: two loops, one inside the other
-    url: '/?run=analyse&tab=overview&layer=contraagent.docs.examples.analysis.flow.analyse_file',
-    width: 1200,
-    height: 1000,
-    ready: 'ca-pipeline-graph .dag',
+    name: 'task-detail',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?run=docs&tab=stream&key=write_note-alpha&round=1',
+    height: 1100,
+    ready: 'ca-task-view',
+    clip: async (page) => [
+      await card(page, 'ca-task-view .taskmeta'),
+      await between(page, 'ca-task-view', /^Agent sessions$/, /^Output failed checks$/, 1),
+    ],
+  },
+  {
+    // A few rows of the summaries' history: the model switch, and the correction.
+    set: 'readme',
+    name: 'history',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?run=docs&tab=journal&kind=summarize',
+    height: 900,
+    ready: 'ca-journal-table',
+    gap: 0,
     clip: async (page) => {
-      const g = await boxOf(page, 'ca-pipeline-graph');
-      return rows(page, g.y - 64, bottom(g) + 12);
+      // The header and two rows, in the table's order, up to the reason (which a 900 px table
+      // cuts short); stacked with no gap, they read as one table.
+      const head = await boxOf(page, 'ca-journal-table thead tr');
+      const reason = await page.locator('ca-journal-table thead th', { hasText: 'Reason' }).boundingBox();
+      const width = reason.x - head.x + 8;
+      const rows = [];
+      for (const unit of ['beta', 'delta']) rows.push(await page.locator('ca-journal-table tbody tr', { hasText: `summarize · ${unit}` }).boundingBox());
+      rows.sort((a, b) => a.y - b.y);
+      return [box(head.x - 8, head.y - 8, width, head.height + 8), ...rows.map((r) => box(r.x - 8, r.y, width, r.height + 1))];
     },
   },
   {
+    // The model switch in the task's detail, in the dark theme (the monitor's default).
     set: 'readme',
-    name: 'task-detail', // an output checked, sent back with its failed checks, corrected in the same session
-    url: '/?run=docs&tab=stream&key=write_note-alpha&round=1',
-    width: 1200,
-    height: 1100,
-    ready: 'ca-task-view',
-    clip: async (page) => rows(page, 104, bottom(await boxOf(page, 'ca-task-view', 'Output failed checks')) + 28),
-  },
-  {
-    set: 'readme',
-    name: 'history', // the summaries' history: a correction, and the model switch after a rate limit
-    url: '/?run=docs&tab=journal&kind=summarize',
-    width: 1200,
-    height: 900,
-    ready: 'ca-journal-table',
-    clip: async (page) => rows(page, 0, bottom(await boxOf(page, 'ca-journal-table')) + 8),
-  },
-  {
-    set: 'readme',
-    name: 'model-switch-dark', // the model switch in the task's detail, in the dark theme (the monitor's default)
+    name: 'model-switch-dark',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
     url: '/?run=docs&tab=stream&key=summarize-beta',
     theme: 'contraagent-dark',
-    width: 1200,
     height: 1100,
     ready: 'ca-task-view',
-    clip: async (page) => rows(page, 104, bottom(await boxOf(page, 'ca-task-view', 'Done.', -1)) + 28),
+    clip: async (page) => [
+      await card(page, 'ca-task-view .taskmeta'),
+      await between(page, 'ca-task-view', /^Agent sessions$/, /^Agent sessions$/),
+    ],
   },
   {
+    // The runs of a period added up: the totals, and the cost by day and kind.
     set: 'readme',
-    name: 'trends', // the runs of a period added up: totals, cost by day and kind, the kinds
+    name: 'trends',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
     url: '/?page=trends&days=7',
-    width: 1200,
-    height: 1300,
+    height: 1100,
     ready: 'ca-trends',
-    clip: async (page) => rows(page, 0, 990),
+    clip: async (page) => {
+      const tiles = await card(page, 'ca-trends section >> nth=0');
+      const chart = await card(page, 'ca-trends section >> nth=1');
+      return box(tiles.x, tiles.y, tiles.width, bottom(chart) - tiles.y);
+    },
   },
 
   // @contraagent/ui: one per view.
@@ -141,6 +158,21 @@ const SHOTS = [
 ];
 
 const bottom = (b) => b.y + b.height;
+const pad = (b, m) => box(b.x - m, b.y - m, b.width + 2 * m, b.height + 2 * m);
+/** A card (a `section`) with a margin, so that its border and its shadow show. */
+const card = async (page, selector) => pad(await boxOf(page, selector), 10);
+/**
+ * The width of `selector`, from the element inside it whose text matches `from` down to the
+ * one that matches `to` (with `block`, the block that holds it), with a margin.
+ */
+async function between(page, selector, from, to, block = 0) {
+  const outer = await boxOf(page, selector);
+  const start = await page.locator(selector).getByText(from).first().boundingBox();
+  const found = page.locator(selector).getByText(to).first();
+  const end = await (block ? found.locator('xpath=..') : found).boundingBox();
+  if (!start || !end) throw new Error(`${selector}: ${from} or ${to} is not on the page`);
+  return box(outer.x, start.y - 12, outer.width, bottom(end) - start.y + 24);
+}
 const box = (x, y, width, height) => ({ x: Math.max(0, x), y: Math.max(0, y), width, height });
 /** The page's full width between `top` and `end`. */
 const rows = (page, top, end) => box(0, top, page.viewportSize().width, end - Math.max(0, top));
@@ -200,6 +232,8 @@ const stops = [];
 let workdir = args.runs;
 let made = false;
 const files = [];
+/** The images made of several regions: `--stack <image> <gap in CSS px> <part> ...` each. */
+const stacks = [];
 try {
   let monitorBase;
   if (shots.some((s) => s.url)) {
@@ -268,7 +302,16 @@ try {
     await page.waitForTimeout(1500); // the live feeds settle and the graphs lay out
     const clip = shot.clip ? await shot.clip(page) : await hostBox(page);
     const path = join(dir, `${shot.name}.png`);
-    await page.screenshot({ path, clip });
+    if (Array.isArray(clip)) {
+      const parts = [];
+      for (const [i, part] of clip.entries()) {
+        parts.push(join(dir, `${shot.name}.part${i}.png`));
+        await page.screenshot({ path: parts.at(-1), clip: part });
+      }
+      stacks.push(['--stack', path, String(shot.gap ?? 12), ...parts]);
+    } else {
+      await page.screenshot({ path, clip });
+    }
     files.push(path);
     await ctx.close();
   }
@@ -287,4 +330,4 @@ async function hostBox(page) {
 }
 
 const asWebp = files.filter((f) => SETS[Object.keys(SETS).find((k) => f.startsWith(SETS[k].dir))].format === 'webp');
-run('uv', ['run', '--project', ROOT, '--with', 'pyoxipng', '--with', 'pillow', 'python', join(WEB, 'scripts', 'optimize_images.py'), '--webp', ...asWebp, '--png', ...files.filter((f) => !asWebp.includes(f))]);
+run('uv', ['run', '--project', ROOT, '--with', 'pyoxipng', '--with', 'pillow', 'python', join(WEB, 'scripts', 'optimize_images.py'), ...stacks.flat(), '--webp', ...asWebp, '--png', ...files.filter((f) => !asWebp.includes(f))]);

@@ -11,12 +11,13 @@ handles failover, quotas, deadlines and resume, and a live monitor shows every r
 ![Linux](https://img.shields.io/badge/platform-Linux-555)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-![The monitor's overview of a finished run: 44 of 44 tasks done, no problems, all 44 outputs passed their checks, the pipeline graph with a review loop, and the totals](docs/assets/readme/overview.png)
+<img src="docs/assets/readme/overview.png" width="676" alt="The run card of a finished run, and its pipeline graph: prepare, summarize, a loop of score, review and revise, then write_note, 44 of 44 tasks done">
 
 <sub>The monitor after the demo pipeline ran on its demo agent. Every task is done
 and every output passed its checks, after two corrections in their own sessions, one
 model switch after a rate limit, and a second pass of the review loop for one unit
-(an item that the pipeline works on).</sub>
+(an item that the pipeline works on). The pipeline graph draws the flow as it is
+written, by function and loop, with a mark for each unit.</sub>
 
 ## Example
 
@@ -161,31 +162,25 @@ and `--replay DIR` replays those recordings in place of the coding agent, with
 nothing spent. A stub run (`--stub`, a run that launches no coding agent) plays
 scripted replies, and so does `contraagent.testing.StubAgent` in pytest.
 
-![Task detail of write_note · alpha, done after 1 correction: the first agent session's transcript, and the two checks its output failed](docs/assets/readme/task-detail.png)
+<img src="docs/assets/readme/task-detail.png" width="880" alt="Task detail of write_note · alpha, done after 1 correction: the first agent session's transcript, and the two checks its output failed">
 
 <sub>The task detail holds the transcript of each agent session, with the task's
 input, output and definition. The first version of this note failed two checks, the
 errors went to the same session, and the corrected version passed.</sub>
 
-![History of the summarize tasks: 8 attempts, all done; delta with 1 correction, beta after a model switch from primary-model (rate limited) to fallback-model](docs/assets/readme/history.png)
+<img src="docs/assets/readme/history.png" width="826" alt="Two rows of the history of the summarize tasks, both done: beta on fallback-model after a model switch, delta on primary-model with 1 correction">
 
 <sub>The history has one row per attempt, with its outcome, coding agent, model,
 identity (the credential used), tokens, cost and time. Every summary is done. One
 needed a correction, and one switched from a rate-limited model to its fallback,
 which the later summary tasks used from their first attempt.</sub>
 
-![Task detail of summarize · beta in the dark theme: done after a model switch, with the first agent session on primary-model and the second on fallback-model](docs/assets/readme/model-switch-dark.png)
+<img src="docs/assets/readme/model-switch-dark.png" width="880" alt="Task detail of summarize · beta in the dark theme: done after a model switch from primary-model (rate limited) to fallback-model, and its two agent sessions">
 
 <sub>The same model switch in the dark theme. Each agent session keeps its own
 transcript, tokens and cost.</sub>
 
-![Pipeline graph of a nested flow: a loop inside a loop, every task done](docs/assets/readme/pipeline-graph.png)
-
-<sub>The pipeline graph draws the flow as it is written, by function and loop. It has
-a mark for each unit, the passes of each loop, and the tasks that have not
-started.</sub>
-
-![Trends over 7 days: 2 runs, 81 attempts, all passed, cost by day and kind, and a table of the kinds](docs/assets/readme/trends.png)
+<img src="docs/assets/readme/trends.png" width="880" alt="Trends over 7 days: 2 runs, 81 attempts, all passed, and the cost by day and kind">
 
 <sub>Trends show the totals of the runs in a period, such as cost by day and kind,
 tasks and models.</sub>
