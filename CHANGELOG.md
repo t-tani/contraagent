@@ -145,6 +145,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `output_name` is the output file's path relative to the run's `out/`, a template with
+  `{kind}`, `{unit}` and `{key}` (default `{kind}/{unit}.json`, `{kind}/{unit}.md` for a text
+  output): `output_name="reports/{unit}.json"` writes `out/reports/alpha.json`.
+  `@python_task(output_name=)` takes the same. An absolute path, a `..`, `.` or empty segment,
+  or another field is refused at declaration; two kinds whose templates name one file raise
+  when the flow reaches the second (`Pipeline.check` reports it), and so do two tasks given one
+  file. `output_of` takes the other kind's file, whatever its template.
 - `retries` counts the attempts after the first for agent tasks too (`KindConfig.retries`,
   `[tasks.<kind>] retries`, `agent_task(retries=)`): `retries=2` is 3 attempts at most. The
   default is 2, so a kind that sets nothing still makes 3 attempts; a kind that set `retries=N`

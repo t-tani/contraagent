@@ -131,9 +131,20 @@ be made (`zeta`) ends its loop there.
   with a task of a `finishing_kinds` kind. A batch settles every item, then raises the first failure by position.
   Tolerating a failure is `try`/`except`.
 - A task called and never yielded still runs; the flow call does not wait for it.
-- A task's output file is `out/<kind>/<unit>.json` (`.md` for a text output),
-  and `out/<kind>/<key>.json` for a task call given `key=`: tasks of one kind
-  and one unit with different keys write different files.
+- A task's output file is its kind's `output_name` under the run's `out/`: a
+  path template with `{kind}`, `{unit}` and `{key}`, `{unit}` being the key for a
+  task call given `key=`, so tasks of one kind and one unit with different keys
+  write different files. The default is `{kind}/{unit}.json` (`.md` for a text
+  output): `out/summarize/alpha.json`. `agent_task(output_name="reports/{unit}.json")`
+  writes `out/reports/alpha.json`; `@python_task(output_name=...)` takes the same.
+  An absolute path, a `..`, `.` or empty segment, or another field is refused
+  where the task is declared.
+- One output file has one writer. Two kinds whose templates name one file
+  (`reports/{unit}.json` for both) raise `ValueError` when the flow reaches the
+  second, and `Pipeline.check` reports it before a run, reachable kinds included;
+  two tasks given one file (a template without `{unit}` or `{key}`) raise at the
+  second task call. A task that fills in another kind's file names it with
+  `output_of` (see [Contracts](contracts.md)).
 - The same task created again in one flow call is numbered: `review-beta`,
   `review-beta~2`, ..., with its output file (`out/review/beta~2.json`). One key
   created by two flow calls raises `ValueError` at the second: `key=` tells
