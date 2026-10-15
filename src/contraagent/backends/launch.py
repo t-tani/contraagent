@@ -1,9 +1,10 @@
 """Shared vocabulary for headless coding-agent launches.
 
 Stop, Limits, Launch, Usage, RateLimit, and LaunchResult are backend-neutral.
-Per-CLI argv, env, and output parsing live in `backends/claude/` and
-`backends/omp/`; the Backend ABC in `backends/base.py`; the subprocess loop
-in `backends/process.py`; the provider identity in `backends/credentials.py`.
+Per-CLI argv, env and wire readers live in `backends/<agent>/`; the Backend ABC
+and its run template in `backends/base.py`; what every wire reader shares in
+`backends/wire.py`; the subprocess loop in `backends/process.py`; the provider
+identity in `backends/credentials.py`.
 They hold the per-call usage accounting, the stop taxonomy, and the
 telemetry record.
 """
