@@ -258,13 +258,19 @@ def test_host_handler_is_restored_and_called(restore_signals):
 _DRIVER = """
 import sys
 from contraagent import Pipeline, agent_task
-from contraagent.backends.base import OneShotBackend
+from contraagent.backends.base import Backend
 from contraagent.backends.launch import LaunchResult, Stop
+from contraagent.backends.wire import EventFold
 
 token, runs = sys.argv[1], sys.argv[2]
 
 
-class Sleeper(OneShotBackend):
+class Done(EventFold):
+    def result(self, launch, agent, *, exit_code, killed):
+        return LaunchResult(label=launch.label, agent=agent, stop=Stop.COMPLETED, ok=True)
+
+
+class Sleeper(Backend):
     name = "sleeper"
     binary = sys.executable
 
@@ -274,8 +280,8 @@ class Sleeper(OneShotBackend):
     def env(self, launch):
         return {"PATH": "/usr/bin:/bin"}
 
-    def parse(self, launch, stdout, exit_code, killed):
-        return LaunchResult(label=launch.label, agent=self.name, stop=Stop.COMPLETED, ok=True)
+    def fold(self, launch):
+        return Done()
 
 
 work = agent_task("work", instructions="x", max_turns=1, timeout_s=600, agent="sleeper")

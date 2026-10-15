@@ -13,7 +13,7 @@ import pytest
 
 from contraagent import ApiKey, CodexBackend, Gateway, Launch, Limits, Stop, Subscription
 from contraagent.backends import CredentialError
-from contraagent.backends.codex.wire import EventReader, classify, normalize_event, read_rollout
+from contraagent.backends.codex.wire import EventReader, normalize_event, read_rollout
 from contraagent.backends.streams import normalize_stream_line
 
 THREAD = "01a13afd-d786-78c2-9439-7b6c086efc20"
@@ -235,9 +235,9 @@ def test_the_monitor_renders_codex_events():
 
 def test_an_unknown_event_is_counted():
     reader = EventReader()
-    reader.feed('{"type": "thread.started", "thread_id": "x"}')
-    reader.feed('{"type": "item.delta"}')
-    assert reader.unread == {"item.delta": 1} and classify(reader, 0) is Stop.NO_OUTPUT
+    reader.feed({"type": "thread.started", "thread_id": "x"})
+    reader.feed({"type": "item.delta"})
+    assert reader.unread == {"item.delta": 1} and reader.stop(exit_code=0, killed=None) is Stop.NO_OUTPUT
     assert normalize_event({"type": "item.delta"}) == {"type": "skip"}
 
 
@@ -267,6 +267,6 @@ def test_a_web_search_names_its_query_and_pages_when_it_ends():
     opened = {**done, "action": {"type": "open_page", "url": "https://a.example/"}}
     assert normalize_event({"type": "item.completed", "item": opened})[0]["web_fetch"] == "https://a.example/"
     reader = EventReader()
-    reader.feed(json.dumps({"type": "item.completed", "item": done}))
-    reader.feed(json.dumps({"type": "item.completed", "item": opened}))
+    reader.feed({"type": "item.completed", "item": done})
+    reader.feed({"type": "item.completed", "item": opened})
     assert reader.web_queries == ["latest python"] and reader.tool_uses == {"web_search": 2}

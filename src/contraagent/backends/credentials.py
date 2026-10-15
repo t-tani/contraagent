@@ -294,6 +294,37 @@ def parse_credential(name: str, table: dict) -> CredentialBase:
 # --- what a backend makes of one ---------------------------------------------
 
 
+def model_provider(model: str) -> str:
+    """The provider a provider-qualified model names (`anthropic` of `anthropic/claude-haiku-5-5`);
+    '' for a bare model id."""
+    return model.split("/", 1)[0] if "/" in model else ""
+
+
+def model_id(model: str) -> str:
+    """The model id within its provider (`claude-haiku-5-5` of `anthropic/claude-haiku-5-5`)."""
+    return model.split("/", 1)[1] if "/" in model else model
+
+
+def check_provider(credential: CredentialBase, model: str, provider: str, named: str = "") -> None:
+    """Refuse a credential for `provider` on a model of another provider. `named`: the provider
+    the credential names, when the agent knows its login under another (`provider`)."""
+    wanted = model_provider(model)
+    if wanted and provider and provider != wanted:
+        what = provider if not named or named == provider else f"{provider} (its {named} login)"
+        raise CredentialError(f"model {model} is a {wanted} model; credential {credential.label} is for {what}")
+
+
+def key_var(provider: str, special: dict[str, str] | None = None) -> str:
+    """The variable a coding agent reads `provider`'s API key from: `special`'s name for it,
+    else `<PROVIDER>_API_KEY` (omp and pi alike)."""
+    return (special or {}).get(provider) or provider.upper().replace("-", "_").replace(".", "_") + "_API_KEY"
+
+
+def secret_value(secret: Secret, env: dict[str, str] | None) -> str:
+    """`secret` resolved against `env`; a placeholder when `env` is None (a check reads no secret)."""
+    return secret.resolve(env) if env is not None else "<unresolved>"
+
+
 @dataclass(frozen=True)
 class CredentialBinding:
     """How one backend uses one credential for one launch.

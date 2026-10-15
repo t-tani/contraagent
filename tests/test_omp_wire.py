@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from contraagent import Launch, Stop
-from contraagent.backends.omp.rpc import _Accumulator
-from contraagent.backends.omp.trace import TraceReader, normalize_event, parse_trace
+from contraagent.backends.omp.rpc import RpcReader
+from contraagent.backends.omp.wire import TraceReader, normalize_event
 
 FIXTURES = Path(__file__).parent / "fixtures" / "omp"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))
@@ -25,15 +25,16 @@ def events(version: str, wire: str) -> list[dict]:
 
 
 def via_json(version: str):
-    return parse_trace(LAUNCH, "omp", (FIXTURES / version / "json.jsonl").read_bytes(), 0, None)
+    return TraceReader().read((FIXTURES / version / "json.jsonl").read_bytes()).result(LAUNCH, "omp", exit_code=0, killed=None)
 
 
 def via_rpc(version: str):
-    acc = _Accumulator()
+    rpc = RpcReader("t")
     for frame in events(version, "rpc"):
-        if acc.feed(frame, "t"):
+        rpc.feed(frame)
+        if rpc.done:
             break
-    return acc.launch_result(LAUNCH, "omp-rpc", [], None)
+    return rpc.result(LAUNCH, "omp-rpc", exit_code=None, killed=None)
 
 
 @pytest.mark.parametrize("version", VERSIONS)

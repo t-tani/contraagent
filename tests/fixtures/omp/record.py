@@ -34,17 +34,17 @@ def record(cwd: Path) -> dict[str, list[dict]]:
     out = subprocess.run(backend.argv(launch), cwd=cwd, env=backend.env(launch), capture_output=True, timeout=200).stdout
     lines = [json.loads(line) for line in out.splitlines() if line.strip().startswith(b"{")]
     frames: list[dict] = []
-    feed = rpc._Accumulator.feed
+    feed = rpc.RpcReader.feed
 
-    def keep(self, frame, pid):
+    def keep(self, frame):
         frames.append(frame)
-        return feed(self, frame, pid)
+        return feed(self, frame)
 
-    rpc._Accumulator.feed = keep  # type: ignore[method-assign]
+    rpc.RpcReader.feed = keep  # type: ignore[method-assign]
     try:
         OmpRpcBackend().run(launch)
     finally:
-        rpc._Accumulator.feed = feed  # type: ignore[method-assign]
+        rpc.RpcReader.feed = feed  # type: ignore[method-assign]
     return {"json": lines, "rpc": frames}
 
 

@@ -1,43 +1,13 @@
-"""omp's own config/registry: the `retry.fallbackChains` reader and the
-`omp models --json` catalogue parser.
-
-A leaf relative to `omp.py`: both are self-contained readers of omp's own
-on-disk config or CLI output, with no dependency on the Backend contract
-itself. `omp.py` is the only importer; nothing here imports back into it.
-"""
+"""omp's own config: the `retry.fallbackChains` reader (`OmpBackend.model_chains`)."""
 
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 from pathlib import Path
 
-# `omp models` is a local registry read. Generous because a cold provider
-# list can be slower than the ~1.7s it takes here, and a timeout on the
-# cheap preflight pass must not read as "every model is unknown".
-CATALOGUE_TIMEOUT_S = 30
-
-
-def parse_models(stdout: str) -> dict[str, int | None]:
-    """Each model of `omp models --json` (`{"models": [{"selector", "contextWindow"}]}`),
-    by its provider-qualified selector, with its context window (None where omp lists
-    none). Empty when the output is not that document."""
-    try:
-        doc = json.loads(stdout)
-    except ValueError:
-        return {}
-    rows = doc.get("models") if isinstance(doc, dict) else None
-    out: dict[str, int | None] = {}
-    for m in rows if isinstance(rows, list) else ():
-        if not isinstance(m, dict):
-            continue
-        selector = m.get("selector") or (f"{m['provider']}/{m['id']}" if m.get("provider") and m.get("id") else None)
-        if not isinstance(selector, str):
-            continue
-        window = m.get("contextWindow")
-        out[selector] = window if isinstance(window, int) and not isinstance(window, bool) and window > 0 else None
-    return out
+#: How long `omp config path` may take.
+CONFIG_PATH_TIMEOUT_S = 30
 
 
 class OmpModelChains:
@@ -150,7 +120,7 @@ def _omp_agent_dir(env: dict) -> Path:
     if shutil.which("omp", path=env.get("PATH")):
         try:
             proc = subprocess.run(
-                ["omp", "config", "path"], capture_output=True, text=True, timeout=CATALOGUE_TIMEOUT_S, env={**env, "NO_COLOR": "1"}
+                ["omp", "config", "path"], capture_output=True, text=True, timeout=CONFIG_PATH_TIMEOUT_S, env={**env, "NO_COLOR": "1"}
             )
             out = (proc.stdout or "").strip().splitlines()
             if proc.returncode == 0 and out:

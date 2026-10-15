@@ -13,7 +13,7 @@ from pathlib import Path
 
 from contraagent import AgentRunner, Backend, KindConfig, LaunchResult, PipelineConfig, RateLimit, Route, Router, Stop, Task, TaskAdapter
 from contraagent.backends.claude.backend import ClaudeBackend
-from contraagent.backends.claude.stream import StreamReader
+from contraagent.backends.claude.wire import StreamReader
 from contraagent.backends.credentials import AMBIENT, Bedrock, OAuthToken, Secret, Subscription
 from contraagent.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID, Launch, Limits, account_digest
 from contraagent.backends.omp.backend import OmpBackend
@@ -30,7 +30,7 @@ def test_claude_s_rate_limit_events_are_read_in_full():
     """Two real events: an account well under its limits, and one past a warning threshold."""
     reader = StreamReader(Limits())
     for line in (FIXTURES / "rate_limit_events.jsonl").read_text().splitlines():
-        reader.feed(line)
+        reader.feed_line(line)
     calm, warned = reader.rate_limits
     assert (calm.status, calm.status_window, calm.threshold_pct) == ("allowed", "five_hour", None)
     assert (calm.five_hour_pct, calm.seven_day_pct) == (41.0, 24.0)
@@ -56,7 +56,7 @@ def test_a_window_or_a_field_the_reader_does_not_name_is_kept():
         },
     }
     reader = StreamReader(Limits())
-    reader.feed(json.dumps(event))
+    reader.feed(event)
     [r] = reader.rate_limits
     assert r.windows["seven_day_opus"] == {"pct": 50.0, "resets_at": "2026-10-15T08:00:00+00:00"}  # the status's own window
     assert r.extra == {"newField": {"x": 1}}

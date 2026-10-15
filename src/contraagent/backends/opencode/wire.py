@@ -15,15 +15,16 @@ Tested on recordings of a real opencode (`tests/fixtures/opencode/<version>/`).
 
 from __future__ import annotations
 
-import json
-import logging
 import re
-from collections import Counter
 
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage, note_web_query
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop
+from contraagent.backends.refusal import QUOTA_RE, Ending, Signals, quota_refusal
+from contraagent.backends.wire import EventFold, first_text, tool_preview
+from contraagent.backends.wire import tokens as count
 
-_logger = logging.getLogger(__name__)
-_warned: set[str] = set()  # unread event types already logged by this process
+#: How opencode words a refusal: providers word a quota differently, and opencode passes
+#: their words on. A refusal it only logs is read from its log (`refusal_in_log`).
+SIGNALS = Signals(quota=QUOTA_RE, stderr_stops=frozenset())
 
 #: The event types `opencode run --format json` prints (checked against opencode 1.19.0).
 #: Another type is counted in `LaunchResult.unread_events`: a newer opencode sends it.
@@ -32,17 +33,8 @@ KNOWN_EVENTS = frozenset({"step_start", "step_finish", "text", "reasoning", "too
 WEB_SEARCH_TOOL = "websearch"
 WEB_FETCH_TOOL = "webfetch"
 
-# Providers word a quota differently; opencode passes their words on.
-_RATE_LIMIT_RE = re.compile(
-    r"usage limit exceeded|rate[_ -]?limit|too many requests|quota (?:exceeded|exhausted)|insufficient_quota",
-    re.IGNORECASE,
-)
 # One line of opencode's log: `... message="stream error" ... error.error="AI_APICallError: ..."`.
 _STREAM_ERROR_RE = re.compile(r'message="stream error".*?error\.error="([^"]*)"')
-
-
-def is_rate_limited(text: str) -> bool:
-    return bool(_RATE_LIMIT_RE.search(text))
 
 
 def refusal_in_log(line: str) -> str | None:
@@ -50,7 +42,7 @@ def refusal_in_log(line: str) -> str | None:
     API call, else None. opencode retries such a call, waiting as long as the provider
     asks (days, for a blown weekly quota), and prints nothing on stdout meanwhile."""
     m = _STREAM_ERROR_RE.search(line)
-    return m.group(1) if m and is_rate_limited(m.group(1)) else None
+    return m.group(1) if m and SIGNALS.quota_in(m.group(1)) else None
 
 
 def _obj(d: dict, key: str) -> dict:
@@ -80,10 +72,10 @@ def call_usage(ev: dict, model: str) -> tuple[CallUsage, float | None] | None:
     try:
         call = CallUsage(
             model=model,
-            input=int(tokens.get("input") or 0),
-            cache_read=int(cache.get("read") or 0),
-            cache_creation=int(cache.get("write") or 0),
-            output=int(tokens.get("output") or 0) + int(tokens.get("reasoning") or 0),
+            input=count(tokens, "input"),
+            cache_read=count(cache, "read"),
+            cache_creation=count(cache, "write"),
+            output=count(tokens, "output", "reasoning"),
         )
     except (TypeError, ValueError):
         return None
@@ -91,41 +83,28 @@ def call_usage(ev: dict, model: str) -> tuple[CallUsage, float | None] | None:
     return call, (float(cost) if isinstance(cost, (int, float)) else None)
 
 
-def line_usage(raw: bytes, model: str) -> tuple[CallUsage, float | None] | None:
-    """`call_usage` of one raw stdout line."""
-    try:
-        ev = json.loads(raw)
-    except ValueError:
-        return None
-    return call_usage(ev, model) if isinstance(ev, dict) else None
-
-
-class EventReader:
+class EventReader(EventFold):
     """Folds opencode's events into a `LaunchResult`.
 
     The answer is the text of the last assistant message: opencode prints the
     text of every step, and a step before a tool call says what it is about to do.
     """
 
+    agent = "opencode"
+    known_events = KNOWN_EVENTS
+    signals = SIGNALS
+
     def __init__(self, model: str = "") -> None:
+        super().__init__()
         self.model = model
-        self.saw_any = False
-        self.session_id = ""
         self._texts: dict[str, list[str]] = {}  # message id -> its text parts, in order
         self._last_message = ""
-        self.tool_uses: Counter = Counter()
-        self.tool_args: dict[str, list[str]] = {}
-        self.web_queries: list[str] = []
-        self.calls: list[CallUsage] = []
-        self.cost: float | None = None
         self.errors: list[dict] = []
-        self.unread: Counter = Counter()
 
-    def feed(self, ev: dict) -> None:
+    def feed(self, ev: dict) -> Stop | None:
         typ = str(ev.get("type") or "")
-        if typ not in KNOWN_EVENTS:
-            self.unread[typ or "<untyped>"] += 1
-            return
+        if self.unknown(typ):
+            return None
         self.saw_any = True
         self.session_id = self.session_id or str(ev.get("sessionID") or "")
         part = _part(ev)
@@ -135,31 +114,18 @@ class EventReader:
             self._last_message = message
         elif typ == "tool_use":
             name = str(part.get("tool") or "")
-            if name:
-                self.tool_uses[name] += 1
-                self._record_args(name, _state(part).get("input"))
+            args = _state(part).get("input")
+            self.note_tool(name, args)
             if name == WEB_SEARCH_TOOL:
-                note_web_query(self.web_queries, (_state(part).get("input") or {}).get("query"))
+                self.note_web_query((args if isinstance(args, dict) else {}).get("query"))
         elif typ == "step_finish":
             found = call_usage(ev, self.model)
             if found is not None:
-                call, cost = found
-                self.calls.append(call)
-                if cost is not None:
-                    self.cost = (self.cost or 0.0) + cost
+                self.add_call(*found)
         elif typ == "error":
             err = ev.get("error")
             self.errors.append(err if isinstance(err, dict) else {"name": str(err)})
-
-    def _record_args(self, name: str, args: object) -> None:
-        """A bounded sample of each tool's arguments (what did 138 bash calls run?)."""
-        buf = self.tool_args.setdefault(name, [])
-        if not isinstance(args, dict) or len(buf) >= 20:
-            return
-        try:
-            buf.append(json.dumps(args, ensure_ascii=False)[:500])
-        except (TypeError, ValueError):
-            pass
+        return None
 
     @property
     def text(self) -> str:
@@ -180,89 +146,43 @@ class EventReader:
                 return data["statusCode"]
         return None
 
-    def stop(self, exit_code: int | None, killed: Stop | None) -> Stop:
-        """How the launch ended. Order: a limit the wrapper enforced, then an error event
-        (rate limit, refused credential, abort, any other), then the exit and the answer."""
-        if killed is not None:
-            return killed
-        if self.errors:
-            status, words = self._error_status(), self.error_text()
-            names = {str(e.get("name") or "") for e in self.errors}
-            if status == 429 or is_rate_limited(words):
-                return Stop.RATE_LIMITED
-            if status in (401, 403) or "ProviderAuthError" in names:
-                return Stop.AUTH_FAILED
-            if "MessageAbortedError" in names:
-                return Stop.ABORTED
-            return Stop.API_ERROR
-        if exit_code not in (0, None) and not self.text:
-            return Stop.ERROR
-        if not self.text:
-            return Stop.NO_OUTPUT if self.saw_any else Stop.LAUNCH_FAILED
-        return Stop.COMPLETED
-
-    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None, refusal: str = "") -> LaunchResult:
-        """Everything read, as a `LaunchResult`. `refusal`: the provider's words when the
-        launch was ended on a quota refusal opencode only logged."""
-        stop = self.stop(exit_code, killed)
-        for typ in sorted(set(self.unread) - _warned):
-            _warned.add(typ)
-            _logger.warning(f"[opencode] event {typ!r} is not one this contraagent reads; a newer opencode? (LaunchResult.unread_events)")
-        words = self.error_text() or refusal
-        return LaunchResult(
-            label=launch.label,
-            agent=agent,
-            stop=stop,
-            ok=stop is Stop.COMPLETED,
+    def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
+        """An error event decides (its status, its words, its name: a refused credential, an
+        abort); without one, the exit and the answer."""
+        names = {str(e.get("name") or "") for e in self.errors}
+        return Ending(
+            killed=killed,
             exit_code=exit_code,
-            model=launch.model,
-            session_id=self.session_id,
-            result_text=self.text if stop is Stop.COMPLETED else (self.text or words if stop is Stop.RATE_LIMITED else ""),
-            rate_limit=RateLimit(status="quota") if stop is Stop.RATE_LIMITED else None,
-            tool_uses=dict(self.tool_uses),
-            web_queries=list(self.web_queries),
-            usage=Usage(calls=list(self.calls), output_total=sum(c.output for c in self.calls)),
-            cost_usd=round(self.cost, 6) if self.cost is not None else None,
-            raw_result={"tool_args": dict(self.tool_args)},
-            # The provider's own words, which opencode prints on stdout: the journal's reason.
-            stderr_tail=words if stop is not Stop.COMPLETED else "",
-            unread_events=dict(self.unread),
+            saw_any=self.saw_any,
+            text=self.text,
+            error=self.error_text(),
+            status=self._error_status(),
+            failed=bool(self.errors),
+            auth="ProviderAuthError" in names,
+            aborted="MessageAbortedError" in names,
         )
 
-
-def parse_events(launch: Launch, agent: str, stdout: bytes, exit_code: int | None, killed: Stop | None, refusal: str = "") -> LaunchResult:
-    """Read every event line of one launch's stdout."""
-    reader = EventReader(launch.model)
-    for raw in stdout.split(b"\n"):
-        if not raw.strip():
-            continue
-        try:
-            ev = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(ev, dict):
-            reader.feed(ev)
-    return reader.result(launch, agent, exit_code=exit_code, killed=killed, refusal=refusal)
+    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
+        stop = self.stop(exit_code=exit_code, killed=killed)
+        words = self.error_text()
+        text = self.text
+        return self.launch_result(
+            launch,
+            agent,
+            stop,
+            exit_code=exit_code,
+            result_text=text if stop is Stop.COMPLETED else (text or words if stop is Stop.RATE_LIMITED else ""),
+            rate_limit=quota_refusal(words) if stop is Stop.RATE_LIMITED else None,
+            # The provider's own words, which opencode prints on stdout: the journal's reason.
+            stderr_tail=words if stop is not Stop.COMPLETED else "",
+        )
 
 
 def _preview(tool: str, args: dict) -> dict:
     """A tool call's one-line preview (`cmd`); its query when it is a web search
     (`web_query`), its URL when it reads a web page (`web_fetch`)."""
-    cmd = str(
-        args.get("command")
-        or args.get("pattern")
-        or args.get("filePath")
-        or args.get("path")
-        or args.get("url")
-        or args.get("query")
-        or args.get("name")
-        or ""
-    )[:800]
-    if tool == WEB_SEARCH_TOOL:
-        return {"cmd": cmd, "web_query": cmd}
-    if tool == WEB_FETCH_TOOL:
-        return {"cmd": cmd, "web_fetch": cmd}
-    return {"cmd": cmd}
+    cmd = first_text(args, "command", "pattern", "filePath", "path", "url", "query", "name")
+    return tool_preview(cmd, web_query=tool == WEB_SEARCH_TOOL, web_fetch=tool == WEB_FETCH_TOOL)
 
 
 def normalize_event(e: dict) -> dict | list[dict]:

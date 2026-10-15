@@ -3,6 +3,8 @@
 Same isolation as `-p` (one process per launch), but the wire gives
 what text mode cannot: the agent events `--mode json` prints (read by the
 same `TraceReader`), and `abort` for `Limits` deadlines instead of SIGKILL.
+Only the exchange differs from the omp backend (`OmpRpcBackend.exchange`):
+the rest of a launch is `Backend.run`'s, as for every agent.
 
 Protocol: NDJSON over stdin/stdout (docs: https://omp.sh/docs/rpc).
 `ready` handshake, immediate v2 negotiate (rpc_chunk reassembly),
@@ -17,23 +19,121 @@ from __future__ import annotations
 import base64
 import json
 import queue
-import shutil
 import subprocess
 import threading
 import time
 from pathlib import Path
 
 from contraagent.backends import live_processes
-from contraagent.backends.credentials import CredentialError
-from contraagent.backends.launch import Launch, LaunchResult, Stop
+from contraagent.backends.launch import Launch, Stop
 from contraagent.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, prompt_args, session_args
-from contraagent.backends.omp.trace import TraceReader
+from contraagent.backends.omp.wire import TraceReader
+from contraagent.backends.process import LaunchError
+from contraagent.backends.wire import EventFold, LimitsWatch, positive_int
+
+#: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
+STATE_REQUEST = "harvest-state"
+
+#: Frames of the RPC protocol itself, around the agent events: read here or ignored,
+#: never counted as unread agent events.
+RPC_FRAMES = {
+    "ready",
+    "response",
+    "prompt_result",
+    "rpc_chunk",
+    "session_stats",
+    "stats",
+    "extension_ui_request",
+    "available_commands_update",
+}
+
+
+class RpcReader(TraceReader):
+    """omp's agent events over RPC (`TraceReader`), with the protocol's own frames read
+    first: chunks, responses, the terminal `agent_end` (`done`)."""
+
+    def __init__(self, prompt_id: str = "p1") -> None:
+        super().__init__()
+        #: The id of the launch's `prompt` request.
+        self.prompt_id = prompt_id
+        self.chunks: dict[str, dict] = {}
+        #: The turn is over.
+        self.done = False
+        #: The `get_state` response arrived.
+        self.state_seen = False
+
+    def feed(self, ev: dict) -> Stop | None:
+        """Absorb one frame; `done` turns True on the terminal one."""
+        typ = ev.get("type")
+        if typ == "rpc_chunk":
+            self._chunk(ev)
+        elif typ not in RPC_FRAMES:
+            super().feed(ev)
+            # A nested turn's end (a subagent's) says isTerminal false: the prompt goes on.
+            if typ == "agent_end" and ev.get("isTerminal") is not False:
+                self.done = True
+        elif typ == "response":
+            data = ev.get("data") or {}
+            if ev.get("id") == STATE_REQUEST:
+                self.state_seen = True
+                self.apply_state(data if isinstance(data, dict) else {})
+                return None
+            if ev.get("success") is False and isinstance(ev.get("error"), str):
+                self._error({"errorMessage": ev["error"]})
+            if isinstance(data, dict) and data.get("agentInvoked") is False and ev.get("id") == self.prompt_id:
+                self.done = True
+        elif typ == "prompt_result":
+            if ev.get("id") == self.prompt_id and ev.get("agentInvoked") is False:
+                self.done = True
+        elif typ in ("session_stats", "stats"):
+            data = ev.get("data")
+            data = data if isinstance(data, dict) else ev
+            if data.get("sessionId"):
+                self.session_id = str(data["sessionId"])
+        return None
+
+    def _chunk(self, frame: dict) -> None:
+        """Reassemble v2 rpc_chunk sequences, then feed the logical frame."""
+        cid = str(frame.get("chunkId") or "")
+        try:
+            idx = int(frame.get("index", -1))
+            count = int(frame.get("count", 0))
+        except (TypeError, ValueError):
+            return
+        slot = self.chunks.setdefault(cid, {"parts": {}, "count": count})
+        slot["count"] = count
+        try:
+            slot["parts"][idx] = base64.b64decode(str(frame.get("data") or ""))
+        except (TypeError, ValueError):
+            return
+        if len(slot["parts"]) != count:
+            return
+        try:
+            logical = json.loads(b"".join(slot["parts"][i] for i in range(count)))
+        except (ValueError, KeyError):
+            return
+        finally:
+            del self.chunks[cid]
+        if isinstance(logical, dict):
+            self.feed(logical)
+
+    def apply_state(self, data: dict) -> None:
+        """The session id and the model's context window (`model.contextWindow`) from a
+        post-turn `get_state` (tokens and cost come from each assistant `message_end`)."""
+        if data.get("sessionId"):
+            self.session_id = str(data["sessionId"])
+        model = data.get("model")
+        window = positive_int(model.get("contextWindow")) if isinstance(model, dict) else None
+        if window is not None:
+            self.context_window = window
 
 
 class OmpRpcBackend(OmpBackend):
-    """RPC variant of the omp backend. argv/env/parse surface shared."""
+    """RPC variant of the omp backend: argv and the exchange its own, the rest shared."""
 
     name = "omp-rpc"
+    # The RPC wire is JSON frames only.
+    plaintext_stream = False
 
     def argv(self, launch: Launch) -> list[str]:
         a = [self.binary, "--mode", "rpc"]
@@ -56,37 +156,16 @@ class OmpRpcBackend(OmpBackend):
         a += self.bind_credential(launch.credential, launch.model, label=launch.label).args
         return a
 
-    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-        """Unused: `_launch` drives the event loop directly."""
-        raise NotImplementedError("OmpRpcBackend._launch drives its own loop")
+    def fold(self, launch: Launch) -> RpcReader:
+        return RpcReader(launch.label or "p1")
 
-    def _launch(self, launch: Launch) -> LaunchResult:
-        """One RPC process per launch. Rewards: tool_uses, usage, abort."""
-
-        t0 = time.monotonic()
-        try:
-            argv = self.argv(launch)
-            env = self.env(launch)
-        except CredentialError as exc:
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                credential=launch.credential.label,
-                stderr_tail=f"credential: {exc}",
-            )
-        if not shutil.which(self.binary, path=self.base_path()):
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                argv=argv,
-                stderr_tail=f"{self.binary} not on PATH",
-            )
+    def exchange(
+        self, launch: Launch, argv: list[str], env: dict[str, str], fold: EventFold, watch: LimitsWatch
+    ) -> tuple[bytes, str, int | None, Stop | None]:
+        """One RPC process: the handshake, the prompt, its frames to `fold` until the terminal
+        one, then `get_state`. A limit (`watch`, the deadline) sends `abort`. No process exit
+        to weigh: the exit status is None."""
+        assert isinstance(fold, RpcReader)
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
@@ -101,23 +180,12 @@ class OmpRpcBackend(OmpBackend):
                 start_new_session=True,
             )
         except OSError as exc:
-            # Same as every other backend: a launch that cannot start is a
-            # result the router fails over on, not an exception.
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                argv=argv,
-                credential=launch.credential.label,
-                stderr_tail=str(exc),
-                wall_s=time.monotonic() - t0,
-            )
+            raise LaunchError(str(exc)) from exc
         live_processes.register(proc, since=since)
+        stderr: list[str] = []
         try:
-            launch_result = self._exchange(proc, launch, argv)
-            launch_result.credential = launch.credential.label
+            frames = self._start_readers(proc, launch, stderr)
+            killed, why = self._converse(proc, frames, launch, fold, watch)
         finally:
             try:
                 if proc.stdin:
@@ -137,115 +205,106 @@ class OmpRpcBackend(OmpBackend):
                         pipe.close()
                 except OSError:
                     pass
-        launch_result.wall_s = time.monotonic() - t0
-        return launch_result
+        tail = "\n".join(x for x in (why, "".join(stderr)[-2000:].strip()) if x)
+        return b"", tail, None, killed
 
     # --- exchange -----------------------------------------------------
 
-    def _exchange(self, proc: subprocess.Popen, launch: Launch, argv: list[str]) -> LaunchResult:
-        assert proc.stdin is not None and proc.stdout is not None
-        stdout = proc.stdout
-        errors: queue.Queue = queue.Queue()
+    def _start_readers(self, proc: subprocess.Popen, launch: Launch, stderr: list[str]) -> queue.Queue:
+        """Threads that put each stdout line on the returned queue (and on the stream file)
+        and keep the tail of stderr in `stderr`."""
+        assert proc.stdout is not None and proc.stderr is not None
+        stdout, errout = proc.stdout, proc.stderr
+        frames: queue.Queue = queue.Queue()
 
-        def reader() -> None:
+        def read() -> None:
             try:
                 for line in stdout:
-                    # Mirrors run_process()'s raw passthrough to
-                    # stream_path -- this backend drives its own loop
-                    # instead of going through run_process(), so without
-                    # this write here a task's stream file never existed
-                    # at all (not malformed, just absent).
+                    # This backend drives its own process, not `run_process`, so it writes
+                    # the stream file itself.
                     if launch.stream_path is not None:
                         try:
                             with open(launch.stream_path, "a") as f:
                                 f.write(line)
                         except OSError:
                             pass
-                    errors.put(("line", line))
+                    frames.put(("line", line))
             except (OSError, ValueError):
                 pass
             finally:
-                errors.put(("eof", ""))
+                frames.put(("eof", ""))
 
         def drain() -> None:
-            """stderr is diagnostics-only; never merge into the JSON parser."""
-            assert proc.stderr is not None
+            """stderr is diagnostics: kept as a tail, never read as frames."""
             try:
-                for _ in proc.stderr:
-                    pass
+                for line in errout:
+                    stderr.append(line)
+                    if len(stderr) > 200:
+                        del stderr[:100]
             except (OSError, ValueError):
                 pass
 
-        th = threading.Thread(target=reader, daemon=True)
-        th.start()
-        th_err = threading.Thread(target=drain, daemon=True)
-        th_err.start()
+        threading.Thread(target=read, daemon=True).start()
+        threading.Thread(target=drain, daemon=True).start()
+        return frames
 
+    def _converse(
+        self, proc: subprocess.Popen, frames: queue.Queue, launch: Launch, fold: RpcReader, watch: LimitsWatch
+    ) -> tuple[Stop | None, str]:
+        """The handshake, the prompt and its frames. The kill reason and why, if one."""
         deadline = time.monotonic() + (launch.limits.timeout_s or 600.0)
         try:
-            ready = self._next(errors, deadline, ("ready",))
+            ready = self._next(frames, deadline, ("ready",))
         except TimeoutError:
-            return self._dead(launch, argv, Stop.TIMEOUT, "no ready frame")
+            return Stop.TIMEOUT, "no ready frame"
         if ready.get("type") != "ready":
-            return self._dead(launch, argv, Stop.LAUNCH_FAILED, f"expected ready, got {str(ready)[:120]}")
-        versions = ready.get("supportedProtocolVersions") or [1]
-        if 2 in versions:
+            raise LaunchError(f"expected ready, got {str(ready)[:120]}")
+        if 2 in (ready.get("supportedProtocolVersions") or [1]):
             self._send(proc, {"id": "proto-1", "type": "negotiate_protocol", "protocolVersion": 2})
-        message = self._message(launch)
-        self._send(proc, {"id": launch.label or "p1", "type": "prompt", "message": message})
-        acc = _Accumulator()
-        pid = launch.label or "p1"
-        killed = self._drain_loop(proc, errors, launch, argv, acc, pid, deadline)
-        self._harvest_state(proc, errors, acc, deadline)
-        return acc.launch_result(launch, self.name, argv, killed)
+        self._send(proc, {"id": fold.prompt_id, "type": "prompt", "message": self._message(launch)})
+        killed = self._drain_loop(proc, frames, fold, watch, deadline)
+        if killed is None:
+            self._harvest_state(proc, frames, fold, deadline)
+        return killed, ""
 
-    def _drain_loop(
-        self, proc: subprocess.Popen, errors: queue.Queue, launch: Launch, argv: list[str], acc: _Accumulator, pid: str, deadline: float
-    ) -> Stop | None:
-        """Event loop until the terminal frame. Killed reason or None."""
+    def _drain_loop(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, watch: LimitsWatch, deadline: float) -> Stop | None:
+        """Frames until the terminal one. The kill reason, or None."""
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                self._send(proc, {"id": f"{pid}-abort", "type": "abort"})
+                self._send(proc, {"id": f"{fold.prompt_id}-abort", "type": "abort"})
                 return Stop.TIMEOUT
             try:
-                kind, payload = errors.get(timeout=min(remaining, 5.0))
+                kind, payload = frames.get(timeout=min(remaining, 5.0))
             except queue.Empty:
                 continue
             if kind == "eof":
                 return None
-            try:
-                frame = json.loads(payload)
-            except ValueError:
-                continue
-            if not isinstance(frame, dict):
-                continue
-            done = acc.feed(frame, pid)
-            if done:
+            fold.feed_line(payload.encode("utf-8"))
+            if fold.done:
                 return None
+            stop = watch()
+            if stop is not None:
+                self._send(proc, {"id": f"{fold.prompt_id}-abort", "type": "abort"})
+                return stop
 
-    def _harvest_state(self, proc: subprocess.Popen, errors: queue.Queue, acc: _Accumulator, deadline: float) -> None:
-        """get_state after the turn: the session id and the model's context window. Best-effort: frames that arrive
-        before its response (late events, a chunked response) go through the
-        accumulator; waits at most 10 s, never past the launch's deadline."""
+    def _harvest_state(self, proc: subprocess.Popen, frames: queue.Queue, fold: RpcReader, deadline: float) -> None:
+        """get_state after the turn: the session id and the model's context window. Best-effort:
+        frames that arrive before its response (late events, a chunked response) go to the
+        reader; waits at most 10 s, never past the launch's deadline."""
         self._send(proc, {"id": STATE_REQUEST, "type": "get_state"})
         until = min(deadline, time.monotonic() + 10.0)
-        while not acc.state_seen:
+        while not fold.state_seen:
             remaining = until - time.monotonic()
             if remaining <= 0:
                 return
             try:
-                kind, payload = errors.get(timeout=remaining)
+                kind, payload = frames.get(timeout=remaining)
             except queue.Empty:
                 return
             if kind == "eof":
                 return
-            try:
-                frame = json.loads(payload)
-            except ValueError:
-                continue
-            if isinstance(frame, dict):
-                acc.feed(frame, "")
+            fold.feed_line(payload.encode("utf-8"))
 
     def _message(self, launch: Launch) -> str:
         """Prompt plus the agent .md inline (RPC rejects `@file` args)."""
@@ -263,17 +322,20 @@ class OmpRpcBackend(OmpBackend):
     @staticmethod
     def _send(proc: subprocess.Popen, obj: dict) -> None:
         assert proc.stdin is not None
-        proc.stdin.write(json.dumps(obj, ensure_ascii=False) + "\n")
-        proc.stdin.flush()
+        try:
+            proc.stdin.write(json.dumps(obj, ensure_ascii=False) + "\n")
+            proc.stdin.flush()
+        except (OSError, BrokenPipeError, ValueError):
+            pass  # the process is gone; its frames say how it ended
 
     @staticmethod
-    def _next(errors: queue.Queue, deadline: float, want: tuple[str, ...]) -> dict:
+    def _next(frames: queue.Queue, deadline: float, want: tuple[str, ...]) -> dict:
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("rpc wait expired")
             try:
-                kind, payload = errors.get(timeout=min(remaining, 5.0))
+                kind, payload = frames.get(timeout=min(remaining, 5.0))
             except queue.Empty:
                 continue
             if kind == "eof":
@@ -284,106 +346,3 @@ class OmpRpcBackend(OmpBackend):
                 continue
             if isinstance(frame, dict) and (not want or frame.get("type") in want):
                 return frame
-
-    def _dead(self, launch: Launch, argv: list[str], stop: Stop, err: str) -> LaunchResult:
-        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=False, model=launch.model, argv=argv, stderr_tail=err)
-
-
-#: The id of the post-turn `get_state` request (`_harvest_state`).
-STATE_REQUEST = "harvest-state"
-
-#: Frames of the RPC protocol itself, around the agent events: read here or ignored,
-#: never handed to the `TraceReader` (which would count them as unread).
-RPC_FRAMES = {
-    "ready",
-    "response",
-    "prompt_result",
-    "rpc_chunk",
-    "session_stats",
-    "stats",
-    "extension_ui_request",
-    "available_commands_update",
-}
-
-
-class _Accumulator:
-    """The RPC protocol's own frames (chunks, responses, the terminal `agent_end`);
-    every agent event goes to the `TraceReader` both omp wires share."""
-
-    def __init__(self) -> None:
-        self.reader = TraceReader()
-        self.chunks: dict[str, dict] = {}
-        #: The `get_state` response arrived.
-        self.state_seen = False
-
-    @property
-    def session_id(self) -> str:
-        return self.reader.session_id
-
-    def feed(self, frame: dict, pid: str) -> bool:
-        """Absorb one frame. True when the turn is terminal."""
-        typ = frame.get("type")
-        if typ == "rpc_chunk":
-            return self._chunk(frame, pid)
-        if typ not in RPC_FRAMES:
-            self.reader.feed(frame)
-            # A nested turn's end (a subagent's) says isTerminal false: the prompt goes on.
-            return typ == "agent_end" and frame.get("isTerminal") is not False
-        if typ == "response":
-            data = frame.get("data") or {}
-            if frame.get("id") == STATE_REQUEST:
-                self.state_seen = True
-                self.apply_state(data if isinstance(data, dict) else {})
-                return False
-            if frame.get("success") is False and isinstance(frame.get("error"), str):
-                self.reader._error({"errorMessage": frame["error"]})
-            if isinstance(data, dict) and data.get("agentInvoked") is False and frame.get("id") == pid:
-                return True
-        elif typ == "prompt_result":
-            return frame.get("id") == pid and frame.get("agentInvoked") is False
-        elif typ in ("session_stats", "stats"):
-            data = frame.get("data")
-            data = data if isinstance(data, dict) else frame
-            if data.get("sessionId"):
-                self.reader.session_id = str(data["sessionId"])
-        return False
-
-    def _chunk(self, frame: dict, pid: str) -> bool:
-        """Reassemble v2 rpc_chunk sequences, then feed the logical frame."""
-        cid = str(frame.get("chunkId") or "")
-        try:
-            idx = int(frame.get("index", -1))
-            count = int(frame.get("count", 0))
-        except (TypeError, ValueError):
-            return False
-        slot = self.chunks.setdefault(cid, {"parts": {}, "count": count})
-        slot["count"] = count
-        try:
-            slot["parts"][idx] = base64.b64decode(str(frame.get("data") or ""))
-        except (TypeError, ValueError):
-            return False
-        if len(slot["parts"]) != count:
-            return False
-        try:
-            logical = json.loads(b"".join(slot["parts"][i] for i in range(count)))
-        except (ValueError, KeyError):
-            return False
-        finally:
-            del self.chunks[cid]
-        if isinstance(logical, dict):
-            return self.feed(logical, pid)
-        return False
-
-    def apply_state(self, data: dict) -> None:
-        """The session id and the model's context window (`model.contextWindow`) from a
-        post-turn `get_state` (tokens and cost come from each assistant `message_end`)."""
-        if data.get("sessionId"):
-            self.reader.session_id = str(data["sessionId"])
-        model = data.get("model")
-        window = model.get("contextWindow") if isinstance(model, dict) else None
-        if isinstance(window, int) and not isinstance(window, bool) and window > 0:
-            self.reader.context_window = window
-
-    def launch_result(self, launch: Launch, agent: str, argv: list[str], killed: Stop | None) -> LaunchResult:
-        """Build the LaunchResult from folded frames. No process exit to weigh: `exit_code` None."""
-        return self.reader.result(launch, agent, exit_code=None, killed=killed, argv=argv)

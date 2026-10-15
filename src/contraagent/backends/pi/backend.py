@@ -17,13 +17,10 @@ directory's `models.json`, spoken to over the OpenAI chat-completions API.
 
 from __future__ import annotations
 
-import json
-import re
-import shutil
-import subprocess
 from pathlib import Path
 
-from contraagent.backends.base import PARENT_SESSION_ENV, OneShotBackend
+from contraagent.backends import opencode_key, plugin_files
+from contraagent.backends.base import PARENT_SESSION_ENV, Backend
 from contraagent.backends.credentials import (
     Ambient,
     ApiKey,
@@ -32,16 +29,20 @@ from contraagent.backends.credentials import (
     CredentialError,
     Gateway,
     OAuthToken,
-    Secret,
     Subscription,
+    check_provider,
     child_env,
+    key_var,
+    model_id,
+    model_provider,
+    secret_value,
 )
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
-from contraagent.backends.omp.trace import message_usage
-from contraagent.backends.opencode import login as opencode_login
-from contraagent.backends.pi import agent_dir
-from contraagent.backends.pi.wire import parse_events
-from contraagent.backends.process import Sink, via_stdin
+from contraagent.backends.launch import Launch
+from contraagent.backends.opencode_key import OpencodeKeyAccount
+from contraagent.backends.pi import agent_dir, catalogue
+from contraagent.backends.pi import wire as pi_wire
+from contraagent.backends.pi.login import pi_login
+from contraagent.backends.process import via_stdin
 
 #: Every discovery pi does at startup turned off: extensions (the built-in ones too, MCP
 #: among them), skills, prompt templates, themes, `AGENTS.md`/`CLAUDE.md`, and a project's
@@ -51,15 +52,6 @@ ISOLATION_ARGS = ("--no-extensions", "--no-skills", "--no-prompt-templates", "--
 
 #: The extension that registers a plugin's MCP servers (`.mcp.json`, named by
 #: `MCP_CONFIG_ENV`), loaded with pi's built-in MCP support.
-def _pi_login(home: Path, provider: str) -> dict | None:
-    """The login pi keeps for `provider` in agent directory `home` (`auth.json`); None when none."""
-    try:
-        login = json.loads((home / "auth.json").read_text()).get(provider)
-    except (OSError, ValueError, AttributeError):
-        return None
-    return login if isinstance(login, dict) else None
-
-
 MCP_EXTENSION = Path(__file__).resolve().parent / "mcp.ts"
 MCP_CONFIG_ENV = "CONTRAAGENT_PI_MCP_CONFIG"
 #: Added to every launch: no request to pi.dev for the latest version.
@@ -76,44 +68,24 @@ _KEY_ENV = {
     "azure": "AZURE_OPENAI_API_KEY",
     "vercel-ai-gateway": "AI_GATEWAY_API_KEY",
 }
-#: A row of `pi --list-models`: provider, then model id.
-_ROW_RE = re.compile(r"^(\S+)\s+(\S+)\s+\S+\s+\S+\s+(?:yes|no)\s+(?:yes|no)\s*$")
-CATALOGUE_TIMEOUT_S = 30
 
 
 def provider_key_env(provider: str) -> str:
     """The variable pi reads a provider's API key from."""
-    return _KEY_ENV.get(provider) or provider.upper().replace("-", "_").replace(".", "_") + "_API_KEY"
-
-
-def parse_models(stdout: str) -> set[str]:
-    """Provider-qualified ids from `pi --list-models` output."""
-    out: set[str] = set()
-    for line in stdout.splitlines():
-        row = _ROW_RE.match(line.strip())
-        if row and row.group(1) != "provider":
-            out.add(f"{row.group(1)}/{row.group(2)}")
-    return out
+    return key_var(provider, _KEY_ENV)
 
 
 def plugin_args(plugin_dirs) -> list[str]:
     """`--skill <plugin>/skills` for every plugin with skills, and `-e <file>` for every
     extension its `package.json` lists under `pi.extensions` (the hooks `contraagent
     plugin render` writes for pi)."""
-    import json
-
     args: list[str] = []
     for plug in plugin_dirs:
         root = Path(plug)
         if (root / "skills").is_dir():
             args += ["--skill", str(root / "skills")]
-        try:
-            pkg = json.loads((root / "package.json").read_text())
-        except (OSError, ValueError):
-            continue
-        for rel in (pkg.get("pi") or {}).get("extensions") or []:
-            if (root / rel).is_file():
-                args += ["-e", str(root / rel)]
+        for f in plugin_files.extensions(root, "pi"):
+            args += ["-e", str(f)]
     return args
 
 
@@ -167,7 +139,7 @@ _PI_TOOLS = {
 }
 
 
-class PiBackend(OneShotBackend):
+class PiBackend(OpencodeKeyAccount, Backend):
     """Headless pi: `pi --mode json -p`."""
 
     name = "pi"
@@ -179,6 +151,10 @@ class PiBackend(OneShotBackend):
     # `--no-tools`, `--system-prompt` (`prompt_args`); the agent directory and
     # `ISOLATION_ARGS` already keep every setting, skill and MCP server out.
     light_launch = True
+    wire = pi_wire
+    signals = pi_wire.SIGNALS
+    # pi's CLI has no cost cap: the cost of each API call, as its `message_end` reports it, summed.
+    watched_limits = frozenset({"max_budget_usd"})
 
     @classmethod
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
@@ -192,30 +168,18 @@ class PiBackend(OneShotBackend):
         #: Where the agent directories are made (`agent_dir.default_root`).
         self.agent_dirs = agent_dirs or agent_dir.default_root(self._base_env)
 
-    def watch(self, launch: Launch) -> Sink | None:
-        """`max_budget_usd`, which pi's CLI has no flag for: the cost of each API call, as
-        its `message_end` reports it, summed; past the cap the launch ends `budget`."""
-        cap = launch.limits.max_budget_usd
-        if cap is None:
-            return None
-        spent = 0.0
-
-        def sink(raw: bytes) -> Stop | None:
-            nonlocal spent
-            found = message_usage(raw)
-            spent += (found[1] or 0.0) if found is not None else 0.0
-            return Stop.BUDGET if spent > cap else None
-
-        return sink
+    def fold(self, launch: Launch) -> pi_wire.PiTraceReader:
+        """Stdout is the `--mode json` event stream."""
+        return pi_wire.PiTraceReader()
 
     # --- the account and its usage ---------------------------------------------
 
-    def _opencode_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
         """The OpenCode key a launch of `model` as `credential` bills and its endpoint ('' for
         opencode.ai's), as pi picks it: the binding's key variable, else pi's own login, else
         (`ambient`) `OPENCODE_API_KEY`. ('', '') for another provider."""
-        provider = model.split("/", 1)[0] if "/" in model else getattr(credential, "provider", "")
-        if not opencode_login.is_opencode(provider):
+        provider = model_provider(model) or getattr(credential, "provider", "")
+        if not opencode_key.is_opencode(provider):
             return "", ""
         if isinstance(credential, Gateway):
             token = credential.token.resolve(self._base_env) if credential.token is not None else ""
@@ -224,42 +188,14 @@ class PiBackend(OneShotBackend):
             return credential.key.resolve(self._base_env), ""
         source = agent_dir.default_source(self._base_env)
         home = Path(credential.config_dir).expanduser() if isinstance(credential, Subscription) and credential.config_dir else source
-        login = _pi_login(home, provider) or {}
+        login = pi_login(home, provider) or {}
         stored = login.get("key")
         key = stored if isinstance(stored, str) else ""
         if not key and isinstance(credential, Subscription):
-            key = opencode_login.stored_key(provider, self._base_env)
+            key = opencode_key.stored_key(provider, self._base_env)
         if not key and isinstance(credential, Ambient):
-            key = opencode_login.env_key(self._base_env)
+            key = opencode_key.env_key(self._base_env)
         return key, ""
-
-    def account(self, credential: CredentialBase, model: str = "") -> str:
-        """For an OpenCode model: the account of the key the launch bills (`opencode_login`),
-        the same digest opencode and omp give for that key. '' for any other provider."""
-        try:
-            key, _ = self._opencode_key(credential, model)
-        except CredentialError:
-            return ""
-        return opencode_login.account_of_key(key)
-
-    def usage_reading(self, launch: Launch) -> RateLimit | None:
-        """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
-        route (pi reports none itself); None for another model or when it cannot be read."""
-        if not launch.model.startswith(opencode_login.GO + "/"):
-            return None
-        try:
-            key, base = self._opencode_key(launch.credential, launch.model)
-        except CredentialError:
-            return None
-        return opencode_login.go_usage(key, base)
-
-    def run(self, launch: Launch) -> LaunchResult:
-        """One launch, with the Go subscription's usage at its start (`usage_reading`)."""
-        reading = self.usage_reading(launch)
-        result = super().run(launch)
-        if reading is not None:
-            result.rate_limits.insert(0, reading)
-        return result
 
     def env(self, launch: Launch) -> dict[str, str]:
         """The child environment (`child_env`): for `ambient` the parent's, for any other
@@ -290,23 +226,18 @@ class PiBackend(OneShotBackend):
                 isolation=f"ambient: the logins and custom providers of pi agent directory {source}",
             )
         provider = getattr(c, "provider", "")
-        model_provider = model.split("/", 1)[0] if "/" in model else ""
-        if model_provider and provider and provider != model_provider:
-            raise CredentialError(f"model {model} is a {model_provider} model; credential {c.label} is for {provider}")
-
-        def secret(s: Secret) -> str:
-            return s.resolve(env) if env is not None else "<unresolved>"
+        check_provider(c, model, provider)
 
         match c:
             case Subscription():
                 home = Path(c.config_dir).expanduser() if c.config_dir else source
-                if opencode_login.is_opencode(provider) and env is not None and _pi_login(home, provider) is None:
+                if opencode_key.is_opencode(provider) and env is not None and pi_login(home, provider) is None:
                     # pi holds no OpenCode login here: opencode's own, as the key pi reads
                     # after its logins. One login serves pi, opencode and omp alike.
-                    key = opencode_login.stored_key(provider, env)
+                    key = opencode_key.stored_key(provider, env)
                     if key:
                         return self._binding(
-                            {opencode_login.KEY_VAR: key},
+                            {opencode_key.KEY_VAR: key},
                             env,
                             home,
                             logins=(home / "auth.json").is_file(),
@@ -324,17 +255,17 @@ class PiBackend(OneShotBackend):
                     isolation=f"the {provider} login in pi agent directory {home}",
                 )
             case ApiKey():
-                out = {provider_key_env(provider): secret(c.key)}
+                out = {provider_key_env(provider): secret_value(c.key, env)}
             case OAuthToken() if provider == "anthropic":
-                out = {"ANTHROPIC_OAUTH_TOKEN": secret(c.token)}
+                out = {"ANTHROPIC_OAUTH_TOKEN": secret_value(c.token, env)}
             case Gateway():
                 key_var = provider_key_env(provider)
                 entry: dict = {"baseUrl": c.endpoint(env), "api": "openai-completions", "apiKey": f"${key_var}" if c.token else "none"}
                 if c.headers:
                     entry["headers"] = dict(c.headers)
-                if model_provider == provider:
-                    entry["models"] = [{"id": model.split("/", 1)[1]}]
-                out = {key_var: secret(c.token)} if c.token is not None else {}
+                if model_provider(model) == provider:
+                    entry["models"] = [{"id": model_id(model)}]
+                out = {key_var: secret_value(c.token, env)} if c.token is not None else {}
                 return self._binding(
                     out,
                     env,
@@ -372,22 +303,8 @@ class PiBackend(OneShotBackend):
         directory. Each window is the one that directory's model files list
         (`agent_dir.windows`, exact; the list's own `context` column is rounded), None
         for a model they do not list."""
-        if not shutil.which(self.binary, path=self.base_path()):
-            return None
-        try:
-            proc = subprocess.run(
-                [self.binary, "--list-models", "--offline"],
-                capture_output=True,
-                text=True,
-                timeout=CATALOGUE_TIMEOUT_S,
-                env={**self._base_env, **DEFAULT_ENV, "NO_COLOR": "1"},
-                stdin=subprocess.DEVNULL,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        if proc.returncode != 0:
-            return None
-        listed = parse_models(proc.stdout)
+        out = self.run_catalogue(*catalogue.ARGS, env=DEFAULT_ENV)
+        listed = catalogue.parse_models(out) if out is not None else None
         if not listed:
             return None
         known = agent_dir.windows(agent_dir.default_source(self._base_env))
@@ -414,7 +331,3 @@ class PiBackend(OneShotBackend):
         if not via_stdin(launch):
             a.append(launch.prompt)
         return a
-
-    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-        """Stdout is the `--mode json` event stream."""
-        return parse_events(launch, self.name, stdout, exit_code, killed)
