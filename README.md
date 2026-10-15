@@ -225,53 +225,200 @@ all of them.
 
 ## For security engineers
 
-This section describes what a task's coding agent can see and do, and what a run
-records, as the code implements it. The pages
+This section describes what a task's coding agent receives, what happens when a
+model's safeguards refuse a task, how a credential reaches a launch, and what a run
+records. The pages
 [Coding agents](src/contraagent/docs/agents.md) and
 [What a task agent sees](src/contraagent/docs/plugins.md#what-a-task-agent-sees)
-give the details.
+give the details for each coding agent.
 
-- Each launch excludes the project's and the user's settings, instruction files,
-  skills, hooks and MCP servers, and the sessions of all other tasks. Claude Code
-  runs with `--setting-sources ""` and `--strict-mcp-config`, with its `CLAUDE.md`
-  files and auto-memory disabled. Codex runs with `--ignore-rules`, with its plugins
-  disabled and with no `AGENTS.md`. Three exceptions remain. opencode still reads the
-  user's `~/.config/opencode`, except on a light launch (a launch of a task with no
-  tools). Codex reads the user's `config.toml` when it runs on the host's own login
-  (`ambient`). On omp, a launch is verified to use only the credential that
-  contraagent gives it with the providers `anthropic`, `openai-codex` and `litellm`,
-  and other omp providers are not verified.
-- A safety refusal is a stop of its own, `refused`. The journal records it on its
-  hop, with the provider's text as the reason. The task is not retried on the same
-  route but moves to its next hop, and the other tasks stay on their first route.
-- The config names the credentials, which can be subscriptions, API keys, OAuth
-  tokens, gateways, Bedrock, Vertex or pools. A secret in the config is a reference
-  (`env:NAME` or `file:PATH`), and contraagent refuses an inline value. The journal
-  records a credential's name, never its value. A launch on any credential except
-  `ambient`, the host's own login, starts without the host's credential variables
-  (`ANTHROPIC_API_KEY`, any `*_API_KEY`, `*_AUTH_TOKEN`, ...). A gateway's `headers`
-  are plain config values.
-- `disallowed_tools` denies tools for a kind. If the coding agent of a route cannot
-  enforce that rule, the route is refused before anything launches. Every launch has
-  time, turn and budget limits and stall detection. It runs in a process group of its
-  own, which contraagent ends when the pipeline ends or is interrupted.
-- Codex runs in its `workspace-write` sandbox with the network on, and with a
-  temporary directory of its own for each launch. Scratch directories are under
-  `<temp dir>/contraagent-<uid>/`, and only their owner can use them. contraagent
-  refuses a symbolic link or another user's directory there.
-- `journal.jsonl` has one row per attempt, with the coding agent, model, credential
-  name, hops, tokens, cost, web searches, and the files that the task changed among
-  those it declared with `changes=`. `launches.jsonl` has the command line of each
-  launch, with the prompt truncated to 200 characters, and its refused tool calls.
-  The run directory also keeps the call file that each agent was given, and the
-  transcript of each task.
-- The monitor is read-only (GET only) and binds to 127.0.0.1 by default. It answers
-  only local host names and the names given with `--allow-host`.
-  `contraagent monitor export` never includes transcripts or processes, and by
-  default it redacts paths and host names. A hub requires an ingest token for each
-  host, and a token bound to one host cannot send the runs of another host. The
-  hub's monitor requires a read token. The hub reads its tokens from files and
-  compares them in constant time.
+### A clean context for each task
+
+Each task runs in a new session of its coding agent. The session receives what the
+task defines, and the rest of the host's agent setup is kept out.
+
+```mermaid
+flowchart TB
+    subgraph given["Given to the session"]
+        role["the task's role:<br>its instructions"]
+        plugin["the task's plugin:<br>skills, hooks, MCP servers,<br>permissions"]
+        call["the call file: parameters<br>and the output contract"]
+        cwd["the working directory"]
+        cred["one credential"]
+    end
+    subgraph kept["Kept out"]
+        settings["the user's and the project's settings"]
+        files["instruction files:<br>CLAUDE.md, AGENTS.md"]
+        user["the user's skills, hooks<br>and MCP servers"]
+        others["the sessions of other tasks"]
+        host["the host's credential<br>variables (for any<br>credential but ambient)"]
+    end
+    given --> session(["one task's session<br>of its coding agent"])
+    kept -- "not given" --x session
+```
+
+The agent keeps its own built-in tools. Claude Code runs with `--setting-sources ""`
+and `--strict-mcp-config`, and its `CLAUDE.md` files and auto-memory are disabled.
+Codex runs with `--ignore-rules`, its plugins are disabled, and it reads no
+`AGENTS.md`.
+
+Three exceptions remain. The page [Coding agents](src/contraagent/docs/agents.md)
+and the table in
+[What a task agent sees](src/contraagent/docs/plugins.md#what-a-task-agent-sees)
+list them with the rest of each agent's differences.
+
+- opencode reads the user's `~/.config/opencode`. A light launch (a task with no
+  tools) does not.
+- Codex reads the user's `config.toml` when it runs on `ambient`, the host's own
+  login.
+- On omp, contraagent verifies that a launch uses only its own credential for the
+  providers `anthropic`, `openai-codex` and `litellm`. Other omp providers are not
+  verified.
+
+### A refused task moves to another coding agent
+
+A model's safeguards can refuse legitimate work, such as a security review. A launch
+that ends this way has a stop of its own, `refused`. The task then moves to the next
+hop of its kind's failover chain. Each hop names a coding agent, a model and a
+credential, so the next hop can be another coding agent on another provider.
+
+The config below runs the kind `audit` on Claude Code with Claude Opus 5.5. Hop 2 is
+Codex CLI with GPT-6.1 Sol. Hop 3 is opencode with DeepSeek V4.1 Flash, through an
+OpenCode Go key.
+
+<!-- ::code{file="src/contraagent/docs/examples/security/pipeline.toml" from="[tasks.audit]"} -->
+```toml
+[tasks.audit]
+agent = "claude"
+model = "claude-opus-5-5"
+credential = "anthropic-key"
+max_turns = 40
+timeout_s = 1800
+
+# Block order is hop order: this block is hop 2, the next one hop 3.
+[[tasks.audit.fallbacks]]
+agent = "codex"
+model = "gpt-6.1-sol"
+credential = "openai-key"
+
+[[tasks.audit.fallbacks]]
+agent = "opencode"
+model = "opencode-go/deepseek-v4.1-flash"
+credential = "opencode-go"
+
+# Secrets are references (env:NAME or file:/path), read in the launching process.
+# A launch on one of these starts without the host's other credential variables.
+
+[credentials.anthropic-key]
+type = "api_key"
+provider = "anthropic"
+key = "env:ANTHROPIC_API_KEY"
+
+[credentials.openai-key]
+type = "api_key"
+provider = "openai"
+key = "env:OPENAI_API_KEY"
+
+[credentials.opencode-go]
+type = "api_key"
+provider = "opencode-go"
+key = "file:/run/secrets/opencode-go-key"
+```
+
+<sub>This block is quoted from
+[`examples/security/pipeline.toml`](src/contraagent/docs/examples/security/pipeline.toml).
+A test runs `contraagent check` on it with its flow
+([`flow.py`](src/contraagent/docs/examples/security/flow.py)), and a stub run in
+which one task is refused on hop 1 and another on every hop.</sub>
+
+Two tasks of that run go through the chain in different ways. The task
+`audit · upload` is refused on hop 1, and the task `audit · auth` is not.
+
+```mermaid
+flowchart LR
+    upload(["audit · upload"]) --> h1
+    auth(["audit · auth"]) --> h1
+    subgraph chain["The failover chain of audit, in the order of pipeline.toml"]
+        direction LR
+        h1["hop 1<br>Claude Code<br>claude-opus-5-5"]
+        h2["hop 2<br>Codex CLI<br>gpt-6.1-sol"]
+        h3["hop 3<br>opencode<br>opencode-go/deepseek-v4.1-flash"]
+        h1 -- "refused: a new session<br>on the next hop" --> h2
+        h2 -- "refused" --> h3
+    end
+    h1 -- "completed" --> checked["The output is checked<br>against the model Audit"]
+    h2 -- "completed" --> checked
+    h3 -- "completed" --> checked
+    h3 -- "refused" --> failed["The task fails with<br>the stop refused"]
+    checked --> journal[("journal.jsonl: one row per attempt,<br>with each hop and its stop")]
+    failed --> journal
+```
+
+- contraagent reads the refusal from the coding agent's output. The journal keeps
+  the provider's text in the attempt's reason.
+- The task is not launched on the same route again. Its next session starts on the
+  next hop, with the same call file.
+- The hops follow the order of the `[[tasks.audit.fallbacks]]` blocks. A kind's own
+  blocks replace `[[defaults.fallbacks]]`.
+- Only the refused task moves. The next task of the kind still starts on hop 1. A
+  rate limit (a 429) is different: it moves every task of the kind until the first
+  hop answers again.
+- When every hop refuses, the task fails with the stop `refused`. It is not retried,
+  and a task that needs its output does not start.
+- The journal row lists each hop with its coding agent, model, credential and stop.
+  Its reason is, for example, `safeguard refusal on hop 1/3
+  claude/claude-opus-5-5@anthropic-key (<the provider's text>); failing over to hop
+  2/3 codex/gpt-6.1-sol@openai-key; ran on hop 2/3 codex/gpt-6.1-sol@openai-key`.
+  The monitor shows it as a model switch.
+- Before the first launch, contraagent checks every hop as it checks the first one.
+  A kind with `disallowed_tools` cannot have a hop on Codex or omp, because neither
+  can deny a tool.
+
+### How a credential reaches a launch
+
+```mermaid
+flowchart LR
+    kind["[tasks.audit]<br>credential =<br>#quot;anthropic-key#quot;"] --> table["[credentials.anthropic-key]<br>key = #quot;env:ANTHROPIC_API_KEY#quot;"]
+    table -- "read in the launching process" --> env["The session's environment:<br>the host's variables without any<br>credential variable, then this key"]
+    env --> session(["Claude Code session"])
+    kind -. "the name only" .-> journal[("journal.jsonl<br>credential: anthropic-key")]
+```
+
+- The config names the credentials. They can be subscriptions, API keys, OAuth
+  tokens, gateways, Bedrock, Vertex or pools.
+- A secret in the config is a reference, `env:NAME` or `file:PATH`. contraagent
+  refuses an inline value. It reads the value in the launching process and writes
+  it nowhere.
+- A launch on any credential but `ambient` starts without the host's credential
+  variables (`ANTHROPIC_API_KEY`, any `*_API_KEY`, `*_AUTH_TOKEN`, ...). It then
+  gets the one credential that its hop names. A tool that needs a key of its own
+  gets it through `Pipeline(env=...)`.
+- `ambient` is the host's own login. A launch on it keeps the host's environment.
+- The journal records a credential's name, never its value.
+- A launch whose coding agent reports a credential source that does not match its
+  credential ends with the stop `credential_mismatch`. It does not move to another
+  hop.
+- A gateway's `headers` are plain config values, not secrets.
+
+### Limits, isolation and records
+
+| What | Where it is enforced or recorded |
+|---|---|
+| Tools a kind may not use | `disallowed_tools` in the config. A route whose coding agent cannot deny the tools is refused before anything launches. |
+| Limits of a launch | A time limit (`timeout_s`) and a turn limit (`max_turns`) for every kind, and a cost limit (`max_budget_usd`) and a stall limit (`stall_s`) when the config sets them. The page [Coding agents](src/contraagent/docs/agents.md) shows which limits each coding agent holds. |
+| The processes of a launch | A process group of its own. contraagent ends the group when the pipeline ends or is interrupted. |
+| Codex's sandbox | Its `workspace-write` sandbox, with the network on, and a temporary directory of its own for each launch. |
+| Scratch directories | `<temp dir>/contraagent-<uid>/`, usable only by its owner. contraagent refuses a symbolic link or another user's directory there. |
+| Each attempt | `journal.jsonl`: the coding agent, model, credential name, hops, tokens, cost, web searches, and the changed files among those the task declares with `changes=`. |
+| Each launch | `launches.jsonl`: the command line, with the prompt cut to 200 characters, and the refused tool calls. |
+| What each agent was given, and what it did | The run directory: the call file of each task (`calls/`) and the transcript of each task (`streams/`). |
+| Who can read a run | The monitor answers GET requests only and binds to 127.0.0.1 by default. It answers only local host names and the names given with `--allow-host`. |
+| A run shared as a file | `contraagent monitor export` never includes transcripts or processes. By default it redacts paths and host names. |
+| Runs of several hosts | A hub requires an ingest token for each host, and a token bound to one host cannot send the runs of another host. The hub's monitor requires a read token. The hub reads its tokens from files and compares them in constant time. |
+
+The journal and the transcripts hold what each coding agent reports in its own
+output. The monitor adds a live process tree from `/proc`. Neither is a
+kernel-level capture of every file or network access.
 
 ## When to use something else
 
