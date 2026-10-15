@@ -56,8 +56,24 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
     assert result.ok
     first, second = result.hops
     assert (first["agent"], first["model"], second["agent"], second["model"]) == ("claude", "m1", "omp", "m2")
-    assert first["usage"] == {"input": 100, "output": 10, "cache_read": 1000, "cache_creation": 50, "calls": 1, "peak_context": 1150}
-    assert second["usage"] == {"input": 1000, "output": 100, "cache_read": 10000, "cache_creation": 500, "calls": 1, "peak_context": 11500}
+    assert first["usage"] == {
+        "input": 100,
+        "output": 10,
+        "cache_read": 1000,
+        "cache_creation": 50,
+        "calls": 1,
+        "peak_context": 1150,
+        "context_window": None,
+    }
+    assert second["usage"] == {
+        "input": 1000,
+        "output": 100,
+        "cache_read": 10000,
+        "cache_creation": 500,
+        "calls": 1,
+        "peak_context": 11500,
+        "context_window": None,
+    }
     assert (first["cost_usd"], second["cost_usd"]) == (0.01, 0.04)
 
     journal = Journal(tmp_path / "journal.jsonl", tmp_path / "launches.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
@@ -156,3 +172,17 @@ def test_the_monitor_s_plan_carries_the_models(tmp_path):
     plan = Plan.model_validate(Monitor(tmp_path).plan("r"))
     [m] = plan.models
     assert (m.agent, m.model, m.sessions, m.cost_usd) == ("claude", "haiku", 2, 0.04)
+
+
+def test_claude_code_s_context_window_is_its_own_model_s():
+    from contraagent.backends.claude.backend import context_window
+
+    used = {
+        "big-1": {"outputTokens": 900, "contextWindow": 1_000_000},
+        "small-1": {"outputTokens": 100, "contextWindow": 200_000},
+    }
+    assert context_window(used, "big-1") == 1_000_000
+    assert context_window(used, "big") == 1_000_000  # an alias: its own is the one that wrote the most
+    assert context_window(used, "small-1") == 200_000
+    assert context_window({"big-1": {"outputTokens": 9}}, "big-1") is None  # a result that reports none
+    assert context_window(None, "big-1") is None

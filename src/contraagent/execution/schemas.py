@@ -53,6 +53,9 @@ class TokenUsage(BaseModel):
     #: The peak context: the whole input of the largest API call (cache read and cache write
     #: included), the largest over every hop and round summed here. None when no call was read.
     peak_context: int | None = None
+    #: The context window of the model whose call is the peak context, as the coding agent
+    #: reports it (`LaunchResult.context_window`); None when it reports none.
+    context_window: int | None = None
 
 
 class OtherModel(BaseModel):

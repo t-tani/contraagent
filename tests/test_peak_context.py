@@ -7,6 +7,8 @@ import pytest
 from pydantic import BaseModel
 
 from contraagent import Limits, Pipeline, PipelineConfig, agent_task
+from contraagent.backends.launch import CallUsage, LaunchResult, Usage
+from contraagent.contracts import fold_spend
 from contraagent.routing.config import ConfigError
 from contraagent.testing import StubAgent, writes
 
@@ -92,3 +94,37 @@ def test_a_warning_that_is_not_a_whole_percent_is_a_config_error(value):
     assert errors and "[defaults].context_warn_pct" in errors[0]
     with pytest.raises(ConfigError, match="context_warn_pct"):
         agent_task("summarize", instructions="x", output=Note, max_turns=1, timeout_s=10, context_budget=1000, context_warn_pct=value)
+
+
+def launch_on(model: str, peak: int, window: int | None) -> LaunchResult:
+    return LaunchResult(label="t", model=model, usage=Usage(calls=[CallUsage(model, peak, 0, 0, 1)]), context_window=window)
+
+
+def test_context_pct_is_of_the_window_the_coding_agent_reports():
+    """A model whose name does not say its window is measured against the window reported for it."""
+    result = launch_on("claude-sonnet-5-5", 500_000, 1_000_000)
+    assert result.context_pct == 50.0 and result.as_dict()["context_pct"] == 50.0
+    assert launch_on("claude-sonnet-5-5", 500_000, None).context_pct is None  # no window reported
+    assert LaunchResult(label="t", context_window=1_000_000).context_pct is None  # no API call read
+
+
+def test_folded_launches_keep_the_window_of_the_peak_context():
+    assert fold_spend(launch_on("big", 900_000, 1_000_000), launch_on("small", 100_000, 200_000)).context_pct == 90.0
+    assert fold_spend(launch_on("big", 50_000, 1_000_000), launch_on("small", 100_000, 200_000)).context_pct == 50.0
+    assert fold_spend(launch_on("big", 500_000, 1_000_000), launch_on("big", 100_000, None)).context_window == 1_000_000  # a round
+    assert fold_spend(launch_on("big", 500_000, None), launch_on("small", 100_000, 200_000)).context_pct is None
+
+
+def test_the_journal_records_the_reported_window_beside_the_peak_context(tmp_path):
+    task = agent_task("summarize", instructions="x", output=Note, max_turns=1, timeout_s=10)
+    stub = StubAgent({"summarize": writes({"note": "n"}, peak_context=250_000, context_window=1_000_000)})
+
+    def flow():
+        yield task("alpha")
+
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, backends=stub.backends()).run(flow)
+    [row] = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    assert (row["usage"]["peak_context"], row["usage"]["context_window"]) == (250_000, 1_000_000)
+    assert row["hops"][0]["usage"]["context_window"] == 1_000_000
+    [launch] = [json.loads(line) for line in (report.run_dir / "launches.jsonl").read_text().splitlines()]
+    assert (launch["context_window"], launch["context_pct"]) == (1_000_000, 25.0)

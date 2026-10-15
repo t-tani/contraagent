@@ -22,7 +22,10 @@ print(json.dumps({"type": "system", "subtype": "init", "model": "fake-model", "t
 print(json.dumps({"type": "assistant", "message": {"id": "m1", "model": "fake-model", "content": [{"type": "text", "text": "hi"}],
                   "usage": {"input_tokens": 10, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 2}}}))
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok", "session_id": "s-1",
-                  "num_turns": 1, "total_cost_usd": 0.001, "usage": {"output_tokens": 2}}))
+                  "num_turns": 1, "total_cost_usd": 0.001, "usage": {"output_tokens": 2},
+                  "modelUsage": {"fake-model": {"inputTokens": 10, "outputTokens": 2, "cacheReadInputTokens": 0,
+                                                "cacheCreationInputTokens": 0, "webSearchRequests": 0, "costUSD": 0.001,
+                                                "contextWindow": 1000000, "maxOutputTokens": 64000}}}))
 """
 
 OMP = r"""
@@ -69,6 +72,7 @@ def test_claude_backend_runs_a_launch_end_to_end(tmp_path):
     assert launch_result.stop == Stop.COMPLETED and launch_result.ok, launch_result.stderr_tail
     assert launch_result.result_text == "ok" and launch_result.session_id == "s-1" and launch_result.usage.n_calls == 1
     assert launch_result.credential == "k" and launch_result.api_key_source == "ANTHROPIC_API_KEY"
+    assert (launch_result.context_window, launch_result.as_dict()["context_window"]) == (1_000_000, 1_000_000)  # as reported
     env = json.loads(dump.read_text())
     assert env["ANTHROPIC_API_KEY"] == "sk-test"  # the credential named, not the leftover
     assert not {"CLAUDECODE", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN"} & set(env)  # nor the parent session
@@ -278,15 +282,17 @@ for line in sys.stdin:
         send({"type": "agent_end", "isTerminal": True})
     elif req["type"] == "get_state":
         send({"type": "extension_ui_request", "id": "w1", "method": "setWidget"})  # before the response
-        send({"type": "response", "id": req["id"], "command": "get_state", "success": True, "data": {"sessionId": "s-42"}})
+        send({"type": "response", "id": req["id"], "command": "get_state", "success": True, "data": {"sessionId": "s-42",
+             "model": {"id": "m", "provider": "p", "contextWindow": 400000, "maxTokens": 128000}}})
 """
 
 
-def test_omp_rpc_reads_its_session_id_past_frames_that_come_first(tmp_path):
+def test_omp_rpc_reads_its_session_id_and_context_window_past_frames_that_come_first(tmp_path):
     bindir = fake_cli(tmp_path, "omp", OMP_RPC)
     backend = OmpRpcBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
     result = backend.run(Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
     assert result.ok and result.result_text == "done" and result.session_id == "s-42"
+    assert result.context_window == 400_000  # the model's, from get_state
 
 
 def test_a_chatgpt_login_is_one_credential_for_omp_and_codex():

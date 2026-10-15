@@ -42,7 +42,11 @@ each call's tokens but are not stopped. `context_warn_pct` (1 to 99, in a task
 table, `agent_task(...)` or `[defaults]`) is a percent of `context_budget` and
 stops nothing: an attempt whose peak context passed it is recorded
 (`context_warned` in the journal, beside `context_budget` and
-`usage.peak_context`) and logged (`[context] <key>: peak context ...`). A kind with
+`usage.peak_context`) and logged (`[context] <key>: peak context ...`). The
+journal's `usage.context_window` is the window of the model the peak context was
+on, as the coding agent reports it (Claude Code, Codex, omp RPC); `launches.jsonl`
+holds it and `context_pct`, the peak context as a percent of it, both null when the
+coding agent reports no window. A kind with
 a `context_warn_pct` but no `context_budget` is refused before anything launches;
 `[defaults].context_warn_pct` applies to every kind with a `context_budget` and
 none of its own.

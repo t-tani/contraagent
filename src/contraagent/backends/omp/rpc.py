@@ -225,7 +225,7 @@ class OmpRpcBackend(OmpBackend):
                 return None
 
     def _harvest_state(self, proc: subprocess.Popen, errors: queue.Queue, acc: _Accumulator, deadline: float) -> None:
-        """get_state after the turn: the session id. Best-effort: frames that arrive
+        """get_state after the turn: the session id and the model's context window. Best-effort: frames that arrive
         before its response (late events, a chunked response) go through the
         accumulator; waits at most 10 s, never past the launch's deadline."""
         self._send(proc, {"id": STATE_REQUEST, "type": "get_state"})
@@ -375,10 +375,14 @@ class _Accumulator:
         return False
 
     def apply_state(self, data: dict) -> None:
-        """The session id from a post-turn `get_state` (tokens and cost come from each
-        assistant `message_end`)."""
+        """The session id and the model's context window (`model.contextWindow`) from a
+        post-turn `get_state` (tokens and cost come from each assistant `message_end`)."""
         if data.get("sessionId"):
             self.reader.session_id = str(data["sessionId"])
+        model = data.get("model")
+        window = model.get("contextWindow") if isinstance(model, dict) else None
+        if isinstance(window, int) and not isinstance(window, bool) and window > 0:
+            self.reader.context_window = window
 
     def launch_result(self, launch: Launch, agent: str, argv: list[str], killed: Stop | None) -> LaunchResult:
         """Build the LaunchResult from folded frames. No process exit to weigh: `exit_code` None."""

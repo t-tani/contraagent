@@ -419,7 +419,9 @@ def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
 
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
     """Carry the spend, the web searches, the unread events and a context warning from
-    `total` into `nxt`, the launch after it; everything else is `nxt`'s.
+    `total` into `nxt`, the launch after it; everything else is `nxt`'s, but for
+    `context_window`: the window of the launch whose call is the peak context (the other
+    launch's when that one reports none on the same model).
 
     `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
     own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
@@ -436,6 +438,9 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
         nxt.num_turns = total.num_turns + (nxt.num_turns or 0)
     if not (resumed and session_total and nxt.other_models):
         nxt.other_models = add_other_models(total.other_models, nxt.other_models)
+    peak, other = (total, nxt) if total.usage.peak_context > nxt.usage.peak_context else (nxt, total)
+    same_model = peak.model == other.model
+    nxt.context_window = peak.context_window or (other.context_window if same_model else None)
     nxt.usage.calls = total.usage.calls + nxt.usage.calls
     nxt.usage.output_total += total.usage.output_total
     nxt.rate_limits = total.rate_limits + nxt.rate_limits

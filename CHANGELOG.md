@@ -1044,6 +1044,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first launch, and its `[tasks.<kind>]` table is no longer reported as naming no kind of the
   run. A class of any other code is not followed. The warning for such a table ends
   "ignored (a typo?)" when no close kind name is known.
+- `context_pct` in `launches.jsonl` for models whose name does not say their context window
+  (a model with a 1M window and no `[1m]` in its name read 5 times too high). The window is
+  what the coding agent reports, `LaunchResult.context_window`: Claude Code's
+  `modelUsage[<model>].contextWindow`, Codex's `model_context_window`, omp RPC's
+  `get_state` model `contextWindow`; omp `-p`, pi and opencode report none. `context_pct`
+  is None without one. The journal records it beside the peak context
+  (`usage.context_window` per attempt and per hop), the monitor's models carry it
+  (`ModelUsage.context_window`), and `writes(value, context_window=...)` makes the stub
+  agent report one.
 - `PipelineConfig.table(name)` returned a top-level table that every check refused as
   unknown; it reads `[pipeline.<name>]`, and an unknown top-level table's message names
   `[pipeline.<name>]` as the place for a pipeline's own table.

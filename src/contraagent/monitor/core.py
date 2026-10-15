@@ -1132,7 +1132,7 @@ def model_usage(rows: list[dict]) -> list[dict]:
     of first use: each hop on its own model (its agent, tokens, cost and time), and what it
     spent on other models (`Hop.other_models`) on each of them, taken out of its own model's
     cost. A row of one hop with no tokens of its own gives the hop the row's. `peak_context`
-    is the largest of its hops'. Python rows and hops that never launched (`skipped_hops`)
+    and `context_window` are the largest of its hops'. Python rows and hops that never launched (`skipped_hops`)
     are not counted."""
     out: dict[tuple[str, str], dict] = {}
 
@@ -1147,11 +1147,13 @@ def model_usage(rows: list[dict]) -> list[dict]:
                 "cost_usd": None,
                 "wall_s": 0.0,
                 "peak_context": None,
+                "context_window": None,
             },
         )
-        peak = usage.get("peak_context") if isinstance(usage, dict) else None
-        if isinstance(peak, int) and not isinstance(peak, bool):
-            m["peak_context"] = max(m["peak_context"] or 0, peak)
+        for k in ("peak_context", "context_window"):
+            v = usage.get(k) if isinstance(usage, dict) else None
+            if isinstance(v, int) and not isinstance(v, bool):
+                m[k] = max(m[k] or 0, v)
         m["sessions"] += sessions
         for k in _TOKENS:
             v = usage.get(k) if isinstance(usage, dict) else None
