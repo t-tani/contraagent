@@ -14,10 +14,11 @@ export const monitorStyles = css`
   .brand { flex: none; max-width: 30cqi; white-space: nowrap; }
   .brand span { overflow: hidden; text-overflow: ellipsis; }
   .brand svg { width: 22px; height: 22px; flex: none; }
-  .logo-core { fill: var(--accent); transform-origin: 12px 12px; }
-  .logo-ring { stroke: var(--accent); opacity: 0.5; transform-origin: 12px 12px; }
-  :host([live]) .logo-core { animation: core-beat 1.8s var(--ease) infinite; }
-  :host([live]) .logo-ring { animation: turn 7s linear infinite; }
+  .logo-braces { stroke: var(--text); }
+  .spark-a { stop-color: var(--accent); }
+  .spark-b { stop-color: var(--agent); }
+  .logo-spark { transform-origin: 60px 60px; }
+  :host([live]) .logo-spark { animation: core-beat 1.8s var(--ease) infinite; }
   .runbtn { display: flex; align-items: center; gap: 10px; min-width: min(150px, 100%); max-width: 52cqi; cursor: pointer; padding: 6px 13px;
     border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--text); transition: border-color 0.2s, background 0.2s; }
   .runbtn:hover { border-color: var(--line2); background: var(--panel2); }

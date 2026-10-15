@@ -446,7 +446,7 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
     @app.get("/{name}.{ext}", include_in_schema=False)
     def asset(name: str, ext: str) -> FileResponse:
-        if ext not in ("js", "css") or not is_plain(name):
+        if ext not in ("js", "css", "svg", "png") or not is_plain(name):  # the scripts, the styles, the page's icons
             raise HTTPException(404)
         path = static / f"{name}.{ext}"
         if not path.is_file():

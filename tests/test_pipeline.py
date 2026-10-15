@@ -225,7 +225,7 @@ def test_http_endpoints(tmp_path):
     assert client.get("/api/runs/r1/stream/write-u").json()["events"]
     assert client.get("/api/runs/r1/panels/facts").json() == {"ok": 1}
     assert client.get("/api/runs/r1/panels/nope").status_code == 404
-    for path in ("/", "/app.js"):  # the built UI: styles live in its elements
+    for path in ("/", "/app.js", "/favicon.svg", "/apple-touch-icon.png"):  # the built UI: styles live in its elements
         assert client.get(path).status_code == 200
     assert client.get("/etc.passwd").status_code == 404
 

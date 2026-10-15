@@ -58,6 +58,9 @@ STATIC = Path(__file__).parent / "static"
 #: What the page needs beside `data/`.
 PAGE_FILES = ("index.html", "app.js", "ja.js")
 
+#: The page's icons, copied when the web UI has them.
+ICON_FILES = ("favicon.svg", "favicon-32.png", "apple-touch-icon.png")
+
 #: What an export takes out by default; `keep` puts them back.
 REDACTED = ("paths", "host")
 
@@ -251,6 +254,9 @@ def export(
     static = monitor.static_dir or STATIC
     for name in PAGE_FILES:
         if name != "index.html":
+            shutil.copyfile(static / name, out / name)
+    for name in ICON_FILES:
+        if (static / name).is_file():
             shutil.copyfile(static / name, out / name)
     (out / "index.html").write_text(_page(static, monitor.title, "data/"))
     return ExportReport(out=out, runs=chosen, bytes_by_run=sizes, total_bytes=total + sum(sizes.values()))

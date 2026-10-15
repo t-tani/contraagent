@@ -73,7 +73,7 @@ exclude = [
     "web/test-results",
     "web/playwright-report",
     "web/packages/ui/custom-elements.json",
-    "docs/assets",   # the root README's screenshots (`pnpm --dir web screenshots`)
+    "docs/assets",   # the root README's logo (brand/) and screenshots (`pnpm --dir web screenshots`)
 ]
 
 # The changelog: one fragment per user-visible change in changelog.d/ (`<slug>.<type>.md`,

@@ -194,6 +194,13 @@ def test_an_export_writes_the_monitor_s_own_page(tmp_path):
     export(Monitor(runs(tmp_path, ids=("only",)), static_dir=static), tmp_path / "site", now=NOW)
     assert (tmp_path / "site/app.js").read_text() == "// own app.js"
     assert '<ca-monitor export="data/">' in (tmp_path / "site/index.html").read_text()
+    assert not (tmp_path / "site/favicon.svg").exists()  # a UI without icons: none copied
+
+
+def test_an_export_carries_the_bundled_page_s_icons(tmp_path):
+    export(Monitor(runs(tmp_path, ids=("only",))), tmp_path / "site", now=NOW)
+    for name in ("favicon.svg", "favicon-32.png", "apple-touch-icon.png"):
+        assert (tmp_path / "site" / name).is_file()
 
 
 def test_a_run_still_running_is_left_out_unless_asked_for(tmp_path):

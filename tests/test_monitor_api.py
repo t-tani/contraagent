@@ -305,6 +305,8 @@ def test_process_ages_use_the_kernel_clock_rate():
 def test_the_page_makes_no_third_party_requests():
     static = Path(server.STATIC)
     for f in static.iterdir():
+        if f.suffix == ".png":  # an image requests nothing
+            continue
         text = f.read_text()
         assert "googleapis" not in text and "gstatic" not in text, f.name
 

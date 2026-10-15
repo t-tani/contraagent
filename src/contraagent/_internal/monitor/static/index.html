@@ -10,6 +10,10 @@ if(names.indexOf(c)>=0)document.documentElement.setAttribute("data-ca-theme",c);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>contraagent monitor</title>
+    <!-- public/: favicon.svg (last, so a browser with SVG icons takes it) follows the colour scheme; the PNGs are for the others and for home screens. -->
+    <link rel="icon" href="./favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180" />
     <!-- vite.config.ts puts the theme here, before the first paint: the reader's choice and the themes' rules. -->
     <style>html,body{height:100%;margin:0}body{color:var(--ca-text);background:var(--ca-backdrop);overflow:hidden}</style>
     <script type="module" crossorigin src="./app.js"></script>
