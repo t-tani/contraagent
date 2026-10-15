@@ -201,7 +201,7 @@ def test_monitor_views(tmp_path):
     q = run.queue(RetryingRunner(runner, on_attempt=run.record_attempt), max_concurrent=1)
     q.add(Task("write", unit="u", key="write-u"))
     q.run()
-    mon = Monitor(run.runs_dir, panels={"facts": lambda r: {"run": r}}, task_detail=lambda r, t, rows: {"extra": len(rows)})
+    mon = Monitor(run.runs_dir, panels={"facts": lambda r: {"run": r.id}}, task_detail=lambda r, t, rows: {"extra": len(rows)})
     runs = mon.runs()
     assert runs[0]["run"] == "r1" and runs[0]["attempts"] == 1 and runs[0]["running"]  # this process is the run
     d = mon.task_detail("r1", "write-u")

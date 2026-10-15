@@ -304,6 +304,22 @@ topic:
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
 
+## A pipeline's own records
+
+Flow code and Python tasks keep what the pipeline wants to see of a run in the run
+itself, in its `pipeline/` folder: `contraagent.log(name, row)` appends a row (a dict
+or a pydantic model) as one line to the **pipeline log** `pipeline/<name>.jsonl`, and
+`contraagent.save(name, value)` writes any JSON value whole as the **pipeline
+document** `pipeline/<name>.json`, replacing what it held. `name` is a plain name
+without a suffix. They write into the current run: in flow code, the run
+`Pipeline.run` is running; in a Python task, the run the task belongs to, on whatever
+thread the queue runs it. Anywhere else they raise `NoCurrentRun`. A relay ships them
+to a hub with the rest of the run, and a panel reads them back wherever the monitor
+reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
+plays does not run, so it logs nothing; flow code runs as in any run.
+
+::code{file="examples/panels/records.py" from="@python_task" to="def words("}
+
 ## How a task ends
 
 A result's `stop` says why: `completed`, `invalid_output` (still off-contract
@@ -325,7 +341,7 @@ and receive `TaskResult`s.
 
 | Part | What it does |
 |---|---|
-| `Run` | `runs/<id>/`: run lock, `plan.jsonl`, `journal.jsonl`, `flow_calls.jsonl`, `deferred.jsonl`, in-flight markers, resume by key and fingerprint |
+| `Run` | `runs/<id>/`: run lock, `plan.jsonl`, `journal.jsonl`, `flow_calls.jsonl`, `deferred.jsonl`, in-flight markers, the pipeline's own `pipeline/` (the current run of `contraagent.log` and `save` while it is open), resume by key and fingerprint |
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |

@@ -30,6 +30,7 @@ is ok and carries the task's `fingerprint`.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import fcntl
 import json
@@ -53,6 +54,7 @@ from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
 from contraagent.execution.estimates import JournalEstimates, journal_rows, recent_journals
 from contraagent.execution.journal import Journal, utcnow_iso
+from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
 from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
@@ -147,6 +149,7 @@ class Run:
         self._teardown_lock = threading.Lock()
         self._teardown_callbacks: list[Callable[[], None]] = []
         self._restore_signals: Callable[[], None] | None = None
+        self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
         rundir.write_document(
@@ -201,10 +204,18 @@ class Run:
             self._lock_fd = None
 
     def __enter__(self) -> Run:
+        """The run, as the current run of `contraagent.log` and `save` until the `with` ends."""
+        self._writing = writing_into(self.dir.resolve())
+        self._writing.__enter__()
         return self
 
     def __exit__(self, *exc) -> None:
-        self.close()
+        writing, self._writing = self._writing, None
+        try:
+            self.close()
+        finally:
+            if writing is not None:
+                writing.__exit__(None, None, None)
 
     def cursor(self, *, stages=None, steps=None, skip_when_completed=()) -> CursorStore:
         """This run's resume cursor, at `runs/<id>/cursor.json` where the monitor

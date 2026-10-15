@@ -20,6 +20,7 @@ and, when given, from a `TaskAdapter`, exactly as for agent tasks.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from dataclasses import dataclass
@@ -36,6 +37,7 @@ from contraagent.dispatch.task import (
     Task,
     TaskResult,
 )
+from contraagent.execution.pipeline_files import writing_into
 
 
 @dataclass(frozen=True)
@@ -131,14 +133,16 @@ class PythonTaskRunner:
         except OSError:  # a definition the monitor cannot show must not fail the task
             pass
 
-    @staticmethod
-    def _call(task: Task) -> TaskResult:
-        """Call the function; an exception is the task's result, never a crash of the queue."""
+    def _call(self, task: Task) -> TaskResult:
+        """Call the function; an exception is the task's result, never a crash of the queue.
+        With a run directory, it is the current run of `contraagent.log` and `save` while
+        the function runs, on whichever thread the queue calls it."""
         assert task.fn is not None
         t0 = time.monotonic()
         reason = ""
         try:
-            task.fn()
+            with writing_into(self._run_dir.resolve()) if self._run_dir is not None else contextlib.nullcontext():
+                task.fn()
             stop = STOP_COMPLETED
         except Exception as exc:  # a Python task's failure is its result
             stop = STOP_ERROR
