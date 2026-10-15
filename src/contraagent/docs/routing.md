@@ -19,10 +19,11 @@ of the flow is reported, not fatal: one config file often serves several flows,
 but it may be a typo.
 
 A pipeline keeps its own settings in the same file, each in a **pipeline table**
-`[pipeline.<name>]`, read by the pipeline's code with
-`PipelineConfig.table(name)` (`Pipeline.config.table(name)` once a `Pipeline` holds
-the file; an empty table when the file has none). contraagent never checks the keys
-inside; a `pipeline.<name>` that is not a table is refused. Any other top-level table is refused before
+`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+`contraagent.pipeline_table(name)` ([tasks](tasks.md)), other code with
+`PipelineConfig.table(name)`; either is an empty table when the file has none.
+contraagent never checks the keys inside; a `pipeline.<name>` that is not a table is
+refused. Any other top-level table is refused before
 anything launches.
 
 ## Budgets

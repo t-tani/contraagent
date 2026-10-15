@@ -44,6 +44,7 @@ from contraagent.dispatch.task import (
 )
 from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.runner import RetryingRunner
+from contraagent.routing.config import PipelineConfig
 from contraagent.routing.kind_config import KindConfig
 
 
@@ -75,8 +76,12 @@ class PythonTaskRunner:
         run_dir: str | Path | None = None,
         cwd: str | Path | None = None,
         on_failed_attempt: Callable[[TaskResult], None] | None = None,
+        config: PipelineConfig | None = None,
     ) -> None:
+        """`config`: the config file the run was started with, read by
+        `contraagent.pipeline_table` in a Python task."""
         self._inner = inner
+        self._config = config
         self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
@@ -176,14 +181,14 @@ class PythonTaskRunner:
     def _call(self, task: Task) -> tuple[TaskResult, Exception | None]:
         """Call the function: its result, and the exception it raised. An exception is the
         task's result, never a crash of the queue. With a run directory, it is the current
-        run of `contraagent.log` and `save` while the function runs, on whichever thread the
+        run of `contraagent.log`, `save` and `pipeline_table` while the function runs, on whichever thread the
         queue calls it."""
         assert task.fn is not None
         t0 = time.monotonic()
         reason = ""
         error: Exception | None = None
         try:
-            with writing_into(self._run_dir.resolve()) if self._run_dir is not None else contextlib.nullcontext():
+            with writing_into(self._run_dir.resolve(), self._config) if self._run_dir is not None else contextlib.nullcontext():
                 task.fn()
             stop = STOP_COMPLETED
         except Exception as exc:  # a Python task's failure is its result

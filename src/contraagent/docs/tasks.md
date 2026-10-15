@@ -369,6 +369,12 @@ to a hub with the rest of the run, and a panel reads them back wherever the moni
 reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
 plays does not run, so it logs nothing; flow code runs as in any run.
 
+In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
+settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was
+started with (`contraagent run --config`, `Pipeline(config)`), as parsed. It is an
+empty table when the file has none, or the run has no config file
+([routing](routing.md)).
+
 ::code{file="examples/panels/records.py" from="@python_task" to="def words("}
 
 ## How a task ends

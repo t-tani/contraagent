@@ -122,6 +122,6 @@ cooldown_s = 900                    # rest after a 429 when the provider states 
 
 # --- the pipeline's own tables ------------------------------------------------
 
-[pipeline.report]                   # a pipeline table, read by the pipeline's code: PipelineConfig.table("report")
+[pipeline.report]                   # a pipeline table: contraagent.pipeline_table("report") in a run
 title = "Weekly summary"            # any keys: contraagent never checks them
 sections = ["changes", "risks"]

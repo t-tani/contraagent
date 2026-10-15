@@ -58,6 +58,7 @@ from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
 from contraagent.routing.capacity import sized
+from contraagent.routing.config import PipelineConfig
 from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
 
 _logger = logging.getLogger(__name__)
@@ -115,6 +116,7 @@ class Run:
         unit_of: Callable[[Task], str] | None = None,
         log: Callable[[str], None] | None = None,
         cwd: str | Path | None = None,
+        config: PipelineConfig | None = None,
     ):
         """`run_group` is a label grouping runs (default: the run id).
         `row_extras(result)` adds a domain's own columns to a journal row;
@@ -124,11 +126,14 @@ class Run:
         caller decides through `logging` whether and where they appear.
         `cwd` is the run's working directory, where its agents run (default: this
         process's); `run.json` records it, and the monitor shows the flow code
-        files under it relative to it."""
+        files under it relative to it.
+        `config` is the config file the run was started with; its pipeline tables are what
+        `contraagent.pipeline_table` reads in the run (none without it)."""
         self.run_id = run_id
         self.run_group = run_group or run_id
         self.runs_dir = Path(runs_dir)
         self.dir = self.runs_dir / run_id
+        self.config = config
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / rundir.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
@@ -205,8 +210,9 @@ class Run:
             self._lock_fd = None
 
     def __enter__(self) -> Run:
-        """The run, as the current run of `contraagent.log` and `save` until the `with` ends."""
-        self._writing = writing_into(self.dir.resolve())
+        """The run, as the current run of `contraagent.log`, `save` and `pipeline_table`
+        until the `with` ends."""
+        self._writing = writing_into(self.dir.resolve(), self.config)
         self._writing.__enter__()
         return self
 
@@ -312,7 +318,9 @@ class Run:
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
         a retried one here, the last by the queue."""
-        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt)
+        return PythonTaskRunner(
+            inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt, config=self.config
+        )
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent

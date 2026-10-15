@@ -10,8 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Pipeline tables: a pipeline keeps its own settings in the config file under
-  `[pipeline.<name>]`, read with `PipelineConfig.table(name)` (an empty table when absent);
-  contraagent never checks their keys, and a `pipeline.<name>` that is not a table is refused.
+  `[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+  `contraagent.pipeline_table(name)` (`NoCurrentRun` outside a run), other code with
+  `PipelineConfig.table(name)`; either is an empty table when absent. contraagent never
+  checks their keys, and a `pipeline.<name>` that is not a table is refused. `Run(config=)`
+  and `PythonTaskRunner(config=)` take the config file the run was started with.
 
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history

@@ -132,3 +132,47 @@ def test_a_relay_ships_them_a_hub_serves_them_to_panels_and_a_prune_removes_them
     assert report.runs == [held]
     assert hub.store.count(held, rundir.pipeline_log("counts")) == -1
     assert hub.store.document(held, rundir.pipeline_document("total")) is None
+
+
+def test_a_flow_and_its_python_tasks_read_their_pipeline_table(tmp_path):
+    config = tmp_path / "pipeline.toml"
+    config.write_text('[pipeline.report]\ntitle = "Weekly"\n')
+
+    @contraagent.python_task
+    def heading(unit: str) -> str:
+        return f"{contraagent.pipeline_table('report')['title']}: {unit}"
+
+    def flow():
+        assert contraagent.pipeline_table("absent") == {}
+        text = yield heading(unit=contraagent.pipeline_table("report")["title"].lower())
+        contraagent.save("heading", text)
+
+    Pipeline(config, runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow)
+    assert json.loads((tmp_path / "runs/flow/pipeline/heading.json").read_text()) == "Weekly: weekly"
+
+    seen: list[dict] = []
+    Pipeline(None, runs_dir=tmp_path / "runs2", cwd=tmp_path, log=lambda line: None).run(
+        lambda: seen.append(contraagent.pipeline_table("report"))
+    )
+    assert seen == [{}]  # a run with no config file
+
+    with pytest.raises(NoCurrentRun, match=r"contraagent.pipeline_table is called outside a run"):
+        contraagent.pipeline_table("report")
+
+
+def test_a_cli_run_reads_the_pipeline_table_of_its_config(tmp_path, monkeypatch):
+    import sys
+
+    from contraagent.cli import main
+
+    (tmp_path / "pipeline.toml").write_text("[pipeline.index]\nport = 8080\n")
+    (tmp_path / "steps.py").write_text(
+        "import contraagent\n"
+        "@contraagent.python_task\ndef port() -> int:\n    return contraagent.pipeline_table('index')['port']\n"
+        "def flow():\n    contraagent.save('port', (yield port()))\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert main(["run", "steps.py:flow", "--config", "pipeline.toml"]) == 0
+    assert json.loads((tmp_path / "runs/flow/pipeline/port.json").read_text()) == 8080
+    sys.modules.pop("steps", None)

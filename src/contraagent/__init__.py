@@ -102,6 +102,7 @@ from contraagent.execution import (
     RunLocked,
     TaskAdapter,
     log,
+    pipeline_table,
     save,
 )
 from contraagent.pipeline import CheckReport, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
@@ -202,6 +203,7 @@ __all__ = [
     "log",
     "make_python_task",
     "normalize_stream_line",
+    "pipeline_table",
     "python_task",
     "read_stream",
     "register_backend",

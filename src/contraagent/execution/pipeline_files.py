@@ -1,4 +1,5 @@
-"""A pipeline's own files in its run: `contraagent.log` and `contraagent.save`.
+"""A pipeline's own files in its run, `contraagent.log` and `contraagent.save`, and its
+own tables in the config the run was started with, `contraagent.pipeline_table`.
 
 Flow code and Python tasks write what the pipeline itself wants to keep of a run into
 the run's `pipeline/` folder (`rundir.PIPELINE`): a pipeline log, `<name>.jsonl`, one
@@ -7,7 +8,7 @@ of the last `save(name, value)`. A relay ships them to a hub with the rest of th
 and a panel reads them back wherever the monitor reads runs (`RunRecords.log`,
 `RunRecords.document`).
 
-They write into the current run: the one a `Run` opened (`Pipeline.run` opens it around
+They act on the current run: the one a `Run` opened (`Pipeline.run` opens it around
 the flow), and, in a Python task, the run its `PythonTaskRunner` runs it for, on
 whichever thread the queue runs it. Called outside a run, they raise `NoCurrentRun`.
 """
@@ -20,40 +21,62 @@ import threading
 from collections.abc import Iterator, Mapping
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from pydantic import BaseModel
 
 from contraagent import rundir
 from contraagent.errors import ContraagentError
+from contraagent.routing.config import PipelineConfig
 
-_current: ContextVar[Path | None] = ContextVar("contraagent_run_dir", default=None)
+
+class _Current(NamedTuple):
+    """The current run: its directory, and the config it was started with (None: no file)."""
+
+    dir: Path
+    config: PipelineConfig | None
+
+
+_current: ContextVar[_Current | None] = ContextVar("contraagent_current_run", default=None)
 _append = threading.Lock()
 
 
 class NoCurrentRun(ContraagentError):
-    """`contraagent.log` or `contraagent.save` was called outside a run: not in flow code
-    `Pipeline.run` is running, nor in a Python task of it."""
+    """`contraagent.log`, `contraagent.save` or `contraagent.pipeline_table` was called
+    outside a run: not in flow code `Pipeline.run` is running, nor in a Python task of it."""
 
 
 @contextlib.contextmanager
-def writing_into(run_dir: str | Path) -> Iterator[Path]:
-    """Make `run_dir` the current run of `log` and `save` in this context, until it exits."""
+def writing_into(run_dir: str | Path, config: PipelineConfig | None = None) -> Iterator[Path]:
+    """Make `run_dir`, started with `config`, the current run of `log`, `save` and
+    `pipeline_table` in this context, until it exits."""
     path = Path(run_dir)
-    token = _current.set(path)
+    token = _current.set(_Current(path, config))
     try:
         yield path
     finally:
         _current.reset(token)
 
 
-def _run_dir(call: str) -> Path:
-    path = _current.get()
-    if path is None:
+def _current_run(call: str) -> _Current:
+    current = _current.get()
+    if current is None:
         raise NoCurrentRun(
             f"contraagent.{call} is called outside a run: call it from the flow given to Pipeline.run, or from a Python task of it"
         )
-    return path
+    return current
+
+
+def _run_dir(call: str) -> Path:
+    return _current_run(call).dir
+
+
+def pipeline_table(name: str) -> dict:
+    """`[pipeline.<name>]` of the config the current run was started with: a pipeline
+    table, the pipeline's own settings, as parsed (`PipelineConfig.table`). Empty when the
+    file has none, or the run has no config file. NoCurrentRun outside a run."""
+    config = _current_run("pipeline_table").config
+    return config.table(name) if config is not None else {}
 
 
 def _json(value: Any, what: str) -> str:

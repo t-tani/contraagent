@@ -235,7 +235,7 @@ class Pipeline:
         """
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{flow.__name__}{suffix}"
-        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras) as run:
+        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             if self.stub is not None:
                 run.update_info(stub=True)
