@@ -7,7 +7,7 @@ and makes one failover breaker per kind (`build_routers`). `preflight()` then
 drops the routes that cannot answer before the first task.
 
     plan = RoutingPlan.build(PipelineConfig.load("pipeline.toml"), kinds, backends)
-    plan.preflight()
+    plan.preflight("substitute")
     runner = AgentRunner(backends, plan.configs, routers=plan.routers, run_dir=run.dir)
 
 The functions below are the steps `build` runs, usable on their own. Each
@@ -20,6 +20,7 @@ import dataclasses
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from contraagent.backends import Backend, backend_class, known_agents
 from contraagent.backends.credentials import CredentialError, Pool
@@ -28,6 +29,9 @@ from contraagent.errors import ContraagentError, did_you_mean
 from contraagent.routing.config import PipelineConfig
 from contraagent.routing.kind_config import KindConfig, configs_from_tables, missing_budgets
 from contraagent.routing.router import Route, Router, parse_chain
+
+if TYPE_CHECKING:
+    from contraagent.routing.preflight import PreflightPolicy, PreflightRecord
 
 _logger = logging.getLogger(__name__)
 
@@ -360,17 +364,25 @@ class RoutingPlan:
             raise RoutingError(*errors)
         return cls(config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials)
 
-    def preflight(self) -> None:
-        """Probe every route once and drop the ones that cannot answer.
+    def preflight(self, policy: PreflightPolicy) -> PreflightRecord:
+        """Probe every route once, drop the ones that cannot answer, and apply `policy` to
+        each kind left with no route (`PreflightPolicy`); returns what was done.
 
-        A kind whose own chain is gone entirely is moved onto a route that
-        answered, and the log says so: a kind silently running somewhere
-        other than where it was configured is the failure this check exists
-        to prevent.
+        A kind moved onto another route (`substitute`) is logged and recorded: a kind
+        silently running somewhere other than where it was configured is the failure
+        this check exists to prevent. `stop` raises `PreflightStopped` instead.
         """
-        self.routers = apply_preflight(
-            self.configs, self.routers, self.backends, self.credentials, model_failover=bool(self.config.defaults().get("model_failover"))
+        from contraagent.routing.preflight import apply_preflight
+
+        self.routers, record = apply_preflight(
+            self.configs,
+            self.routers,
+            self.backends,
+            self.credentials,
+            policy=policy,
+            model_failover=bool(self.config.defaults().get("model_failover")),
         )
+        return record
 
     def routes(self) -> dict[str, str]:
         """How each kind will run, one line each, by kind name: coding agent/model,
@@ -396,32 +408,3 @@ class RoutingPlan:
         """
         for name, line in self.routes().items():
             _logger.info(f"[route] {name}: {line}")
-
-
-def apply_preflight(
-    configs: dict, routers: Mapping, backends: Mapping[str, Backend], credentials: Mapping | None = None, *, model_failover: bool = False
-) -> dict:
-    """Drop the routes the agents cannot answer on, and re-point what is left.
-
-    Mutates `configs` for the kinds whose chain is gone; returns the
-    surviving router map.
-    """
-    from contraagent.routing.preflight import run_preflight
-
-    live = run_preflight(routers, configs, backends, credentials or {}, model_failover=model_failover)
-    if not live:
-        return live
-    fallback = next(iter(live.values())).routes[0]
-    for kind in list(configs):
-        if kind in live:
-            continue
-        rc = configs[kind]
-        _logger.warning(f"[preflight] {kind_name(kind)}: no route left; running on {fallback} instead of {rc.agent}/{rc.model}")
-        if fallback.credential and fallback.credential != rc.credential:
-            # Moving a kind onto another identity is the operator's call, never the preflight's.
-            _logger.warning(
-                f"[preflight] {kind_name(kind)}: the surviving route runs as {fallback.credential}, not {rc.credential}; left as configured"
-            )
-            continue
-        configs[kind] = dataclasses.replace(rc, agent=fallback.agent, model=fallback.model)
-    return live

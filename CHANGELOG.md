@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A preflight policy: `Pipeline(preflight="substitute" | "stop" | "off")`, `contraagent run
+  --preflight`, `[defaults] preflight`. `stop` raises `PreflightStopped` before the first
+  launch when a kind has no route that answered, naming each such kind and why each of its
+  routes was dropped; `substitute` runs it on the first route that answered. `run.json`
+  records what the preflight did (`preflight`), and the monitor returns it as
+  `Plan.preflight`. It replaces `Pipeline(preflight=True)`, which is `"substitute"`; there a
+  kind with no failover chain whose route answered stays on it, and a route past the probe
+  cap is kept unprobed.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

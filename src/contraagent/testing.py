@@ -37,6 +37,9 @@ return value (`writes_nothing()`: no output; `fails()`: it raises), from the sam
 script; a callable reply is given a `StubTask`. The kinds in `execute` run their
 functions as in any run. Flow code runs in a stub run as in any run.
 
+A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub plays; a
+route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
+
 Under a name whose coding agent continues its turn when a stop hook objects
 (Claude Code), the stub does what that agent does: once it has written its
 output it runs the Stop hooks of the launch's plugins (their rendered
@@ -71,6 +74,7 @@ from contraagent.backends.process import write_launch_marker
 from contraagent.backends.streams import resolve_format
 from contraagent.calls import CallFile
 from contraagent.contracts import smallest
+from contraagent.routing.preflight import PROBE_PROMPT
 
 _UNSET: Any = object()
 #: How many times a stop hook may send the output back within one launch.
@@ -242,6 +246,8 @@ class StubAgent(Backend):
     def run(self, launch: Launch) -> LaunchResult:
         started = time.monotonic()
         call_path = launch.env.get(envvars.CALL)
+        if not call_path and launch.prompt == PROBE_PROMPT:
+            return self._result(launch, started, writes_nothing())  # a preflight's probe answers
         if not call_path:
             return self._result(launch, started, fails(reason="stub: no call file (an agent task without a call file)"))
         call = CallFile.read(Path(call_path))

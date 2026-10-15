@@ -102,11 +102,12 @@ class PipelineConfig:
 
     def defaults(self, errors: list[str] | None = None) -> dict:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
-        model_failover), and `max_passes` (`Pipeline(max_passes=)`). Its failover chain,
+        model_failover), `max_passes` (`Pipeline(max_passes=)`) and `preflight`
+        (`Pipeline(preflight=)`, a `PreflightPolicy`). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
-        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "fallbacks", "claim_capacity"}
+        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "preflight", "fallbacks", "claim_capacity"}
         unknown = set(entry) - allowed - {"_comment"}
         if unknown:
             _problem(errors, f"{self.source}: {_unknown_keys('[defaults]', unknown, allowed, tuple(TASK_TABLE_KEYS))}")
@@ -121,6 +122,13 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].max_passes = {value!r} is not a positive integer")
             else:
                 out["max_passes"] = value
+        if entry.get("preflight") is not None:
+            from contraagent.routing.preflight import check_policy
+
+            try:
+                out["preflight"] = check_policy(entry["preflight"], f"{self.source}: [defaults].preflight")
+            except ValueError as exc:
+                _problem(errors, str(exc))
         return out
 
     def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int]:

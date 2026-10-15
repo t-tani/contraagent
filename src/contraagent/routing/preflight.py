@@ -17,25 +17,38 @@ is not "did the launch succeed" but "is this route worth keeping" — a
 route that cannot answer is dropped, and the surviving chain is rebuilt
 around the ones that did.
 
-Failure policy: a route that cannot answer is dropped and the run
-proceeds on the rest. Only a plan left with no usable route at all is
-fatal, because proceeding with nothing to run is not a degraded run.
+A route that cannot answer is dropped and each chain is rebuilt on the
+rest. What happens to a kind left with no route that answered is the
+preflight policy (`PreflightPolicy`): `substitute` moves it onto the first
+route that answered, when that route runs as the kind's own credential;
+`stop` refuses the run before its first launch (`PreflightStopped`); `off`
+probes nothing. `PreflightRecord` is what the preflight did, as `run.json`
+records it (`preflight`).
 """
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal, get_args
 
 from contraagent.backends.base import Backend
 from contraagent.backends.credentials import AMBIENT, CredentialBase
 from contraagent.backends.launch import Launch, LaunchResult, Limits, Stop
 from contraagent.dispatch.task import kind_name
+from contraagent.errors import ContraagentError
 from contraagent.routing.pool import first_member
 from contraagent.routing.router import Route, Router
 
 _logger = logging.getLogger(__name__)
+
+#: What the preflight does with a kind left with no route that answered: `substitute`
+#: (run it on the first route that answered, of the same credential), `stop` (refuse
+#: the run: `PreflightStopped`), `off` (probe nothing).
+PreflightPolicy = Literal["substitute", "stop", "off"]
+PREFLIGHT_POLICIES: tuple[str, ...] = get_args(PreflightPolicy)
 
 # One token of output is enough to know the route answers.
 PROBE_TIMEOUT_S = 90
@@ -197,6 +210,79 @@ def _own_chain(backend: Backend, model: str) -> str:
     return chains.describe(model)
 
 
+@dataclass(frozen=True)
+class DroppedRoute:
+    """A route the preflight dropped: not in its agent's model list, or its probe did not
+    complete. `kinds`: the kinds whose chain held it."""
+
+    agent: str
+    model: str
+    credential: str
+    reason: str
+    kinds: tuple[str, ...]
+
+    def __str__(self) -> str:
+        return f"{Route(self.agent, self.model, self.credential)} ({self.reason})"
+
+
+@dataclass(frozen=True)
+class Substitution:
+    """A kind with no route left, run on the first route that answered (`substitute`)."""
+
+    kind: str
+    from_agent: str
+    from_model: str
+    to_agent: str
+    to_model: str
+
+
+@dataclass(frozen=True)
+class KeptKind:
+    """A kind with no route left, run as configured all the same (`substitute`), and why."""
+
+    kind: str
+    agent: str
+    model: str
+    reason: str
+
+
+@dataclass
+class PreflightRecord:
+    """What a preflight did, as `run.json` records it (`preflight`): its policy, the routes
+    it dropped, and, for each kind left with no route, its substitution, the kind kept
+    as configured, or the kind that stopped the run (`stopped`)."""
+
+    policy: PreflightPolicy
+    dropped: list[DroppedRoute] = field(default_factory=list)
+    substituted: list[Substitution] = field(default_factory=list)
+    kept: list[KeptKind] = field(default_factory=list)
+    stopped: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict:
+        """The record as JSON-ready data."""
+        return dataclasses.asdict(self)
+
+
+class PreflightStopped(ContraagentError):
+    """A kind has no route that answered the preflight, and the policy is `stop`: nothing
+    was launched. The message names each such kind and why each of its routes was
+    dropped; `record` is what the preflight did (`run.json` `preflight`)."""
+
+    def __init__(self, record: PreflightRecord) -> None:
+        lines = [f"preflight: {len(record.stopped)} kind(s) have no route that answered (preflight stop); nothing was launched"]
+        for name in record.stopped:
+            lines.append(f"  {name}: " + "; ".join(str(d) for d in record.dropped if name in d.kinds))
+        super().__init__("\n".join(lines))
+        self.record = record
+
+
+def check_policy(policy: object, where: str) -> PreflightPolicy:
+    """`policy` when it is a preflight policy; else `ValueError` naming `where` (the setting) and the policies."""
+    if isinstance(policy, str) and policy in PREFLIGHT_POLICIES:
+        return policy  # type: ignore[return-value]
+    raise ValueError(f"{where} = {policy!r} is not one of {', '.join(PREFLIGHT_POLICIES)}")
+
+
 def run_preflight(
     routers: Mapping,
     configs: Mapping,
@@ -204,11 +290,12 @@ def run_preflight(
     credentials: Mapping[str, CredentialBase] | None = None,
     cap: int = DEFAULT_CAP,
     model_failover: bool = False,
-) -> dict:
-    """Check every route the run will use; drop the ones that cannot answer.
+) -> dict[tuple[str, str, str], RouteVerdict]:
+    """Check every route the run will use, cheapest first.
 
-    Returns the router map rebuilt on the surviving routes, and the live
-    verdicts keyed by route. An empty result means nothing can run.
+    Returns a verdict per route checked, by `Route.identity`: a route not in its
+    agent's model list, or whose probe did not complete, is not `ok`. A route past
+    `cap` has no verdict: its first task tells.
     """
     wanted = _wanted_routes(configs, routers)
     probes, skipped = wanted[:cap], wanted[cap:]
@@ -216,28 +303,27 @@ def run_preflight(
         _logger.warning(f"[preflight] {len(skipped)} further route(s) not probed (cap {cap}); a bad one fails its first task instead")
 
     _logger.info(f"[preflight] 1/2 model catalogue: {len(probes)} route(s)")
-    typed: dict[tuple[str, str, str], bool] = {}
+    verdicts: dict[tuple[str, str, str], RouteVerdict] = {}
     for r in probes:
         ok, why = catalogue_check(backends.get(r.agent), r)
-        typed[r.identity] = ok
         if not ok:
+            verdicts[r.identity] = RouteVerdict(r, False, why)
             _logger.warning(f"[preflight]   {r}  DROPPED ({why})")
-    if all(typed.values()):
+    if not verdicts:
         _logger.info(f"[preflight]   all {len(probes)} known to their agent")
 
     _logger.info("[preflight] 2/2 reachability")
-    live: dict[tuple[str, str, str], RouteVerdict] = {}
     for r in probes:
-        if not typed[r.identity]:
+        if r.identity in verdicts:
             continue
         be = backends.get(r.agent)
         if be is None:
-            live[r.identity] = RouteVerdict(r, False, f"no {r.agent} backend in this run")
+            verdicts[r.identity] = RouteVerdict(r, False, f"no {r.agent} backend in this run")
             _logger.warning(f"[preflight]   {r}  DROPPED (no backend)")
             continue
         native = _native_chain(r, routers, be)
         v = probe(r, be, native, first_member(credentials or {}, r.credential) or AMBIENT)
-        live[r.identity] = v
+        verdicts[r.identity] = v
         mark = "ok" if v.ok else f"DROPPED ({v.reason})"
         extra = f"  [{v.quota}]" if v.quota else ""
         if native:
@@ -257,14 +343,50 @@ def run_preflight(
         _logger.log(logging.INFO if v.ok else logging.WARNING, f"[preflight]   {r}  {mark} ({v.wall_s:.1f}s){extra}{via}")
         if v.ok and _tight(v.quota):
             _logger.warning("[preflight]   ^ low headroom: this route will likely fail partway through the run")
+    return verdicts
+
+
+def apply_preflight(
+    configs: dict,
+    routers: Mapping,
+    backends: Mapping[str, Backend],
+    credentials: Mapping | None = None,
+    *,
+    policy: PreflightPolicy,
+    model_failover: bool = False,
+) -> tuple[dict, PreflightRecord]:
+    """Probe the routes of `configs` and `routers`, drop the ones that cannot answer and
+    rebuild each chain on the rest, then apply `policy` to each kind left with no route.
+
+    Returns the router map and what was done. `substitute` mutates `configs` for the
+    kinds it moves; `stop` raises `PreflightStopped`; `off` probes nothing and returns
+    `routers` as they are.
+    """
+    record = PreflightRecord(policy=policy)
+    if policy == "off":
+        return dict(routers), record
+    verdicts = run_preflight(routers, configs, backends, credentials or {}, model_failover=model_failover)
+
+    def answered(r: Route) -> bool:
+        v = verdicts.get(r.identity)
+        return v is None or v.ok  # a route past the cap is not known to be dead
+
     out: dict = {}
+    left: dict = {}  # kind -> its routes that were not dropped
+    held: dict[tuple[str, str, str], list[str]] = {}  # route -> the kinds whose chain held it
     rebuilt: dict[str, list[str]] = {}
-    for kind, router in routers.items():
-        kept = [r for r in router.routes if r.identity in live and live[r.identity].ok]
-        if not kept:
-            _logger.warning(f"[preflight] {kind_name(kind)}: every route failed; no chain left")
+    for kind, rc in configs.items():
+        router = routers.get(kind)
+        # The kind's own route is what was probed for its chain's first (`_wanted_routes`).
+        primary = Route(agent=rc.agent, model=rc.model, credential=rc.credential)
+        routes = router.routes if router is not None else (primary,)
+        probed = (primary, *routes[1:])
+        for r in probed:
+            held.setdefault(r.identity, []).append(kind_name(kind))
+        left[kind] = kept = [r for r, p in zip(routes, probed, strict=True) if answered(p)]
+        if router is None or not kept:
             continue
-        if len(kept) == len(router.routes):
+        if len(kept) == len(routes):
             out[kind] = router
             continue
         new = Router(kept[0], tuple(kept[1:]))
@@ -276,4 +398,33 @@ def run_preflight(
     # so sixteen identical lines would say less than one.
     for chain, kinds in rebuilt.items():
         _logger.info(f"[preflight] {chain}   ({len(kinds)} kind(s): {', '.join(sorted(kinds))})")
-    return out
+    record.dropped = [
+        DroppedRoute(v.route.agent, v.route.model, v.route.credential, v.reason, tuple(held.get(identity, ())))
+        for identity, v in verdicts.items()
+        if not v.ok
+    ]
+    dead = [kind for kind in configs if not left[kind]]
+    for kind in dead:
+        _logger.warning(f"[preflight] {kind_name(kind)}: every route failed; no chain left")
+    if policy == "stop":
+        if dead:
+            record.stopped = [kind_name(kind) for kind in dead]
+            raise PreflightStopped(record)
+        return out, record
+    fallback = next((left[kind][0] for kind in configs if left[kind]), None)
+    for kind in dead:
+        rc = configs[kind]
+        name = kind_name(kind)
+        if fallback is None:
+            record.kept.append(KeptKind(name, rc.agent, rc.model, "no route of the run answered"))
+            continue
+        if fallback.credential and fallback.credential != rc.credential:
+            # Moving a kind onto another identity is the operator's call, never the preflight's.
+            why = f"the first route that answered ({fallback}) runs as {fallback.credential}, not {rc.credential}"
+            _logger.warning(f"[preflight] {name}: {why}; left as configured")
+            record.kept.append(KeptKind(name, rc.agent, rc.model, why))
+            continue
+        _logger.warning(f"[preflight] {name}: no route left; running on {fallback} instead of {rc.agent}/{rc.model}")
+        record.substituted.append(Substitution(name, rc.agent, rc.model, fallback.agent, fallback.model))
+        configs[kind] = dataclasses.replace(rc, agent=fallback.agent, model=fallback.model)
+    return out, record

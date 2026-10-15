@@ -14,6 +14,7 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # model = "claude-sonnet-5-5"       # without it: the agent's default model
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
 # max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
+# preflight = "stop"                # probe every route first; a kind with no route left: "substitute" or "stop"; "off" (default)
 
 # How many running tasks may hold each claimed name (agent_task(claims=...)) at once, by the
 # name or an fnmatch pattern that gives each name it matches a capacity of its own.

@@ -120,7 +120,7 @@ be made (`zeta`) ends its loop there.
   them apart.
 - A `while` loop of flow code is bounded by `max_passes` (see below).
 - Every kind the flow's code reaches (see [Checking and testing](testing.md)) is
-  routed, and probed by `preflight=True`, before the first launch: a config
+  routed, and probed by the preflight (`preflight="substitute"` or `"stop"`), before the first launch: a config
   problem refuses the run. A kind declared inside the flow's body is routed when
   its first task is created: a config problem raises at that task call.
 - A kind is one definition and one `[tasks.<kind>]` table. The flow's code may

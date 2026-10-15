@@ -45,7 +45,7 @@ from pydantic import (
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
-API_VERSION = "3.3.0"
+API_VERSION = "3.4.0"
 
 
 class Closed(BaseModel):
@@ -468,6 +468,45 @@ class CredentialRest(QuotaRest):
     ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
 
 
+class PreflightDropped(Closed):
+    """A route the preflight dropped (`DroppedRoute`)."""
+
+    agent: str
+    model: str = Field(description="empty: the coding agent's default model")
+    credential: str
+    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
+    kinds: list[str] = Field(description="the kinds whose chain held it")
+
+
+class PreflightSubstitution(Closed):
+    """A kind with no route left, run on the first route that answered (`Substitution`)."""
+
+    kind: str
+    from_agent: str
+    from_model: str
+    to_agent: str
+    to_model: str
+
+
+class PreflightKept(Closed):
+    """A kind with no route left, run as configured all the same (`KeptKind`)."""
+
+    kind: str
+    agent: str
+    model: str
+    reason: str
+
+
+class Preflight(Closed):
+    """What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`)."""
+
+    policy: Literal["substitute", "stop", "off"] = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
+    dropped: list[PreflightDropped] = Field(default_factory=list)
+    substituted: list[PreflightSubstitution] = Field(default_factory=list)
+    kept: list[PreflightKept] = Field(default_factory=list)
+    stopped: list[str] = Field(default_factory=list, description="the kinds with no route left that stopped the run (policy `stop`)")
+
+
 class PlanGroup(Closed):
     """A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts
     together), its members counted by state."""
@@ -516,6 +555,7 @@ class Plan(Closed):
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
     models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
+    preflight: Preflight | None = Field(None, description="what the run's preflight did (`run.json`); null when its run.json records none")
 
 
 # --- outputs (contracts) -----------------------------------------------------
