@@ -3,16 +3,16 @@ import { z } from 'astro/zod';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
 
-/** A live element under a topic's title (scripts/collect.py, `LIVE`). */
+/** A live element of a page of the web packages (scripts/collect.py, `LIVE`). */
 const live = z.object({
   /** A `ca-*` view fed with the demo run, its properties mapped to the fixture's keys. */
   demo: z.string().optional(),
   props: z.record(z.string(), z.string()).optional(),
+  attrs: z.record(z.string(), z.string()).optional(),
   /** `@contraagent/elements`' example `docs/examples/<name>.ts`. */
   example: z.string().optional(),
-  /** A screenshot of the repository, with its text. */
-  image: z.string().optional(),
-  alt: z.string().optional(),
+  /** The screenshot of the page it takes the place of; none: under the title. */
+  at: z.string().optional(),
   /** The elements it shows, each linked to its reference. */
   tags: z.array(z.string()),
   height: z.string().optional(),

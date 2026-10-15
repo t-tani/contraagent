@@ -34,7 +34,7 @@ export const referenceUrl = (tag: string): string => `${PACKAGES[packageOf(tag)]
 
 /** The elements the gallery (src/content/docs/elements.mdx) shows under a heading of their tag. */
 export const GALLERY = new Set([
-  'ca-pipeline-graph', 'ca-transcript', 'ca-timeline', 'ca-kpis', 'ca-journal-table', 'ca-task-table', 'ca-contracts',
+  'ca-monitor', 'ca-task-view', 'ca-definitions', 'ca-pipeline-graph', 'ca-transcript', 'ca-timeline', 'ca-kpis', 'ca-journal-table', 'ca-task-table', 'ca-contracts',
   'cae-data-table', 'cae-layered-graph', 'cae-mark-matrix', 'cae-stat-tiles', 'cae-lanes', 'cae-check-table', 'cae-transcript', 'cae-segmented',
 ]);
 

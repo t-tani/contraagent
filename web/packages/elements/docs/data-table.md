@@ -8,7 +8,8 @@ reader names each cell by its column and its row. Register it with
 
 ![A data table of three jobs with their minutes and their state: done, failed, running](images/data-table.webp)
 
-Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-data-table>`.
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
 
 ::code{file="examples/data-table.ts"}
 

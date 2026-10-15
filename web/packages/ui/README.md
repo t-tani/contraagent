@@ -57,9 +57,11 @@ without a build step.
 
 ## The views
 
-Each view over a run of the demo pipeline, in the contraagent Light theme. Most
-of them are live, fed with the demo pipeline's run, on the documentation site's
-Live elements page (`pnpm docs` in `web/`).
+Each view over a run of the demo pipeline, in the contraagent Light theme.
+
+<!-- not on the site -->
+On the documentation site (`pnpm docs` in `web/`), each view is live in place of
+its screenshot, fed with the same run.
 
 `<ca-monitor>`, the whole monitor (`monitor`): the run's header, its tabs, and the overview.
 

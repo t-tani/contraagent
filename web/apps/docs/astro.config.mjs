@@ -19,8 +19,6 @@ export default defineConfig({
       description: 'Run coding agents as typed, checked, supervised tasks.',
       // A live demo can show @contraagent/elements' example of a theme of one's own.
       customCss: ['./src/styles/site.css', '../../packages/elements/docs/examples/theme.css'],
-      // An element topic's live elements come first in its content (its `live` front matter).
-      components: { MarkdownContent: './src/components/MarkdownContent.astro' },
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
         { label: 'Python package: contraagent', collapsed: true, items: [{ autogenerate: { directory: 'python' } }] },

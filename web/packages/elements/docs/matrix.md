@@ -7,7 +7,8 @@ value), a column per item, the columns under nested groups. Register it with
 
 ![A mark matrix of nightly checks: a row per service with its failures, a column per check under each night](images/matrix.webp)
 
-Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-mark-matrix>`.
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
 
 ::code{file="examples/matrix.ts"}
 

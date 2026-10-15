@@ -23,8 +23,8 @@
 .swatch { display: inline-block; width: 0.9em; height: 0.9em; border-radius: 3px; margin-right: 0.4em; vertical-align: -0.1em; border: 1px solid var(--sl-color-gray-5); }
 .meta { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); }
 
-/* An element topic's live elements, under its title (LiveFigures.astro). */
-.ca-live { margin: 0 0 2rem; }
+/* A live element in a page of the web packages (LiveFigure.astro). */
+.ca-live { margin: 1.5rem 0; }
 .ca-live .ca-demo { margin: 0 0 1rem; }
 .ca-live-links {
   display: flex;
@@ -35,15 +35,6 @@
   color: var(--sl-color-gray-3);
 }
 .ca-live-links a { color: var(--sl-color-text-accent); }
-.ca-picture { margin: 0 0 1rem; }
-.ca-picture img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 12px;
-}
-.ca-picture figcaption,
 .ca-live .ca-demo figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.4rem; }
 .ca-source { margin: 0.5rem 0 0; }
 .ca-source summary { cursor: pointer; font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); }

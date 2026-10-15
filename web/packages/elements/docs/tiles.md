@@ -7,7 +7,8 @@ tile's number counts up in; the types are in `@contraagent/elements/tiles`.
 
 ![Four stat tiles: jobs, failed jobs with a link, build time, and queued](images/tiles.webp)
 
-Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-stat-tiles>`.
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
 
 ::code{file="examples/tiles.ts"}
 

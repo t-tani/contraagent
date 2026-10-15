@@ -8,10 +8,15 @@ import Example from '../../components/Example.astro';
 import ElementLinks from '../../components/ElementLinks.astro';
 
 Every element on this page is live. The views of `@contraagent/ui` show the
-demo pipeline's run; the generic elements of `@contraagent/elements` show the
+demo pipeline's run (`<ca-monitor>` reads an export of it); the generic elements of `@contraagent/elements` show the
 hand-written data of their examples. What an element sends shows under it.
 
 ## Views of @contraagent/ui
+
+### `<ca-monitor>`
+
+<Demo tag="ca-monitor" props={{}} attrs={{ export: '/demo/data/', history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" describe />
+<ElementLinks tags={['ca-monitor']} links={[{ href: '/node/ui/embed/', label: 'Embed the monitor' }]} />
 
 ### `<ca-pipeline-graph>`
 
@@ -22,6 +27,16 @@ hand-written data of their examples. What an element sends shows under it.
 
 <Demo tag="ca-transcript" props={{ events: 'transcript' }} height="480px" describe />
 <ElementLinks tags={['ca-transcript']} />
+
+### `<ca-task-view>`
+
+<Demo tag="ca-task-view" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false', taskKey: '="write_note-alpha"' }} height="640px" describe />
+<ElementLinks tags={['ca-task-view']} />
+
+### `<ca-definitions>`
+
+<Demo tag="ca-definitions" props={{ plan: 'plan', journal: 'journal', run: 'run', client: '@client', live: '=false' }} height="560px" describe />
+<ElementLinks tags={['ca-definitions']} />
 
 ### `<ca-timeline>`
 

@@ -376,12 +376,22 @@ version; nothing else holds that text.
   JSDoc), the HTTP API in `openapi.json`. Prose points to them.
 - **The site** (`web/apps/docs`, Astro Starlight) renders the packages'
   documentation: `scripts/collect.py` writes it into `src/content/docs/python/`
-  and `node/` (not committed) and fails on a quote or a link that does not
-  resolve. The site itself holds only its landing page, the live examples and the
-  references generated from `openapi.json`, `custom-elements.json` and the
-  elements' stylesheet. The live examples read `src/fixtures/demo-run.json`;
-  rewrite it with `uv run python web/apps/docs/scripts/fixture.py` after a change
-  to what the monitor returns.
+  and `node/` (not committed) and fails on a quote, a link or an image that does
+  not resolve, and on an HTML tag in prose outside code. The site shows the web
+  packages' elements live, never as screenshots: `LIVE` in `collect.py` puts a
+  live element in place of each screenshot of an element (`images/`,
+  `docs/images/`), and the collector fails on a screenshot or an
+  `@contraagent/elements` topic without one. A paragraph under
+  `<!-- not on the site -->` is for readers of the files only. The site itself
+  holds only its landing page, the live examples, `LIVE` and the references
+  generated from `openapi.json`, `custom-elements.json` and the elements'
+  stylesheet. The live examples read `src/fixtures/demo-run.json` and an export
+  of the showcase runs in `public/demo/data/`; rewrite both with
+  `uv run python web/apps/docs/scripts/fixture.py` after a change to what the
+  monitor returns.
+- **No image in an npm package**: a web package's `docs/images/` (screenshots for
+  readers of the repository) is left out of its tarball (`"!docs/images"` in
+  `files`); `pnpm check:dist` fails on an image in any tarball.
 - The root `README.md` is the landing page: it may pitch and summarize, and it
   points to the packages for everything a reader does. Its code is written out (GitHub
   does not expand `::code`), each block after `<!-- ::code{...} -->` lines that

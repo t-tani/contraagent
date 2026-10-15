@@ -9,7 +9,8 @@ with `@contraagent/elements/transcript/define`; the types are in
 
 ![A transcript of two sessions: an API request sent again, a web search with 2 results, a log line, and the assistant's answer](images/transcript.webp)
 
-Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-transcript>`.
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
 
 ::code{file="examples/transcript.ts"}
 

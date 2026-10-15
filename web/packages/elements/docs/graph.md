@@ -9,7 +9,8 @@ the graph. Register it with `@contraagent/elements/graph/define` (it registers
 
 ![A layered graph: commit, then build, then a retry loop of test and deploy, a mark per series in each node, and the legend](images/graph.webp)
 
-Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-layered-graph>`.
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
 
 ::code{file="examples/graph.ts"}
 

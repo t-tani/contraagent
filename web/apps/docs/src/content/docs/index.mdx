@@ -29,9 +29,9 @@ import overview from '../../../../../../docs/assets/readme/overview.png';
 export const TASKS = 'src/contraagent/docs/examples/tutorial/tasks.py';
 
 <figure class="ca-home-shot">
-  <Image src={overview} alt="The monitor's overview of a run: its state, problems with their causes, outputs, and the pipeline graph with a review loop" />
+  <Image src={overview} alt="The monitor's overview of a finished run: 44 of 44 tasks done, no problems, all 44 outputs passed their checks, the pipeline graph with a review loop, and the totals" />
   <figcaption>
-    The monitor over the shipped demo pipeline, run on its demo agent: one task failed, one was partly done, one was done after retrying, and a review loop ran a second pass for one unit.
+    The monitor over the demo pipeline, run on its demo agent: every task done, every output checked; 2 outputs corrected in their own sessions, 1 model switch after a rate limit, and a review loop that ran a second pass for one unit. The same run is live on the page of [@contraagent/ui](/node/ui/#the-views).
   </figcaption>
 </figure>
 
