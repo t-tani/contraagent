@@ -83,6 +83,19 @@ describe('trendSections', () => {
     expect(h.values[0]![0]).toBeNull();
   });
 
+  it("names a model's own window, and the account when one identity was of two", () => {
+    const quota = [
+      { credential: 'sub', account: 'aaaaaa111111', window: 'seven_day', daily_peak: [50, 60], hourly_peak: [] },
+      { credential: 'sub', account: 'bbbbbb222222', window: 'seven_day_opus', daily_peak: [10, 20], hourly_peak: [] },
+      { credential: 'other', account: 'cccccc333333', window: 'five_hour', daily_peak: [5, 5], hourly_peak: [] },
+    ];
+    const rests = [{ ts: '2026-10-14T02:00:00+00:00', credential: 'sub', account: 'bbbbbb222222', event: 'start', run: 'r2' }];
+    const s = trendSections({ ...TRENDS, quota, rests }, 'en');
+    const names = (s.find((x) => x.id === 'usage')!.body as LinesBody).series.map((x) => x.name);
+    expect(names).toEqual(['sub | account aaaaaa | weekly', 'sub | account bbbbbb | weekly (opus)', 'other | 5-hour']);
+    expect((s.find((x) => x.id === 'rests')!.body as TableBody).rows[0]).toMatchObject({ identity: 'sub | account bbbbbb' });
+  });
+
   it('says why a task was not run, in words', () => {
     expect((by('deferred') as TableBody).rows[0]).toMatchObject({ task: 'writer-x', cause: 'Past the deadline' });
   });

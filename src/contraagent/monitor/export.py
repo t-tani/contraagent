@@ -38,7 +38,6 @@ no run) and one method in `createExportClient`.
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 from collections.abc import Callable, Iterable
@@ -205,15 +204,19 @@ def export(
     keep: Iterable[str] = (),
     exclude: Iterable[str] = (),
     period: Period | None = None,
+    live: bool = False,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> ExportReport:
     """Write the monitor's views of the newest `runs` runs (None: every run; `since`, an
     ISO time: only runs active since then) to `out`: the page and `data/`, with the trends
-    of `period` (default: the last 14 days in UTC) over every run. `data/` is written anew:
-    a run no longer chosen leaves the export."""
+    of `period` (default: the last 14 days in UTC) over every run. A run still running is
+    left out (its views would stop half way: the run that writes the export, say), unless
+    `live`. `data/` is written anew: a run no longer chosen leaves the export."""
     period = period or Period.parse()
     out = Path(out)
     summaries = monitor.runs()
+    if not live:
+        summaries = [s for s in summaries if not s.get("running")]
     if since:
         summaries = [s for s in summaries if (s.get("last_ts") or "") >= since]
     if runs is not None:
@@ -283,8 +286,8 @@ def _panels(monitor: Monitor, scope: str, run: str, where: Path, red: Redactor, 
         if panel.scope != scope:
             continue
         try:
-            body = monitor.panel(name, run) if scope == "run" else monitor.trends_panel(name, period or Period.parse())
-        except Exception as exc:  # one bad panel must not stop the export
+            body = api.panel_data(monitor.panel(name, run) if scope == "run" else monitor.trends_panel(name, period or Period.parse()))
+        except Exception as exc:  # one bad panel (or a typed body that does not validate) must not stop the export
             body = {"error": f"{type(exc).__name__}: {exc}"}
         n += _write(where / f"{name}.json", red(json.loads(json.dumps(body, default=str))))
     return n
@@ -296,18 +299,6 @@ def _period(start: str, end: str, days: int, tz: str) -> Period:
         return Period.parse(start, end, tz)
     last = Period.parse("", end, tz).end
     return Period.parse((last - timedelta(days=max(1, days) - 1)).isoformat(), last.isoformat(), tz)
-
-
-def _load(target: str) -> Any:
-    """`module:attr`, imported (the current directory first on the path)."""
-    import importlib
-    import sys
-
-    module, _, attr = target.partition(":")
-    if not module or not attr:
-        raise ValueError(f"{target}: expected module:attr")
-    sys.path.insert(0, os.getcwd())
-    return getattr(importlib.import_module(module), attr)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -322,7 +313,25 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, help="the directory to write: index.html, app.js, ja.js and data/")
     ap.add_argument("--runs", type=int, default=10, help="how many runs, newest activity first (default: 10; 0: every run)")
     ap.add_argument("--since", default=None, metavar="ISO_TIME", help="only runs active since this time, e.g. 2026-10-01")
-    ap.add_argument("--panels", default=None, metavar="MODULE:ATTR", help="a dict of panels (name -> Panel) to write for each run")
+    ap.add_argument(
+        "--panels",
+        default=None,
+        metavar="MODULE:ATTR",
+        help="the pipeline's own views, as for `contraagent monitor`: path/to/views.py:PANELS or package.module:PANELS",
+    )
+    ap.add_argument(
+        "--groups",
+        default=None,
+        metavar="MODULE:ATTR",
+        help='the plan\'s columns and the trends\' groups: a list of {"id", "label", "kinds"}, as path/to/views.py:GROUPS',
+    )
+    ap.add_argument(
+        "--task-detail",
+        default=None,
+        metavar="MODULE:ATTR",
+        help="fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail",
+    )
+    ap.add_argument("--include-live", action="store_true", help="write runs that are still running too (default: left out)")
     ap.add_argument("--title", default="contraagent")
     ap.add_argument("--days", type=int, default=14, help="the trends' period: the last N days, today included (default: 14)")
     ap.add_argument("--from", dest="start", default="", metavar="YYYY-MM-DD", help="the trends' first day, instead of --days")
@@ -331,18 +340,35 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep", action="append", default=[], choices=REDACTED, help="keep what is taken out by default: paths, host")
     ap.add_argument("--exclude", action="append", default=[], metavar="KEY", help="take out this key wherever it appears (e.g. params)")
     args = ap.parse_args(argv)
-    try:
-        panels = _load(args.panels) if args.panels else None
-    except Exception as exc:  # an import that fails is the user's to fix: say which
-        sys.stderr.write(f"contraagent monitor export: --panels {args.panels}: {type(exc).__name__}: {exc}\n")
-        return 2
+    from contraagent.monitor.server import load_attr
+
+    extensions: dict[str, Any] = {}
+    for name in ("panels", "groups", "task_detail"):
+        spec = getattr(args, name)
+        if not spec:
+            continue
+        try:
+            extensions[name] = load_attr(spec)
+        except Exception as exc:  # an import that fails is the user's to fix: say which
+            flag = "--" + name.replace("_", "-")
+            sys.stderr.write(f"contraagent monitor export: {flag} {spec}: {type(exc).__name__}: {exc}\n")
+            return 2
     try:
         period = _period(args.start, args.end, args.days, args.tz)
     except ValueError as exc:
         sys.stderr.write(f"contraagent monitor export: {exc}\n")
         return 2
-    monitor = Monitor(args.runs_dir, title=args.title, panels=panels)
-    report = export(monitor, args.out, runs=args.runs or None, since=args.since, keep=args.keep, exclude=args.exclude, period=period)
+    monitor = Monitor(args.runs_dir, title=args.title, **extensions)
+    report = export(
+        monitor,
+        args.out,
+        runs=args.runs or None,
+        since=args.since,
+        keep=args.keep,
+        exclude=args.exclude,
+        period=period,
+        live=args.include_live,
+    )
     for run in report.runs:
         sys.stdout.write(f"  {run}: {report.bytes_by_run[run] / 1000:.0f} kB\n")
     sys.stdout.write(f"wrote {len(report.runs)} runs to {report.out} ({report.total_bytes / 1000:.0f} kB of data)\n")

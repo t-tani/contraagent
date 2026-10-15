@@ -27,6 +27,15 @@ call and ends the launch (`budget`) once it passes the cap; Codex reports no
 cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
 Every key: the reference at the end.
 
+`disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
+launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
+tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
+role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode a
+`Bash(...)` pattern as a command pattern and any other tool whole; pi whole tools
+(`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
+deny a tool, and a route on them is refused before anything launches
+(`Backend.tool_deny_problem`), failover hops included.
+
 ## Failover
 
 Each kind gets its own failover breaker: on a 429 the task walks its chain of
@@ -100,7 +109,8 @@ so its caps are the credential's: `max_five_hour_pct` and `max_seven_day_pct`
 in its `[credentials.<name>]` table (on a pool, the cap of each member that
 sets none). `Pipeline(quota_rule=fn)` adds a test of your own: `fn(credential,
 reading)` returns why the credential rests now, or None, from its latest reading
-(`RateLimit`).
+(`RateLimit`); or the reason and when the rest ends, `(reason, datetime)` (a time
+with no zone is UTC).
 
 A credential past a cap or the rule **rests** until the window its reading
 names resets. Nothing launches as it meanwhile: a pool passes over the member,
@@ -113,13 +123,16 @@ monitor ("not run" and the cause). A task of `finishing_kinds` still launches
 on a resting credential for `grace_s` after the rest began, as it does past a
 deadline.
 
-A rest by the rule lasts while the reading it judged stands: until the earliest
-reset among that reading's windows (a window that names no reset stands for its
-length after the reading arrived). Nothing launches on a resting credential, so no
+A rest by the rule lasts until the end the rule gave with its reason, and the rule
+is not asked again before it: a daily budget rests to the next day's start, a weekly
+one to the weekly window's reset. A rule that gives a reason alone rests the
+credential while the reading it judged stands: until the earliest reset among that
+reading's windows (a window that names no reset stands for its length after the
+reading arrived). Nothing launches on a resting credential, so no
 newer reading comes; after that time the stale reading no longer counts, the
 credential does not rest, and the next launch brings a reading for the rule to
 judge again. The rest records the reading it judged (`reading`: when it arrived,
-each window's usage and reset) and that time (`until`).
+each window's usage and reset) and its end (`until`).
 
 `run.json` records the run's caps (`quota_caps`) and the rule's name
 (`quota_rule`), and `rests.jsonl` each rest as it begins and ends: the window,

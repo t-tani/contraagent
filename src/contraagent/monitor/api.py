@@ -30,7 +30,18 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, ValidationError, WrapValidator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    TypeAdapter,
+    ValidationError,
+    WrapValidator,
+    field_validator,
+    model_validator,
+)
 
 from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
 
@@ -246,10 +257,12 @@ class TrendDenial(Closed):
 
 
 class TrendQuota(Closed):
-    """One account's utilization of one window over the period: each day's and each hour's highest reading."""
+    """One account's utilization of one window over the period: each day's and each hour's highest reading.
+    A credential whose token was replaced has one entry per account."""
 
     credential: str
-    window: Literal["five_hour", "seven_day"]
+    account: str = Field("", description="the account the readings are of (`QuotaReading.account`); empty when not known")
+    window: str = Field(description="`five_hour`, `seven_day`, or another window a reading names (`seven_day_opus`)")
     daily_peak: list[float | None] = Field(description="per day of `period.days`; null when no reading arrived that day")
     hourly_peak: list[float | None] = Field(
         description="per hour from the period's first instant (the first day's midnight in `tz`); null when no reading arrived in it"
@@ -263,6 +276,8 @@ class TrendRest(Open):
     ts: str | None = None
     event: str | None = None
     credential: str | None = None
+    account: str = Field("", description="the account whose reading it is (`QuotaRest.account`); empty when not known")
+    reading: dict | None = Field(None, description="for the quota rule's rest, the reading it judged (`QuotaRest.reading`)")
 
 
 class TrendDeferral(Closed):
@@ -955,6 +970,8 @@ class StreamPage(Closed):
 
 #: A status a value or a row is in: the monitor's status colours (`Tone` in the UI).
 Tone = Literal["failed", "attention", "done", "running", "muted", "neutral"]
+#: Every `Tone`, in order.
+TONES: tuple[str, ...] = get_args(Tone)
 
 #: How a number is written. `usd`: dollars; `pct`: a fraction (0.97 is 97%); `duration`:
 #: seconds; `tokens`: a count of tokens (1.2k); `datetime`: an ISO 8601 time; `number`: as is.
@@ -971,7 +988,7 @@ class PanelTile(Closed):
 
     id: str
     label: str
-    value: float | str
+    value: int | float | str = Field(description="a number as given (an integer stays one), or text already formatted")
     tone: Tone | None = None
     tip: str | None = None
     sub: list[list[str]] = Field(default_factory=list)
@@ -984,22 +1001,33 @@ class TilesBody(_Body):
 
 class TableColumn(Closed):
     """A column of a table body: `id` names the key of each row it shows. `bar`: a bar in
-    the cell, as long as the value against the column's largest."""
+    the cell, as long as the value against the column's largest. `link`: the key of each
+    row that holds the URL the cell leads to (http or https; any other is no link)."""
 
     id: str
     label: str
     align: Literal["start", "end"] | None = None
     format: ValueFormat | None = None
     bar: bool = False
+    link: str | None = Field(default=None, min_length=1, description="the key of the row that holds the cell's URL")
     tip: str | None = None
 
 
 class TableBody(_Body):
-    """Rows of values, one key per column; a row's `_tone` is its status."""
+    """Rows of values, one key per column; a row's `_tone` is its status (a `Tone`)."""
 
     type: Literal["table"] = "table"
     columns: list[TableColumn]
     rows: list[dict[str, Any]]
+
+    @field_validator("rows")
+    @classmethod
+    def _tones_known(cls, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for i, row in enumerate(rows):
+            tone = row.get("_tone")
+            if tone is not None and tone not in TONES:
+                raise ValueError(f"rows[{i}]._tone is {tone!r}; a tone is one of {', '.join(TONES)}")
+        return rows
 
 
 class ChartSeries(Closed):
@@ -1050,6 +1078,45 @@ class HBarsBody(_Body):
     unit: ValueFormat | None = None
 
 
+class NoteBody(_Body):
+    """Text beside the figures: what a part shows, how to read a number. `text` is
+    markdown (paragraphs, lists, emphasis, code, http(s) links; any markup in it is shown
+    as text). `tone` marks a note that warns (`attention`) or reports a failure (`failed`)."""
+
+    type: Literal["note"] = "note"
+    text: str
+    tone: Tone | None = None
+
+
+class GridCell(Closed):
+    """One cell of a status grid: the state it is in, in words, and that state's tone.
+    `tip` adds a fact about this cell to its tooltip (a run's id, a count)."""
+
+    label: str = Field(min_length=1)
+    tone: Tone
+    tip: str | None = None
+
+
+class StatusGridBody(_Body):
+    """A state per row (`y`) and column (`x`): `cells[row][column]`, null where there is
+    none. Each cell is coloured by its tone and named by its label (in the legend, the
+    tooltip and the table): the states of hourly cycles by day, say."""
+
+    type: Literal["status_grid"] = "status_grid"
+    x: list[str]
+    y: list[str]
+    cells: list[list[GridCell | None]]
+
+    @model_validator(mode="after")
+    def _shaped(self) -> StatusGridBody:
+        if len(self.cells) != len(self.y):
+            raise ValueError(f"cells has {len(self.cells)} rows; y has {len(self.y)}")
+        for i, row in enumerate(self.cells):
+            if len(row) != len(self.x):
+                raise ValueError(f"cells[{i}] has {len(row)} cells; x has {len(self.x)}")
+        return self
+
+
 class BlocksBody(_Body):
     """Bodies one under another: a panel of several parts."""
 
@@ -1058,7 +1125,7 @@ class BlocksBody(_Body):
 
 
 #: The `type` of each typed body.
-PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "blocks")
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "blocks")
 
 
 def _panel_kind(v: Any) -> str:
@@ -1074,11 +1141,22 @@ PanelBody = Annotated[
     | Annotated[LinesBody, Tag("lines")]
     | Annotated[HeatmapBody, Tag("heatmap")]
     | Annotated[HBarsBody, Tag("hbars")]
+    | Annotated[StatusGridBody, Tag("status_grid")]
+    | Annotated[NoteBody, Tag("note")]
     | Annotated[BlocksBody, Tag("blocks")]
     | Annotated[JsonObject, Tag("untyped")],
     Discriminator(_panel_kind),
 ]
 BlocksBody.model_rebuild()
+
+_PANEL_BODY = TypeAdapter(PanelBody)
+
+
+def panel_data(value: Any) -> Any:
+    """A panel's body as the monitor serves it, a run panel's and a trends panel's alike:
+    checked against `PanelBody` (a typed body that does not validate raises, it is never
+    shown as a JSON tree), then as JSON data."""
+    return _PANEL_BODY.dump_python(_PANEL_BODY.validate_python(value), mode="json", exclude_unset=True)
 
 
 # --- live feeds (Server-Sent Events) -------------------------------------

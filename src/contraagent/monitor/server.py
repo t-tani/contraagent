@@ -6,7 +6,7 @@ Endpoints (all GET; response models in `api.py`):
   /api/runs                          list[RunSummary]
   /api/hosts                         Hosts: the hosts that drive the runs, and accounts' utilization over every run
   /api/trends?from=&to=&tz=&run_group=  Trends: what the runs of a period add up to, day by day
-  /api/trends/panels/<name>?from=...    one trend panel a domain registered (`Panel(scope="trends")`)
+  /api/trends/panels/<name>?from=...    one trend panel a domain registered (`Panel(scope="trends")`), a `PanelBody`
   /api/runs/<run>/journal?since=N    JournalPage: journal rows after line offset N
   /api/runs/<run>/plan               Plan: the queued tasks: nodes, dependencies, states, groups
   /api/runs/<run>/definitions        list[TaskDefinition]: what defined each kind of task
@@ -15,7 +15,11 @@ Endpoints (all GET; response models in `api.py`):
   /api/runs/<run>/procs              Procs: live process tree
   /api/runs/<run>/task/<key>         TaskDetail: one task: its journal rows, live launches, stream name
   /api/runs/<run>/stream/<key>       StreamPage: one page of a transcript at an offset ("load earlier")
-  /api/runs/<run>/panels/<name>      one registered panel (any JSON object)
+  /api/runs/<run>/panels/<name>      one registered panel, a `PanelBody`
+
+Panels, a domain's own code, run on threads of their own (`PANEL_WORKERS`), so a slow
+one never holds the other routes back; the views a run feed sends are read off the
+event loop.
   /api/openapi.json                  this contract as OpenAPI (also `contraagent/monitor/openapi.json`)
   /events?run=<run>                  SSE, RunEvent: journal / procs / plan / outputs / cursor / panel:<name>,
                                      and `ready` once the first round (the journal replay) is out
@@ -38,6 +42,7 @@ mostly-sleeping SSE connections without that per-connection cost.
 from __future__ import annotations
 
 import asyncio
+import functools
 import importlib.util
 import json
 import logging
@@ -45,6 +50,7 @@ import signal
 import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -101,9 +107,20 @@ _OUTPUTS = TypeAdapter(api.Outputs)
 # `Optional`, not `X | None`: outside an annotation that is a `UnionType`
 # value, which type checkers do not accept as a TypeAdapter's type.
 _CURSOR = TypeAdapter(Optional[api.CursorView])  # noqa: UP045
-_PANEL = TypeAdapter(api.PanelBody)
 _STREAM = TypeAdapter(api.StreamPage)
 _READY = TypeAdapter(api.FeedReady)
+
+
+#: Threads that compute panels, a domain's own code that may take a minute: apart from the
+#: threads that answer every other route, so a slow panel (or a page asking for many) never
+#: holds the run list or a run's views back. Its threads start on first use.
+PANEL_WORKERS = 2
+_PANEL_POOL = ThreadPoolExecutor(max_workers=PANEL_WORKERS, thread_name_prefix="contraagent-panel")
+
+
+async def in_panel_pool(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """`fn(*args, **kwargs)` on a panel thread (`PANEL_WORKERS`), awaited."""
+    return await asyncio.get_running_loop().run_in_executor(_PANEL_POOL, functools.partial(fn, *args, **kwargs))
 
 
 def _json(adapter: TypeAdapter, value: Any) -> str:
@@ -137,38 +154,38 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
     included) and ends with `ready`."""
     jpos, replayed = 0, False
     sigs: dict[str, str] = {}
+    # The views are read off the event loop, which serves every other client meanwhile.
+    off = asyncio.to_thread
     while True:
         if await is_disconnected():
             return
-        entries, total = monitor.journal(run, jpos)
+        entries, total = await off(monitor.journal, run, jpos)
         if entries:
             jpos = total
             for e in entries:
                 yield {"event": "journal", "data": _json(_JOURNAL, e)}
-        procs = monitor.procs(run)
+        procs = await off(monitor.procs, run)
         sig = _procs_sig(procs)
         if sig != sigs.get("procs"):
             sigs["procs"] = sig
             yield {"event": "procs", "data": _json(_PROCS, procs)}
         for name in monitor.run_panels():
             try:
-                value = monitor.panel(name, run)
-                _PANEL.validate_python(value)  # a typed body that does not validate is an error, not a JSON tree
-                body = json.dumps(value, default=str)
+                body = json.dumps(api.panel_data(await in_panel_pool(monitor.panel, name, run)), default=str)
             except Exception as exc:  # one bad panel must not stop the feed
                 body = json.dumps({"error": f"{type(exc).__name__}: {exc}"})
             if body != sigs.get(name):
                 sigs[name] = body
                 yield {"event": f"panel:{name}", "data": body}
-        plan = _json(_PLAN, monitor.plan(run, procs))
+        plan = _json(_PLAN, await off(monitor.plan, run, procs))
         if plan != sigs.get("plan"):
             sigs["plan"] = plan
             yield {"event": "plan", "data": plan}
-        outs = _json(_OUTPUTS, monitor.outputs(run))
+        outs = _json(_OUTPUTS, await off(monitor.outputs, run))
         if outs != sigs.get("outputs"):
             sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
-        cur = _json(_CURSOR, monitor.cursor(run))
+        cur = _json(_CURSOR, await off(monitor.cursor, run))
         if cur != sigs.get("cursor"):
             sigs["cursor"] = cur
             yield {"event": "cursor", "data": cur}
@@ -294,19 +311,24 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
     @app.get(
         "/api/trends/panels/{name}",
-        response_model=api.JsonObject,
+        response_model=api.PanelBody,
+        response_model_exclude_unset=True,
         responses={400: {"description": "a period it cannot read"}, 404: {"description": "no trend panel of that name"}},
     )
-    def api_trend_panel(
+    async def api_trend_panel(
         name: str,
         start: str = Query("", alias="from"),
         end: str = Query("", alias="to"),
         tz: str = Query(""),
         run_group: str = Query(""),
-    ) -> dict:
-        """One trend panel's body: its `fn(runs, period)` over the runs of the period."""
+    ) -> Any:
+        """One trend panel's body: its `fn(runs, period)` over the runs of the period, made on a
+        panel thread, and kept for the same period over the same runs (`Monitor.trends_panel`)."""
+        period = period_of(start, end, tz)
+        if name not in monitor.panels or monitor.panels[name].scope != "trends":
+            raise HTTPException(404, f"no trend panel {name!r}")
         try:
-            return monitor.trends_panel(name, period_of(start, end, tz), run_group=run_group)
+            return await in_panel_pool(monitor.trends_panel, name, period, run_group=run_group)
         except KeyError:
             raise HTTPException(404, f"no trend panel {name!r}") from None
 
@@ -358,11 +380,14 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         response_model_exclude_unset=True,
         responses={404: {"description": "no run panel of that name"}},
     )
-    def api_panel(run: str, name: str) -> dict:
-        """One run panel's body: a typed body (tiles, a table, charts), or any JSON object."""
+    async def api_panel(run: str, name: str) -> Any:
+        """One run panel's body: a typed body (tiles, a table, charts), or any JSON object;
+        made on a panel thread."""
         monitor.check_run(run)
+        if name not in monitor.panels or monitor.panels[name].scope != "run":
+            raise HTTPException(404, f"no panel {name!r}")
         try:
-            return monitor.panel(name, run)
+            return await in_panel_pool(monitor.panel, name, run)
         except KeyError:
             raise HTTPException(404, f"no panel {name!r}") from None
 

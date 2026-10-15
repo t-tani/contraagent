@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The stub agent reports a utilization reading: `writes(value, rate_limit=RateLimit(...))` lands
+  in the launch's readings, so a test on the stub rests a credential past its quota cap or its
+  `quota_rule` and follows the task to its next hop or to `deferred`.
+- `disallowed_tools` in a task table and in `agent_task(...)`: tools a kind's launches may not
+  use, in Claude Code's names and patterns (`["WebFetch", "Bash(rm:*)"]`), checked where they
+  are written. Claude Code denies them with `--disallowedTools`, opencode with its permissions,
+  pi whole tools with `--exclude-tools`; a route on omp or Codex, which cannot deny a tool, is
+  refused before anything launches (`Backend.tool_deny_problem`).
+- A `quota_rule` may say when its rest ends: `(reason, datetime)` rests the credential to then
+  without asking the rule again, so a daily budget rests to the next day's start. A rule that
+  gives a reason alone rests as before, while the reading it judged stands.
+- Panel bodies: a `status_grid` (a state per row and column, each named by its `label`
+  and coloured by its `tone`, with its mark, a legend of the states and their words in the
+  tooltip and the table: `<cae-state-grid>`), a `note` (markdown beside the figures,
+  shown escaped), and a table column's `link` (the key of each row that holds the URL its
+  cell leads to; http or https). A row's `_tone` is checked like every other tone: an
+  unknown one is an error naming the tones. `examples/panels/cycles.py` shows hourly
+  runs as a status grid.
+- A trends panel reads the runs of its period through `PeriodRuns`, the run ids it is
+  given (newest activity first) with `journal(run)`, `records(run, log)`, `info(run)` and
+  `dir(run)`, wherever the monitor reads them (a runs directory or a hub): no path of its own.
+- `contraagent monitor export` takes `--groups` and `--task-detail`, and its `--panels`,
+  `--groups` and `--task-detail` take `path/to/views.py:attr` as `contraagent monitor` does.
+  A run still running is left out of an export (`--include-live`, `export(live=True)`).
 - An OpenCode key is one account on every agent that runs its models (`backends/opencode/login.py`):
   opencode, pi and omp give the digest of the key they would send, so a quota rest on one
   holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
@@ -29,6 +53,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Panels are offered in the order of the dict given, not by name.
+- A trends panel's body is checked against `PanelBody` as a run panel's is, on
+  `/api/trends/panels/<name>` and in an export: a typed body that does not validate is
+  an error, never a JSON tree.
+- A trends panel is made once for the same period over the same runs and kept; a request
+  for one being made waits for it. Panels run on threads of their own, and a run feed reads
+  its views off the event loop, so a panel that takes a minute holds no other route back
+  (`/api/runs` waited for every request thread before).
+- Trends count utilization per credential, account and window: a token replaced mid-period
+  is two lines, and a model's own window (`seven_day_opus`) is counted beside the
+  account's. A rest in the trends keeps its account and the reading a rule judged.
 - `contraagent plugin render` writes one `package.json` for omp and pi: each
   renderer's own key is set or removed, the others are kept.
 - A quota reading names its account (`account`, a 12-hex-digit digest of the login's UUID
@@ -859,6 +894,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On omp, pi and opencode a `post_tool` hook that exits 2 has its words added to the
+  tool's result, so the agent fixes what it says in the same session, as on Claude Code
+  (they were dropped). The hook script reads the tool input in Claude Code's names on every
+  agent: omp's and pi's `path` and opencode's `filePath` are `file_path`, opencode's
+  `oldString`/`newString` and pi's one-edit `edits` are `old_string`/`new_string`.
+- A panel tile's integer `value` stays an integer (`3`, not `3.0`).
+- A panel tile's integer `value` stays an integer (it was served as `3.0`).
+- A run's Overview lists only its own panels under "Custom views" (a trends panel waited
+  there for a body no run sends), and none at all when it has none. A typed body's card is
+  summed up by its title or its first tile, not by its JSON keys.
+- `MonitorStore` refreshes no longer overlap: the next one starts after the last ended,
+  however slow the server. The Trends page asks for the trends and the trend panels again
+  only when the run list's records changed, and shows each answer as it arrives, so a slow
+  trend panel holds back neither the run list nor another panel.
+- The Overview's top row (the run, its problems, its outputs) shares one height, and its
+  breakdowns pair up two to a row of one height, one alone taking the whole row.
 - omp reads `.env` files at start (its working directory's, its agent directory's, its config
   root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
   there came back after contraagent removed it: an isolated omp binding now names the file

@@ -49,6 +49,10 @@ retry_backoff_base = 2.0            # seconds, doubled per attempt
 credential = "zdr"                  # must carry every trait the task requires
 max_turns = 30
 timeout_s = 1200
+# Tools its launches may not use, in Claude Code's names and patterns. Claude Code and
+# opencode deny a pattern too (opencode a Bash command pattern, any other tool whole), pi
+# whole tools only; a route on omp or codex is refused, so this kind's chain stays on claude.
+disallowed_tools = ["WebFetch", "Bash(git push:*)"]
 
 # A kind's own failover chain; block order is hop order. A hop that names no
 # credential keeps the kind's own, and every hop is checked like the primary.

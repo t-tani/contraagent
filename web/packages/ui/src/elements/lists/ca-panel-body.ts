@@ -4,10 +4,12 @@ import '@contraagent/elements/data-table/define';
 import '@contraagent/elements/json-tree/define';
 import '@contraagent/elements/tiles/define';
 import { sortRows, type SortState } from '@contraagent/elements/data-table';
-import { base, meterStyles } from '@contraagent/elements/styles';
+import { md } from '@contraagent/elements/markdown';
+import { base, meterStyles, prose } from '@contraagent/elements/styles';
 import { localized, msg } from '@lit/localize';
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { bodyColumns, bodyTiles, rowTone, type BodyRow } from '../../adapters/panel-body.js';
 import { chartStrings, numberText } from '../../words/panels.js';
 import { tableStrings } from '../../words/table.js';
@@ -23,21 +25,34 @@ const CELLS = [
     thead tr { color: var(--text-muted); font-size: 11px; }
     tbody [data-align='end'] { font-variant-numeric: tabular-nums; }
     tbody tr[data-tone='failed'], tbody tr[data-tone='attention'] { box-shadow: inset 2px 0 0 var(--tone); }
+    td a, th a { color: var(--accent); text-decoration: none; }
+    td a:hover, th a:hover, td a:focus-visible, th a:focus-visible { text-decoration: underline; }
   `,
 ];
 
 /**
  * A pipeline's own view drawn from its typed body (`PanelBody`): tiles, a table, charts,
- * and blocks of them one under another, each under its title (folded when the body says
- * `collapsed`). A body of another shape, inside blocks, is shown as a JSON tree.
+ * a status grid, notes, and blocks of them one under another, each under its title
+ * (folded when the body says `collapsed`). A body of another shape, inside blocks, is
+ * shown as a JSON tree.
  */
 @customElement('ca-panel-body')
 @localized()
 export class CaPanelBody extends LitElement {
   static override styles = [
     base,
+    prose,
     css`
       :host { display: block; }
+      /* a note reads as text beside the figures; a tone puts a rule beside it, the words say why */
+      .note { font-size: var(--font-size-sm); color: var(--text-2); line-height: 1.55; max-width: 78ch; }
+      .note > :first-child { margin-top: 0; }
+      .note > :last-child { margin-bottom: 0; }
+      .note[data-tone] { padding-left: 10px; border-left: 3px solid var(--line2); }
+      .note[data-tone='failed'] { border-left-color: var(--status-failed); }
+      .note[data-tone='attention'] { border-left-color: var(--status-attention); }
+      .note[data-tone='done'] { border-left-color: var(--status-done); }
+      .note[data-tone='running'] { border-left-color: var(--status-running); }
       .block + .block { margin-top: 18px; }
       h4 { margin: 0 0 8px; font-size: var(--font-size-sm); font-weight: 600; color: var(--text-2); }
       details > summary { cursor: pointer; margin-bottom: 8px; font-size: var(--font-size-sm); font-weight: 600; color: var(--text-2); }
@@ -86,6 +101,11 @@ export class CaPanelBody extends LitElement {
       case 'hbars':
         return html`<cae-bar-chart .label=${b.title ?? ''} .bars=${b.bars.map((x) => ({ label: x.label, value: x.value, tone: x.tone ?? undefined }))}
           .format=${numberText(b.unit)} .strings=${s}></cae-bar-chart>`;
+      case 'status_grid':
+        return html`<cae-state-grid .label=${b.title ?? ''} .x=${b.x} .y=${b.y} .cells=${b.cells} .strings=${s}></cae-state-grid>`;
+      case 'note':
+        // Escaped markdown: any markup the text holds is shown as text; links keep only http(s).
+        return html`<div class="note" data-tone=${b.tone && b.tone !== 'neutral' ? b.tone : nothing}>${unsafeHTML(md(b.text))}</div>`;
       default:
         return html`${nothing}`;
     }

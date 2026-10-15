@@ -101,6 +101,14 @@ class Backend(abc.ABC):
         """PATH the child binary is resolved against."""
         return self._base_env.get("PATH")
 
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """Why this coding agent cannot keep a launch from the tools `denied`
+        (`Limits.disallowed_tools`, Claude Code's names and patterns: `WebFetch`,
+        `Bash(rm:*)`), or None when it can. The routing check refuses a route whose
+        agent cannot (`[tasks.<kind>].disallowed_tools`). By default it cannot."""
+        return f"{cls.name} has no way to deny a tool" if denied else None
+
     @abc.abstractmethod
     def argv(self, launch: Launch) -> list[str]:
         """Build the child argv. Variable-length options go last."""

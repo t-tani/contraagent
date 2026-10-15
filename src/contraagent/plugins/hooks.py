@@ -29,11 +29,17 @@ hidden (`render` returns notes, `lint` shows them):
 
     event      claude (hooks/hooks.json)  omp (omp/index.ts), pi (pi/index.ts)  opencode (opencode/index.js)
     pre_tool   PreToolUse hook            `tool_call` event, `{block, reason}`  `tool.execute.before`, throws the reason
-    post_tool  PostToolUse hook           `tool_result` event                   `tool.execute.after`
+    post_tool  PostToolUse hook           `tool_result` event: exit 2 adds the  `tool.execute.after`: exit 2 adds the
+                                          message to the result the agent sees  message to the tool's output
     stop       Stop hook (continues)      none: `omp -p`, `pi -p` do not        none: `opencode run` ends once the
                                        continue a session an extension       session is idle.
                                        resumes at `agent_end`.
                For omp, pi and opencode, the runner's own contract check resumes the session instead.
+
+A script reads the tool input in Claude Code's shape on every agent: each agent's
+argument names are renamed to Claude Code's (`TOOL_ARGS`: opencode's `filePath`,
+omp's and pi's `path` of read, write and edit become `file_path`; pi's one-edit
+`edits` becomes `old_string` and `new_string`).
 
 A new coding agent registers a renderer with `register_renderer`.
 """
@@ -50,6 +56,24 @@ if TYPE_CHECKING:
 
 EVENTS = ("stop", "pre_tool", "post_tool")
 CLAUDE_TOOL = {"bash": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "grep": "Grep", "glob": "Glob"}
+#: Each coding agent's tool argument names as Claude Code's, by the agent's tool name:
+#: what a hook script reads in `tool_input` (checked against omp 18.3's, pi 1.2.0's and
+#: opencode 1.19.0's tool schemas). Arguments not named keep their names: `command`,
+#: `pattern`, `content` and the `path` of a search are already Claude Code's.
+TOOL_ARGS: dict[str, dict[str, dict[str, str]]] = {
+    "omp": {tool: {"path": "file_path"} for tool in ("read", "write", "edit")},
+    "pi": {tool: {"path": "file_path"} for tool in ("read", "write", "edit")},
+    "opencode": {
+        "read": {"filePath": "file_path"},
+        "write": {"filePath": "file_path"},
+        "edit": {"filePath": "file_path", "oldString": "old_string", "newString": "new_string", "replaceAll": "replace_all"},
+    },
+}
+#: pi's `edit` takes `edits: [{oldText, newText}]`: one edit reads as Claude Code's
+#: `old_string` and `new_string` (several stay in `edits`).
+EDIT_ENTRY_ARGS = {"pi": {"oldText": "old_string", "newText": "new_string"}}
+#: What a `post_tool` hook's exit 2 adds to the tool's result, before the script's words.
+FEEDBACK = "A task hook objected to this call (exit 2):\\n"
 #: What the built-in `{"on": "stop", "run": "validate"}` runs.
 STOP_VALIDATE = '"${CONTRAAGENT_PYTHON:-python3}" -m contraagent call validate'
 
@@ -130,24 +154,39 @@ __IMPORT__
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLAUDE_TOOL: Record<string, string> = __CLAUDE_TOOL__;
+const HOOK_TOOL: Record<string, string> = __HOOK_TOOL__;
+const ARGS: Record<string, Record<string, string>> = __ARGS__;
+const EDIT_ENTRY: Record<string, string> = __EDIT_ENTRY__;
 const PRE = __PRE__;
 const POST = __POST__;
 
 type Hook = { tool?: string; match?: string; script: string };
+type Input = Record<string, unknown>;
 
-function command(input: unknown): string {
-  if (typeof input === "object" && input !== null && "command" in input) {
-    return String((input as { command: unknown }).command);
+// The tool's arguments under Claude Code's names, as a hook script reads them.
+function claudeInput(toolName: string, input: unknown): Input {
+  const out: Input = { ...((input ?? {}) as Input) };
+  for (const [from, to] of Object.entries(ARGS[toolName] ?? {})) {
+    if (from in out && !(to in out)) {
+      out[to] = out[from];
+      delete out[from];
+    }
   }
-  return "";
+  const edits = out.edits;
+  if (Array.isArray(edits) && edits.length === 1 && typeof edits[0] === "object" && edits[0] !== null) {
+    for (const [from, to] of Object.entries(EDIT_ENTRY)) {
+      if (from in (edits[0] as Input)) out[to] = (edits[0] as Input)[from];
+    }
+  }
+  return out;
 }
 
-function applies(h: Hook, toolName: string, input: unknown): boolean {
-  if (h.tool && h.tool !== toolName) return false;
-  return !h.match || command(input).includes(h.match);
+function applies(h: Hook, toolName: string, input: Input): boolean {
+  if (h.tool && (HOOK_TOOL[h.tool] ?? h.tool) !== (CLAUDE_TOOL[toolName] ?? toolName)) return false;
+  return !h.match || String(input.command ?? "").includes(h.match);
 }
 
-function run(h: Hook, toolName: string, input: unknown, cwd: string) {
+function run(h: Hook, toolName: string, input: Input, cwd: string) {
   return spawnSync("bash", [join(ROOT, h.script)], {
     cwd,
     encoding: "utf8",
@@ -159,9 +198,10 @@ function run(h: Hook, toolName: string, input: unknown, cwd: string) {
 export default function (pi: __API__): void {
   if (PRE.length) {
     pi.on("tool_call", async (event, ctx) => {
+      const input = claudeInput(event.toolName, event.input);
       for (const h of PRE as Hook[]) {
-        if (!applies(h, event.toolName, event.input)) continue;
-        const r = run(h, event.toolName, event.input, ctx.cwd);
+        if (!applies(h, event.toolName, input)) continue;
+        const r = run(h, event.toolName, input, ctx.cwd);
         // exit 2 blocks the call and the agent sees the reason, as with Claude Code
         if (r.status === 2) return { block: true, reason: (r.stderr || "blocked by a task hook").trim() };
       }
@@ -170,14 +210,19 @@ export default function (pi: __API__): void {
   if (POST.length) {
     pi.on("tool_result", async (event, ctx) => {
       if (event.isError) return;
+      const input = claudeInput(event.toolName, event.input);
+      const said: string[] = [];
       for (const h of POST as Hook[]) {
-        if (!applies(h, event.toolName, event.input)) continue;
+        if (!applies(h, event.toolName, input)) continue;
         try {
-          run(h, event.toolName, event.input, ctx.cwd);
+          const r = run(h, event.toolName, input, ctx.cwd);
+          // exit 2: what the script says goes back to the agent with the result, as with Claude Code
+          if (r.status === 2) said.push((r.stderr || r.stdout || "").trim() || "a task hook objected");
         } catch {
           // fail-open: a hook crash never blocks the pipeline
         }
       }
+      if (said.length) return { content: [...event.content, { type: "text", text: `__FEEDBACK__${said.join("\\n")}` }] };
     });
   }
 }
@@ -197,7 +242,7 @@ def render_omp(plugin: Plugin) -> Rendered:
     pkg = _read_json(plugin.root / "package.json") or {"name": plugin.name, "version": "0.1.0"}
     files: dict[str, str] = {}
     if pre or post:
-        files["omp/index.ts"] = _extension("omp", OMP_HOOK_API, CLAUDE_TOOL, pre, post)
+        files["omp/index.ts"] = _extension("omp", OMP_HOOK_API, OMP_CLAUDE_TOOL, pre, post)
         pkg["omp"] = {"extensions": ["./omp/index.ts"]}
     else:
         pkg.pop("omp", None)
@@ -235,6 +280,8 @@ OMP_HOOK_API = ("HookAPI", 'import type { HookAPI } from "@oh-my-pi/pi-coding-ag
 PI_HOOK_API = ("ExtensionAPI", 'import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";')
 #: pi's built-in tools as Claude Code names them (`find` searches by glob pattern).
 PI_CLAUDE_TOOL = {**CLAUDE_TOOL, "find": "Glob", "ls": "LS"}
+#: omp's: its `find` lists files by glob pattern too.
+OMP_CLAUDE_TOOL = {**CLAUDE_TOOL, "find": "Glob"}
 
 
 def _extension(agent: str, api: tuple[str, str], tools: dict[str, str], pre: list[dict], post: list[dict]) -> str:
@@ -248,6 +295,10 @@ def _extension(agent: str, api: tuple[str, str], tools: dict[str, str], pre: lis
         .replace("__API__", api[0])
         .replace("__AGENT__", agent)
         .replace("__CLAUDE_TOOL__", json.dumps(tools))
+        .replace("__HOOK_TOOL__", json.dumps(CLAUDE_TOOL))
+        .replace("__ARGS__", json.dumps(TOOL_ARGS[agent]))
+        .replace("__EDIT_ENTRY__", json.dumps(EDIT_ENTRY_ARGS.get(agent, {})))
+        .replace("__FEEDBACK__", FEEDBACK)
         .replace("__PRE__", view(pre))
         .replace("__POST__", view(post))
     )
@@ -262,51 +313,62 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLAUDE_TOOL = __CLAUDE_TOOL__;
+const HOOK_TOOL = __HOOK_TOOL__;
+const ARGS = __ARGS__;
 const PRE = __PRE__;
 const POST = __POST__;
 
-// opencode's argument names as Claude Code's (`filePath` -> `file_path`).
-function claudeInput(args) {
+// The tool's arguments under Claude Code's names, as a hook script reads them.
+function claudeInput(tool, args) {
   const out = { ...(args ?? {}) };
-  if ("filePath" in out) {
-    out.file_path = out.filePath;
-    delete out.filePath;
+  for (const [from, to] of Object.entries(ARGS[tool] ?? {})) {
+    if (from in out && !(to in out)) {
+      out[to] = out[from];
+      delete out[from];
+    }
   }
   return out;
 }
 
-function applies(h, tool, args) {
-  if (h.tool && h.tool !== tool) return false;
-  return !h.match || String(args?.command ?? "").includes(h.match);
+function applies(h, tool, input) {
+  if (h.tool && (HOOK_TOOL[h.tool] ?? h.tool) !== (CLAUDE_TOOL[tool] ?? tool)) return false;
+  return !h.match || String(input.command ?? "").includes(h.match);
 }
 
-function run(h, tool, args, cwd) {
+function run(h, tool, input, cwd) {
   return spawnSync("bash", [join(ROOT, h.script)], {
     cwd,
     encoding: "utf8",
-    input: JSON.stringify({ tool_name: CLAUDE_TOOL[tool] ?? tool, tool_input: claudeInput(args) }),
+    input: JSON.stringify({ tool_name: CLAUDE_TOOL[tool] ?? tool, tool_input: input }),
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PROJECT_DIR: cwd },
   });
 }
 
 export const ContraagentHooks = async ({ directory }) => ({
   "tool.execute.before": async (input, output) => {
+    const args = claudeInput(input.tool, output.args);
     for (const h of PRE) {
-      if (!applies(h, input.tool, output.args)) continue;
-      const r = run(h, input.tool, output.args, directory);
+      if (!applies(h, input.tool, args)) continue;
+      const r = run(h, input.tool, args, directory);
       // exit 2 blocks the call and the agent sees the reason, as with Claude Code
       if (r.status === 2) throw new Error((r.stderr || "blocked by a task hook").trim());
     }
   },
-  "tool.execute.after": async (input) => {
+  "tool.execute.after": async (input, output) => {
+    const args = claudeInput(input.tool, input.args);
+    const said = [];
     for (const h of POST) {
-      if (!applies(h, input.tool, input.args)) continue;
+      if (!applies(h, input.tool, args)) continue;
       try {
-        run(h, input.tool, input.args, directory);
+        const r = run(h, input.tool, args, directory);
+        // exit 2: what the script says goes back to the agent with the output, as with Claude Code
+        if (r.status === 2) said.push((r.stderr || r.stdout || "").trim() || "a task hook objected");
       } catch {
         // fail-open: a hook crash never blocks the pipeline
       }
     }
+    // opencode hands the agent this same object: the words go after the tool's own output
+    if (said.length && output) output.output = `${output.output ?? ""}\\n\\n__FEEDBACK__${said.join("\\n")}`;
   },
 });
 """
@@ -329,7 +391,12 @@ def render_opencode(plugin: Plugin) -> Rendered:
     def view(hs):
         return json.dumps([{k: h[k] for k in ("tool", "match", "script") if h.get(k)} for h in hs], indent=2)
 
-    text = _OPENCODE_TEMPLATE.replace("__CLAUDE_TOOL__", json.dumps(CLAUDE_TOOL))
+    text = (
+        _OPENCODE_TEMPLATE.replace("__CLAUDE_TOOL__", json.dumps(CLAUDE_TOOL))
+        .replace("__HOOK_TOOL__", json.dumps(CLAUDE_TOOL))
+        .replace("__ARGS__", json.dumps(TOOL_ARGS["opencode"]))
+        .replace("__FEEDBACK__", FEEDBACK)
+    )
     return {"opencode/index.js": text.replace("__PRE__", view(pre)).replace("__POST__", view(post))}, notes
 
 

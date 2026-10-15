@@ -144,6 +144,38 @@ def test_a_rule_s_rest_on_a_reading_with_no_reset_lasts_its_window_s_length(tmp_
     assert r.rests("sub-b") == []
 
 
+def test_a_rule_that_gives_an_end_rests_the_credential_to_then_and_is_not_asked_before(tmp_path):
+    """A daily budget rests to the next day's start, past the 5-hour window's reset: one rest,
+    opened once, its end recorded, the rule not asked again while it lasts."""
+    clock = [NOW]
+    asked: list[datetime] = []
+    events: list[tuple[str, str]] = []
+    tomorrow = datetime(2026, 10, 15, 8, 0)  # no zone: UTC
+
+    def rule(cred, rd):
+        asked.append(clock[0])
+        return ("over the daily pace", tomorrow) if clock[0] < tomorrow.replace(tzinfo=UTC) else None
+
+    r = QuotaRests(config(tmp_path).credentials(), rule, now=lambda: clock[0], on_change=lambda e, rest: events.append((e, rest.until)))
+    r.observe(reading("sub-b", five=10, week=20))  # the 5-hour window resets at NOW + 2h
+    [rest] = r.rests("sub-b")
+    assert rest.rule == "over the daily pace" and rest.until == iso(tomorrow.replace(tzinfo=UTC))
+    for hours in (1, 3, 10, 19):  # past the 5-hour reset, the reading stale: still resting
+        clock[0] = NOW + timedelta(hours=hours)
+        assert r.reason("sub-b") == "sub-b rests: over the daily pace"
+    assert asked == [NOW]  # judged once
+    assert events == [("start", iso(tomorrow.replace(tzinfo=UTC)))]  # no reopening
+    clock[0] = tomorrow.replace(tzinfo=UTC) + timedelta(seconds=1)
+    assert r.reason("sub-b") == ""  # the end passed; the old reading is stale too
+    assert [e for e, _ in events] == ["start", "end"]
+
+
+def test_a_rule_that_gives_no_end_keeps_the_reading_s_end(tmp_path):
+    r = QuotaRests(config(tmp_path).credentials(), lambda cred, rd: ("pace", None), now=lambda: NOW)
+    r.observe(reading("sub-b", five=10))
+    assert r.rests("sub-b")[0].until == iso(NOW + timedelta(hours=2))
+
+
 def test_a_quota_rule_rests_a_credential_by_its_reading(tmp_path):
     r = rests(tmp_path, rule=lambda cred, rd: f"pace {rd.seven_day_pct:.0f}%" if (rd.seven_day_pct or 0) > 50 else None)
     r.observe(reading("sub-b", week=60))

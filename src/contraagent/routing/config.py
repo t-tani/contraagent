@@ -18,6 +18,7 @@ here and reachable through `PipelineConfig.raw`.
 from __future__ import annotations
 
 import difflib
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,6 +26,10 @@ from pathlib import Path
 from contraagent.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent.errors import ContraagentError, did_you_mean
 from contraagent.routing.kind_config import TASK_TABLE_KEYS
+
+#: A tool, or a tool with a pattern of what it is given, as Claude Code writes them: `WebFetch`,
+#: `Bash(git push:*)` (`[tasks.<kind>].disallowed_tools`).
+TOOL_RULE = re.compile(r"\w+(\(.+\))?")
 
 
 class ConfigError(ContraagentError, ValueError):
@@ -152,7 +157,7 @@ class PipelineConfig:
 
     def _task_table(self, kind: str, entry: object, errors: list[str] | None) -> dict:
         routing = ("agent", "model", "effort", "credential")
-        allowed = set(routing) | set(TASK_TABLE_KEYS) | {"fallbacks", "model_failover", "_comment"}
+        allowed = set(routing) | set(TASK_TABLE_KEYS) | {"fallbacks", "model_failover", "disallowed_tools", "_comment"}
         named = ", ".join(sorted(allowed - {"_comment"}))
         if not isinstance(entry, dict):
             _problem(errors, f"{self.source}: [tasks.{kind}] must be a table with any of {named}")
@@ -175,6 +180,18 @@ class PipelineConfig:
                 )
                 continue
             table[key] = val
+        denied = entry.get("disallowed_tools")
+        if denied is not None:
+            ok = isinstance(denied, list)
+            bad = [d for d in denied if not isinstance(d, str) or not TOOL_RULE.fullmatch(d.strip())] if ok else [denied]
+            if bad:
+                _problem(
+                    errors,
+                    f"{self.source}: [tasks.{kind}].disallowed_tools must be a list of tools or tool patterns "
+                    f'("WebFetch", "Bash(git push:*)"), not {", ".join(repr(b) for b in bad)}',
+                )
+            else:
+                table["disallowed_tools"] = [d.strip() for d in denied]
         fb = entry.get("fallbacks")
         if fb is not None:
             if not isinstance(fb, list):

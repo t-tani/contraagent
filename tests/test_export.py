@@ -147,3 +147,43 @@ def test_the_cli_takes_the_trends_period(tmp_path):
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "b"), "--days", "7", "--to", "2026-10-14"]) == 0
     assert json.loads((tmp_path / "b/data/trends.json").read_text())["period"]["from"] == "2026-10-08"
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "c"), "--tz", "Mars/Olympus"]) == 2
+
+
+def test_the_cli_takes_panels_groups_and_task_detail_as_the_monitor_does(tmp_path):
+    rd = runs(tmp_path, ids=("only",))
+    views = tmp_path / "views.py"
+    views.write_text(
+        "from contraagent.monitor import Panel\n"
+        "def kinds(runs, period):\n"
+        "    return {'type': 'tiles', 'tiles': [{'id': 'n', 'label': 'Rows', 'value': sum(len(runs.journal(r)) for r in runs)}]}\n"
+        "PANELS = {'kinds': Panel(kinds, scope='trends')}\n"
+        "GROUPS = [{'id': 'writing', 'label': 'Writing', 'kinds': ['note']}]\n"
+        "def detail(run, key, rows):\n    return {'attempts_seen': len(rows)}\n"
+    )
+    out = tmp_path / "site"
+    argv = ["--runs-dir", str(rd), "--out", str(out), "--panels", f"{views}:PANELS", "--groups", f"{views}:GROUPS"]
+    assert main([*argv, "--task-detail", f"{views}:detail", "--days", "366"]) == 0
+    trends = json.loads((out / "data/trends.json").read_text())
+    assert {k["kind"]: k["group"] for k in trends["kinds"]} == {"note": "Writing"}  # grouped as the live monitor groups it
+    value = json.loads((out / "data/trends/panels/kinds.json").read_text())["tiles"][0]["value"]
+    assert isinstance(value, int) and value >= 2  # an int stays one
+    assert json.loads((out / "data/runs/only/tasks/note-a.json").read_text())["attempts_seen"] >= 1
+    assert main(["--runs-dir", str(rd), "--out", str(out), "--groups", "nowhere.py:GROUPS"]) == 2
+
+
+def test_a_run_still_running_is_left_out_unless_asked_for(tmp_path):
+    rd = runs(tmp_path)
+    monitor = Monitor(rd)
+    listed = monitor.runs()
+    monitor.runs = lambda: [{**s, "running": s["run"] == "second"} for s in listed]  # the run writing the export
+    assert export(monitor, tmp_path / "a", now=NOW).runs == ["first"]
+    assert [r["run"] for r in json.loads((tmp_path / "a/data/runs.json").read_text())] == ["first"]
+    assert export(monitor, tmp_path / "b", now=NOW, live=True).runs == ["second", "first"]
+
+
+def test_a_trends_panel_is_checked_before_it_is_written(tmp_path):
+    rd = runs(tmp_path, ids=("only",))
+    bad = Panel(lambda runs, period: {"type": "hbars", "bars": [{"label": "x"}]}, scope="trends")
+    export(Monitor(rd, panels={"bad": bad}), tmp_path / "site", now=NOW, period=Period.parse("2026-01-01", "2026-12-31"))
+    written = json.loads((tmp_path / "site/data/trends/panels/bad.json").read_text())
+    assert written.keys() == {"error"} and "ValidationError" in written["error"]

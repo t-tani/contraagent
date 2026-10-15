@@ -25,12 +25,15 @@ reset (`five_hour_resets_at`, `seven_day_resets_at`; without one, past the
 window's length after `observed_at`). A credential with no reading (a gateway,
 an API key) never rests here: only its 429s and budgets stop it.
 
-A rest by the quota rule lasts while the reading it judged stands: until the
-earliest reset among that reading's windows (or, for a window that names none, its
-length after `observed_at`). Nothing launches on a resting credential, so no newer
-reading arrives; past that time the stale reading no longer counts, the credential
-does not rest, and the next launch brings a reading for the rule to judge again. The
-rest records the reading (`Rest.reading`) and that time (`Rest.until`).
+A rest by the quota rule lasts until the time the rule gives with its reason
+(`("over the daily pace", tomorrow_17_jst)`): the credential rests to then, and the rule
+is not asked again before it. A rule that gives a reason alone rests the credential while
+the reading it judged stands: until the earliest reset among that reading's windows
+(or, for a window that names none, its length after `observed_at`). Nothing launches on
+a resting credential, so no newer reading arrives; past that time the stale reading no
+longer counts, the credential does not rest, and the next launch brings a reading for
+the rule to judge again. The rest records the reading (`Rest.reading`) and its end
+(`Rest.until`).
 
 `finishing_kinds` (the queue's) still launch on a resting credential for
 `grace_s` after it began resting, as they do past a deadline.
@@ -54,8 +57,9 @@ from datetime import UTC, datetime, timedelta
 from contraagent.backends.credentials import CredentialBase, Pool
 from contraagent.backends.launch import RateLimit
 
-#: `quota_rule(credential, reading)`: a reason the credential rests now, or None.
-QuotaRule = Callable[[str, RateLimit], "str | None"]
+#: `quota_rule(credential, reading)`: a reason the credential rests now, or None; or the
+#: reason and when the rest ends (a `datetime`; one with no time zone is UTC).
+QuotaRule = Callable[[str, RateLimit], "str | tuple[str, datetime] | None"]
 
 #: `account(credential)`: the account a launch as the credential bills now (`Backend.account`), '' unknown.
 AccountOf = Callable[[str], str]
@@ -81,7 +85,8 @@ class Rest:
     """Why credential `credential` rests: past a cap of one window (`window`, its reading
     `pct` and its cap `cap`), or by the quota rule (`rule`, what it said, and `reading`, the
     reading it judged). `until` (ISO 8601): when the window resets, for a cap; for the rule,
-    when the reading it judged stops standing (`stale_at`); '' when unknown. `account`: the
+    the end it gave, else when the reading it judged stops standing (`stale_at`); '' when
+    unknown. `account`: the
     account whose reading it is (`RateLimit.account`), '' when unknown."""
 
     credential: str
@@ -108,6 +113,11 @@ class Rest:
         if not out["reading"]:
             del out["reading"]
         return out
+
+
+def _aware(t: datetime) -> datetime:
+    """`t` with a time zone: UTC when it names none."""
+    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
 def stale_at(reading: RateLimit) -> datetime | None:
@@ -186,6 +196,7 @@ class QuotaRests:
         self._latest: dict[tuple[str, str], RateLimit] = {}  # by credential and account
         self._since: dict[tuple[str, str], float] = {}  # by credential and account: when it was first found resting
         self._resting: dict[tuple[str, str], Rest] = {}  # by credential and account: the rest it began with
+        self._ruled: dict[tuple[str, str], tuple[Rest, datetime]] = {}  # rests the rule gave an end, and that end
 
     def observe(self, reading: RateLimit) -> None:
         """A reading the coding agent reported for `reading.credential` and `reading.account`;
@@ -235,20 +246,33 @@ class QuotaRests:
             read = any(n == name for n, _ in self._latest)
         acct = account(name) if account is not None and read else ""  # asked only of a credential with readings
         reading = self.latest(name, acct)
+        key = (name, acct)
         rest = None
-        if reading is not None:
+        with self._lock:
+            held = self._ruled.get(key)
+            if held is not None and self._now() >= held[1]:
+                del self._ruled[key]
+                held = None
+        if held is not None:  # the rule said until when: it is not asked again before
+            rest = held[0]
+        elif reading is not None:
             rest = self._capped(name, reading, pool)
             if rest is None and self.rule is not None:
                 ends = stale_at(reading)
                 # A reading that no longer stands is no ground for a rest: the next launch brings a new one.
                 if ends is None or self._now() < ends:
                     ruled = self.rule(name, reading)
-                    if ruled:
-                        until = ends.isoformat() if ends is not None else ""
-                        rest = Rest(name, rule=str(ruled), until=until, account=reading.account, reading=reading_of(reading))
+                    said, given = ruled if isinstance(ruled, tuple) else (ruled, None)
+                    if said:
+                        given = _aware(given) if given is not None else None
+                        end = given or ends
+                        until = end.isoformat() if end is not None else ""
+                        rest = Rest(name, rule=str(said), until=until, account=reading.account, reading=reading_of(reading))
+                        if given is not None and self._now() < given:
+                            with self._lock:
+                                self._ruled[key] = (rest, given)
         event: tuple[str, Rest] | None = None
         since = 0.0
-        key = (name, acct)
         with self._lock:
             if rest is None:
                 self._since.pop(key, None)

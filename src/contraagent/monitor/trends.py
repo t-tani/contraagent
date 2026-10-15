@@ -41,7 +41,7 @@ from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 6
+DIGEST_VERSION = 7
 
 #: The runs the run list's panel body shows, the newest (`Trends.runs` holds every one).
 BODY_RUNS = 50
@@ -57,6 +57,8 @@ DIGEST_LOGS = (rundir.JOURNAL, rundir.LAUNCHES, rundir.RESTS, rundir.DEFERRED)
 
 _TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
 _WINDOWS = ("five_hour", "seven_day")
+#: A window's name in the English panel bodies; another window keeps its own (`seven_day_opus`).
+_WINDOW_WORDS = {"five_hour": "5-hour", "seven_day": "weekly"}
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
@@ -228,8 +230,10 @@ def digest(source, run: str) -> dict:
     the run. `span`: the first and last slot
     of an attempt; `total`: the slots summed, in the same shape, for a period that holds
     the whole run within one of its days (most runs: a period then adds one entry per run,
-    not one per slot). `quota`: `[slot, credential, window, highest pct]`; `denied`: `[slot,
-    tool, kind, count]`; `rests` and `deferred`: their rows."""
+    not one per slot). `quota`: `[slot, credential, account, window, highest pct]`, every
+    window a reading names (`five_hour`, `seven_day` and any other in its `windows`, as
+    `seven_day_opus`); `denied`: `[slot, tool, kind, count]`; `rests` (with the account
+    and the reading a rule judged) and `deferred`: their rows."""
     from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
 
     info = source.info(run) or {}
@@ -238,7 +242,7 @@ def digest(source, run: str) -> dict:
     kinds: dict[str, dict] = {}
     key_kind: dict[str, str] = {}
     attempts: dict[str, dict[str, list[int]]] = {}
-    peaks: dict[tuple[int, str, str], float] = {}
+    peaks: dict[tuple[int, str, str, str], float] = {}
     for e in _parse(source.lines(run, rundir.JOURNAL)[0]):
         key, kind = str(e.get("key", "")), str(e.get("kind", "?"))
         key_kind[key] = kind
@@ -247,11 +251,9 @@ def digest(source, run: str) -> dict:
             qs = _slot(q.get("observed_at")) if isinstance(q, dict) else None
             if qs is None:
                 continue
-            for w in _WINDOWS:
-                pct = _num(q.get(f"{w}_pct"))
-                if pct is not None:
-                    at = (qs, str(q.get("credential", "")), w)
-                    peaks[at] = max(peaks.get(at, 0.0), pct)
+            for w, pct in _reading_windows(q).items():
+                at = (qs, str(q.get("credential", "")), str(q.get("account") or ""), w)
+                peaks[at] = max(peaks.get(at, 0.0), pct)
         if slot is None:
             continue
         ok, wall, cost, usage = bool(e.get("ok")), _num(e.get("wall_s")) or 0.0, _num(e.get("cost_usd")), _usage(e.get("usage"))
@@ -317,7 +319,7 @@ def digest(source, run: str) -> dict:
                 at = (slot, str(d["tool"]), key_kind.get(str(launch.get("label", "")), ""))
                 denied[at] = denied.get(at, 0) + 1
     rests = [
-        {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until")}
+        {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading") if k in r}
         for r in _parse(source.lines(run, rundir.RESTS)[0])
     ]
     deferred = []
@@ -346,11 +348,27 @@ def digest(source, run: str) -> dict:
         "total": total,
         "kinds": kinds,
         "tasks": {kind: [[v - first if i % 2 == 0 else v for i, v in enumerate(p)] for p in ks.values()] for kind, ks in attempts.items()},
-        "quota": [[slot, credential, window, pct] for (slot, credential, window), pct in sorted(peaks.items())],
+        "quota": [[slot, credential, account, window, pct] for (slot, credential, account, window), pct in sorted(peaks.items())],
         "denied": [[slot, tool, kind, n] for (slot, tool, kind), n in sorted(denied.items())],
         "rests": rests,
         "deferred": deferred,
     }
+
+
+def _reading_windows(q: Mapping) -> dict[str, float]:
+    """A journal reading's windows and their utilization: `five_hour` and `seven_day`, and
+    every other its `windows` names (a model's own week, `seven_day_opus`)."""
+    out: dict[str, float] = {}
+    for w in _WINDOWS:
+        pct = _num(q.get(f"{w}_pct"))
+        if pct is not None:
+            out[w] = pct
+    windows = q.get("windows")
+    for w, v in windows.items() if isinstance(windows, Mapping) else ():
+        pct = _num(v.get("pct")) if isinstance(v, Mapping) else None
+        if pct is not None and isinstance(w, str) and w and w not in out:
+            out[w] = pct
+    return out
 
 
 def kept_form(dg: dict) -> dict:
@@ -450,7 +468,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     stops: dict[str, dict] = {}
     denied: dict[str, dict] = {}
     models: dict[tuple[str, str], dict] = {}
-    peaks: dict[tuple[str, str], dict] = {}
+    peaks: dict[tuple[str, str, str], dict] = {}
     rests, deferred, runs = [], [], []
     starts = [[0] * 24 for _ in _WEEKDAYS]
     totals = {"runs": 0, "attempts": 0, "ok": 0, "cost_usd": None, "wall_s": 0.0, "tokens": dict.fromkeys(_TOKENS, 0)}
@@ -529,9 +547,9 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
         totals["attempts"] += n
         totals["ok"] += ok
         totals["wall_s"] += wall
-        for slot, credential, window, pct in dg["quota"]:
+        for slot, credential, account, window, pct in dg["quota"]:
             if at.holds(slot):
-                p = peaks.setdefault((credential, window), {"daily": {}, "hourly": {}})
+                p = peaks.setdefault((credential, account, window), {"daily": {}, "hourly": {}})
                 day, hour = at.day(slot), at.hour(slot)
                 p["daily"][day] = max(p["daily"].get(day, 0.0), pct)
                 p["hourly"][hour] = max(p["hourly"].get(hour, 0.0), pct)
@@ -574,11 +592,12 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     quota = [
         {
             "credential": credential,
+            "account": account,
             "window": window,
             "daily_peak": [p["daily"].get(i) for i in range(len(days))],
             "hourly_peak": [p["hourly"].get(h) for h in range(hours)],
         }
-        for (credential, window), p in sorted(peaks.items())
+        for (credential, account, window), p in sorted(peaks.items())
     ]
     return {
         "period": period.as_dict(),
@@ -718,16 +737,23 @@ def bodies(view: dict) -> dict[str, dict]:
         ],
         "rows": [{"tool": d["tool"], "count": d["count"], "kinds": ", ".join(sorted(d["kinds"]))} for d in view["denials"]],
     }
+    # An account is named only where one credential has had two (a token was replaced).
+    accounts: dict[str, set[str]] = {}
+    for q in view["quota"]:
+        accounts.setdefault(q["credential"], set()).add(q["account"])
+
+    def series_name(q: dict) -> str:
+        who = q["credential"] or "default"
+        if len(accounts[q["credential"]]) > 1:
+            who += f" ({q['account'] or 'unknown account'})"
+        return f"{who} {_WINDOW_WORDS.get(q['window'], q['window'])}"
+
     usage = {
         "type": "lines",
         "title": "Peak utilization per day",
         "x": [d[5:] for d in days],
         "series": [
-            {
-                "name": f"{q['credential'] or 'default'} {'5-hour' if q['window'] == 'five_hour' else 'weekly'}",
-                "values": [p / 100 if p is not None else None for p in q["daily_peak"]],
-            }
-            for q in view["quota"]
+            {"name": series_name(q), "values": [p / 100 if p is not None else None for p in q["daily_peak"]]} for q in view["quota"]
         ],
         "unit": "pct",
     }

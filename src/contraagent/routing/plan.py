@@ -159,6 +159,8 @@ def resolve_routing(
             for k, v in table.items()
             if k in KindConfig.__dataclass_fields__ and k not in ("agent", "model", "effort", "settings", "credential", "requires", "light")
         }
+        if "disallowed_tools" in rest:  # a list in TOML and in a declaration; the config holds a tuple
+            rest["disallowed_tools"] = tuple(rest["disallowed_tools"])
         credential = overrides.credential or str(table.get("credential") or "") or str(defaults.get("credential") or "") or "ambient"
         out[kind] = dataclasses.replace(
             rc,
@@ -276,6 +278,8 @@ def _route_problem(rc, route: Route, credentials: Mapping, backends: Mapping[str
         return None
     if rc.light and not backend.light_launch:
         return f"the task has no tools (tools=()), and {route.agent} cannot launch without them and its own system prompt"
+    if rc.disallowed_tools and (why := backend.tool_deny_problem(tuple(rc.disallowed_tools))):
+        return f"the task denies {', '.join(rc.disallowed_tools)}, and {why}"
     for member in [credentials[m] for m in cred.members] if isinstance(cred, Pool) else [cred]:
         try:
             binding = backend.bind_credential(member, route.model, label="check")

@@ -3,7 +3,7 @@
 import type { Trends, TypedPanelBody } from '@contraagent/api';
 import { credentialLabel } from '../words/credential.js';
 import { fmtDur, tokenCount, usd } from '../words/format.js';
-import { windowName } from '../words/quota.js';
+import { accountLabel, windowName } from '../words/quota.js';
 import { deferredText } from '../words/rests.js';
 import { stopLabel } from '../words/stop.js';
 import { dayLabel, modelName, passedShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
@@ -19,12 +19,34 @@ export interface TrendSection {
 const tokensOf = (t: { input?: number; output?: number; cache_read?: number; cache_creation?: number }): number =>
   (t.input ?? 0) + (t.output ?? 0) + (t.cache_read ?? 0) + (t.cache_creation ?? 0);
 
+/**
+ * How an identity is named in the trends: its credential, and its account (`account 3f9c2a`)
+ * when that credential was of two accounts in the period (a token replaced), so their lines
+ * and rests do not read as one.
+ */
+function identityNamer(t: Trends): (credential?: string | null, account?: string | null) => string {
+  const accounts = new Map<string, Set<string>>();
+  for (const x of [...t.quota, ...t.rests]) {
+    const credential = x.credential ?? '';
+    if (!x.account) continue;
+    const seen = accounts.get(credential) ?? new Set<string>();
+    seen.add(x.account);
+    accounts.set(credential, seen);
+  }
+  return (credential, account) => {
+    const c = credential ?? '';
+    const name = credentialLabel(c) || c || '—';
+    return account && (accounts.get(c)?.size ?? 0) > 1 ? `${name} | ${accountLabel(account)}` : name;
+  };
+}
+
 /** The trends as sections; empty when no run worked in the period. */
 export function trendSections(t: Trends, locale?: string): TrendSection[] {
   if (!t.totals.runs) return [];
   const w = trendWords();
   const days = t.period.days.map((d) => dayLabel(d, locale));
   const out: TrendSection[] = [];
+  const identity = identityNamer(t);
 
   const tot = t.totals;
   const spent = t.daily.filter((d) => Object.keys(d.cost_usd).length).length;
@@ -150,7 +172,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         x: days,
         unit: 'pct',
         series: t.quota.map((q) => ({
-          name: usageLine(credentialLabel(q.credential) || q.credential, windowName(q.window)),
+          name: usageLine(identity(q.credential, q.account), windowName(q.window)),
           values: q.daily_peak.map((p) => (p == null ? null : p / 100)),
         })),
       },
@@ -248,7 +270,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
         ],
         rows: [...t.rests]
           .sort((a, b) => (b.ts ?? '').localeCompare(a.ts ?? ''))
-          .map((r) => ({ when: r.ts, identity: credentialLabel(r.credential) || r.credential || '—', event: restEvent(r.event), run: r.run })),
+          .map((r) => ({ when: r.ts, identity: identity(r.credential, r.account), event: restEvent(r.event), run: r.run })),
       },
     });
   }

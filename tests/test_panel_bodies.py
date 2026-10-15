@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -40,8 +41,73 @@ def test_a_typed_body_validates_by_its_type_and_any_other_object_is_untyped():
 
 def test_a_panel_may_return_a_model_and_is_sent_as_its_json():
     body = panel_body(api.TilesBody(tiles=[api.PanelTile(id="n", label="Runs", value=3)]))
-    assert body == {"type": "tiles", "collapsed": False, "tiles": [{"id": "n", "label": "Runs", "value": 3.0, "sub": []}]}
+    assert body == {"type": "tiles", "collapsed": False, "tiles": [{"id": "n", "label": "Runs", "value": 3, "sub": []}]}
+    assert json.dumps(body["tiles"][0]["value"]) == "3"  # an integer stays one, not 3.0
     assert panel_body({"any": 1}) == {"any": 1}
+
+
+def test_a_note_a_status_grid_and_a_link_column():
+    note = BODY.validate_python({"type": "note", "text": "Counts **run starts**.", "tone": "attention"})
+    assert isinstance(note, api.NoteBody) and note.tone == "attention"
+    grid = BODY.validate_python(
+        {
+            "type": "status_grid",
+            "x": ["00", "01"],
+            "y": ["Mon", "Tue"],
+            "cells": [[{"label": "done", "tone": "done"}, None], [{"label": "failed", "tone": "failed", "tip": "run 0312"}, None]],
+        }
+    )
+    assert isinstance(grid, api.StatusGridBody) and grid.cells[1][0] is not None and grid.cells[1][0].tip == "run 0312"
+    table = BODY.validate_python(
+        {"type": "table", "columns": [{"id": "topic", "label": "Topic", "link": "url"}], "rows": [{"topic": "a", "url": "https://x"}]}
+    )
+    assert isinstance(table, api.TableBody) and table.columns[0].link == "url"
+
+
+def test_the_hourly_runs_example_draws_a_status_grid_a_note_and_linked_runs(tmp_path):
+    from contraagent.docs.examples.panels.cycles import cycles
+
+    def run(name: str, started: str, ok: bool, finished: bool = True) -> None:
+        write_run(tmp_path, name, [{**ROWS[0], "ok": ok}])
+        info = {"run_id": name, "started_at": started} | ({"finished_at": started} if finished else {})
+        (tmp_path / name / "run.json").write_text(json.dumps(info))
+
+    run("c1", "2026-10-13T23:05:00Z", ok=True)  # 08:05 on 10-14 in Tokyo
+    run("c2", "2026-10-14T00:05:00Z", ok=False)  # 09:05
+    run("c3", "2026-10-14T01:05:00Z", ok=True, finished=False)  # 10:05, still running
+    period = Period.parse("2026-10-13", "2026-10-14", "Asia/Tokyo")
+    body = BODY.validate_python(panel_body(cycles(tmp_path)(["c1", "c2", "c3"], period)))
+    assert isinstance(body, api.BlocksBody)
+    note, grid, table = body.blocks
+    assert isinstance(note, api.NoteBody) and isinstance(grid, api.StatusGridBody) and isinstance(table, api.TableBody)
+    assert grid.y == ["10-13", "10-14"] and len(grid.x) == 24
+    states = {(grid.y[r], grid.x[c]): cell.label for r, row in enumerate(grid.cells) for c, cell in enumerate(row) if cell}
+    assert states == {("10-14", "08"): "done", ("10-14", "09"): "failed", ("10-14", "10"): "running"}
+    assert [(r["run"], r["url"], r["_tone"]) for r in table.rows] == [
+        ("c3", "http://127.0.0.1:8787/?run=c3", "running"),
+        ("c2", "http://127.0.0.1:8787/?run=c2", "failed"),
+        ("c1", "http://127.0.0.1:8787/?run=c1", "done"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "body, says",
+    [
+        ({"type": "status_grid", "x": ["00"], "y": ["Mon", "Tue"], "cells": [[None]]}, "cells has 1 rows; y has 2"),
+        ({"type": "status_grid", "x": ["00", "01"], "y": ["Mon"], "cells": [[None]]}, "cells[0] has 1 cells; x has 2"),
+        ({"type": "status_grid", "x": ["00"], "y": ["Mon"], "cells": [[{"label": "ok", "tone": "ok"}]]}, "'failed', 'attention'"),
+        ({"type": "note", "text": "x", "tone": "ok"}, "'failed', 'attention'"),
+        ({"type": "tiles", "tiles": [{"id": "a", "label": "A", "value": 1, "tone": "ok"}]}, "'failed', 'attention'"),
+        (
+            {"type": "table", "columns": [{"id": "a", "label": "A"}], "rows": [{"a": 1}, {"a": 2, "_tone": "ok"}]},
+            "rows[1]._tone is 'ok'; a tone is one of failed, attention, done, running, muted, neutral",
+        ),
+        ({"type": "table", "columns": [{"id": "a", "label": "A", "link": ""}], "rows": []}, "at least 1 character"),
+    ],
+)
+def test_a_body_names_what_is_wrong_with_it(body, says):
+    with pytest.raises(ValidationError, match=re.escape(says)):
+        BODY.validate_python(body)
 
 
 def test_run_and_trends_panels(tmp_path):
@@ -50,7 +116,7 @@ def test_run_and_trends_panels(tmp_path):
     write_run(tmp_path, "r1", ROWS[:2])
     write_run(tmp_path, "r2", ROWS[2:])
     mon = Monitor(tmp_path, panels=panels(tmp_path))
-    assert [(p["name"], p["scope"]) for p in mon.panel_info()] == [("cost", "trends"), ("spend", "run")]
+    assert [(p["name"], p["scope"]) for p in mon.panel_info()] == [("spend", "run"), ("cost", "trends")]  # the dict's order
     assert mon.run_panels() == ["spend"]  # a trends panel is no run's tab, and no run's feed sends it
     spend = BODY.validate_python(mon.panel("spend", "r1"))
     assert isinstance(spend, api.BlocksBody)
@@ -63,8 +129,8 @@ def test_run_and_trends_panels(tmp_path):
     cost = BODY.validate_python(mon.trends_panel("cost", period))
     assert isinstance(cost, api.ColumnsBody) and cost.stacked
     # Days in Tokyo: 23:30 UTC on the 13th is the 14th there, so every attempt is on 10-14.
-    assert cost.x == ["10-14"]
-    assert {s.name: s.values for s in cost.series} == {"triage": [0.1], "write": [0.75]}
+    assert cost.x == ["10-13", "10-14", "10-15"]
+    assert {s.name: s.values for s in cost.series} == {"triage": [None, 0.1, None], "write": [None, 0.75, None]}
     with pytest.raises(KeyError):
         mon.trends_panel("spend", period)
 

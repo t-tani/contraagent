@@ -148,7 +148,23 @@ def prompt_args(launch: Launch) -> list[str]:
         a.append("--no-tools")
     elif launch.tools is not None:
         a += ["--tools", ",".join(launch.tools)]
+    denied = [_PI_TOOLS.get(rule, rule.lower()) for rule in launch.limits.disallowed_tools]
+    if denied and launch.tools != ():
+        a += ["--exclude-tools", ",".join(dict.fromkeys(denied))]
     return a
+
+
+#: Claude Code's tool names (`Limits.disallowed_tools`) as pi's (`pi --help`).
+_PI_TOOLS = {
+    "Read": "read",
+    "Bash": "bash",
+    "Edit": "edit",
+    "MultiEdit": "edit",
+    "Write": "write",
+    "Grep": "grep",
+    "Glob": "find",
+    "LS": "ls",
+}
 
 
 class PiBackend(OneShotBackend):
@@ -163,6 +179,12 @@ class PiBackend(OneShotBackend):
     # `--no-tools`, `--system-prompt` (`prompt_args`); the agent directory and
     # `ISOLATION_ARGS` already keep every setting, skill and MCP server out.
     light_launch = True
+
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """pi denies whole tools (`--exclude-tools`), not a pattern of what a tool is given."""
+        patterned = [rule for rule in denied if "(" in rule]
+        return f"pi denies whole tools only, not {', '.join(patterned)}" if patterned else None
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", agent_dirs: Path | None = None):
         super().__init__(binary, base_env)

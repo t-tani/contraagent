@@ -1,6 +1,7 @@
 // Charts: a CI pipeline's minutes by day and stage (stacked columns), its queue
-// time (lines), its builds by weekday and hour (a heatmap) and its test funnel
-// (horizontal bars). The host gives each chart its unit's format.
+// time (lines), its builds by weekday and hour (a heatmap), how its nightly builds
+// ended (a state grid) and its test funnel (horizontal bars). The host gives each
+// chart its unit's format.
 import '@contraagent/elements/charts/define';
 import type { ChartSeries } from '@contraagent/elements/charts';
 
@@ -45,5 +46,16 @@ export function mount(host: HTMLElement): void {
     { label: 'flaky', value: 18, tone: 'attention' },
   ];
 
-  host.replaceChildren(columns, lines, heat, bars);
+  const nightly = document.createElement('cae-state-grid');
+  nightly.label = 'Nightly builds by weekday and hour';
+  nightly.x = ['0', '1', '2', '3'];
+  nightly.y = ['Mon', 'Tue'];
+  const passed = { label: 'passed', tone: 'done' as const };
+  // A state per weekday and hour: its word, its tone, and a fact for the tooltip; null: no build.
+  nightly.cells = [
+    [passed, { label: 'failed', tone: 'failed', tip: 'build 4127' }, passed, null],
+    [passed, passed, { label: 'skipped', tone: 'muted' }, passed],
+  ];
+
+  host.replaceChildren(columns, lines, heat, nightly, bars);
 }

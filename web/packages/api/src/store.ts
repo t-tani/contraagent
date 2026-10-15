@@ -77,6 +77,12 @@ export class MonitorStore {
   private trendsQuery: TrendsQuery | null = null;
   /** Counts the trend requests: an answer to an older one is dropped. */
   private trendsAsked = 0;
+  /** The run list's records (`runsKey`) the trends shown were asked over: a refresh asks again only when they changed. */
+  private trendsOver: string | null = null;
+  /** A refresh is under way: a call meanwhile does nothing, and the next one is scheduled after it ends. */
+  private refreshing = false;
+  /** A trends request a refresh started is under way: no second one until it ends. */
+  private trendsBusy = false;
   /** Why the last request for `info`, for `runs`, and for `hosts` got no answer. */
   private infoError: ApiError | null = null;
   private runsError: ApiError | null = null;
@@ -88,7 +94,7 @@ export class MonitorStore {
   private closeFeed: Unsubscribe | null = null;
   private queue: RunAction[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly opts: Required<Pick<StoreOptions, 'runsEveryMs' | 'batchMs' | 'freshMs'>> & StoreOptions;
 
   constructor(opts: StoreOptions = {}) {
@@ -120,13 +126,39 @@ export class MonitorStore {
   async start(): Promise<void> {
     this.stopped = false;
     await this.refresh();
-    if (!this.stopped && this.opts.runsEveryMs > 0) this.pollTimer ??= setInterval(() => void this.refresh(), this.opts.runsEveryMs);
+    this.schedule();
+  }
+
+  /** The next refresh, `runsEveryMs` after this one ended: refreshes never overlap, however slow the answers. */
+  private schedule(): void {
+    if (this.stopped || this.opts.runsEveryMs <= 0 || this.pollTimer) return;
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      void this.refresh().finally(() => this.schedule());
+    }, this.opts.runsEveryMs);
   }
 
   private async refresh(): Promise<void> {
-    if (!this.infoLoaded) await this.loadInfo();
-    await this.refreshRuns();
-    if (this.trendsQuery) await this.fetchTrends(this.trendsQuery);
+    if (this.refreshing) return;
+    this.refreshing = true;
+    try {
+      if (!this.infoLoaded) await this.loadInfo();
+      await this.refreshRuns();
+    } finally {
+      this.refreshing = false;
+    }
+    // The trends are asked for again only when the runs' records changed, and not awaited
+    // here: a slow trend panel holds back no run list.
+    const query = this.trendsQuery;
+    if (query && !this.trendsBusy && !this.stopped && this.runsKey() !== this.trendsOver) {
+      this.trendsBusy = true;
+      void this.fetchTrends(query).finally(() => (this.trendsBusy = false));
+    }
+  }
+
+  /** What the trends are made of, as far as the run list says: each run and its last record. */
+  private runsKey(): string {
+    return this.snap.runs.map((r) => `${r.run}\t${r.last_ts}\t${r.attempts}`).join('\n');
   }
 
   /**
@@ -146,25 +178,37 @@ export class MonitorStore {
     this.trendsQuery = null;
   }
 
+  /**
+   * Ask for the trends of `query` and each trend panel over it. Each answer is shown as it
+   * arrives, so a slow panel holds back neither the trends nor another panel; an answer to
+   * an older request is dropped.
+   */
   private async fetchTrends(query: TrendsQuery): Promise<void> {
     const asked = ++this.trendsAsked;
+    this.trendsOver = this.runsKey();
+    const view = (): TrendsView | null => (asked === this.trendsAsked && !this.stopped ? this.snap.trends : null);
     const names = this.snap.info.panels.filter((p) => p.scope === 'trends').map((p) => p.name);
-    const [trends, ...bodies] = await Promise.allSettled([
-      this.client.trends(query),
-      ...names.map((n) => this.client.trendsPanel(n, query)),
-    ]);
-    if (asked !== this.trendsAsked || this.stopped) return;
-    const panels: Record<string, JsonObject> = {};
-    bodies.forEach((b, i) => (panels[names[i]!] = b.status === 'fulfilled' ? b.value : { error: String(b.reason) }));
-    this.set({
-      trends: {
-        query,
-        data: trends.status === 'fulfilled' ? trends.value : (this.snap.trends?.data ?? null),
-        panels,
-        loading: false,
-        error: trends.status === 'fulfilled' ? null : asApiError(trends.reason, `${this.client.baseUrl}/api/trends`),
+    const trends = this.client.trends(query).then(
+      (data) => {
+        const v = view();
+        if (v) this.set({ trends: { ...v, query, data, loading: false, error: null } });
       },
-    });
+      (e: unknown) => {
+        const v = view();
+        if (v) this.set({ trends: { ...v, query, loading: false, error: asApiError(e, `${this.client.baseUrl}/api/trends`) } });
+      },
+    );
+    const panel = (name: string, body: JsonObject) => {
+      const v = view();
+      if (v) this.set({ trends: { ...v, panels: { ...v.panels, [name]: body } } });
+    };
+    const bodies = names.map((n) =>
+      this.client.trendsPanel(n, query).then(
+        (body) => panel(n, body),
+        (e: unknown) => panel(n, { error: String(e) }),
+      ),
+    );
+    await Promise.allSettled([trends, ...bodies]);
   }
 
   private async loadInfo(): Promise<void> {
@@ -242,7 +286,7 @@ export class MonitorStore {
     this.stopped = true;
     this.closeFeed?.();
     this.closeFeed = null;
-    if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
     if (this.flushTimer) clearTimeout(this.flushTimer);
     this.flushTimer = null;

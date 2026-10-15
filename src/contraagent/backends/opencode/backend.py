@@ -145,6 +145,12 @@ class OpencodeBackend(OneShotBackend):
     # is denied, and the user's config is not read.
     light_launch = True
 
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """opencode denies tools by its permissions (`permission_rules`): a `Bash(...)` pattern as a
+        bash command pattern, any other tool whole."""
+        return None
+
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None):
         super().__init__(binary, base_env)
         self._scratch: Path | None = None
