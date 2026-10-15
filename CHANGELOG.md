@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A claim capacity sized by the host: `claim_capacity={"index": PerTask(memory_mb=1500, cores=1)}`,
+  or `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`, runs as many
+  tasks that claim `index` at once as the host's free memory (`MemAvailable`, less what tasks
+  started in the last 30 seconds will take) and usable cores hold, and one while none runs.
+  A waiting task starts as memory frees, while the others still run.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

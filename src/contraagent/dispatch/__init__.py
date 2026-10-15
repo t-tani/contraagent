@@ -14,12 +14,13 @@ from __future__ import annotations
 from contraagent.dispatch.flow import FlowCall, FlowDriver, TaskDeferred, TaskFailed, TimeBoxed, result_or_raise, time_box
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import PythonTaskPayload, make_python_task
-from contraagent.dispatch.queue import TaskRunner, WorkQueue
+from contraagent.dispatch.queue import ClaimCapacity, TaskRunner, WorkQueue
 from contraagent.dispatch.task import PYTHON_KEY_PREFIX, Changes, Deferral, Frame, Loop, Origin, Task, TaskResult, TimeBox, kind_name
 
 __all__ = [
     "PYTHON_KEY_PREFIX",
     "Changes",
+    "ClaimCapacity",
     "Deferral",
     "FlowCall",
     "FlowDriver",

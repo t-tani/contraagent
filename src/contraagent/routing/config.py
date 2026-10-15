@@ -2,6 +2,8 @@
 
     [defaults]              run-wide routing: agent, model, effort, credential, model_failover;
                             and max_passes
+    [defaults.claim_capacity]  how many running tasks may claim each name: a number, or a
+                            table of what one needs of the host (`PerTask`)
     [[defaults.fallbacks]]  the failover chain every kind without its own shares
     [tasks.<kind>]          a task table: one kind's routing and budgets (see profile.TASK_TABLE_KEYS),
                             and optionally its own [[tasks.<kind>.fallbacks]] chain
@@ -72,6 +74,42 @@ def _as_bool(src, where: str, value) -> bool:
 
 
 @dataclass(frozen=True)
+class PerTask:
+    """A claim capacity sized by the host: how much of it one running task that claims the
+    name needs. `memory_mb`: memory in MB; `cores`: CPU cores. Give one or both, each a
+    positive integer; a mistake raises `ConfigError`.
+
+    Each time the queue tries to start a task that claims the name, the capacity is the
+    tasks that hold it now plus as many more as the free memory holds, and at most the
+    usable cores divided by `cores`; at least 1 while no task holds the name, so a run
+    always goes on. Free memory is `MemAvailable` of `/proc/meminfo`, less `memory_mb` for
+    each task with a `PerTask` claim started in the last 30 seconds (one just started has
+    not grown yet); where there is no `/proc/meminfo` (not Linux), memory does not limit
+    it. A pattern with a `PerTask` sizes each name it matches on its own: one name,
+    claimed by every such task, shares one limit. `contraagent.routing.capacity` works
+    it out.
+    """
+
+    memory_mb: int | None = None
+    cores: int | None = None
+
+    def __post_init__(self) -> None:
+        problem = per_task_problem(self.memory_mb, self.cores)
+        if problem:
+            raise ConfigError(f"PerTask: {problem}")
+
+
+def per_task_problem(memory_mb: object, cores: object) -> str | None:
+    """What is wrong with a `PerTask`'s fields, or None."""
+    if memory_mb is None and cores is None:
+        return "give memory_mb, cores, or both"
+    for name, value in (("memory_mb", memory_mb), ("cores", cores)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            return f"{name} = {value!r} is not a positive integer"
+    return None
+
+
+@dataclass(frozen=True)
 class PipelineConfig:
     raw: dict = field(default_factory=dict)
     path: Path | None = None
@@ -123,20 +161,29 @@ class PipelineConfig:
                 out["max_passes"] = value
         return out
 
-    def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int]:
+    def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int | PerTask]:
         """`[defaults.claim_capacity]`: how many running tasks may claim each name at once, by
         the name or an `fnmatch` pattern (`"heavy*" = 2`: each name it matches, two tasks at a
-        time), each a non-negative integer; a name no entry gives is claimed by one at a time.
-        `Pipeline(claim_capacity=)` outranks it, key by key. A malformed entry raises; with
-        `errors`, it is appended there and the rest still read."""
+        time), each a non-negative integer or a table of what one task needs of the host
+        (`index = { memory_mb = 1500, cores = 1 }`, a `PerTask`); a name no entry gives is
+        claimed by one at a time. `Pipeline(claim_capacity=)` outranks it, key by key. A
+        malformed entry raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults").get("claim_capacity", {})
         if not isinstance(entry, dict):
             _problem(errors, f"{self.source}: [defaults].claim_capacity must be a table of name = capacity")
             return {}
-        out: dict[str, int] = {}
+        where = f"{self.source}: [defaults.claim_capacity]"
+        out: dict[str, int | PerTask] = {}
         for name, value in entry.items():
-            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                _problem(errors, f"{self.source}: [defaults.claim_capacity] {name!r} = {value!r} is not a non-negative integer")
+            if isinstance(value, dict):
+                if unknown := set(value) - {"memory_mb", "cores"}:
+                    _problem(errors, f"{where} {_unknown_keys(repr(name), unknown, ('memory_mb', 'cores'))}")
+                elif problem := per_task_problem(value.get("memory_mb"), value.get("cores")):
+                    _problem(errors, f"{where} {name!r}: {problem}")
+                else:
+                    out[name] = PerTask(memory_mb=value.get("memory_mb"), cores=value.get("cores"))
+            elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                _problem(errors, f"{where} {name!r} = {value!r} is not a non-negative integer or a table of memory_mb and cores")
             else:
                 out[name] = value
         return out

@@ -6,9 +6,10 @@
 * `plan.py`        `RoutingPlan`: config + overrides -> per-kind config and router
 * `preflight.py`   probe every route once before the first task
 * `quota.py`       `QuotaRests`: credentials that rest past their quota caps
+* `capacity.py`    a `PerTask` claim capacity over the host's free memory and cores
 """
 
-from contraagent.routing.config import ConfigError, PipelineConfig
+from contraagent.routing.config import ConfigError, PerTask, PipelineConfig
 from contraagent.routing.kind_config import KindConfig, configs_from_tables, require_budgets
 from contraagent.routing.plan import Overrides, RoutingError, RoutingPlan
 from contraagent.routing.quota import QuotaRests, QuotaRule
@@ -18,6 +19,7 @@ __all__ = [
     "ConfigError",
     "KindConfig",
     "Overrides",
+    "PerTask",
     "PipelineConfig",
     "QuotaRests",
     "QuotaRule",
