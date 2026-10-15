@@ -25,6 +25,14 @@ directory. A task's first attempt in a run replaces its recording;
 each later attempt adds to it. The entry file is replaced whole after the files it names
 are written, so a reader sees the old recording or the new one.
 
+A recording run compares the working directory at its start and its end (`Recorder.start`,
+`Recorder.finish`), leaving out `.git`, `__pycache__`, the recordings and the run's own
+files (`rundir.OWN`; its `out/` is compared like any other folder). A path created,
+modified or deleted that no task's outputs, nor its `changes=` patterns, cover is an
+**undeclared change**: a replay cannot make it again, since no recording holds it. They are
+written to `recordings/undeclared.json` (`run`, `created`, `modified`, `deleted`), replaced
+by each recording run. Tasks run at once, so they are the run's, not a task's.
+
 A **replay** (`Pipeline(replay="recordings/")`, `contraagent run --replay DIR`) plays a
 task's recording in place of a launch, or of a Python task's function: attempt 1 the first
 entry, attempt 2 the second, past the last the last again. It writes the recorded outputs
@@ -68,6 +76,7 @@ from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.contracts import OutputContract
 from contraagent.dispatch.task import STOP_COMPLETED, STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
+from contraagent.execution.changes import compare, scan, scan_tree
 
 VERSION = 1
 
@@ -90,6 +99,9 @@ LAUNCH_FIELDS = (
 )
 
 _TILDE = re.compile(r"^(?P<base>.+)~(?P<n>[0-9]+)$")
+
+#: The file in a recordings directory that names the last recording run's undeclared changes.
+UNDECLARED = "undeclared.json"
 
 #: The size above which a recorded file is kept by hash only, in MB (MiB).
 MAX_FILE_MB = 4.0
@@ -160,6 +172,8 @@ class Recorder:
     copied. It runs after the enricher that records the task's changes, so it sees them.
     `max_file_mb`: an output or changed file larger is kept by hash only, and `log` is given
     a line naming it; `summary()` is the line that sums up what this run recorded.
+    `patterns(task)`: an agent task's `changes=` patterns, which declare what it may change
+    (`start` and `finish` find the changes nothing declared).
     """
 
     def __init__(
@@ -172,8 +186,13 @@ class Recorder:
         run_id: str = "",
         max_file_mb: float = MAX_FILE_MB,
         log: Callable[[str], None] | None = None,
+        patterns: Callable[[Task], Sequence[str]] = lambda task: (),
     ) -> None:
         self.directory = Path(directory)
+        self._patterns = patterns
+        self._tree: dict[str, tuple[int, int]] | None = None
+        self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
+        self._declared_patterns: set[str] = set()
         self.max_file_mb = max_file_mb
         self._log = log or (lambda line: None)
         self._files = 0
@@ -195,6 +214,7 @@ class Recorder:
         return _Mark(stream_at=at)
 
     def enrich(self, task: Task, before: _Mark, result: TaskResult) -> None:
+        self.declare(self._outputs(task), self._patterns(task), result)
         # Nothing was launched: a deferral, or an input refused before launch; or it was played.
         if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None or result.replayed:
             return
@@ -259,6 +279,61 @@ class Recorder:
             kept.append({"file": name if stored else None, "message": f"{name}.message.txt" if beside else None})
         facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "by_hash": by_hash}
         self._keep(task, "python", facts)
+
+    def declare(self, outputs: Sequence[OutputContract], patterns: Sequence[str] = (), result: TaskResult | None = None) -> None:
+        """What a task attempt declares it changes: its output files, its `changes=` patterns,
+        and the paths those saw change (`result.changes`). Played attempts count too."""
+        paths = [p for pair in _outputs(outputs, self._cwd) for p in pair]
+        changes = result.changes if result is not None else None
+        seen = [*changes.created, *changes.modified, *changes.deleted] if changes is not None else []
+        with self._lock:
+            for p in paths:
+                rel = self._relative(p)
+                if rel is not None:
+                    self._declared.add(rel)
+            self._declared.update(seen)
+            self._declared_patterns.update(patterns)
+
+    def _relative(self, path: Path) -> str | None:
+        try:
+            return path.resolve().relative_to(self._cwd.resolve()).as_posix()
+        except ValueError:
+            return None
+
+    def _skip(self) -> Callable[[Path], bool]:
+        """What the working directory's comparison leaves out: `.git`, `__pycache__`, the
+        recordings, and the run's own files (`rundir.OWN`) and lock, wherever they are."""
+        own = {(self._run_dir / name).resolve() for name in rundir.OWN}
+        own |= {self.directory.resolve(), self._run_dir.parent.resolve() / f"{self._run_dir.name}.lock"}
+        names = {".git", "__pycache__"}
+        return lambda path: path.name in names or path in own
+
+    def start(self) -> None:
+        """Stamp every file of the working directory, before the run's flow runs."""
+        self._tree = scan_tree(self._cwd.resolve(), self._skip())
+
+    def finish(self) -> list[str]:
+        """The undeclared changes since `start`, in path order: written to `undeclared.json`
+        in the recordings directory (replacing an earlier run's), and returned."""
+        if self._tree is None:
+            return []
+        cwd = self._cwd.resolve()
+        found = compare(self._tree, scan_tree(cwd, self._skip()))
+        covered, dirs = scan(cwd, sorted(self._declared_patterns))
+
+        def declared(rel: str) -> bool:
+            parents = [p.as_posix() for p in Path(rel).parents][:-1]
+            return rel in self._declared or rel in covered or any(p in dirs for p in parents)
+
+        body = {
+            "run": self._run_id,
+            "created": [p for p in found.created if not declared(p)],
+            "modified": [p for p in found.modified if not declared(p)],
+            "deleted": [p for p in found.deleted if not declared(p)],
+        }
+        self.directory.mkdir(parents=True, exist_ok=True)
+        rundir.write_document(self.directory / UNDECLARED, json.dumps(body, ensure_ascii=False, indent=2) + "\n")
+        return sorted([*body["created"], *body["modified"], *body["deleted"]])
 
     def _store(self, task: Task, src: Path, dst: Path, by_hash: list[dict[str, Any]]) -> bool:
         """Copy `src` into the recording; one over the cap goes to `by_hash` (its path, SHA-256

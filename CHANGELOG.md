@@ -72,7 +72,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them into DIR; such a run is no stub run, and a played attempt's journal row says
   `replayed` (`JournalRow.replayed`). A recorded file over 4 MB (`record_max_file_mb=`,
   `--record-max-file-mb`) is kept by its SHA-256 and size only, with a warning naming it and
-  a closing line on what the run recorded; its task's recording cannot be played.
+  a closing line on what the run recorded; its task's recording cannot be played. A
+  recording run reports its undeclared changes: each path of the working directory it
+  created, modified or deleted that no task's outputs or `changes=` cover, in a warning
+  (`[record] undeclared change: <path>`) and in `DIR/undeclared.json`.
 - A claim capacity sized by the host: `claim_capacity={"index": PerTask(memory_mb=1500, cores=1)}`,
   or `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`, runs as many
   tasks that claim `index` at once as the host's free memory (`MemAvailable`, less what tasks

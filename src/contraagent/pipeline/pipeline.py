@@ -172,7 +172,10 @@ class Pipeline:
         which a recorded output or changed file is kept by its SHA-256 and size only, and a
         warning names it (default 4); such a recording cannot be played. The run ends with
         one line on what it recorded (files, size, files kept by hash, tasks that cannot be
-        replayed).
+        replayed). A recording run also compares the working directory at its start and its
+        end (but `.git`, `__pycache__`, the recordings and the run's own files): each path
+        created, modified or deleted that no task's outputs or `changes=` cover is an
+        undeclared change, written to `<recordings>/undeclared.json` and named in a warning.
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
@@ -284,6 +287,21 @@ class Pipeline:
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
+            adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
+            recorder = None
+            into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
+            if into is not None:
+                recorder = Recorder(
+                    into,
+                    adapter.output_contracts,
+                    cwd=self.cwd,
+                    run_dir=run_dir,
+                    run_id=run.run_id,
+                    max_file_mb=self.record_max_file_mb,
+                    log=lambda line: run.progress(line, warning=True),
+                    patterns=adapter.changes,
+                )
+                recorder.start()  # before the flow runs: its own side effects count too
 
             def on_flow_call(event: str, call: FlowCall) -> None:
                 if event == "start":
@@ -333,23 +351,11 @@ class Pipeline:
                         finishing_kinds=self.queue_options.get("finishing_kinds", ()),
                         grace_s=self.queue_options.get("grace_s", GRACE_S),
                     )
-                    adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
                     enrichers = list(self.enrichers)
                     if self.replay is not None:
                         self.replay.start(adapter.output_contracts, self.cwd)
                         enrichers.insert(0, self.replay)
-                    recorder = None
-                    into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
-                    if into is not None:  # last: it records the result the enrichers leave
-                        recorder = Recorder(
-                            into,
-                            adapter.output_contracts,
-                            cwd=self.cwd,
-                            run_dir=run_dir,
-                            run_id=run.run_id,
-                            max_file_mb=self.record_max_file_mb,
-                            log=lambda line: run.progress(line, warning=True),
-                        )
+                    if recorder is not None:  # last: it records the result the enrichers leave
                         enrichers.append(recorder)
                     # A pure replay plays each attempt's last launch: it walks no failover hop.
                     pure = self.replay is not None and not self.replay.record_missing
@@ -388,6 +394,8 @@ class Pipeline:
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
             if recorder is not None:
+                for path in recorder.finish():
+                    run.progress(f"[record] undeclared change: {path}", warning=True)
                 run.progress(recorder.summary())
             run.finish()
             errors = [c for c in driver.calls.values() if c.parent is None and c.state == "raised"]

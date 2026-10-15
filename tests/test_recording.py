@@ -322,3 +322,51 @@ def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
         Pipeline(record_max_file_mb=10)
     with pytest.raises(ValueError, match="not a positive number"):
         Pipeline(record=tmp_path / "x", record_max_file_mb=0)
+
+
+stray: list[Path] = []
+
+
+@python_task
+def publish(title: str) -> Note:
+    for path in stray:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(title)
+    return Note(title=title)
+
+
+def test_a_recording_run_reports_the_changes_no_task_declared(tmp_path):
+    cwd = tree(tmp_path / "live")
+    (cwd / ".git").mkdir()
+    (cwd / "old-report.txt").write_text("old")
+    stray[:] = [cwd / "report.txt", cwd / ".git" / "index", cwd / "pkg" / "__pycache__" / "m.pyc"]
+
+    def flow(units):
+        (cwd / "old-report.txt").unlink()  # the flow's own side effect
+        yield write(units[0])
+        return (yield publish(title="done"))
+
+    lines: list[str] = []
+    agent = StubAgent({"write": edit}, execute=["publish"])
+    rec = tmp_path / "rec"
+    report = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=agent, record=rec, log=lines.append).run(flow, units=["alpha"])
+    assert report.ok, report.failed
+    body = json.loads((rec / "undeclared.json").read_text())
+    # topics/alpha/** is write's changes=, so its files are declared; .git and __pycache__ are left out.
+    assert body == {"run": report.run_id, "created": ["report.txt"], "modified": [], "deleted": ["old-report.txt"]}
+    warned = [line for line in lines if "undeclared" in line]
+    assert warned == ["[record] undeclared change: old-report.txt", "[record] undeclared change: report.txt"]
+
+
+def test_with_the_run_directory_as_cwd_only_its_outputs_are_compared(tmp_path):
+    runs = tmp_path / "runs"
+    cwd = runs / "inside"
+    cwd.mkdir(parents=True)
+    stray[:] = [cwd / "out" / "extra.json"]
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=runs, cwd=cwd, stub=StubAgent(default={"title": "x"}, execute=["publish"]), record=rec)
+    report = pipeline.run(lambda: [write("alpha"), publish(title="t")], run_id="inside")
+    assert report.ok, report.failed
+    assert (cwd / "journal.jsonl").exists() and (cwd / "out" / "write" / "alpha.json").exists()
+    body = json.loads((rec / "undeclared.json").read_text())
+    assert body["created"] == ["out/extra.json"] and body["modified"] == body["deleted"] == []

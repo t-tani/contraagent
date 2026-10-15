@@ -191,6 +191,8 @@ class PythonTaskRunner:
         whichever thread the queue calls it. A replay plays the call instead, when it can."""
         assert task.fn is not None
         outs = self.contracts(task)[0]
+        if self._recorder is not None:
+            self._recorder.declare(outs)
         if self._replay is not None:
             played = self._replay.play_python(task, outs, self._cwd)
             if played is not None:

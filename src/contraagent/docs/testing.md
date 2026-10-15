@@ -114,6 +114,27 @@ played all the same, and the task's reason says so: record again when the change
 matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. The module docstring (`contraagent/execution/recording.py`) gives the
 layout of a recording directory.
 
+### Undeclared changes
+
+A replay writes only what a recording holds, and a recording holds only what a task
+declares: its outputs and its `changes=` files. A file the recorded run wrote anywhere
+else (a cache a Python task fills, a report the flow's own body writes, a file an agent
+edited outside its patterns) is not there in a replay, and a later task that reads it
+finds it missing, or finds what the CI checkout holds. So a recording run compares the
+working directory at its start and its end (by each file's modification time and size;
+`.git`, `__pycache__`, the recordings and the run's own files are left out, but its `out/`
+is compared like any other folder). Each path created, modified or deleted that no task's
+outputs or `changes=` cover is an **undeclared change**: the run warns once per path
+
+```
+[record] undeclared change: cache/index.json
+```
+
+and writes them to `DIR/undeclared.json` (`created`, `modified`, `deleted`). Tasks run at
+once, so a change is the run's, not a task's. Declare it where it is made: a `changes=`
+pattern on the agent task, the Python task's output, or a Python task in place of the
+flow's own side effect.
+
 ### Fill in what is missing
 
 ```

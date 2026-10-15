@@ -54,6 +54,10 @@ PIPELINE = "pipeline"
 #: The append-only logs every run has, by name (a task's transcript is `stream(key)`).
 LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED, RESTS)
 
+#: Every entry of a run directory contraagent writes, and the pipeline's own folder: all
+#: of it but `out/`, the tasks' outputs.
+OWN = (RUN_INFO, *LOGS, CURSOR, TRENDS, STREAMS, CONTRACTS, DEFINITIONS, CALLS, INFLIGHT, PIPELINE)
+
 #: Names the host that drives a run in `run.json` (`host_id`); unset, the host name.
 HOST_ID_ENV = "CONTRAAGENT_HOST_ID"
 
