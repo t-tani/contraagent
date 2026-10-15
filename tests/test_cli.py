@@ -2,8 +2,10 @@
 imported only when the command line names it."""
 
 import argparse
+import importlib.util
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -62,3 +64,20 @@ def test_a_usage_error_exits_2_with_the_command_s_usage(capsys, monkeypatch):
         main(["relay", "--hub", "http://hub:8790", "--interval", "0"])
     assert exc.value.code == 2
     assert "usage: contraagent relay" in capsys.readouterr().err
+
+
+def _help_snapshot():
+    spec = importlib.util.spec_from_file_location("cli_help", Path(__file__).parent / "cli" / "help.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_every_command_s_help_matches_the_snapshot():
+    snapshot = _help_snapshot()
+    committed = snapshot.SNAPSHOT.read_text()
+    written_with = committed.splitlines()[0]
+    if written_with != snapshot.header().rstrip("\n"):
+        pytest.skip(f"argparse's output depends on the Python version; the snapshot is {written_with}")
+    assert snapshot.render() == committed, "stale: run `uv run python tests/cli/help.py`"

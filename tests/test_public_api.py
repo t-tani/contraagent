@@ -1,18 +1,23 @@
-"""The public API: each public module re-exports, each object has one public path, and every
-contraagent type a public signature, field or callback argument reaches is exported."""
+"""The public API: each public module re-exports, each object has one public path, every
+contraagent type a public signature, field or callback argument reaches is exported, and the
+public modules import without the extras. Who imports `_internal` is checked by
+`tests/test_layers.py`."""
 
 from __future__ import annotations
 
 import ast
 import dataclasses
 import importlib
+import importlib.metadata
 import inspect
 import pickle
+import shutil
 import subprocess
 import sys
 import types
 import typing
 from collections.abc import Iterator
+from pathlib import Path
 
 import pydantic
 import pytest
@@ -222,12 +227,35 @@ def test_published_classes_keep_their_annotations_and_pickle():
     assert pickle.loads(pickle.dumps(result)) == result
 
 
-def test_the_public_modules_import_without_the_monitor_extra():
-    code = (
-        "import sys, contraagent, contraagent.monitor, contraagent.monitor.api, contraagent.testing, contraagent.engine;"
-        "print([m for m in ('fastapi', 'uvicorn', 'contraagent._internal.monitor.server') if m in sys.modules])"
-    )
-    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
+IMPORT_WITHOUT_EXTRAS = """
+import importlib.util, sys
+sys.path.insert(0, sys.argv[1])
+extras = ("fastapi", "uvicorn", "sse_starlette", "httpx", "psycopg", "boto3", "zstandard")
+assert [m for m in extras if importlib.util.find_spec(m)] == [], "not a fresh environment"
+import contraagent, contraagent.config, contraagent.backends, contraagent.engine, contraagent.plugins, contraagent.testing
+import contraagent.monitor, contraagent.monitor.api
+for module in (contraagent, contraagent.config, contraagent.backends, contraagent.engine, contraagent.plugins, contraagent.testing,
+               contraagent.monitor.api):
+    [getattr(module, name) for name in module.__all__]
+[getattr(contraagent.monitor, name) for name in contraagent.monitor.__all__ if name not in ("serve", "create_app")]
+print("ok")
+"""
+
+
+def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path):
+    """A fresh virtual environment holding only pydantic, the one dependency, and the source:
+    the extras' packages are absent there, not only left unimported."""
+    uv = shutil.which("uv")
+    assert uv is not None, "uv makes the environment"
+    venv = tmp_path / "venv"
+    subprocess.run([uv, "venv", "--quiet", "--python", sys.executable, str(venv)], check=True, capture_output=True)
+    python = venv / "bin" / "python"
+    install = [uv, "pip", "install", "--quiet", "--python", str(python), f"pydantic=={importlib.metadata.version('pydantic')}"]
+    if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:
+        subprocess.run(install, check=True, capture_output=True)
+    src = Path(__file__).parents[1] / "src"
+    done = subprocess.run([str(python), "-I", "-c", IMPORT_WITHOUT_EXTRAS, str(src)], capture_output=True, text=True)
+    assert (done.returncode, done.stdout.strip()) == (0, "ok"), done.stderr
 
 
 def test_serve_and_create_app_are_published_when_first_named():
@@ -255,33 +283,3 @@ def test_the_task_and_the_result_a_callback_is_given_are_frozen():
     with pytest.raises(dataclasses.FrozenInstanceError):
         result.ok = False  # type: ignore[misc]
     assert dataclasses.replace(result, ok=False).ok is False and result.ok
-
-
-def _imported(path) -> list[str]:
-    tree = ast.parse(path.read_text())
-    out = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            out += [a.name for a in node.names]
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            out += [node.module] if node.module != "contraagent" else [f"contraagent.{a.name}" for a in node.names]
-    return [m for m in out if m == "contraagent" or m.startswith("contraagent.")]
-
-
-def test_internal_imports_no_public_module_and_the_examples_only_public_ones():
-    from pathlib import Path
-
-    import contraagent
-
-    root = Path(contraagent.__file__).parent
-    internal = [
-        f"{p.relative_to(root)}: {m}"
-        for p in (root / "_internal").rglob("*.py")
-        for m in _imported(p)
-        if not m.startswith(("contraagent._internal", "contraagent.docs"))
-    ]
-    assert internal == []
-    examples = [
-        f"{p.relative_to(root)}: {m}" for p in (root / "docs").rglob("*.py") for m in _imported(p) if m.startswith("contraagent._internal")
-    ]
-    assert examples == []

@@ -48,6 +48,7 @@ dev = [
     "pyright>=1.1.400",
     "contraagent[hub]",
     "pytest-xdist>=3.8",
+    "import-linter>=2.15",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -127,3 +128,140 @@ known-first-party = ["contraagent"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+# `uv run lint-imports` (and tests/test_layers.py) checks the layers of AGENTS.md
+# ("Public modules and layers") and of the `src/contraagent/_internal/__init__.py` docstring.
+# The tests are not in the graph: they test `_internal` directly.
+[tool.importlinter]
+root_packages = ["contraagent", "contraagent.docs"]   # contraagent.docs: a namespace package, the examples in it
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "Each layer of _internal imports only the layers above it in the docstring's list"
+type = "layers"
+containers = ["contraagent._internal"]
+exhaustive = true   # every module of _internal is in a layer
+layers = [
+    "cli",
+    "testing",
+    "hub",
+    "monitor",
+    "pipeline",
+    "plugins",
+    "execution",
+    "routing",
+    "contracts",
+    "backends",
+    "dispatch",
+    "runs",
+    "docs",
+    "public",
+    "commandline",
+    "platform",
+    "errors",
+]
+
+[[tool.importlinter.contracts]]
+id = "leaves"
+name = "platform/ and commandline are leaf modules, importing nothing else of the package"
+type = "independence"
+# With the layers above, neither may import anything of _internal but the other two, and
+# independence forbids those.
+modules = ["contraagent._internal.errors", "contraagent._internal.platform", "contraagent._internal.commandline"]
+
+[[tool.importlinter.contracts]]
+id = "runs"
+name = "runs/ imports only the standard library and platform/"
+type = "forbidden"
+source_modules = ["contraagent._internal.runs"]
+forbidden_modules = [
+    "contraagent._internal.errors",
+    "contraagent._internal.commandline",
+    "contraagent._internal.public",
+    "contraagent._internal.docs",
+    "pydantic",
+    "fastapi",
+    "starlette",
+    "uvicorn",
+    "sse_starlette",
+    "httpx",
+    "psycopg",
+    "boto3",
+    "zstandard",
+    "yaml",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "dispatch"
+name = "dispatch/ imports only the standard library, pydantic and runs/"
+type = "forbidden"
+source_modules = ["contraagent._internal.dispatch"]
+forbidden_modules = [
+    "contraagent._internal.errors",
+    "contraagent._internal.platform",
+    "contraagent._internal.commandline",
+    "contraagent._internal.public",
+    "contraagent._internal.docs",
+    "fastapi",
+    "starlette",
+    "uvicorn",
+    "sse_starlette",
+    "httpx",
+    "psycopg",
+    "boto3",
+    "zstandard",
+    "yaml",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "hub-monitor"
+name = "hub/ reads and writes runs without monitor/, but for hub/server.py"
+type = "forbidden"
+source_modules = ["contraagent._internal.hub"]
+forbidden_modules = ["contraagent._internal.monitor"]
+ignore_imports = [
+    # The one exception: hub/server.py serves the monitor's app over the hub's runs.
+    "contraagent._internal.hub.server -> contraagent._internal.monitor.**",
+]
+
+[[tool.importlinter.contracts]]
+id = "internal-protected"
+name = "_internal is imported only by itself and the public modules (the examples import no _internal)"
+type = "protected"
+protected_modules = ["contraagent._internal", "contraagent._internal.**"]
+allowed_importers = [
+    "contraagent._internal",
+    "contraagent._internal.**",
+    "contraagent",
+    "contraagent.__main__",
+    "contraagent.config",
+    "contraagent.backends",
+    "contraagent.engine",
+    "contraagent.plugins",
+    "contraagent.monitor",
+    "contraagent.monitor.api",
+    "contraagent.testing",
+]
+as_packages = false
+
+[[tool.importlinter.contracts]]
+id = "internal-no-public"
+name = "_internal imports no public module"
+type = "forbidden"
+source_modules = ["contraagent._internal", "contraagent._internal.**"]
+forbidden_modules = [
+    "contraagent",
+    "contraagent.__main__",
+    "contraagent.config",
+    "contraagent.backends",
+    "contraagent.engine",
+    "contraagent.plugins",
+    "contraagent.monitor",
+    "contraagent.monitor.api",
+    "contraagent.testing",
+]
+as_packages = false
+allow_indirect_imports = true   # a direct import breaks the rule; a chain through it repeats it

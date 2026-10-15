@@ -1,6 +1,5 @@
 """`contraagent._internal.runs`: a run document is replaced whole, never seen in part; a log is
-appended whole and read by complete lines; one file name per task key; one time format;
-the layers around the run records."""
+appended whole and read by complete lines; one file name per task key; one time format."""
 
 from __future__ import annotations
 
@@ -218,48 +217,6 @@ def test_times_are_written_in_utc_and_read_back_with_a_zone():
     assert at is not None and at.utcoffset() is not None and at == parse_iso("2026-10-15T09:30:00")
     assert parse_iso("2026-10-15T18:30:00+09:00") == at
     assert parse_iso("") is None and parse_iso("yesterday") is None and parse_iso(None) is None
-
-
-# --- layers -------------------------------------------------------------------------------
-
-
-def _imports(path: Path) -> set[str]:
-    out = set()
-    for node in ast.walk(ast.parse(path.read_text())):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            out.add(node.module)
-            out.update(f"{node.module}.{a.name}" for a in node.names)
-        elif isinstance(node, ast.Import):
-            out.update(a.name for a in node.names)
-    return out
-
-
-def test_the_hub_reads_and_writes_runs_without_the_monitor():
-    """Only `hub/server.py`, which serves the monitor's app, imports `contraagent._internal.monitor`."""
-    hub = Path(contraagent.__file__).parent / "_internal" / "hub"
-    found = sorted(
-        f"{p.name}: {m}"
-        for p in hub.glob("*.py")
-        if p.name != "server.py"
-        for m in _imports(p)
-        if m.startswith("contraagent._internal.monitor")
-    )
-    assert found == []
-
-
-def test_the_run_records_layer_imports_only_the_standard_library_and_the_leaf_modules():
-    runs = Path(contraagent.__file__).parent / "_internal" / "runs"
-    allowed = (
-        "contraagent._internal.runs",
-        "contraagent._internal.platform",
-    )
-    found = sorted(
-        f"{p.name}: {m}"
-        for p in runs.glob("*.py")
-        for m in _imports(p)
-        if m.startswith("contraagent") and m != "contraagent" and not m.startswith(allowed)
-    )
-    assert found == []
 
 
 def test_every_writer_of_a_task_file_names_it_by_file_name(tmp_path):
