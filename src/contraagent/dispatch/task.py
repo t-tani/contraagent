@@ -133,6 +133,9 @@ class Task:
     `tail_s`: expected wall time of the work that follows this task but is
     not queued yet (a flow creates it from this task's result); the queue's
     bottom level counts it like a successor (see `WorkQueue._blevel`).
+    `priority`: a tie-breaker in the queue's order, higher first: it orders tasks
+    the bottom level, overdue waiting and the deadlines leave equal, never
+    against them. Scheduling, not work: no part of the fingerprint.
     `params`: what the task is given (scalars reach an agent as
     `CONTRAAGENT_PARAMS`).
     `attempt`: retry ordinal; 0 is the first try.
@@ -156,6 +159,7 @@ class Task:
     rerun_on_resume: bool = False
     estimate_s: float | None = None
     tail_s: float | None = None
+    priority: float = 0.0
     params: dict = field(default_factory=dict)
     attempt: int = 0
     id: str = field(default_factory=lambda: uuid.uuid4().hex)

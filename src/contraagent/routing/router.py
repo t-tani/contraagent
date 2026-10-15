@@ -72,7 +72,7 @@ def parse_chain(entries, where: str, known_agents: tuple[str, ...] | None = None
 
     **The block order IS the failover order**: the first block is hop 2
     (hop 1 is whatever the chain's primary is), the second is hop 3, and
-    so on. A separate `priority` key would only be a second source of
+    so on. A separate order key would only be a second source of
     truth free to disagree with the order the operator can see. What is
     checked instead is that the chain has no repeats — a duplicated
     (agent, model, credential) would give one hop two ordinals and make

@@ -432,6 +432,7 @@ class PlanNode(Open):
     unit: str = ""
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     after: list[str] = Field(default_factory=list, description="task keys it waits for")
+    priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
     executor: Executor = "agent"
     flow: list[FlowFrame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
     created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")

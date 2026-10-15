@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import math
 import string
 import typing
 from collections.abc import Callable, Sequence
@@ -145,12 +146,14 @@ class AgentTask[Out]:
         *,
         key: str | None = None,
         after: Sequence[Pending | str] = (),
+        priority: float = 0.0,
         **params: Any,
     ) -> Pending[Out]:
-        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks."""
+        """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
+        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(self, unit=unit, key=key, after=after, params=params)
+        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=params)
 
 
 def agent_task[Out](
@@ -240,6 +243,11 @@ def agent_task[Out](
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model or str, not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
+    if params is not None and (taken := sorted(RESERVED_PARAMS & set(params.model_fields))):
+        raise TypeError(
+            f"agent_task({kind!r}): params {params.__name__} has a field named {', '.join(taken)}; "
+            f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the field"
+        )
     if output_from not in ("file", "message"):
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
@@ -339,11 +347,13 @@ class PythonTask[Out]:
         *,
         key: str | None = None,
         after: Sequence[Pending | str] = (),
+        priority: float = 0.0,
         **kwargs: Any,
     ) -> Pending[Out]:
         """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
-        A function with a `unit` parameter is given the unit too."""
-        return current_graph().add(self, unit=unit, key=key, after=after, params=kwargs)
+        A function with a `unit` parameter is given the unit too. `priority`, as for an
+        agent task: a tie-breaker in the queue, higher first."""
+        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=kwargs)
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the
@@ -429,6 +439,15 @@ def python_task(
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
         checked = _checked_claims(f"python_task({kind!r})", claims)
+        try:
+            taken = sorted(RESERVED_PARAMS & set(inspect.signature(f).parameters))
+        except (TypeError, ValueError):
+            taken = []
+        if taken:
+            raise TypeError(
+                f"python_task({kind!r}): the function has a parameter named {', '.join(taken)}; "
+                f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the parameter"
+            )
         return PythonTask(
             fn=f,
             name=kind,
@@ -482,6 +501,17 @@ def _type_name(t: type) -> str:
         inner = t.model_fields["root"].annotation
         return getattr(inner, "__name__", None) or str(inner)
     return t.__name__
+
+
+#: The keywords a task call takes itself, so never a parameter of the task.
+RESERVED_PARAMS = frozenset({"key", "after", "priority"})
+
+
+def _checked_priority(kind: str, priority: Any) -> float:
+    """A task call's `priority`: a finite number."""
+    if isinstance(priority, bool) or not isinstance(priority, (int, float)) or not math.isfinite(priority):
+        raise TypeError(f"{kind}(...): priority must be a finite number, not {priority!r}")
+    return float(priority)
 
 
 def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:

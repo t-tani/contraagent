@@ -46,6 +46,7 @@ reference to the task's future output:
   summary, score, review and note are refused, and so is the report, which
   needs every summary.
 - `after=` orders tasks without passing data.
+- `priority=` breaks ties in the queue, higher first (see below).
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
@@ -152,6 +153,18 @@ from chains that ran to their end: a chain cut short by a failure, a deferral or
 a flow error would be too short. A task's own duration is the median of its
 kind's completed attempts, in this run once one has finished, else in the
 recent runs.
+
+A task call's `priority` (`summarize("alpha", priority=2)`, a number, default 0)
+orders tasks the queue would otherwise start in the order they were queued:
+among ready tasks with equal work after them, the highest priority starts
+first. It is a tie-breaker only. A task with longer work after it still starts
+first, whatever the priorities; so does a task that has waited past
+`overdue_s`, and near a deadline the time box's order (its finishing kinds,
+then the shortest remaining work) comes before it too. A priority is not part
+of the fingerprint: a resumed run that changes one skips the same tasks.
+`plan.jsonl` records it. A params model with a field named `priority` (or
+`key`, `after`), or a Python task's function with such a parameter, is refused
+where the task is declared: the task call takes these words itself.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
@@ -329,7 +342,7 @@ and receive `TaskResult`s.
 | `AgentRunner` / `RetryingRunner` | one agent task: input check, route, credential (skipping one that rests on its quota), launch, validate, failover; progress-aware retry |
 | `PythonTaskRunner` | Python tasks in-process, checked by the same contracts |
 | `TaskAdapter` | what a domain says about its tasks (prompt, plugin, contracts, changes, env) |
-| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
+| `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
 | `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |

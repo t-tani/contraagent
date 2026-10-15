@@ -164,6 +164,8 @@ class Node:
     #: The names it claims: its kind's `claims` with `{unit}`, `{key}`, `{kind}` and
     #: `{params.<name>}` filled in.
     claims: tuple[str, ...] = ()
+    #: Its task call's `priority`: a tie-breaker in the queue, not part of its fingerprint.
+    priority: float = 0.0
     origin: Origin | None = None
     fingerprint: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -251,6 +253,7 @@ class Graph:
         key: str | None,
         after: Sequence[Pending | str],
         params: dict[str, Any],
+        priority: float = 0.0,
     ) -> Pending:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
@@ -294,6 +297,7 @@ class Graph:
             origin=origin,
             changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
             claims=claims,
+            priority=priority,
         )
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)
@@ -467,6 +471,7 @@ class Graph:
             origin=node.origin,
             fingerprint=node.fingerprint,
             claims=node.claims,
+            priority=node.priority,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             payload=node,
         )
