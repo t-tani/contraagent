@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The stub agent reports a utilization reading: `writes(value, rate_limit=RateLimit(...))` lands
+  in the launch's readings, so a test on the stub rests a credential past its quota cap or its
+  `quota_rule` and follows the task to its next hop or to `deferred`.
+- `disallowed_tools` in a task table and in `agent_task(...)`: tools a kind's launches may not
+  use, in Claude Code's names and patterns (`["WebFetch", "Bash(rm:*)"]`), checked where they
+  are written. Claude Code denies them with `--disallowedTools`, opencode with its permissions,
+  pi whole tools with `--exclude-tools`; a route on omp or Codex, which cannot deny a tool, is
+  refused before anything launches (`Backend.tool_deny_problem`).
+- A `quota_rule` may say when its rest ends: `(reason, datetime)` rests the credential to then
+  without asking the rule again, so a daily budget rests to the next day's start. A rule that
+  gives a reason alone rests as before, while the reading it judged stands.
 - An OpenCode key is one account on every agent that runs its models (`backends/opencode/login.py`):
   opencode, pi and omp give the digest of the key they would send, so a quota rest on one
   holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
