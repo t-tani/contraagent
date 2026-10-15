@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "One line of `plan.jsonl` in a run directory of format 1.",
+  "$comment": "One line of `plan.jsonl` in a run directory of run format 1.",
   "$defs": {
     "Frame": {
       "additionalProperties": false,

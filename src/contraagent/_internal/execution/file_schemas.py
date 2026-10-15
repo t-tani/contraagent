@@ -1,5 +1,5 @@
 """The JSON Schemas of the files contraagent reads and writes: the pipeline config file, and
-the records of a run directory of format `layout.FORMAT`. They are installed with the
+the records of a run directory of run format `layout.FORMAT`. They are installed with the
 documentation (`contraagent/docs/schemas/`) and written again by
 
     uv run python -m contraagent._internal.execution.file_schemas
@@ -50,7 +50,7 @@ def _record(file: str, model: type[BaseModel]) -> dict:
     schema = model.model_json_schema(by_alias=True, mode="serialization")
     return {
         "$schema": DRAFT,
-        "$comment": f"{what} in a run directory of format {layout.FORMAT}.",
+        "$comment": f"{what} in a run directory of run format {layout.FORMAT}.",
         **schema,
     }
 

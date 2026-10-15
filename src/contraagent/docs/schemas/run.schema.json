@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "`run.json` in a run directory of format 1.",
+  "$comment": "`run.json` in a run directory of run format 1.",
   "$defs": {
     "DroppedRoute": {
       "additionalProperties": false,
@@ -160,11 +160,11 @@
     }
   },
   "additionalProperties": true,
-  "description": "`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run\nit is (`run_id`, `run_uid`), its format, and what the run recorded about itself since.\n`Run.update_info` may add fields of a caller's own.",
+  "description": "`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run\nit is (`run_id`, `run_uid`), its run format, and what the run recorded about itself since.\n`Run.update_info` may add fields of a caller's own.",
   "properties": {
     "format": {
       "default": 1,
-      "description": "the format of the run directory; a run.json without it is format 1",
+      "description": "the run format of the run directory; a run.json without it is of run format 1",
       "minimum": 1,
       "title": "Format",
       "type": "integer"

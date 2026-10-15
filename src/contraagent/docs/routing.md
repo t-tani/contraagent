@@ -259,4 +259,8 @@ The journal records each launch's credential *name*, never a secret.
 
 ## Every table and key
 
+The JSON Schema of the file is `schemas/pipeline.schema.json` beside this page
+([Compatibility](compatibility.md)); the reference file's first line gives it to an
+editor that reads `#:schema`.
+
 ::code{file="examples/reference/pipeline.toml"}

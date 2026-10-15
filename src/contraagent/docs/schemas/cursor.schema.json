@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "`cursor.json` in a run directory of format 1.",
+  "$comment": "`cursor.json` in a run directory of run format 1.",
   "$defs": {
     "HistoryEntry": {
       "additionalProperties": false,

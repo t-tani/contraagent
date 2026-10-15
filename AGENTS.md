@@ -269,6 +269,12 @@ After changing a monitor response model or route, regenerate the committed
 contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
 
+After changing a model of a run record (`_internal/execution/schemas.py`, the records
+in `_internal/dispatch/records.py` they hold) or the config file's tables, regenerate
+the JSON Schemas in `src/contraagent/docs/schemas/`:
+`uv run python -m contraagent._internal.execution.file_schemas` (a test fails while
+one is stale).
+
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
 published at least 14 days ago), in `web/`:
 
@@ -320,5 +326,19 @@ version; nothing else holds that text.
 
 ## Compatibility
 
-The package is unpublished. Rename freely: no compatibility aliases, no
-deprecation shims, no readers for old run directories.
+The public API is what `src/contraagent/docs/compatibility.md` lists: the
+public modules' `__all__`, the command line, the config file, the files a run
+writes and the monitor's `openapi.json`. `contraagent._internal` is not public:
+change it freely, with no aliases or shims inside it.
+
+- **Until 0.1.0 is tagged**: rename the public API freely too, with no
+  compatibility aliases, no deprecation shims and no readers for old run
+  directories; `CHANGELOG.md` records each rename as old → new.
+- **From 0.1.0**: a change to the public API is deliberate. The checks (the
+  API snapshot, the `--help` snapshot, `openapi.json`, the file schemas) show
+  it, `CHANGELOG.md` records it, and it waits for a minor release (from 1.0, a
+  major one, after `ContraagentDeprecationWarning` for two minor releases).
+  A record change that a reader of the current run format cannot read raises
+  `FORMAT` in `_internal/runs/layout.py` and adds the new format's fixture
+  beside `tests/fixtures/runs/v1/`; the monitor keeps reading every run format
+  in `FORMATS`.

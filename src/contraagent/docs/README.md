@@ -47,6 +47,7 @@ and the documentation site print the quoted lines in place.
 - [The monitor](monitor.md): the live view of runs, and an export of it that needs no server.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
+- [Compatibility](compatibility.md): what is public, what a release may change, deprecation, and the formats and JSON Schemas of the files a run writes and of the config file.
 
 `examples/tutorial/` is the tutorial's pipeline, finished. `examples/demo/` is a whole pipeline (its tasks, plugin, config, a test, and a
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`

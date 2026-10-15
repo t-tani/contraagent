@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "One line of `rests.jsonl` in a run directory of format 1.",
+  "$comment": "One line of `rests.jsonl` in a run directory of run format 1.",
   "additionalProperties": true,
   "description": "One line of `rests.jsonl`: `event` `start` when the credential began resting (with\nits rest), `end` when it was found not resting again (with the rest that ended).",
   "properties": {

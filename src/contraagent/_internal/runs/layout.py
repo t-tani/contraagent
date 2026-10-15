@@ -31,7 +31,7 @@ ship it.
 `RUN_INFO` (`run.json`) also says which run this is across hosts: `run_uid`, an id
 no other run has, kept when the run is resumed, and `host_id`, the host that
 drives it (`CONTRAAGENT_HOST_ID`, else the host name). Its `cwd` is the directory a
-relative path in a contract record is relative to (`file_path`), and its `format` the
+relative path in a contract record is relative to (`file_path`), and its `format` the run
 format of the whole run directory (`FORMAT`, `format_of`).
 """
 
@@ -46,12 +46,12 @@ from pathlib import Path
 
 from contraagent._internal.runs.names import is_plain
 
-#: The format of a run directory this release writes, as `run.json` records it (`format`):
+#: The run format of a run directory this release writes, as `run.json` records it (`format`):
 #: this layout and the schemas of its records (`contraagent/docs/schemas/`). It goes up
-#: by one when a record changes in a way a reader of the format before cannot read.
+#: by one when a record changes in a way a reader of the run format before cannot read.
 FORMAT = 1
 
-#: The formats this release reads; a run directory of another is not resumed.
+#: The run formats this release reads; a run directory of another is not resumed.
 FORMATS = (1,)
 
 RUN_INFO = "run.json"
@@ -144,7 +144,7 @@ def pipeline_document(name: str) -> str:
 
 
 def format_of(info: Mapping) -> int | None:
-    """The format of the run whose `run.json` holds `info`: its `format`, 1 when it records
+    """The run format of the run whose `run.json` holds `info`: its `format`, 1 when it records
     none; None when `format` is not a positive whole number."""
     value = info.get("format", 1)
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:

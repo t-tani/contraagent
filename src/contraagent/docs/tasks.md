@@ -98,7 +98,9 @@ whatever the flow returned (a `Pending` in it reads its task's output).
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
 journal row is ok with the same fingerprint is skipped, its output read from the
-run directory. Another run id starts a new run. A task's fingerprint is a digest
+run directory. Another run id starts a new run. A run directory a newer
+contraagent wrote, of a run format this one does not read (`run.json` `format`), is
+not resumed (`RunFormatError`; [Compatibility](compatibility.md#run-formats-and-schemas)). A task's fingerprint is a digest
 of:
 
 - its kind, unit, key and params;

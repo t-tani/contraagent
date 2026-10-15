@@ -12,7 +12,7 @@ a deferral's cause) are the record types of `dispatch/records.py`.
 * `PlanRow`, `FlowCallRow`, `DeferredRow` — one line of `plan.jsonl`,
   `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` (`dispatch/records.py`) is one
   line of `rests.jsonl`.
-* `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its format.
+* `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its run format.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
   never guesses. `extra="forbid"` throughout, because a renamed field or a
   typo'd stage name should fail loudly at write time instead of silently
@@ -283,12 +283,12 @@ class DeferredRow(BaseModel):
 
 class RunInfo(BaseModel):
     """`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run
-    it is (`run_id`, `run_uid`), its format, and what the run recorded about itself since.
+    it is (`run_id`, `run_uid`), its run format, and what the run recorded about itself since.
     `Run.update_info` may add fields of a caller's own."""
 
     model_config = ConfigDict(extra="allow")
 
-    format: int = Field(1, ge=1, description="the format of the run directory; a run.json without it is format 1")
+    format: int = Field(1, ge=1, description="the run format of the run directory; a run.json without it is of run format 1")
     run_id: str
     run_uid: str = Field(description="the id no other run has, on any host; kept when the run is resumed")
     host_id: str = Field(description="the host that drives the run (`CONTRAAGENT_HOST_ID`, else the host name)")

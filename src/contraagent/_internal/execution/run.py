@@ -120,7 +120,7 @@ class RunExists(ContraagentError):
 
 
 class RunFormatError(ContraagentError):
-    """The run directory is of a format this release does not read (`run.json` `format`):
+    """The run directory is of a run format this release does not read (`run.json` `format`):
     a newer contraagent wrote it."""
 
 
@@ -199,7 +199,7 @@ class Run:
         )
 
     def _check_format(self) -> None:
-        """Refuse a run directory an earlier attempt left in a format this release does not
+        """Refuse a run directory an earlier attempt left in a run format this release does not
         read (`RunFormatError`), before its `run.json` is replaced."""
         info = self._info()
         if info is None:
@@ -209,7 +209,7 @@ class Run:
             return
         self.close()
         raise RunFormatError(
-            f"{self.dir} holds a run of format {info.get('format')!r}; this contraagent reads format "
+            f"{self.dir} is of run format {info.get('format')!r}; this contraagent reads run format "
             f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
         )
 

@@ -70,7 +70,7 @@ def test_a_run_of_a_newer_format_is_not_resumed_nor_overwritten(tmp_path):
     info = json.loads(info_path.read_text())
     info_path.write_text(json.dumps({**info, "format": layout.FORMAT + 1}))
     before = info_path.read_text()
-    with pytest.raises(RunFormatError, match=rf"format {layout.FORMAT + 1}; this contraagent reads format 1"):
+    with pytest.raises(RunFormatError, match=rf"run format {layout.FORMAT + 1}; this contraagent reads run format 1"):
         Run("review", runs)
     assert info_path.read_text() == before
     # The lock was let go: a later Run of the same id is refused for its format, not its lock.
