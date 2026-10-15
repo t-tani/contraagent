@@ -3,15 +3,17 @@
 // sideways (`data-scroll="x"`, e2e/fit.ts). Checked on the monitor's page over
 // the demo runs (every tab, the trends page, a hub's hosts page), and on every
 // page of the documentation site that shows live elements (apps/docs/dist,
-// built by `pnpm build`), each element's frame set to the width. And axe finds
-// no serious or critical violation in those live elements, in a light and a
-// dark theme.
+// built by `pnpm build`), each element's frame set to the width. There, nothing
+// is cut off at the bottom either: no frame is shorter than what it shows, and
+// no box in it clips what is taller than it; in the graph view and in the table
+// view of each element that has the switch. And axe finds no serious or
+// critical violation in those live elements, in a light and a dark theme.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { overflows, settle } from './fit.js';
+import { clips, overflows, settle } from './fit.js';
 
 const WIDTHS = [360, 600, 900, 1280];
 const HUB = `http://127.0.0.1:${Number(process.env['E2E_HUB_PORT'] ?? 18794)}`;
@@ -88,6 +90,29 @@ async function openDocs(page: Page, path: string) {
   await settle(page);
 }
 
+/** Choose the graph or the table in every "Graph | Table" switch in the frames (a graph's, inside a view too); how many there are. */
+function showView(page: Page, view: 'graph' | 'table'): Promise<number> {
+  return page.locator('.ca-demo-frame').evaluateAll((frames, view) => {
+    let n = 0;
+    const visit = (root: Element | ShadowRoot): void => {
+      for (const el of root.querySelectorAll('*')) {
+        if (el.localName === 'cae-segmented' && el.classList.contains('views')) {
+          el.shadowRoot?.querySelectorAll('button')[view === 'graph' ? 0 : 1]?.click();
+          n++;
+        }
+        if (el.shadowRoot) visit(el.shadowRoot);
+      }
+    };
+    for (const f of frames) visit(f);
+    return n;
+  }, view);
+}
+
+/** What does not fit in the frames, sideways and downwards. */
+async function misfits(page: Page, selector = '.ca-demo-frame'): Promise<string[]> {
+  return [...(await overflows(page, selector)), ...(await clips(page, selector))];
+}
+
 const PAGES = docsPages();
 test('the documentation site is built, with live elements', () => {
   expect(PAGES.length, 'run `pnpm build` first').toBeGreaterThan(0);
@@ -100,7 +125,14 @@ for (const path of PAGES) {
         test.setTimeout(90_000);
         await openDocs(page, path);
         await frameAt(page, width);
-        const found = (await overflows(page, '.ca-demo-frame')).map((s) => `${s}`);
+        const found = await misfits(page);
+        // The table view of each element with a "Graph | Table" switch, then the graph again.
+        if (await showView(page, 'table')) {
+          await settle(page);
+          found.push(...(await misfits(page)).map((s) => `[table] ${s}`));
+          await showView(page, 'graph');
+          await settle(page);
+        }
         // The whole monitor: each of its tabs (a frame wider than the page may lie under the page's sidebars).
         const monitor = page.locator('.ca-demo-frame ca-monitor').first();
         if (await monitor.count()) {
@@ -111,7 +143,7 @@ for (const path of PAGES) {
             await page.waitForLoadState('networkidle');
             await settle(page);
             const name = (await tabs.nth(i).textContent())?.trim() ?? String(i);
-            found.push(...(await overflows(page, '.ca-demo-frame:has(ca-monitor)')).map((s) => `[${name}] ${s}`));
+            found.push(...(await misfits(page, '.ca-demo-frame:has(ca-monitor)')).map((s) => `[${name}] ${s}`));
           }
         }
         expect([...new Set(found)]).toEqual([]);

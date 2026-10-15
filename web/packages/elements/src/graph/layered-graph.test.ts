@@ -133,6 +133,8 @@ describe('cae-layered-graph', () => {
     await el.updateComplete;
     expect(sent.at(-1)?.detail).toEqual({ view: 'table' });
     expect([...root.querySelectorAll('table.list tbody tr')].map((r) => r.getAttribute('data-id'))).toEqual(['a', 'b', 'd']);
+    // A table wider than the host scrolls across inside its frame.
+    expect(root.querySelector('.tframe')?.getAttribute('data-scroll')).toBe('x');
   });
 
   it("draws an item's open and close control, which sends cae-toggle, and a cluster named by a path whose later parts drill", async () => {
