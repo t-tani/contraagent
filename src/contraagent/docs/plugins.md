@@ -179,6 +179,11 @@ names whatever the agent calls its arguments:
 | `replace_all` (Edit) | `replace_all` | none | `replaceAll` |
 | `command`, `pattern`, `path` (Bash, Grep, Glob), `content` (Write) | the same | the same | the same |
 
+`file_path` is an absolute path on every agent, as Claude Code passes it. omp, pi
+and opencode pass on the path the model wrote, which may be relative to the
+session's directory (`notes/a.md`); their hooks receive it resolved against that
+directory, and `~` against the home directory.
+
 The `tool` of a hook names the tool as `hooks.toml` does (`bash`, `read`, `write`,
 `edit`, `grep`, `glob`), so a `glob` hook runs on pi's and omp's `find` too.
 

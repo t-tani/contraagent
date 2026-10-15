@@ -1283,6 +1283,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A hook on omp, pi or opencode received `tool_input.file_path` as the model wrote it,
+  which may be relative to the session's directory (`notes/a.md`), where Claude Code always
+  passes an absolute path: a script matching `*/notes/*` never matched. The rendered
+  extensions and plugin resolve it (and `notebook_path`) against the session's directory,
+  and `~` against the home directory; render the plugin's hooks again.
 - The monitor read a file a contract names by a relative path from its own working
   directory: it reads it under the run's `cwd` (`run.json`), as a relay ships it.
 - The monitor did not find the call file of a task whose key has a character outside
