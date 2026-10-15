@@ -135,6 +135,7 @@ def test_a_task_with_no_recording_ends_on_an_error_that_names_it(tmp_path):
     result = played.results["write-beta"]
     assert result.stop == Stop.ERROR.value
     assert result.reason == "no recording for write-beta"
+    assert [r["key"] for r in journal(played)] == ["write-beta"]  # one attempt: a retry finds no recording either
 
 
 def test_a_key_minted_with_a_tilde_takes_the_next_recording_of_its_base(tmp_path):

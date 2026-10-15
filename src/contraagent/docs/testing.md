@@ -89,7 +89,7 @@ in CI follows the flow down the path the real outputs led to, with nothing spent
 
 A replay is a stub run (the monitor marks it "stub agent"), its run id is
 `<flow>-replay`, and `run.json` names the recordings (`replay`). A task with no
-recording ends `error` with `no recording for <key>`; a key minted with `~n` that has
+recording ends `error` with `no recording for <key>` after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change

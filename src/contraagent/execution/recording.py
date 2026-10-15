@@ -25,7 +25,7 @@ the recorded result with no cost and no tokens: nothing was spent in this run. A
 minted with `~n` that has no recording of its own plays the first recording of its base
 key after it (`summarize-alpha~3`, `summarize-alpha~4`, ... for `summarize-alpha~2`)
 that no task of this run has played. A task
-with no recording ends `error`: `no recording for <key>`. A recording made with another
+with no recording ends `error` after one attempt: `no recording for <key>`. A recording made with another
 fingerprint is played all the same; the result's reason says so.
 """
 
@@ -295,7 +295,11 @@ class Replay:
             self._playing[task.key] = playing
 
     def enrich(self, task: Task, before: None, result: TaskResult) -> None:
-        return None
+        """A task with no recording is not retried: no attempt finds one."""
+        with self._lock:
+            playing = self._playing.get(task.key)
+        if playing is not None and playing.key is None:
+            result.retryable = False
 
     def _choose(self, key: str) -> str | None:
         """The key's own recording; for a `~n` key with none, the first recording of its base
