@@ -6,7 +6,8 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, stopLabel, type ChangeKind } from '../../words/index.js';
+import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, stopLabel, type ChangeKind } from '../../words/index.js';
+import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
 import { type Tone } from '../../lib/tone.js';
@@ -126,6 +127,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
                 ${locksLabel()} ${node.claims.map((text) => pill({ text }))}
               </div>`
             : nothing}
+          ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
           ${session
             ? html`<div class="whos">
                 ${tagChips([...whoTags(who), ...identityTags(tries)])}
@@ -139,7 +141,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
           ${launches.length
             ? html`<div class="meta">${launches.length === 1 ? msg('1 agent session running') : msg(str`${launches.length} agent sessions running`)}</div>`
             : nothing}
-          ${spendLine(spendOf(rows))}
+          ${spendLine(spendOf(rows), tries)}
           ${quotaLine(c, tries)}
         </div>
       </div>
@@ -224,13 +226,21 @@ function customLine(tries: JournalRow[], extras: readonly string[]) {
   return html`<div class="whos">${tagChips(values.map(([label, value]) => ({ label, value, tip, look: 'quiet' as const })))}</div>`;
 }
 
-/** The task's spend over all its attempts: cost, then tokens. Nothing when none was reported. */
-function spendLine(s: Spend | null) {
+/**
+ * The task's spend over all its attempts: cost, then tokens, then the largest peak
+ * context of its attempts (with its share of the context limit, and its state when
+ * an attempt passed the warning threshold). Nothing when none was reported.
+ */
+function spendLine(s: Spend | null, tries: JournalRow[]) {
   if (!s) return nothing;
+  const peak = peakTry(tries);
+  const warned = tries.find((r) => r.context_warned);
   return html`<div class="spend">
     <b title=${msg('Reported by the coding agent')}>${usd(s.cost)}</b>
     <span>${msg(str`Tokens: ${tokenCount(s.input)} input, ${tokenCount(s.output)} output, ${tokenCount(s.cache_read)} cache read, ${tokenCount(s.cache_creation)} cache write`)}</span>
     <span>${s.calls === 1 ? msg('1 API call') : msg(str`${s.calls} API calls`)}</span>
+    ${peak ? html`<span title=${peakContextTip()}>${peakContextLine(peak)}</span>` : nothing}
+    ${warned ? html`<span class="tone-text" data-tone="attention" title=${contextWarnedTip()}>${contextWarnedText(warned)}</span>` : nothing}
   </div>`;
 }
 
@@ -259,6 +269,8 @@ function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, 
     correctionsOf(r),
     session && r.model ? msg(str`Model ${r.model}`) : '',
     sw ? msg(str`Model switch: ${sw}`) : '',
+    peakContextLine(r),
+    r.context_warned ? contextWarnedText(r) : '',
     reason,
     r.route || '',
     ...customValues(r, extras).map(([k, v]) => `${k}: ${v}`),

@@ -553,6 +553,11 @@ export type components = {
             required?: boolean | null;
             /** Validators */
             validators?: string[];
+            /**
+             * Preserve
+             * @description output: JSON pointers to the parts of the file the task keeps as they were (`*`: every member)
+             */
+            preserve?: string[];
             file: components["schemas"]["FileView"];
             /** Fields */
             fields: components["schemas"]["ContractField"][];
@@ -1206,6 +1211,13 @@ export type components = {
                 [key: string]: number;
             };
             changes?: components["schemas"]["Changes"] | null;
+            /** Context Budget */
+            context_budget?: number | null;
+            /**
+             * Context Warned
+             * @default false
+             */
+            context_warned?: boolean;
             /**
              * Fingerprint
              * @default
@@ -1364,6 +1376,11 @@ export type components = {
              * @default 0
              */
             wall_s?: number;
+            /**
+             * Peak Context
+             * @description peak context: the largest input of one API call of a session on it (tokens); null when none reported one
+             */
+            peak_context?: number | null;
         };
         /**
          * NoteBody
@@ -1582,6 +1599,8 @@ export type components = {
              * @description each model the run's agent sessions ran on, in order of first use
              */
             models?: components["schemas"]["ModelUsage"][];
+            /** @description what the run's preflight did (`run.json`); null when its run.json records none */
+            preflight?: components["schemas"]["Preflight"] | null;
         };
         /**
          * PlanGroup
@@ -1643,6 +1662,12 @@ export type components = {
              * @description task keys it waits for
              */
             after?: string[];
+            /**
+             * Priority
+             * @description its task call's `priority`: a tie-breaker in the queue, higher first
+             * @default 0
+             */
+            priority?: number;
             /**
              * Executor
              * @default agent
@@ -1712,6 +1737,84 @@ export type components = {
             deferred_cause?: components["schemas"]["DeferralCause"] | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * Preflight
+         * @description What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`).
+         */
+        Preflight: {
+            /**
+             * Policy
+             * @description `Pipeline(preflight=)`; `off`: no route was probed
+             * @enum {string}
+             */
+            policy: "substitute" | "stop" | "off";
+            /** Dropped */
+            dropped?: components["schemas"]["PreflightDropped"][];
+            /** Substituted */
+            substituted?: components["schemas"]["PreflightSubstitution"][];
+            /** Kept */
+            kept?: components["schemas"]["PreflightKept"][];
+            /**
+             * Stopped
+             * @description the kinds with no route left that stopped the run (policy `stop`)
+             */
+            stopped?: string[];
+        };
+        /**
+         * PreflightDropped
+         * @description A route the preflight dropped (`DroppedRoute`).
+         */
+        PreflightDropped: {
+            /** Agent */
+            agent: string;
+            /**
+             * Model
+             * @description empty: the coding agent's default model
+             */
+            model: string;
+            /** Credential */
+            credential: string;
+            /**
+             * Reason
+             * @description not in its coding agent's model list, or how its probe ended (`rate limited`, ...)
+             */
+            reason: string;
+            /**
+             * Kinds
+             * @description the kinds whose chain held it
+             */
+            kinds: string[];
+        };
+        /**
+         * PreflightKept
+         * @description A kind with no route left, run as configured all the same (`KeptKind`).
+         */
+        PreflightKept: {
+            /** Kind */
+            kind: string;
+            /** Agent */
+            agent: string;
+            /** Model */
+            model: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * PreflightSubstitution
+         * @description A kind with no route left, run on the first route that answered (`Substitution`).
+         */
+        PreflightSubstitution: {
+            /** Kind */
+            kind: string;
+            /** From Agent */
+            from_agent: string;
+            /** From Model */
+            from_model: string;
+            /** To Agent */
+            to_agent: string;
+            /** To Model */
+            to_model: string;
         };
         /**
          * ProcNode
@@ -1994,10 +2097,16 @@ export type components = {
             started_at: string;
             /**
              * Stub
-             * @description a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)
+             * @description a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)
              * @default false
              */
             stub?: boolean;
+            /**
+             * Replay
+             * @description a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise
+             * @default
+             */
+            replay?: string;
             /**
              * Row Extras
              * @description the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
@@ -2242,6 +2351,16 @@ export type components = {
             /** Validators */
             validators?: string[];
             /**
+             * Preserve
+             * @description agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)
+             */
+            preserve?: string[];
+            /**
+             * Output Of
+             * @description agent task: the kind whose output file it writes (`agent_task(output_of=)`)
+             */
+            output_of?: string | null;
+            /**
              * Tools
              * @description agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows
              */
@@ -2273,6 +2392,16 @@ export type components = {
              * @description Python task: the function's first line in `file`
              */
             line?: number | null;
+            /**
+             * Retries
+             * @description Python task: the fresh attempts after the first, each after an exception of `retry_on` (`@python_task(retries=)`)
+             */
+            retries?: number | null;
+            /**
+             * Retry On
+             * @description Python task: the exception classes that give an attempt a fresh one
+             */
+            retry_on?: string[] | null;
         } & {
             [key: string]: unknown;
         };
@@ -2447,6 +2576,8 @@ export type components = {
             calls?: number;
             /** Resident */
             resident?: number | null;
+            /** Peak Context */
+            peak_context?: number | null;
         } & {
             [key: string]: unknown;
         };

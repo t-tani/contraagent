@@ -134,7 +134,8 @@ qualified name alone opens its layer when the run reaches it one way only.
 The words on screen are the reader's, not the code's: a task's `Outcome` is its
 status, an attempt's `stop` its outcome, a round after failed checks a
 correction, a failover a model switch, the `ambient` credential "default (this
-machine's login)". A colour means a status, and only where it applies: red
+machine's login)", a route the preflight dropped an unavailable model and a kind it
+substituted a model replaced, an attempt's `peak_context` its peak context. A colour means a status, and only where it applies: red
 failed, amber not started (or a limit near), green done (in marks and small
 chips), cyan running; totals, cost, tokens and time are in the text colour, and
 a count of a problem is coloured only above 0. A status also has a shape (✓ ✕ ◌,

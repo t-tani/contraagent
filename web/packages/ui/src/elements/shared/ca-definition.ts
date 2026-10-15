@@ -6,6 +6,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight, mdFile } from '@contraagent/elements/markdown';
 import { instructionsHtml, markInstructions } from '../../words/prompt.js';
 import { facts as row } from '../../words/format.js';
+import { outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText, retriesTip } from '../../words/task-definition.js';
 import { RememberedSet } from '../../core/memory.js';
 import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
@@ -79,6 +80,10 @@ export class CaDefinition extends LitElement {
     }
     if (def.executor === 'python') return this.python(def);
     const dirs = def.plugin_dirs || [];
+    const output = def.output_from === 'message'
+      ? row(def.output || '', msg('from the final message', { desc: "The task's output is the agent's last message of a session" }))
+      : def.output || '';
+    const preserve = def.preserve ?? [];
     const facts: [string, string | TemplateResult][] = [
       [msg('Role'), def.role || msg('none', { id: 'none', desc: 'An empty value' })],
       [
@@ -88,10 +93,13 @@ export class CaDefinition extends LitElement {
       [msg('Parameters'), def.params || msg('none', { id: 'none', desc: 'An empty value' })],
       [
         msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }),
-        def.output_from === 'message'
-          ? row(def.output || '', msg('from the final message', { desc: "The task's output is the agent's last message of a session" }))
-          : def.output || msg('none', { id: 'none', desc: 'An empty value' }),
+        def.output_of
+          ? html`<span title=${outputOfTip()}>${row(output, outputOfText(def.output_of))}</span>`
+          : output || msg('none', { id: 'none', desc: 'An empty value' }),
       ],
+      ...(preserve.length
+        ? [[preserveLabel(), html`<span class="jmono" title=${preserveTip()}>${preserve.join(', ')}</span>`] as [string, TemplateResult]]
+        : []),
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
       ...(Array.isArray(def.tools) && def.tools.length === 0
         ? [[msg('Tools', { desc: "The coding agent's tools in a task definition" }), msg('none', { id: 'none', desc: 'An empty value' })] as [string, string]]
@@ -121,10 +129,15 @@ export class CaDefinition extends LitElement {
     const src = (def.files || []).find((f) => f.part === 'source');
     const first = def.line ?? 1;
     const lines = src ? src.text.replace(/\n$/, '').split('\n').length : 0;
-    const facts: [string, string][] = [
+    const retryOn = def.retry_on ?? [];
+    const facts: [string, string | TemplateResult][] = [
       [msg('Parameters'), def.params && def.params !== 'none' ? def.params : msg('none', { id: 'none', desc: 'An empty value' })],
       [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output && def.output !== 'none' ? def.output : msg('none', { id: 'none', desc: 'An empty value' })],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
+      ...(def.retries ? [[retriesLabel(), html`<span title=${retriesTip()}>${retriesText(def.retries)}</span>`] as [string, TemplateResult]] : []),
+      ...(def.retries && retryOn.length
+        ? [[retriedExceptionsLabel(), html`<span class="jmono" title=${retriedExceptionsTip()}>${retryOn.join(', ')}</span>`] as [string, TemplateResult]]
+        : []),
     ];
     return html`${def.signature
         ? html`<div class="py-sig hl">${unsafeHTML(highlight(`def ${def.signature}`, 'python'))}</div>`

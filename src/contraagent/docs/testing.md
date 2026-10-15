@@ -87,7 +87,7 @@ run as in any run, and it reports no cost and no tokens. Python tasks run their
 functions: they are the pipeline's own code, which is what a replay tests. So a replay
 in CI follows the flow down the path the real outputs led to, with nothing spent.
 
-A replay is a stub run (the monitor marks it "stub agent"), its run id is
+A replay is a stub run (the monitor marks it "replay" and names its recordings), its run id is
 `<flow>-replay`, and `run.json` names the recordings (`replay`). A task with no
 recording ends `error` with `no recording for <key>` after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has

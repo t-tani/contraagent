@@ -4369,8 +4369,14 @@
           "stub": {
             "type": "boolean",
             "title": "Stub",
-            "description": "a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
+            "description": "a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
             "default": false
+          },
+          "replay": {
+            "type": "string",
+            "title": "Replay",
+            "description": "a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise",
+            "default": ""
           },
           "row_extras": {
             "items": {

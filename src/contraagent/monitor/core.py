@@ -398,6 +398,7 @@ class Monitor:
                     "run_uid": info.get("run_uid", ""),
                     "started_at": info.get("started_at", ""),
                     "stub": info.get("stub") is True,
+                    "replay": info.get("replay") if isinstance(info.get("replay"), str) else "",
                     "row_extras": list(extras),
                 }
             )

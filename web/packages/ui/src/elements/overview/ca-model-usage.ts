@@ -9,13 +9,16 @@ import { shareBar, shareBarStyles } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
 import { modelRows, shareParts } from '../../adapters/model-shares.js';
 import { measureLabel, measureText, measureTip } from '../../words/models.js';
+import { peakContextLabel, peakContextTip } from '../../words/context.js';
+import { tokenCount } from '../../words/format.js';
 
 const COLUMNS: readonly ModelMeasure[] = ['cost', 'tokens', 'time', 'sessions'];
 
 /**
  * What each model was used for in a run (`Plan.models`): the share of each model in
  * the chosen measure (cost, tokens, time or agent sessions) as one bar, and a table
- * of every model with its share and every measure. A model keeps its colour, and
+ * of every model with its share and every measure, and its peak context when
+ * a session on it reported one. A model keeps its colour, and
  * its place, in the order it was first used, whatever the measure; past six models
  * the later ones share one colour as "Other models".
  */
@@ -63,6 +66,7 @@ export class CaModelUsage extends LitElement {
     const measure = this.chosen();
     const have = modelMeasures(this.models);
     const rows = modelRows(this.models, measure);
+    const peaks = this.models.some((m) => m.peak_context != null);
     return html`${have.length > 1
         ? html`<div class="head">
             <cae-segmented label=${msg('Measure')} .value=${measure}
@@ -79,6 +83,7 @@ export class CaModelUsage extends LitElement {
               <th scope="col" class="on" title=${measureLabel(measure)}>${msg('Share')}</th>
               ${COLUMNS.map((c) => html`<th scope="col" class=${c === measure ? 'on' : nothing} title=${measureTip(c)}>${measureLabel(c)}</th>`)}
               <th scope="col">${msg('API calls')}</th>
+              ${peaks ? html`<th scope="col" title=${peakContextTip()}>${peakContextLabel()}</th>` : nothing}
             </tr>
           </thead>
           <tbody>
@@ -92,6 +97,7 @@ export class CaModelUsage extends LitElement {
                 <td class="share">${r.share}</td>
                 ${COLUMNS.map((c) => html`<td class=${c === measure ? 'on' : nothing}>${measureText(r.usage, c)}</td>`)}
                 <td>${r.usage.calls ?? 0}</td>
+                ${peaks ? html`<td>${r.usage.peak_context != null ? tokenCount(r.usage.peak_context) : '—'}</td>` : nothing}
               </tr>`,
             )}
           </tbody>

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The monitor shows the new run data: a task's priority (when not 0) in its header and in
+  the tasks list; an attempt's peak context with its share of the context limit (history
+  tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak
+  context column in the models of a run and of the trends; the run's preflight in the run
+  card ("Model availability": unavailable models, replaced models, kinds with no available
+  model, and a run it ended before the first agent session); a replay's mark "replay" with
+  its recordings in place of "stub agent" (`RunSummary.replay`); a Python task's retries and
+  retried exceptions, an agent task's `output_of` and the JSON pointers it must keep
+  unchanged (`preserve`) in its definition and its checked output file.
 - Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
   one of several toolsets, each a kind of its own with its own plugin and the same output
   schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.

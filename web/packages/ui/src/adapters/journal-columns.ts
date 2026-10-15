@@ -12,6 +12,7 @@ import { facts, fmtDur, kindUnit, localTime, sentence, tokenCount, unreadEvents,
 import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwitch, notStartedCause, outcomeLabel, stopLabel } from '../words/index.js';
 import { accountReading, readingShort } from '../words/quota.js';
 import { customColumnTip, customValue } from '../words/row-extras.js';
+import { contextWarnedText, contextWarnedTip, peakContextLine } from '../words/context.js';
 import { attemptFacts } from './filters.js';
 
 export interface JournalColumnsContext {
@@ -59,7 +60,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
 
   /**
    * What the reason column says: the model switch, then (for a row that failed
-   * or never ran) the reason, run-relative, then the attempt that later did the task.
+   * or never ran) the reason, run-relative, then the attempt that later did the task,
+   * then its peak context when it passed the warning threshold of the context limit.
    */
   const reason = (e: JournalRow) => {
     const ran = isLaunched(e);
@@ -70,9 +72,12 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
     const why = cause ? sentence(cause) : (!e.ok || !ran) && e.reason ? runRelative(e.reason, run) : '';
     const n = laterTry(e);
     const later = n ? msg(str`The task was done on attempt ${n}`) : '';
-    if (!sw && !why && !later) return html`<span class="jdim">—</span>`;
+    const warned = e.context_warned ? contextWarnedText(e) : '';
+    if (!sw && !why && !later && !warned) return html`<span class="jdim">—</span>`;
     return html`${sw ? html`<span class="nw" title=${msg('Model switch')}>${sw}</span><br />` : nothing}${why ? html`${why}<br />` : nothing}${later
-      ? html`<span class="later">${later}</span>`
+      ? html`<span class="later">${later}</span>${warned ? html`<br />` : nothing}`
+      : nothing}${warned
+      ? html`<span class="tone-text" data-tone="attention" title=${[contextWarnedTip(), peakContextLine(e)].filter(Boolean).join('\n')}>${warned}</span>`
       : nothing}`;
   };
 
@@ -139,7 +144,8 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       width: '92px',
       cell: (e) => {
         const u = e.usage;
-        const first = u?.resident != null ? msg(str`Input of the first API call: ${tokenCount(u.resident)}`) : nothing;
+        const tip = [u?.resident != null ? msg(str`Input of the first API call: ${tokenCount(u.resident)}`) : '', peakContextLine(e)].filter(Boolean).join('\n');
+        const first = tip || nothing;
         return html`<span class="two" title=${first}>${u
           ? html`<span>${tokenCount(u.input)} / ${tokenCount(u.output)}</span><span class="sub">${tokenCount(u.cache_read)} / ${tokenCount(u.cache_creation)}</span>`
           : html`<span class="jdim">—</span>`}</span>`;

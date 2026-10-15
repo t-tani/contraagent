@@ -162,7 +162,11 @@ class RunSummary(Closed):
     host_id: str = Field("", description="the host that drives it; empty when its run.json does not say")
     run_uid: str = Field("", description="the id no other run has, on any host; empty when its run.json does not say")
     started_at: str
-    stub: bool = Field(False, description="a stub run: the stub agent played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)")
+    stub: bool = Field(
+        False,
+        description="a stub run: the stub agent, or a replay's recordings, played its tasks (`Pipeline(stub=)`, `contraagent run --stub`)",
+    )
+    replay: str = Field("", description="a replay: the directory of the recordings it played (`Pipeline(replay=)`); empty otherwise")
     row_extras: list[str] = Field(
         default_factory=list,
         description="the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear",

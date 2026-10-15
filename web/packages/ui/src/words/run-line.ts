@@ -39,3 +39,16 @@ export const stubLabel = (): string => msg('stub agent', { desc: 'A run whose ta
 
 /** What a stub run's mark means, for its tooltip. */
 export const stubTip = (): string => msg('A run whose tasks the stub agent played with scripted replies, not a model (stub)');
+
+/** A replay's mark (`RunSummary.replay`): its agent tasks played their recordings. */
+export const replayLabel = (): string => msg('replay', { desc: 'A run whose agent sessions were played from the recordings of an earlier run' });
+
+/** What a replay's mark means, for its tooltip: where its recordings are. */
+export const replayTip = (dir: string): string => msg(str`Agent sessions played from the recordings in ${dir} (replay)`);
+
+/** The mark beside a run's name: a replay, else a stub run; null for a run of coding agents. */
+export function runMark(r: Pick<RunSummary, 'stub' | 'replay'> | undefined): { text: string; title: string } | null {
+  if (r?.replay) return { text: replayLabel(), title: replayTip(r.replay) };
+  if (r?.stub) return { text: stubLabel(), title: stubTip() };
+  return null;
+}

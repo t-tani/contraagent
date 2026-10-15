@@ -5,6 +5,7 @@ import { credentialLabel } from '../words/credential.js';
 import { fmtDur, tokenCount, usd } from '../words/format.js';
 import { accountLabel, windowName } from '../words/quota.js';
 import { deferredText } from '../words/rests.js';
+import { peakContextLabel, peakContextTip } from '../words/context.js';
 import { stopLabel } from '../words/stop.js';
 import { dayLabel, modelName, passedShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
 
@@ -144,6 +145,9 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
           { id: 'cache_write', label: w.cacheWrite, align: 'end', format: 'tokens' },
           { id: 'cost', label: w.cost, align: 'end', format: 'usd', bar: true },
           { id: 'wall', label: w.time, align: 'end', format: 'duration' },
+          ...(t.models.some((m) => m.peak_context != null)
+            ? [{ id: 'peak', label: peakContextLabel(), align: 'end' as const, format: 'tokens' as const, tip: peakContextTip() }]
+            : []),
         ],
         rows: t.models.map((m) => ({
           model: modelName(m.agent, m.model),
@@ -155,6 +159,7 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
           cache_write: m.cache_creation,
           cost: m.cost_usd,
           wall: m.wall_s,
+          peak: m.peak_context ?? null,
         })),
       },
     });

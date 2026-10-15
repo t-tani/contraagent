@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from contraagent import Pipeline, PipelineConfig, Stop, agent_task, python_task
 from contraagent.cli import main
 from contraagent.execution.recording import RecordingError, base_key
+from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent, fails
 
 
@@ -182,3 +183,13 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert main([*args, "--replay", "rec", "--stub"]) == 2
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
     assert main([*args, "--replay", "rec", "--execute", "count"]) == 2
+
+
+def test_the_monitor_names_a_replay_and_its_recordings(tmp_path):
+    live = record(tmp_path)
+    played = replay(tmp_path)
+    runs = {r["run"]: r for r in Monitor(tmp_path / "replay-runs").runs()}
+    assert runs[played.run_id]["stub"] is True
+    assert runs[played.run_id]["replay"] == str((tmp_path / "rec").resolve())
+    assert {r["replay"] for r in Monitor(tmp_path / "runs").runs()} == {""}
+    assert live.ok

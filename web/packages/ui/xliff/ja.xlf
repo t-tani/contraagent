@@ -2916,6 +2916,134 @@
   <target>全体</target>
   <note from="lit-localize">The trends page's first tab: what the runs of the period add up to, beside the tabs of the custom views</note>
 </trans-unit>
+<trans-unit id="s32d229c81273f461">
+  <source>Peak context</source>
+  <target>最大コンテキスト</target>
+</trans-unit>
+<trans-unit id="s9aa7daedb08fe44c">
+  <source>Largest input of one API call, cache read and cache write included (peak_context)</source>
+  <target>API 呼び出し 1 回あたりの入力の最大値。キャッシュ読み込みとキャッシュ書き込みを含む（peak_context）</target>
+</trans-unit>
+<trans-unit id="s90c019209e60c5f4">
+  <source><x id="0" equiv-text="${share}"/>% of the context limit <x id="1" equiv-text="${tokenCount(budget)}"/></source>
+  <target>コンテキストの上限 <x id="1" equiv-text="${tokenCount(budget)}"/> の <x id="0" equiv-text="${share}"/>%</target>
+</trans-unit>
+<trans-unit id="s29b6d46649a71377">
+  <source>Peak context: <x id="0" equiv-text="${peakContextText(peak, r.context_budget)}"/></source>
+  <target>最大コンテキスト: <x id="0" equiv-text="${peakContextText(peak, r.context_budget)}"/></target>
+</trans-unit>
+<trans-unit id="sb9724d1e7908c74c">
+  <source>near the context limit</source>
+  <target>コンテキストの上限に接近</target>
+</trans-unit>
+<trans-unit id="se7e80ddfa3d91161">
+  <source>Peak context past the warning threshold of the context limit (context_warned)</source>
+  <target>最大コンテキストがコンテキストの上限の警告しきい値を超えた（context_warned）</target>
+</trans-unit>
+<trans-unit id="s2cd5d653677e6881">
+  <source>Model availability</source>
+  <target>モデルの利用可否</target>
+</trans-unit>
+<trans-unit id="s7bf5f3e3a3edb692">
+  <source>One request to each model before the first agent session (preflight, policy <x id="0" equiv-text="${policy}"/>)</source>
+  <target>最初のエージェントのセッションの前に各モデルへ送る 1 回のリクエスト（preflight, policy <x id="0" equiv-text="${policy}"/>）</target>
+</trans-unit>
+<trans-unit id="saf22f44cf04dd069">
+  <source>all models available</source>
+  <target>すべてのモデルが利用可能</target>
+</trans-unit>
+<trans-unit id="s3d385c147f2093cd">
+  <source>identity <x id="0" equiv-text="${credentialLabel(d.credential)}"/></source>
+  <target>認証情報 <x id="0" equiv-text="${credentialLabel(d.credential)}"/></target>
+</trans-unit>
+<trans-unit id="s1b20c3bebd6687ca">
+  <source>kinds <x id="0" equiv-text="${listText(d.kinds)}"/></source>
+  <target>種別 <x id="0" equiv-text="${listText(d.kinds)}"/></target>
+</trans-unit>
+<trans-unit id="s58b93f08d1a1511a">
+  <source>Model replaced</source>
+  <target>モデルの置き換え</target>
+</trans-unit>
+<trans-unit id="s7cd9d465adbc0e28">
+  <source>A kind with no available model, run on the first model that answered (substitute)</source>
+  <target>利用できるモデルがなく、最初に応答したモデルで実行する種別（substitute）</target>
+</trans-unit>
+<trans-unit id="s19785bbda7e548bc">
+  <source>No available model</source>
+  <target>利用できるモデルなし</target>
+</trans-unit>
+<trans-unit id="s3d3177b6f17c2225">
+  <source>A kind with no available model, run on its own model (kept)</source>
+  <target>利用できるモデルがなく、設定どおりのモデルで実行する種別（kept）</target>
+</trans-unit>
+<trans-unit id="s09459a62b70ff1a2">
+  <source>Ended before the first agent session</source>
+  <target>最初のエージェントのセッションの前に終了</target>
+</trans-unit>
+<trans-unit id="sac76f55d909ff9fd">
+  <source>No available model for <x id="0" equiv-text="${listText(kinds)}"/></source>
+  <target><x id="0" equiv-text="${listText(kinds)}"/> に利用できるモデルなし</target>
+</trans-unit>
+<trans-unit id="scd9ce582cd9e0daf">
+  <source>Priority <x id="0" equiv-text="${p}"/></source>
+  <target>優先度 <x id="0" equiv-text="${p}"/></target>
+</trans-unit>
+<trans-unit id="s9362fa3215c4475c">
+  <source>Tie-breaker in the queue's order (priority)</source>
+  <target>キュー内で同順位のタスクの順序を決める値（priority）</target>
+</trans-unit>
+<trans-unit id="sbe4c836868862bb2">
+  <source>Agent sessions played from the recordings in <x id="0" equiv-text="${dir}"/> (replay)</source>
+  <target><x id="0" equiv-text="${dir}"/> の記録から再生したエージェントのセッション（replay）</target>
+</trans-unit>
+<trans-unit id="s11336c749ccd6f69">
+  <source>Attempts after the first (retries)</source>
+  <target>初回の後の試行（retries）</target>
+</trans-unit>
+<trans-unit id="sc077f054c21331e6">
+  <source>Retried exceptions</source>
+  <target>リトライ対象の例外</target>
+</trans-unit>
+<trans-unit id="s6fc5b5c330b47565">
+  <source>Exception classes after which an attempt is retried (retry_on)</source>
+  <target>発生すると次の試行に移る例外クラス（retry_on）</target>
+</trans-unit>
+<trans-unit id="s64f4ede4c120d468">
+  <source>Must stay unchanged</source>
+  <target>変更禁止の箇所</target>
+</trans-unit>
+<trans-unit id="s2a835f6d5f9c9bbe">
+  <source>JSON pointers to the parts of the output file that must be equal before and after the task (preserve)</source>
+  <target>出力ファイルのうち、タスクの前後で同じ値でなければならない箇所を指す JSON ポインター（preserve）</target>
+</trans-unit>
+<trans-unit id="s159092615f5a1338">
+  <source>The kind whose output file this task writes (output_of)</source>
+  <target>このタスクが代わりに出力ファイルを書く種別（output_of）</target>
+</trans-unit>
+<trans-unit id="s43e9aef7aa01fca9">
+  <source>Unavailable</source>
+  <target>利用不可</target>
+  <note from="lit-localize">A model that did not answer the request before the run</note>
+</trans-unit>
+<trans-unit id="sa4f4addc6a836fcf">
+  <source>up to <x id="0" equiv-text="${n}"/></source>
+  <target>最大 <x id="0" equiv-text="${n}"/> 回</target>
+  <note from="lit-localize">A number of retries</note>
+</trans-unit>
+<trans-unit id="s93e4cd644f65cef2">
+  <source>replay</source>
+  <target>リプレイ</target>
+  <note from="lit-localize">A run whose agent sessions were played from the recordings of an earlier run</note>
+</trans-unit>
+<trans-unit id="s9c5f040496c9716b">
+  <source>output of <x id="0" equiv-text="${kind}"/></source>
+  <target><x id="0" equiv-text="${kind}"/> の出力</target>
+  <note from="lit-localize">Another kind's output file that this task writes</note>
+</trans-unit>
+<trans-unit id="sb594f8019b3bf708">
+  <source>near the context limit (<x id="0" equiv-text="${Math.round((100 * peak) / budget)}"/>%)</source>
+  <target>コンテキストの上限に接近（<x id="0" equiv-text="${Math.round((100 * peak) / budget)}"/>%）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

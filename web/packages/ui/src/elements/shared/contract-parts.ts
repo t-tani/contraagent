@@ -6,6 +6,7 @@ import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { facts, localTime } from '../../words/format.js';
 import { contractStatusLabel, contractStatusWhy } from '../../words/contract.js';
+import { preserveLabel, preserveTip } from '../../words/task-definition.js';
 import { statusChip } from '@contraagent/elements/primitives';
 import { verdict, verdictStyles } from '@contraagent/elements/check-table';
 import '@contraagent/elements/check-table/define';
@@ -108,6 +109,9 @@ export function fileConditions(o: ContractSpec, role: 'input' | 'output'): Templ
           [msg('Format'), format],
           ...(checks ? [[msg('Other checks'), checks, msg('Checks beyond the schema (validators)')] as [string, unknown, string]] : []),
           [msg('Must be written during the task'), o.fresh ? msg('yes') : msg('no'), o.fresh ? msg('A file from before the task does not count') : msg('A file from before the task counts')],
+          ...(o.preserve?.length
+            ? [[preserveLabel(), html`<span class="jmono">${o.preserve.join(', ')}</span>`, preserveTip()] as [string, unknown, string]]
+            : []),
         ]
       : [
           [msg('Format'), format],

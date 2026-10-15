@@ -103,6 +103,13 @@ there: one word, one meaning, on every screen. Japanese follows
 | trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
 | a tab of the Trends page (`Panel.tab`, route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
 | a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
+| a task's `priority` (`PlanNode.priority`), only when not 0 | Priority 2; tooltip: Tie-breaker in the queue's order (priority) | 優先度 2 |
+| peak context (`usage.peak_context`, `ModelUsage.peak_context`), `context_budget`, `context_warned` | Peak context: 142k \| 71% of the context limit 200k; near the context limit (91%) | 最大コンテキスト; コンテキストの上限; コンテキストの上限に接近（91%） |
+| the preflight (`Plan.preflight`): its `dropped`, `substituted`, `kept`, `stopped` | Model availability: all models available; Unavailable; Model replaced: `kind` \| `a / m` → `a / m`; No available model; Ended before the first agent session | モデルの利用可否; すべてのモデルが利用可能; 利用不可; モデルの置き換え; 利用できるモデルなし; 最初のエージェントのセッションの前に終了 |
+| a replay (`RunSummary.replay`), the mark beside the run's name in place of "stub agent" | replay; tooltip: Agent sessions played from the recordings in `dir` (replay) | リプレイ |
+| a Python task's `retries`, `retry_on` | Retries: up to 2; Retried exceptions | リトライ: 最大 2 回; リトライ対象の例外 |
+| `preserve` (a task definition's, an output contract's) | Must stay unchanged | 変更禁止の箇所 |
+| `output_of` (a task definition's) | Output: `path` \| output of `kind` | `kind` の出力 |
 
 The UI states facts about the run; it never narrates what the monitor or
 contraagent does, will do, or lets the reader do. No "checked once", "the agent
