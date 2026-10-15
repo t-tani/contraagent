@@ -1,9 +1,10 @@
 # Guide
 
-contraagent's API is newer than any LLM's training data: read the topic before
-writing the code, and check what you wrote with `contraagent check`. The
-[tutorial](tutorial.md) builds a pipeline step by step; this page is the short
-form, with the decisions and the pitfalls.
+This page is for the one who writes a pipeline: usually a coding agent that a
+person asked for it. contraagent's API is newer than any model's training data, so
+read the topic before writing the code, and check what you wrote with
+`contraagent check`. The [tutorial](tutorial.md) builds a pipeline step by step.
+This page is the short form, with the decisions and the pitfalls.
 
 A pipeline has three parts: the **interface** of each task, in Python; the
 **implementation** of each agent task, a plugin the coding agent loads itself;
@@ -39,11 +40,13 @@ for another port).
 7. **Check.** `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`
    until it prints ✓. → [Checking and testing](testing.md)
 8. **Test.** The flow on `contraagent.testing.StubAgent`, in pytest. → [Checking and testing](testing.md)
-9. **Run.** `contraagent run` with the arguments `check` took (`--run-id`, `--resume`
+9. **Run.** A run on the coding agents spends tokens, so the person who asked for
+   the pipeline starts it, unless they ask the agent to. `contraagent run` takes the
+   arguments `check` took (`--run-id`, `--resume`
    to continue one), or `Pipeline(config).run(flow, ...)` from a program for what a
    command line cannot pass: a journal column (`row_extras`), a `quota_rule`, scopes,
-   enrichers, its own backends, `env` (`examples/runner/run.py` lists them). Watch it in the
-   monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
+   enrichers, its own backends, `env` (`examples/runner/run.py` lists them). The person
+   watches it in the monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
 
 ## Decisions
 

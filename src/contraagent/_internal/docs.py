@@ -25,11 +25,25 @@ INDEX = DIR / "README.md"
 POINTER = """\
 ## contraagent
 
-This project uses contraagent. Its documentation matches the installed version:
-`contraagent docs` prints the index, `contraagent docs <topic>` a topic, and
-`contraagent docs --path` where the docs and the examples are. Read them before
-writing or changing a pipeline; `contraagent check` checks a flow without
-launching anything.
+This project uses contraagent to run coding-agent tasks as a Python pipeline. Its
+documentation is installed with the package and matches the installed version. The
+documentation, the docstrings of the public API and the messages of
+`contraagent check` hold every fact that a pipeline needs, so contraagent's source
+code is not needed.
+
+- `contraagent docs` prints the index, with the order in which to read the topics.
+  `contraagent docs <topic>` prints one topic. Read `guide`, then `tutorial`.
+  `contraagent docs --path` prints where the documentation and its examples are.
+- contraagent's API is newer than your training data. Read the topic before you
+  write or change the code.
+- Check your work in this order, which launches no coding agent and spends nothing.
+  First, `contraagent check <file>:<flow> --kwargs '{...}'` until it prints ✓.
+  Second, a stub run, `contraagent run <file>:<flow> --stub --kwargs '{...}'`.
+  Third, tests of the flow on `contraagent.testing.StubAgent` in pytest
+  (`contraagent docs testing`).
+- A run on the coding agents (`contraagent run <file>:<flow> --config pipeline.toml`)
+  spends tokens. The person who asked for the pipeline starts it, unless they ask you
+  to, and watches it in `contraagent monitor`.
 """
 
 _ENTRY = re.compile(r"^- \[(?P<title>[^\]]+)\]\((?P<file>[\w./-]+\.md)\): (?P<summary>.+)$")

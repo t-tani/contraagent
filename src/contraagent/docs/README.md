@@ -34,10 +34,12 @@ of task, and the same task, plugin and config run on all five coding agents.
 `contraagent check` reports every problem and launches nothing. A stub agent, stub
 runs (runs that launch no coding agent) and recorded replays test a flow without
 spending anything. The read-only [monitor](monitor.md) shows each run, and a
-[hub](hub.md) serves the runs of many hosts in one monitor. A coding agent can write
-these pipelines too: this documentation is installed with the package
-(`contraagent docs`), and `contraagent docs --pointer` points a project's coding
-agent to it.
+[hub](hub.md) serves the runs of many hosts in one monitor.
+
+A person asks a coding agent for a pipeline, and the agent writes it from this
+documentation. The documentation is written for that agent. It, the docstrings of
+the public API and the messages of `contraagent check` hold every fact that a
+pipeline needs, so the agent needs no source code of contraagent.
 
 ## Install
 
@@ -55,32 +57,67 @@ From a wheel or a checkout of the repository, name it in place of the package:
 `uv add --editable <checkout> --extra monitor`. `contraagent --version` prints the
 version installed.
 
-## The main path
+## Start
 
-1. `tasks.py`: the pydantic models, the agent tasks (`agent_task`), the Python
-   tasks (`@python_task`) and the flow, a plain function that calls them.
-2. `contraagent plugin new plugins/<name>`: the plugin that holds how the coding
-   agent does each agent task, a role per kind.
-3. `contraagent check tasks.py:<flow> --kwargs '{...}'`: every problem, before
-   anything launches; then `contraagent run ... --stub`, the whole flow on a stub agent.
-4. `contraagent run tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`: the run,
-   on the coding agent and model `pipeline.toml` names for each kind
-   (`--agent <name>` runs every kind on another one).
-5. `contraagent monitor --runs-dir runs`: the run, live, in a browser.
+Point your project's coding agent to this documentation, and ask it for the
+pipeline. `contraagent docs --pointer` prints a short block for the instruction file
+that the agent reads. Add the block to that file yourself, for example with
+`contraagent docs --pointer >> AGENTS.md` (Claude Code reads `CLAUDE.md`).
+contraagent does not write into your project. Then ask for the pipeline in plain
+words, with any of the five coding agents:
 
-The [tutorial](tutorial.md) takes these steps from an empty directory.
+```text
+Use contraagent to write a pipeline that reviews each module in src/ and writes a
+JSON report per module with its findings. Check it with `contraagent check` and test
+it with a stub run.
+```
+
+The agent checks its work, and that spends nothing. You run the pipeline on the
+coding agents and watch it in the monitor.
+
+## For the coding agent that writes the pipeline
+
+contraagent's API is newer than your training data. Read the topic before you write
+the code, in this order:
+
+1. [Guide](guide.md): the parts of a pipeline, the steps, the decisions and the
+   pitfalls.
+2. [Tutorial](tutorial.md): one pipeline built step by step. Its finished code is in
+   `examples/tutorial/` (`contraagent docs --path` prints where).
+3. [Tasks and flows](tasks.md), when you declare the tasks and write the flow.
+4. [Contracts and validators](contracts.md), when you write the output models and
+   their checks.
+5. [Plugins](plugins.md), when you write each agent task's role
+   (`contraagent plugin new plugins/<name>`, then `contraagent plugin lint`).
+6. [Routing and credentials](routing.md), when you write `pipeline.toml`.
+7. [Checking and testing](testing.md), when you check and test the pipeline.
+
+[Concepts](concepts.md) defines each word that these topics use. Check your work with
+these steps, which launch no coding agent and spend nothing:
+
+1. `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`, until
+   it prints ✓. Each problem names the topic that explains it.
+2. `contraagent run tasks.py:<flow> --stub --kwargs '{...}'`, a stub run of the whole
+   flow. It lists the tasks that the flow created.
+3. Tests of the flow on `contraagent.testing.StubAgent` in pytest, which run the
+   real checks, correction rounds and failover with scripted replies.
+
+A run on the coding agents (`contraagent run tasks.py:<flow> --config pipeline.toml
+--kwargs '{...}'`) spends tokens. The person who asked for the pipeline starts it,
+unless they ask you to, and watches it with `contraagent monitor --runs-dir runs`.
 
 ## Documentation
 
 The documentation is installed with the package and matches its version:
 `contraagent docs` prints this index, `contraagent docs <topic>` a topic, and
 `contraagent docs --path` where they are. `contraagent docs --pointer` prints a
-block that points a coding agent at them, for the instruction file it reads
-(`contraagent docs --pointer >> AGENTS.md`; Claude Code reads `CLAUDE.md`).
+block for the instruction file that a coding agent reads, and the person who uses
+the agent adds it there (`contraagent docs --pointer >> AGENTS.md`; Claude Code
+reads `CLAUDE.md`).
 A `::code` line in these files quotes a file of the package; `contraagent docs`
 and the documentation site print the quoted lines in place.
 
-- [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test. Start here.
+- [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test.
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
 - [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks, the flow, flows that depend on results, time boxes, claims, files a task changes, scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
