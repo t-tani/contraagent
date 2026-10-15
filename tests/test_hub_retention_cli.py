@@ -20,6 +20,8 @@ import pytest
 pytest.importorskip("fastapi")
 
 from contraagent import rundir
+from contraagent.cli import main as cli_main
+from contraagent.commandline import UsageError
 from contraagent.hub import server
 from contraagent.hub.core import Hub, PruneReport
 from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
@@ -52,7 +54,7 @@ def heartbeat(store: MemoryHubStore, host: str, at: datetime, alive: list[str]) 
 
 
 def _days(flag, environ):
-    return server.retain_days(argparse.ArgumentParser(), flag, environ)
+    return server.retain_days(flag, environ)
 
 
 def test_retain_days_come_from_the_flag_then_the_environment_and_default_to_keeping_everything():
@@ -64,7 +66,7 @@ def test_retain_days_come_from_the_flag_then_the_environment_and_default_to_keep
 
 
 def test_retain_days_that_are_not_a_positive_number_are_refused():
-    with pytest.raises(SystemExit):
+    with pytest.raises(UsageError, match=server.RETENTION_ENV):
         _days(server._UNSET, {server.RETENTION_ENV: "thirty"})
     for bad in ("0", "-1", "x"):
         with pytest.raises(argparse.ArgumentTypeError):
@@ -83,7 +85,7 @@ def test_prune_every_needs_a_retention(tmp_path, monkeypatch):
     monkeypatch.delenv(server.RETENTION_ENV, raising=False)
     (tmp_path / "tokens").write_text("t\n")
     with pytest.raises(SystemExit) as exc:
-        server.main(["--ingest-token-file", str(tmp_path / "tokens"), "--prune-every", "2"])
+        cli_main(["hub", "--ingest-token-file", str(tmp_path / "tokens"), "--prune-every", "2"])
     assert exc.value.code == 2
 
 
@@ -195,7 +197,7 @@ def populated(tmp_path, monkeypatch):
 
 def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, capsys):
     store, blobs, names, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--dry-run", *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--dry-run", *argv]) == 0
     out = capsys.readouterr()
     assert "dry run: nothing removed" in out.out
     assert "Would remove: runs" in out.out and names["old"] in out.out
@@ -207,7 +209,7 @@ def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, caps
 
 def test_hub_prune_removes_old_runs_and_prints_json(populated, capsys):
     store, blobs, names, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--json", *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--json", *argv]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["dry_run"] is False and report["runs"] == [names["old"]]
     assert report["kept_runs"] == {names["live"]: "live"} and report["blobs"] == [sha]
@@ -218,17 +220,17 @@ def test_hub_prune_removes_old_runs_and_prints_json(populated, capsys):
 def test_hub_prune_takes_the_retention_from_the_environment_and_needs_one(populated, monkeypatch, capsys):
     store, _, names, _, argv = populated
     with pytest.raises(SystemExit) as exc:
-        server.main(["prune", *argv])
+        cli_main(["hub", "prune", *argv])
     assert exc.value.code == 2
     monkeypatch.setenv(server.RETENTION_ENV, "30")
-    assert server.main(["prune", *argv]) == 0
+    assert cli_main(["hub", "prune", *argv]) == 0
     assert names["old"] not in {e.name for e in store.runs()}
     assert "Removed: runs" in capsys.readouterr().out
 
 
 def test_a_blob_within_its_grace_is_kept(populated, capsys):
     _, blobs, _, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--blob-grace-hours", str(24 * 50), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--blob-grace-hours", str(24 * 50), *argv]) == 0
     assert blobs.has(sha)
 
 
@@ -278,10 +280,10 @@ def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes
 
     before = files()
     assert any("old" in f for f in before) and any(f.startswith("segments") for f in before)
-    assert server.main(["prune", "--retain-days", "30", "--dry-run", "--streams-dir", str(hot), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--dry-run", "--streams-dir", str(hot), *argv]) == 0
     assert files() == before
     capsys.readouterr()
-    assert server.main(["prune", "--retain-days", "30", "--json", "--streams-dir", str(hot), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--json", "--streams-dir", str(hot), *argv]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["runs"] == [names["old"]] and report["segments"]
     after = files()

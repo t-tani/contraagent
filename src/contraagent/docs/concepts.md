@@ -163,7 +163,8 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 | **adapter** | a function in `@contraagent/ui/adapters` that turns run data into a generic element's model | `graphFromPlan`, `matrixFromPlan`, `kpiTiles`, ... |
 | **wrapper** | a `ca-*` element that feeds a `cae-*` element through an adapter and turns its `cae-*` events into `ca-*` events | `ca-pipeline-graph`, `ca-kpis`, ... |
 | **run start** | one start of a run over its directory: the first, or a resume; a task numbers its attempts from 0 in each | `run.json` `started_at` (the latest), `runStarts` |
-| **export** | the monitor's views of some runs written as files (the page and the JSON each route answers), read with no server; it holds no transcripts and no processes, and this machine's paths and name are taken out | `contraagent monitor export`, `monitor/export.py`; `Info.export` (`ExportInfo`); `createExportClient`, `openExportFeed`, `<ca-monitor export="data/">` |
+| **view** | one thing the monitor answers about a run, by name: the JSON at `/api/runs/<run>/<name>`, the run feed's `<name>` event when its value changes, and an export's `runs/<run>/<name>.json` | `monitor.views.VIEWS` (`View`), `serialize` |
+| **export** | the monitor's views of some runs written as files (the page and the JSON the API answers for each view), read with no server; it holds no transcripts and no processes, and this machine's paths and name are taken out | `contraagent monitor export`, `monitor/export.py`, `SiteExportFile` (a file of no run); `Info.export` (`ExportInfo`); `createExportClient`, `openExportFeed`, `<ca-monitor export="data/">` |
 
 The monitor's screens show some of these in the words of engineers who use
 coding agents (a round after contract errors is a "correction", a task's

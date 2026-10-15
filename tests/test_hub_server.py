@@ -18,6 +18,7 @@ pytest.importorskip("sse_starlette")
 from fastapi.testclient import TestClient
 
 from contraagent import rundir
+from contraagent.cli import main as cli_main
 from contraagent.hub import server
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import (
@@ -419,7 +420,7 @@ def test_healthz_is_in_the_ingest_contract_only():
 
 def test_the_committed_openapi_document_is_current():
     assert server.OPENAPI_FILE.read_text() == server.openapi_document(), (
-        "src/contraagent/hub/openapi.json is stale: run `python -m contraagent.hub.server --openapi src/contraagent/hub/openapi.json`"
+        "src/contraagent/hub/openapi.json is stale: run `contraagent hub --openapi src/contraagent/hub/openapi.json`"
     )
     doc = json.loads(server.openapi_document())
     assert set(doc["paths"]) == {INGEST_RECORDS, INGEST_HEARTBEAT, "/ingest/blobs/{sha256}", HEALTHZ}
@@ -430,7 +431,7 @@ def test_the_committed_openapi_document_is_current():
 
 def test_openapi_flag_writes_the_document(tmp_path):
     out = tmp_path / "openapi.json"
-    assert server.main(["--openapi", str(out)]) == 0
+    assert cli_main(["hub", "--openapi", str(out)]) == 0
     assert out.read_text() == server.openapi_document()
 
 
@@ -462,5 +463,5 @@ def test_store_and_blob_specs(tmp_path):
 
 def test_the_command_refuses_to_start_without_ingest_tokens(capsys):
     with pytest.raises(SystemExit):
-        server.main([])
+        cli_main(["hub"])
     assert "--ingest-token-file" in capsys.readouterr().err

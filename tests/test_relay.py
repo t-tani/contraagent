@@ -12,16 +12,21 @@ import httpx
 import pytest
 
 from contraagent import rundir
+from contraagent.cli import main as cli_main
 from contraagent.hub.client import DirectClient, HttpClient, HubRefused, HubUnavailable
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, HeartbeatAck, LogChunk, RecordBatch, RunRef
-from contraagent.hub.relay import Relay, default_progress_path, main, read_lines, seek_line
+from contraagent.hub.relay import Relay, default_progress_path, read_lines, seek_line
 from contraagent.hub.source import HeartbeatLiveness
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
 from contraagent.monitor import Monitor
 from contraagent.monitor.source import DirectorySource, StaticLiveness
 
 T0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
+
+
+def main(argv: list[str]) -> int:
+    return cli_main(["relay", *argv])
 
 
 class Recording:

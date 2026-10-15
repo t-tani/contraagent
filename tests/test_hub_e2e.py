@@ -64,8 +64,8 @@ def counted(self, batch):
         f.write(json.dumps(row) + "\\n")
     return got
 client.HttpClient.send_records = counted
-from contraagent.hub.relay import main
-raise SystemExit(main(sys.argv[1:]))
+from contraagent.cli import main
+raise SystemExit(main(["relay", *sys.argv[1:]]))
 """
 
 

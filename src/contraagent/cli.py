@@ -20,41 +20,65 @@ contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
                                          # with --record-missing, a task with none runs and is recorded
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
+contraagent relay --hub URL [--runs-dir runs]  # ship this host's runs to a hub
+contraagent hub --ingest-token-file FILE [--store ...]  # receive every host's runs, serve their monitor
+contraagent hub prune --retain-days N    # remove old runs from the hub's storage once
+
+One argparse tree (`parser`). `monitor` (with `monitor export`), `relay` and `hub` (with
+`hub prune`) live in their own modules, each with `add_arguments(parser)` and `run(args)`;
+the option groups they share, `load_attr` and the errors a command reports are in
+`contraagent.commandline`.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import signal
 import sys
 from pathlib import Path
 
+from contraagent.commandline import CommandError, MissingExtra, UsageError, add_command, add_runs_dir, load_attr, setup_logging, split_spec
+
+#: The commands whose module holds their arguments and what they do (`add_arguments`,
+#: `run`): imported only when the command line names them.
+MODULES = {
+    "monitor": ("contraagent.monitor.server", "live web monitor for runs (see `contraagent monitor --help`)"),
+    "relay": ("contraagent.hub.relay", "ship this host's runs to a hub (see `contraagent relay --help`)"),
+    "hub": ("contraagent.hub.server", "receive every host's runs and serve their monitor (see `contraagent hub --help`)"),
+}
+
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else list(argv)
-    if argv[:1] == ["monitor"]:
-        # Handed over whole: argparse's REMAINDER drops a leading `--option`
-        # (`contraagent monitor --runs-dir x` was "unrecognized arguments").
-        from contraagent.monitor.server import main as monitor_main
+    args = parser(argv[0] if argv else None).parse_args(argv)
+    if not args.serves:
+        # Output piped into `head` ends quietly, as a command line tool's should.
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    try:
+        return args.run(args)
+    except UsageError as exc:
+        args.parser.error(str(exc))
+    except (CommandError, MissingExtra) as exc:
+        print(f"{args.parser.prog}: {exc}", file=sys.stderr)
+    return 2
 
-        return monitor_main(argv[1:])
-    if argv[:1] == ["relay"]:
-        from contraagent.hub.relay import main as relay_main
 
-        return relay_main(argv[1:])
-    if argv[:1] == ["hub"]:
-        from contraagent.hub.server import main as hub_main
-
-        return hub_main(argv[1:])
-    # Output piped into `head` ends quietly, as a command line tool's should.
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+def parser(command: str | None = "") -> argparse.ArgumentParser:
+    """The command line. A command of `MODULES` gets its arguments only when it is `command`
+    (its module is imported only then); `""` gives every command its arguments."""
     ap = argparse.ArgumentParser(prog="contraagent")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("monitor", help="live web monitor for runs (see `contraagent monitor --help`)")
-    sub.add_parser("relay", help="ship this host's runs to a hub (see `contraagent relay --help`)")
-    sub.add_parser("hub", help="receive every host's runs and serve their monitor (see `contraagent hub --help`)")
+    for name, (module, help) in MODULES.items():
+        if command == "" or command == name:
+            mod = importlib.import_module(module)
+            add_command(sub, name, help=help, add_arguments=mod.add_arguments, run=mod.run, serves=True)
+        else:
+            sub.add_parser(name, help=help)
 
-    plugin = sub.add_parser("plugin", help="agent-task plugins: the implementation of an agent task")
+    plugin = add_command(
+        sub, "plugin", help="agent-task plugins: the implementation of an agent task", add_arguments=_no_arguments, run=_plugin
+    )
     psub = plugin.add_subparsers(dest="pcmd", required=True)
     new = psub.add_parser("new", help="create a plugin from the template")
     new.add_argument("directory")
@@ -66,22 +90,64 @@ def main(argv: list[str] | None = None) -> int:
     ren.add_argument("--agent", action="append", help="claude, omp (default: every renderer)")
     ren.add_argument("--check", action="store_true", help="only report files that are out of date")
 
-    call = sub.add_parser("call", help="agent-task call files")
+    call = add_command(sub, "call", help="agent-task call files", add_arguments=_no_arguments, run=_call)
     csub = call.add_subparsers(dest="ccmd", required=True)
     val = csub.add_parser("validate", help="check the output a call file names (a plugin's Stop hook)")
     val.add_argument("--call", default=None, help="the call file (default: $CONTRAAGENT_CALL)")
 
-    chk = _flow_arguments(sub.add_parser("check", help="check a flow, its plugins and its routing without launching anything"))
-    chk.add_argument("--stub", action="store_true", help="the stub agent stands in for every coding agent (a config naming a custom one)")
-    run = _flow_arguments(
-        sub.add_parser(
-            "run",
-            help="run a flow, as `check` names it, and report its tasks (for more control, call Pipeline.run from Python)",
-        )
+    add_command(
+        sub,
+        "check",
+        help="check a flow, its plugins and its routing without launching anything",
+        add_arguments=_check_arguments,
+        run=_flow_command,
     )
+    add_command(
+        sub,
+        "run",
+        help="run a flow, as `check` names it, and report its tasks (for more control, call Pipeline.run from Python)",
+        add_arguments=_run_arguments,
+        run=_flow_command,
+    )
+    add_command(
+        sub, "docs", help="the documentation installed with this version: the index, or one topic", add_arguments=_docs_arguments, run=_docs
+    )
+    return ap
+
+
+def _no_arguments(parser: argparse.ArgumentParser) -> None:
+    pass
+
+
+def _call(args) -> int:
+    from contraagent.calls import validate_call
+
+    code, message = validate_call(args.call, sys.stdin.read() if not sys.stdin.isatty() else "")
+    if message:
+        print(message, file=sys.stderr)
+    return code
+
+
+def _docs_arguments(docs: argparse.ArgumentParser) -> None:
+    docs.add_argument("topic", nargs="?", help="a topic the index lists (guide, tasks, ...)")
+    docs.add_argument("--path", action="store_true", help="print where the documentation and its examples are installed")
+    docs.add_argument(
+        "--pointer",
+        action="store_true",
+        help="print a block for your coding agent's instruction file (AGENTS.md, CLAUDE.md) that points it at this documentation",
+    )
+
+
+def _check_arguments(chk: argparse.ArgumentParser) -> None:
+    _flow_arguments(chk)
+    chk.add_argument("--stub", action="store_true", help="the stub agent stands in for every coding agent (a config naming a custom one)")
+
+
+def _run_arguments(run: argparse.ArgumentParser) -> None:
+    _flow_arguments(run)
     run.add_argument("--run-id", default="", help="the run's id (default: the flow's name)")
     run.add_argument("--resume", action="store_true", help="continue the run: skip the tasks it already finished")
-    run.add_argument("--runs-dir", default="runs", help="where run directories are written (default: runs)")
+    add_runs_dir(run, "where run directories are written (default: runs)")
     run.add_argument(
         "--preflight",
         choices=("substitute", "stop", "off"),
@@ -131,29 +197,6 @@ def main(argv: list[str] | None = None) -> int:
         "recording is written into DIR; this can spend tokens",
     )
 
-    docs = sub.add_parser("docs", help="the documentation installed with this version: the index, or one topic")
-    docs.add_argument("topic", nargs="?", help="a topic the index lists (guide, tasks, ...)")
-    docs.add_argument("--path", action="store_true", help="print where the documentation and its examples are installed")
-    docs.add_argument(
-        "--pointer",
-        action="store_true",
-        help="print a block for your coding agent's instruction file (AGENTS.md, CLAUDE.md) that points it at this documentation",
-    )
-    args = ap.parse_args(argv)
-
-    if args.cmd == "docs":
-        return _docs(args)
-    if args.cmd in ("check", "run"):
-        return _flow_command(args)
-    if args.cmd == "call":
-        from contraagent.calls import validate_call
-
-        code, message = validate_call(args.call, sys.stdin.read() if not sys.stdin.isatty() else "")
-        if message:
-            print(message, file=sys.stderr)
-        return code
-    return _plugin(args)
-
 
 def _docs(args) -> int:
     from contraagent import docs
@@ -180,18 +223,17 @@ def _flow_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 
 
 def _flow_command(args) -> int:
-    import importlib
     import json
-    import logging
 
     from contraagent.errors import ContraagentError
     from contraagent.pipeline import Pipeline
     from contraagent.pipeline.check import where
     from contraagent.routing import Overrides
 
-    target, _, name = args.flow.rpartition(":")
-    if not target or not name:
-        print(f"{args.flow}: expected path/to/tasks.py:flow or package.module:flow", file=sys.stderr)
+    try:
+        split_spec(args.flow)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
         return 2
     try:
         kwargs = json.loads(args.kwargs)
@@ -200,15 +242,8 @@ def _flow_command(args) -> int:
     except ValueError as exc:
         print(f"--kwargs: {exc}", file=sys.stderr)
         return 2
-    if target.endswith(".py"):
-        # Imported by its own name with its directory on sys.path: how the
-        # in-session hook imports the output models it defines.
-        path = Path(target).resolve()
-        sys.path.insert(0, str(path.parent))
-        target = path.stem
-    sys.path.insert(0, str(Path.cwd()))
     try:
-        flow = getattr(importlib.import_module(target), name)
+        flow = load_attr(args.flow)
         backends = None
         stub = None
         if args.cmd == "check" and args.stub:
@@ -252,8 +287,7 @@ def _flow_command(args) -> int:
         report = pipeline.check(flow, **kwargs)
         print(report)
         return 0 if report.ok else 1
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    setup_logging("%(asctime)s %(message)s", "%H:%M:%S")
     try:
         result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)
     except ContraagentError as exc:  # refused before anything ran: routing, a run id that holds a run, the preflight

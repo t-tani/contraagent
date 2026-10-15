@@ -186,6 +186,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The command line is one argparse tree (`contraagent.cli.parser`): `monitor`, `relay` and
+  `hub` hold their arguments and work in `add_arguments(parser)` and `run(args)`, and share
+  their option groups, `load_attr` and errors from `contraagent.commandline`. Every command
+  keeps its options and exit codes. `--panels`, `--groups` and `--task-detail` read the same
+  in `contraagent monitor` and `contraagent monitor export`, as `--allow-host` and
+  `--cors-origin` do in `contraagent monitor` and `contraagent hub`; `contraagent monitor
+  --help` lists `export` and `contraagent hub --help` lists `prune`. `check` and `run` load a
+  flow file as `--panels` loads one: anew, under its own name. An extension that does not
+  load is reported as `contraagent monitor: --panels <spec>: <error>`.
+- One table of a run's views, `contraagent.monitor.views.VIEWS` (`View`: name, read, model),
+  answers the routes `/api/runs/<run>/<view>`, the run feed's events and an export's files;
+  `serialize(model, value)` writes each of them.
+- `contraagent monitor export` (and `export()`) writes the page of `Monitor(static_dir=)`
+  when it is given.
+- `contraagent.monitor.server.host_names(bind, names)` and `is_loopback(bind)`: the `Host`
+  names a server answers, for the monitor and the hub alike. `require_extra` raises
+  `contraagent.commandline.MissingExtra`, a `ModuleNotFoundError`.
+- `contraagent.monitor.serve` and `create_app` are `contraagent.monitor.server`'s, imported
+  when first named; `import contraagent.monitor` needs no `monitor` extra.
+- `contraagent.hub.server.retain_days(flag, environ)` takes no parser: a bad value raises
+  `contraagent.commandline.UsageError`.
 - `output_name` is the output file's path relative to the run's `out/`, a template with
   `{kind}`, `{unit}` and `{key}` (default `{kind}/{unit}.json`, `{kind}/{unit}.md` for a text
   output): `output_name="reports/{unit}.json"` writes `out/reports/alpha.json`.
@@ -532,6 +553,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `contraagent.monitor.server.main`, `contraagent.monitor.export.main`,
+  `contraagent.hub.server.main` and `prune_main`, `contraagent.hub.relay.main`: the commands
+  are `contraagent.cli.main(["monitor", ...])` and the others. `python -m
+  contraagent.hub.server` is `contraagent hub`; `python -m contraagent.monitor` stays,
+  `contraagent monitor` under another name.
+- `contraagent.monitor.server.load_attr` (now `contraagent.commandline.load_attr`),
+  `_host_names` and `hub.server._loopback` (now `host_names`, `is_loopback`).
+- `contraagent.monitor.export.Route`, `SiteRoute`, `ROUTES` and `SITE_ROUTES`: a run's
+  files come from `VIEWS`, and a file of no run is a `SiteExportFile` in `SITE_FILES`
+  (`Route` is a failover hop's).
 - The `contraagent-monitor` command: the monitor is `contraagent monitor`.
 - `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
   project's state-file names and nothing read them.

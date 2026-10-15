@@ -41,18 +41,18 @@ mostly-sleeping SSE connections without that per-connection cost.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import functools
 import importlib.util
+import ipaddress
 import json
 import logging
-import signal
-import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from pydantic import TypeAdapter
 
@@ -70,21 +70,34 @@ except ModuleNotFoundError:
     if TYPE_CHECKING:
         raise
 
-from contraagent.monitor import api
+from contraagent.commandline import (
+    MissingExtra,
+    add_command,
+    add_extensions,
+    add_http,
+    add_openapi,
+    add_runs_dir,
+    load_extensions,
+    setup_logging,
+    write_openapi,
+)
+from contraagent.monitor import api, export
 from contraagent.monitor.core import Monitor
+from contraagent.monitor.export import STATIC
 from contraagent.monitor.paths import BadName
 from contraagent.monitor.trends import Period, PeriodError
+from contraagent.monitor.views import VIEWS, View, serialize
 
 log = logging.getLogger(__name__)
 
-STATIC = Path(__file__).parent / "static"
 OPENAPI_FILE = Path(__file__).parent / "openapi.json"
 OPENAPI_TITLE = "contraagent monitor"
 #: Seconds between two looks at a run for the run feed (`run_feed`).
 TICK_S = 1.0
 #: Seconds a transcript feed waits for its log to grow before it looks again.
 STREAM_WAIT_S = 15.0
-#: Host names a local browser uses for this machine. Anything else in `Host` is refused.
+#: Host names a local browser uses for this machine. Anything else in `Host` is refused,
+#: but the names `host_names` adds.
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 
 MISSING_EXTRA = (
@@ -94,21 +107,34 @@ _EXTRA_MODULES = ("fastapi", "uvicorn", "sse_starlette")
 
 
 def require_extra() -> None:
-    """Raise `ModuleNotFoundError(MISSING_EXTRA)` when a module of the `monitor` extra is missing."""
+    """Raise `MissingExtra` (a `ModuleNotFoundError` that says `MISSING_EXTRA`) when a module
+    of the `monitor` extra is missing."""
     missing = [m for m in _EXTRA_MODULES if importlib.util.find_spec(m) is None]
     if missing:
-        raise ModuleNotFoundError(f"{MISSING_EXTRA}; missing: {', '.join(missing)}")
+        raise MissingExtra(f"{MISSING_EXTRA}; missing: {', '.join(missing)}")
 
 
-_JOURNAL = TypeAdapter(api.JournalRow)
-_PROCS = TypeAdapter(api.Procs)
-_PLAN = TypeAdapter(api.Plan)
-_OUTPUTS = TypeAdapter(api.Outputs)
-# `Optional`, not `X | None`: outside an annotation that is a `UnionType`
-# value, which type checkers do not accept as a TypeAdapter's type.
-_CURSOR = TypeAdapter(Optional[api.CursorView])  # noqa: UP045
-_STREAM = TypeAdapter(api.StreamPage)
-_READY = TypeAdapter(api.FeedReady)
+def host_names(bind: str, names: Iterable[str] = ()) -> list[str]:
+    """The `Host` names a server bound to `bind` answers beside `LOCAL_HOSTS` (DNS
+    rebinding): the bound address (none for a wildcard bind) and `names`. Logs a warning
+    when that leaves only the local names."""
+    wildcard = not bind or bind in ("0.0.0.0", "::", "*")
+    bound = [] if wildcard else [f"[{bind}]" if ":" in bind and not bind.startswith("[") else bind]
+    out = [*bound, *names]
+    if not out:
+        local = ", ".join(LOCAL_HOSTS)
+        log.warning("bound to %s: only monitor requests addressed to %s are answered; name others with --allow-host", bind, local)
+    return out
+
+
+def is_loopback(bind: str) -> bool:
+    """Whether the address a server is bound to is reached only from this machine."""
+    if bind == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(bind.strip("[]")).is_loopback
+    except ValueError:
+        return False
 
 
 #: Threads that compute panels, a domain's own code that may take a minute: apart from the
@@ -123,12 +149,6 @@ async def in_panel_pool(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> An
     return await asyncio.get_running_loop().run_in_executor(_PANEL_POOL, functools.partial(fn, *args, **kwargs))
 
 
-def _json(adapter: TypeAdapter, value: Any) -> str:
-    """`value` checked against its contract model and serialized as the wire carries it.
-    `exclude_unset`: a key the core did not emit is not invented (see `api`)."""
-    return adapter.dump_json(adapter.validate_python(value), exclude_unset=True, by_alias=True).decode()
-
-
 def _procs_sig(procs: dict) -> str:
     """Change signature: key, pid and command per launch and Python task. `age_s`
     always ticks up, so it is deliberately excluded or every poll would look "changed"."""
@@ -141,17 +161,12 @@ def _procs_sig(procs: dict) -> str:
     )
 
 
-def _host_names(host: str) -> list[str]:
-    """How a `Host` header names the address the server is bound to; nothing for a wildcard bind."""
-    if not host or host in ("0.0.0.0", "::", "*"):
-        return []
-    return [f"[{host}]" if ":" in host and not host.startswith("[") else host]
-
-
 async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awaitable[bool]]) -> AsyncIterator[dict[str, str]]:
     """One client's live feed. Each view is recomputed every tick but only sent
     when its value changed. The first tick sends everything (the whole journal
-    included) and ends with `ready`."""
+    included) and ends with `ready`. The journal goes row by row and the cursor is
+    `null` for a run that keeps none; the other views are as their routes answer them
+    (`VIEWS`)."""
     jpos, replayed = 0, False
     sigs: dict[str, str] = {}
     # The views are read off the event loop, which serves every other client meanwhile.
@@ -163,12 +178,12 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
         if entries:
             jpos = total
             for e in entries:
-                yield {"event": "journal", "data": _json(_JOURNAL, e)}
+                yield {"event": "journal", "data": serialize(api.JournalRow, e)}
         procs = await off(monitor.procs, run)
         sig = _procs_sig(procs)
         if sig != sigs.get("procs"):
             sigs["procs"] = sig
-            yield {"event": "procs", "data": _json(_PROCS, procs)}
+            yield {"event": "procs", "data": serialize(VIEWS["procs"].model, procs)}
         for name in monitor.run_panels():
             try:
                 body = json.dumps(api.panel_data(await in_panel_pool(monitor.panel, name, run)), default=str)
@@ -177,21 +192,22 @@ async def run_feed(monitor: Monitor, run: str, is_disconnected: Callable[[], Awa
             if body != sigs.get(name):
                 sigs[name] = body
                 yield {"event": f"panel:{name}", "data": body}
-        plan = _json(_PLAN, await off(monitor.plan, run, procs))
+        plan = serialize(VIEWS["plan"].model, await off(monitor.plan, run, procs))  # over the processes just read
         if plan != sigs.get("plan"):
             sigs["plan"] = plan
             yield {"event": "plan", "data": plan}
-        outs = _json(_OUTPUTS, await off(monitor.outputs, run))
+        outs = serialize(VIEWS["outputs"].model, await off(VIEWS["outputs"].read, monitor, run))
         if outs != sigs.get("outputs"):
             sigs["outputs"] = outs
             yield {"event": "outputs", "data": outs}
-        cur = _json(_CURSOR, await off(monitor.cursor, run))
+        cursor = await off(monitor.cursor, run)
+        cur = "null" if cursor is None else serialize(VIEWS["cursor"].model, cursor)
         if cur != sigs.get("cursor"):
             sigs["cursor"] = cur
             yield {"event": "cursor", "data": cur}
         if not replayed:
             replayed = True
-            yield {"event": "ready", "data": _json(_READY, {"journal": jpos})}
+            yield {"event": "ready", "data": serialize(api.FeedReady, {"journal": jpos})}
         await asyncio.sleep(TICK_S)
 
 
@@ -235,7 +251,7 @@ async def stream_feed(
             continue
         tail, read, since = since is None, since is None or end > since, end
         if tail or page["events"]:
-            yield {"event": "stream", "id": str(end), "data": _json(_STREAM, page)}
+            yield {"event": "stream", "id": str(end), "data": serialize(api.StreamPage, page)}
         await asyncio.sleep(took)
         if end >= page["total"] or not read:
             await monitor.wait_stream(run, key, marker, STREAM_WAIT_S)
@@ -244,8 +260,8 @@ async def stream_feed(
 def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_origins: Iterable[str] = (), docs: bool = False) -> FastAPI:
     """The monitor as an ASGI app.
 
-    `allowed_hosts` adds `Host` names to the local ones (the bound address, a
-    LAN name); `cors_origins` lets a front end served from another origin (a
+    `allowed_hosts` adds `Host` names to `LOCAL_HOSTS` (the bound address, a LAN
+    name: `host_names`); `cors_origins` lets a front end served from another origin (a
     dev server) read the API; `docs` serves the interactive API docs at
     `/api/docs`.
     """
@@ -271,6 +287,15 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
     def route(path: str, model: Any):
         """A JSON route checked against its contract model; `exclude_unset`: see `api`."""
         return app.get(path, response_model=model, response_model_exclude_unset=True)
+
+    def view_route(view: View) -> None:
+        """`/api/runs/{run}/<name>`: a view of a run, as `VIEWS` reads it."""
+
+        def answer(run: str) -> Any:
+            return view.read(monitor, run)
+
+        path = f"/api/runs/{{run}}/{view.name}"
+        app.get(path, name=f"api_{view.name}", description=view.doc, response_model=view.model, response_model_exclude_unset=True)(answer)
 
     @route("/api/info", api.Info)
     def api_info() -> dict:
@@ -332,36 +357,16 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         except KeyError:
             raise HTTPException(404, f"no trend panel {name!r}") from None
 
-    @route("/api/runs/{run}/journal", api.JournalPage)
+    journal = VIEWS["journal"]
+
+    @app.get("/api/runs/{run}/journal", response_model=journal.model, response_model_exclude_unset=True, description=journal.doc)
     def api_journal(run: str, since: int = 0) -> dict:
-        """Journal rows after line offset `since`; `total` is the next offset."""
         entries, total = monitor.journal(run, since)
         return {"entries": entries, "total": total}
 
-    @route("/api/runs/{run}/plan", api.Plan)
-    def api_plan(run: str) -> dict:
-        """Every queued task with its dependencies and state, and the groups the UI draws as columns."""
-        return monitor.plan(run)
-
-    @route("/api/runs/{run}/outputs", api.Outputs)
-    def api_outputs(run: str) -> dict:
-        """Every declared output/input contract: its file, the model it must satisfy, its status."""
-        return monitor.outputs(run)
-
-    @route("/api/runs/{run}/definitions", list[api.TaskDefinition])
-    def api_definitions(run: str) -> list[dict]:
-        """What defined each kind of task in this run."""
-        return monitor.definitions(run)
-
-    @route("/api/runs/{run}/cursor", api.CursorView)
-    def api_cursor(run: str) -> dict:
-        """The resume cursor; `{}` when the run keeps none."""
-        return monitor.cursor(run) or {}
-
-    @route("/api/runs/{run}/procs", api.Procs)
-    def api_procs(run: str) -> dict:
-        """The run's live agent launches, process tree and Python tasks."""
-        return monitor.procs(run)
+    for view in VIEWS.values():
+        if view is not journal:
+            view_route(view)
 
     @route("/api/runs/{run}/task/{key}", api.TaskDetail)
     def api_task(run: str, key: str) -> dict:
@@ -485,53 +490,23 @@ def serve(
     cors_origins: Iterable[str] = (),
     docs: bool = False,
 ) -> None:
+    """Serve `monitor` on `host`:`port` until stopped (`create_app`). `allowed_hosts` adds
+    `Host` names to the local ones and the bound address (`host_names`)."""
     import uvicorn
 
-    names = _host_names(host)
-    if not names and not list(allowed_hosts):
-        log.warning("bound to %s: only requests addressed to %s are answered; name others with --allow-host", host, ", ".join(LOCAL_HOSTS))
     log.info("%s on http://%s:%s  runs=%s", monitor.title, host, port, monitor.runs_dir)
-    app = create_app(monitor, allowed_hosts=[*names, *allowed_hosts], cors_origins=cors_origins, docs=docs)
+    app = create_app(monitor, allowed_hosts=host_names(host, allowed_hosts), cors_origins=cors_origins, docs=docs)
     uvicorn.run(app, host=host, port=port, log_level="warning")
 
 
-def load_attr(spec: str) -> Any:
-    """What `path/to/file.py:attr` or `package.module:attr` names. A file is loaded from
-    its path, under its own name, with its directory on `sys.path` (so it imports its
-    neighbours); a module is imported, the working directory on `sys.path`."""
-    target, _, name = spec.rpartition(":")
-    if not target or not name:
-        raise ValueError(f"{spec}: expected path/to/file.py:attr or package.module:attr")
-    if target.endswith(".py"):
-        path = Path(target).resolve()
-        if not path.is_file():
-            raise OSError(f"{spec}: no file {path}")
-        if str(path.parent) not in sys.path:
-            sys.path.insert(0, str(path.parent))
-        found = importlib.util.spec_from_file_location(path.stem, path)
-        if found is None or found.loader is None:
-            raise ImportError(f"{spec}: cannot load {path}")
-        module = importlib.util.module_from_spec(found)
-        sys.modules[path.stem] = module
-        found.loader.exec_module(module)
-        return getattr(module, name)
-    if str(Path.cwd()) not in sys.path:
-        sys.path.insert(0, str(Path.cwd()))
-    return getattr(importlib.import_module(target), name)
+# --- the command -----------------------------------------------------------------------
 
 
-def main(argv: list[str] | None = None) -> int:
-    import argparse
-
-    argv = sys.argv[1:] if argv is None else list(argv)
-    if argv[:1] == ["export"]:  # needs no server, so not the `monitor` extra
-        from contraagent.monitor.export import main as export_main
-
-        return export_main(argv[1:])
-    ap = argparse.ArgumentParser(prog="contraagent monitor", description="Live monitor for contraagent pipeline runs")
-    ap.add_argument("--runs-dir", default="runs", help="directory holding runs/<run-id>/ (default: ./runs)")
-    ap.add_argument("--port", type=int, default=8787)
-    ap.add_argument("--host", default="127.0.0.1")
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """`contraagent monitor`, with `contraagent monitor export` under it."""
+    ap.description = "Live monitor for contraagent pipeline runs"
+    add_runs_dir(ap)
+    add_http(ap, port=8787)
     ap.add_argument("--title", default="contraagent")
     ap.add_argument(
         "--stream-format",
@@ -540,75 +515,21 @@ def main(argv: list[str] | None = None) -> int:
         metavar="AGENT=FORMAT",
         help="render a custom coding agent's transcript as a built-in format (claude or omp), e.g. --stream-format myagent=claude",
     )
-    ap.add_argument(
-        "--allow-host",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help="also answer requests addressed to this host name (default: localhost, 127.0.0.1, [::1] and the --host address)",
-    )
-    ap.add_argument(
-        "--cors-origin",
-        action="append",
-        default=[],
-        metavar="ORIGIN",
-        help="let a page from this origin read the API, e.g. http://localhost:5173 for a UI dev server",
-    )
-    ap.add_argument(
-        "--panels",
-        metavar="MODULE:ATTR",
-        help="the pipeline's own views: a dict of name -> Panel (or a callable), as path/to/views.py:PANELS or package.module:PANELS",
-    )
-    ap.add_argument(
-        "--groups",
-        metavar="MODULE:ATTR",
-        help='the plan\'s columns: a list of {"id", "label", "kinds"}, as path/to/views.py:GROUPS or package.module:GROUPS',
-    )
-    ap.add_argument(
-        "--task-detail",
-        metavar="MODULE:ATTR",
-        help="fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail or package.module:detail",
-    )
+    add_extensions(ap)
     ap.add_argument("--docs", action="store_true", help="serve interactive API docs at /api/docs")
-    ap.add_argument(
-        "--openapi",
-        nargs="?",
-        const="-",
-        metavar="PATH",
-        help="write the OpenAPI document to PATH (default: stdout) and exit",
-    )
-    args = ap.parse_args(argv)
-    try:
-        require_extra()
-    except ModuleNotFoundError as exc:
-        sys.stderr.write(f"contraagent monitor: {exc}\n")
-        return 2
+    add_openapi(ap, "OpenAPI document")
+    sub = ap.add_subparsers(dest="monitor_cmd", title="commands")
+    add_command(sub, "export", help=export.HELP, add_arguments=export.add_arguments, run=export.run)
+
+
+def run(args: argparse.Namespace) -> int:
+    """`contraagent monitor`: serve the monitor (the `monitor` extra), or write its OpenAPI document."""
+    require_extra()
     if args.openapi:
-        doc = openapi_document()
-        if args.openapi == "-":
-            signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # piped into `head`: end quietly
-            sys.stdout.write(doc)
-        else:
-            Path(args.openapi).write_text(doc)
+        write_openapi(openapi_document(), args.openapi)
         return 0
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
+    setup_logging()
     formats = dict(item.split("=", 1) for item in args.stream_format if "=" in item)
-    try:
-        extensions = {name: load_attr(getattr(args, name)) for name in ("panels", "groups", "task_detail") if getattr(args, name)}
-    except (ImportError, AttributeError, OSError, ValueError) as exc:
-        sys.stderr.write(f"contraagent monitor: {exc}\n")
-        return 2
-    serve(
-        Monitor(args.runs_dir, title=args.title, stream_formats=formats, **extensions),
-        args.host,
-        args.port,
-        allowed_hosts=args.allow_host,
-        cors_origins=args.cors_origin,
-        docs=args.docs,
-    )
+    monitor = Monitor(args.runs_dir, title=args.title, stream_formats=formats, **load_extensions(args))
+    serve(monitor, args.host, args.port, allowed_hosts=args.allow_host, cors_origins=args.cors_origin, docs=args.docs)
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
