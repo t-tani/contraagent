@@ -137,10 +137,12 @@ class Pipeline:
         (`(reason, datetime)`); beside the config's own caps
         (`max_five_hour_pct`, `max_seven_day_pct`). A resting credential is not launched
         on: its tasks take the next hop of their failover chain, or are deferred.
-        `scopes`: context managers around each agent task's dispatch (`TaskScope`: entered
-        before its first hop, exited after its last, a timeout included); `enrichers`
+        `scopes`: context managers around each attempt of a task, agent or Python
+        (`TaskScope`: entered before an agent task's first hop, exited after its last, a
+        timeout included; around a Python task's call and its contract checks); `enrichers`
         see the task before and its result after (`ResultEnricher`, which may set
-        `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt.
+        `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt; one that cares
+        about some tasks only tests `task.kind` or `task.executor`.
         `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
         `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
@@ -322,7 +324,12 @@ class Pipeline:
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
-                        run.python_runner(RetryingRunner(runner, on_attempt=run.record_attempt), cwd=self.cwd),
+                        run.python_runner(
+                            RetryingRunner(runner, on_attempt=run.record_attempt),
+                            cwd=self.cwd,
+                            scopes=self.scopes,
+                            enrichers=self.enrichers,
+                        ),
                         follow_up=follow_up,
                         resume=resume,
                         max_concurrent=self.max_concurrent,

@@ -46,6 +46,7 @@ from pathlib import Path
 from contraagent import procfs, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
+from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
 from contraagent.dispatch.task import Frame, Task, TaskResult, TimeBox, kind_name
@@ -307,12 +308,23 @@ class Run:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
         return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
 
-    def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None) -> PythonTaskRunner:
+    def python_runner(
+        self,
+        inner=None,
+        adapter=None,
+        cwd: str | Path | None = None,
+        *,
+        scopes: Sequence[TaskScope] = (),
+        enrichers: Sequence[ResultEnricher] = (),
+    ) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
-        a retried one here, the last by the queue."""
-        return PythonTaskRunner(inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt)
+        a retried one here, the last by the queue. `scopes` / `enrichers` wrap each
+        attempt of a Python task (`PythonTaskRunner`)."""
+        return PythonTaskRunner(
+            inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt, scopes=scopes, enrichers=enrichers
+        )
 
     def estimator(self) -> JournalEstimates:
         """The estimates of durations and tails (`JournalEstimates`): read from the recent

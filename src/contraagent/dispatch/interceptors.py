@@ -16,11 +16,15 @@ from typing import Any, Protocol
 
 from contraagent.dispatch.task import Task, TaskResult
 
-#: Wraps one task's whole dispatch (every failover hop) in a `with`-block:
-#: entered right before the first attempt, exited exactly once after the
-#: last one, regardless of which of the dispatch loop's several return
-#: points is actually taken. Pure lifecycle -- no return value is used, see
-#: `ResultEnricher` for the sibling that needs one.
+#: Wraps one attempt of a task in a `with`-block, agent or Python: for an
+#: agent task, entered right before its first failover hop and exited exactly
+#: once after its last, regardless of which of the dispatch loop's several
+#: return points is actually taken; for a Python task, around its input check,
+#: its call and its output check. The function's exception is the attempt's
+#: result, so the block exits without one. Pure lifecycle -- no return value is
+#: used, see `ResultEnricher` for the sibling that needs one. A scope for some
+#: tasks only tests `task.kind` or `task.executor` and returns
+#: `contextlib.nullcontext()` for the others.
 TaskScope = Callable[[Task], AbstractContextManager[None]]
 
 
@@ -29,9 +33,10 @@ class ResultEnricher(Protocol):
     a value from *before* dispatch again *after* it, to compute something
     (a domain's own progress delta, an override of the generic `ok`/`stop`
     verdict) that a plain context manager's `__exit__` has no way to hand
-    back to the caller. `AgentRunner.run()` calls `snapshot()` once before
-    dispatch and `enrich()` once after, in the order `enrichers` were
-    given; `enrich()` mutates `result` in place (`.payload`, and optionally
+    back to the caller. `AgentRunner.run()` (an attempt of an agent task) and
+    `PythonTaskRunner` (an attempt of a Python task) call `snapshot()` once
+    before the attempt and `enrich()` once after, in the order `enrichers`
+    were given; `enrich()` mutates `result` in place (`.payload`, and optionally
     `.ok`/`.stop`) rather than returning a value to merge, matching how
     `TaskResult`'s own domain fields were already set post-construction
     before this split.
