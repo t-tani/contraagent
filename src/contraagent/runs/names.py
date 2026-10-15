@@ -5,12 +5,16 @@ relays' requests, and each becomes part of a file path (`runs/<run>/journal.json
 `runs/<run>/streams/<file>.stream.jsonl`). Joined unchecked, `run=../x` reads outside
 the runs directory. Every join goes through `under`, which accepts only plain names and
 also checks the resolved path, so a symlink or a name this check did not foresee still
-cannot leave `root`.
+cannot leave `root`. (`DirectorySource` reads an entry directly in a run directory by
+two `lstat`s instead: no symbolic link on the way, so plain names stay under `root`.)
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+_NOT_PLAIN = re.compile(r"[\x00-\x1f\x7f/\\]|\.\.|^\.")
 
 
 class BadName(ValueError):
@@ -23,14 +27,7 @@ def is_plain(name: object) -> bool:
 
     Task keys legitimately contain `:` (`python:prepare-alpha`), `@`, `-`, `_` and `.`, so
     the check forbids what makes a name a path rather than allowing what a domain may use."""
-    return (
-        isinstance(name, str)
-        and bool(name)
-        and not name.startswith(".")
-        and ".." not in name
-        and not any(c in name for c in "/\\\0")
-        and not any(ord(c) < 32 or ord(c) == 127 for c in name)
-    )
+    return isinstance(name, str) and bool(name) and _NOT_PLAIN.search(name) is None
 
 
 def check_name(name: str, what: str = "name") -> str:

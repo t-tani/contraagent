@@ -250,21 +250,27 @@ class DirectorySource:
         parts = entry_parts(name) if name else ()
         return under(self.root, check_name(run, "run id"), *parts)
 
-    def _quick(self, run: str, name: str) -> str:
-        """`path` for a top-level entry, with no symbolic link on the way: checked by two
-        `lstat`s instead of resolving it (a period's trends ask for thousands)."""
-        base = os.path.join(self.root, check_name(run, "run id"))
-        if name:
-            base = os.path.join(base, check_name(name, "file name"))
-        for p in (os.path.dirname(base) if name else None, base):
-            if p is None:
-                continue
-            try:
-                if stat.S_ISLNK(os.lstat(p).st_mode):
-                    return str(self.path(run, name))
-            except OSError:
-                pass
-        return base
+    def _entry(self, run: str, name: str) -> tuple[str, os.stat_result | None]:
+        """A record directly in the run's directory (the directory itself for `""`): its
+        path and its `stat`, None when it is absent. With no symbolic link on the way it is
+        checked by `lstat`s, not resolved (a period's trends ask for thousands); a link
+        takes `path`'s full check."""
+        d = os.path.join(self.root, check_name(run, "run id"))
+        p = os.path.join(d, check_name(name, "file name")) if name else d
+        try:
+            if name and stat.S_ISLNK(os.lstat(d).st_mode):
+                return self._resolved(run, name)
+            st = os.lstat(p)
+        except OSError:
+            return p, None
+        return self._resolved(run, name) if stat.S_ISLNK(st.st_mode) else (p, st)
+
+    def _resolved(self, run: str, name: str) -> tuple[str, os.stat_result | None]:
+        path = str(self.path(run, name))
+        try:
+            return path, os.stat(path)
+        except OSError:
+            return path, None
 
     def runs(self) -> list[str]:
         try:
@@ -299,12 +305,8 @@ class DirectorySource:
             return LogPosition(0, 0)
 
     def stat(self, run: str, name: str = "") -> Stat | None:
-        path = self._quick(run, name) if "/" not in name else str(self.path(run, name))
-        try:
-            st = os.stat(path)
-        except OSError:
-            return None
-        return Stat(st.st_size, st.st_mtime_ns)
+        _, st = self._entry(run, name) if "/" not in name else self._resolved(run, name)
+        return Stat(st.st_size, st.st_mtime_ns) if st is not None else None
 
     def size(self, run: str, log: str) -> int:
         st = self.stat(run, log)
@@ -343,8 +345,10 @@ class DirectorySource:
         return out
 
     def document(self, run: str, name: str) -> str | None:
+        path = self._entry(run, name)[0] if "/" not in name else self.path(run, name)
         try:
-            return self.path(run, name).read_text(encoding="utf-8", errors="replace")
+            with open(path, encoding="utf-8", errors="replace") as f:
+                return f.read()
         except OSError:
             return None
 
