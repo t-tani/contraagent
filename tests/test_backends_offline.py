@@ -80,7 +80,7 @@ def test_claude_backend_runs_a_launch_end_to_end(tmp_path):
     assert env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] == env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
     argv = launch_result.argv
     assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings files
-    assert "contraagent-claude-" in env["CLAUDE_CONFIG_DIR"]  # isolated: no stored login to fall back to
+    assert "/contraagent/claude-" in env["CLAUDE_CONFIG_DIR"]  # isolated: no stored login to fall back to
 
 
 def test_omp_backend_runs_a_launch_end_to_end(tmp_path):
