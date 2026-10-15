@@ -1,0 +1,13 @@
+---
+// Starlight's page content, with an element topic's live elements first
+// (its `live` front matter, from scripts/collect.py).
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+import LiveFigures from './LiveFigures.astro';
+
+const live = Astro.locals.starlightRoute.entry.data.live;
+---
+
+<Default>
+  {live && live.length > 0 && <LiveFigures figures={live} />}
+  <slot />
+</Default>

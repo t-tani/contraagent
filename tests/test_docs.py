@@ -211,6 +211,30 @@ def test_every_page_of_every_package_expands(tmp_path):
     assert 'title="examples/demo/tasks.py"' in docs.text("tasks") and "def docs_one_review(" in docs.text("tasks")
 
 
+def _collector():
+    """The documentation site's collector (web/apps/docs/scripts/collect.py), as a module."""
+    import importlib.util
+
+    path = docs.DIR.parents[2] / "web/apps/docs/scripts/collect.py"
+    spec = importlib.util.spec_from_file_location("collect", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_no_page_of_any_package_holds_an_html_tag_in_its_prose():
+    """The site renders a page's Markdown: a `<title>` outside a code span is HTML there,
+    and swallows the rest of the page."""
+    collect = _collector()
+    for index, home, _, _ in collect.SECTIONS:
+        for page in [index, *(e.path for e in docs.entries(index))]:
+            collect.check_html(page, docs.expand(page, home).splitlines())
+    bad = collect.ROOT / "web/apps/docs/scripts/collect.py"  # any file under the repository, for its name
+    with pytest.raises(SystemExit, match=r"<title> \(line 2 .*code span"):
+        collect.check_html(bad, ["`<code>` is fine", 'the title, "<title> monitor"', "```", "<title>", "```"])
+
+
 def test_the_root_readme_code_is_the_example_it_quotes():
     """GitHub does not expand `::code`, so the root README writes the code out: each
     fenced block that follows `<!-- ::code{...} -->` lines is those quotes, two blank lines

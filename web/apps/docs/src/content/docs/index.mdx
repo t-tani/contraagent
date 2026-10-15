@@ -1,29 +1,119 @@
 ---
 title: "contraagent"
-description: "Run coding-agent CLIs (claude -p, omp -p) as typed, supervised, observable tasks."
+description: "Run coding agents (Claude Code, Codex CLI, opencode, oh-my-pi, pi) as typed, checked, supervised tasks of a Python pipeline, with a live monitor of every run."
 template: splash
+head:
+  - tag: title
+    content: "contraagent | Run coding agents as typed, checked, supervised tasks"
 hero:
-  tagline: Run coding-agent CLIs as typed, supervised, observable tasks.
+  title: contraagent
+  tagline: "Run coding agents as typed, checked, supervised tasks. Each task of a Python pipeline is a typed function whose body is a coding agent, and its result is a file checked against a pydantic model."
   actions:
-    - text: Python
+    - text: Start the tutorial
+      link: /python/tutorial/
+      icon: right-arrow
+    - text: Python package
       link: /python/
-      icon: right-arrow
-    - text: Node and the browser
+      variant: minimal
+    - text: Web packages
       link: /node/ui/
-      icon: right-arrow
       variant: minimal
 ---
 
-import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Code, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
 import Demo from '../../components/Demo.astro';
+import { repoQuote } from '../../lib/repo';
+import overview from '../../../../../../docs/assets/readme/overview.png';
+
+export const TASKS = 'src/contraagent/docs/examples/tutorial/tasks.py';
+
+<figure class="ca-home-shot">
+  <Image src={overview} alt="The monitor's overview of a run: its state, problems with their causes, outputs, and the pipeline graph with a review loop" />
+  <figcaption>
+    The monitor over the shipped demo pipeline, run on its demo agent: one task failed, one was partly done, one was done after retrying, and a review loop ran a second pass for one unit.
+  </figcaption>
+</figure>
+
+## A task is a function whose body is a coding agent
+
+<Code
+  lang="python"
+  title="examples/tutorial/tasks.py"
+  code={[
+    repoQuote(TASKS, 'class Triage', 'class FixPlan'),
+    repoQuote(TASKS, 'triage = agent_task(', 'plan_fix = agent_task'),
+    repoQuote(TASKS, 'def triage_one', 'def triage_and_plan'),
+  ].join('\n\n\n')}
+/>
+
+The coding agent is Claude Code, Codex CLI, opencode, oh-my-pi or pi. How it
+does a triage is in the plugin `plugins/triage`, in the coding agent's own
+format. The flow is plain Python: a `yield` waits for the checked output, so
+loops, branches and fan-outs are ordinary code. Then, in order: every problem
+with nothing launched, the whole flow on a stub agent, the run, and the monitor.
+
+```sh
+contraagent check tasks.py:triage_all --kwargs '{"reports": ["login-timeout"]}'
+contraagent run tasks.py:triage_all --stub --kwargs '{"reports": ["login-timeout"]}'
+contraagent run tasks.py:triage_all --config pipeline.toml --kwargs '{"reports": ["login-timeout"]}'
+contraagent monitor --runs-dir runs
+```
+
+## What the runner does
 
 <CardGrid>
-  <LinkCard title="Python: contraagent" href="/python/" description="Write, check, test and run pipelines of coding-agent tasks." />
-  <LinkCard title="Node and the browser: @contraagent/ui, @contraagent/api" href="/node/ui/" description="The monitor and its views as web components, and its typed client." />
+  <Card title="Outputs are contracts">
+    Each output file is checked against its pydantic model and its validators. A file that fails goes back to the same agent session with the errors.
+  </Card>
+  <Card title="Failover and quotas">
+    Another model, coding agent or credential after a rate limit or a failed launch, and caps on a subscription's 5-hour and weekly usage.
+  </Card>
+  <Card title="Deadlines and resume">
+    A deadline defers the work that cannot finish, with its cause. A resumed run repeats only the tasks whose inputs or definition changed.
+  </Card>
+  <Card title="Checked before it spends">
+    `contraagent check` reports every problem with nothing launched. A stub agent and recorded replays test a flow with nothing spent.
+  </Card>
+  <Card title="A clean context per task">
+    A task's agent sees its role, its plugin, its skills and its call file, not the user's or the project's settings, nor another task's conversation.
+  </Card>
+  <Card title="A live monitor">
+    The pipeline graph, each task's transcript, inputs, outputs and checks, the history of attempts, and trends over a period. A hub serves the runs of many hosts.
+  </Card>
+</CardGrid>
+
+## Where to start
+
+### Python package: build and run pipelines
+
+<CardGrid>
+  <LinkCard title="Tutorial: your first pipeline" href="/python/tutorial/" description="From an empty directory: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test." />
+  <LinkCard title="Guide" href="/python/guide/" description="Building a pipeline: the steps, the decisions, the pitfalls." />
+  <LinkCard title="Concepts" href="/python/concepts/" description="The words contraagent uses, each with one meaning." />
+  <LinkCard title="The monitor" href="/python/monitor/" description="The runs, live, in a browser." />
+</CardGrid>
+
+### Web packages: the monitor in a page of your own
+
+<CardGrid>
+  <LinkCard title="@contraagent/ui" href="/node/ui/" description="The monitor and each of its views as web components." />
+  <LinkCard title="@contraagent/elements" href="/node/elements/" description="Generic web components: tables, graphs, tiles, charts, transcripts, and the themes." />
+  <LinkCard title="@contraagent/api" href="/node/api/" description="A typed client for the monitor's HTTP API, its live feeds and a store." />
+  <LinkCard title="Element gallery" href="/elements/" description="Every element of the web packages, live." />
+</CardGrid>
+
+### Reference
+
+<CardGrid>
+  <LinkCard title="Monitor HTTP API" href="/reference/http-api/" description="The monitor's endpoints and live feeds." />
+  <LinkCard title="Elements of @contraagent/ui" href="/reference/ui/" description="Each view's properties, attributes and events." />
+  <LinkCard title="Elements of @contraagent/elements" href="/reference/elements/" description="Each generic element's properties, attributes, events and parts." />
+  <LinkCard title="Theme properties" href="/reference/theme/" description="Every --ca-* custom property and its value in each built-in theme." />
 </CardGrid>
 
 ## A run, live
 
-The demo pipeline's plan, as `<ca-pipeline-graph>` draws it:
+The demo pipeline's run, as `<ca-pipeline-graph>` draws it. Select a node or a mark: what the element sends shows under it.
 
 <Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} />

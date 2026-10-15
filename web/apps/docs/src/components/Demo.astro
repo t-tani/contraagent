@@ -4,9 +4,9 @@
 // keys; `theme` is a built-in theme (`data-ca-theme`), `custom` a class of @contraagent/ui's
 // docs/examples/theme.css (a theme of one's own) on top of it;
 // `describe` puts the element's own description (its JSDoc, from custom-elements.json) above it.
-import { inlineMd, repoJson } from '../lib/repo';
+import { describe as describeTag } from '../lib/elements';
+import { inlineMd } from '../lib/repo';
 
-interface Manifest { modules: { declarations?: { tagName?: string; description?: string }[] }[] }
 interface Props {
   tag: string;
   props: Record<string, string>;
@@ -18,11 +18,7 @@ interface Props {
   describe?: boolean;
 }
 const { tag: Tag, props, attrs = {}, height, theme = 'contraagent-dark', custom, caption, describe = false } = Astro.props;
-const description = describe
-  ? repoJson<Manifest>('web/packages/ui/custom-elements.json')
-      .modules.flatMap((m) => m.declarations ?? [])
-      .find((d) => d.tagName === Tag)?.description
-  : undefined;
+const description = describe ? describeTag(Tag) : undefined;
 ---
 
 {description && <p set:html={inlineMd(description)} />}
