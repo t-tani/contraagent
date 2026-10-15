@@ -74,7 +74,7 @@ from contraagent.backends.base import Backend, ModelChains
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
 from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.contracts import OutputContract
-from contraagent.dispatch.task import STOP_COMPLETED, STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
+from contraagent.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution.changes import compare, scan, scan_tree
 
@@ -268,14 +268,14 @@ class Recorder:
 
     def record_python(self, task: Task, result: TaskResult, outputs: Sequence[OutputContract], retry: bool) -> None:
         """Keep one call of a Python task's function: how it ended, `retry` (it raised an
-        exception of its task's `retry_on`), and, when it completed, its output files."""
+        exception of its task's `retry_on`), and, when it finished ok (a `Partial` too), its output files."""
         token, files = self._attempt_dir(task)
         by_hash: list[dict[str, Any]] = []
         kept: list[dict[str, Any]] = []
         for n, (out, message) in enumerate(_outputs(outputs, self._cwd)):
             name = f"output-{n}"
-            stored = result.stop == STOP_COMPLETED and self._store(task, out, files / name, by_hash)
-            beside = result.stop == STOP_COMPLETED and self._store(task, message, files / f"{name}.message.txt", by_hash)
+            stored = result.ok and self._store(task, out, files / name, by_hash)
+            beside = result.ok and self._store(task, message, files / f"{name}.message.txt", by_hash)
             kept.append({"file": name if stored else None, "message": f"{name}.message.txt" if beside else None})
         facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "by_hash": by_hash}
         self._keep(task, "python", facts)

@@ -76,7 +76,8 @@ task's last launch (how it ended, its final message, turns, agent, model) and it
 fingerprint, and beside it the final contents of its output files, the files its
 `changes=` patterns saw created or modified (and the paths they saw deleted), and its
 part of the transcript when transcripts are kept. A Python task attempt's recording holds
-how its call ended and its output file, which is what the flow receives from it. Nothing
+how its call ended (a `Partial` is played as `partial` again, its reason too) and its output
+file, which is what the flow receives from it. Nothing
 else of the working directory is kept. A task's first attempt in a run replaces its
 recording. Record on a real coding agent once, and commit the directory with the tests.
 

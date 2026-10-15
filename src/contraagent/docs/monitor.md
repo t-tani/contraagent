@@ -219,7 +219,7 @@ task's detail) take the same form. From Python, `Monitor(panels=...)`:
 A run's page says what one run did. The trends say what the runs of a
 **period** did together (`/api/trends?from=2026-10-01&to=2026-10-14&tz=Asia/Tokyo`;
 by default the last 14 days in UTC): the cost of each day by kind, or by group
-when the monitor has groups (`Monitor(groups=)`); each kind's tasks, how many
+when the monitor has groups (`Monitor(groups=)`; the implementation kinds of a base kind are one group); each kind's tasks, how many
 passed, its attempts and their median time, tokens and cost; what each model was
 spent on; the outcomes that were not `completed`; the tool calls the coding
 agent's permissions refused; each account's utilization, by its highest reading

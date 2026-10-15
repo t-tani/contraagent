@@ -1,6 +1,7 @@
 """Recordings and replays (`Pipeline(record=)`, `Pipeline(replay=)`, `contraagent run
 --record/--replay`): a run's task attempts kept, then played with nothing spent."""
 
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task, python_task
+from contraagent import Partial, Pipeline, PipelineConfig, Stop, agent_task, python_task
 from contraagent.cli import main
 from contraagent.execution.recording import RecordingError, base_key
 from contraagent.monitor import Monitor
@@ -370,3 +371,53 @@ def test_with_the_run_directory_as_cwd_only_its_outputs_are_compared(tmp_path):
     assert (cwd / "journal.jsonl").exists() and (cwd / "out" / "write" / "alpha.json").exists()
     body = json.loads((rec / "undeclared.json").read_text())
     assert body["created"] == ["out/extra.json"] and body["modified"] == body["deleted"] == []
+
+
+looked_up: list[str] = []
+
+
+@python_task
+def look_up(topic: str) -> Note | Partial[Note]:
+    looked_up.append(topic)
+    return Partial(Note(title=f"{topic}, from the cache"), reason="the local index server is not up")
+
+
+def test_a_replayed_partial_is_partial_again_and_a_resume_runs_it(tmp_path):
+    agent = StubAgent(execute=["look_up"])
+    live = Pipeline(runs_dir=tmp_path / "runs", cwd=tmp_path, stub=agent, record=tmp_path / "rec").run(lambda: look_up(topic="alpha"))
+    assert live.results["python:look_up"].stop == "partial"
+    looked_up.clear()
+    played = replay(tmp_path, flow_=lambda units: look_up(topic="alpha"))
+    result = played.results["python:look_up"]
+    assert looked_up == [] and result.ok and result.stop == "partial"
+    assert result.reason == "the local index server is not up"
+    assert played.value.output.title == "alpha, from the cache"
+    assert outputs(played) == outputs(live)
+    # A resume runs a partial task again: here it plays its recording again.
+    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "replay-runs", cwd=tmp_path / "replay", replay=tmp_path / "rec")
+    again = pipeline.run(lambda units: look_up(topic="alpha"), resume=True, units=["alpha"])
+    assert [r["stop"] for r in journal(again)] == ["partial", "partial"] and all(r["replayed"] for r in journal(again))
+
+
+def test_a_scope_and_an_enricher_see_each_replayed_python_attempt(tmp_path):
+    record(tmp_path)
+    seen: list[str] = []
+
+    @contextlib.contextmanager
+    def scope(task):
+        seen.append(f"enter {task.key}")
+        yield
+        seen.append(f"exit {task.key}")
+
+    class Enricher:
+        def snapshot(self, task):
+            return None
+
+        def enrich(self, task, before, result):
+            seen.append(f"{task.key} replayed={result.replayed}")
+
+    cwd = tree(tmp_path / "scoped")
+    pipeline = Pipeline(runs_dir=tmp_path / "scoped-runs", cwd=cwd, replay=tmp_path / "rec", scopes=[scope], enrichers=[Enricher()])
+    played = pipeline.run(flow, units=["alpha", "beta"])
+    assert played.ok, played.failed
+    assert seen[-3:] == ["enter python:count", "exit python:count", "python:count replayed=True"]

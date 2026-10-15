@@ -13,6 +13,17 @@
 from contraagent.pipeline.check import CheckReport
 from contraagent.pipeline.graph import Pending, TooManyPasses
 from contraagent.pipeline.pipeline import Pipeline, RunReport
-from contraagent.pipeline.spec import AgentTask, PythonTask, agent_task, python_task
+from contraagent.pipeline.spec import AgentTask, Implementations, PythonTask, agent_task, python_task
 
-__all__ = ["AgentTask", "CheckReport", "Pending", "Pipeline", "PythonTask", "RunReport", "TooManyPasses", "agent_task", "python_task"]
+__all__ = [
+    "AgentTask",
+    "CheckReport",
+    "Implementations",
+    "Pending",
+    "Pipeline",
+    "PythonTask",
+    "RunReport",
+    "TooManyPasses",
+    "agent_task",
+    "python_task",
+]

@@ -45,6 +45,27 @@ attempt then finds the service running again.
 not part of its definition's digest: changing them does not run a finished task
 again on a resume (as with `claims` and `rerun_on_resume`).
 
+### Partial results
+
+A Python task whose service stays unavailable may still give the run something to
+go on with: it returns `Partial(value, reason=...)`. `value` is its output as
+usual, checked against its output schema and written to its output file;
+`reason` says why it is partial, in one line. The task finishes ok with stop
+`partial`, so the flow receives `value` as from any other result and later tasks
+run on it. The flow cannot tell the two apart: the result and the journal row
+carry the stop and the reason, and `RunReport.partial` lists such results.
+
+A resume runs a task whose last result was `partial` again, and with it every
+task that waits for it, directly or through others: their outputs were made from
+the placeholder. Every other task a resume skips as usual. Annotate the function
+`-> Out | Partial[Out]`; its output is `Out`.
+
+::code{file="examples/partial/flow.py" from="@python_task" to="summarize = agent_task("}
+
+A partial result is not a retry: for a failure a fresh attempt cures, use
+`retries`; when the attempts run out, the exception fails the task. To end with a
+placeholder instead, catch the exception and return `Partial`.
+
 ## The flow
 
 A flow is a plain function, with no decorator. `Pipeline` tells a generator flow
@@ -131,9 +152,20 @@ be made (`zeta`) ends its loop there.
   with a task of a `finishing_kinds` kind. A batch settles every item, then raises the first failure by position.
   Tolerating a failure is `try`/`except`.
 - A task called and never yielded still runs; the flow call does not wait for it.
-- A task's output file is `out/<kind>/<unit>.json` (`.md` for a text output),
-  and `out/<kind>/<key>.json` for a task call given `key=`: tasks of one kind
-  and one unit with different keys write different files.
+- A task's output file is its kind's `output_name` under the run's `out/`: a
+  path template with `{kind}`, `{unit}` and `{key}`, `{unit}` being the key for a
+  task call given `key=`, so tasks of one kind and one unit with different keys
+  write different files. The default is `{kind}/{unit}.json` (`.md` for a text
+  output): `out/summarize/alpha.json`. `agent_task(output_name="reports/{unit}.json")`
+  writes `out/reports/alpha.json`; `@python_task(output_name=...)` takes the same.
+  An absolute path, a `..`, `.` or empty segment, or another field is refused
+  where the task is declared.
+- One output file has one writer. Two kinds whose templates name one file
+  (`reports/{unit}.json` for both) raise `ValueError` when the flow reaches the
+  second, and `Pipeline.check` reports it before a run, reachable kinds included;
+  two tasks given one file (a template without `{unit}` or `{key}`) raise at the
+  second task call. A task that fills in another kind's file names it with
+  `output_of` (see [Contracts](contracts.md)).
 - The same task created again in one flow call is numbered: `review-beta`,
   `review-beta~2`, ..., with its output file (`out/review/beta~2.json`). One key
   created by two flow calls raises `ValueError` at the second: `key=` tells
@@ -344,16 +376,26 @@ A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
 in the pattern, or keep them from running at once (a claim).
 
-`Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of an agent task.
-A scope (`TaskScope`) is a context manager around it, every hop included; an
-enricher (`ResultEnricher`) sees the task before and the result after, after the
-changes are recorded, and may add a `payload` or change `ok` and `stop`;
-`row_extras(result)` adds columns to the journal row. The monitor shows each such
+`Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of a task, agent or
+Python. A scope (`TaskScope`) is a context manager around it: around every hop of an
+agent task, around the input check, the call and the output check of a Python task.
+A scope that raises fails the task. A Python task's exception is the attempt's result,
+so the scope exits without one. An enricher (`ResultEnricher`) sees the task before
+and the result after (an agent task's after its changes are recorded), and may add a
+`payload` or change `ok` and `stop`; `row_extras(result)` adds columns to the journal
+row. The monitor shows each such
 column under its own name, in the history and in the task's attempts (the API names
 them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
 topic:
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
+
+Scopes and enrichers see every task. One for some tasks only tests `task.kind`, or
+`task.executor` (`"agent"` or `"python"`), and leaves the others as they are. Here a
+scope starts a local index server for each attempt of one Python task kind, and stops
+it after; a fresh attempt gets a fresh server:
+
+::code{file="examples/scopes/flow.py" from="@contextlib.contextmanager" to="def topics("}
 
 ## A pipeline's own records
 
@@ -369,11 +411,18 @@ to a hub with the rest of the run, and a panel reads them back wherever the moni
 reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
 plays does not run, so it logs nothing; flow code runs as in any run.
 
+In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
+settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was
+started with (`contraagent run --config`, `Pipeline(config)`), as parsed. It is an
+empty table when the file has none, or the run has no config file
+([routing](routing.md)).
+
 ::code{file="examples/panels/records.py" from="@python_task" to="def words("}
 
 ## How a task ends
 
-A result's `stop` says why: `completed`, `invalid_output` (still off-contract
+A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
+output, ok; a resume runs it again), `invalid_output` (still off-contract
 after every fix-up round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.Stop`, each with its meaning in `contraagent/backends/launch.py`.

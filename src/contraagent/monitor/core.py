@@ -297,7 +297,9 @@ class Monitor:
         keep_digests: bool = True,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
-        without them each kind is a group of its own.
+        without them each kind is a group of its own. The implementation kinds of one base
+        kind (`agent_task(implementations=)`) that `groups` does not list are one group,
+        named by the base kind.
         `static_dir` replaces the bundled web UI with the caller's own.
         `stream_formats` maps a custom coding agent's name to a built-in stream
         format (`claude`, `omp`) when the monitor runs in another process than
@@ -346,7 +348,7 @@ class Monitor:
         unresponsive = self.liveness.unresponsive()
         for run in self.source.runs():
             info = self.source.info(run) or {}
-            n = ok = not_run = 0
+            n = ok = partial = not_run = 0
             cost: float | None = None
             tokens = {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0, "calls": 0}
             readings: list[dict] = []
@@ -358,7 +360,8 @@ class Monitor:
             for e in self._read_journal(run):
                 n += 1
                 extras.update(dict.fromkeys(row_extras([e])))
-                ok += bool(e.get("ok"))
+                partial += e.get("stop") == "partial"
+                ok += bool(e.get("ok")) and e.get("stop") != "partial"
                 not_run += e.get("stop") in ("invalid_input", "skipped")
                 if e.get("cost_usd") is not None:
                     cost = (cost or 0.0) + float(e["cost_usd"])
@@ -384,6 +387,7 @@ class Monitor:
                     "run_group": run_group or run,
                     "attempts": n,
                     "ok": ok,
+                    "partial": partial,
                     "not_run": not_run,
                     "tasks": self._task_counts(run, live=run in live),
                     "cost_usd": round(cost, 6) if cost is not None else None,
@@ -450,8 +454,9 @@ class Monitor:
         same numbers the run's own page shows. Running tasks are looked up only
         for a run that is `live`; a task deferred, or queued in a run that is not
         live, is `not_run` (it will not run), and only a live run's queued tasks wait."""
-        counts = {"total": 0, "done": 0, "failed": 0, "not_started": 0, "running": 0, "waiting": 0, "not_run": 0, "skipped": 0}
-        name = {"done": "done", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
+        names = ("total", "done", "partial", "failed", "not_started", "running", "waiting", "not_run", "skipped")
+        counts: dict[str, int] = dict.fromkeys(names, 0)
+        name = {"done": "done", "partial": "partial", "failed": "failed", "blocked": "not_started", "skipped": "skipped"}
         running = _running_keys(self.liveness.snapshot(run)) if live else set()
         for n in self.plan(run, live={})["nodes"]:
             counts["total"] += 1
@@ -541,6 +546,8 @@ class Monitor:
                 state = "skipped"
             elif j.get("stop") == "invalid_input":
                 state = "blocked"  # refused before launch: it never ran
+            elif j.get("stop") == "partial":
+                state = "partial"  # ok, its output a placeholder a resume makes again
             else:
                 state = "done" if j.get("ok") else "failed"
             node = {**r, "state": state}
@@ -672,15 +679,17 @@ class Monitor:
         return list(calls.values())
 
     def _group_name(self, n: dict) -> str:
-        """A node's group: the first of `groups` that lists its kind, else its `Task.kind`."""
+        """A node's group: the first of `groups` that lists its kind, else its base kind (an
+        implementation kind's, `agent_task(implementations=)`), else its `Task.kind`."""
         for d in self.group_defs:
             if n["kind"] in d.get("kinds", ()):
                 return d["id"]
-        return n["kind"]
+        return n.get("base_kind") or n["kind"]
 
     def _groups(self, nodes: list[dict]) -> list[dict]:
         def tally(sid: str, label: str, members: list[dict]) -> dict:
-            c = {s: sum(1 for n in members if n["state"] == s) for s in ("done", "failed", "running", "pending", "skipped", "blocked")}
+            states = ("done", "partial", "failed", "running", "pending", "skipped", "blocked")
+            c = {s: sum(1 for n in members if n["state"] == s) for s in states}
             return {"id": sid, "label": label, "total": len(members), **c}
 
         if self.group_defs:
@@ -688,7 +697,12 @@ class Monitor:
             for d in self.group_defs:
                 members = [n for n in nodes if n["kind"] in d.get("kinds", ())]
                 out.append(tally(d["id"], d.get("label", d["id"]), members))
-            return out
+            listed = {k for d in self.group_defs for k in d.get("kinds", ())}
+            bases: dict[str, list[dict]] = {}
+            for n in nodes:  # the implementation kinds `groups` does not list: their base kind's group
+                if n.get("base_kind") and n["kind"] not in listed:
+                    bases.setdefault(n["base_kind"], []).append(n)
+            return out + [tally(b, b, members) for b, members in bases.items()]
         groups: dict[str, list[dict]] = {}
         for n in nodes:
             groups.setdefault(n["group"], []).append(n)

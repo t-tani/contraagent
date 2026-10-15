@@ -13,11 +13,23 @@ agent exactly like schema errors: as the next turn of the same session.
 A validator that also declares `params` is given the task's params (an agent
 task's as its call file holds them, a Python task's with every upstream value
 resolved); one that declares `call` is given the path of an agent task's call
-file. A rule that relates the output to the input needs them:
+file; one that declares `cwd`, the task's working directory. A rule that relates
+the output to the input needs them:
 
     def cites_real_lines(path, review: Review, *, params):
         n = len(Path(params["path"]).read_text().splitlines())
         return [f"findings.{i}.line: {f.line} is past the end ({n} lines)" for i, f in enumerate(review.findings) if f.line > n]
+
+A validator that declares `before` is given the file as it was before the task,
+parsed as `value` is (the model instance, or the text), or None when there was
+no file or it did not pass its schema then. It is the file ahead of the task's
+first round, on every correction round alike; the file is read only when some
+validator of the contract declares `before`. A rule about what the task changed
+needs it:
+
+    def adds_an_item(path, backlog: Backlog, *, before: Backlog | None):
+        if before is not None and len(backlog.items) <= len(before.items):
+            return [f"items: add at least one item (still {len(backlog.items)})"]
 
     agent_task("summarize", ..., validators=[has_points, CommandValidator(["npx", "textlint", "{path}"])])
 
@@ -25,6 +37,7 @@ file. A rule that relates the output to the input needs them:
 into a task's call file, so the in-session Stop hook runs it too: the agent
 hears about it before it ends its turn, and the runner checks again after.
 `{call}` in its arguments is the call file, so a script can read the params.
+It is given no `before`: a command reads the file as it is.
 """
 
 from __future__ import annotations
@@ -36,11 +49,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-#: `(path, value) -> errors`, optionally also taking `params` and `call` by keyword.
+#: `(path, value) -> errors`, optionally also taking any of `CONTEXT` by keyword.
 Validator = Callable[..., Iterable[str] | None]
 
 #: What a validator may declare, beyond `(path, value)`.
-CONTEXT = ("params", "call", "cwd")
+CONTEXT = ("params", "call", "cwd", "before")
 
 
 def validator_name(v: Validator) -> str:
@@ -48,7 +61,7 @@ def validator_name(v: Validator) -> str:
 
 
 def wanted_context(v: Validator) -> tuple[str, ...]:
-    """Which of `params` and `call` the validator declares."""
+    """Which of `CONTEXT` the validator declares."""
     try:
         names = inspect.signature(v).parameters
     except (TypeError, ValueError):
@@ -64,18 +77,23 @@ def run_validators(
     params: Mapping[str, Any] | None = None,
     call: Path | None = None,
     cwd: Path | None = None,
+    before: Callable[[], Any] | None = None,
 ) -> list[str]:
     """Every validator's errors, each prefixed with the validator's name.
 
-    A validator that raises reports the exception as its error: a crash is
-    something to see, not a reason to pass the file.
+    `before` gives the file's value before the task (None: none); it is called once,
+    and only when a validator declares `before`. A validator that raises reports the
+    exception as its error: a crash is something to see, not a reason to pass the file.
     """
     context: dict[str, Any] = {"params": dict(params or {}), "call": call, "cwd": cwd}
     errors: list[str] = []
     for v in validators:
         name = validator_name(v)
+        wanted = wanted_context(v)
+        if "before" in wanted and "before" not in context:
+            context["before"] = before() if before is not None else None
         try:
-            found = list(v(path, value, **{c: context[c] for c in wanted_context(v)}) or ())
+            found = list(v(path, value, **{c: context[c] for c in wanted}) or ())
         except Exception as exc:  # a validator's crash is its verdict
             found = [f"validator raised {type(exc).__name__}: {exc}"]
         errors += [f"{path}: [{name}] {e}" for e in found]

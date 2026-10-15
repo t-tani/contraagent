@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A validator may take `before`, the output file as it was before the task, parsed as its
+  value is (the model instance, or the text; None when there was no file or it did not meet
+  its schema): `def adds_an_idea(path, backlog: Backlog, *, before: Backlog | None)`. It is
+  the file ahead of the first round on every correction round, for agent and Python tasks
+  alike; the file is read only for a contract with such a validator, and an attempt that does
+  not pass puts it back as it was. A `CommandValidator` is not given it.
+- `Pipeline(scopes=, enrichers=)` wrap each attempt of a Python task too, as they wrap each
+  attempt of an agent task: a scope (`TaskScope`) around its input check, call and output
+  check, retries included; an enricher (`ResultEnricher`) before and after, able to add a
+  `payload` or change `ok` and `stop`. One for some tasks only tests `task.kind` or
+  `task.executor`. `examples/scopes/` starts a local index server for each attempt of a
+  Python task kind.
+- Pipeline tables: a pipeline keeps its own settings in the config file under
+  `[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+  `contraagent.pipeline_table(name)` (`NoCurrentRun` outside a run), other code with
+  `PipelineConfig.table(name)`; either is an empty table when absent. contraagent never
+  checks their keys, and a `pipeline.<name>` that is not a table is refused. `Run(config=)`
+  and `PythonTaskRunner(config=)` take the config file the run was started with.
+
+- A partial result: a Python task returns `Partial(value, reason=)` (annotated
+  `-> Out | Partial[Out]`) when a service it needs is unavailable. It finishes ok with stop
+  `partial`, its `value` its output, so the flow and later tasks go on; a resume runs it
+  again with the tasks that wait for it. `RunReport.partial` lists such results; the
+  monitor's API has the plan state `partial` and counts partial tasks and attempts apart
+  from those that passed (`TaskCounts.partial`, `PlanGroup.partial`, `RunSummary.partial`,
+  and in the trends `partial` and `TrendKind.tasks_partial`).
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history
   tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak
@@ -18,9 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its recordings in place of "stub agent" (`RunSummary.replay`); a Python task's retries and
   retried exceptions, an agent task's `output_of` and the JSON pointers it must keep
   unchanged (`preserve`) in its definition and its checked output file.
-- Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
-  one of several toolsets, each a kind of its own with its own plugin and the same output
-  schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.
+- One step declared with several implementations: `agent_task("review",
+  implementations={"python": "plugins/review-python", "go": "plugins/review-go"}, ...)`
+  declares the kinds `review-python` and `review-go`, each with its own plugin and every other
+  argument shared, and returns an `Implementations` the flow indexes by name
+  (`yield review["go"](unit)`). Each is a reachable kind with its own definition and
+  fingerprint; `[tasks.review]` is every implementation's task table and `[tasks.review-go]`
+  replaces its keys one by one (its `fallbacks` the whole chain). The monitor draws the
+  implementation kinds as one group named `review` in the plan and the trends, unless
+  `Monitor(groups=)` lists them; `plan.jsonl`, the plan's nodes and the kind's definition
+  record `base_kind`. Another declaration whose kind is the base kind or an implementation
+  kind is refused by `Pipeline.check` and before the first launch. `contraagent docs plugins` ("An implementation per unit") and
+  `examples/implementations/` show it.
 - A task call's `priority` (`summarize("alpha", priority=2.5)`, default 0): among ready tasks
   the queue would otherwise start in the order they were queued, the highest priority starts
   first. It never outranks a longer bottom level, an overdue task or a time box's endgame,
@@ -139,6 +174,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `output_name` is the output file's path relative to the run's `out/`, a template with
+  `{kind}`, `{unit}` and `{key}` (default `{kind}/{unit}.json`, `{kind}/{unit}.md` for a text
+  output): `output_name="reports/{unit}.json"` writes `out/reports/alpha.json`.
+  `@python_task(output_name=)` takes the same. An absolute path, a `..`, `.` or empty segment,
+  or another field is refused at declaration; two kinds whose templates name one file raise
+  when the flow reaches the second (`Pipeline.check` reports it), and so do two tasks given one
+  file. `output_of` takes the other kind's file, whatever its template.
 - `retries` counts the attempts after the first for agent tasks too (`KindConfig.retries`,
   `[tasks.<kind>] retries`, `agent_task(retries=)`): `retries=2` is 3 attempts at most. The
   default is 2, so a kind that sets nothing still makes 3 attempts; a kind that set `retries=N`
@@ -983,6 +1025,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `StreamController` that tails the stream feed.
 
 ### Fixed
+
+- `PipelineConfig.table(name)` returned a top-level table that every check refused as
+  unknown; it reads `[pipeline.<name>]`, and an unknown top-level table's message names
+  `[pipeline.<name>]` as the place for a pipeline's own table.
 
 - opencode: a `Bash(...)` pattern in `disallowed_tools` replaced the role's `bash` allow, so
   every command was denied; a pattern is now added after the rule the tool had

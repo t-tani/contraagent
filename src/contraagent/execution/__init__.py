@@ -16,7 +16,7 @@
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.execution.cursor import CursorStore
 from contraagent.execution.journal import Journal
-from contraagent.execution.pipeline_files import NoCurrentRun, log, save
+from contraagent.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.run import Run, RunExists, RunLocked
 from contraagent.execution.runner import AgentRunner, RetryingRunner
@@ -33,5 +33,6 @@ __all__ = [
     "RunLocked",
     "TaskAdapter",
     "log",
+    "pipeline_table",
     "save",
 ]

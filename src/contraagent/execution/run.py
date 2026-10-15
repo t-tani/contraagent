@@ -46,9 +46,10 @@ from pathlib import Path
 from contraagent import procfs, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
+from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.task import Frame, Task, TaskResult, TimeBox, kind_name
+from contraagent.dispatch.task import STOP_PARTIAL, Frame, Task, TaskResult, TimeBox, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
@@ -58,6 +59,7 @@ from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
 from contraagent.routing.capacity import sized
+from contraagent.routing.config import PipelineConfig
 from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
 
 _logger = logging.getLogger(__name__)
@@ -69,12 +71,30 @@ THROTTLE_ON = frozenset({Stop.RATE_LIMITED.value})
 
 
 def finished_before(row: dict | None, task: Task) -> bool:
-    """Whether `row`, its key's last journal row, shows `task` finished: ok, with the
-    task's fingerprint. What a resume skips; never a task that reruns on resume
-    (`Task.rerun_on_resume`)."""
-    if task.rerun_on_resume:
+    """Whether `row`, its key's last journal row, shows `task` finished: ok and not
+    `partial`, with the task's fingerprint. What a resume skips; never a task that reruns
+    on resume (`Task.rerun_on_resume`)."""
+    if task.rerun_on_resume or row is None or row.get("stop") == STOP_PARTIAL:
         return False
-    return row is not None and bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+    return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
+
+
+def resume_skip(last: Mapping[str, dict]) -> Callable[[Task], bool]:
+    """What a resume skips, given each key's last journal row: a task `finished_before`,
+    unless it waits for a task that runs again because its last result was `partial`, or
+    for one that runs again for that reason in turn. Its output was made from a
+    placeholder, which a fingerprint does not show when the flow passed the output on
+    without receiving it. Asked once per task, as it is queued."""
+    again: set[str] = set()
+
+    def skip(task: Task) -> bool:
+        row = last.get(task.key)
+        stale = not again.isdisjoint(task.after)
+        if stale or (row is not None and row.get("stop") == STOP_PARTIAL):
+            again.add(task.key)
+        return not stale and finished_before(row, task)
+
+    return skip
 
 
 def _name_of(fn: Callable) -> str:
@@ -115,6 +135,7 @@ class Run:
         unit_of: Callable[[Task], str] | None = None,
         log: Callable[[str], None] | None = None,
         cwd: str | Path | None = None,
+        config: PipelineConfig | None = None,
     ):
         """`run_group` is a label grouping runs (default: the run id).
         `row_extras(result)` adds a domain's own columns to a journal row;
@@ -124,11 +145,14 @@ class Run:
         caller decides through `logging` whether and where they appear.
         `cwd` is the run's working directory, where its agents run (default: this
         process's); `run.json` records it, and the monitor shows the flow code
-        files under it relative to it."""
+        files under it relative to it.
+        `config` is the config file the run was started with; its pipeline tables are what
+        `contraagent.pipeline_table` reads in the run (none without it)."""
         self.run_id = run_id
         self.run_group = run_group or run_id
         self.runs_dir = Path(runs_dir)
         self.dir = self.runs_dir / run_id
+        self.config = config
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / rundir.STREAMS).mkdir(exist_ok=True)
         # A task given no unit has it defaulted to its own key, which names
@@ -205,8 +229,9 @@ class Run:
             self._lock_fd = None
 
     def __enter__(self) -> Run:
-        """The run, as the current run of `contraagent.log` and `save` until the `with` ends."""
-        self._writing = writing_into(self.dir.resolve())
+        """The run, as the current run of `contraagent.log`, `save` and `pipeline_table`
+        until the `with` ends."""
+        self._writing = writing_into(self.dir.resolve(), self.config)
         self._writing.__enter__()
         return self
 
@@ -307,13 +332,34 @@ class Run:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
         return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
 
-    def python_runner(self, inner=None, adapter=None, cwd: str | Path | None = None, recorder=None, replay=None) -> PythonTaskRunner:
+    def python_runner(
+        self,
+        inner=None,
+        adapter=None,
+        cwd: str | Path | None = None,
+        *,
+        scopes: Sequence[TaskScope] = (),
+        enrichers: Sequence[ResultEnricher] = (),
+        recorder=None,
+        replay=None,
+    ) -> PythonTaskRunner:
         """The runner for a queue that mixes Python tasks with agent tasks: Python
         tasks run in-process with their declared contracts checked, agent tasks go
         to `inner` (`RetryingRunner(...)`). Each attempt of a Python task is journaled:
-        a retried one here, the last by the queue. `recorder` and `replay`: see `PythonTaskRunner`."""
+        a retried one here, the last by the queue. `scopes` / `enrichers` wrap each
+        attempt of a Python task, `recorder` keeps each attempt's recording and `replay` plays
+        it (`PythonTaskRunner`)."""
         return PythonTaskRunner(
-            inner, adapter=adapter, run_dir=self.dir, cwd=cwd, on_failed_attempt=self.record_attempt, recorder=recorder, replay=replay
+            inner,
+            adapter=adapter,
+            run_dir=self.dir,
+            cwd=cwd,
+            on_failed_attempt=self.record_attempt,
+            scopes=scopes,
+            enrichers=enrichers,
+            config=self.config,
+            recorder=recorder,
+            replay=replay,
         )
 
     def estimator(self) -> JournalEstimates:
@@ -345,7 +391,7 @@ class Run:
 
         Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
         run.record_attempt)`, so nothing is written twice. `resume=True` skips every
-        task an earlier attempt finished (`finished_before`). `kwargs` pass through
+        task an earlier attempt finished (`resume_skip`). `kwargs` pass through
         (`max_concurrent`, `claim_capacity`, `finishing_kinds`, `deadline_s`...);
         `retry_on`/`throttle_on` default to the stop sets above; a `PerTask` entry of
         `claim_capacity` is sized by this host (`routing.capacity`).
@@ -356,8 +402,7 @@ class Run:
         kwargs.setdefault("throttle_on", THROTTLE_ON)
         kwargs.setdefault("estimate", self.estimator().estimate)
         if resume:
-            last = self.journal.last_rows()
-            kwargs.setdefault("skip", lambda task: finished_before(last.get(task.key), task))
+            kwargs.setdefault("skip", resume_skip(self.journal.last_rows()))
         q = WorkQueue(runner, follow_up=follow_up, on_event=self._on_event, on_result=self._journal_python_task, **kwargs)
         self.update_info(max_workers=q.max_concurrent)
         return q
@@ -446,7 +491,7 @@ class Run:
         `plan.jsonl`: the monitor draws the pipeline from it, including the
         work that has not started yet (the journal only knows what finished).
         A task with no origin (built by hand) has an empty `flow` and `created_from`, and
-        `flow_call` null."""
+        `flow_call` null. `base_kind` is there only for an implementation kind."""
         origin = task.origin
         row = {
             "ts": utcnow_iso(),
@@ -460,6 +505,7 @@ class Run:
             "flow": frames_row(origin.flow) if origin is not None else [],
             "created_from": list(origin.created_from) if origin is not None else [],
             "flow_call": origin.flow_call if origin is not None else None,
+            **({"base_kind": task.base_kind} if task.base_kind else {}),
         }
         self._append(rundir.PLAN, row)
         if self._estimates is not None:

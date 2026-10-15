@@ -8,7 +8,7 @@ import sys
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from contraagent import CommandValidator, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
+from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
 from contraagent.cli import main
 from contraagent.dispatch.task import kind_name
 from contraagent.docs.examples.review import flow as example
@@ -176,6 +176,41 @@ def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
         "routing: effort 'ultra' for kinds review, summarize on agent claude is not accepted",
         "routing: <config> [[tasks.review.fallbacks]]: block 1 (hop 2) names unknown agent 'clade' (did you mean claude?)",
     ]
+
+
+def test_a_pipeline_table_passes_check_unread_and_table_returns_it(plugin_dir, tmp_path):
+    summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
+    f = tmp_path / "pipeline.toml"
+    f.write_text('[pipeline.report]\ntitle = "Weekly"\nany_key = [1, 2]\n\n[pipeline.index]\nport = 8080\n')
+    config = PipelineConfig.load(f)
+
+    def flow():
+        summarize("a")
+
+    assert Pipeline(config).check(flow).errors == []
+    assert config.table("report") == {"title": "Weekly", "any_key": [1, 2]}
+    assert config.table("index") == {"port": 8080}
+    assert config.table("absent") == {}
+
+
+def test_another_top_level_table_is_refused_with_where_a_pipeline_table_goes():
+    errors: list[str] = []
+    PipelineConfig({"report": {"title": "x"}, "defualts": {}}).unknown_tables(errors)
+    assert errors == [
+        "<config>: the file has unknown keys 'defualts' (did you mean defaults?), 'report'; "
+        "expected credentials, defaults, pipeline, tasks; a pipeline's own table goes under [pipeline.<name>]"
+    ]
+
+
+def test_a_pipeline_value_that_is_not_a_table_is_refused():
+    errors: list[str] = []
+    PipelineConfig({"pipeline": {"report": "x", "index": {}}}).unknown_tables(errors)
+    assert errors == ["<config>: pipeline.report = 'x' is not a table; write [pipeline.report]"]
+    errors = []
+    PipelineConfig({"pipeline": 3}).unknown_tables(errors)
+    assert errors == ["<config>: pipeline = 3 is not a table; write [pipeline.<name>]"]
+    with pytest.raises(ConfigError, match=r"pipeline.report = 'x' is not a table"):
+        PipelineConfig({"pipeline": {"report": "x"}}).table("report")
 
 
 def test_a_call_file_validator_on_a_python_task_is_reported():

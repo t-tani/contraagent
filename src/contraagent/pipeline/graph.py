@@ -18,11 +18,14 @@ is numbered:
 
 * its key is `<kind>-<unit>` (`python:` first for a Python task), or `key=`;
   the n-th task a flow call creates under one key is `<key>~n` (n >= 2), and
-  its output file `<stem>~n<suffix>`. The output file is
-  `<out>/<kind>/<unit>.json` (`.md` for a text output), and with `key=`
-  `<out>/<kind>/<key>.json`, so tasks of one kind and unit with different keys
-  never write one file. A key used by two flow calls raises
-  `ValueError` at the second: `key=` tells them apart;
+  its output file `<stem>~n<suffix>`. The output file is its kind's `output_name`
+  under `<out>`, filled in (default `<out>/<kind>/<unit>.json`, `.md` for a text
+  output), `{unit}` being the key when the call gives `key=`, so tasks of one kind
+  and unit with different keys never write one file. A key used by two flow calls
+  raises `ValueError` at the second: `key=` tells them apart;
+* one output file, one writer: two kinds whose `output_name` templates name one
+  file, or a task given a file another task writes (but by `output_of`), raise
+  `ValueError` when the flow reaches the second (`layout`, `add`);
 * each frame of its flow path carries the loops around its call site with
   their passes (`loops.py`); a pass of a `while` loop past `max_passes` raises
   `TooManyPasses` at the task call, and at the `yield` of a child flow call (a
@@ -56,7 +59,7 @@ from pydantic_core import to_jsonable_python
 from contraagent.contracts import InputContract, OutputContract, check_file
 from contraagent.dispatch.flow import TaskFailed, result_or_raise
 from contraagent.dispatch.python_task import PythonTaskPayload
-from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Frame, Origin, Task, TaskResult
+from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Frame, Origin, Partial, Task, TaskResult
 from contraagent.errors import ContraagentError
 from contraagent.pipeline import origin as origins
 from contraagent.pipeline.loops import LoopCounter, counting, is_while
@@ -205,6 +208,11 @@ class Node:
 _NUMBERED = re.compile(r"~[0-9]+$")
 
 
+def _writes_output(spec: Any) -> bool:
+    """An agent task with an output, or a Python task that returns one: a task with an output file."""
+    return spec.output_format is not None and (spec.executor == "agent" or spec.output_schema is not None)
+
+
 class Graph:
     """The nodes a flow added, in call order, and their results.
 
@@ -237,8 +245,11 @@ class Graph:
         self._digests: dict[int, str] = {}  # id(spec) -> its definition's digest
         self._specs: dict[str, Any] = {}  # agent kind -> the declaration its tasks were created by
         self._reached: dict[str, Any] = {}  # agent kind with no task yet -> the reachable declaration routed
+        self._named: dict[int, Any] = {}  # id(spec) -> every declaration reached or created, for `kind_clash`
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
         self._produced: dict[int, tuple[Any, Pending]] = {}  # id(output) -> (output, its Pending)
+        self._layouts: dict[str, str] = {}  # output_name with its kind filled in -> the kind
+        self._writers: dict[Path, str] = {}  # output file -> the key of the task it is given to
         self._taken = 0
 
     @contextlib.contextmanager
@@ -256,7 +267,7 @@ class Graph:
         `other`'s kind so far whose file, its `~n` aside, is `other`'s template filled in for
         this name; with none, the template's file itself. The task to wait for is the latest
         so far that writes the file, of any kind: two tasks never write it at once."""
-        path = self.out_dir / other.kind / Path(other.output_name.format(unit=name, key=base, kind=other.kind))
+        path = self._filled(other, name, base)
         for node in reversed(self.nodes):
             p = node.output_path
             if node.spec.kind == other.kind and p is not None and p.with_name(_NUMBERED.sub("", p.stem) + p.suffix) == path:
@@ -264,6 +275,29 @@ class Graph:
                 break
         writer = next((node.key for node in reversed(self.nodes) if node.output_path == path), None)
         return path, writer
+
+    def _filled(self, spec: Any, name: str, base: str) -> Path:
+        """`spec`'s `output_name` filled in for a task named `name` (its unit, or its key)
+        under `out_dir`. A key that would take it outside raises."""
+        rel = spec.output_name.format(unit=name, key=base, kind=spec.kind)
+        if rel.startswith("/") or any(seg in ("", ".", "..") for seg in rel.split("/")):
+            raise ValueError(f"{spec.kind}: output_name {spec.output_name!r} filled in for key {base!r} is {rel!r}, not a path inside out/")
+        return self.out_dir / rel
+
+    def layout(self, spec: Any) -> None:
+        """Make `spec`'s output file template one of the run's. A second kind whose
+        `output_name`, its `{kind}` filled in, is the same text raises `ValueError`: both
+        would write one file for each unit. A kind that writes another's file (`output_of`)
+        has no template of its own."""
+        if not _writes_output(spec) or getattr(spec, "output_of", None) is not None:
+            return
+        template = spec.output_name.replace("{kind}", spec.kind)
+        owner = self._layouts.setdefault(template, spec.kind)
+        if owner != spec.kind:
+            raise ValueError(
+                f"kinds {owner!r} and {spec.kind!r} both write out/{template}: give one of them another output_name, "
+                f"or declare {spec.kind!r} with output_of= to fill in the other's file"
+            )
 
     def add(
         self,
@@ -290,26 +324,31 @@ class Graph:
         frames = self._prefix.get(call_id, ()) + origins.frames_here(inspect.currentframe(), self.loops.loops)
         self.check_passes(frames, base, call_id)
         self.declare(spec)
+        self.layout(spec)
         claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
-        self._bases[base] = (call_id, n)
-        received: set[str] = set()
-        params = {name: self._dependency(v, received) for name, v in params.items()}
-        upstream = list(_pendings(params.values()))
-        deps = [*(p.key for p in upstream), *((a.key if isinstance(a, Pending) else str(a)) for a in after)]
-        out = None
-        if spec.output_format is not None and (spec.executor == "agent" or spec.output_schema is not None):
+        out, writer = None, None
+        if _writes_output(spec):
             # A task given key= writes a file of its own: two keys on one unit never share one.
             name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(":", "_")
             other = getattr(spec, "output_of", None)
             if other is not None:
                 out, writer = self._output_of(other, name, base)
-                if writer is not None and writer not in deps:
-                    deps.append(writer)
             else:
-                file = Path(spec.output_name.format(unit=name, key=base, kind=spec.kind))
+                out = self._filled(spec, name, base)
                 if n > 1:
-                    file = file.with_name(f"{file.stem}~{n}{file.suffix}")
-                out = self.out_dir / spec.kind / file
+                    out = out.with_name(f"{out.stem}~{n}{out.suffix}")
+                if (taken := self._writers.get(out)) is not None:
+                    raise ValueError(
+                        f"tasks {taken!r} and {key!r} would both write {out.relative_to(self.out_dir.parent).as_posix()}: "
+                        "put {unit} or {key} in output_name, or give one of them output_of="
+                    )
+        self._bases[base] = (call_id, n)
+        received: set[str] = set()
+        params = {name: self._dependency(v, received) for name, v in params.items()}
+        upstream = list(_pendings(params.values()))
+        deps = [*(p.key for p in upstream), *((a.key if isinstance(a, Pending) else str(a)) for a in after)]
+        if writer is not None and writer not in deps:
+            deps.append(writer)
         origin = Origin(flow=frames, created_from=call.frontier if call is not None else (), flow_call=call_id)
         filled = {"unit": glob.escape(unit or base), "key": glob.escape(base), "kind": spec.kind}
         node = Node(
@@ -328,6 +367,8 @@ class Graph:
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)
         self._by_key[key] = node
+        if out is not None and getattr(spec, "output_of", None) is None:
+            self._writers[out] = key
         return Pending(node, self)
 
     def agent_specs(self) -> dict[str, Any]:
@@ -419,7 +460,11 @@ class Graph:
         """Make a reachable agent kind one of the run's (`agent_specs`) before any task of it
         is created: `new_kind` is called for a kind not seen yet. The flow's code may reach
         other declarations of a kind too (a default argument the caller replaces); which one
-        it creates is known only when it does (`declare`)."""
+        it creates is known only when it does (`declare`). A kind that clashes with another
+        declaration's (`kind_clash`) raises, and its output file template is checked against
+        the others' (`layout`), whatever its executor."""
+        self._name(spec)
+        self.layout(spec)
         if spec.executor != "agent" or spec.kind in self._specs or spec.kind in self._reached:
             return
         if self.new_kind is not None:
@@ -430,7 +475,9 @@ class Graph:
         """Make an agent task's kind one of the run's as a task of it is added. One kind, one
         declaration: a second declaration of the kind that differs from the first one created
         (`AgentTask.differences`) raises. `new_kind` is called the first time, unless the
-        kind was reached with the same `config`, `requires` and `tools` (its routing)."""
+        kind was reached with the same `config`, `requires` and `tools` (its routing). A kind
+        that clashes with another declaration's (`kind_clash`) raises."""
+        self._name(spec)
         if spec.executor != "agent":
             return
         seen = self._specs.get(spec.kind)
@@ -446,6 +493,15 @@ class Graph:
         if self.new_kind is not None and (routed is None or (routed.config, routed.requires, routed.tools) != routing):
             self.new_kind(spec)
         self._specs[spec.kind] = spec
+
+    def _name(self, spec: Any) -> None:
+        """Remember `spec` among the run's declarations; raise when its kind clashes with one's."""
+        if id(spec) in self._named:
+            return
+        for other in self._named.values():
+            if message := kind_clash(other, spec):
+                raise ValueError(message)
+        self._named[id(spec)] = spec
 
     def _dependency(self, value: Any, received: set[str]) -> Any:
         """`value` with every output this graph answered replaced by its `Pending`; the keys
@@ -499,6 +555,7 @@ class Graph:
             claims=node.claims,
             priority=node.priority,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
+            base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,
         )
         if self.tail is not None:
@@ -506,22 +563,27 @@ class Graph:
         if node.spec.executor == "agent":
             return task
 
-        def call(node: Node = node) -> None:
+        def call(node: Node = node) -> Partial | None:
+            """Run the function and write its output; a `Partial` it returned, for the runner."""
             schema = node.output_schema
+            partial = None
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = node.resolved_params()
                 json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
                 has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
                 if not has_output:
-                    return
+                    return None
             else:
                 value = node.spec.invoke(node.unit, node.resolved_params())
+                if isinstance(value, Partial):
+                    partial, value = value, value.value
             # A Python task is given an output path only when it declares an output schema.
             if node.output_path is None or schema is None:
-                return
+                return partial
             doc = value if isinstance(value, schema) else schema.model_validate(value)
             node.output_path.parent.mkdir(parents=True, exist_ok=True)
             node.output_path.write_text(doc.model_dump_json(indent=2))
+            return partial
 
         return dataclasses.replace(
             task,
@@ -538,6 +600,36 @@ class Graph:
 
 #: A claim's `{params.<name>}` field.
 CLAIM_PARAM = re.compile(r"params\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def kind_clash(a: Any, b: Any) -> str | None:
+    """Why two task declarations cannot be in one run, or None: the kind of one is the base
+    kind of the other (`agent_task(implementations=)`), or both have one kind and are not
+    implementations of one base kind. Two declarations of one kind otherwise are judged by
+    `AgentTask.differences`."""
+    for one, two in ((a, b), (b, a)):
+        base = getattr(two, "base_kind", "")
+        if base and one.kind == base:
+            return (
+                f"kind {base!r} of {_declaration(one)} is also the base kind of {_declaration(two, base_only=True)}, "
+                f"whose implementation kinds take its [tasks.{base}] table and its group; give one of them another name"
+            )
+    if a.kind == b.kind and getattr(a, "base_kind", "") != getattr(b, "base_kind", ""):
+        first, second = (a, b) if getattr(a, "base_kind", "") else (b, a)  # the implementation first
+        return f"kind {a.kind!r} is declared by {_declaration(first)} and by {_declaration(second)}; give one of them another name"
+    return None
+
+
+def _declaration(spec: Any, *, base_only: bool = False) -> str:
+    """A task declaration as its code wrote it."""
+    if spec.executor == "python":
+        return f"@python_task {spec.kind}"
+    base = getattr(spec, "base_kind", "")
+    if not base:
+        return f"agent_task({spec.kind!r})"
+    if base_only:
+        return f"agent_task({base!r}, implementations=...)"
+    return f"agent_task({base!r}, implementations=...) (implementation {spec.kind[len(base) + 1 :]!r})"
 
 
 def _expand_claims(spec: Any, unit: str, key: str, params: dict[str, Any]) -> tuple[str, ...]:

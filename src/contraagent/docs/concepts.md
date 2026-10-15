@@ -26,14 +26,15 @@ documentation. No other word is used for the same thing.
 | **loop** | a `for` or `while` statement in a generator of flow code, named by its first line; a call site's loops are those whose pass it is in, outermost first; a comprehension is not a loop | `Loop.line`, `Frame.loops`; `flow[].loops[].line` |
 | **pass** | one iteration of one loop, numbered from 1 each time the loop is entered; never an attempt, never the `~n` of a key | `Loop.pass_`, `flow[].loops[].pass`; `max_passes` (the passes a `while` loop may make; a `for` loop has no limit), `TooManyPasses` |
 | **created from** | the keys whose results a flow call had received when it created a task | `Origin.created_from` |
-| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint, but not a task declared `rerun_on_resume` | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
+| **fingerprint** | a digest of what defines a task's work: kind, unit, key, params, its definition (instructions, role file, its plugins' skills, schemas, validators; a Python task's source), and per task it waits for, that task's output file when the flow received it, else its fingerprint; resume skips a key whose last journal row is ok with the same fingerprint, but not a task declared `rerun_on_resume`, nor one whose last result was partial or that waits for one | `Task.fingerprint`, journal `fingerprint`; `AgentTask.digest`, `PythonTask.digest` |
 
 ## Definition
 
 | Word | Means | In code |
 |---|---|---|
 | **interface** | what an agent task takes, produces and may spend | `agent_task(params=, output=, max_turns=, ...)` |
-| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names | `agent_task(plugin=)`, `Plugin` |
+| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names. One declaration may name several by name, each a kind of its own | `agent_task(plugin=)`, `agent_task(implementations=)`, `Plugin` |
+| **base kind** | the kind a declaration of several implementations names (`review`); each implementation is the kind `<base kind>-<name>` (`review-go`), takes the base kind's task table below its own, and is drawn in the base kind's group; no other declaration may have the base kind or an implementation kind as its kind | `agent_task(implementations=)`, `Implementations`, `graph.kind_clash`, `AgentTask.base_kind`, `Task.base_kind`; `plan.jsonl` and definition `base_kind` |
 | **skill plugin** | a plugin that holds skills and nothing else that acts; tasks with different plugins load it to share its skills | `agent_task(skills_from=)`, `Plugin.skills_only` |
 | **role** | a named agent definition in a plugin: its procedure | `agents/<role>.md`, `Launch.role`, Claude Code's `--agent` |
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
@@ -48,7 +49,7 @@ documentation. No other word is used for the same thing.
 | Word | Means | In code |
 |---|---|---|
 | **schema** | the pydantic class a file is checked against | `agent_task(output=)`, `OutputContract.schema` |
-| **validator** | a check a file must pass beyond its schema | `agent_task(validators=)`, `CommandValidator`, any `(path, value) -> errors` |
+| **validator** | a check a file must pass beyond its schema; it may also take, by keyword, the task's `params`, its `call` file, its `cwd`, and `before` (the file as it was before the task) | `agent_task(validators=)`, `CommandValidator`, any `(path, value) -> errors`, `validators.CONTEXT` |
 | **contract** | a file plus its schema and validators | `OutputContract`, `InputContract` |
 | **preserve** | the parts of an output file a launch must keep as they were before it: JSON pointers (RFC 6901, a segment `*` for every member), each value they select in the file before the launch equal in it after | `agent_task(preserve=)`, `OutputContract.preserve`, `contraagent.pointers`; call file `output.preserve` |
 | **output of** | the output file of another kind's task for the same unit, which an agent task writes in place of a file of its own; the task waits for the latest task created before it that writes that file | `agent_task(output_of=)`, `AgentTask.output_of`; definition `output_of` |
@@ -64,7 +65,8 @@ documentation. No other word is used for the same thing.
 
 | Word | Means | In code |
 |---|---|---|
-| **task table** | one kind's `[tasks.<kind>]` table in the config | `PipelineConfig.task_tables()`, `TASK_TABLE_KEYS` |
+| **task table** | one kind's `[tasks.<kind>]` table in the config; an implementation kind's starts from its base kind's | `PipelineConfig.task_tables()`, `resolved_task_tables`, `TASK_TABLE_KEYS` |
+| **pipeline table** | a pipeline's own table in the config, read by its code; contraagent never checks its keys | `[pipeline.<name>]`; `contraagent.pipeline_table(name)` in a run (`NoCurrentRun` outside one), `PipelineConfig.table(name)` |
 | **`[defaults]`** | run-wide routing, including `[[defaults.fallbacks]]` | `PipelineConfig.defaults()`, `.fallbacks()` |
 | **routing plan** | how each kind is routed (not `plan.jsonl`) | `RoutingPlan` |
 | **`KindConfig`** | one kind's resolved routing and budgets | `RoutingPlan.configs` |
@@ -92,6 +94,7 @@ documentation. No other word is used for the same thing.
 | **other model** | a model a launch called besides the one it ran on (Claude Code summarizes a fetched page on a smaller model): its cost is in the launch's, its tokens are not in the launch's `usage`, and the models' spend counts it apart | `LaunchResult.other_models`, `Hop.other_models` (`OtherModel`) |
 | **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
 | **attempt** | one try of a task, numbered from 0: an agent task's in a fresh session, a Python task's a call of its function | `RetryingRunner`, `PythonTaskRunner`, `Task.attempt`, journal rows |
+| **partial** | a Python task's result whose output is a placeholder, returned when a service it needs is unavailable: ok, so the flow receives its value and later tasks run on it, and stop `partial`, so a resume runs it again with the tasks that wait for it; counted apart from passed and failed | `Partial(value, reason=)`, `STOP_PARTIAL`, `RunReport.partial`; journal `stop: "partial"`; monitor plan state `partial`, `TaskCounts.partial`, `TrendKind.tasks_partial`, `partial` beside `ok` |
 | **retries** | the fresh attempts a task may make after its first: an agent task's after one that made no progress, a Python task's after an exception of a class in its `retry_on` | `KindConfig.retries`; `@python_task(retries=, retry_on=)`, `PythonTask.retries`, `PythonTask.retry_on` |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |
@@ -118,8 +121,8 @@ documentation. No other word is used for the same thing.
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`, `opencode`, `pi`, `codex`) | `normalize_stream_line(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
-| **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
-| **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |
+| **`TaskScope`** | the context manager around one attempt of a task: every hop of an agent task; the input check, the call and the output check of a Python task | `Pipeline(scopes=)`, `AgentRunner(scopes=)`, `PythonTaskRunner(scopes=)` |
+| **`ResultEnricher`** | what sees a task, agent or Python, before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)`, `PythonTaskRunner(enrichers=)` |
 | **pipeline log** / **pipeline document** | a pipeline's own file in its run, written by its flow code and its Python tasks, shipped to a hub and read by panels: rows appended one per line / one JSON value, replaced whole | `contraagent.log(name, row)` / `contraagent.save(name, value)`; `runs/<id>/pipeline/<name>.jsonl` / `<name>.json` (`rundir.PIPELINE`); `NoCurrentRun`; read with `RunRecords.log` / `.document` |
 | **row extras** | a pipeline's own columns of a journal row, named by the pipeline: what `row_extras(result)` adds | `Pipeline(row_extras=)`, `Run(row_extras=)`; monitor `RunSummary.row_extras`, `TaskDetail.row_extras` |
 
@@ -139,7 +142,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 
 | Word | Means | In code |
 |---|---|---|
-| **group** | a column of the plan | `Monitor(groups=)` |
+| **group** | a column of the plan: the kinds `Monitor(groups=)` lists together, the implementation kinds of a base kind it does not list, or one kind | `Monitor(groups=)`, `PlanGroup` |
 | **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=`; its runs as a trends panel reads them: `PeriodRuns` (`RunRecords` for each) |
 | **trends** | what the runs of a period add up to, day by day: cost by kind (or group), each kind's tasks, success and time, each model's spend, failures, refused tool calls, utilization, rests, deferrals, run starts; read from each run's digest, kept in a finished run's `trends.json` | `Monitor.trends`, `/api/trends`, `Trends`; `Panel(scope="trends")` |
 | **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |

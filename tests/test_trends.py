@@ -163,6 +163,30 @@ def test_kinds_count_tasks_by_their_last_attempt_and_groups_join_kinds(runs):
     assert v["totals"]["runs"] == 2 and v["totals"]["attempts"] == 7 and v["totals"]["cost_usd"] == 2.03
 
 
+def test_a_partial_result_is_counted_apart_from_passed_and_failed(tmp_path):
+    root = tmp_path / "runs"
+    write_run(
+        root,
+        "r1",
+        [
+            row("2026-10-01T10:00:00+00:00", "python:lookup-a", "lookup", executor="python", stop="partial"),
+            row("2026-10-01T10:01:00+00:00", "python:lookup-b", "lookup", executor="python"),
+            row("2026-10-01T10:02:00+00:00", "python:lookup-c", "lookup", executor="python", ok=False, stop="error"),
+        ],
+    )
+    v = Monitor(root).trends(utc())
+    [k] = v["kinds"]
+    assert (k["tasks"], k["tasks_ok"], k["tasks_partial"], k["attempts"], k["ok"], k["partial"]) == (3, 1, 1, 3, 1, 1)
+    assert (v["totals"]["ok"], v["totals"]["partial"]) == (1, 1) and (v["daily"][0]["ok"], v["daily"][0]["partial"]) == (1, 1)
+    assert (v["runs"][0]["ok"], v["runs"][0]["partial"]) == (1, 1)
+    api.Trends.model_validate(v)
+    body = trends.bodies(v)
+    [failures] = [b for b in body["failures"]["blocks"] if b["type"] == "table"]
+    assert [r["stop"] for r in failures["rows"]] == ["error"]  # a partial result is not a failure
+    [kinds] = body["kinds"]["blocks"]
+    assert kinds["rows"][0]["partial"] == 1 and kinds["rows"][0]["_tone"] == "failed"
+
+
 def test_each_hop_counts_on_its_own_model(runs):
     models = {(m["agent"], m["model"]): m for m in Monitor(runs).trends(utc())["models"]}
     assert models[("omp", "m-b")]["cost_usd"] == 0.015 and models[("omp", "m-b")]["input"] == 30
@@ -354,7 +378,7 @@ def many_runs(root: Path, seed: int = 7) -> None:
             ts = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(t))
             kind = rnd.choice(["write", "research", "classify", "report"])
             key = f"{kind}-u{rnd.randrange(8)}"
-            stop = rnd.choice(["completed"] * 5 + ["timeout", "invalid_output"])
+            stop = rnd.choice(["completed"] * 5 + ["timeout", "invalid_output", "partial"])
             hops = [
                 {
                     "agent": a,
@@ -386,7 +410,7 @@ def many_runs(root: Path, seed: int = 7) -> None:
                         ts,
                         key,
                         kind,
-                        ok=stop == "completed",
+                        ok=stop in ("completed", "partial"),
                         stop=stop,
                         wall=round(rnd.random() * 120, 1),
                         cost=round(rnd.random() / 5, 6),

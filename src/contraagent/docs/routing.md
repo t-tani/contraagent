@@ -18,6 +18,14 @@ and any credential problem (below). A `[tasks.<name>]` table that names no task
 of the flow is reported, not fatal: one config file often serves several flows,
 but it may be a typo.
 
+A pipeline keeps its own settings in the same file, each in a **pipeline table**
+`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+`contraagent.pipeline_table(name)` ([tasks](tasks.md)), other code with
+`PipelineConfig.table(name)`; either is an empty table when the file has none.
+contraagent never checks the keys inside; a `pipeline.<name>` that is not a table is
+refused. Any other top-level table is refused before
+anything launches.
+
 ## Budgets
 
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps

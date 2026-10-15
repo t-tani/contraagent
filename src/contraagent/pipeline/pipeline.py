@@ -33,7 +33,7 @@ from contraagent.backends import Backend, create_backend, known_agents
 from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.queue import GRACE_S
-from contraagent.dispatch.task import Task, TaskResult
+from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult
 from contraagent.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
@@ -52,7 +52,8 @@ class RunReport:
     """What a `Pipeline.run` did. The flow's `Pending` values read their outputs from it too.
 
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
-    `deferred`) plus the attempts this call journaled (`attempt_totals`)."""
+    `deferred`) plus the attempts this call journaled (`attempt_totals`). A `partial`
+    result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them)."""
 
     run_id: str
     run_dir: Path
@@ -71,6 +72,11 @@ class RunReport:
     @property
     def failed(self) -> list[TaskResult]:
         return [r for r in self.results.values() if not r.ok]
+
+    @property
+    def partial(self) -> list[TaskResult]:
+        """The results with stop `partial`: ok, their outputs placeholders a resume makes again."""
+        return [r for r in self.results.values() if r.stop == STOP_PARTIAL]
 
 
 def attempt_totals(rows: list[dict]) -> dict:
@@ -140,10 +146,12 @@ class Pipeline:
         (`(reason, datetime)`); beside the config's own caps
         (`max_five_hour_pct`, `max_seven_day_pct`). A resting credential is not launched
         on: its tasks take the next hop of their failover chain, or are deferred.
-        `scopes`: context managers around each agent task's dispatch (`TaskScope`: entered
-        before its first hop, exited after its last, a timeout included); `enrichers`
+        `scopes`: context managers around each attempt of a task, agent or Python
+        (`TaskScope`: entered before an agent task's first hop, exited after its last, a
+        timeout included; around a Python task's call and its contract checks); `enrichers`
         see the task before and its result after (`ResultEnricher`, which may set
-        `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt.
+        `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt; one that cares
+        about some tasks only tests `task.kind` or `task.executor`.
         `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
         `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
@@ -263,7 +271,8 @@ class Pipeline:
         refused (`RunExists`) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory (a task declared
-        `rerun_on_resume` runs again).
+        `rerun_on_resume` runs again, and so does a task whose last result was `partial`,
+        with the tasks that wait for it).
 
         On the main thread, SIGTERM and SIGINT (Ctrl-C) stop the run's agents while it
         runs, then end the process as they would have; the handlers in place before are
@@ -272,7 +281,7 @@ class Pipeline:
         """
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{flow.__name__}{suffix}"
-        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras) as run:
+        with Run(run_id, self.runs_dir, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             if self.stub is not None:
                 run.update_info(stub=True)
@@ -334,6 +343,7 @@ class Pipeline:
                         self.backends,
                         self.overrides,
                         declared={kind: spec.config for kind, spec in specs.items()},
+                        bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                         requirements={kind: spec.requires for kind, spec in specs.items()},
                         light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=not driven,
@@ -375,7 +385,12 @@ class Pipeline:
                     graph.new_kind = lambda spec: self._route(spec, runner)
                     queue = run.queue(
                         run.python_runner(
-                            RetryingRunner(runner, on_attempt=run.record_attempt), cwd=self.cwd, recorder=recorder, replay=self.replay
+                            RetryingRunner(runner, on_attempt=run.record_attempt),
+                            cwd=self.cwd,
+                            scopes=self.scopes,
+                            enrichers=self.enrichers,
+                            recorder=recorder,
+                            replay=self.replay,
                         ),
                         follow_up=follow_up,
                         resume=resume,
@@ -389,7 +404,8 @@ class Pipeline:
                 finally:
                     driver.finish()
             if driven:
-                check_task_tables(self.config.task_tables([]), graph.agent_specs())
+                specs = graph.agent_specs()
+                check_task_tables(self.config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()})
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
@@ -413,6 +429,7 @@ class Pipeline:
             self.backends,
             self.overrides,
             declared={spec.kind: spec.config},
+            bases={spec.kind: spec.base_kind} if spec.base_kind else {},
             requirements={spec.kind: spec.requires},
             light=[spec.kind] if spec.light else [],
             all_kinds=False,
