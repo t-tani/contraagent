@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from contraagent.backends.streams import normalize_stream_line
+from contraagent.cli import main as cli_main
 from contraagent.monitor import Monitor, Panel, api, procs, server
 from contraagent.monitor.paths import BadName, check_name
 
@@ -184,7 +185,7 @@ def test_the_contract_is_served_and_describes_the_live_feeds(tmp_path):
 
 def test_openapi_flag_writes_the_document(tmp_path):
     out = tmp_path / "openapi.json"
-    assert server.main(["--openapi", str(out)]) == 0
+    assert cli_main(["monitor", "--openapi", str(out)]) == 0
     assert out.read_text() == server.openapi_document()
 
 
@@ -287,12 +288,9 @@ def test_task_keys_keep_their_legitimate_characters():
 def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
     real = importlib.util.find_spec
     monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "uvicorn" else real(name, *a))
-    assert server.main(["--runs-dir", "nowhere"]) == 2
-    err = capsys.readouterr().err
-    assert "contraagent[monitor]" in err and "uvicorn" in err
-    from contraagent.cli import main as cli_main
-
     assert cli_main(["monitor", "--runs-dir", "nowhere"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("contraagent monitor: ") and "contraagent[monitor]" in err and "uvicorn" in err
     with pytest.raises(ModuleNotFoundError, match=r"contraagent\[monitor\]"):
         server.create_app(Monitor("nowhere"))
 

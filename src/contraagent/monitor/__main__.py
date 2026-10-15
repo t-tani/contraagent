@@ -1,3 +1,7 @@
-from contraagent.monitor.server import main
+"""`python -m contraagent.monitor ...` is `contraagent monitor ...`."""
 
-raise SystemExit(main())
+import sys
+
+from contraagent.cli import main
+
+raise SystemExit(main(["monitor", *sys.argv[1:]]))

@@ -16,7 +16,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   batch or heartbeat of another host. A records batch is capped at `MAX_RECORDS_BYTES`
   and a blob at `max_blob_bytes`, after `Content-Encoding: gzip` is undone; beyond the
   cap the answer is 413. The routes' contract, for a relay in any language, is
-  `contraagent/hub/openapi.json` (`python -m contraagent.hub.server --openapi PATH`).
+  `contraagent/hub/openapi.json` (`contraagent hub --openapi PATH`).
 * **The monitor** answers 401 without the read token, as `Authorization: Bearer <token>`
   or as the cookie `/login` sets (HttpOnly, SameSite=Strict; an EventSource cannot send
   a header). With no read token the monitor is open to whoever reaches the port. It keeps
@@ -33,7 +33,6 @@ import argparse
 import concurrent.futures
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
 import os
@@ -60,6 +59,15 @@ except ModuleNotFoundError:
     if TYPE_CHECKING:
         raise
 
+from contraagent.commandline import (
+    CommandError,
+    UsageError,
+    add_command,
+    add_http,
+    add_openapi,
+    setup_logging,
+    write_openapi,
+)
 from contraagent.hub.core import BLOB_GRACE, Hub
 from contraagent.hub.protocol import (
     HEALTHZ,
@@ -85,7 +93,7 @@ from contraagent.hub.retention import (
 from contraagent.hub.source import DEFAULT_TTL_S
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent.hub.streams import MemoryStreamLogs, StreamLogs
-from contraagent.monitor.server import LOCAL_HOSTS, _host_names, create_app, require_extra
+from contraagent.monitor.server import LOCAL_HOSTS, create_app, host_names, is_loopback, require_extra
 
 log = logging.getLogger(__name__)
 
@@ -568,15 +576,6 @@ def open_blobs(spec: str) -> BlobStore:
     raise ValueError(f"--blobs: {spec!r} is neither `memory`, `dir:/path` nor s3://bucket/prefix")
 
 
-def _loopback(host: str) -> bool:
-    if host == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host.strip("[]")).is_loopback
-    except ValueError:
-        return False
-
-
 def _exit_on_sigterm(signum: int, frame: object) -> None:
     raise SystemExit(0)
 
@@ -610,7 +609,7 @@ def _hours(text: str) -> float:
     return hours
 
 
-def retain_days(ap: argparse.ArgumentParser, flag: object, environ: Mapping[str, str] = os.environ) -> float | None:
+def retain_days(flag: object, environ: Mapping[str, str] = os.environ) -> float | None:
     """The days runs are kept: `--retain-days` when given (`flag` is then a number or None for
     an empty value), else `CONTRAAGENT_RETENTION_DAYS`, else None (keep everything)."""
     if flag is not _UNSET:
@@ -619,7 +618,7 @@ def retain_days(ap: argparse.ArgumentParser, flag: object, environ: Mapping[str,
     try:
         return _days(environ.get(RETENTION_ENV, ""))
     except argparse.ArgumentTypeError as exc:
-        ap.error(f"{RETENTION_ENV}: {exc}")
+        raise UsageError(f"{RETENTION_ENV}: {exc}") from None
 
 
 def _storage_args(ap: argparse.ArgumentParser) -> None:
@@ -646,26 +645,20 @@ def _retain_arg(ap: argparse.ArgumentParser, help: str) -> None:
     ap.add_argument("--retain-days", type=_days, default=_UNSET, metavar="N", help=help)
 
 
-def main(argv: list[str] | None = None) -> int:
-    argv = sys.argv[1:] if argv is None else list(argv)
-    if argv[:1] == ["prune"]:
-        return prune_main(argv[1:])
-    ap = argparse.ArgumentParser(
-        prog="contraagent hub",
-        description=(
-            "Receive every host's runs from `contraagent relay` and serve their monitor. "
-            "Tokens are read from files, never from the command line. "
-            "Without --read-token-file the monitor (every transcript) is open to anyone who reaches the port."
-        ),
-        epilog="`contraagent hub prune --help`: remove old runs once, without serving.",
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """`contraagent hub`, with `contraagent hub prune` under it."""
+    ap.description = (
+        "Receive every host's runs from `contraagent relay` and serve their monitor. "
+        "Tokens are read from files, never from the command line. "
+        "Without --read-token-file the monitor (every transcript) is open to anyone who reaches the port."
     )
+    ap.epilog = "`contraagent hub prune --help`: remove old runs once, without serving."
     _storage_args(ap)
     ap.add_argument(
         "--ingest-token-file", metavar="FILE", help="ingest tokens, one per line, or `host_id token` for a token good for that host only"
     )
     ap.add_argument("--read-token-file", metavar="FILE", help="the token that opens the monitor; without it the monitor is open")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
+    add_http(ap, port=DEFAULT_PORT)
     ap.add_argument("--title", default="contraagent hub")
     ap.add_argument(
         "--max-blob-mb",
@@ -673,14 +666,6 @@ def main(argv: list[str] | None = None) -> int:
         default=MAX_BLOB_BYTES / 2**20,
         help="the largest blob taken, in MiB (default: %(default)g)",
     )
-    ap.add_argument(
-        "--allow-host",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help="also answer monitor requests addressed to this host name (default: localhost, 127.0.0.1, [::1] and the --host address)",
-    )
-    ap.add_argument("--cors-origin", action="append", default=[], metavar="ORIGIN", help="let a page from this origin read the monitor API")
     _retain_arg(
         ap,
         f"remove runs with no activity for N days, while the hub runs (default: ${RETENTION_ENV}; unset or empty: keep every run)",
@@ -692,13 +677,7 @@ def main(argv: list[str] | None = None) -> int:
         help=f"hours between prunes; the first is {FIRST_PRUNE_AFTER_S / 60:g} minutes after start "
         f"(default: {PRUNE_EVERY_HOURS:g}, or {SHORT_PRUNE_EVERY_HOURS:g} when --retain-days is under {SHORT_RETENTION_DAYS:g})",
     )
-    ap.add_argument(
-        "--openapi",
-        nargs="?",
-        const="-",
-        metavar="PATH",
-        help="write the ingest OpenAPI document to PATH (default: stdout) and exit",
-    )
+    add_openapi(ap, "ingest OpenAPI document")
     # When an open segment is sealed (`SegmentedStreamLogs`); hidden: for tests that need
     # seals within seconds, not for operators.
     ap.add_argument("--seal-bytes", type=int, dest="segment_bytes", help=argparse.SUPPRESS)
@@ -707,27 +686,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seal-tick", type=float, dest="tick_s", help=argparse.SUPPRESS)
     # Seconds before the first prune; hidden: for tests.
     ap.add_argument("--first-prune-after", type=float, default=FIRST_PRUNE_AFTER_S, help=argparse.SUPPRESS)
-    args = ap.parse_args(argv)
-    try:
-        require_extra()
-    except ModuleNotFoundError as exc:
-        sys.stderr.write(f"contraagent hub: {exc}\n")
-        return 2
+    sub = ap.add_subparsers(dest="hub_cmd", title="commands")
+    add_command(
+        sub, "prune", help="remove old runs from the hub's storage once, without serving", add_arguments=_prune_arguments, run=prune
+    )
+
+
+def run(args: argparse.Namespace) -> int:
+    """`contraagent hub`: serve the hub (the `hub` extra) until stopped, or write its ingest OpenAPI document."""
+    require_extra()
     if args.openapi:
-        doc = openapi_document()
-        if args.openapi == "-":
-            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-            sys.stdout.write(doc)
-        else:
-            Path(args.openapi).write_text(doc)
+        write_openapi(openapi_document(), args.openapi)
         return 0
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(message)s")
+    setup_logging()
     if not args.ingest_token_file:
-        ap.error("--ingest-token-file is required: relays need a token to send")
-    days = retain_days(ap, args.retain_days)
+        raise UsageError("--ingest-token-file is required: relays need a token to send")
+    days = retain_days(args.retain_days)
     if days is None and args.prune_every is not None:
-        ap.error(f"--prune-every needs --retain-days or ${RETENTION_ENV}")
+        raise UsageError(f"--prune-every needs --retain-days or ${RETENTION_ENV}")
     try:
         tokens = read_ingest_tokens(args.ingest_token_file)
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
@@ -735,19 +711,14 @@ def main(argv: list[str] | None = None) -> int:
         streams = open_streams(args.streams_dir, args.segments, args.store, **seal)
         hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
     except (OSError, ValueError) as exc:
-        sys.stderr.write(f"contraagent hub: {exc}\n")
-        return 2
-    names = _host_names(args.host)
-    if read_token is None and not _loopback(args.host):
+        raise CommandError(str(exc)) from None
+    if read_token is None and not is_loopback(args.host):
         log.warning("bound to %s with no --read-token-file: every run's transcripts are open to anyone who reaches the port", args.host)
-    if not names and not args.allow_host:
-        local = ", ".join(LOCAL_HOSTS)
-        log.warning("bound to %s: only monitor requests addressed to %s are answered; name others with --allow-host", args.host, local)
     app = create_hub_app(
         hub,
         ingest_tokens=tokens,
         read_token=read_token,
-        allowed_hosts=[*names, *args.allow_host],
+        allowed_hosts=host_names(args.host, args.allow_host),
         cors_origins=args.cors_origin,
         title=args.title,
         max_blob_bytes=int(args.max_blob_mb * 2**20),
@@ -779,15 +750,11 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def prune_main(argv: list[str]) -> int:
-    """`contraagent hub prune`: `Hub.prune` once over the hub's storage, its report printed."""
-    ap = argparse.ArgumentParser(
-        prog="contraagent hub prune",
-        description=(
-            "Remove the runs with no activity for N days from the hub's storage, once, and print what was removed. "
-            "A run is kept while the heartbeats in the store report it live or unresponsive. "
-            "Do not run it while a hub started with --retain-days uses the same storage: one process prunes at a time."
-        ),
+def _prune_arguments(ap: argparse.ArgumentParser) -> None:
+    ap.description = (
+        "Remove the runs with no activity for N days from the hub's storage, once, and print what was removed. "
+        "A run is kept while the heartbeats in the store report it live or unresponsive. "
+        "Do not run it while a hub started with --retain-days uses the same storage: one process prunes at a time."
     )
     _storage_args(ap)
     _retain_arg(ap, f"remove runs with no activity for N days (default: ${RETENTION_ENV}; one of the two is required)")
@@ -800,12 +767,14 @@ def prune_main(argv: list[str]) -> int:
         help="hours a blob no run references is kept after it was stored (default: %(default)g)",
     )
     ap.add_argument("--json", action="store_true", help="print the report as JSON")
-    args = ap.parse_args(argv)
-    days = retain_days(ap, args.retain_days)
+
+
+def prune(args: argparse.Namespace) -> int:
+    """`contraagent hub prune`: `Hub.prune` once over the hub's storage, its report printed."""
+    days = retain_days(args.retain_days)
     if days is None:
-        ap.error(f"--retain-days N (or ${RETENTION_ENV}) is required")
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stderr)
+        raise UsageError(f"--retain-days N (or ${RETENTION_ENV}) is required")
+    setup_logging()
     sys.stderr.write(
         "contraagent hub prune: run it only while no hub started with --retain-days uses the same storage; one process prunes at a time\n"
     )
@@ -818,8 +787,7 @@ def prune_main(argv: list[str]) -> int:
         )
         hub = Hub(open_store(args.store), open_blobs(args.blobs), streams=streams, ttl_s=args.ttl)
     except (OSError, ValueError) as exc:
-        sys.stderr.write(f"contraagent hub prune: {exc}\n")
-        return 2
+        raise CommandError(str(exc)) from None
     try:
         report = hub.prune(older_than=timedelta(days=days), blob_grace=timedelta(hours=args.blob_grace_hours), dry_run=args.dry_run)
     finally:
@@ -828,7 +796,3 @@ def prune_main(argv: list[str]) -> int:
             shutdown()
     sys.stdout.write(report_json(report) + "\n" if args.json else report_table(report))
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

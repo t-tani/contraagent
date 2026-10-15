@@ -55,7 +55,6 @@ import json
 import logging
 import os
 import signal
-import sys
 import threading
 import time
 from collections.abc import Callable
@@ -65,6 +64,7 @@ from pathlib import Path
 from typing import Any
 
 from contraagent import rundir
+from contraagent.commandline import UsageError, add_runs_dir, setup_logging
 from contraagent.hub.client import HttpClient, HubClient, HubRefused, HubUnavailable
 from contraagent.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent.monitor import paths
@@ -701,14 +701,14 @@ class Relay:
 # --- command line ------------------------------------------------------------------------
 
 
-def _parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(
-        prog="contraagent relay",
-        description="Ship every run under a runs directory to a contraagent hub, incrementally, and send a heartbeat "
+def add_arguments(ap: argparse.ArgumentParser) -> None:
+    """`contraagent relay`."""
+    ap.description = (
+        "Ship every run under a runs directory to a contraagent hub, incrementally, and send a heartbeat "
         "with the live runs. The ingest token comes from --token-file, else the environment variable "
-        f"{TOKEN_ENV}; it is never a command line argument.",
+        f"{TOKEN_ENV}; it is never a command line argument."
     )
-    ap.add_argument("--runs-dir", default="runs", help="the runs directory to ship (default: runs)")
+    add_runs_dir(ap, "the runs directory to ship (default: runs)")
     ap.add_argument("--hub", required=True, help="the hub's address, for example http://hub:8790")
     ap.add_argument("--token-file", help=f"a file holding the hub's ingest token (default: the environment variable {TOKEN_ENV})")
     ap.add_argument("--host-id", help=f"this host's name on the hub (default: {rundir.HOST_ID_ENV}, else the host name)")
@@ -725,29 +725,26 @@ def _parser() -> argparse.ArgumentParser:
         help="where the relay keeps how far the hub is in each run (default: <runs-dir>.relay.json, next to the runs directory)",
     )
     ap.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for each request to the hub (default: 30)")
-    return ap
 
 
-def _token(args: argparse.Namespace, ap: argparse.ArgumentParser) -> str:
+def _token(args: argparse.Namespace) -> str:
     if args.token_file:
         try:
             return Path(args.token_file).read_text().strip()
         except OSError as exc:
-            ap.error(f"cannot read --token-file: {exc}")
+            raise UsageError(f"cannot read --token-file: {exc}") from None
     token = os.environ.get(TOKEN_ENV, "").strip()
     if not token:
-        ap.error(f"no ingest token: give --token-file or set {TOKEN_ENV}")
+        raise UsageError(f"no ingest token: give --token-file or set {TOKEN_ENV}")
     return token
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = _parser()
-    args = ap.parse_args(sys.argv[1:] if argv is None else argv)
+def run(args: argparse.Namespace) -> int:
+    """`contraagent relay`: ship until stopped, or make one pass (`--once`)."""
     if args.interval <= 0:
-        ap.error("--interval must be more than 0")
-    token = _token(args, ap)
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+        raise UsageError("--interval must be more than 0")
+    token = _token(args)
+    setup_logging("%(asctime)s %(name)s %(levelname)s %(message)s")
     client = HttpClient(args.hub, token, args.timeout)
     relay = Relay(
         client,
