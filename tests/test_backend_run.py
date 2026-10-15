@@ -55,7 +55,7 @@ def test_claude_reads_a_quota_refusal_on_stderr(tmp_path):
     failover path, not a launch failure (`ClaudeBackend.reclassify` was never called)."""
     result = ClaudeBackend(base_env=path_of(fake_cli(tmp_path, "claude", CLAUDE_REFUSED))).run(launch(tmp_path))
     assert result.stop == Stop.RATE_LIMITED and not result.ok
-    assert result.rate_limit is not None and result.rate_limit.status == "quota" and result.rate_limit.retry_after_s == 120.0
+    assert result.quota_refusal is not None and result.quota_refusal.retry_after_s == 120.0
     assert result.started_at and result.cli_version == "2.1.296"
 
 
@@ -103,7 +103,7 @@ def rpc_env(tmp_path):
 
 def test_omp_rpc_reads_a_quota_refusal_on_stderr(tmp_path, rpc_env):
     result = OmpRpcBackend(base_env=rpc_env).run(Launch(prompt="quota", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
-    assert result.stop == Stop.RATE_LIMITED and result.rate_limit is not None and result.rate_limit.retry_after_s == 60.0
+    assert result.stop == Stop.RATE_LIMITED and result.quota_refusal is not None and result.quota_refusal.retry_after_s == 60.0
     assert "429 Go usage limit exceeded" in result.stderr_tail
 
 
@@ -126,7 +126,7 @@ def test_omp_rpc_checks_the_credential_the_agent_reports(tmp_path, rpc_env):
 def test_omp_rpc_ends_a_launch_past_its_cost_cap(tmp_path, rpc_env):
     limits = Limits(timeout_s=30, max_budget_usd=0.025)
     result = OmpRpcBackend(base_env=rpc_env).run(Launch(prompt="spend", label="t", model="p/m", cwd=tmp_path, limits=limits))
-    assert result.stop == Stop.BUDGET and not result.ok and result.usage.n_calls == 3
+    assert result.stop == Stop.BUDGET and not result.ok and len(result.usage.calls) == 3
 
 
 # --- opencode: its catalogue's time limit, its refusal's cool-off ------------------------------
@@ -150,7 +150,7 @@ def test_opencode_s_quota_refusal_carries_its_cool_off():
     reader = EventReader("opencode-go/m")
     reader.feed({"type": "error", "error": {"name": "APIError", "data": {"message": "Go usage limit exceeded retry-after-ms=313534000"}}})
     result = reader.result(Launch(prompt="x", label="t", model="opencode-go/m"), "opencode", exit_code=0, killed=None)
-    assert result.stop == Stop.RATE_LIMITED and result.rate_limit is not None and result.rate_limit.retry_after_s == 313534.0
+    assert result.stop == Stop.RATE_LIMITED and result.quota_refusal is not None and result.quota_refusal.retry_after_s == 313534.0
 
 
 # --- the one ladder ------------------------------------------------------------------------------

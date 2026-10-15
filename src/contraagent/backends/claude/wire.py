@@ -10,11 +10,12 @@ a Stop hook's feedback), `rate_limit_event` (the subscription's utilization) and
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Limits, RateLimit, Stop
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop
 from contraagent.backends.refusal import Ending, Signals
 from contraagent.backends.wire import EventFold, first_text, tokens, tool_preview
+from contraagent.dispatch.records import OtherModel, QuotaReading, QuotaWindow
+from contraagent.runs.times import iso_of, now_iso
 
 #: A safety refusal in an error result's text (a result that is no error may say it in passing).
 REFUSAL_RE = re.compile(r"safeguard|refus", re.I)
@@ -71,7 +72,7 @@ def feedback_errors(text: str) -> list[str]:
     return errors or [text.strip()]
 
 
-#: The fields of `rate_limit_info` a reading names; the rest go to `RateLimit.extra`.
+#: The fields of `rate_limit_info` a reading names; the rest go to `QuotaReading.extra`.
 #: `resetsAt` and `utilization` are those of the `rateLimitType` window, in `windows`.
 _READ_FIELDS = frozenset(
     {
@@ -86,55 +87,51 @@ def _share_pct(u: object) -> float | None:
 
 
 def _at(ts: object) -> str | None:
-    return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds") if isinstance(ts, (int, float)) and ts else None
+    return iso_of(ts) if isinstance(ts, (int, float)) and ts else None
 
 
-def _rate_limit_from_event(ev: dict) -> RateLimit:
-    """Claude stream `rate_limit_event` to RateLimit: each window of `unifiedWindows` (and
+def _reading_from_event(ev: dict) -> QuotaReading:
+    """Claude stream `rate_limit_event` to a `QuotaReading`: each window of `unifiedWindows` (and
     the `rateLimitType` window the status is about), the status and its threshold, the
     overage fields, and what else it carries as `extra`."""
     info = ev.get("rate_limit_info") or {}
     win = info.get("unifiedWindows") or {}
     windows = {
-        str(name): {"pct": _share_pct(w.get("utilization")), "resets_at": _at(w.get("resetsAt"))}
+        str(name): QuotaWindow(pct=_share_pct(w.get("utilization")), resets_at=_at(w.get("resetsAt")))
         for name, w in win.items()
         if isinstance(w, dict)
     }
     kind = str(info.get("rateLimitType") or "")
     if kind and kind not in windows and ("utilization" in info or "resetsAt" in info):
-        windows[kind] = {"pct": _share_pct(info.get("utilization")), "resets_at": _at(info.get("resetsAt"))}
+        windows[kind] = QuotaWindow(pct=_share_pct(info.get("utilization")), resets_at=_at(info.get("resetsAt")))
     using = info.get("isUsingOverage")
-    return RateLimit(
-        observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+    return QuotaReading.from_windows(
+        windows,
+        observed_at=now_iso(),
         status=str(info.get("status", "")),
-        five_hour_pct=(windows.get("five_hour") or {}).get("pct"),
-        five_hour_resets_at=(windows.get("five_hour") or {}).get("resets_at"),
-        seven_day_pct=(windows.get("seven_day") or {}).get("pct"),
-        seven_day_resets_at=(windows.get("seven_day") or {}).get("resets_at"),
         status_window=kind,
         threshold_pct=_share_pct(info.get("surpassedThreshold")),
         overage_status=str(info.get("overageStatus") or ""),
         overage_disabled_reason=str(info.get("overageDisabledReason") or ""),
         using_overage=using if isinstance(using, bool) else None,
-        windows=windows,
         extra={k: v for k, v in info.items() if k not in _READ_FIELDS},
     )
 
 
-def other_models(model_usage: object, own: str) -> dict[str, dict]:
+def other_models(model_usage: object, own: str) -> dict[str, OtherModel]:
     """The result's `modelUsage` (`{model: {"costUSD", "inputTokens", ...}}`) less the
     launch's own model (`own`, the session's model; else the one that wrote the most),
     as `LaunchResult.other_models`."""
     used = _model_usage(model_usage)
     own = _own_model(used, own)
     return {
-        m: {
-            "cost_usd": u.get("costUSD") if isinstance(u.get("costUSD"), (int, float)) else None,
-            "input": _int(u.get("inputTokens")),
-            "output": _int(u.get("outputTokens")),
-            "cache_read": _int(u.get("cacheReadInputTokens")),
-            "cache_creation": _int(u.get("cacheCreationInputTokens")),
-        }
+        m: OtherModel(
+            cost_usd=u.get("costUSD") if isinstance(u.get("costUSD"), (int, float)) else None,
+            input=_int(u.get("inputTokens")),
+            output=_int(u.get("outputTokens")),
+            cache_read=_int(u.get("cacheReadInputTokens")),
+            cache_creation=_int(u.get("cacheCreationInputTokens")),
+        )
         for m, u in used.items()
         if m != own
     }
@@ -176,8 +173,8 @@ class StreamReader(EventFold):
     def __init__(self, limits: Limits):
         super().__init__()
         self.limits = limits
-        self.rate_limit: RateLimit | None = None
-        self.rate_limits: list[RateLimit] = []
+        #: The quota readings of the stream, oldest first.
+        self.quota: list[QuotaReading] = []
         #: The final `result` event, when one arrived.
         self.final: dict | None = None
         self.cli_version = ""
@@ -219,8 +216,7 @@ class StreamReader(EventFold):
         elif typ == "user" and (feedback := stop_hook_feedback(ev)) is not None:
             self.hook_errors.append(feedback_errors(feedback))
         elif typ == "rate_limit_event":
-            self.rate_limit = _rate_limit_from_event(ev)
-            self.rate_limits.append(self.rate_limit)
+            self.quota.append(_reading_from_event(ev))
         elif typ == "assistant":
             self._assistant(ev.get("message") or {})
         elif typ == "result":
@@ -306,8 +302,7 @@ class StreamReader(EventFold):
             usage=usage,
             other_models=other_models(res.get("modelUsage"), own),
             context_window=context_window(res.get("modelUsage"), own),
-            rate_limit=self.rate_limit,
-            rate_limits=list(self.rate_limits),
+            quota=list(self.quota),
             permission_denials=list(res.get("permission_denials") or []) or list(self.denied),
             hollow=hollow,
             raw_result=res,

@@ -17,13 +17,14 @@ A reply is one of:
 * a value: the output to write (a pydantic model or a dict as JSON, a `str` as is), or for
   a task whose output is its final message (`output_from="message"`), the final message;
 * `writes(value)`: the same, explicitly (a JSON list output needs it); `writes(value,
-  rate_limit=RateLimit(five_hour_pct=80))` also reports a utilization reading, as a coding
+  quota=QuotaReading(five_hour_pct=80))` also reports a quota reading, as a coding
   agent does, so quota caps and `quota_rule` rest the credential in a test;
 * `writes_smallest()`: the smallest value the output's schema accepts (`contracts.smallest`);
   a schema rule it cannot build (`pattern`) fails the launch and names the rule;
 * `writes_nothing()`: the launch completes and leaves no file;
 * `fails(stop, reason)`: the launch ends on `stop` (default `error`);
-* `rate_limited(retry_after_s)`: a 429, which moves the task to its next hop;
+* `rate_limited(retry_after_s)`: a 429 (a quota refusal, with the cool-off it states), which
+  moves the task to its next hop;
 * a callable `(StubLaunch) -> reply`: decided per launch;
 * a list or tuple of replies: one per reply of that task in a run, the last one repeating.
 
@@ -51,7 +52,6 @@ launch (`StubLaunch.in_turn`). Under omp's names it stops, as omp does.
 from __future__ import annotations
 
 import copy
-import dataclasses
 import json
 import os
 import subprocess
@@ -59,7 +59,6 @@ import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -69,12 +68,14 @@ from contraagent import envvars
 from contraagent.backends import Backend, ClaudeBackend, backend_class, known_agents
 from contraagent.backends.claude.wire import feedback_errors
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, QuotaRefusal, Stop, Usage
 from contraagent.backends.process import write_launch_marker
 from contraagent.backends.streams import resolve_format
 from contraagent.calls import CallFile
 from contraagent.contracts import smallest
+from contraagent.dispatch.records import QuotaReading
 from contraagent.routing.preflight import PROBE_PROMPT
+from contraagent.runs.times import now_iso
 
 _UNSET: Any = object()
 #: How many times a stop hook may send the output back within one launch.
@@ -88,7 +89,10 @@ class Reply:
     output: Any = _UNSET
     stop: Stop = Stop.COMPLETED
     reason: str = ""
-    rate_limit: RateLimit | None = None
+    #: The quota reading the launch reports.
+    quota: QuotaReading | None = None
+    #: Set when the launch is refused for its quota (`rate_limited`).
+    quota_refusal: QuotaRefusal | None = None
     cost_usd: float | None = None
     peak_context: int | None = None
     context_window: int | None = None
@@ -98,20 +102,21 @@ def writes(
     value: Any,
     *,
     cost_usd: float | None = None,
-    rate_limit: RateLimit | None = None,
+    quota: QuotaReading | None = None,
     peak_context: int | None = None,
     context_window: int | None = None,
 ) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
     `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
     session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
-    running total, as the agent does. `rate_limit`: the utilization reading the launch reports
-    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge.
+    running total, as the agent does. `quota`: the quota reading the launch reports
+    (`five_hour_pct`, `seven_day_pct`, ...; received now when it names no `observed_at`),
+    which quota caps and `quota_rule` judge.
     `peak_context`: the launch reports one API call of this many input tokens, its peak
     context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
     launch reports no API call. `context_window`: the context window the launch reports for
     its model (`LaunchResult.context_window`); without it the launch reports none."""
-    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit, peak_context=peak_context, context_window=context_window)
+    return Reply(output=value, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
 
 
 #: The output of `writes_smallest()`: built from the output's schema when it is played.
@@ -136,8 +141,9 @@ def fails(stop: Stop = Stop.ERROR, reason: str = "stub: scripted failure") -> Re
 
 
 def rate_limited(retry_after_s: float | None = None) -> Reply:
-    """A 429: the task moves to its next failover hop, if it has one."""
-    return Reply(stop=Stop.RATE_LIMITED, reason="stub: 429 Too Many Requests", rate_limit=RateLimit(retry_after_s=retry_after_s))
+    """A 429, a quota refusal with the cool-off `retry_after_s`: the task moves to its next
+    failover hop, if it has one."""
+    return Reply(stop=Stop.RATE_LIMITED, reason="stub: 429 Too Many Requests", quota_refusal=QuotaRefusal(retry_after_s=retry_after_s))
 
 
 @dataclass(frozen=True)
@@ -446,23 +452,19 @@ class StubAgent(Backend):
             wall_s=round(time.monotonic() - started, 3),
             session_id=session,
             cost_usd=cost,
-            rate_limit=reply.rate_limit,
-            rate_limits=[_observed(reply.rate_limit)] if _is_reading(reply.rate_limit) else [],
+            quota=[_observed(reply.quota)] if reply.quota is not None else [],
+            quota_refusal=reply.quota_refusal,
             stderr_tail=reply.reason,
             usage=Usage(calls=[CallUsage(launch.model, reply.peak_context, 0, 0, 0)]) if reply.peak_context is not None else Usage(),
             context_window=reply.context_window,
         )
 
 
-def _is_reading(rl: RateLimit | None) -> bool:
-    """A reply's `rate_limit` that reports utilization: a reading of the launch, as a coding agent sends one."""
-    return rl is not None and (rl.five_hour_pct is not None or rl.seven_day_pct is not None or bool(rl.windows))
-
-
-def _observed(rl: RateLimit | None) -> RateLimit:
+def _observed(reading: QuotaReading) -> QuotaReading:
     """The reading with the time it arrived, now when the script gives none."""
-    assert rl is not None
-    return rl if rl.observed_at else dataclasses.replace(rl, observed_at=datetime.now(UTC).isoformat(timespec="seconds"))
+    if reading.observed_at:
+        return reading
+    return reading.model_copy(update={"observed_at": now_iso()})
 
 
 def _text_of(value: Any) -> str:

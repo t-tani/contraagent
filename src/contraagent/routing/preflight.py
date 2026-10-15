@@ -77,19 +77,21 @@ class RouteVerdict:
 
 def _quota_note(launch_result: LaunchResult) -> str:
     """A short headroom line from whatever the agent reported."""
-    rl = launch_result.rate_limit
-    if rl is None:
-        return ""
+    reading = launch_result.quota[-1] if launch_result.quota else None
+    refusal = launch_result.quota_refusal
     bits = []
-    for label, pct in (("5h", rl.five_hour_pct), ("7d", rl.seven_day_pct)):
-        if pct is not None:
-            # `:g` so 99.5 reads as 99.5% and not as a round 100% — the
-            # difference between "nearly out" and "out".
-            bits.append(f"{label} {pct:g}%")
-    if rl.status:
-        bits.insert(0, rl.status)
-    if rl.retry_after_s:
-        bits.append(f"retry in {rl.retry_after_s / 3600:.1f}h")
+    if reading is not None:
+        for label, pct in (("5h", reading.five_hour_pct), ("7d", reading.seven_day_pct)):
+            if pct is not None:
+                # `:g` so 99.5 reads as 99.5% and not as a round 100% — the
+                # difference between "nearly out" and "out".
+                bits.append(f"{label} {pct:g}%")
+        if reading.status:
+            bits.insert(0, reading.status)
+    elif refusal is not None:
+        bits.append("quota")
+    if refusal is not None and refusal.retry_after_s:
+        bits.append(f"retry in {refusal.retry_after_s / 3600:.1f}h")
     return "  ".join(bits)
 
 

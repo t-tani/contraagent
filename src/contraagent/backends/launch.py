@@ -1,6 +1,7 @@
 """Shared vocabulary for headless coding-agent launches.
 
-Stop, Limits, Launch, Usage, RateLimit, and LaunchResult are backend-neutral.
+Stop, Limits, Launch, Usage, QuotaRefusal, and LaunchResult are backend-neutral; a launch's
+quota readings are `QuotaReading`s and its totals a `TokenUsage` (`dispatch.records`).
 Per-CLI argv, env and wire readers live in `backends/<agent>/`; the Backend ABC
 and its run template in `backends/base.py`; what every wire reader shares in
 `backends/wire.py`; the subprocess loop in `backends/process.py`; the provider
@@ -14,10 +15,11 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from contraagent.backends.credentials import AMBIENT, CredentialBase
+from contraagent.dispatch.records import OtherModel, QuotaReading, TokenUsage
 from contraagent.runs.files import append_lines
 
 # Prompt text beyond this size goes over stdin, not argv
@@ -168,7 +170,8 @@ class CallUsage:
 
 @dataclass
 class Usage:
-    """Per-call counts plus totals.
+    """A launch's API calls as its coding agent reported them (`CallUsage`, one per call),
+    and the output total of its result; `totals()` sums them as a `TokenUsage`.
 
     `resident` is the first call's input (what was loaded before the task
     started); `peak_context` the largest input of one call (context at its most grown).
@@ -183,10 +186,6 @@ class Usage:
     output_total: int = 0
 
     @property
-    def n_calls(self) -> int:
-        return len(self.calls)
-
-    @property
     def resident(self) -> int:
         return self.calls[0].context if self.calls else 0
 
@@ -195,35 +194,40 @@ class Usage:
         return max((c.context for c in self.calls), default=0)
 
     @property
-    def input(self) -> int:
-        return sum(c.input for c in self.calls)
-
-    @property
-    def cache_read(self) -> int:
-        return sum(c.cache_read for c in self.calls)
-
-    @property
-    def cache_creation(self) -> int:
-        return sum(c.cache_creation for c in self.calls)
-
-    @property
-    def output(self) -> int:
-        return sum(c.output for c in self.calls)
-
-    @property
     def context_total(self) -> int:
         """All calls' inputs summed (rereads included)."""
         return sum(c.context for c in self.calls)
 
+    def totals(self, context_window: int | None = None) -> TokenUsage | None:
+        """The calls summed: the output the larger of the calls' and the result's total;
+        `resident` and `peak_context` None without a call; `context_window` the one the
+        coding agent reported (`LaunchResult.context_window`). None when the launch
+        reported no API call and no output."""
+        if not (self.calls or self.output_total):
+            return None
+        return TokenUsage(
+            input=sum(c.input for c in self.calls),
+            output=max(sum(c.output for c in self.calls), self.output_total),
+            cache_read=sum(c.cache_read for c in self.calls),
+            cache_creation=sum(c.cache_creation for c in self.calls),
+            calls=len(self.calls),
+            resident=self.resident if self.calls else None,
+            peak_context=self.peak_context if self.calls else None,
+            context_window=context_window,
+        )
+
     def as_dict(self) -> dict:
+        """The usage as `launches.jsonl` records it: the totals, with the result's own
+        output total (`output_total`) and every call's input summed (`context_total`)."""
+        t = self.totals() or TokenUsage()
         return {
-            "n_calls": self.n_calls,
-            "resident": self.resident,
-            "peak_context": self.peak_context,
+            "n_calls": t.calls,
+            "resident": t.resident or 0,
+            "peak_context": t.peak_context or 0,
             "context_total": self.context_total,
-            "input": self.input,
-            "cache_read": self.cache_read,
-            "cache_creation": self.cache_creation,
+            "input": t.input,
+            "cache_read": t.cache_read,
+            "cache_creation": t.cache_creation,
             "output_total": self.output_total,
         }
 
@@ -245,48 +249,14 @@ def account_digest(kind: str, value: str) -> str:
     return hashlib.sha256(f"contraagent account\0{kind}\0{value}".encode()).hexdigest()[:12]
 
 
-@dataclass
-class RateLimit:
-    """5-hour and weekly utilization (%) with reset times (UTC ISO8601)."""
+@dataclass(frozen=True)
+class QuotaRefusal:
+    """A launch refused for its quota (a 429, `Stop.RATE_LIMITED`): the cool-off the
+    provider stated, in seconds, or None. A blown opencode-go quota answers
+    `retry-after-ms=313534000`; honouring it is the difference between one 429 and a launch
+    per probe until the quota returns."""
 
-    status: str = ""
-    five_hour_pct: float | None = None
-    five_hour_resets_at: str | None = None
-    seven_day_pct: float | None = None
-    seven_day_resets_at: str | None = None
-    # Provider-stated cool-off in seconds. A blown opencode-go quota
-    # answers `retry-after-ms=313534000`; honouring it is the difference
-    # between one 429 and a launch per probe until the quota returns.
     retry_after_s: float | None = None
-    #: When this process received the reading (UTC ISO8601). The utilization is
-    #: account-wide, as of the API call it came with.
-    observed_at: str | None = None
-    #: The `[credentials.<name>]` of the session that reported it: whose account the
-    #: utilization is. Filled in by the runner, which knows the credential.
-    credential: str = ""
-    #: Which account reported it, as a digest that tells accounts apart and reveals none
-    #: (`account_digest`); '' when it is not known. One credential can stand for two
-    #: accounts: `ambient` is each coding agent's own login, and a credential's token can
-    #: be replaced between runs.
-    account: str = ""
-    #: The window `status` and `threshold_pct` are about (`five_hour`, `seven_day`, ...):
-    #: Claude Code's `rateLimitType`.
-    status_window: str = ""
-    #: The utilization (%) past which `status` warns (Claude Code's `surpassedThreshold`).
-    threshold_pct: float | None = None
-    #: Usage past the limit, billed as extra: its status (`allowed`, `rejected`, ...), why it
-    #: is off, and whether this request used it (Claude Code's `overageStatus`,
-    #: `overageDisabledReason`, `isUsingOverage`).
-    overage_status: str = ""
-    overage_disabled_reason: str = ""
-    using_overage: bool | None = None
-    #: Every window the reading names, by its name (`five_hour`, `seven_day`, a model's own
-    #: such as `seven_day_opus`): `{"pct": ..., "resets_at": ...}`. `five_hour_pct` and
-    #: `seven_day_pct` are two of them.
-    windows: dict[str, dict] = field(default_factory=dict)
-    #: What else the coding agent sent with the reading, by its own name: a newer field
-    #: this reader does not name yet.
-    extra: dict = field(default_factory=dict)
 
 
 #: Web search queries kept per launch (`LaunchResult.web_queries`).
@@ -333,15 +303,14 @@ class LaunchResult:
     structured_output: dict | list | None = None
     cost_usd: float | None = None
     usage: Usage = field(default_factory=Usage)
-    #: What the launch spent on models other than its own, as the coding agent reports
-    #: it: `{model: {"cost_usd", "input", "output", "cache_read", "cache_creation"}}`.
-    #: Their cost is in `cost_usd`; their tokens are not in `usage`.
-    other_models: dict[str, dict] = field(default_factory=dict)
-    rate_limit: RateLimit | None = None
-    #: Every utilization reading the launch received, oldest first (Claude Code sends
-    #: one when a session starts or resumes; omp's is read at the launch's start);
-    #: `rate_limit` is the latest.
-    rate_limits: list[RateLimit] = field(default_factory=list)
+    #: What the launch spent on models other than its own, by model, as the coding agent
+    #: reports it. Their cost is in `cost_usd`; their tokens are not in `usage`.
+    other_models: dict[str, OtherModel] = field(default_factory=dict)
+    #: Every quota reading the launch received, oldest first (Claude Code sends one when a
+    #: session starts or resumes; omp's is read at the launch's start).
+    quota: list[QuotaReading] = field(default_factory=list)
+    #: Set when the launch was refused for its quota, with the cool-off the provider stated.
+    quota_refusal: QuotaRefusal | None = None
     permission_denials: list[dict] = field(default_factory=list)
     tool_uses: dict[str, int] = field(default_factory=dict)
     #: The queries of the web searches the agent made (Claude Code `WebSearch`, omp
@@ -423,7 +392,7 @@ class LaunchResult:
             "usage": self.usage.as_dict(),
             "context_window": self.context_window,
             "context_pct": self.context_pct,
-            "rate_limit": asdict(self.rate_limit) if self.rate_limit else None,
+            "rate_limit": self._rate_limit(),
             "permission_denials": len(self.permission_denials),
             # What was denied (tool + input head): finds allow-list holes in logs.
             "denied": [
@@ -453,6 +422,33 @@ class LaunchResult:
             "context_warned": self.context_warned,
         }
         return d
+
+    def _rate_limit(self) -> dict | None:
+        """The latest quota reading and the quota refusal, as `launches.jsonl` records them
+        in one: the reading's fields with the refusal's `retry_after_s`; `status` `quota`
+        for a refusal with no reading."""
+        reading = self.quota[-1] if self.quota else None
+        if reading is None and self.quota_refusal is None:
+            return None
+        r = reading or QuotaReading(status="quota")
+        return {
+            "status": r.status,
+            "five_hour_pct": r.five_hour_pct,
+            "five_hour_resets_at": r.five_hour_resets_at,
+            "seven_day_pct": r.seven_day_pct,
+            "seven_day_resets_at": r.seven_day_resets_at,
+            "retry_after_s": self.quota_refusal.retry_after_s if self.quota_refusal is not None else None,
+            "observed_at": r.observed_at,
+            "credential": r.credential,
+            "account": r.account,
+            "status_window": r.status_window,
+            "threshold_pct": r.threshold_pct,
+            "overage_status": r.overage_status,
+            "overage_disabled_reason": r.overage_disabled_reason,
+            "using_overage": r.using_overage,
+            "windows": {k: w.model_dump(mode="json") for k, w in r.windows.items()},
+            "extra": dict(r.extra),
+        }
 
     def record(self, path: Path) -> None:
         """Append the telemetry line. Creates parent dirs."""

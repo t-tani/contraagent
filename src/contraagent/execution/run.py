@@ -31,7 +31,6 @@ is ok and carries the task's `fingerprint`.
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import fcntl
 import json
 import logging
@@ -42,14 +41,16 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from contraagent import procfs
 from contraagent.backends.base import Backend
-from contraagent.backends.launch import RateLimit, Stop
+from contraagent.backends.launch import Stop
 from contraagent.dispatch.flow import FlowState
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.records import DeferralCause, Frame, Rest, RestEvent
+from contraagent.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent
 from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
@@ -375,13 +376,14 @@ class Run:
         rests = QuotaRests(credentials, rule, on_change=self._record_rest, **kwargs)
         caps = {c.credential: c.model_dump(exclude={"credential"}, exclude_none=True) for c in caps_of(credentials)}
         self.update_info(quota_caps=caps, quota_rule=_name_of(rule) if rule is not None else "")
-        fields = {f.name for f in dataclasses.fields(RateLimit)}
         source = DirectorySource(self.runs_dir)
         for run in recent_runs(source):
             for row in parse_rows(source.lines(run, layout.JOURNAL)[0]):
                 for reading in row.get("quota") or ():
-                    if isinstance(reading, dict):
-                        rests.observe(RateLimit(**{k: v for k, v in reading.items() if k in fields}))
+                    try:
+                        rests.observe(QuotaReading.model_validate(reading))
+                    except ValidationError:
+                        continue
         return rests
 
     def queue(self, runner, *, follow_up: Callable[[TaskResult], list[Task]] | None = None, resume: bool = False, **kwargs) -> WorkQueue:

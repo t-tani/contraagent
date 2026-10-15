@@ -39,6 +39,7 @@ from contraagent.dispatch.records import DeferralCause, Rest, RestEvent, TimeBox
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import trends
+from contraagent.monitor.aggregate import TOKENS, add_tokens, model_usage
 from contraagent.monitor.trends import Period
 from contraagent.routing.preflight import PreflightRecord
 from contraagent.routing.quota import QuotaCap
@@ -209,10 +210,6 @@ def _first_last(readings: list[dict]) -> dict:
     return {"quota": accounts}
 
 
-def _number(v: object) -> float | None:
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
-
-
 def _deferral_cause(cause: object) -> dict | None:
     """A `deferred.jsonl` row's `cause` (a `DeferralCause`) as the monitor serves it: its
     name, a deadline's figures, and each rest as the row recorded it. None for a row with no
@@ -319,7 +316,7 @@ class Monitor:
             info = self.source.info(run) or {}
             n = ok = partial = not_run = 0
             cost: float | None = None
-            tokens = {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0, "calls": 0}
+            tokens = dict.fromkeys(TOKENS, 0)
             readings: list[dict] = []
             wall = 0.0
             last = ""
@@ -335,9 +332,7 @@ class Monitor:
                 if e.get("cost_usd") is not None:
                     cost = (cost or 0.0) + float(e["cost_usd"])
                 readings += [q for q in e.get("quota") or [] if isinstance(q, dict)]
-                for k, v in (e.get("usage") or {}).items():
-                    if k in tokens:
-                        tokens[k] += int(v or 0)
+                add_tokens(tokens, e.get("usage"))
                 wall += float(e.get("wall_s") or 0)
                 last = e.get("ts", last)
                 kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
@@ -1065,61 +1060,3 @@ def row_extras(rows: list[dict]) -> list[str]:
     for row in rows:
         out.update(dict.fromkeys(k for k in row if k not in known))
     return list(out)
-
-
-_TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
-
-
-def model_usage(rows: list[dict]) -> list[dict]:
-    """What the agent sessions of journal `rows` spent per model (`api.ModelUsage`), in order
-    of first use: each hop on its own model (its agent, tokens, cost and time), and what it
-    spent on other models (`Hop.other_models`) on each of them, taken out of its own model's
-    cost. A row of one hop with no tokens of its own gives the hop the row's. `peak_context`
-    and `context_window` are the largest of its hops'. Python rows and hops that never launched (`skipped_hops`)
-    are not counted."""
-    out: dict[tuple[str, str], dict] = {}
-
-    def add(agent: str, model: str, usage: object, cost: float | None, sessions: int, wall_s: float) -> None:
-        m = out.setdefault(
-            (agent, model),
-            {
-                "agent": agent,
-                "model": model,
-                "sessions": 0,
-                **dict.fromkeys(_TOKENS, 0),
-                "cost_usd": None,
-                "wall_s": 0.0,
-                "peak_context": None,
-                "context_window": None,
-            },
-        )
-        for k in ("peak_context", "context_window"):
-            v = usage.get(k) if isinstance(usage, dict) else None
-            if isinstance(v, int) and not isinstance(v, bool):
-                m[k] = max(m[k] or 0, v)
-        m["sessions"] += sessions
-        for k in _TOKENS:
-            v = usage.get(k) if isinstance(usage, dict) else None
-            m[k] += int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
-        if cost is not None:
-            m["cost_usd"] = round((m["cost_usd"] or 0.0) + cost, 6)
-        m["wall_s"] = round(m["wall_s"] + wall_s, 1)
-
-    for row in rows:
-        if row.get("executor") == "python":
-            continue
-        hops = [h for h in row.get("hops") or [] if isinstance(h, dict)]
-        for h in hops:
-            agent, model = str(h.get("agent") or row.get("agent") or ""), str(h.get("model") or "")
-            if not model:
-                continue
-            usage = h.get("usage") if isinstance(h.get("usage"), dict) else (row.get("usage") if len(hops) == 1 else None)
-            cost = _number(h.get("cost_usd"))
-            given = h.get("other_models")
-            others = {str(n): spent for n, spent in given.items() if isinstance(spent, dict)} if isinstance(given, dict) else {}
-            parts = [p for spent in others.values() if (p := _number(spent.get("cost_usd"))) is not None]
-            own = max(0.0, cost - sum(parts)) if cost is not None else None
-            add(agent, model, usage, own, 1, _number(h.get("wall_s")) or 0.0)
-            for name, spent in others.items():
-                add(agent, name, spent, _number(spent.get("cost_usd")), 0, 0.0)
-    return list(out.values())

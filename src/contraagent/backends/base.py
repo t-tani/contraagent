@@ -28,10 +28,11 @@ from types import ModuleType
 from typing import Protocol
 
 from contraagent.backends.credentials import Ambient, CredentialBase, CredentialBinding, CredentialError
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.backends.process import LaunchError, Sink, run_process
 from contraagent.backends.refusal import Signals, quota_refusal
 from contraagent.backends.wire import EventFold, LimitsWatch
+from contraagent.dispatch.records import QuotaReading
 from contraagent.runs.times import now_iso
 
 #: Variables that tie a process to a Claude Code session that started contraagent
@@ -156,10 +157,10 @@ class Backend(abc.ABC):
         one; one that overrides `run` needs none."""
         raise NotImplementedError(f"{type(self).__name__} supplies no reader (fold) and does not override run")
 
-    def usage_reading(self, launch: Launch) -> RateLimit | None:
+    def usage_reading(self, launch: Launch) -> QuotaReading | None:
         """The utilization of the account `launch` bills, read before it starts, where the agent
         reports it outside its stream (omp's `omp usage`, OpenCode Go's usage route); first in
-        `LaunchResult.rate_limits`. Default: none."""
+        `LaunchResult.quota`. Default: none."""
         return None
 
     def watch_stderr(self, launch: Launch) -> Sink | None:
@@ -187,7 +188,7 @@ class Backend(abc.ABC):
         reading = self.usage_reading(launch)
         result = self._run(launch, started_at, t0)
         if reading is not None:
-            result.rate_limits.insert(0, reading)
+            result.quota.insert(0, reading)
         return result
 
     def _run(self, launch: Launch, started_at: str, t0: float) -> LaunchResult:
@@ -415,8 +416,8 @@ class Backend(abc.ABC):
             return
         launch_result.stop = Stop.RATE_LIMITED
         launch_result.ok = False
-        if launch_result.rate_limit is None:
-            launch_result.rate_limit = quota_refusal(stderr)
+        if launch_result.quota_refusal is None:
+            launch_result.quota_refusal = quota_refusal(stderr)
 
 
 class ResumeById:

@@ -13,8 +13,8 @@ reading names resets. The run goes on elsewhere, the way it does after a 429:
 * a task with no hop left is deferred at once (`AgentRunner.deferral`), not
   failed: nothing was launched and nothing was spent.
 
-Readings are what the coding agents reported (`RateLimit`, a launch's
-`rate_limits`), newest per credential and account: those of recent runs, read
+Readings are what the coding agents reported (`QuotaReading`, a launch's
+`quota`), newest per credential and account: those of recent runs, read
 when the run starts, then each launch's as it ends. One credential may bill two
 accounts (`ambient` is each coding agent's own login; a credential's token may be
 replaced), so a hop is judged by the readings of the account it bills
@@ -51,30 +51,20 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
-from datetime import UTC, datetime, timedelta
-from typing import Literal
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict
 
 from contraagent.backends.credentials import CredentialBase, Pool
-from contraagent.backends.launch import RateLimit
-from contraagent.dispatch.records import Rest
+from contraagent.dispatch.records import WINDOWS, QuotaReading, Rest, window_spec
 from contraagent.runs.times import parse_iso
 
 #: `quota_rule(credential, reading)`: a reason the credential rests now, or None; or the
 #: reason and when the rest ends (a `datetime`; one with no time zone is UTC).
-QuotaRule = Callable[[str, RateLimit], "str | tuple[str, datetime] | None"]
+QuotaRule = Callable[[str, QuotaReading], "str | tuple[str, datetime] | None"]
 
 #: `account(credential)`: the account a launch as the credential bills now (`Backend.account`), '' unknown.
 AccountOf = Callable[[str], str]
-
-#: The two windows of a subscription: the name a cap and a reading give each, and how long
-#: a reading of it stands when it names no reset.
-WINDOWS = ("five_hour", "seven_day")
-_WINDOWS: tuple[tuple[Literal["five_hour", "seven_day"], timedelta], ...] = (
-    ("five_hour", timedelta(hours=5)),
-    ("seven_day", timedelta(days=7)),
-)
 
 
 def _aware(t: datetime) -> datetime:
@@ -82,31 +72,27 @@ def _aware(t: datetime) -> datetime:
     return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
-def stale_at(reading: RateLimit) -> datetime | None:
+def stale_at(reading: QuotaReading) -> datetime | None:
     """When `reading` stops standing: the earliest reset among its windows, a window that
-    names no reset standing for its length after `observed_at`; None when it says neither."""
+    names no reset standing for its length after `observed_at` (a window not in `WINDOWS`,
+    the shortest's); None when it says neither."""
     observed = parse_iso(reading.observed_at)
-    lengths: dict[str, timedelta] = dict(_WINDOWS)
+    shortest = min(spec.length for spec in WINDOWS.values())
     ends: list[datetime] = []
-    windows = {w: {"pct": getattr(reading, f"{w}_pct"), "resets_at": getattr(reading, f"{w}_resets_at")} for w in WINDOWS}
-    windows.update({k: v for k, v in (reading.windows or {}).items() if isinstance(v, dict)})
-    for name, w in windows.items():
-        if w.get("pct") is None and not w.get("resets_at"):
-            continue
-        resets = parse_iso(w.get("resets_at"))
+    for name, w in reading.named_windows().items():
+        resets = parse_iso(w.resets_at)
         if resets is not None:
             ends.append(resets)
         elif observed is not None:
-            ends.append(observed + lengths.get(name, lengths["five_hour"]))
+            spec = window_spec(name)
+            ends.append(observed + (spec.length if spec is not None else shortest))
     return min(ends) if ends else None
 
 
-def reading_of(reading: RateLimit) -> dict:
+def reading_of(reading: QuotaReading) -> dict:
     """A reading as a rest records it: when it arrived and each window's utilization and reset."""
-    windows = {w: {"pct": getattr(reading, f"{w}_pct"), "resets_at": getattr(reading, f"{w}_resets_at")} for w in WINDOWS}
-    windows.update({k: dict(v) for k, v in (reading.windows or {}).items() if isinstance(v, dict)})
-    named = {k: v for k, v in windows.items() if v.get("pct") is not None or v.get("resets_at")}
-    return {"observed_at": reading.observed_at, "windows": named}
+    windows = {k: w.model_dump(mode="json") for k, w in reading.named_windows().items()}
+    return {"observed_at": reading.observed_at, "windows": windows}
 
 
 class QuotaCap(BaseModel):
@@ -166,12 +152,12 @@ class QuotaRests:
         self._now = now
         self._clock = clock
         self._lock = threading.Lock()
-        self._latest: dict[tuple[str, str], RateLimit] = {}  # by credential and account
+        self._latest: dict[tuple[str, str], QuotaReading] = {}  # by credential and account
         self._since: dict[tuple[str, str], float] = {}  # by credential and account: when it was first found resting
         self._resting: dict[tuple[str, str], Rest] = {}  # by credential and account: the rest it began with
         self._ruled: dict[tuple[str, str], tuple[Rest, datetime]] = {}  # rests the rule gave an end, and that end
 
-    def observe(self, reading: RateLimit) -> None:
+    def observe(self, reading: QuotaReading) -> None:
         """A reading the coding agent reported for `reading.credential` and `reading.account`;
         the newest one of each account counts."""
         if not reading.credential:
@@ -184,7 +170,7 @@ class QuotaRests:
             ):
                 self._latest[key] = reading
 
-    def latest(self, name: str, account: str | None = None) -> RateLimit | None:
+    def latest(self, name: str, account: str | None = None) -> QuotaReading | None:
         """The newest reading of credential `name` for `account`: of that account, or of none
         named. `account` '' or None (not known): the newest of any account."""
         with self._lock:
@@ -267,10 +253,11 @@ class QuotaRests:
             return None
         return rest
 
-    def _capped(self, name: str, reading: RateLimit, pool: Pool | None) -> Rest | None:
+    def _capped(self, name: str, reading: QuotaReading, pool: Pool | None) -> Rest | None:
         cred = self.credentials.get(name)
         now = self._now()
-        for window, length in _WINDOWS:
+        for window, spec in WINDOWS.items():
+            length = spec.length
             cap = getattr(cred, f"max_{window}_pct", None) if cred is not None else None
             if cap is None and pool is not None:
                 cap = getattr(pool, f"max_{window}_pct", None)

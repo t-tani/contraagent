@@ -33,7 +33,7 @@ from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.backends.process import signal_of
 from contraagent.contracts import check_input, fold_spend, record_contracts, run_until_valid
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent.dispatch.records import DeferralCause, Hop, OtherModel, Rest, SkippedHop, TokenUsage
+from contraagent.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
 from contraagent.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.execution.changes import ChangesEnricher
@@ -87,7 +87,9 @@ def _hop(label: str, result: TaskResult) -> Hop:
     after it fold their spend into the attempt's, so each hop holds its own (its rounds,
     and pool members tried on it, included)."""
     o = result.launch_result
-    u = o.usage if o is not None else None
+    totals = o.usage.totals(o.context_window) if o is not None else None
+    # Resident is the attempt's (its first call's), not a hop's.
+    hop_usage = TokenUsage.model_validate(totals.model_dump(exclude={"resident"})) if totals is not None else None
     return Hop(
         route=label,
         agent=o.agent if o else "",
@@ -96,20 +98,8 @@ def _hop(label: str, result: TaskResult) -> Hop:
         stop=result.stop,
         wall_s=round(result.wall_s, 1),  # this hop, pool members tried on it included
         cost_usd=o.cost_usd if o else None,
-        usage=(
-            TokenUsage(
-                input=u.input,
-                output=max(u.output, u.output_total),
-                cache_read=u.cache_read,
-                cache_creation=u.cache_creation,
-                calls=u.n_calls,
-                peak_context=u.peak_context if u.calls else None,
-                context_window=o.context_window if o is not None else None,
-            )
-            if u is not None and (u.calls or u.output_total)
-            else None
-        ),
-        other_models={m: OtherModel.model_validate(v) for m, v in o.other_models.items()} if o is not None else {},
+        usage=hop_usage,
+        other_models=dict(o.other_models) if o is not None else {},
     )
 
 
@@ -509,8 +499,8 @@ class AgentRunner:
             nxt = router.rate_limited(
                 route,
                 (
-                    result.launch_result.rate_limit.retry_after_s
-                    if result.launch_result is not None and result.launch_result.rate_limit
+                    result.launch_result.quota_refusal.retry_after_s
+                    if result.launch_result is not None and result.launch_result.quota_refusal is not None
                     else None
                 ),
             )
@@ -566,8 +556,8 @@ class AgentRunner:
                     note = f"pool {pool.name}: {', '.join(tried)} rate limited, ran on {member.label}"
                     last.reason = f"{note}; {last.reason}" if last.reason else note
                 return last
-            rl = last.launch_result.rate_limit if last.launch_result is not None else None
-            pool.rate_limited(member, model, rl.retry_after_s if rl is not None else None)
+            refusal = last.launch_result.quota_refusal if last.launch_result is not None else None
+            pool.rate_limited(member, model, refusal.retry_after_s if refusal is not None else None)
             tried.append(member.label)
             spent = last.wall_s
 
@@ -580,9 +570,13 @@ class AgentRunner:
         # With declared outputs the launch is resumed until every one holds,
         # or the correction budget is spent (then INVALID_OUTPUT, not ok).
         launch_result = run_until_valid(backend, launch, contracts) if contracts else backend.run(launch)
-        for reading in launch_result.rate_limits:  # whose account each utilization reading is
-            reading.credential = reading.credential or launch_result.credential or credential.label
-            reading.account = reading.account or self.account_of(backend, credential, launch.model)
+        for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
+            reading = launch_result.quota[i] = reading.model_copy(
+                update={
+                    "credential": reading.credential or launch_result.credential or credential.label,
+                    "account": reading.account or self.account_of(backend, credential, launch.model),
+                }
+            )
             if self.rests is not None:
                 self.rests.observe(reading)
         launch_result.context_budget = launch.limits.context_budget

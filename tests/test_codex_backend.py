@@ -107,7 +107,7 @@ def test_a_launch_reads_its_events_and_its_rollout(fake):
     assert r.usage.resident == 8511 and r.usage.output_total == 197 and r.init_model == "gpt-5.6-luna"
     assert r.peak_context == 2 + 8509 + 218  # the second call's whole input
     assert (r.context_window, r.context_pct) == (258400, round(100 * (2 + 8509 + 218) / 258400, 1))  # as the rollout reports it
-    assert r.rate_limit is not None and r.rate_limit.five_hour_pct == 42.0 and r.rate_limit.seven_day_pct == 7.5
+    assert [(q.five_hour_pct, q.seven_day_pct) for q in r.quota[-1:]] == [(42.0, 7.5)]
     env = seen["env"]
     assert env["CODEX_API_KEY"] == "sk-test" and "OPENAI_API_KEY" not in env and "CLAUDECODE" not in env
     assert "contraagent" in env["CODEX_HOME"] and "contraagent" in env["CODEX_SQLITE_HOME"]  # no stored login, no shared index
@@ -149,7 +149,7 @@ def test_a_resumed_launch_counts_only_its_own_calls(fake, tmp_path):
     assert nxt is not None and nxt.resume == THREAD
     _, second, seen = fake(credential=cred, persist_session=True, resume=THREAD, prompt="again")
     assert seen["argv"][1:4] == ["exec", "resume", THREAD] and seen["argv"][-1] == "again"
-    assert second.usage.n_calls == 2  # the rollout holds four calls by now
+    assert len(second.usage.calls) == 2  # the rollout holds four calls by now
 
 
 def test_a_gateway_is_a_model_provider_of_its_own(fake):
@@ -246,7 +246,7 @@ def test_a_rollout_without_windows_has_no_reading(tmp_path):
     f.write_text(
         json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": None, "rate_limits": {"primary": None}}}) + "\n"
     )
-    assert read_rollout(f).rate_limits == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
+    assert read_rollout(f).quota == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
 
 
 def test_a_web_search_names_its_query_and_pages_when_it_ends():

@@ -1930,10 +1930,11 @@ export type components = {
         };
         /**
          * QuotaReading
-         * @description A subscription's utilization as the coding agent reported it during an attempt
+         * @description A subscription's utilization as the coding agent reported it during a launch
          *     (Claude Code: when a session starts or resumes; omp: at each launch, what the
-         *     account's latest request reported). Account-wide: it includes
-         *     whatever else used the same account, parallel tasks too.
+         *     account's latest request reported). Account-wide: it includes whatever else used the
+         *     same account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's
+         *     `quota` an attempt's that give a 5-hour or weekly utilization.
          */
         QuotaReading: {
             /** Observed At */

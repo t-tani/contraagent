@@ -56,7 +56,7 @@ def test_a_recorded_launch_reads_whole(version):
     assert result.stop == Stop.COMPLETED and result.ok
     assert result.result_text.strip(".").lower() == "done"  # the last message only, not what came before a tool call
     assert result.tool_uses == {"read": 1, "bash": 1}
-    assert result.usage.n_calls == 3 and result.usage.output > 0 and result.cost_usd is not None
+    assert len(result.usage.calls) == 3 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd is not None
     assert result.session_id.startswith("ses_")
     assert result.unread_events == {}, "opencode sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
@@ -80,7 +80,7 @@ def test_an_error_event_names_the_stop_and_its_cause():
     assert read([UNKNOWN], exit_code=1).stop == Stop.API_ERROR
     quota = {**FREE_TIER, "error": {"name": "APIError", "data": {"message": "Too Many Requests", "statusCode": 429}}}
     limited = read([quota], exit_code=1)
-    assert limited.stop == Stop.RATE_LIMITED and limited.rate_limit is not None
+    assert limited.stop == Stop.RATE_LIMITED and limited.quota_refusal is not None
     assert normalize_event(FREE_TIER) == {"type": "notice", "text": "error: OpenCode's free tier can only be used from within OpenCode."}
 
 

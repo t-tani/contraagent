@@ -5,8 +5,9 @@ import threading
 
 from contraagent import AgentRunner, Backend, KindConfig, LaunchResult, Route, Router, Stop, Task, TaskAdapter
 from contraagent.backends.launch import CallUsage
+from contraagent.dispatch.records import OtherModel
 from contraagent.execution.journal import Journal
-from contraagent.monitor.core import model_usage
+from contraagent.monitor.aggregate import model_usage
 
 
 class Agent(Backend):
@@ -133,7 +134,7 @@ def test_claude_code_s_model_usage_less_the_launch_s_own_model():
         "big-1": {"inputTokens": 8, "outputTokens": 900, "costUSD": 0.05},
         "small-1": {"inputTokens": 1200, "outputTokens": 100, "cacheReadInputTokens": 3, "costUSD": 0.01},
     }
-    small = {"cost_usd": 0.01, "input": 1200, "output": 100, "cache_read": 3, "cache_creation": 0}
+    small = OtherModel(cost_usd=0.01, input=1200, output=100, cache_read=3, cache_creation=0)
     assert other_models(used, "big-1") == {"small-1": small}
     assert other_models(used, "big") == {"small-1": small}  # an alias: its own is the one that wrote the most
     assert other_models({"big-1": used["big-1"]}, "big-1") == {}
@@ -144,13 +145,13 @@ def test_the_rounds_of_a_session_hold_its_spend_on_other_models():
     from contraagent.contracts import fold_spend
 
     def launch(cost, small):
-        return LaunchResult(label="t", cost_usd=cost, other_models={"small": {"cost_usd": small, "input": 10}})
+        return LaunchResult(label="t", cost_usd=cost, other_models={"small": OtherModel(cost_usd=small, input=10)})
 
     # A coding agent that reports each launch's own spend: the rounds add up.
-    assert fold_spend(launch(0.1, 0.01), launch(0.2, 0.02), resumed=True).other_models == {"small": {"cost_usd": 0.03, "input": 20}}
+    assert fold_spend(launch(0.1, 0.01), launch(0.2, 0.02), resumed=True).other_models == {"small": OtherModel(cost_usd=0.03, input=20)}
     # One that reports the session's so far: the last round's stands.
     folded = fold_spend(launch(0.1, 0.01), launch(0.3, 0.03), resumed=True, session_total=True)
-    assert folded.other_models == {"small": {"cost_usd": 0.03, "input": 10}}
+    assert folded.other_models == {"small": OtherModel(cost_usd=0.03, input=10)}
 
 
 def test_the_monitor_s_plan_carries_the_models(tmp_path):

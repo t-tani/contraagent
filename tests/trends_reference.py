@@ -271,7 +271,7 @@ def _round(v: float | None, n: int = 6) -> float | None:
 def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
     group it is counted in (the monitor's `groups`), each other kind being its own."""
-    from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
+    from contraagent.monitor.aggregate import model_usage
 
     group_of = dict(groups or {})
     days = [d.isoformat() for d in period.days]

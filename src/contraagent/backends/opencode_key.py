@@ -12,7 +12,7 @@ then `OPENCODE_API_KEY`, omp in `OPENCODE_API_KEY`, which it also reads from `.e
   is the same account on every agent and in an `api_key` credential;
 * `go_usage`: the Go subscription's windows, from the usage route opencode's own console
   serves (`GET <base>/v1/usage`, `Authorization: Bearer <key>`; the route omp reads too),
-  as a `RateLimit`. Every failure is None: a reading that cannot be had loses nothing else;
+  as a `QuotaReading`. Every failure is None: a reading that cannot be had loses nothing else;
 * `OpencodeKeyAccount`: an agent's account and Go usage from the key it bills (opencode, pi).
 
 Nothing here writes a key or logs one.
@@ -25,11 +25,12 @@ import os
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends.credentials import CredentialBase, CredentialError
-from contraagent.backends.launch import ACCOUNT_SECRET, Launch, RateLimit, account_digest
+from contraagent.backends.launch import ACCOUNT_SECRET, Launch, account_digest
+from contraagent.dispatch.records import QuotaReading, QuotaWindow
+from contraagent.runs.times import iso_of, now_iso, parse_iso
 
 #: The variable every agent reads an OpenCode key from.
 KEY_VAR = "OPENCODE_API_KEY"
@@ -43,7 +44,7 @@ GO_ENDPOINT = "https://opencode.ai/zen/go"
 USER_AGENT = "contraagent"
 USAGE_TIMEOUT_S = 10.0
 #: The route's windows, by the names a Claude Code reading gives them.
-_WINDOWS = {"rolling": "five_hour", "weekly": "seven_day", "monthly": "monthly"}
+_GO_WINDOWS = {"rolling": "five_hour", "weekly": "seven_day", "monthly": "monthly"}
 
 
 def is_opencode(provider: str) -> bool:
@@ -83,16 +84,6 @@ def account_of_key(key: str) -> str:
     return account_digest(ACCOUNT_SECRET, key)
 
 
-def _iso(stamp: object) -> str | None:
-    if not isinstance(stamp, str):
-        return None
-    try:
-        t = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return t.astimezone(UTC).isoformat(timespec="seconds")
-
-
 def _status(window: Mapping) -> str:
     """A window's state as omp names it: `exhausted` when refused or full, `warning` from 80%."""
     pct = window["percent"]
@@ -101,31 +92,29 @@ def _status(window: Mapping) -> str:
     return "warning" if pct >= 80 else "ok"
 
 
-def go_reading(body: object, key: str = "") -> RateLimit | None:
-    """The Go usage route's answer as a `RateLimit`: the rolling window as `five_hour`, the
+def go_reading(body: object, key: str = "") -> QuotaReading | None:
+    """The Go usage route's answer as a `QuotaReading`: the rolling window as `five_hour`, the
     weekly as `seven_day`, the monthly by name in `windows`; `status` the windows' states
     but `ok` (`allowed` when every one is), as omp reports them. None for an answer missing
     a window: a partial reading would be read as a whole one."""
     usage = body.get("usage") if isinstance(body, dict) else None
     if not isinstance(usage, dict):
         return None
-    windows: dict[str, dict] = {}
+    windows: dict[str, QuotaWindow] = {}
     states: set[str] = set()
-    for field, name in _WINDOWS.items():
+    for field, name in _GO_WINDOWS.items():
         w = usage.get(field)
         if not isinstance(w, dict) or isinstance(w.get("percent"), bool) or not isinstance(w.get("percent"), (int, float)):
             return None
-        windows[name] = {"pct": float(w["percent"]), "resets_at": _iso(w.get("resetsAt"))}
+        windows[name] = QuotaWindow(
+            pct=float(w["percent"]), resets_at=iso_of(at.timestamp()) if (at := parse_iso(w.get("resetsAt"))) else None
+        )
         states.add(_status(w))
-    return RateLimit(
+    return QuotaReading.from_windows(
+        windows,
         status="allowed" if states <= {"ok"} else ",".join(sorted(states - {"ok"})),
-        five_hour_pct=windows["five_hour"]["pct"],
-        five_hour_resets_at=windows["five_hour"]["resets_at"],
-        seven_day_pct=windows["seven_day"]["pct"],
-        seven_day_resets_at=windows["seven_day"]["resets_at"],
-        observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        observed_at=now_iso(),
         account=account_of_key(key),
-        windows=windows,
     )
 
 
@@ -137,7 +126,7 @@ def _get(url: str, key: str, timeout: float) -> object:
 
 def go_usage(
     key: str, base_url: str = "", *, timeout: float = USAGE_TIMEOUT_S, fetch: Callable[[str, str, float], object] | None = None
-) -> RateLimit | None:
+) -> QuotaReading | None:
     """The Go subscription's usage for `key`, read from `<base_url>/v1/usage` (by default
     opencode.ai's); None with no key, on any failure, or for an answer that is not whole.
     `fetch(url, key, timeout)` replaces the request (tests)."""
@@ -197,7 +186,7 @@ class OpencodeKeyAccount:
             return ""
         return account_of_key(key)
 
-    def usage_reading(self, launch: Launch) -> RateLimit | None:
+    def usage_reading(self, launch: Launch) -> QuotaReading | None:
         """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
         route (the agent reports none itself); None for another model or when it cannot be read."""
         if not launch.model.startswith(GO + "/"):

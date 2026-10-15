@@ -159,7 +159,7 @@ so its caps are the credential's: `max_five_hour_pct` and `max_seven_day_pct`
 in its `[credentials.<name>]` table (on a pool, the cap of each member that
 sets none). `Pipeline(quota_rule=fn)` adds a test of your own: `fn(credential,
 reading)` returns why the credential rests now, or None, from its latest reading
-(`RateLimit`); or the reason and when the rest ends, `(reason, datetime)` (a time
+(`QuotaReading`); or the reason and when the rest ends, `(reason, datetime)` (a time
 with no zone is UTC).
 
 A credential past a cap or the rule **rests** until the window its reading

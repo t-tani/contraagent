@@ -11,28 +11,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from contraagent.backends.process import signal_of
-from contraagent.dispatch.records import TokenUsage
 from contraagent.dispatch.task import Task, TaskResult, kind_name
-from contraagent.execution.schemas import JournalRow, QuotaReading
+from contraagent.execution.schemas import JournalRow
 from contraagent.runs.files import append_lines, read_rows
 from contraagent.runs.times import now_iso
-
-
-def _usage(o) -> TokenUsage | None:
-    """The attempt's tokens; None when the launch reported no API call."""
-    if o is None or not (o.usage.calls or o.usage.output_total):
-        return None
-    u = o.usage
-    return TokenUsage(
-        input=u.input,
-        output=max(u.output, u.output_total),
-        cache_read=u.cache_read,
-        cache_creation=u.cache_creation,
-        calls=u.n_calls,
-        resident=u.resident if u.calls else None,
-        peak_context=u.peak_context if u.calls else None,
-        context_window=o.context_window,
-    )
 
 
 class Journal:
@@ -84,13 +66,9 @@ class Journal:
             rounds=(getattr(o, "rounds", None) if o is not None else result.rounds),
             round_errors=[list(errors[:5]) for errors in (o.round_errors if o is not None else result.round_errors)],
             hook_errors=[list(errors[:5]) for errors in o.hook_errors] if o is not None else [],
-            usage=_usage(o),
+            usage=o.usage.totals(o.context_window) if o is not None else None,
             cost_usd=(round(o.cost_usd, 6) if o is not None and o.cost_usd is not None else None),
-            quota=[
-                QuotaReading(**{k: getattr(r, k) for k in QuotaReading.model_fields})
-                for r in (o.rate_limits if o is not None else [])
-                if r.five_hour_pct is not None or r.seven_day_pct is not None
-            ],
+            quota=[r for r in (o.quota if o is not None else []) if r.five_hour_pct is not None or r.seven_day_pct is not None],
             web_queries=list(o.web_queries) if o is not None else [],
             unread_events=dict(o.unread_events) if o is not None else {},
             changes=result.changes,

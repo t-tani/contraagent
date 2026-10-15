@@ -280,6 +280,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FlowState`, `TimeBoxRecord`, `PreflightRecord`, `DroppedRoute`, `Substitution`, `KeptKind`;
   `QuotaRest` is `Rest`). `api.TrendRest` is a `RestEvent` with its `run`; `api.PlanNode`
   extends `execution.schemas.PlanRow`.
+- One type for a quota reading: `RateLimit` is removed; a reading is a `QuotaReading` (with
+  `QuotaWindow`), now in `contraagent.dispatch.records` and exported from `contraagent`, the
+  same type the journal's `quota` holds. `LaunchResult.rate_limit` and `rate_limits` are
+  `LaunchResult.quota` (every reading, oldest first); `Backend.usage_reading`,
+  `quota_rule(credential, reading)` (`QuotaRule`) and `QuotaRests` take `QuotaReading`. A 429's
+  cool-off is not a reading: `LaunchResult.quota_refusal` is a `QuotaRefusal(retry_after_s=)`
+  (`backends.refusal.quota_refusal` returns one). `QuotaReading.from_windows` builds a reading
+  from its windows; `QuotaReading.named_windows()` lists every window it gives. The stub agent
+  takes `writes(value, quota=QuotaReading(...))`; `rate_limited(retry_after_s)` is unchanged.
+  `launches.jsonl` keeps its `rate_limit` key: the launch's latest reading (it was empty for a
+  coding agent whose reading is read before the launch, omp and OpenCode Go), with the
+  refusal's `retry_after_s`.
+- One window table: `dispatch.records.Window` (`five_hour`, `seven_day`) and `WINDOWS` (each
+  window's words and length, `WindowSpec`); `Rest.window`, routing and the trends use it.
+  `routing.quota.WINDOWS` is that table.
+- Tokens: `Usage.totals(context_window)` returns the launch's `TokenUsage` (None without a
+  call or an output), which the journal's and each hop's `usage` take; `Usage.n_calls`,
+  `input`, `output`, `cache_read` and `cache_creation` are removed (use `totals()` or
+  `len(usage.calls)`). `LaunchResult.other_models` holds `OtherModel` values
+  (`OtherModel.plus` sums two).
+- `contraagent.monitor.aggregate` holds the sums the monitor's views share: `model_usage` (was
+  `monitor.core.model_usage`), `add_model_usage`, `add_tokens`, `token_counts`, `number`,
+  `TOKENS`.
 - New row types in `execution.schemas`: `PlanRow` (`plan.jsonl`), `FlowCallRow`
   (`flow_calls.jsonl`), `DeferredRow` (`deferred.jsonl`). `routing.quota.caps_of` returns a
   list of `QuotaCap`; `PreflightRecord.as_dict()` is `model_dump(mode="json")`.

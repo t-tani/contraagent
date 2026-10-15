@@ -45,7 +45,7 @@ from contraagent.backends.opencode import catalogue
 from contraagent.backends.opencode import wire as opencode_wire
 from contraagent.backends.opencode_key import OpencodeKeyAccount
 from contraagent.backends.process import Sink, via_stdin
-from contraagent.backends.refusal import parse_retry_after, quota_refusal
+from contraagent.backends.refusal import quota_refusal
 
 #: Added to every launch: no project config, `AGENTS.md` or `.opencode/` directory, none of
 #: the user's Claude Code files (`~/.claude/CLAUDE.md`, its skills), no skills under
@@ -395,14 +395,12 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
 
     def reclassify(self, launch_result: LaunchResult, stderr: str) -> None:
         """A launch ended on a refusal opencode only logged: the provider's words are its
-        result, and the cool-off they state its reading's."""
+        result, and the cool-off they state its quota refusal's."""
         if launch_result.stop is not Stop.RATE_LIMITED:
             return
         words = next((w for line in stderr.splitlines() if (w := opencode_wire.refusal_in_log(line))), "")
-        if launch_result.rate_limit is None:
-            launch_result.rate_limit = quota_refusal(words)
-        elif launch_result.rate_limit.retry_after_s is None:
-            launch_result.rate_limit.retry_after_s = parse_retry_after(words)
+        if launch_result.quota_refusal is None or launch_result.quota_refusal.retry_after_s is None:
+            launch_result.quota_refusal = quota_refusal(words)
         launch_result.result_text = launch_result.result_text or words
 
     def read_models(self) -> dict[str, int | None] | None:
