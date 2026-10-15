@@ -169,5 +169,6 @@ class SpecAdapter(TaskAdapter):
             "output_from": spec.output_from,
             "preserve": list(spec.preserve),
             "output_of": spec.output_of.kind if spec.output_of is not None else None,
+            **({"base_kind": spec.base_kind} if spec.base_kind else {}),
             "tools": list(spec.tools) if spec.tools is not None else None,
         }

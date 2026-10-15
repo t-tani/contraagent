@@ -12,7 +12,8 @@ of a module it uses by one of those names (`tasks.review`), the values its
 closure holds, and its default arguments. Each value found is followed the
 same way when it is a function of flow code (`origin.flow_code`), a bound
 method, a `functools.partial`, an object whose class defines `__call__` in
-flow code, or a list, tuple, set or dict (its items). A Python task's own
+flow code, a list, tuple, set or dict (its items), or an `Implementations` (each
+of its agent tasks). A Python task's own
 function is not followed: it runs as a task and creates none.
 
 A task declared while the flow runs (inside the flow's body) is not reached;
@@ -31,7 +32,7 @@ from types import BuiltinFunctionType, CodeType, FunctionType, MethodType, Modul
 from typing import Any
 
 from contraagent.pipeline.origin import flow_code
-from contraagent.pipeline.spec import AgentTask, PythonTask
+from contraagent.pipeline.spec import AgentTask, Implementations, PythonTask
 
 
 def reachable(*roots: Any) -> list[AgentTask | PythonTask]:
@@ -48,6 +49,8 @@ def reachable(*roots: Any) -> list[AgentTask | PythonTask]:
         keep.append(obj)
         if isinstance(obj, (AgentTask, PythonTask)):
             found.append(obj)
+        elif isinstance(obj, Implementations):
+            work.extend(obj.values())
         elif isinstance(obj, FunctionType):
             work.extend(_function_refs(obj))
         elif isinstance(obj, MethodType):

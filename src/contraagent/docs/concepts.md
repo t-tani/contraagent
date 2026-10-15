@@ -33,7 +33,8 @@ documentation. No other word is used for the same thing.
 | Word | Means | In code |
 |---|---|---|
 | **interface** | what an agent task takes, produces and may spend | `agent_task(params=, output=, max_turns=, ...)` |
-| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names | `agent_task(plugin=)`, `Plugin` |
+| **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names. One declaration may name several by name, each a kind of its own | `agent_task(plugin=)`, `agent_task(implementations=)`, `Plugin` |
+| **base kind** | the kind a declaration of several implementations names (`review`); each implementation is the kind `<base kind>-<name>` (`review-go`), takes the base kind's task table below its own, and is drawn in the base kind's group | `agent_task(implementations=)`, `Implementations`, `AgentTask.base_kind`, `Task.base_kind`; `plan.jsonl` and definition `base_kind` |
 | **skill plugin** | a plugin that holds skills and nothing else that acts; tasks with different plugins load it to share its skills | `agent_task(skills_from=)`, `Plugin.skills_only` |
 | **role** | a named agent definition in a plugin: its procedure | `agents/<role>.md`, `Launch.role`, Claude Code's `--agent` |
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |
@@ -63,7 +64,7 @@ documentation. No other word is used for the same thing.
 
 | Word | Means | In code |
 |---|---|---|
-| **task table** | one kind's `[tasks.<kind>]` table in the config | `PipelineConfig.task_tables()`, `TASK_TABLE_KEYS` |
+| **task table** | one kind's `[tasks.<kind>]` table in the config; an implementation kind's starts from its base kind's | `PipelineConfig.task_tables()`, `resolved_task_tables`, `TASK_TABLE_KEYS` |
 | **pipeline table** | a pipeline's own table in the config, read by its code; contraagent never checks its keys | `[pipeline.<name>]`; `contraagent.pipeline_table(name)` in a run (`NoCurrentRun` outside one), `PipelineConfig.table(name)` |
 | **`[defaults]`** | run-wide routing, including `[[defaults.fallbacks]]` | `PipelineConfig.defaults()`, `.fallbacks()` |
 | **routing plan** | how each kind is routed (not `plan.jsonl`) | `RoutingPlan` |
@@ -139,7 +140,7 @@ flow waited for that did not succeed raises `TaskFailed` at the `yield`
 
 | Word | Means | In code |
 |---|---|---|
-| **group** | a column of the plan | `Monitor(groups=)` |
+| **group** | a column of the plan: the kinds `Monitor(groups=)` lists together, the implementation kinds of a base kind it does not list, or one kind | `Monitor(groups=)`, `PlanGroup` |
 | **period** | days `from`..`to`, both included, in a time zone, over which runs are summed | `trends.Period`; `/api/trends?from=&to=&tz=`; its runs as a trends panel reads them: `PeriodRuns` (`RunRecords` for each) |
 | **trends** | what the runs of a period add up to, day by day: cost by kind (or group), each kind's tasks, success and time, each model's spend, failures, refused tool calls, utilization, rests, deferrals, run starts; read from each run's digest, kept in a finished run's `trends.json` | `Monitor.trends`, `/api/trends`, `Trends`; `Panel(scope="trends")` |
 | **function drawn open** | a function node of the pipeline graph drawn as a box holding its own layer, in the layer shown; a chain of functions, each the only function in the layer of the one before, is one box named by its path | `FlowBox`, `compound` (`@contraagent/ui/adapters`), cluster id `fx::<place>` |

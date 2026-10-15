@@ -37,9 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its recordings in place of "stub agent" (`RunSummary.replay`); a Python task's retries and
   retried exceptions, an agent task's `output_of` and the JSON pointers it must keep
   unchanged (`preserve`) in its definition and its checked output file.
-- Documentation: an implementation per unit (`contraagent docs plugins`): one step done with
-  one of several toolsets, each a kind of its own with its own plugin and the same output
-  schema, chosen in the flow per unit; `examples/implementations/` runs it on the stub agent.
+- One step declared with several implementations: `agent_task("review",
+  implementations={"python": "plugins/review-python", "go": "plugins/review-go"}, ...)`
+  declares the kinds `review-python` and `review-go`, each with its own plugin and every other
+  argument shared, and returns an `Implementations` the flow indexes by name
+  (`yield review["go"](unit)`). Each is a reachable kind with its own definition and
+  fingerprint; `[tasks.review]` is every implementation's task table and `[tasks.review-go]`
+  replaces its keys one by one (its `fallbacks` the whole chain). The monitor draws the
+  implementation kinds as one group named `review` in the plan and the trends, unless
+  `Monitor(groups=)` lists them; `plan.jsonl`, the plan's nodes and the kind's definition
+  record `base_kind`. `contraagent docs plugins` ("An implementation per unit") and
+  `examples/implementations/` show it.
 - A task call's `priority` (`summarize("alpha", priority=2.5)`, default 0): among ready tasks
   the queue would otherwise start in the order they were queued, the highest priority starts
   first. It never outranks a longer bottom level, an overdue task or a time box's endgame,

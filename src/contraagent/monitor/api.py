@@ -442,6 +442,10 @@ class PlanNode(Open):
     created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
     flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
     ts: str = Field("", description="when it was queued (absent for a node rebuilt from the journal)")
+    base_kind: str = Field(
+        "",
+        description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
+    )
     state: TaskState
     level: int = Field(description="depth in the dependency graph, 0 for a task that waits for nothing")
     group: str
@@ -513,8 +517,8 @@ class Preflight(Closed):
 
 
 class PlanGroup(Closed):
-    """A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts
-    together), its members counted by state."""
+    """A group: a column of the pipeline view (a kind, the kinds `Monitor(groups=)` puts
+    together, or the implementation kinds of a base kind), its members counted by state."""
 
     id: str
     label: str
@@ -673,6 +677,7 @@ class TaskDefinition(Open):
         default_factory=list, description="agent task: JSON pointers to the parts of its output file it keeps (`agent_task(preserve=)`)"
     )
     output_of: str | None = Field(None, description="agent task: the kind whose output file it writes (`agent_task(output_of=)`)")
+    base_kind: str | None = Field(None, description="agent task: an implementation kind's base kind (`agent_task(implementations=)`)")
     tools: list[str] | None = Field(
         None, description="agent task: `[]`, a light launch with no tools (`agent_task(tools=())`); null, the tools its role allows"
     )

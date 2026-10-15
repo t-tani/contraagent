@@ -105,7 +105,7 @@ from contraagent.execution import (
     pipeline_table,
     save,
 )
-from contraagent.pipeline import CheckReport, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
+from contraagent.pipeline import CheckReport, Implementations, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
 from contraagent.plugins import Plugin, PluginError
 from contraagent.routing import (
     ConfigError,
@@ -145,6 +145,7 @@ __all__ = [
     "CursorStore",
     "FlowDriver",
     "Gateway",
+    "Implementations",
     "InputContract",
     "KindConfig",
     "Launch",

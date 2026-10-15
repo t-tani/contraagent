@@ -74,26 +74,32 @@ as its role file is: a resume runs a task again after its skills changed.
 ## An implementation per unit
 
 When one step needs different tools for different units (a Python module and a
-Go package, or units on hosts with different local tools installed), each
-implementation is a kind of its own, with its own plugin and the same output
-schema. The flow chooses the kind from a fact about the unit, with a plain dict:
+Go package, or units on hosts with different local tools installed), one
+declaration names each implementation, a plugin directory by name. Every other
+argument is shared, and the flow chooses the implementation from a fact about
+the unit:
 
-::code{file="examples/implementations/flow.py" from="review_python = agent_task(" to="#: The monitor"}
+::code{file="examples/implementations/flow.py" from="review = agent_task(" to="return counts"}
 
-Each kind keeps what is its own:
+Each implementation is a kind of its own, `<kind>-<name>` (`review-python`,
+`review-go`); `review` is their base kind. `review["go"]` is the declaration of
+`review-go`, `review.kinds` lists the kinds, and `review` iterates over the names
+as a dict does. Each kind keeps what is its own:
 
 - its definition: its role, skills, permissions and `.mcp.json` (each plugin starts
   its own MCP servers; a session never loads the other's), and its fingerprint,
   so a resume runs again only the tasks of the kind whose role or skills changed;
-- its routing: a `[tasks.review-go]` table of its own (coding agent, model,
-  budget, credential), its failover, and its routes probed by the preflight;
-- in the monitor, its row in Definitions and its numbers in the trends.
+- its routing: the base kind's `[tasks.review]` table is every implementation's,
+  and a `[tasks.review-go]` table changes one implementation's coding agent, model,
+  budget or credential key by key; its `fallbacks` replace the base kind's chain;
+- in the monitor, its row in Definitions and its numbers in the trends. Its tasks
+  are drawn in the base kind's group (one column of the plan, and one line of the
+  trends' cost), unless `Monitor(groups=)` (`--groups`) puts the kind in a group.
 
-Both are reachable kinds, so `contraagent check` routes and lints both before the
-first launch, even before the flow creates a task of one of them. `Monitor(groups=)` (`--groups`)
-draws the two kinds as one column of the plan; each task keeps its kind:
+::code{file="examples/reference/pipeline.toml" from="# A base kind's table" to="timeout_s = 900"}
 
-::code{file="examples/implementations/flow.py" from="#: The monitor"}
+Every implementation kind is a reachable kind, so `contraagent check` routes and
+lints each before the first launch, even before the flow creates a task of it.
 
 ## What a task agent sees
 

@@ -541,6 +541,7 @@ class Graph:
             claims=node.claims,
             priority=node.priority,
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
+            base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,
         )
         if self.tail is not None:

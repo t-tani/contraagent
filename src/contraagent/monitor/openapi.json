@@ -3456,7 +3456,7 @@
           "blocked"
         ],
         "title": "PlanGroup",
-        "description": "A group: a column of the pipeline view (a kind, or the kinds `Monitor(groups=)` puts\ntogether), its members counted by state."
+        "description": "A group: a column of the pipeline view (a kind, the kinds `Monitor(groups=)` puts\ntogether, or the implementation kinds of a base kind), its members counted by state."
       },
       "PlanMessage": {
         "additionalProperties": false,
@@ -3555,6 +3555,12 @@
             "type": "string",
             "title": "Ts",
             "description": "when it was queued (absent for a node rebuilt from the journal)",
+            "default": ""
+          },
+          "base_kind": {
+            "type": "string",
+            "title": "Base Kind",
+            "description": "an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
             "default": ""
           },
           "state": {
@@ -4975,6 +4981,18 @@
             ],
             "title": "Output Of",
             "description": "agent task: the kind whose output file it writes (`agent_task(output_of=)`)"
+          },
+          "base_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Kind",
+            "description": "agent task: an implementation kind's base kind (`agent_task(implementations=)`)"
           },
           "tools": {
             "anyOf": [

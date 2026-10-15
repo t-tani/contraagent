@@ -77,6 +77,17 @@ agent = "omp"
 model = "litellm/claude-sonnet-5-5"
 credential = "company-gateway"
 
+# A base kind's table: every implementation kind of it (review-python, review-go) starts from it.
+[tasks.review]                      # agent_task("review", implementations={"python": ..., "go": ...})
+model = "claude-sonnet-5-5"
+max_turns = 20
+timeout_s = 600
+
+# An implementation kind's own table: each key it gives replaces the base kind's (fallbacks too).
+[tasks.review-go]
+model = "claude-opus-5-5"
+timeout_s = 900
+
 # --- credentials --------------------------------------------------------------
 # Secrets are references, read in the launching process: env:NAME or file:/path.
 # `traits` are labels a task's `requires` is matched against.

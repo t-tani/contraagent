@@ -333,6 +333,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 pipeline.backends,
                 pipeline.overrides,
                 declared={kind: spec.config for kind, spec in specs.items()},
+                bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                 requirements={kind: spec.requires for kind, spec in specs.items()},
                 light=[kind for kind, spec in specs.items() if spec.light],
             )
