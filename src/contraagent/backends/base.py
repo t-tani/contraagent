@@ -1,29 +1,38 @@
-"""Backend interface: one headless CLI behind argv / env / run.
+"""The `Backend` interface: one headless coding-agent CLI behind argv, env and `run`.
 
-A Backend builds the child argv, the child env, and runs one launch to
-completion. Most CLIs are one-shot: spawn, capture, parse raw output
-into a LaunchResult after the fact — that shared "spawn, capture, classify"
-loop and the `parse()` contract it calls live on `OneShotBackend`, not
-on `Backend` itself, since a backend driving a live stream or an
-interactive RPC exchange (claude, the omp RPC variant) builds its
-LaunchResult as it goes and has no post-hoc parse step at all.
+`Backend.run` is one template for every CLI: prepare the launch, check the binary, take
+the readings the agent offers before a launch (`usage_reading`), run the process while
+its reader (`fold`, an `EventFold` of `wire.py`) reads every line as it arrives and a
+`LimitsWatch` ends it on the budgets the CLI cannot enforce, fold what was read into a
+`LaunchResult`, stamp it (argv, credential, start, wall time, CLI version, context
+window), take a second look at stderr (`reclassify`) and check the credential the agent
+reports (`attest`). A backend supplies its argv, env and reader; one that does not drive
+a plain process (the omp RPC exchange) overrides `exchange` alone. A backend that plays
+replies instead of running a CLI (`contraagent.testing.StubAgent`) overrides `run`.
 """
 
 from __future__ import annotations
 
 import abc
+import atexit
 import dataclasses
 import os
+import re
 import shutil
+import subprocess
 import tempfile
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Protocol
 
 from contraagent.backends.credentials import Ambient, CredentialBase, CredentialBinding, CredentialError
-from contraagent.backends.launch import Launch, LaunchResult, Stop
+from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
 from contraagent.backends.process import LaunchError, Sink, run_process
+from contraagent.backends.refusal import Signals, quota_refusal
+from contraagent.backends.wire import EventFold, LimitsWatch
 
 #: Variables that tie a process to a Claude Code session that started contraagent
 #: (a coding agent running the pipeline): its id, its messaging socket and token.
@@ -92,6 +101,19 @@ class Backend(abc.ABC):
     # `omp --help | grep thinking`). The vocabularies differ, so a value valid
     # for one aborts the other; re-check after a CLI upgrade. None: not checked.
     effort_levels: tuple[str, ...] | None = None
+    #: The module that reads this agent's wire (`<agent>/wire.py`): the monitor renders its
+    #: stream files with that module's `normalize_event` (`streams.py`). None: no stream format.
+    wire: ModuleType | None = None
+    #: True when a line of its stream that is not JSON is the agent's own plain-text narration
+    #: (omp's text mode), rendered with the wire's `normalize_text_line`.
+    plaintext_stream: bool = False
+    #: How this agent's wire words a refusal; `reclassify` reads stderr with it.
+    signals: Signals = Signals(stderr_stops=frozenset())
+    #: The `Limits` fields this agent leaves to the wrapper (`LimitsWatch`): `context_budget`,
+    #: `max_budget_usd`, `max_turns`. The others it is given on its command line or has none of.
+    watched_limits: frozenset[str] = frozenset()
+    #: How long the agent may take to list its models (`read_models`), in seconds.
+    catalogue_timeout_s: float = 30.0
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None):
         if binary:
@@ -122,9 +144,151 @@ class Backend(abc.ABC):
         `run()` maps it to LAUNCH_FAILED. Never falls back to another one.
         """
 
-    @abc.abstractmethod
+    # --- one launch ---------------------------------------------------------
+
+    def prepare(self, launch: Launch) -> Launch:
+        """`launch` as this agent runs it (codex writes attached files into the prompt). May
+        raise `OSError` for a file it cannot read: the launch fails. Default: as it is."""
+        return launch
+
+    def fold(self, launch: Launch) -> EventFold:
+        """A new reader of this agent's wire for `launch`. A backend that runs a CLI supplies
+        one; one that overrides `run` needs none."""
+        raise NotImplementedError(f"{type(self).__name__} supplies no reader (fold) and does not override run")
+
+    def usage_reading(self, launch: Launch) -> RateLimit | None:
+        """The utilization of the account `launch` bills, read before it starts, where the agent
+        reports it outside its stream (omp's `omp usage`, OpenCode Go's usage route); first in
+        `LaunchResult.rate_limits`. Default: none."""
+        return None
+
+    def watch_stderr(self, launch: Launch) -> Sink | None:
+        """A reader of stderr, one line at a time, for a CLI that reports something only there
+        (opencode's log of a refusal it keeps retrying); a `Stop` it returns ends the launch.
+        Default: none."""
+        return None
+
+    def exchange(
+        self, launch: Launch, argv: list[str], env: dict[str, str], fold: EventFold, watch: LimitsWatch
+    ) -> tuple[bytes, str, int | None, Stop | None]:
+        """Run the process to its end, each stdout line to `fold` and then `watch`; their first
+        `Stop` ends it. Returns stdout, the stderr tail, the exit status and the kill reason.
+        Raises `LaunchError` when the process cannot start."""
+
+        def sink(raw: bytes) -> Stop | None:
+            return fold.feed_line(raw) or watch()
+
+        return run_process(argv, env, launch, sink=sink, stderr_sink=self.watch_stderr(launch))
+
     def run(self, launch: Launch) -> LaunchResult:
-        """Run one launch to completion and return its LaunchResult."""
+        """Run one launch to completion and return its LaunchResult (the template above)."""
+        started_at = datetime.now(UTC).isoformat(timespec="seconds")
+        t0 = time.monotonic()
+        reading = self.usage_reading(launch)
+        result = self._run(launch, started_at, t0)
+        if reading is not None:
+            result.rate_limits.insert(0, reading)
+        return result
+
+    def _run(self, launch: Launch, started_at: str, t0: float) -> LaunchResult:
+        argv: list[str] = []
+        try:
+            try:
+                launch = self.prepare(launch)
+            except OSError as exc:
+                return self.launch_failed(launch, f"attached file: {exc}", started_at=started_at, t0=t0)
+            argv = self.argv(launch)
+            env = self.env(launch)
+        except CredentialError as exc:
+            return self.launch_failed(launch, f"credential: {exc}", argv=argv, started_at=started_at, t0=t0)
+        if not shutil.which(self.binary, path=self.base_path()):
+            return self.launch_failed(launch, f"{self.binary} not on PATH", argv=argv, started_at=started_at, t0=t0)
+        fold = self.fold(launch)
+        try:
+            _, stderr, exit_code, killed = self.exchange(launch, argv, env, fold, LimitsWatch(launch.limits, self.watched_limits, fold))
+        except LaunchError as exc:
+            return self.launch_failed(launch, str(exc), argv=argv, started_at=started_at, t0=t0)
+        result = fold.result(launch, self.name, exit_code=exit_code, killed=killed)
+        result.argv = argv
+        result.credential = launch.credential.label
+        result.started_at = started_at
+        result.wall_s = time.monotonic() - t0
+        result.cli_version = result.cli_version or self.version()
+        if result.context_window is None and result.model:
+            result.context_window = self.context_window(result.model)
+        # What the reader took from the wire (a provider's words) stays, with stderr after it.
+        result.stderr_tail = "\n".join(x for x in (result.stderr_tail, stderr) if x)[-2000:]
+        self.reclassify(result, stderr)
+        apply_attestation(self, result, launch)
+        return result
+
+    def launch_failed(
+        self, launch: Launch, why: str, *, argv: list[str] | None = None, started_at: str = "", t0: float | None = None
+    ) -> LaunchResult:
+        """The result of a launch that never ran: `why` is its reason."""
+        return LaunchResult(
+            label=launch.label,
+            agent=self.name,
+            stop=Stop.LAUNCH_FAILED,
+            ok=False,
+            started_at=started_at,
+            wall_s=time.monotonic() - t0 if t0 is not None else 0.0,
+            cli_version=self.version(),
+            argv=list(argv or []),
+            model=launch.model,
+            credential=launch.credential.label,
+            stderr_tail=why,
+        )
+
+    # --- what the CLI says about itself ---------------------------------------
+
+    def version(self) -> str:
+        """The version `<binary> --version` prints (its first `1.2.3`-like word), asked once;
+        '' when the binary is missing or prints none."""
+        own: dict = vars(self)
+        if own.get("_version") is None:
+            own["_version"] = cli_version(self.binary, self._base_env)
+        return own["_version"]
+
+    def run_catalogue(self, *args: str, env: dict[str, str] | None = None) -> str | None:
+        """What `<binary> <args>` prints when it lists the agent's models, within
+        `catalogue_timeout_s`; None when the binary is missing, fails or takes longer."""
+        if not shutil.which(self.binary, path=self.base_path()):
+            return None
+        try:
+            proc = subprocess.run(
+                [self.binary, *args],
+                capture_output=True,
+                text=True,
+                timeout=self.catalogue_timeout_s,
+                env={**self._base_env, **(env or {}), "NO_COLOR": "1"},
+                stdin=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return proc.stdout if proc.returncode == 0 else None
+
+    # --- scratch directories ------------------------------------------------
+
+    def scratch_parent(self) -> Path | None:
+        """Where this backend's scratch root is made; None: the system's temporary directory."""
+        return None
+
+    def scratch(self, label: str, which: str, create: bool = True) -> Path:
+        """A directory per launch label and purpose (a resumed launch keeps its label, and so
+        its directory), under one root this process removes at exit."""
+        own: dict = vars(self)
+        if own.get("_scratch_root") is None:
+            parent = self.scratch_parent()
+            if parent is not None:
+                parent.mkdir(parents=True, exist_ok=True)
+            own["_scratch_root"] = Path(tempfile.mkdtemp(prefix=f"contraagent-{self.name}-", dir=parent))
+            atexit.register(shutil.rmtree, own["_scratch_root"], True)
+        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in label) or "launch"
+        d = own["_scratch_root"] / safe / which
+        if create:
+            d.mkdir(parents=True, exist_ok=True)
+        return d
 
     def bind_credential(
         self, credential: CredentialBase, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
@@ -238,105 +402,55 @@ class Backend(abc.ABC):
         return None
 
     def reclassify(self, launch_result: LaunchResult, stderr: str) -> None:
-        """Second look at a parsed LaunchResult, now that stderr exists.
+        """Second look at a launch's result, now that its stderr is whole.
 
-        `parse` only ever sees stdout, and CLIs do not agree on where
-        they report a refusal: omp prints `429 Go usage limit exceeded`
-        on stderr while stdout holds a spinner line, so a stdout-only
-        classifier calls that an ordinary error and the run keeps
-        launching into a blown quota. May rewrite `launch_result.stop`.
-        Default is a no-op — most agents have nothing to add.
+        CLIs do not agree on where they report a refusal: omp prints `429 Go usage limit
+        exceeded` on stderr while stdout holds a spinner line, and a CLI that dies at start
+        prints only there. A failed launch (`signals.stderr_stops`) whose stderr words a quota
+        refusal (`signals.quota`) is `rate_limited`, which is in the failover path; read from
+        stdout alone it is an ordinary error, and a run keeps launching into a blown quota.
         """
-        return None
+        sig = self.signals
+        if launch_result.stop not in sig.stderr_stops or not sig.quota_in(stderr):
+            return
+        launch_result.stop = Stop.RATE_LIMITED
+        launch_result.ok = False
+        if launch_result.rate_limit is None:
+            launch_result.rate_limit = quota_refusal(stderr)
 
 
-class OneShotBackend(Backend):
-    """A `Backend` that runs to completion, then parses raw output.
+class ResumeById:
+    """Session resume for an agent that reports its session's id (Claude Code, Codex): the
+    session only has to be kept, and a resume names it."""
 
-    Covers every CLI without a live wire to drive as it runs: spawn,
-    capture stdout/stderr, and turn the finished result into a LaunchResult
-    after the fact. `OmpBackend`'s text/trace modes are the one real
-    case today; a backend that instead has to see its own output as it
-    streams (claude, the omp RPC variant) implements `run()` itself
-    directly on `Backend` and never gains a `parse()` method at all.
-    """
+    def resumable(self, launch: Launch) -> Launch:
+        """The agent reports its session id; it only has to keep the session where a resume
+        finds it (`persist_session`)."""
+        return dataclasses.replace(launch, persist_session=True)
 
-    @abc.abstractmethod
-    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-        """Turn raw process output into a LaunchResult."""
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
+        if not prior.session_id or not launch.persist_session:
+            return None
+        return dataclasses.replace(
+            launch, prompt=prompt, resume=prior.session_id, session_id=None, preamble=None, context_files=(), prompt_via_stdin=None
+        )
 
-    def watch(self, launch: Launch) -> Sink | None:
-        """A reader of the launch's output, one line at a time as it arrives; a `Stop`
-        it returns ends the launch there (a budget the CLI cannot enforce itself).
-        Default: none."""
-        return None
 
-    def watch_stderr(self, launch: Launch) -> Sink | None:
-        """The same for stderr, one line at a time, for a CLI that reports something only
-        there (opencode's log of a refusal it keeps retrying). Default: none."""
-        return None
+_VERSION_RE = re.compile(r"\d+(?:\.\d+)+[\w.+-]*")
 
-    def run(self, launch: Launch) -> LaunchResult:
-        """Run one launch to completion and return its LaunchResult."""
-        t0 = time.monotonic()
-        try:
-            argv = self.argv(launch)
-        except CredentialError as exc:
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                credential=launch.credential.label,
-                stderr_tail=f"credential: {exc}",
-            )
-        if not shutil.which(self.binary, path=self.base_path()):
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                argv=argv,
-                stderr_tail=f"{self.binary} not on PATH",
-            )
-        try:
-            out, err, exit_code, killed = run_process(
-                argv, self.env(launch), launch, sink=self.watch(launch), stderr_sink=self.watch_stderr(launch)
-            )
-        except LaunchError as exc:
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                argv=argv,
-                stderr_tail=str(exc),
-            )
-        except CredentialError as exc:
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=Stop.LAUNCH_FAILED,
-                ok=False,
-                model=launch.model,
-                argv=argv,
-                credential=launch.credential.label,
-                stderr_tail=f"credential: {exc}",
-            )
-        launch_result = self.parse(launch, out, exit_code, killed)
-        if launch_result.context_window is None and launch_result.model:
-            launch_result.context_window = self.context_window(launch_result.model)
-        launch_result.argv = argv
-        launch_result.credential = launch.credential.label
-        launch_result.wall_s = time.monotonic() - t0
-        # What the parser read from stdout (a provider's error) stays, with stderr after it.
-        launch_result.stderr_tail = "\n".join(x for x in (launch_result.stderr_tail, err) if x)
-        self.reclassify(launch_result, err)
-        apply_attestation(self, launch_result, launch)
-        return launch_result
+
+def cli_version(binary: str, env: dict[str, str]) -> str:
+    """The first `1.2.3`-like word `<binary> --version` prints (`2.1.296 (Claude Code)`,
+    `codex-cli 0.162.1`, `omp/18.9.1`); '' when it is missing or prints none."""
+    exe = shutil.which(binary, path=env.get("PATH"))
+    if not exe:
+        return ""
+    try:
+        p = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30, env=env, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    m = _VERSION_RE.search(p.stdout or "")
+    return m.group(0) if m else ""
 
 
 #: The reasoning suffix a model selector may carry (`model:high`), dropped by `window_of`.

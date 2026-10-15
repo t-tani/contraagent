@@ -10,7 +10,8 @@ import pytest
 
 from contraagent import AMBIENT, ApiKey, CredentialError, Gateway, Launch, Limits, PiBackend, Stop, Subscription
 from contraagent.backends.pi import agent_dir
-from contraagent.backends.pi.backend import MCP_EXTENSION, parse_models
+from contraagent.backends.pi.backend import MCP_EXTENSION
+from contraagent.backends.pi.catalogue import parse_models
 
 PI = r"""
 import json, os, sys
@@ -195,7 +196,7 @@ def test_the_catalogue_is_read_from_the_model_list():
 anthropic  claude-haiku-5-5           1M       128K     yes       yes
 openai     gpt-5.6-luna               272K     128K     yes       yes
 """
-    assert parse_models(table) == {"anthropic/claude-haiku-5-5", "openai/gpt-5.6-luna"}
+    assert parse_models(table) == {"anthropic/claude-haiku-5-5": None, "openai/gpt-5.6-luna": None}
 
 
 def test_a_launch_s_window_is_the_one_pi_s_model_catalogue_lists(tmp_path, home):

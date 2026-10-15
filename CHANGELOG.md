@@ -207,6 +207,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when first named; `import contraagent.monitor` needs no `monitor` extra.
 - `contraagent.hub.server.retain_days(flag, environ)` takes no parser: a bad value raises
   `contraagent.commandline.UsageError`.
+- Every coding agent's launch runs through one template, `Backend.run`: a backend supplies
+  its argv, env and wire reader (`Backend.fold`, an `EventFold` of `backends/wire.py`), and
+  may override `prepare`, `exchange` (omp-rpc), `usage_reading`, `watch_stderr`. The budgets
+  a CLI cannot enforce are watched alike (`Backend.watched_limits`, `LimitsWatch`); how a
+  launch ended is one ladder for every agent (`backends/refusal.py`: `Signals`, `Ending`,
+  `classify_stop`), and `Backend.reclassify` reads stderr by the agent's `signals`.
+  Modules: `backends/claude/stream.py` and `backends/omp/trace.py` are `wire.py`; the model
+  list parsers are `backends/<agent>/catalogue.py`; `backends/opencode/login.py` is
+  `backends/opencode_key.py`; `StreamReader`, `TraceReader`, `EventReader` read events
+  (`feed(event)`, `feed_line(line)`, `read(stdout)`, `result(launch, agent, exit_code=,
+  killed=)`) in place of `parse_trace` and `parse_events`; the omp RPC reader is `RpcReader`.
+  A stream format is a registered backend's `Backend.wire` (`streams.py` reads the registry).
+- A quota refusal's stated cool-off (`retry-after-ms=`, `retry-after:`) is read for every
+  coding agent, opencode's and those found on stderr included.
+
 - `output_name` is the output file's path relative to the run's `out/`, a template with
   `{kind}`, `{unit}` and `{key}` (default `{kind}/{unit}.json`, `{kind}/{unit}.md` for a text
   output): `output_name="reports/{unit}.json"` writes `out/reports/alpha.json`.
@@ -563,6 +578,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `contraagent.monitor.export.Route`, `SiteRoute`, `ROUTES` and `SITE_ROUTES`: a run's
   files come from `VIEWS`, and a file of no run is a `SiteExportFile` in `SITE_FILES`
   (`Route` is a failover hop's).
+- `OneShotBackend` and `Backend.parse`/`watch`: a backend gives `Backend.fold` instead.
+- `backends/omp/classify.py` (`classify_text_result`): `refusal.classify_stop` replaces it.
+
 - The `contraagent-monitor` command: the monitor is `contraagent monitor`.
 - `Outcome.touched_paths` and `STATE_PATH_RE`: they matched only another
   project's state-file names and nothing read them.
@@ -1068,6 +1086,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `StreamController` that tails the stream feed.
 
 ### Fixed
+
+- Claude Code's quota refusal printed on stderr is `rate_limited`: `ClaudeBackend.reclassify`
+  was never called.
+- `omp-rpc` reads a quota refusal on stderr, checks the credential the agent reports, takes
+  the context window from omp's catalogue when the wire names none, keeps its stderr's tail,
+  and ends a launch past `max_budget_usd`, as `omp` does.
+- Every launch records its start (`started_at`) and the CLI's version (`cli_version`), not
+  only Claude Code's and Codex's.
+- Claude Code's events this contraagent does not know are counted in `unread_events`.
+- opencode's model list waits `OpencodeBackend.catalogue_timeout_s`, a named time limit.
 
 - A kind a generator flow reaches only through a class of flow code (a method, static or
   class method, property or base of a class the flow's code refers to, or of the class of an

@@ -26,6 +26,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from contraagent.backends.wire import positive_int
+
 #: What every launch's `settings.json` holds: a project's `.pi/` files are never trusted
 #: (with no saved decision, as in every launch, this also comes from `--no-approve`), no
 #: request keeps a prompt cache warm, nothing is reported about the install.
@@ -64,8 +66,8 @@ def windows(source: Path) -> dict[str, int]:
             models = entry.get("models") if isinstance(entry, dict) else None
             for m in models if isinstance(models, list) else ():
                 window = m.get("contextWindow") if isinstance(m, dict) else None
-                if isinstance(m, dict) and m.get("id") and isinstance(window, int) and not isinstance(window, bool) and window > 0:
-                    out[f"{provider}/{m['id']}"] = window
+                if isinstance(m, dict) and m.get("id") and (found := positive_int(window)) is not None:
+                    out[f"{provider}/{m['id']}"] = found
     return out
 
 

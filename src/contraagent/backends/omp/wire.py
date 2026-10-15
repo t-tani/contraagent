@@ -1,41 +1,29 @@
-"""omp's event wire: `TraceReader`, the one reader of the agent events omp sends
-in `--mode json` and over RPC, the monitor's view of those events
-(`normalize_event`), and the rate-limit reading the text mode shares.
+"""omp's event wire: `TraceReader`, the one reader of the agent events omp sends in
+`--mode json` and over RPC, `TextReader` for its plain-text mode, and the monitor's view
+of those events (`normalize_event`, `normalize_text_line`).
 
 Tested on recordings of a real omp (`tests/fixtures/omp/<version>/`).
 """
 
 from __future__ import annotations
 
-import json
-import logging
-import re
-from collections import Counter
+from typing import Self
 
-from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage, note_web_query
-from contraagent.backends.omp.classify import classify_text_result
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop
+from contraagent.backends.refusal import QUOTA_RE, Ending, Signals, quota_refusal
+from contraagent.backends.wire import EventFold, tokens, tool_preview
 
-_logger = logging.getLogger(__name__)
-_warned: set[tuple[str, str]] = set()  # (agent, unread event type) already logged by this process
-
-# omp surfaces a provider quota as a nonzero exit with a message, not as a
-# structured status. Both the text path and the trace path need it, and
-# both need the same copy: providers disagree on the wording.
-_RATE_LIMIT_RE = re.compile(
-    r"usage limit exceeded|rate[_ -]?limit|too many requests"
-    r"|quota (?:exceeded|exhausted)|insufficient_quota",
-    re.IGNORECASE,
-)
-
-
-def is_rate_limited(text: str) -> bool:
-    return bool(_RATE_LIMIT_RE.search(text))
-
-
-_RETRY_AFTER_RE = re.compile(r"retry-after-ms=(\d+)|retry[_ -]?after[\"':= ]+(\d+(?:\.\d+)?)", re.IGNORECASE)
+#: How omp words a refusal: a provider's quota in its own words (providers disagree on the
+#: wording), read only when the wire gives no status; a status decides alone. omp reports
+#: a quota refusal on stderr too (`429 Go usage limit exceeded` in text mode).
+SIGNALS = Signals(quota=QUOTA_RE, status_decides=True)
 
 #: omp's built-in web search tool; its arguments carry `query`.
 WEB_SEARCH_TOOL = "web_search"
+# A quota notice is a short message; a completed agent answer is not. The ceiling keeps
+# a passing mention of "rate limit" inside a legitimate text-mode answer from being read
+# as the provider refusing the launch.
+_RATE_LIMIT_MAX_SCAN = 400
 
 # Stream event types the monitor's live view renders; everything else on
 # the wire (raw tool-call-argument deltas, internal bookkeeping frames,
@@ -76,12 +64,9 @@ def _preview(tool: object, args: object) -> dict:
     its URL when it reads a web page (`web_fetch`: omp's `read` of an http(s) URL)."""
     args = args if isinstance(args, dict) else {}
     if tool == WEB_SEARCH_TOOL:
-        query = str(args.get("query") or "")[:800]
-        return {"cmd": query, "web_query": query}
-    cmd = str(args.get("command", args.get("path", "")))[:800]
-    if tool == "read" and cmd.startswith(("http://", "https://")):
-        return {"cmd": cmd, "web_fetch": cmd}
-    return {"cmd": cmd}
+        return tool_preview(args.get("query"), web_query=True)
+    cmd = str(args.get("command", args.get("path", "")))
+    return tool_preview(cmd, web_fetch=tool == "read" and cmd.startswith(("http://", "https://")))
 
 
 def normalize_event(e: dict) -> dict:
@@ -190,41 +175,6 @@ def normalize_event(e: dict) -> dict:
     return {"type": t}
 
 
-def parse_retry_after(text: str) -> float | None:
-    """The provider's own stated cool-off, in seconds.
-
-    opencode-go answers a blown quota with `retry-after-ms=313534000` —
-    three and a half days. Without it the router probes the primary on a
-    timer and burns a launch per probe to learn the same thing; with it,
-    one 429 buys a real schedule. Absent or unparsable: None, and the
-    router falls back to its configured interval.
-    """
-    m = _RETRY_AFTER_RE.search(text)
-    if not m:
-        return None
-    if m.group(1):
-        return int(m.group(1)) / 1000.0
-    try:
-        return float(m.group(2))
-    except (TypeError, ValueError):
-        return None
-
-
-def parse_trace(launch: Launch, agent: str, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-    """Parse `--mode json` event lines: tool calls, results, final text, tokens and cost."""
-    reader = TraceReader()
-    for raw in stdout.split(b"\n"):
-        if not raw.strip():
-            continue
-        try:
-            ev = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(ev, dict):
-            reader.feed(ev)
-    return reader.result(launch, agent, exit_code=exit_code, killed=killed)
-
-
 #: The event types omp sends in `--mode json` and on the RPC wire alike (its
 #: `AgentEvent` and `AgentSessionEvent` unions and `session_settled`, which the RPC wire
 #: sends once background work drains; checked against omp 18.9.1 and the recordings in
@@ -277,16 +227,6 @@ def web_query(update: dict) -> str | None:
     return str(args.get("query") or "")
 
 
-def message_usage(raw: bytes) -> tuple[CallUsage, float | None] | None:
-    """One event line's API call: the tokens and cost (USD) of an assistant
-    `message_end`, or None for any other line."""
-    try:
-        ev = json.loads(raw)
-    except ValueError:
-        return None
-    return event_usage(ev) if isinstance(ev, dict) else None
-
-
 def event_usage(ev: dict) -> tuple[CallUsage, float | None] | None:
     """One event's API call: the tokens and cost (USD) of an assistant `message_end`,
     or None for any other event."""
@@ -297,10 +237,10 @@ def event_usage(ev: dict) -> tuple[CallUsage, float | None] | None:
     try:
         call = CallUsage(
             model=str(message.get("model") or ""),
-            input=int(usage.get("input") or 0),
-            cache_read=int(usage.get("cacheRead") or 0),
-            cache_creation=int(usage.get("cacheWrite") or 0),
-            output=int(usage.get("output") or 0),
+            input=tokens(usage, "input"),
+            cache_read=tokens(usage, "cacheRead"),
+            cache_creation=tokens(usage, "cacheWrite"),
+            output=tokens(usage, "output"),
         )
     except (TypeError, ValueError):
         return None
@@ -308,7 +248,7 @@ def event_usage(ev: dict) -> tuple[CallUsage, float | None] | None:
     return call, (float(total) if isinstance(total, (int, float)) else None)
 
 
-class TraceReader:
+class TraceReader(EventFold):
     """Folds omp's agent events into a `LaunchResult`: the one reader of that wire.
 
     `--mode json` prints the events one per line; the RPC wire carries the same
@@ -318,34 +258,24 @@ class TraceReader:
     executions when no call was seen.
     """
 
-    #: The coding agent whose wire this is, in the warning about an unread event.
     agent = "omp"
-    #: The event types and `message_update` kinds this reader knows (`unread_events`: the rest).
-    known_events = KNOWN_EVENTS
-    known_updates = KNOWN_UPDATES
+    known_events = frozenset(KNOWN_EVENTS)
+    #: The `message_update` kinds this reader knows (`unread_events`: the rest).
+    known_updates = frozenset(KNOWN_UPDATES)
+    signals = SIGNALS
 
     def __init__(self) -> None:
-        self.saw_any = False
-        self.session_id = ""
+        super().__init__()
         self.texts: list[str] = []
         self._text = ""
-        self.tool_uses: Counter = Counter()
-        self.executed: Counter = Counter()
-        self.tool_args: dict[str, list[str]] = {}
-        self.web_queries: list[str] = []
-        self.calls: list[CallUsage] = []
-        self.cost: float | None = None
+        self.executed: dict[str, int] = {}
         self.api_status: int | None = None
         self.api_error = ""
-        self.unread: Counter = Counter()
-        #: The model's context window, when the wire reports one (omp's RPC `get_state`).
-        self.context_window: int | None = None
 
-    def feed(self, ev: dict) -> None:
+    def feed(self, ev: dict) -> Stop | None:
         typ = str(ev.get("type") or "")
-        if typ not in self.known_events:
-            self.unread[typ or "<untyped>"] += 1
-            return
+        if self.unknown(typ):
+            return None
         self.saw_any = True
         if typ == "session":
             self.session_id = str(ev.get("id") or "")
@@ -354,12 +284,13 @@ class TraceReader:
         elif typ == "tool_execution_end":
             name = str(ev.get("toolName") or "")
             if name:
-                self.executed[name] += 1
+                self.executed[name] = self.executed.get(name, 0) + 1
         elif typ == "message_end":
             self._message_end(ev)
         elif typ == "error":
             err = ev.get("error")
             self._error(err if isinstance(err, dict) else ev)
+        return None
 
     def _update(self, upd: dict) -> None:
         kind = str(upd.get("type") or "")
@@ -367,13 +298,11 @@ class TraceReader:
             self.unread[f"message_update/{kind}"] += 1
         elif kind == "toolcall_end":
             call = upd.get("toolCall") or {}
-            name = str(call.get("name") or "") if isinstance(call, dict) else ""
-            if name:
-                self.tool_uses[name] += 1
-                self._record_args(name, call.get("arguments"))
+            if isinstance(call, dict):
+                self.note_tool(str(call.get("name") or ""), call.get("arguments"))
             query = web_query(upd)
             if query is not None:
-                note_web_query(self.web_queries, query)
+                self.note_web_query(query)
         elif kind == "text_start":
             self._text = ""
         elif kind == "text_delta":
@@ -385,10 +314,7 @@ class TraceReader:
     def _message_end(self, ev: dict) -> None:
         found = event_usage(ev)
         if found is not None:
-            call, cost = found
-            self.calls.append(call)
-            if cost is not None:
-                self.cost = (self.cost or 0.0) + cost
+            self.add_call(*found)
         message = ev.get("message")
         if isinstance(message, dict) and message.get("role") == "assistant":
             # The latest assistant message decides: an error omp retried past is not the outcome.
@@ -407,68 +333,81 @@ class TraceReader:
         if msg and msg not in self.api_error:
             self.api_error = f"{self.api_error} {msg}".strip()
 
-    def _record_args(self, name: str, args: object) -> None:
-        """A bounded sample of each tool's arguments (what did 138 bash calls run?)."""
-        buf = self.tool_args.setdefault(name, [])
-        if not isinstance(args, dict) or len(buf) >= 20:
-            return
-        try:
-            buf.append(json.dumps(args, ensure_ascii=False)[:500])
-        except (TypeError, ValueError):
-            pass
+    @property
+    def text(self) -> str:
+        """The answer: every text the agent ended, joined."""
+        return "\n".join(t for t in self.texts if t).strip()
 
-    def classify(self, text: str, *, exit_code: int | None, killed: Stop | None) -> Stop:
-        """How the launch ended, from its final text, its exit and what the provider said."""
-        # Rate limit before the text/exit-code shape: a 429 is terminal. The status is
-        # authoritative when present; the message is the fallback for providers that
-        # only say "quota".
-        rate_limited = self.api_status is None and is_rate_limited(self.api_error)
-        return classify_text_result(
-            text, saw_any=self.saw_any, exit_code=exit_code, killed=killed, rate_limited=rate_limited, api_status=self.api_status
+    def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
+        """The final text, the exit and what the provider said (its status, else its words)."""
+        return Ending(
+            killed=killed, exit_code=exit_code, saw_any=self.saw_any, text=self.text, error=self.api_error, status=self.api_status
         )
 
-    def usage(self) -> tuple[Usage, float | None]:
-        """The tokens of every API call and their summed cost (None when none reported one)."""
-        return Usage(calls=list(self.calls), output_total=sum(c.output for c in self.calls)), (
-            round(self.cost, 6) if self.cost is not None else None
-        )
-
-    def result(
-        self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None, argv: list[str] | None = None
-    ) -> LaunchResult:
+    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
         """How the launch ended, and everything read on the way. `exit_code` None: no
         process exit to weigh (the RPC wire)."""
-        text = "\n".join(t for t in self.texts if t).strip()
-        stop = self.classify(text, exit_code=exit_code, killed=killed)
-        for typ in sorted(t for t in self.unread if (self.agent, t) not in _warned):
-            _warned.add((self.agent, typ))
-            _logger.warning(
-                f"[{self.agent}] event {typ!r} is not one this contraagent reads; a newer {self.agent}? (LaunchResult.unread_events)"
-            )
-        usage, cost = self.usage()
-        result_text = text
+        stop = self.stop(exit_code=exit_code, killed=killed)
+        text = self.text
         if stop is Stop.RATE_LIMITED:
-            result_text = text or self.api_error
+            text = text or self.api_error
         elif stop in (Stop.ERROR, Stop.LAUNCH_FAILED):
-            result_text = ""
-        return LaunchResult(
-            label=launch.label,
-            agent=agent,
-            stop=stop,
-            ok=stop is Stop.COMPLETED,
+            text = ""
+        return self.launch_result(
+            launch,
+            agent,
+            stop,
             exit_code=exit_code,
-            model=launch.model,
-            argv=list(argv or []),
-            session_id=self.session_id,
-            result_text=result_text,
-            rate_limit=RateLimit(status="quota", retry_after_s=parse_retry_after(self.api_error)) if stop is Stop.RATE_LIMITED else None,
+            result_text=text,
+            rate_limit=quota_refusal(self.api_error) if stop is Stop.RATE_LIMITED else None,
             tool_uses=dict(self.tool_uses or self.executed),
-            web_queries=list(self.web_queries),
-            usage=usage,
-            cost_usd=cost,
-            raw_result={"tool_args": dict(self.tool_args)},
             # The provider's own words, which omp puts on no stderr: the journal's reason.
             stderr_tail=self.api_error if stop is not Stop.COMPLETED else "",
-            unread_events=dict(self.unread),
-            context_window=self.context_window,
+        )
+
+
+class TextReader(EventFold):
+    """omp's plain-text mode (`trace=False`): stdout is the answer, with no usage or cost.
+    A nonzero exit is the refusal's signal; a zero exit still counts when the whole stdout
+    is a short notice, which is what a quota refusal looks like: an agent that produced a
+    real answer is never 400 characters long."""
+
+    agent = "omp"
+    signals = SIGNALS
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Text mode has no "nothing ran at all" signal apart from "ran and said nothing":
+        # empty text is no output, not a launch failure.
+        self.saw_any = True
+        self.lines: list[bytes] = []
+
+    def feed_line(self, raw: bytes | str) -> Stop | None:
+        self.lines.append(raw.encode() if isinstance(raw, str) else raw)
+        return None
+
+    def read(self, data: bytes) -> Self:
+        self.lines = data.split(b"\n")
+        return self
+
+    @property
+    def text(self) -> str:
+        return b"\n".join(self.lines).decode("utf-8", "replace").strip()
+
+    def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
+        text = self.text
+        notice = exit_code not in (0, None) or len(text) <= _RATE_LIMIT_MAX_SCAN
+        return Ending(killed=killed, exit_code=exit_code, saw_any=True, text=text, error=text if notice else "")
+
+    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
+        stop = self.stop(exit_code=exit_code, killed=killed)
+        text = self.text
+        return self.launch_result(
+            launch,
+            agent,
+            stop,
+            exit_code=exit_code,
+            result_text=text if stop in (Stop.COMPLETED, Stop.RATE_LIMITED) else "",
+            rate_limit=quota_refusal(text) if stop is Stop.RATE_LIMITED else None,
+            raw_result={},
         )

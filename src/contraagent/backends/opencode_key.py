@@ -12,7 +12,8 @@ then `OPENCODE_API_KEY`, omp in `OPENCODE_API_KEY`, which it also reads from `.e
   is the same account on every agent and in an `api_key` credential;
 * `go_usage`: the Go subscription's windows, from the usage route opencode's own console
   serves (`GET <base>/v1/usage`, `Authorization: Bearer <key>`; the route omp reads too),
-  as a `RateLimit`. Every failure is None: a reading that cannot be had loses nothing else.
+  as a `RateLimit`. Every failure is None: a reading that cannot be had loses nothing else;
+* `OpencodeKeyAccount`: an agent's account and Go usage from the key it bills (opencode, pi).
 
 Nothing here writes a key or logs one.
 """
@@ -27,7 +28,8 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
-from contraagent.backends.launch import ACCOUNT_SECRET, RateLimit, account_digest
+from contraagent.backends.credentials import CredentialBase, CredentialError
+from contraagent.backends.launch import ACCOUNT_SECRET, Launch, RateLimit, account_digest
 
 #: The variable every agent reads an OpenCode key from.
 KEY_VAR = "OPENCODE_API_KEY"
@@ -175,3 +177,33 @@ def dotenv(path: str | os.PathLike) -> dict[str, str]:
         if name:
             out[name] = value
     return out
+
+
+class OpencodeKeyAccount:
+    """The account and the Go usage of an agent that bills OpenCode models to an OpenCode key
+    it finds its own way (`opencode_key`); opencode and pi. omp reports its own usage."""
+
+    def billed_key(self, credential: CredentialBase, model: str) -> tuple[str, str]:
+        """The OpenCode key a launch of `model` as `credential` bills, and the endpoint it goes
+        to ('' for opencode.ai's); ('', '') for another provider."""
+        raise NotImplementedError
+
+    def account(self, credential: CredentialBase, model: str = "") -> str:
+        """For an OpenCode model: the account of the key the launch bills, the same digest
+        opencode, omp and pi give for that key. '' for any other provider."""
+        try:
+            key, _ = self.billed_key(credential, model)
+        except (CredentialError, ValueError, KeyError):
+            return ""
+        return account_of_key(key)
+
+    def usage_reading(self, launch: Launch) -> RateLimit | None:
+        """The OpenCode Go subscription's windows for the launch's key, from OpenCode's usage
+        route (the agent reports none itself); None for another model or when it cannot be read."""
+        if not launch.model.startswith(GO + "/"):
+            return None
+        try:
+            key, base = self.billed_key(launch.credential, launch.model)
+        except (CredentialError, ValueError, KeyError):
+            return None
+        return go_usage(key, base)

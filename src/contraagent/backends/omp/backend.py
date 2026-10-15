@@ -3,20 +3,19 @@
 omp resolves agents and skills from the plugin dir, same bundle as
 claude. `trace` defaults on (`--mode json`): per-tool-call trace in the
 LaunchResult (tool_uses, session_id) and a real event stream
-for the monitor, at the cost of parsing the richer wire format instead
-of plain text. `trace=False` falls back to plain-text stdout, with no
-usage or cost.
+for the monitor (`wire.TraceReader`). `trace=False` falls back to plain-text
+stdout (`wire.TextReader`), with no usage or cost.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from contraagent.backends.base import PARENT_SESSION_ENV, OneShotBackend
+from contraagent.backends import opencode_key, plugin_files
+from contraagent.backends.base import PARENT_SESSION_ENV, Backend
 from contraagent.backends.credentials import (
     SECRET_NAME_RE,
     SENSITIVE,
@@ -27,22 +26,19 @@ from contraagent.backends.credentials import (
     CredentialError,
     Gateway,
     OAuthToken,
-    Secret,
     Subscription,
+    check_provider,
     child_env,
+    key_var,
+    model_provider,
     scrubbed,
+    secret_value,
 )
-from contraagent.backends.launch import ACCOUNT_UUID, Launch, LaunchResult, RateLimit, Stop, account_digest
-from contraagent.backends.omp.classify import classify_text_result
-from contraagent.backends.omp.config import (
-    CATALOGUE_TIMEOUT_S,
-    OmpModelChains,
-    load_model_chains,
-    parse_models,
-)
-from contraagent.backends.omp.trace import is_rate_limited, message_usage, parse_retry_after, parse_trace
-from contraagent.backends.opencode import login as opencode_login
-from contraagent.backends.process import Sink, via_stdin
+from contraagent.backends.launch import ACCOUNT_UUID, Launch, RateLimit, account_digest
+from contraagent.backends.omp import catalogue
+from contraagent.backends.omp import wire as omp_wire
+from contraagent.backends.omp.config import OmpModelChains, load_model_chains
+from contraagent.backends.process import via_stdin
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
 # for Claude Code stays canonical; this preamble carries the substitution
@@ -108,12 +104,6 @@ def _iso(ms: float) -> str:
     return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat(timespec="seconds")
 
 
-# A quota notice is a short message; a completed agent answer is not. The
-# ceiling keeps a passing mention of "rate limit" inside a legitimate
-# result from being read as the provider refusing the launch.
-_RATE_LIMIT_MAX_SCAN = 400
-
-
 #: What a task agent may see beyond its plugin and call file: nothing (`isolation/config.yml`).
 ISOLATION = Path(__file__).resolve().parent / "isolation"
 
@@ -151,7 +141,7 @@ def provider_base_url_env(provider: str) -> str:
 
 def provider_key_env(provider: str) -> str:
     """The variable omp reads a provider's API key from."""
-    return _KEY_ENV.get(provider) or provider.upper().replace("-", "_").replace(".", "_") + "_API_KEY"
+    return key_var(provider, _KEY_ENV)
 
 
 def omp_dotenv_files(env: dict[str, str], args: tuple[str, ...] = (), cwd: Path | None = None) -> list[Path]:
@@ -182,7 +172,7 @@ def dotenv_credentials(env: dict[str, str], args: tuple[str, ...] = (), names: f
     credential variable (those `scrubbed` removes)."""
     found: dict[str, Path] = {}
     for f in omp_dotenv_files(env, args):
-        for name, value in opencode_login.dotenv(f).items():
+        for name, value in opencode_key.dotenv(f).items():
             wanted = name in names if names is not None else (name in SENSITIVE or SECRET_NAME_RE.search(name))
             if wanted and value and not env.get(name) and name not in found:
                 found[name] = f
@@ -198,19 +188,7 @@ def plugin_extension_args(plugin_dirs) -> list[str]:
     omp with a probe extension: `--plugin-dir` alone never loaded it). So the backend
     passes them itself.
     """
-    import json
-
-    args: list[str] = []
-    for plug in plugin_dirs:
-        try:
-            pkg = json.loads((Path(plug) / "package.json").read_text())
-        except (OSError, ValueError):
-            continue
-        for rel in (pkg.get("omp") or {}).get("extensions") or []:
-            f = Path(plug) / rel
-            if f.is_file():
-                args += ["-e", str(f)]
-    return args
+    return [a for plug in plugin_dirs for f in plugin_files.extensions(plug, "omp") for a in ("-e", str(f))]
 
 
 def session_args(launch: Launch) -> list[str]:
@@ -251,7 +229,7 @@ def prompt_args(launch: Launch) -> list[str]:
     return a
 
 
-class OmpBackend(OneShotBackend):
+class OmpBackend(Backend):
     """Headless oh-my-pi: `omp -p` with text output."""
 
     name = "omp"
@@ -271,6 +249,13 @@ class OmpBackend(OneShotBackend):
     # `--no-tools`, `--system-prompt` (`prompt_args`); the isolation config already
     # turns off every settings, skill and MCP discovery, and a light launch loads no plugin.
     light_launch = True
+    wire = omp_wire
+    signals = omp_wire.SIGNALS
+    # A line of text mode's stream is its plain-text narration.
+    plaintext_stream = True
+    # omp's CLI has no cost cap: the cost of each API call, as its `message_end` reports it,
+    # summed (trace mode; text mode reports none).
+    watched_limits = frozenset({"max_budget_usd"})
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", trace: bool = True):
         super().__init__(binary, base_env)
@@ -279,40 +264,17 @@ class OmpBackend(OneShotBackend):
         self._chains: OmpModelChains | None = None
         self._accounts: dict[tuple[str, str], str] = {}  # (credential, provider) -> its account
 
-    def run(self, launch: Launch) -> LaunchResult:
-        """One launch, with the account's usage at its start, as Claude Code reports it: what
-        the account's latest request reported in its response headers, which omp keeps and
-        `omp usage` prints (no request of its own)."""
-        reading = self.usage_reading(launch)
-        result = self._launch(launch)
-        if reading is not None:
-            result.rate_limits.insert(0, reading)
-        return result
-
-    def _launch(self, launch: Launch) -> LaunchResult:
-        return super().run(launch)
-
-    def watch(self, launch: Launch) -> Sink | None:
-        """`max_budget_usd`, which omp's CLI has no flag for: the cost of each API call,
-        as its `message_end` reports it, summed; past the cap the launch ends `budget`."""
-        cap = launch.limits.max_budget_usd
-        if not self.trace or cap is None:
-            return None
-        spent = 0.0
-
-        def sink(raw: bytes) -> Stop | None:
-            nonlocal spent
-            found = message_usage(raw)
-            spent += (found[1] or 0.0) if found is not None else 0.0
-            return Stop.BUDGET if spent > cap else None
-
-        return sink
+    def fold(self, launch: Launch) -> omp_wire.TraceReader | omp_wire.TextReader:
+        """Stdout is the json event stream (trace) or the answer (text)."""
+        return omp_wire.TraceReader() if self.trace else omp_wire.TextReader()
 
     def usage_reading(self, launch: Launch) -> RateLimit | None:
-        """The 5-hour and weekly usage of the account `launch` runs as, from `omp usage --json`:
-        None for a model with no provider prefix, an account omp reports no usage for, or
-        several accounts of that provider (which one a launch uses is omp's choice)."""
-        provider = launch.model.split("/", 1)[0] if "/" in launch.model else ""
+        """The 5-hour and weekly usage of the account `launch` runs as, as Claude Code reports it:
+        what the account's latest request reported in its response headers, which omp keeps
+        and `omp usage --json` prints (no request of its own). None for a model with no
+        provider prefix, an account omp reports no usage for, or several accounts of that
+        provider (which one a launch uses is omp's choice)."""
+        provider = model_provider(launch.model)
         if not provider:
             return None
         try:
@@ -321,26 +283,26 @@ class OmpBackend(OneShotBackend):
         except CredentialError:
             return None
         reading = _usage_reading([self.binary, *binding.args, "usage", "--json", "--provider", provider], env, provider)
-        if reading is not None and opencode_login.is_opencode(provider):
+        if reading is not None and opencode_key.is_opencode(provider):
             # omp names no account for an OpenCode key: the key itself does.
-            reading.account = reading.account or opencode_login.account_of_key(self._opencode_key(binding, env))
+            reading.account = reading.account or opencode_key.account_of_key(self._opencode_key(binding, env))
         return reading
 
     def account(self, credential: CredentialBase, model: str = "") -> str:
         """The account omp's usage report names for the model's provider (`metadata.accountId`,
         from `omp usage --json`, which reads what omp kept of the account's last response).
         Asked once per credential and provider in this process; '' when omp reports none."""
-        provider = model.split("/", 1)[0] if "/" in model else ""
+        provider = model_provider(model)
         if not provider:
             return ""
-        if opencode_login.is_opencode(provider):
+        if opencode_key.is_opencode(provider):
             # Read locally, as opencode and pi read it: the key omp would send (`_opencode_key`).
             try:
                 binding = self.bind_credential(credential, model, env=self._base_env)
                 env = child_env(self._base_env, credential, binding, {})
             except CredentialError:
                 return ""
-            return opencode_login.account_of_key(self._opencode_key(binding, env))
+            return opencode_key.account_of_key(self._opencode_key(binding, env))
         key = (credential.label, provider)
         if key not in self._accounts:
             reading = self.usage_reading(Launch(prompt="", label=f"account-{credential.label}", model=model, credential=credential))
@@ -351,8 +313,8 @@ class OmpBackend(OneShotBackend):
         """The OpenCode key omp sends: `OPENCODE_API_KEY` of the launch's environment, else the
         first of omp's `.env` files that sets it (`omp_dotenv_files`). A login stored in omp's
         own profile is not read here ('' then)."""
-        return opencode_login.env_key(env) or next(
-            (v for f in omp_dotenv_files(env, binding.args) if (v := opencode_login.dotenv(f).get(opencode_login.KEY_VAR, "").strip())),
+        return opencode_key.env_key(env) or next(
+            (v for f in omp_dotenv_files(env, binding.args) if (v := opencode_key.dotenv(f).get(opencode_key.KEY_VAR, "").strip())),
             "",
         )
 
@@ -396,14 +358,7 @@ class OmpBackend(OneShotBackend):
         provider = getattr(c, "provider", "")
         if isinstance(c, Subscription):
             provider = LOGIN_PROVIDERS.get(provider, provider)
-        model_provider = model.split("/", 1)[0] if "/" in model else ""
-        if model_provider and provider and provider != model_provider:
-            named = getattr(c, "provider", "")
-            what = provider if named == provider else f"{provider} (its {named} login)"
-            raise CredentialError(f"model {model} is a {model_provider} model; credential {c.label} is for {what}")
-
-        def secret(s: Secret) -> str:
-            return s.resolve(env) if env is not None else "<unresolved>"
+        check_provider(c, model, provider, named=getattr(c, "provider", ""))
 
         match c:
             case Subscription():
@@ -415,20 +370,20 @@ class OmpBackend(OneShotBackend):
                     isolation += "; omp reads " + ", ".join(f"{n} from {f}" for n, f in sorted(back.items()))
                 return CredentialBinding(args=args, isolated=c.isolate and not back, isolation=isolation)
             case ApiKey():
-                out = {provider_key_env(provider): secret(c.key)}
+                out = {provider_key_env(provider): secret_value(c.key, env)}
             case Gateway():
                 # omp reads `<PROVIDER>_BASE_URL` beside the key (checked against the real CLI for
                 # litellm: the key goes as `Authorization: Bearer`, models are discovered from the
                 # gateway's /model/info and /models).
                 out = {provider_base_url_env(provider): c.endpoint(env)}
                 if c.token is not None:
-                    out[provider_key_env(provider)] = secret(c.token)
+                    out[provider_key_env(provider)] = secret_value(c.token, env)
                 if c.headers:
                     if provider != "anthropic":
                         raise CredentialError(f"omp sends custom headers only to an anthropic endpoint, not {provider}")
                     out["ANTHROPIC_CUSTOM_HEADERS"] = c.header_lines()
             case OAuthToken() if provider == "anthropic":
-                out = {"ANTHROPIC_OAUTH_TOKEN": secret(c.token)}
+                out = {"ANTHROPIC_OAUTH_TOKEN": secret_value(c.token, env)}
             case _:
                 raise CredentialError(
                     f"omp cannot use {c.type} credentials" + (f" for {provider}" if provider else "") + " (not wired here)"
@@ -451,8 +406,8 @@ class OmpBackend(OneShotBackend):
         return CredentialBinding(out, args=args, isolated=verified, isolation=isolation)
 
     def read_models(self) -> dict[str, int | None] | None:
-        """Model ids and their context windows from `omp models --json`, or None when it
-        cannot be read. omp lists a window for each model (`contextWindow`): exact.
+        """Model ids and their context windows from `omp models --json` (`catalogue`), or
+        None when it cannot be read. omp lists a window for each model (`contextWindow`): exact.
 
         A local registry read, no network: it took ~1s here. Worth it because the
         failure it removes is a model typo that otherwise costs one launch each and
@@ -461,23 +416,8 @@ class OmpBackend(OneShotBackend):
         changed format defers to the live probe instead of reporting every model as
         unknown.
         """
-        import subprocess
-
-        if not shutil.which(self.binary, path=self.base_path()):
-            return None
-        try:
-            proc = subprocess.run(
-                [self.binary, "models", "--json"],
-                capture_output=True,
-                text=True,
-                timeout=CATALOGUE_TIMEOUT_S,
-                env={**self._base_env, "NO_COLOR": "1"},
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        if proc.returncode != 0:
-            return None
-        return parse_models(proc.stdout) or None
+        out = self.run_catalogue(*catalogue.ARGS)
+        return (catalogue.parse_models(out) or None) if out is not None else None
 
     def argv(self, launch: Launch) -> list[str]:
         a = [self.binary]
@@ -509,62 +449,3 @@ class OmpBackend(OneShotBackend):
         if not via_stdin(launch):
             a.append(launch.prompt)
         return a
-
-    def reclassify(self, launch_result: LaunchResult, stderr: str) -> None:
-        """A quota refusal on stderr is a rate limit, not an error.
-
-        In text mode omp keeps stdout for the answer and reports the
-        provider refusal on stderr — `429 Go usage limit exceeded` beside
-        a `Working...` spinner line. Classified from stdout alone that
-        reads as a generic failure, which is not in the failover path, so
-        a run keeps launching into a dead quota. This is the exact shape
-        that cost a run 644 tasks at two seconds each.
-
-        The rpc backend inherits this, but does not rely on it: there a
-        refusal arrives as an `errorStatus` frame, which its accumulator
-        reads directly.
-        """
-        # A launch that produced its answer stays COMPLETED even if
-        # stderr mentions a limit: omp retries internally, and failing
-        # over would discard an answer already paid for. A blown quota
-        # never answers, so the failed stops are the ones worth re-reading.
-        if launch_result.stop not in (Stop.ERROR, Stop.NO_OUTPUT, Stop.API_ERROR):
-            return
-        text = stderr or ""
-        if not is_rate_limited(text):
-            return
-        launch_result.stop = Stop.RATE_LIMITED
-        launch_result.ok = False
-        launch_result.rate_limit = RateLimit(status="quota", retry_after_s=parse_retry_after(text))
-
-    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-        """Stdout is the result (text) or the json event stream (trace)."""
-        if self.trace:
-            return parse_trace(launch, self.name, stdout, exit_code, killed)
-        text = stdout.decode("utf-8", "replace").strip()
-        # Nonzero exit is the authoritative signal. A zero exit still
-        # counts when the whole stdout is a short notice, which is what
-        # a quota refusal looks like — an agent that produced a real
-        # answer is never 400 characters long.
-        rate_limited = is_rate_limited(text) and (exit_code not in (0, None) or len(text) <= _RATE_LIMIT_MAX_SCAN)
-        # Text mode has no separate "nothing ran at all" signal distinct
-        # from "ran and said nothing": saw_any=True keeps empty text on
-        # NO_OUTPUT rather than LAUNCH_FAILED, same as before this call
-        # went through the shared classifier.
-        stop = classify_text_result(text, saw_any=True, exit_code=exit_code, killed=killed, rate_limited=rate_limited)
-        if stop is Stop.RATE_LIMITED:
-            return LaunchResult(
-                label=launch.label,
-                agent=self.name,
-                stop=stop,
-                ok=False,
-                exit_code=exit_code,
-                model=launch.model,
-                result_text=text,
-                rate_limit=RateLimit(status="quota", retry_after_s=parse_retry_after(text)),
-            )
-        if stop is Stop.COMPLETED:
-            return LaunchResult(
-                label=launch.label, agent=self.name, stop=stop, ok=True, exit_code=exit_code, result_text=text, model=launch.model
-            )
-        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=False, exit_code=exit_code, model=launch.model)

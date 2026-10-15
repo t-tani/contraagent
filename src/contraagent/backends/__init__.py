@@ -1,12 +1,18 @@
 """Coding-agent CLIs behind one interface: one `Launch` in, one `LaunchResult` out.
 
-* `base.py`         the `Backend` ABC (and `OneShotBackend` for spawn-then-parse CLIs)
+* `base.py`         the `Backend` ABC and its one run template (`Backend.run`)
 * `launch.py`       the backend-neutral vocabulary: `Launch`, `Limits`, `LaunchResult`, `Stop`, `Usage`
+* `wire.py`         what every wire reader shares: `EventFold`, `LimitsWatch`, the tool preview
+* `refusal.py`      how a launch ended: `Signals`, `Ending`, the one `classify_stop` ladder
 * `credentials.py`  credential types (subscription, API key, OAuth token, WIF, Bedrock, ...) and secrets
 * `process.py`      the guarded subprocess loop every CLI backend shares
 * `live_processes.py`  the agent processes this interpreter started, for teardown
 * `streams.py`      raw transcript lines -> the monitor's renderable events
-* `claude/`, `omp/`, `opencode/`, `pi/`, `codex/`  the concrete CLIs
+* `plugin_files.py` a plugin's MCP servers and extensions, as every backend reads them
+* `opencode_key.py` an OpenCode key, wherever an agent finds it: its account and its usage
+* `claude/`, `omp/`, `opencode/`, `pi/`, `codex/`  the concrete CLIs: `backend.py` (argv, env,
+  credentials), `wire.py` (the reader and the monitor's view of its events), `catalogue.py`
+  (the model list), `login.py` (a login it keeps)
 
 The registry below is the one place a coding-agent *name* (what a config
 file, a `Route` or a journal row says) is tied to a class. Everything that
@@ -15,7 +21,7 @@ needs the list of known agents reads it from here.
 
 from __future__ import annotations
 
-from contraagent.backends.base import Backend, OneShotBackend
+from contraagent.backends.base import Backend
 from contraagent.backends.claude import ClaudeBackend
 from contraagent.backends.codex import CodexBackend
 from contraagent.backends.credentials import (
@@ -96,7 +102,6 @@ __all__ = [
     "OAuthToken",
     "OmpBackend",
     "OmpRpcBackend",
-    "OneShotBackend",
     "OpencodeBackend",
     "PiBackend",
     "Pool",

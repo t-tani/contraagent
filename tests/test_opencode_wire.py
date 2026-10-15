@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from contraagent import Launch, Stop
-from contraagent.backends.opencode.wire import EventReader, normalize_event, parse_events, refusal_in_log
+from contraagent.backends.opencode.wire import EventReader, normalize_event, refusal_in_log
 from contraagent.backends.streams import normalize_stream_line
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
@@ -47,7 +47,7 @@ def events(version: str) -> list[dict]:
 
 def read(evs: list[dict], exit_code: int = 0):
     raw = "".join(json.dumps(e) + "\n" for e in evs).encode()
-    return parse_events(LAUNCH, "opencode", raw, exit_code, None)
+    return EventReader(LAUNCH.model).read(raw).result(LAUNCH, "opencode", exit_code=exit_code, killed=None)
 
 
 @pytest.mark.parametrize("version", VERSIONS)

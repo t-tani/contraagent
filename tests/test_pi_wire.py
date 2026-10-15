@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 from contraagent import Launch, Stop
-from contraagent.backends.omp.trace import normalize_event
-from contraagent.backends.pi.wire import PiTraceReader, parse_events
+from contraagent.backends.omp.wire import normalize_event
+from contraagent.backends.pi.wire import PiTraceReader
 from contraagent.backends.streams import normalize_stream_line
 
 FIXTURES = Path(__file__).parent / "fixtures" / "pi"
@@ -40,7 +40,7 @@ def read(*evs: dict):
 
 @pytest.mark.parametrize("version", VERSIONS)
 def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version):
-    result = parse_events(LAUNCH, "pi", (FIXTURES / version / "json.jsonl").read_bytes(), 0, None)
+    result = PiTraceReader().read((FIXTURES / version / "json.jsonl").read_bytes()).result(LAUNCH, "pi", exit_code=0, killed=None)
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done"
     assert result.tool_uses == {"read": 1, "bash": 1}
     assert result.usage.n_calls == 3 and result.usage.output > 0 and result.cost_usd and result.cost_usd > 0
@@ -108,7 +108,7 @@ def test_a_turn_that_ends_on_an_empty_message_completes():
 
 @pytest.mark.parametrize("version", VERSIONS)
 def test_a_recorded_launch_reports_its_peak_context(version):
-    result = parse_events(LAUNCH, "pi", (FIXTURES / version / "json.jsonl").read_bytes(), 0, None)
+    result = PiTraceReader().read((FIXTURES / version / "json.jsonl").read_bytes()).result(LAUNCH, "pi", exit_code=0, killed=None)
     usages = [
         e["message"]["usage"]
         for e in events(version)

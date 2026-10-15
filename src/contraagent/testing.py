@@ -67,7 +67,7 @@ from pydantic import BaseModel
 
 from contraagent import envvars
 from contraagent.backends import Backend, ClaudeBackend, backend_class, known_agents
-from contraagent.backends.claude.stream import feedback_errors
+from contraagent.backends.claude.wire import feedback_errors
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
 from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage
 from contraagent.backends.process import write_launch_marker

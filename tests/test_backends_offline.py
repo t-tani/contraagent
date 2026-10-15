@@ -118,15 +118,15 @@ def test_a_missing_rpc_binary_is_a_launch_failure(tmp_path):
 def test_every_utilization_reading_of_a_session_is_kept():
     """Claude Code reports the subscription's utilization when a session starts and again when it is
     resumed (shapes from real transcripts); each reading is kept, with when it arrived."""
-    from contraagent.backends.claude.stream import StreamReader
+    from contraagent.backends.claude.wire import StreamReader
 
     def event(five, week):
         windows = {"five_hour": {"utilization": five, "resetsAt": 1791347400}, "seven_day": {"utilization": week, "resetsAt": 1791800000}}
         return json.dumps({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": windows}})
 
     reader = StreamReader(Limits())
-    reader.feed(event(0.1, 0.55))
-    reader.feed(event(0.15, 0.56))
+    reader.feed_line(event(0.1, 0.55))
+    reader.feed_line(event(0.15, 0.56))
     assert [(r.five_hour_pct, r.seven_day_pct) for r in reader.rate_limits] == [(10.0, 55.0), (15.0, 56.0)]
     assert reader.rate_limit is reader.rate_limits[-1] and all(r.observed_at for r in reader.rate_limits)
 
@@ -172,7 +172,8 @@ def test_omp_ends_a_launch_past_its_cost_cap(tmp_path):
 def test_claude_reports_its_peak_context_and_stops_past_its_context_budget():
     """Claude Code sends one API call's usage on each of its `assistant` lines (several lines
     per call share the message id): the peak context is the largest call's whole input."""
-    from contraagent.backends.claude.stream import StreamReader
+    from contraagent.backends.claude.wire import StreamReader
+    from contraagent.backends.wire import LimitsWatch
 
     def call(mid: str, fresh: int, read: int, written: int) -> str:
         usage = {"input_tokens": fresh, "cache_read_input_tokens": read, "cache_creation_input_tokens": written, "output_tokens": 5}
@@ -180,21 +181,22 @@ def test_claude_reports_its_peak_context_and_stops_past_its_context_budget():
 
     lines = [call("m1", 3, 0, 9000), call("m1", 3, 0, 9000), call("m2", 2, 9000, 2500), call("m3", 1, 11500, 40)]
     reader = StreamReader(Limits())
-    assert [reader.feed(line) for line in lines] == [None] * 4
-    result = LaunchResult(label="t", usage=reader.usage)
+    assert [reader.feed_line(line) for line in lines] == [None] * 4
+    result = LaunchResult(label="t", usage=reader.usage())
     assert (result.usage.n_calls, result.usage.resident, result.peak_context) == (3, 9003, 11541)
     capped = StreamReader(Limits(context_budget=11000))
-    assert [capped.feed(line) for line in lines][-2:] == [Stop.CONTEXT, Stop.CONTEXT]
+    watch = LimitsWatch(Limits(context_budget=11000), ClaudeBackend.watched_limits, capped)
+    assert [capped.feed_line(line) or watch() for line in lines][-2:] == [Stop.CONTEXT, Stop.CONTEXT]
     assert LaunchResult(label="t").peak_context is None  # no API call read
 
 
 def test_claude_records_what_its_stop_hook_sent_back():
-    from contraagent.backends.claude.stream import StreamReader, normalize_event
+    from contraagent.backends.claude.wire import StreamReader, normalize_event
 
     text = "Stop hook feedback:\n[validate]: fix them.\n\n## out.json\nErrors:\n- out.json: [lines] line 99 is past the end\n"
     feedback = {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
     reader = StreamReader(Limits())
-    reader.feed(json.dumps(feedback))
+    reader.feed(feedback)
     assert reader.hook_errors == [["out.json: [lines] line 99 is past the end"]]
     assert normalize_event(feedback)["type"] == "notice"
 
@@ -230,23 +232,23 @@ print(json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "t
 
 
 def test_omp_records_its_web_searches_and_counts_each_call_once(tmp_path):
-    from contraagent.backends.omp.rpc import _Accumulator
+    from contraagent.backends.omp.rpc import RpcReader
 
     bindir = fake_cli(tmp_path, "omp", OMP_SEARCHING)
     backend = OmpBackend(base_env={"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin"})
     result = backend.run(Launch(prompt="hello", label="t", model="p/m", cwd=tmp_path, limits=Limits(timeout_s=30)))
     assert result.ok and result.web_queries == ["contraagent docs"]
     assert result.tool_uses == {"web_search": 2}  # each call once, not again at its execution
-    acc = _Accumulator()
+    acc = RpcReader("p1")
     call = {"type": "toolcall_end", "toolCall": {"name": "web_search", "arguments": {"query": "omp rpc"}}}
-    acc.feed({"type": "message_update", "assistantMessageEvent": call}, "p1")
-    acc.feed({"type": "tool_execution_end", "toolName": "web_search"}, "p1")
-    rpc = acc.launch_result(Launch(prompt="x", label="t"), "omp-rpc", [], None)
+    acc.feed({"type": "message_update", "assistantMessageEvent": call})
+    acc.feed({"type": "tool_execution_end", "toolName": "web_search"})
+    rpc = acc.result(Launch(prompt="x", label="t"), "omp-rpc", exit_code=None, killed=None)
     assert rpc.web_queries == ["omp rpc"] and rpc.tool_uses == {"web_search": 1}
 
 
 def test_claude_shows_a_web_search_by_its_query_and_a_web_page_by_its_url():
-    from contraagent.backends.claude.stream import normalize_event
+    from contraagent.backends.claude.wire import normalize_event
 
     call = {"type": "tool_use", "id": "c1", "name": "WebSearch", "input": {"query": "omp rpc"}}
     shown = normalize_event({"type": "assistant", "message": {"content": [call]}})
@@ -259,7 +261,7 @@ def test_claude_shows_a_web_search_by_its_query_and_a_web_page_by_its_url():
 
 
 def test_omp_shows_a_read_of_a_url_as_a_web_page():
-    from contraagent.backends.omp.trace import normalize_event
+    from contraagent.backends.omp.wire import normalize_event
 
     def start(path):
         return normalize_event({"type": "tool_execution_start", "toolName": "read", "args": {"path": path}, "toolCallId": "c"})

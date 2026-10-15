@@ -26,7 +26,7 @@ from contraagent import (
     TaskAdapter,
     register_normalizer,
 )
-from contraagent.backends.omp import trace as omp_trace
+from contraagent.backends.omp import wire as omp_trace
 from contraagent.monitor import Monitor
 
 register_normalizer("stub", omp_trace.normalize_event, omp_trace.normalize_text_line)

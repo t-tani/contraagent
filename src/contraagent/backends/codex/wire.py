@@ -19,20 +19,27 @@ from __future__ import annotations
 
 import json
 import re
-from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from contraagent.backends.launch import CallUsage, RateLimit, Stop, note_web_query
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.refusal import FAILED_STOPS, Ending, Signals
+from contraagent.backends.wire import EventFold, positive_int, tokens
 
-#: A refusal for usage or rate (ChatGPT plan limits, a provider's 429).
-RATE_LIMIT_RE = re.compile(r"\b429\b|usage limit|rate.?limit|quota|too many requests", re.I)
-_AUTH_RE = re.compile(r"\b(401|403)\b|unauthori[sz]ed|forbidden|invalid api key|not logged in", re.I)
-_REFUSAL_RE = re.compile(r"cyber_policy|safety|refus", re.I)
+#: How Codex words a refusal: for usage or rate (ChatGPT plan limits, a provider's 429), a
+#: refused credential, a safety refusal. A process that printed nothing failed to start
+#: when it exited nonzero. A launch that dies before its first event prints only on stderr.
+SIGNALS = Signals(
+    quota=re.compile(r"\b429\b|usage limit|rate.?limit|quota|too many requests", re.I),
+    auth=re.compile(r"\b(401|403)\b|unauthori[sz]ed|forbidden|invalid api key|not logged in", re.I),
+    refusal=re.compile(r"cyber_policy|safety|refus", re.I),
+    status=re.compile(r"\bstatus (\d{3})\b|\"code\":\s*\"?(\d{3})"),
+    silence_is_startup=True,
+    stderr_stops=FAILED_STOPS | {Stop.LAUNCH_FAILED},
+)
 #: `Reconnecting... 2/5 (unexpected status 401 Unauthorized: ...)`
 _RECONNECT_RE = re.compile(r"^Reconnecting\.\.\. (\d+)/(\d+) \((.*)\)$", re.S)
-_STATUS_RE = re.compile(r"\bstatus (\d{3})\b|\"code\":\s*\"?(\d{3})")
 #: The rollout's rate-limit windows by length: 5 hours and 7 days.
 _FIVE_HOUR_MIN, _SEVEN_DAY_MIN = 300, 10080
 
@@ -46,8 +53,8 @@ KNOWN_EVENTS = frozenset(
 
 def _status_class(message: str) -> str:
     """A short cause for a failed request: `http_<status>` when the message has one, else `error`."""
-    m = _STATUS_RE.search(message)
-    return f"http_{m.group(1) or m.group(2)}" if m else "error"
+    status = SIGNALS.status_in(message)
+    return f"http_{status}" if status is not None else "error"
 
 
 def tool_name(item: dict) -> str:
@@ -57,44 +64,44 @@ def tool_name(item: dict) -> str:
     return str(item.get("type") or "")
 
 
-class EventReader:
-    """One `--json` line at a time: the thread id, the final message, tool use, retries, the end."""
+class EventReader(EventFold):
+    """One `--json` event at a time: the thread id, the final message, tool use, retries,
+    the end. The rollout file (`rollout`, read after the launch) adds per-call tokens,
+    the model, its context window and the plan's usage."""
+
+    agent = "codex"
+    known_events = KNOWN_EVENTS
+    signals = SIGNALS
 
     def __init__(self) -> None:
-        self.thread_id = ""
-        self.saw_any = False
+        super().__init__()
         self.messages: list[str] = []
-        self.tool_uses: Counter = Counter()
-        self.web_queries: list[str] = []
-        self.usage: dict = {}
+        #: The turn's summed `usage` (`turn.completed`).
+        self.turn_usage: dict = {}
         self.completed = False
         self.failure = ""
         self.errors: list[str] = []  # item `error`s and `error` events past their retries
         self.api_retries = 0
-        self.retry_errors: Counter = Counter()
-        self.unread: Counter = Counter()
+        self.retry_errors: dict[str, int] = {}
+        #: The session's rollout file, read after the launch (`CodexBackend.exchange`).
+        self.rollout: Rollout | None = None
+
+    @property
+    def thread_id(self) -> str:
+        return self.session_id
 
     @property
     def result_text(self) -> str:
         """The agent's last message: its answer."""
         return self.messages[-1] if self.messages else ""
 
-    def feed(self, line: str) -> Stop | None:
-        line = line.strip()
-        if not line:
-            return None
-        try:
-            ev = json.loads(line)
-        except ValueError:
-            return None
-        if not isinstance(ev, dict):
-            return None
+    def feed(self, ev: dict) -> Stop | None:
         self.saw_any = True
         typ = str(ev.get("type") or "")
-        if typ not in KNOWN_EVENTS:
-            self.unread[typ] += 1
-        elif typ == "thread.started":
-            self.thread_id = str(ev.get("thread_id") or "")
+        if self.unknown(typ):
+            return None
+        if typ == "thread.started":
+            self.session_id = str(ev.get("thread_id") or "")
         elif typ == "item.completed":
             self._item(ev.get("item") or {})
         elif typ == "error":
@@ -105,14 +112,14 @@ class EventReader:
                 return None
             cause = _status_class(retry.group(3))
             self.api_retries += 1
-            self.retry_errors[cause] += 1
+            self.retry_errors[cause] = self.retry_errors.get(cause, 0) + 1
             # A refused credential never heals by waiting: stop on the second one, as claude does.
-            if _AUTH_RE.search(retry.group(3)) and self.retry_errors[cause] >= 2:
+            if SIGNALS.auth_in(retry.group(3)) and self.retry_errors[cause] >= 2:
                 self.failure = retry.group(3)
                 return Stop.AUTH_FAILED
         elif typ == "turn.completed":
             self.completed = True
-            self.usage = ev.get("usage") or {}
+            self.turn_usage = ev.get("usage") or {}
         elif typ == "turn.failed":
             self.failure = str((ev.get("error") or {}).get("message") or "")
         return None
@@ -127,25 +134,49 @@ class EventReader:
             self.tool_uses[tool_name(item)] += 1
             web = web_target(item) if kind == "web_search" else {}
             if "web_query" in web:
-                note_web_query(self.web_queries, web["web_query"])
+                self.note_web_query(web["web_query"])
 
+    def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
+        """A completed turn is done whatever else was said; else a failed turn by its
+        message, else how the process ended."""
+        error = "" if self.completed else self.failure or "\n".join(self.errors)
+        return Ending(killed=killed, exit_code=exit_code, saw_any=self.saw_any, error=error, failed=bool(error), completed=self.completed)
 
-def classify(reader: EventReader, exit_code: int | None) -> Stop:
-    """One stop reason from what the events said: a failed turn by its message, else how the process ended."""
-    if reader.completed:
-        return Stop.COMPLETED
-    text = reader.failure or "\n".join(reader.errors)
-    if text:
-        if RATE_LIMIT_RE.search(text):
-            return Stop.RATE_LIMITED
-        if _AUTH_RE.search(text):
-            return Stop.AUTH_FAILED
-        if _REFUSAL_RE.search(text):
-            return Stop.REFUSED
-        return Stop.API_ERROR
-    if not reader.saw_any:
-        return Stop.NO_OUTPUT if exit_code == 0 else Stop.LAUNCH_FAILED
-    return Stop.ERROR if exit_code not in (0, None) else Stop.NO_OUTPUT
+    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
+        stop = self.stop(exit_code=exit_code, killed=killed)
+        rollout = self.rollout
+        calls = rollout.calls if rollout is not None else []
+        if not calls and self.turn_usage:
+            # No rollout to read: the turn's sum stands in as one call.
+            calls = [call_usage(self.turn_usage, launch.model)]
+        model = (rollout.model if rollout is not None else "") or launch.model
+        # The turn's own sum counts a resumed thread's earlier turns too; the calls do not.
+        self.calls = [CallUsage(c.model or model, c.input, c.cache_read, c.cache_creation, c.output) for c in calls]
+        text = self.result_text
+        structured = None
+        if launch.json_schema is not None and stop is Stop.COMPLETED:
+            try:
+                structured = json.loads(text)
+            except ValueError:
+                structured = None
+        rate_limits = list(rollout.rate_limits) if rollout is not None else []
+        return self.launch_result(
+            launch,
+            agent,
+            stop,
+            exit_code=exit_code,
+            cli_version=rollout.cli_version if rollout is not None else "",
+            result_text=text,
+            structured_output=structured,
+            rate_limit=rate_limits[-1] if rate_limits else None,
+            rate_limits=rate_limits,
+            init_model=model,
+            context_window=rollout.context_window if rollout is not None else None,
+            api_retries=self.api_retries,
+            retry_errors=dict(self.retry_errors),
+            stderr_tail=self.failure,
+            raw_result={"usage": self.turn_usage} if self.turn_usage else {},
+        )
 
 
 @dataclass
@@ -164,15 +195,9 @@ class Rollout:
 def call_usage(u: dict, model: str) -> CallUsage:
     """One API call's tokens. Codex's `input_tokens` is the whole input, the cached and
     cache-written parts included; `CallUsage.input` is the rest."""
-    total = int(u.get("input_tokens") or 0)
-    read = int(u.get("cached_input_tokens") or 0)
-    written = int(u.get("cache_write_input_tokens") or 0)
+    total, read, written = tokens(u, "input_tokens"), tokens(u, "cached_input_tokens"), tokens(u, "cache_write_input_tokens")
     return CallUsage(
-        model=model,
-        input=max(0, total - read - written),
-        cache_read=read,
-        cache_creation=written,
-        output=int(u.get("output_tokens") or 0),
+        model=model, input=max(0, total - read - written), cache_read=read, cache_creation=written, output=tokens(u, "output_tokens")
     )
 
 
@@ -245,8 +270,8 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
             last = info.get("last_token_usage")
             if isinstance(last, dict):
                 out.calls.append(call_usage(last, out.model))
-            window = info.get("model_context_window")
-            if isinstance(window, int) and not isinstance(window, bool) and window > 0:
+            window = positive_int(info.get("model_context_window"))
+            if window is not None:
                 out.context_window = window
             reading = rate_limit(payload.get("rate_limits") or {})
             if reading is not None:
@@ -256,7 +281,7 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
 
 def normalize_event(e: dict) -> dict | list[dict]:
     """Map one `codex exec --json` event onto the monitor's renderable shapes (the ones
-    `backends.claude.stream.normalize_event` produces), or `{"type": "skip"}`.
+    `backends.claude.wire.normalize_event` produces), or `{"type": "skip"}`.
 
     An item's start opens its tool card and its completion closes it, matched by the
     item id; the agent's messages and reasoning arrive whole, on completion. A web

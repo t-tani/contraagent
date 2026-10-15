@@ -1,73 +1,46 @@
 """Stream-event normalizer, dispatching on the stream format.
 
-Every backend (`claude`, `omp`, `omp-rpc`, `opencode`, `pi`, `codex`) writes raw
-per-launch lines to `launch.stream_path`, in four distinct wire
-vocabularies: omp's/omp-rpc's/pi's `--mode json`/RPC shapes
+Every backend writes raw per-launch lines to `launch.stream_path`, in its own wire
+vocabulary: omp's/omp-rpc's/pi's `--mode json`/RPC shapes
 (`assistantMessageEvent`/`toolCall`/`toolResult`/...), claude's own
 `--output-format stream-json` shapes (Anthropic Messages API events),
 opencode's `run --format json` parts (`step_finish`/`tool_use`/`text`/...) and
-codex's `exec --json` items.
-This module gives them a single call site: look up the stream format's own
-`normalize_event`, in its own module (`backends/claude/stream.py`,
-`backends/omp/trace.py`, `backends/opencode/wire.py`, `backends/codex/wire.py`),
-and use its output as-is.
+codex's `exec --json` items. A stream format is a registered coding agent's name: its
+`Backend.wire` module's `normalize_event` renders its lines, and with
+`Backend.plaintext_stream` its `normalize_text_line` renders a line that is not JSON (omp's
+text mode narrates in plain text). `register_normalizer` adds a format of its own.
 
-Every per-backend `normalize_event` emits the *same* renderable
-shape (`message_update`/`tool_execution_start`/`notice`/...) that
-a monitor UI already understands, so adding a backend
-here needs no frontend change.
+Every `normalize_event` emits the *same* renderable shape
+(`message_update`/`tool_execution_start`/`notice`/...) that a monitor UI already
+understands, so adding a backend needs no frontend change.
 
-omp only writes `--mode json` events when launched with `--trace`; most
-real tasks run without it and their stdout is plain text.
-`_PLAINTEXT_FALLBACK` wraps such a line into the same renderable shape, so
-a non-JSON line is shown rather than dropped.
-
-Nothing in `backends/claude/stream.py`, `backends/omp/trace.py`, `backends/opencode/wire.py`
-or `backends/codex/wire.py` imports this
-module back — they are leaves this module depends on, never the reverse.
+omp-rpc's RPC-only protocol frames (ready, negotiate_protocol, rpc_chunk, response,
+prompt_result, session_stats/stats) are not in omp's `STREAM_FWD`, so its normalizer drops
+them. A large payload split across several rpc_chunk frames is not shown (each chunk is a
+base64 fragment, meaningless alone), though the backend's reader reassembles it.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
-from contraagent.backends.claude import stream as claude_stream
-from contraagent.backends.codex import wire as codex_wire
-from contraagent.backends.omp import trace as omp_trace
-from contraagent.backends.opencode import wire as opencode_wire
+from contraagent.backends import backend_class
 
-_NORMALIZERS = {
-    "claude": claude_stream.normalize_event,
-    "omp": omp_trace.normalize_event,
-    # omp-rpc's NDJSON frames reuse the same message_update/toolCall/
-    # tool_execution_end shapes trace mode's --mode json does (confirmed
-    # against `backends/omp/rpc.py`'s own _Accumulator.feed()/_update()); its
-    # RPC-only protocol frames (ready, negotiate_protocol, rpc_chunk,
-    # response, prompt_result, session_stats/stats) aren't in
-    # omp_trace.STREAM_FWD, so they're already dropped with no extra
-    # code needed. Disclosed gap: a large payload split across several
-    # rpc_chunk frames is invisible here (each chunk is a base64
-    # fragment, meaningless alone) even though _Accumulator reassembles
-    # it correctly for the real LaunchResult -- live reassembly would need
-    # state carried across calls, which this one-line-at-a-time
-    # normalizer does not keep.
-    "omp-rpc": omp_trace.normalize_event,
-    "opencode": opencode_wire.normalize_event,
-    # pi sends the agent events omp was forked from (`backends/pi/wire.py`).
-    "pi": omp_trace.normalize_event,
-    # `codex exec --json`: always JSON, so no plain-text fallback.
-    "codex": codex_wire.normalize_event,
-}
+#: Stream formats a caller registered (`register_normalizer`), and their plain-text readers.
+_NORMALIZERS: dict[str, Callable] = {}
+_PLAINTEXT_FALLBACK: dict[str, Callable] = {}
 
-# Backends that can run with trace off (omp's --mode json defaults on
-# via OmpBackend.trace, but a task can still opt out): a non-JSON line
-# from one of these is the agent's own plain-text narration, not noise,
-# and renders as ordinary assistant text instead of being dropped.
-# claude's --output-format stream-json is always JSON, so it carries no
-# entry here -- a non-JSON claude line is genuinely unexpected input.
-_PLAINTEXT_FALLBACK = {
-    "omp": omp_trace.normalize_text_line,
-}
+
+def _normalizers(format: str) -> tuple[Callable | None, Callable | None]:
+    """The event normalizer and the plain-text one of stream format `format`."""
+    if format in _NORMALIZERS:
+        return _NORMALIZERS[format], _PLAINTEXT_FALLBACK.get(format)
+    cls = backend_class(format)
+    wire = cls.wire if cls is not None else None
+    if wire is None:
+        return None, None
+    return wire.normalize_event, (wire.normalize_text_line if cls is not None and cls.plaintext_stream else None)
 
 
 def register_normalizer(format: str, normalize_event, plaintext=None) -> None:
@@ -91,7 +64,7 @@ def resolve_format(agent: str, aliases: dict[str, str] | None = None) -> str:
     process that registered a custom agent's normalizer, so an unknown name
     must degrade to something readable rather than to an empty transcript."""
     name = (aliases or {}).get(agent, agent)
-    return name if name in _NORMALIZERS else "omp"
+    return name if _normalizers(name)[0] is not None else "omp"
 
 
 # Upper bound on the prompt we hand the client from a launch marker, even
@@ -138,7 +111,7 @@ def normalize_stream_line(format: str, raw_line: str) -> list[dict]:
     forward-set membership check, or an event shape it has nothing renderable
     to say about).
     """
-    normalize = _NORMALIZERS.get(format)
+    normalize, fallback = _normalizers(format)
     if normalize is None:
         return []
     line = raw_line.strip()
@@ -149,7 +122,6 @@ def normalize_stream_line(format: str, raw_line: str) -> list[dict]:
     except ValueError:
         ev = None
     if not isinstance(ev, dict):
-        fallback = _PLAINTEXT_FALLBACK.get(format)
         shown = fallback(line) if fallback else None
         return [shown] if shown else []
     # The launch marker is shared across backends (`run_process` writes it for

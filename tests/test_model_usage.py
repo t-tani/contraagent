@@ -127,7 +127,7 @@ def test_a_hop_s_spend_on_other_models_counts_on_each_of_them():
 
 
 def test_claude_code_s_model_usage_less_the_launch_s_own_model():
-    from contraagent.backends.claude.backend import other_models
+    from contraagent.backends.claude.wire import other_models
 
     used = {
         "big-1": {"inputTokens": 8, "outputTokens": 900, "costUSD": 0.05},
@@ -175,7 +175,7 @@ def test_the_monitor_s_plan_carries_the_models(tmp_path):
 
 
 def test_claude_code_s_context_window_is_its_own_model_s():
-    from contraagent.backends.claude.backend import context_window
+    from contraagent.backends.claude.wire import context_window
 
     used = {
         "big-1": {"outputTokens": 900, "contextWindow": 1_000_000},

@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from contraagent import AMBIENT, ApiKey, Gateway, Launch, OmpBackend, OpencodeBackend, PiBackend, Subscription
+from contraagent.backends import opencode_key as login
 from contraagent.backends.launch import ACCOUNT_SECRET, RateLimit, account_digest
 from contraagent.backends.omp.backend import dotenv_credentials, omp_dotenv_files
-from contraagent.backends.opencode import login
 from contraagent.routing.quota import QuotaRests
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"

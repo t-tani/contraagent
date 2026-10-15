@@ -256,8 +256,8 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     only("omp")
     import importlib.util
 
-    from contraagent.backends.omp.rpc import _Accumulator
-    from contraagent.backends.omp.trace import TraceReader
+    from contraagent.backends.omp.rpc import RpcReader
+    from contraagent.backends.omp.wire import TraceReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "omp" / "record.py")
     assert spec and spec.loader
@@ -267,10 +267,10 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     reader = TraceReader()
     for ev in wires["json"]:
         reader.feed(ev)
-    acc = _Accumulator()
+    rpc = RpcReader("rec")
     for frame in wires["rpc"]:
-        acc.feed(frame, "rec")
-    for name, read in (("json", reader), ("rpc", acc.reader)):
+        rpc.feed(frame)
+    for name, read in (("json", reader), ("rpc", rpc)):
         print(f"\n  {name}: tool_uses={dict(read.tool_uses)} unread={dict(read.unread)}")
         assert not read.unread, f"{name}: omp sent events the reader does not know"
         assert dict(read.tool_uses) == {"read": 1, "bash": 1, "web_search": 1}
