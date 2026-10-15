@@ -262,10 +262,10 @@ def test_a_resting_hop_is_skipped_without_a_launch(tmp_path):
     agent.seen.clear()
     second = r.run(Task("k", key="t2"))
     assert second.ok and agent.seen == ["sub-b"]
-    assert [h["credential"] for h in second.hops] == ["sub-b"]  # a skipped hop is no hop
+    assert [h.credential for h in second.hops] == ["sub-b"]  # a skipped hop is no hop
     assert second.reason == "personal rests: 5-hour usage 95%, max 90%; ran on hop 2/2 claude/m2@sub-b"
     [skipped] = second.skipped_hops
-    assert (skipped["route"], skipped["model"], skipped["credential"], skipped["window"], skipped["pct"], skipped["cap"]) == (
+    assert (skipped.route, skipped.model, skipped.credential, skipped.window, skipped.pct, skipped.cap) == (
         "hop 1/2 claude/m1@personal",
         "m1",
         "personal",
@@ -282,8 +282,8 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
     assert r.run(Task("k", key="t1")).ok
     deferral = r.deferral(Task("k", key="t2"))
     assert deferral is not None and deferral.reason == "personal rests: 5-hour usage 95%, max 90%"
-    assert deferral.cause["cause"] == "rest"
-    [rest] = deferral.cause["rests"]
+    assert deferral.cause.cause == "rest"
+    [rest] = deferral.cause.to_dict()["rests"]
     assert rest | {"until": ""} == {
         "route": "hop 1/1 claude/m1@personal",
         "model": "m1",
@@ -298,7 +298,7 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
     assert rest["until"] == iso(NOW + timedelta(hours=2))  # the window's reset
     res = r.run(Task("k", key="t2"))
     assert res.stop == "deferred" and not res.ok and res.reason.startswith("personal rests")
-    assert res.cause is not None and res.cause["cause"] == "rest"
+    assert res.cause is not None and res.cause.cause == "rest"
     assert agent.seen == ["personal"]
 
 
@@ -482,7 +482,7 @@ def test_the_queue_records_its_own_causes(tmp_path):
         def run(self, task):
             return TaskResult(task=task, ok=True, stop="completed")
 
-    q = WorkQueue(Never(), on_event=lambda e, t, **f: events.append((e, f.get("cause"))) if e == "deferred" else None)
+    q = WorkQueue(Never(), on_event=lambda e, t, **f: events.append((e, f["cause"].to_dict())) if e == "deferred" else None)
     q.add(Task("k", key="x", after=("never-queued",)))
     q.run()
     assert events == [("deferred", {"cause": "dependency_not_queued"})]

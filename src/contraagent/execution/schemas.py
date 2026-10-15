@@ -1,11 +1,15 @@
 """pydantic models for the files a run leaves on disk.
 
-Two shapes, both generic over the domain:
+Each is generic over the domain; the values a row holds (a hop, a rest, a flow path,
+a deferral's cause) are the record types of `dispatch/records.py`.
 
 * `JournalRow` — one line of `runs/<run>/journal.jsonl`, written when a
   task finishes. `extra="allow"`: a domain adds its own columns (counts of
   what the task produced, say) and they round-trip untouched. The monitor
   reads only the fields named here.
+* `PlanRow`, `FlowCallRow`, `DeferredRow` — one line of `plan.jsonl`,
+  `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` (`dispatch/records.py`) is one
+  line of `rests.jsonl`.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
   never guesses. `extra="forbid"` throughout, because a renamed field or a
   typo'd stage name should fail loudly at write time instead of silently
@@ -21,9 +25,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from contraagent.backends.launch import Stop
+from contraagent.dispatch.flow import FlowState
+from contraagent.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop, TimeBoxRecord, TokenUsage
 from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 
 # --- journal ---------------------------------------------------------------
@@ -31,67 +37,6 @@ from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 #: The `stop` values contraagent writes: every `Stop`, `skipped`, and a Python task's `partial`.
 #: The schema lists them as an enum; a row a domain's own code wrote with another value still validates.
 JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
-
-
-class TokenUsage(BaseModel):
-    """Tokens summed over API calls: an attempt's (its rounds and hops, in `JournalRow.usage`)
-    or one hop's (`Hop.usage`)."""
-
-    model_config = ConfigDict(extra="allow")
-
-    input: int = 0
-    output: int = 0
-    #: Input served from the prompt cache.
-    cache_read: int = 0
-    #: Input written to the prompt cache.
-    cache_creation: int = 0
-    #: API calls the coding agent made.
-    calls: int = 0
-    #: The whole input of the attempt's first API call (cache included): what the coding agent
-    #: loads before the task starts (system prompt, tools, the prompt). None when no call was read.
-    resident: int | None = None
-    #: The peak context: the whole input of the largest API call (cache read and cache write
-    #: included), the largest over every hop and round summed here. None when no call was read.
-    peak_context: int | None = None
-    #: The context window of the model whose call is the peak context, as the coding agent
-    #: reports it (`LaunchResult.context_window`); None when it reports none.
-    context_window: int | None = None
-
-
-class OtherModel(BaseModel):
-    """What a hop spent on a model other than its own (`Hop.other_models`)."""
-
-    model_config = ConfigDict(extra="allow")
-
-    #: Part of the hop's `cost_usd`; None when the coding agent reported none.
-    cost_usd: float | None = None
-    input: int = 0
-    output: int = 0
-    cache_read: int = 0
-    cache_creation: int = 0
-
-
-class Hop(BaseModel):
-    """One launch in a failover walk: where it ran and how it ended."""
-
-    model_config = ConfigDict(extra="allow")
-
-    route: str = ""
-    #: The coding agent that ran the launch.
-    agent: str = ""
-    model: str = ""
-    #: The `[credentials.<name>]` this hop authenticated as (a hop may change it).
-    credential: str = ""
-    stop: str = ""
-    wall_s: float = 0.0
-    #: What the coding agent reported this hop cost, in USD; None when it reports none.
-    cost_usd: float | None = None
-    #: This hop's tokens (its rounds, and pool members tried on it, summed); None when it
-    #: reported no API call. The attempt's `usage` is every hop's.
-    usage: TokenUsage | None = None
-    #: What the hop spent on models other than `model`, by model (Claude Code summarizes a
-    #: fetched page on a smaller one); their cost is in `cost_usd`, their tokens not in `usage`.
-    other_models: dict[str, OtherModel] = Field(default_factory=dict)
 
 
 class QuotaReading(BaseModel):
@@ -138,49 +83,6 @@ class QuotaWindow(BaseModel):
     resets_at: str | None = None
 
 
-class QuotaRest(BaseModel):
-    """Why a credential rests (`routing.quota.Rest`): past the cap of one window (`window`
-    `five_hour` or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule
-    (`rule`, what it said, `reading`, the reading it judged; `window` empty). `until`, ISO
-    8601: when the window resets, for a cap; for the rule, when the reading it judged
-    stops standing (its earliest reset); empty when unknown."""
-
-    model_config = ConfigDict(extra="allow")
-
-    credential: str
-    window: Literal["", "five_hour", "seven_day"] = ""
-    pct: float | None = None
-    cap: float | None = None
-    rule: str = ""
-    until: str = ""
-    #: The account whose reading it is (`QuotaReading.account`); '' when not known.
-    account: str = ""
-    #: The reading the quota rule judged: `{observed_at, windows: {<window>: {pct, resets_at}}}`;
-    #: None for a cap's rest.
-    reading: dict | None = None
-
-
-class SkippedHop(QuotaRest):
-    """A hop of the failover chain an attempt passed over without a launch, because its
-    credential rested: its route label and model, and the rest."""
-
-    route: str = ""
-    model: str = ""
-
-
-class Changes(BaseModel):
-    """The files one attempt changed under its task's `changes` patterns, relative to
-    the working directory (`dispatch.Changes`)."""
-
-    model_config = ConfigDict(extra="allow")
-
-    created: list[str] = Field(default_factory=list)
-    modified: list[str] = Field(default_factory=list)
-    deleted: list[str] = Field(default_factory=list)
-    #: The created files removed because the attempt failed.
-    removed: list[str] = Field(default_factory=list)
-
-
 class JournalRow(BaseModel):
     """One finished attempt. `key` is the stable `Task.key`, one task; `kind`
     and `unit` are its kind and unit; `executor` says who ran it; `stop` is
@@ -195,7 +97,7 @@ class JournalRow(BaseModel):
     key: str
     attempt: int = 0
     kind: str
-    executor: Literal["agent", "python"] = "agent"
+    executor: Executor = "agent"
     unit: str = ""
     #: The coding agent that ran the launch; empty for a Python task.
     agent: str = ""
@@ -246,6 +148,83 @@ class JournalRow(BaseModel):
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
     replayed: bool = False
+
+
+# --- plan, flow calls, deferrals ------------------------------------------
+
+
+class PlanRow(BaseModel):
+    """One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies
+    and its origin. A task with no origin (built by hand) has an empty `flow` and
+    `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind."""
+
+    model_config = ConfigDict(extra="allow", serialize_by_alias=True)
+
+    ts: str = Field("", description="when it was queued (absent for a node rebuilt from the journal)")
+    key: str
+    kind: str
+    unit: str = ""
+    claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
+    after: list[str] = Field(default_factory=list, description="task keys it waits for")
+    priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
+    executor: Executor = "agent"
+    flow: list[Frame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
+    created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
+    flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
+    base_kind: str = Field(
+        "",
+        description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
+    )
+
+    def to_dict(self) -> dict:
+        """The row as `plan.jsonl` records it: `base_kind` only when it is set."""
+        return self.model_dump(mode="json", exclude=None if self.base_kind else {"base_kind"})
+
+
+class FlowCallRow(BaseModel):
+    """One line of `runs/<run>/flow_calls.jsonl`. `event` `start`: `parent`, `function`,
+    `flow` (the flow path where the parent yielded it; empty for a top flow call) and, for a
+    flow call yielded through `time_box`, `time_box`; `end`: `state` (`returned`, `raised`,
+    `closed`) and `error` (`"<type>: <message>"` or null). A row holds only its event's fields."""
+
+    model_config = ConfigDict(extra="forbid", serialize_by_alias=True)
+
+    ts: str
+    id: str
+    event: Literal["start", "end"]
+    parent: str | None = None
+    function: str = ""
+    flow: list[Frame] = Field(default_factory=list)
+    time_box: TimeBoxRecord | None = None
+    state: FlowState | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict:
+        """The row as `flow_calls.jsonl` records it: the fields set."""
+        return self.model_dump(mode="json", exclude_unset=True)
+
+
+class DeferredRow(BaseModel):
+    """One line of `runs/<run>/deferred.jsonl`: a task the queue deferred, never launched;
+    why in one line (`reason`) and as data (`cause`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ts: str
+    key: str
+    kind: str = ""
+    unit: str = ""
+    reason: str = ""
+    cause: DeferralCause | None = None
+
+    @field_validator("cause", mode="before")
+    @classmethod
+    def _no_cause(cls, v: object) -> object:
+        return None if v == {} else v
+
+    def to_dict(self) -> dict:
+        """The row as `deferred.jsonl` records it: the cause's fields that are set, `{}` for none."""
+        return {**self.model_dump(mode="json", exclude={"cause"}), "cause": self.cause.to_dict() if self.cause is not None else {}}
 
 
 # --- resume cursor ---------------------------------------------------------

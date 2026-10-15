@@ -33,31 +33,32 @@ from contraagent.backends.launch import Launch, LaunchResult, Stop
 from contraagent.backends.process import signal_of
 from contraagent.contracts import check_input, fold_spend, record_contracts, run_until_valid
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
+from contraagent.dispatch.records import DeferralCause, Hop, OtherModel, Rest, SkippedHop, TokenUsage
 from contraagent.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.execution.changes import ChangesEnricher
 from contraagent.routing.kind_config import KindConfig
 from contraagent.routing.pool import pools_of
-from contraagent.routing.quota import QuotaRests, Rest
+from contraagent.routing.quota import QuotaRests
 from contraagent.routing.router import Route, Router
 
 _logger = logging.getLogger(__name__)
 
 
-def _texts(rests: Sequence[dict]) -> list[str]:
-    """Each rest (`Rest.to_dict`, a skipped hop's) in one line, once each."""
+def _texts(rests: Sequence[Rest]) -> list[str]:
+    """Each rest (a skipped hop's) in one line, once each."""
     out: list[str] = []
     for r in rests:
-        line = Rest(**{k: v for k, v in r.items() if k in Rest.__dataclass_fields__}).text()
+        line = r.text()
         if line not in out:
             out.append(line)
     return out
 
 
-def _rest_deferral(rests: Sequence[dict]) -> Deferral:
+def _rest_deferral(rests: Sequence[SkippedHop]) -> Deferral:
     """A task deferred because the credential of every hop it could take rests: `rest`,
-    with each rest (`Rest.to_dict`, and for a skipped hop its `route` and `model`)."""
-    return Deferral("; ".join(_texts(rests)), {"cause": "rest", "rests": list(rests)})
+    with each hop passed over and its rest."""
+    return Deferral("; ".join(_texts(rests)), DeferralCause(cause="rest", rests=tuple(rests)))
 
 
 def telemetry_line(task: Task, run_id: str, role: str | None) -> str:
@@ -79,35 +80,35 @@ def _fails_over(result: TaskResult) -> bool:
     return not (o is not None and signal_of(o.exit_code) is not None)
 
 
-def _hop(label: str, result: TaskResult) -> dict:
-    """The journal's record of one launch on one route: where it ran and what it spent.
-    Taken before the hops after it fold their spend into the attempt's, so each hop holds
-    its own (its rounds, and pool members tried on it, included)."""
+def _hop(label: str, result: TaskResult) -> Hop:
+    """One launch on one route: where it ran and what it spent. Taken before the hops
+    after it fold their spend into the attempt's, so each hop holds its own (its rounds,
+    and pool members tried on it, included)."""
     o = result.launch_result
     u = o.usage if o is not None else None
-    return {
-        "route": label,
-        "agent": o.agent if o else "",
-        "model": o.model if o else "",
-        "credential": o.credential if o else "",
-        "stop": result.stop,
-        "wall_s": round(result.wall_s, 1),  # this hop, pool members tried on it included
-        "cost_usd": o.cost_usd if o else None,
-        "usage": (
-            {
-                "input": u.input,
-                "output": max(u.output, u.output_total),
-                "cache_read": u.cache_read,
-                "cache_creation": u.cache_creation,
-                "calls": u.n_calls,
-                "peak_context": u.peak_context if u.calls else None,
-                "context_window": o.context_window if o is not None else None,
-            }
+    return Hop(
+        route=label,
+        agent=o.agent if o else "",
+        model=o.model if o else "",
+        credential=o.credential if o else "",
+        stop=result.stop,
+        wall_s=round(result.wall_s, 1),  # this hop, pool members tried on it included
+        cost_usd=o.cost_usd if o else None,
+        usage=(
+            TokenUsage(
+                input=u.input,
+                output=max(u.output, u.output_total),
+                cache_read=u.cache_read,
+                cache_creation=u.cache_creation,
+                calls=u.n_calls,
+                peak_context=u.peak_context if u.calls else None,
+                context_window=o.context_window if o is not None else None,
+            )
             if u is not None and (u.calls or u.output_total)
             else None
         ),
-        **({"other_models": o.other_models} if o is not None and o.other_models else {}),
-    }
+        other_models={m: OtherModel.model_validate(v) for m, v in o.other_models.items()} if o is not None else {},
+    )
 
 
 class AgentRunner:
@@ -303,17 +304,17 @@ class AgentRunner:
             return []
         return self.rests.rests(self._credential_name(task, route), kind_name(task.kind), self._accounts_on(task, route))
 
-    def _usable(self, task: Task, route: Route, router: Router, skipped: list[dict]) -> Route | None:
+    def _usable(self, task: Task, route: Route, router: Router, skipped: list[SkippedHop]) -> Route | None:
         """`route`, or the first hop after it whose credential does not rest; None when every
         one rests. Each hop passed over is added to `skipped`: its label and model, and why
-        its credential rests (`Rest.to_dict`). Stateless for the router: a rest is the
-        credential's, not a hop's 429."""
+        its credential rests. Stateless for the router: a rest is the credential's, not a
+        hop's 429."""
         here: Route | None = route
         while here is not None:
             why = self._rest(task, here)
             if not why:
                 return here
-            skipped += [{"route": router.label_of(here), "model": here.model, **r.to_dict()} for r in why]
+            skipped += [r.skipped(router.label_of(here), here.model) for r in why]
             here = router.next_route_after(here)
         return None
 
@@ -325,11 +326,11 @@ class AgentRunner:
         router = self.router_for(task)
         if router is None:
             why = self._rest(task, None)
-            return _rest_deferral([r.to_dict() for r in why]) if why else None
+            return _rest_deferral([SkippedHop(**r.to_dict()) for r in why]) if why else None
         route = router.pick()
         if route is None:  # every hop rate limited: the launch says so
             return None
-        skipped: list[dict] = []
+        skipped: list[SkippedHop] = []
         return _rest_deferral(skipped) if self._usable(task, route, router, skipped) is None else None
 
     def _model_chain(self, task: Task, route: Route | None, backend: Backend) -> str | None:
@@ -421,7 +422,7 @@ class AgentRunner:
         if router is None:
             rest = self._rest(task, None)
             if rest:
-                return TaskResult.deferred(task, _rest_deferral([r.to_dict() for r in rest]))
+                return TaskResult.deferred(task, _rest_deferral([SkippedHop(**r.to_dict()) for r in rest]))
             result = self._run_once(task, None)
             o = result.launch_result
             if o is not None:
@@ -436,9 +437,9 @@ class AgentRunner:
         hops = 0
         prior_reason = ""  # what an earlier hop already said about this task
         pinned = None  # this task's own walk after a failure other than a 429
-        trail: list[dict] = []
+        trail: list[Hop] = []
         spent: LaunchResult | None = None  # the hops so far: their tokens and cost
-        skipped: list[dict] = []  # the hops passed over without a launch (a resting credential)
+        skipped: list[SkippedHop] = []  # the hops passed over without a launch (a resting credential)
         last: TaskResult | None = None
         while True:
             route = pinned if pinned is not None else router.pick()
@@ -479,7 +480,7 @@ class AgentRunner:
             result.hops = tuple(trail)
             # The attempt's time is every hop's, not only the last one's: a model
             # switch after a rate limit still spent the time before it.
-            result.wall_s = round(sum(h["wall_s"] for h in trail), 1)
+            result.wall_s = round(sum(h.wall_s for h in trail), 1)
             own_reason = result.reason
             if prior_reason:
                 result.reason = prior_reason

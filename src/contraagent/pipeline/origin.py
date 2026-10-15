@@ -26,7 +26,7 @@ from collections.abc import Callable
 from pathlib import Path
 from types import FrameType, GeneratorType
 
-from contraagent.dispatch.task import Frame, Loop
+from contraagent.dispatch.records import Frame, Loop
 
 _PACKAGE = Path(__file__).resolve().parents[1]
 _PIPELINE = _PACKAGE / "pipeline"

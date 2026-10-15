@@ -1012,34 +1012,38 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Created"
+            "title": "Created",
+            "default": []
           },
           "modified": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Modified"
+            "title": "Modified",
+            "default": []
           },
           "deleted": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Deleted"
+            "title": "Deleted",
+            "default": []
           },
           "removed": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Removed"
+            "title": "Removed",
+            "default": []
           }
         },
         "additionalProperties": true,
         "type": "object",
         "title": "Changes",
-        "description": "The files one attempt changed under its task's `changes` patterns, relative to\nthe working directory (`dispatch.Changes`)."
+        "description": "The files one attempt changed under its task's `changes` patterns, as paths relative\nto the working directory: those it `created`, `modified` and `deleted`."
       },
       "ChartSeries": {
         "properties": {
@@ -1579,7 +1583,8 @@
             },
             "type": "array",
             "title": "Rests",
-            "description": "`rest`: each hop passed over and why its credential rests"
+            "description": "`rest`: each hop passed over and why its credential rests",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -1588,7 +1593,7 @@
           "cause"
         ],
         "title": "DeferralCause",
-        "description": "Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name."
+        "description": "Why a task was deferred, as data (`Deferral.cause`). `cause`: `deadline`,\n`grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),\n`dependency_not_queued`, `rest` (the credential of every hop it could take rests:\n`rests`), or a runner's own name. A field a cause does not have is left unset, and\n`deferred.jsonl` records only the fields set."
       },
       "DefinitionFile": {
         "properties": {
@@ -1647,6 +1652,47 @@
           "executor"
         ],
         "title": "DownstreamTask"
+      },
+      "DroppedRoute": {
+        "properties": {
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "empty: the coding agent's default model"
+          },
+          "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "not in its coding agent's model list, or how its probe ended (`rate limited`, ...)"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kinds",
+            "description": "the kinds whose chain held it"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "agent",
+          "model",
+          "credential",
+          "reason",
+          "kinds"
+        ],
+        "title": "DroppedRoute",
+        "description": "A route the preflight dropped: not in its agent's model list, or its probe did not\ncomplete. `kinds`: the kinds whose chain held it."
       },
       "ExportInfo": {
         "properties": {
@@ -1765,7 +1811,7 @@
           },
           "flow": {
             "items": {
-              "$ref": "#/components/schemas/FlowFrame"
+              "$ref": "#/components/schemas/Frame"
             },
             "type": "array",
             "title": "Flow",
@@ -1796,7 +1842,7 @@
           "time_box": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TimeBoxInfo"
+                "$ref": "#/components/schemas/TimeBoxRecord"
               },
               {
                 "type": "null"
@@ -1816,7 +1862,7 @@
         "title": "FlowCallNode",
         "description": "One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself."
       },
-      "FlowFrame": {
+      "Frame": {
         "properties": {
           "function": {
             "type": "string",
@@ -1834,11 +1880,12 @@
           },
           "loops": {
             "items": {
-              "$ref": "#/components/schemas/FlowLoop"
+              "$ref": "#/components/schemas/Loop"
             },
             "type": "array",
             "title": "Loops",
-            "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame"
+            "description": "the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -1848,37 +1895,8 @@
           "file",
           "line"
         ],
-        "title": "FlowFrame",
-        "description": "One frame of a flow path (outermost first): a call site in flow code."
-      },
-      "FlowLoop": {
-        "properties": {
-          "line": {
-            "type": "integer",
-            "title": "Line",
-            "description": "the loop's first line, which names it"
-          },
-          "pass": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pass",
-            "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "line",
-          "pass"
-        ],
-        "title": "FlowLoop",
-        "description": "A loop of a generator around a call site, and the pass the call site was in."
+        "title": "Frame",
+        "description": "One frame of a flow path (outermost first): a call site in flow code where a task\nwas created. A comprehension is not a loop."
       },
       "GridCell": {
         "properties": {
@@ -2183,7 +2201,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "Hop",
-        "description": "One launch in a failover walk: where it ran and how it ended."
+        "description": "One launch of an attempt on one route of its failover chain: where it ran and how\nit ended."
       },
       "HostSummary": {
         "properties": {
@@ -2665,6 +2683,36 @@
         "title": "JournalRow",
         "description": "One finished attempt. `key` is the stable `Task.key`, one task; `kind`\nand `unit` are its kind and unit; `executor` says who ran it; `stop` is\n`Stop.value` (or a Python task's completed/error)."
       },
+      "KeptKind": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "agent",
+          "model",
+          "reason"
+        ],
+        "title": "KeptKind",
+        "description": "A kind with no route left, run as configured all the same (`substitute`), and why."
+      },
       "LaunchEvent": {
         "properties": {
           "type": {
@@ -2785,6 +2833,35 @@
           "series"
         ],
         "title": "LinesBody"
+      },
+      "Loop": {
+        "properties": {
+          "line": {
+            "type": "integer",
+            "title": "Line",
+            "description": "the loop's first line, which names it"
+          },
+          "pass": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pass",
+            "description": "one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "pass"
+        ],
+        "title": "Loop",
+        "description": "A `for` or `while` loop of a generator around a call site, and the pass the call\nsite was in."
       },
       "MessageEvent": {
         "properties": {
@@ -3403,7 +3480,7 @@
           "preflight": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Preflight"
+                "$ref": "#/components/schemas/PreflightRecord"
               },
               {
                 "type": "null"
@@ -3502,6 +3579,12 @@
       },
       "PlanNode": {
         "properties": {
+          "ts": {
+            "type": "string",
+            "title": "Ts",
+            "description": "when it was queued (absent for a node rebuilt from the journal)",
+            "default": ""
+          },
           "key": {
             "type": "string",
             "title": "Key"
@@ -3548,7 +3631,7 @@
           },
           "flow": {
             "items": {
-              "$ref": "#/components/schemas/FlowFrame"
+              "$ref": "#/components/schemas/Frame"
             },
             "type": "array",
             "title": "Flow",
@@ -3573,12 +3656,6 @@
             ],
             "title": "Flow Call",
             "description": "the id of the flow call that created it; null for a task with no origin"
-          },
-          "ts": {
-            "type": "string",
-            "title": "Ts",
-            "description": "when it was queued (absent for a node rebuilt from the journal)",
-            "default": ""
           },
           "base_kind": {
             "type": "string",
@@ -3658,7 +3735,7 @@
         "title": "PlanNode",
         "description": "A queued task (a `plan.jsonl` row, passed through) with its state and\nlayout. The journal fields (`wall_s` .. `attempts`) appear once it finished.\nThe origin fields (`flow` .. `flow_call`) say where the flow created it."
       },
-      "Preflight": {
+      "PreflightRecord": {
         "properties": {
           "policy": {
             "type": "string",
@@ -3672,21 +3749,21 @@
           },
           "dropped": {
             "items": {
-              "$ref": "#/components/schemas/PreflightDropped"
+              "$ref": "#/components/schemas/DroppedRoute"
             },
             "type": "array",
             "title": "Dropped"
           },
           "substituted": {
             "items": {
-              "$ref": "#/components/schemas/PreflightSubstitution"
+              "$ref": "#/components/schemas/Substitution"
             },
             "type": "array",
             "title": "Substituted"
           },
           "kept": {
             "items": {
-              "$ref": "#/components/schemas/PreflightKept"
+              "$ref": "#/components/schemas/KeptKind"
             },
             "type": "array",
             "title": "Kept"
@@ -3705,114 +3782,8 @@
         "required": [
           "policy"
         ],
-        "title": "Preflight",
-        "description": "What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`)."
-      },
-      "PreflightDropped": {
-        "properties": {
-          "agent": {
-            "type": "string",
-            "title": "Agent"
-          },
-          "model": {
-            "type": "string",
-            "title": "Model",
-            "description": "empty: the coding agent's default model"
-          },
-          "credential": {
-            "type": "string",
-            "title": "Credential"
-          },
-          "reason": {
-            "type": "string",
-            "title": "Reason",
-            "description": "not in its coding agent's model list, or how its probe ended (`rate limited`, ...)"
-          },
-          "kinds": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Kinds",
-            "description": "the kinds whose chain held it"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "agent",
-          "model",
-          "credential",
-          "reason",
-          "kinds"
-        ],
-        "title": "PreflightDropped",
-        "description": "A route the preflight dropped (`DroppedRoute`)."
-      },
-      "PreflightKept": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "agent": {
-            "type": "string",
-            "title": "Agent"
-          },
-          "model": {
-            "type": "string",
-            "title": "Model"
-          },
-          "reason": {
-            "type": "string",
-            "title": "Reason"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "kind",
-          "agent",
-          "model",
-          "reason"
-        ],
-        "title": "PreflightKept",
-        "description": "A kind with no route left, run as configured all the same (`KeptKind`)."
-      },
-      "PreflightSubstitution": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "from_agent": {
-            "type": "string",
-            "title": "From Agent"
-          },
-          "from_model": {
-            "type": "string",
-            "title": "From Model"
-          },
-          "to_agent": {
-            "type": "string",
-            "title": "To Agent"
-          },
-          "to_model": {
-            "type": "string",
-            "title": "To Model"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "kind",
-          "from_agent",
-          "from_model",
-          "to_agent",
-          "to_model"
-        ],
-        "title": "PreflightSubstitution",
-        "description": "A kind with no route left, run on the first route that answered (`Substitution`)."
+        "title": "PreflightRecord",
+        "description": "What a preflight did, as `run.json` records it (`preflight`): its policy, the routes\nit dropped, and, for each kind left with no route, its substitution, the kind kept\nas configured, or the kind that stopped the run (`stopped`)."
       },
       "ProcNode": {
         "properties": {
@@ -4060,7 +4031,7 @@
           "credential"
         ],
         "title": "QuotaCap",
-        "description": "One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`)."
+        "description": "One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`):\nthe utilization (%) of a window past which it rests; None for a window with no cap."
       },
       "QuotaReading": {
         "properties": {
@@ -4543,7 +4514,8 @@
           "name",
           "at"
         ],
-        "title": "StageEntry"
+        "title": "StageEntry",
+        "description": "One transition of the cursor (`HistoryEntry`), its time as `datetime.isoformat` gives it."
       },
       "StatusGridBody": {
         "properties": {
@@ -4692,6 +4664,41 @@
         ],
         "title": "StreamPage",
         "description": "A page of one transcript. `total` is the file's line count: pass it back as\n`since` for the next page. The first page (`since=0`) is the tail; `behind`\nlines precede it, fetched by asking again with a smaller `since`."
+      },
+      "Substitution": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "from_agent": {
+            "type": "string",
+            "title": "From Agent"
+          },
+          "from_model": {
+            "type": "string",
+            "title": "From Model"
+          },
+          "to_agent": {
+            "type": "string",
+            "title": "To Agent"
+          },
+          "to_model": {
+            "type": "string",
+            "title": "To Model"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "from_agent",
+          "from_model",
+          "to_agent",
+          "to_model"
+        ],
+        "title": "Substitution",
+        "description": "A kind with no route left, run on the first route that answered (`substitute`)."
       },
       "TableBody": {
         "properties": {
@@ -5447,7 +5454,7 @@
         ],
         "title": "TilesBody"
       },
-      "TimeBoxInfo": {
+      "TimeBoxRecord": {
         "properties": {
           "started_at": {
             "type": "string",
@@ -5475,7 +5482,8 @@
             },
             "type": "array",
             "title": "Finishing Kinds",
-            "description": "the kinds that still launch past the deadline"
+            "description": "the kinds that still launch past the deadline",
+            "default": []
           }
         },
         "additionalProperties": false,
@@ -5486,8 +5494,8 @@
           "grace_s",
           "slack_s"
         ],
-        "title": "TimeBoxInfo",
-        "description": "A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it."
+        "title": "TimeBoxRecord",
+        "description": "A flow call's own deadline (`time_box`, `TimeBox`), as `flow_calls.jsonl` records it."
       },
       "TokenUsage": {
         "properties": {
@@ -6076,47 +6084,55 @@
       },
       "TrendRest": {
         "properties": {
-          "run": {
-            "type": "string",
-            "title": "Run"
-          },
-          "ts": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ts"
-          },
-          "event": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event"
-          },
           "credential": {
+            "type": "string",
+            "title": "Credential"
+          },
+          "window": {
+            "type": "string",
+            "enum": [
+              "",
+              "five_hour",
+              "seven_day"
+            ],
+            "title": "Window",
+            "default": ""
+          },
+          "pct": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Credential"
+            "title": "Pct"
+          },
+          "cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule",
+            "default": ""
+          },
+          "until": {
+            "type": "string",
+            "title": "Until",
+            "default": ""
           },
           "account": {
             "type": "string",
             "title": "Account",
-            "description": "the account whose reading it is (`QuotaRest.account`); empty when not known",
             "default": ""
           },
           "reading": {
@@ -6129,17 +6145,35 @@
                 "type": "null"
               }
             ],
-            "title": "Reading",
-            "description": "for the quota rule's rest, the reading it judged (`QuotaRest.reading`)"
+            "title": "Reading"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "start",
+              "end"
+            ],
+            "title": "Event"
+          },
+          "run": {
+            "type": "string",
+            "title": "Run"
           }
         },
         "additionalProperties": true,
         "type": "object",
         "required": [
+          "credential",
+          "ts",
+          "event",
           "run"
         ],
         "title": "TrendRest",
-        "description": "A start or end of a credential's rest (`rests.jsonl`), with its run."
+        "description": "A start or end of a credential's rest (a `rests.jsonl` row), with its run."
       },
       "TrendRun": {
         "properties": {

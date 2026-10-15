@@ -90,7 +90,7 @@ say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
 A runner that finds the same once the task has started returns a `deferred`
 result, finished as a deferral too. A deferral is reported with its reason and its
-cause as data (`on_event("deferred", task, reason=, cause=)`, `Deferral`).
+cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`).
 """
 
 from __future__ import annotations
@@ -103,10 +103,11 @@ from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import Protocol
 
+from contraagent.dispatch.records import DeferralCause
 from contraagent.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
 
 #: The queue's own deferral with no deadline in it (`Deferral.cause` names it).
-_NOT_QUEUED = Deferral("no launchable task (dependency never queued)", {"cause": "dependency_not_queued"})
+_NOT_QUEUED = Deferral("no launchable task (dependency never queued)", DeferralCause(cause="dependency_not_queued"))
 
 #: Used when a task carries no estimate and the `estimate` callback has none: about one
 #: coding-agent session, the usual task. Only an ordering default; a task with no known
@@ -564,7 +565,7 @@ class WorkQueue:
         except Exception as exc:  # one task must not stop the driver
             res = TaskResult.launch_failed(task, f"exception: {exc!r}")
         if res.stop == STOP_DEFERRED:  # started, then found no way to launch: never launched
-            self.on_event("deferred", task, reason=res.reason, cause=res.cause or {})
+            self.on_event("deferred", task, reason=res.reason, cause=res.cause)
             self._ready_since.pop(task.id, None)
             self.deferred.append(task)
             self._settle(res)
@@ -655,7 +656,7 @@ class WorkQueue:
 
     def _defer(self, task: Task, deferral: Deferral) -> None:
         """Not launched: reported as `deferred`, then finished as such."""
-        self.on_event("deferred", task, reason=deferral.reason, cause=dict(deferral.cause))
+        self.on_event("deferred", task, reason=deferral.reason, cause=deferral.cause)
         self._ready_since.pop(task.id, None)
         self.deferred.append(task)
         self._settle(TaskResult.deferred(task, deferral))

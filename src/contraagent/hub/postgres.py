@@ -35,8 +35,7 @@ from typing import LiteralString
 import psycopg
 from psycopg.types.json import Jsonb
 
-from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch
-from contraagent.hub.store import RunEntry
+from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
 
 #: The channel a `PostgresHubStore` notifies after each batch that changed a run, and each heartbeat.
 NOTIFY_CHANNEL = "contraagent_hub"
@@ -218,15 +217,15 @@ class PostgresHubStore:
 
     # --- reads -------------------------------------------------------------------------
 
-    def runs(self) -> list[RunEntry]:
+    def runs(self) -> list[RunRef]:
         with self._conn() as conn:
-            rows = conn.execute("SELECT name, run_uid, host_id, run_id FROM runs ORDER BY name").fetchall()
-        return [RunEntry(*r) for r in rows]
+            rows = conn.execute("SELECT run_uid, host_id, run_id FROM runs ORDER BY name").fetchall()
+        return [RunRef(run_uid=r[0], host_id=r[1], run_id=r[2]) for r in rows]
 
-    def entry(self, name: str) -> RunEntry | None:
+    def entry(self, name: str) -> RunRef | None:
         with self._conn() as conn:
-            row = conn.execute("SELECT name, run_uid, host_id, run_id FROM runs WHERE name = %s", (name,)).fetchone()
-        return RunEntry(*row) if row else None
+            row = conn.execute("SELECT run_uid, host_id, run_id FROM runs WHERE name = %s", (name,)).fetchone()
+        return RunRef(run_uid=row[0], host_id=row[1], run_id=row[2]) if row else None
 
     def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
         with self._conn() as conn:

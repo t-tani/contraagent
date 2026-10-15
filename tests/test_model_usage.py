@@ -55,8 +55,8 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
     result = runner.run(Task("k", key="t"))
     assert result.ok
     first, second = result.hops
-    assert (first["agent"], first["model"], second["agent"], second["model"]) == ("claude", "m1", "omp", "m2")
-    assert first["usage"] == {
+    assert (first.agent, first.model, second.agent, second.model) == ("claude", "m1", "omp", "m2")
+    assert first.usage is not None and first.usage.model_dump(exclude_unset=True) == {
         "input": 100,
         "output": 10,
         "cache_read": 1000,
@@ -65,7 +65,7 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
         "peak_context": 1150,
         "context_window": None,
     }
-    assert second["usage"] == {
+    assert second.usage is not None and second.usage.model_dump(exclude_unset=True) == {
         "input": 1000,
         "output": 100,
         "cache_read": 10000,
@@ -74,7 +74,7 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
         "peak_context": 11500,
         "context_window": None,
     }
-    assert (first["cost_usd"], second["cost_usd"]) == (0.01, 0.04)
+    assert (first.cost_usd, second.cost_usd) == (0.01, 0.04)
 
     journal = Journal(tmp_path / "journal.jsonl", tmp_path / "launches.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
     row = journal.append(result).model_dump()

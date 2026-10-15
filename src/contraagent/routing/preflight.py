@@ -31,8 +31,10 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal, get_args
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from contraagent.backends.base import Backend
 from contraagent.backends.credentials import AMBIENT, CredentialBase
@@ -210,24 +212,26 @@ def _own_chain(backend: Backend, model: str) -> str:
     return chains.describe(model)
 
 
-@dataclass(frozen=True)
-class DroppedRoute:
+class DroppedRoute(BaseModel):
     """A route the preflight dropped: not in its agent's model list, or its probe did not
     complete. `kinds`: the kinds whose chain held it."""
 
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     agent: str
-    model: str
+    model: str = Field(description="empty: the coding agent's default model")
     credential: str
-    reason: str
-    kinds: tuple[str, ...]
+    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
+    kinds: tuple[str, ...] = Field(description="the kinds whose chain held it")
 
     def __str__(self) -> str:
         return f"{Route(self.agent, self.model, self.credential)} ({self.reason})"
 
 
-@dataclass(frozen=True)
-class Substitution:
+class Substitution(BaseModel):
     """A kind with no route left, run on the first route that answered (`substitute`)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: str
     from_agent: str
@@ -236,9 +240,10 @@ class Substitution:
     to_model: str
 
 
-@dataclass(frozen=True)
-class KeptKind:
+class KeptKind(BaseModel):
     """A kind with no route left, run as configured all the same (`substitute`), and why."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: str
     agent: str
@@ -246,21 +251,18 @@ class KeptKind:
     reason: str
 
 
-@dataclass
-class PreflightRecord:
+class PreflightRecord(BaseModel):
     """What a preflight did, as `run.json` records it (`preflight`): its policy, the routes
     it dropped, and, for each kind left with no route, its substitution, the kind kept
     as configured, or the kind that stopped the run (`stopped`)."""
 
-    policy: PreflightPolicy
-    dropped: list[DroppedRoute] = field(default_factory=list)
-    substituted: list[Substitution] = field(default_factory=list)
-    kept: list[KeptKind] = field(default_factory=list)
-    stopped: list[str] = field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
 
-    def as_dict(self) -> dict:
-        """The record as JSON-ready data."""
-        return dataclasses.asdict(self)
+    policy: PreflightPolicy = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
+    dropped: list[DroppedRoute] = Field(default_factory=list)
+    substituted: list[Substitution] = Field(default_factory=list)
+    kept: list[KeptKind] = Field(default_factory=list)
+    stopped: list[str] = Field(default_factory=list, description="the kinds with no route left that stopped the run (policy `stop`)")
 
 
 class PreflightStopped(ContraagentError):
@@ -399,7 +401,9 @@ def apply_preflight(
     for chain, kinds in rebuilt.items():
         _logger.info(f"[preflight] {chain}   ({len(kinds)} kind(s): {', '.join(sorted(kinds))})")
     record.dropped = [
-        DroppedRoute(v.route.agent, v.route.model, v.route.credential, v.reason, tuple(held.get(identity, ())))
+        DroppedRoute(
+            agent=v.route.agent, model=v.route.model, credential=v.route.credential, reason=v.reason, kinds=tuple(held.get(identity, ()))
+        )
         for identity, v in verdicts.items()
         if not v.ok
     ]
@@ -416,15 +420,17 @@ def apply_preflight(
         rc = configs[kind]
         name = kind_name(kind)
         if fallback is None:
-            record.kept.append(KeptKind(name, rc.agent, rc.model, "no route of the run answered"))
+            record.kept.append(KeptKind(kind=name, agent=rc.agent, model=rc.model, reason="no route of the run answered"))
             continue
         if fallback.credential and fallback.credential != rc.credential:
             # Moving a kind onto another identity is the operator's call, never the preflight's.
             why = f"the first route that answered ({fallback}) runs as {fallback.credential}, not {rc.credential}"
             _logger.warning(f"[preflight] {name}: {why}; left as configured")
-            record.kept.append(KeptKind(name, rc.agent, rc.model, why))
+            record.kept.append(KeptKind(kind=name, agent=rc.agent, model=rc.model, reason=why))
             continue
         _logger.warning(f"[preflight] {name}: no route left; running on {fallback} instead of {rc.agent}/{rc.model}")
-        record.substituted.append(Substitution(name, rc.agent, rc.model, fallback.agent, fallback.model))
+        record.substituted.append(
+            Substitution(kind=name, from_agent=rc.agent, from_model=rc.model, to_agent=fallback.agent, to_model=fallback.model)
+        )
         configs[kind] = dataclasses.replace(rc, agent=fallback.agent, model=fallback.model)
     return out, record

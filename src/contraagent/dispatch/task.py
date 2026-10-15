@@ -1,6 +1,6 @@
 """The generic task-dispatch envelope: identity, dependency shape, and
-result shape. Nothing here imports anything outside the standard library:
-no LLM types, no domain package. A domain's own record of a run travels in
+result shape. Nothing here imports anything outside the standard library and
+pydantic (the record types of `dispatch/records.py`): no LLM types, no domain package. A domain's own record of a run travels in
 `TaskResult.launch_result` and `payload`, opaque to this module.
 
 `WorkQueue` (`dispatch/queue.py`), `FlowDriver` (`dispatch/flow.py`),
@@ -29,7 +29,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from datetime import UTC, datetime
+from typing import Any
+
+from contraagent.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop, TimeBoxRecord
 
 #: The key prefix of a Python task (`Task.fn`): `python:<kind>` or `python:<kind>-<unit>`.
 PYTHON_KEY_PREFIX = "python:"
@@ -43,31 +46,6 @@ def kind_name(kind) -> str:
     compare equal to their values.
     """
     return str(getattr(kind, "value", kind))
-
-
-@dataclass(frozen=True)
-class Loop:
-    """A `for` or `while` loop of a generator around a call site. `line`: its first
-    line, which names it. `pass_`: the pass the call site was in, one iteration
-    numbered from 1 since the loop was last entered in that frame activation (on
-    disk `pass`); None when it was not counted."""
-
-    line: int
-    pass_: int | None = 1
-
-
-@dataclass(frozen=True)
-class Frame:
-    """One frame of flow code where a task was created: `function` is
-    `module.qualname`, `file` and `line` the call site. `loops` are the loops
-    whose pass the call site was in, outermost first, for a generator frame;
-    empty for any other frame, outside a loop, or when they cannot be found. A
-    comprehension is not a loop."""
-
-    function: str
-    file: str
-    line: int
-    loops: tuple[Loop, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -103,9 +81,23 @@ class TimeBox:
     finishing_kinds: frozenset[str] = frozenset()
     flow_call: str | None = None
 
-    def cause(self, name: str, **fields: Any) -> dict:
+    def cause(self, name: str, **fields: Any) -> DeferralCause:
         """A deferral's cause (`Deferral.cause`) under this box: `flow_call` names it."""
-        return {"cause": name, **fields, **({"flow_call": self.flow_call} if self.flow_call is not None else {})}
+        box = {"flow_call": self.flow_call} if self.flow_call is not None else {}
+        return DeferralCause.model_validate({"cause": name, **fields, **box})
+
+    def record(self, started_at: float | None) -> TimeBoxRecord:
+        """The box as `flow_calls.jsonl` records it; `started_at`: when its flow call
+        started (`time.time()`), now when None."""
+        return TimeBoxRecord(
+            started_at=datetime.fromtimestamp(started_at, UTC).isoformat(timespec="seconds")
+            if started_at is not None
+            else datetime.now(UTC).isoformat(timespec="seconds"),
+            deadline_s=self.deadline_s,
+            grace_s=self.grace_s,
+            slack_s=self.slack_s,
+            finishing_kinds=tuple(sorted(self.finishing_kinds)),
+        )
 
 
 @dataclass
@@ -188,7 +180,7 @@ class Task:
         return "" if self.unit == self.key else self.unit
 
     @property
-    def executor(self) -> Literal["agent", "python"]:
+    def executor(self) -> Executor:
         """Who executes it: "python" for a Python task (`fn`), "agent" otherwise."""
         return "python" if self.fn is not None else "agent"
 
@@ -228,26 +220,14 @@ class Partial[Out]:
 @dataclass(frozen=True)
 class Deferral:
     """Why a task is not launched: `reason` in one line (logs, the CLI), and `cause`, the
-    same as data for a reader that words it itself (the monitor): `{"cause": <name>, ...}`.
+    same as data for a reader that words it itself (the monitor): a `DeferralCause`.
     The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
     `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; the first three name
     the time box's `flow_call` when the deadline is one's (`TimeBox`), not the run's. A
     runner adds its own (`rest`: `routing.quota`)."""
 
     reason: str
-    cause: dict = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class Changes:
-    """The files one attempt changed under its task's `changes` patterns, as paths
-    relative to the working directory: those it `created`, `modified` and `deleted`.
-    `removed`: the files it created that were removed because the attempt failed."""
-
-    created: tuple[str, ...] = ()
-    modified: tuple[str, ...] = ()
-    deleted: tuple[str, ...] = ()
-    removed: tuple[str, ...] = ()
+    cause: DeferralCause
 
 
 @dataclass
@@ -272,10 +252,9 @@ class TaskResult:
     # configured model whenever the router failed over, so a postmortem can
     # tell "the model did this" from "the model we asked for did this".
     route: str = ""
-    # Every launch in the walk that produced this result, in order: one
-    # {"route", "model", "stop", "wall_s"} per hop, so a failover is visible
-    # after the fact and not only in `route`, which names the last hop.
-    hops: tuple[dict, ...] = ()
+    # Every launch in the walk that produced this result, in order, one `Hop` each, so a
+    # failover is visible after the fact and not only in `route`, which names the last hop.
+    hops: tuple[Hop, ...] = ()
     # An output check's verdict when the work was checked outside a backend
     # (a Python task): how many rounds it took, and the errors of each round
     # that failed its checks (the last: what stayed wrong).
@@ -283,11 +262,11 @@ class TaskResult:
     round_errors: tuple[tuple[str, ...], ...] = ()
     # The files the attempt changed under its task's `changes` patterns; None when it declares none.
     changes: Changes | None = None
-    # The hops the walk passed over without a launch, in order, each a plain dict a runner
-    # fills (`{"route", "model", ...}` and why its credential rests). Not in `hops`: no launch.
-    skipped_hops: tuple[dict, ...] = ()
+    # The hops the walk passed over without a launch, in order, and why each one's
+    # credential rests. Not in `hops`: no launch.
+    skipped_hops: tuple[SkippedHop, ...] = ()
     # A `deferred` result's cause as data (`Deferral.cause`); None for any other result.
-    cause: dict | None = None
+    cause: DeferralCause | None = None
     # False when another attempt cannot end otherwise (a replay with no recording for the
     # task): a retrying runner stops at this one.
     retryable: bool = True
@@ -301,7 +280,7 @@ class TaskResult:
 
     @classmethod
     def deferred(cls, task: Task, deferral: Deferral) -> TaskResult:
-        return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=deferral.reason, cause=dict(deferral.cause))
+        return cls(task=task, ok=False, stop=STOP_DEFERRED, reason=deferral.reason, cause=deferral.cause)
 
     @classmethod
     def duplicate_key(cls, task: Task) -> TaskResult:

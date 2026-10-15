@@ -160,7 +160,7 @@ def test_rate_limit_fails_over_to_next_route(tmp_path):
     runner.configs["write"] = runner.configs["write"].with_(model="primary")
     res = RetryingRunner(runner).run(Task("write", key="w", unit="u"))
     assert res.ok and res.route.endswith("stub/backup")
-    assert [h["stop"] for h in res.hops] == ["rate_limited", "completed"]
+    assert [h.stop for h in res.hops] == ["rate_limited", "completed"]
 
 
 def test_retry_then_exhausted(tmp_path):

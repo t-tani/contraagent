@@ -32,16 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
-from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch
-
-
-class RunEntry(NamedTuple):
-    """One run the hub holds."""
-
-    name: str
-    run_uid: str
-    host_id: str
-    run_id: str
+from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
 
 
 class HubStore(Protocol):
@@ -55,11 +46,11 @@ class HubStore(Protocol):
         """Keep a host's latest heartbeat, and when it arrived."""
         ...
 
-    def runs(self) -> list[RunEntry]:
+    def runs(self) -> list[RunRef]:
         """Every run held, by name."""
         ...
 
-    def entry(self, name: str) -> RunEntry | None:
+    def entry(self, name: str) -> RunRef | None:
         """The run held under `name`, or None."""
         ...
 
@@ -156,7 +147,7 @@ def _check(sha256: str, data: bytes) -> None:
 
 @dataclass
 class _Run:
-    entry: RunEntry
+    entry: RunRef
     logs: dict[str, list[str]] = field(default_factory=dict)
     documents: dict[str, str] = field(default_factory=dict)
     files: dict[str, FileRef] = field(default_factory=dict)
@@ -182,7 +173,7 @@ class MemoryHubStore:
             run = self._runs.get(ref.name)
             changed = run is None or run.entry.run_uid != ref.run_uid
             if run is None or changed:
-                run = self._runs[ref.name] = _Run(RunEntry(ref.name, ref.run_uid, ref.host_id, ref.run_id))
+                run = self._runs[ref.name] = _Run(ref.model_copy())
             held: dict[str, int] = {}
             for chunk in batch.logs:
                 changed |= chunk.log not in run.logs
@@ -210,11 +201,11 @@ class MemoryHubStore:
         with self._lock:
             self._heartbeats[heartbeat.host_id] = (heartbeat, received_at)
 
-    def runs(self) -> list[RunEntry]:
+    def runs(self) -> list[RunRef]:
         with self._lock:
             return [self._runs[n].entry for n in sorted(self._runs)]
 
-    def entry(self, name: str) -> RunEntry | None:
+    def entry(self, name: str) -> RunRef | None:
         with self._lock:
             run = self._runs.get(name)
             return run.entry if run else None

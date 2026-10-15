@@ -36,7 +36,11 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from pydantic import ValidationError
+
 from contraagent import rundir
+from contraagent.dispatch.records import RestEvent
+from contraagent.execution.schemas import DeferredRow
 from contraagent.monitor import paths
 from contraagent.monitor.source import DirectorySource
 
@@ -56,6 +60,9 @@ MAX_DAYS = 366
 DEFAULT_DAYS = 14
 
 #: The logs a digest reads; their sizes, with the run's start and finish, are its signature.
+#: The fields of a `rests.jsonl` row a digest keeps.
+_REST_FIELDS = {"ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading"}
+
 DIGEST_LOGS = (rundir.JOURNAL, rundir.LAUNCHES, rundir.RESTS, rundir.DEFERRED)
 
 _TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
@@ -334,22 +341,20 @@ def digest(source, run: str) -> dict:
             if isinstance(d, dict) and d.get("tool"):
                 at = (slot, str(d["tool"]), key_kind.get(str(launch.get("label", "")), ""))
                 denied[at] = denied.get(at, 0) + 1
-    rests = [
-        {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading") if k in r}
-        for r in _parse(source.lines(run, rundir.RESTS)[0])
-    ]
+    rests = []
+    for r in _parse(source.lines(run, rundir.RESTS)[0]):
+        try:
+            rests.append(RestEvent.model_validate(r).model_dump(mode="json", include=_REST_FIELDS, exclude_unset=True))
+        except ValidationError:
+            continue
     deferred = []
     for d in _parse(source.lines(run, rundir.DEFERRED)[0]):
-        cause = d["cause"] if isinstance(d.get("cause"), dict) else {}
-        deferred.append(
-            {
-                "ts": d.get("ts", ""),
-                "key": d.get("key", ""),
-                "kind": d.get("kind", ""),
-                "cause": str(cause.get("cause") or ""),
-                "reason": str(d.get("reason") or "")[:240],
-            }
-        )
+        try:
+            row = DeferredRow.model_validate(d)
+        except ValidationError:
+            continue
+        cause = row.cause.cause if row.cause is not None else ""
+        deferred.append({"ts": row.ts, "key": row.key, "kind": row.kind, "cause": cause, "reason": row.reason[:240]})
     first = min(slots) if slots else 0
     return {
         "version": DIGEST_VERSION,

@@ -81,7 +81,7 @@ def test_rate_limit_walks_the_chain_and_the_breaker_stays_open(tmp_path):
     router = chain(("claude", "m1"), ("claude", "m2"), ("claude", "m3"))
     runner = build(tmp_path, {"claude": a}, {"k": router})
     res = runner.run(Task("k", key="t1"))
-    assert res.ok and [h["stop"] for h in res.hops] == ["rate_limited", "rate_limited", "completed"]
+    assert res.ok and [h.stop for h in res.hops] == ["rate_limited", "rate_limited", "completed"]
     assert res.route.startswith("hop 3/3") and "failing over" in res.reason
     a.seen.clear()
     assert runner.run(Task("k", key="t2")).ok
@@ -93,7 +93,7 @@ def test_an_attempt_counts_the_time_of_every_hop(tmp_path):
     """A model switch after a rate limit still spent the time before it."""
     a = Agent("claude", lambda m: Stop.RATE_LIMITED if m == "m1" else Stop.COMPLETED)
     res = build(tmp_path, {"claude": a}, {"k": chain(("claude", "m1"), ("claude", "m2"))}).run(Task("k", key="t1"))
-    assert [h["wall_s"] for h in res.hops] == [0.1, 0.1]
+    assert [h.wall_s for h in res.hops] == [0.1, 0.1]
     assert res.wall_s == 0.2
 
 
@@ -267,7 +267,7 @@ def test_an_attempt_counts_the_tokens_and_cost_of_every_hop(tmp_path):
 
     a = Spending("claude", lambda m: Stop.RATE_LIMITED if m == "m1" else Stop.COMPLETED)
     res = build(tmp_path, {"claude": a}, {"k": chain(("claude", "m1"), ("claude", "m2"))}).run(Task("k", key="t1"))
-    assert [h["cost_usd"] for h in res.hops] == [0.01, 0.01]
+    assert [h.cost_usd for h in res.hops] == [0.01, 0.01]
     row = Journal(tmp_path / "j", tmp_path / "l", run_id="r", run_group="r", unit_of=lambda t: t.unit).row(res)
     assert row.cost_usd == 0.02
     assert row.usage is not None and (row.usage.input, row.usage.cache_read, row.usage.output, row.usage.calls) == (200, 100, 40, 2)
@@ -284,7 +284,7 @@ def test_an_agent_or_model_override_runs_every_kind_without_hops(tmp_path, caplo
 
 def test_a_kind_without_a_chain_records_its_one_route(tmp_path):
     res = build(tmp_path, {"claude": Agent("claude", lambda m: Stop.COMPLETED)}, {}).run(Task("k", key="t1"))
-    assert res.route == "hop 1/1 claude/m1" and [h["route"] for h in res.hops] == ["hop 1/1 claude/m1"]
+    assert res.route == "hop 1/1 claude/m1" and [h.route for h in res.hops] == ["hop 1/1 claude/m1"]
 
 
 @pytest.mark.parametrize("stop", [Stop.ERROR, Stop.AUTH_FAILED, Stop.TIMEOUT, Stop.INVALID_OUTPUT, Stop.LAUNCH_FAILED])
@@ -294,14 +294,14 @@ def test_any_failure_moves_only_that_task_to_the_next_hop(tmp_path, stop):
     runner = build(tmp_path, {"claude": a}, {"k": router})
     res = runner.run(Task("k", key="t1"))
     assert res.ok and res.route.startswith("hop 2/2") and f"{stop.value} on hop 1/2" in res.reason
-    assert [h["stop"] for h in res.hops] == [stop.value, "completed"]
+    assert [h.stop for h in res.hops] == [stop.value, "completed"]
     assert router.active().model == "m1"  # the breaker moves on a 429 only
 
 
 def test_a_failure_on_the_last_hop_ends_the_task(tmp_path):
     a = Agent("claude", lambda m: Stop.ERROR)
     res = build(tmp_path, {"claude": a}, {"k": chain(("claude", "m1"), ("claude", "m2"))}).run(Task("k", key="t1"))
-    assert not res.ok and res.stop == "error" and [h["stop"] for h in res.hops] == ["error", "error"]
+    assert not res.ok and res.stop == "error" and [h.stop for h in res.hops] == ["error", "error"]
 
 
 def test_a_credential_mismatch_or_a_signal_does_not_fail_over(tmp_path):

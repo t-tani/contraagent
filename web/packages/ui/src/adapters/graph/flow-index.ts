@@ -2,7 +2,7 @@
 // flow call, and where it is shown at a depth of the flow path.
 // A plan node's origin (`flow`, `created_from`, `flow_call`) is optional on the
 // wire (absent for a task no flow created), so the readers here check it before use.
-import { type FlowCallNode, type FlowFrame, type FlowLoop, type Plan, type PlanNode } from '@contraagent/api';
+import { type FlowCallNode, type Frame, type Loop, type Plan, type PlanNode } from '@contraagent/api';
 import { LOOP_SEGMENT } from './types.js';
 
 /** A frame of a task's flow path as the graph reads it: its loops by first line, and their passes. */
@@ -44,9 +44,9 @@ function readFrames(n: PlanNode): TaskFrame[] {
   if (!Array.isArray(f)) return [];
   const out: TaskFrame[] = [];
   for (const x of f as unknown[]) {
-    const r = x as Partial<FlowFrame> | null;
+    const r = x as Partial<Frame> | null;
     if (!r || typeof r !== 'object' || !isStr(r.function)) break;
-    const read = (Array.isArray(r.loops) ? r.loops : []).filter((l): l is FlowLoop => !!l && typeof l.line === 'number');
+    const read = (Array.isArray(r.loops) ? r.loops : []).filter((l): l is Loop => !!l && typeof l.line === 'number');
     out.push({
       function: r.function,
       file: isStr(r.file) ? r.file : '',
