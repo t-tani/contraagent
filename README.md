@@ -125,16 +125,17 @@ adds what a pipeline of them needs.
   file, has a JSON Schema; the monitor's HTTP API has an OpenAPI document.
   [Compatibility](src/contraagent/docs/compatibility.md) says what is public.
 
-## Every agent session, recorded and followed live
+## An audit trail and live telemetry
 
-The monitor (`contraagent monitor`, read-only) follows every agent session as it
-runs, for all five coding agents, and keeps it after the run:
+Every agent session leaves a record in the run directory, and the monitor
+(`contraagent monitor`, read-only) shows it live, for all five coding agents, and
+after the run:
 
 - **Processes**: a live process tree of the agent sessions and Python tasks,
   read from `/proc`.
-- **Per-session events**, in time order: each tool call with its
-  arguments and result, web searches with their results, pages fetched, the
-  agent's messages and reasoning, API requests sent again.
+- **Per-session events**, in time order: each tool call with its arguments and
+  result, web searches with their results, pages fetched, the agent's messages
+  and reasoning, API requests sent again.
 - **Per-task facts**: the files changed under the task's declared patterns
   (created, modified, deleted), model switches and why, failed checks and the
   correction rounds that followed, deferrals with their causes, tokens, cost and
