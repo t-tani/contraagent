@@ -26,11 +26,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypeVar, overload
 
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
+from pydantic.errors import PydanticSchemaGenerationError
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.validators import Validator, validator_name
-from contraagent._internal.dispatch.python_task import checked_retries
+from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
 from contraagent._internal.dispatch.task import Partial
 from contraagent._internal.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent._internal.plugins import Plugin, PluginError
@@ -640,10 +641,15 @@ class PythonTask[Out]:
     retry_on: tuple[type[Exception], ...] = ()
     #: The output file's path relative to `<run>/out/`, a template (`python_task(output_name=)`).
     output_name: str = DEFAULT_OUTPUT_NAME
+    #: What checks and converts its arguments against the function's annotations.
+    _param_types: _ParamTypes = dataclasses.field(init=False, repr=False)
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
     output_format = "json"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_param_types", _ParamTypes(self.fn))  # once, at declaration
 
     @property
     def kind(self) -> str:
@@ -718,10 +724,109 @@ class PythonTask[Out]:
             pass  # a function without source (built-in, REPL): the facts above still say what it is
         return body
 
-    def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any:
+    def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """The function's arguments: `kwargs` (every `Pending` already its output) and the
+        unit for a `unit` parameter, each checked and converted against its parameter's
+        annotation (`_ParamTypes`). `InvalidInput` when one does not match."""
         if unit and "unit" not in kwargs and "unit" in inspect.signature(self.fn).parameters:
             kwargs = {**kwargs, "unit": unit}
-        return self.fn(**kwargs)
+        return self._param_types.convert(kwargs)
+
+    def invoke(self, unit: str, kwargs: dict[str, Any]) -> Any:
+        """Call the function with its `arguments`; `InvalidInput` before the call when one
+        does not match its annotation."""
+        return self.fn(**self.arguments(unit, kwargs))
+
+
+class _ParamTypes:
+    """A Python task's parameters as types: one pydantic `TypeAdapter` per annotated
+    parameter, built once, when the task is declared. `convert` validates each argument
+    in pydantic's lax mode and gives the converted value: a dict given to a model
+    parameter becomes the model, a list of dicts given to `list[Model]` a list of models,
+    `"3"` given to `int` 3. An unannotated parameter, or one annotated `Any`, takes its
+    argument as it is; so does every parameter of a function whose annotations do not
+    resolve. A class pydantic has no schema for is checked with `isinstance`. Annotations
+    that name a type defined after the function resolve at the first call instead."""
+
+    def __init__(self, fn: Callable[..., Any]) -> None:
+        self._fn = fn
+        self._adapters: dict[str, TypeAdapter[Any]] | None = None
+        try:
+            self._adapters = _param_adapters(fn)
+        except NameError:  # a type defined later in its module: resolved at the first call
+            pass
+
+    def adapters(self) -> dict[str, TypeAdapter[Any]]:
+        """The adapters by parameter name."""
+        if self._adapters is None:
+            try:
+                self._adapters = _param_adapters(self._fn)
+            except Exception:  # annotations that do not resolve take every argument as it is
+                self._adapters = {}
+        return self._adapters
+
+    def convert(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """`kwargs` with each annotated argument validated and converted; `InvalidInput`
+        naming each parameter whose argument does not match."""
+        adapters = self.adapters()
+        out: dict[str, Any] = {}
+        errors: list[str] = []
+        for name, value in kwargs.items():
+            adapter = adapters.get(name)
+            if adapter is None:
+                out[name] = value
+                continue
+            try:
+                out[name] = adapter.validate_python(value)
+            except ValidationError as exc:
+                errors += _param_errors(name, exc)
+        if errors:
+            shown = errors[:3] + ([f"{len(errors) - 3} more errors"] if len(errors) > 3 else [])
+            raise InvalidInput("; ".join(shown))
+        return out
+
+
+def _param_adapters(fn: Callable[..., Any]) -> dict[str, TypeAdapter[Any]]:
+    """A `TypeAdapter` per annotated named parameter of `fn` (not `Any`). `NameError` when an
+    annotation names a type not defined yet."""
+    hints = typing.get_type_hints(fn)
+    try:
+        params = inspect.signature(fn).parameters.values()
+    except (TypeError, ValueError):
+        return {}
+    named = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    adapters: dict[str, TypeAdapter[Any]] = {}
+    for p in params:
+        ann = hints.get(p.name, Any)
+        if p.kind not in named or ann is Any:
+            continue
+        adapter = _adapter(ann)
+        if adapter is not None:
+            adapters[p.name] = adapter
+    return adapters
+
+
+def _adapter(ann: Any) -> TypeAdapter[Any] | None:
+    """A `TypeAdapter` for `ann`; for a class pydantic has no schema for, an `isinstance`
+    check; None when it can build neither (the argument is taken as it is)."""
+    try:
+        return TypeAdapter(ann)
+    except PydanticSchemaGenerationError:
+        try:
+            return TypeAdapter(ann, config=ConfigDict(arbitrary_types_allowed=True))
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
+def _param_errors(name: str, exc: ValidationError) -> list[str]:
+    """Each error of a parameter's argument in one line: `parameter items[0].service: Field required`."""
+    lines = []
+    for err in exc.errors(include_url=False):
+        where = name + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in err["loc"])
+        lines.append(f"parameter {where}: {err['msg']}")
+    return lines
 
 
 @overload

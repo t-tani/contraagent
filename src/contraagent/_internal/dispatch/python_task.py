@@ -14,6 +14,12 @@ from dataclasses import dataclass
 from contraagent._internal.dispatch.task import PYTHON_KEY_PREFIX, Task
 
 
+class InvalidInput(Exception):
+    """Raised by a Python task's call before its function runs: an argument does not match
+    its parameter's annotation. The task ends `invalid_input`, its reason the message
+    (`invalid input: <message>`), and is not retried."""
+
+
 @dataclass(frozen=True)
 class PythonTaskPayload:
     """The payload of a Python task: the contracts it declares, and its retries.

@@ -385,7 +385,8 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
     cfg = config(tmp_path, '\n[defaults]\ncredential = "personal"\n')
     stub = StubAgent({"note": lambda launch: {"text": launch.unit}})
     report = Pipeline(cfg, runs_dir=tmp_path / "runs", backends=stub.backends(), cwd=tmp_path).run(flow, units=["a", "b"])
-    assert not report.ok and sorted(report.summary["deferred"]) == ["note-a", "note-b"]
+    assert report.ok and not report.failed and sorted(report.summary["deferred"]) == ["note-a", "note-b"]  # deferred: no failure
+    assert sorted(r.task.key for r in report.deferred) == ["note-a", "note-b"]
     assert stub.launches == []
     assert not (report.run_dir / "journal.jsonl").exists() or (report.run_dir / "journal.jsonl").read_text() == ""
     rows = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]

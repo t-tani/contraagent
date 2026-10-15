@@ -218,45 +218,45 @@ class Deferral:
 
 @dataclass(frozen=True)
 class TaskResult:
-    """A task's final result. `payload` is opaque domain data (e.g. a state
-    delta) a `ResultEnricher` attaches -- never read by this module."""
+    """A task's final result: how its last attempt ended.
+
+    `task`: the `Task` it is the result of (its `attempt` is the last attempt's).
+    `ok`: True when the task did its work (stop `completed`, `partial` or `skipped`).
+    `stop`: why it ended, one stop value (`completed`, `invalid_output`, `deferred`, ...).
+    `launch_result`: an agent task's `LaunchResult` (its last hop's); None for a Python task.
+    `wall_s`: the last attempt's time in seconds.
+    `reason`: why it ended that way, in one line; empty when nothing needs saying.
+    `notes`: what the runner reports beside the verdict, as data (`context_warned`); empty: none.
+    `route`: the route the last hop ran on; differs from the kind's first route after a failover.
+    `hops`: each launch of the attempt, in order, one `Hop` per route it launched on.
+    `rounds`: the rounds its output checks took (1: passed at once); 0 or None when none ran (refused, or no output contract).
+    `round_errors`: the errors of each round that failed its checks, in order; the last is what stayed wrong.
+    `changes`: the files the attempt changed under its `changes` patterns; None when it declares none.
+    `skipped_hops`: the hops passed over without a launch, in order, each with why its credential rests.
+    `cause`: a `deferred` result's cause as data (`Deferral.cause`); None for any other result.
+    `retryable`: False when another attempt cannot end otherwise (a replay with no recording).
+    `replayed`: True when the attempt was played from a recording, not launched or called.
+    `payload`: domain data a `ResultEnricher` attached; never read by this module.
+    """
 
     task: Task
     ok: bool
     stop: str
-    # The domain's own record of the run (for an agent task, its
-    # `LaunchResult`), carried opaquely; nothing in this module reads it.
     launch_result: Any = None
     wall_s: float = 0.0
-    # Why it ended the way it did, in one line (empty when nothing needs saying).
     reason: str = ""
-    # What the runner reports beside the verdict, as data: the queue sends it as one
-    # `on_event("note", task, **notes)` when the task finishes (`context_warned`: a launch's
-    # peak context passed its kind's `context_warn_pct`). Empty: no note.
+    # The queue sends it as one `on_event("note", task, **notes)` when the task finishes.
     notes: dict[str, Any] = field(default_factory=dict)
-    # (agent, model) the launch actually ran on. Differs from the Kind's
-    # configured model whenever the router failed over, so a postmortem can
-    # tell "the model did this" from "the model we asked for did this".
     route: str = ""
-    # Every launch in the walk that produced this result, in order, one `Hop` each, so a
-    # failover is visible after the fact and not only in `route`, which names the last hop.
     hops: tuple[Hop, ...] = ()
-    # An output check's verdict when the work was checked outside a backend
-    # (a Python task): how many rounds it took, and the errors of each round
-    # that failed its checks (the last: what stayed wrong).
     rounds: int | None = None
     round_errors: tuple[tuple[str, ...], ...] = ()
-    # The files the attempt changed under its task's `changes` patterns; None when it declares none.
     changes: Changes | None = None
-    # The hops the walk passed over without a launch, in order, and why each one's
-    # credential rests. Not in `hops`: no launch.
+    # Not in `hops`: no launch.
     skipped_hops: tuple[SkippedHop, ...] = ()
-    # A `deferred` result's cause as data (`Deferral.cause`); None for any other result.
     cause: DeferralCause | None = None
-    # False when another attempt cannot end otherwise (a replay with no recording for the
-    # task): a retrying runner stops at this one.
+    # A retrying runner stops at a result that is not retryable.
     retryable: bool = True
-    # True when the attempt was played from a recording (a replay), not launched or called.
     replayed: bool = False
     payload: Any = None
 

@@ -175,7 +175,8 @@ and a task skips the hop without launching it and takes the next hop of its
 failover chain (a gateway, an API key), the reason in its journal row
 (`personal rests: 5-hour usage 93%, max 90%; ran on hop 2/2 ...`) and the hop
 it passed over in `skipped_hops`. A task with no hop left is deferred at once:
-it spent nothing and did not fail, and `deferred.jsonl` says why, as does the
+it spent nothing and did not fail (`RunReport.deferred`, not `failed`), a task
+that reads its output is deferred with it, and `deferred.jsonl` says why, as does the
 monitor ("not run" and the cause). A task of `finishing_kinds` still launches
 on a resting credential for `grace_s` after the rest began, as it does past a
 deadline.

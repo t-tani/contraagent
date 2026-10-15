@@ -321,16 +321,19 @@ def _flow_command(args) -> int:
     except ContraagentError as exc:  # refused before anything ran: routing, a run id that holds a run, the preflight
         print(f"✗ {args.flow}\n  error: {exc}")
         return 1
-    done = len(result.results) - len(result.failed)
+    done = len(result.results) - len(result.failed) - len(result.deferred)
     s = result.summary
     spent = [f"{s.get('wall_s', 0):.1f}s"]
     spent += [f"${s['cost_usd']:.4f}"] if s.get("cost_usd") is not None else []
     spent += [f"{s['fixups']} fix-up{'s' if s['fixups'] != 1 else ''}"] if s.get("fixups") else []
     if stub is not None:
         _print_created(result)
-    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done in {', '.join(spent)}; run in {result.run_dir}")
+    later = f", {len(result.deferred)} deferred" if result.deferred else ""
+    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {', '.join(spent)}; run in {result.run_dir}")
     for failed in result.failed:
         print(f"  {failed.task.key}: {failed.stop} {failed.reason[:300]}")
+    for deferred in result.deferred:
+        print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
     for call in result.flow_errors:
         print(f"  flow call {call.id} ({call.function}): {type(call.error).__name__}: {str(call.error)[:300]}")
     return 0 if result.ok else 1

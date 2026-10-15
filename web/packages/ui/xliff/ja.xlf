@@ -3106,6 +3106,10 @@
   <target>一部のみ完了</target>
   <note from="lit-localize">The status of a task whose output is a placeholder: a service it needed was unavailable (partial)</note>
 </trans-unit>
+<trans-unit id="s20f936012bd51f12">
+  <source>An earlier task was not run</source>
+  <target>依存先タスクが実行されなかった</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

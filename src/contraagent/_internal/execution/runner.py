@@ -594,6 +594,8 @@ class AgentRunner:
             wall_s=launch_result.wall_s,
             stop=launch_result.stop.value,
             reason=reason,
+            rounds=launch_result.rounds,
+            round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
         )
 
 

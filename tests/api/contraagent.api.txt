@@ -131,6 +131,7 @@ class CredentialError(ContraagentError)
 
 class DeferralCause(BaseModel)
     cause: str
+    dependency: str | None = Field(default=None, description='`dependency_deferred`: the key of the deferred task whose output it reads')
     flow_call: str | None = Field(default=None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline")
     left_s: float | None = Field(default=None, description='`cannot_finish`: the time left before the deadline, in seconds')
     model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True)
@@ -328,6 +329,7 @@ class PythonTask[Out]
         priority: float = 0.0,
         **kwargs: Any,
     ) -> Pending[Out]
+    def arguments(self, unit: str, kwargs: dict[str, Any]) -> dict[str, Any]
     claims: tuple[str, ...] = ()
     def definition(self, cwd: Path | None = None) -> dict[str, Any]
     def digest(self) -> str
@@ -374,6 +376,7 @@ class RunReport
         value: Any = None,
         flow_errors: list[FlowCall] = list(),
     ) -> None
+    @property deferred: list[TaskResult]
     @property failed: list[TaskResult]
     flow_errors: list[FlowCall] = field(default_factory=list)
     @property ok: bool

@@ -58,6 +58,8 @@ export function deferredText(cause: DeferralCause | null | undefined, recorded =
       );
     case 'dependency_not_queued':
       return msg('An earlier task was never scheduled');
+    case 'dependency_deferred':
+      return msg('An earlier task was not run');
     case 'rest': {
       const rests = byIdentity(cause.rests ?? []);
       if (!rests.length) return recorded;
