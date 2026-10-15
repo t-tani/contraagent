@@ -119,6 +119,11 @@ class RunExists(ContraagentError):
     """The run id already holds a run, and the caller did not ask to resume it."""
 
 
+class RunFormatError(ContraagentError):
+    """The run directory is of a format this release does not read (`run.json` `format`):
+    a newer contraagent wrote it."""
+
+
 class Run:
     """One run of a pipeline: `runs/<run-id>/`, its journal, its lock, and its queues."""
 
@@ -174,10 +179,12 @@ class Run:
         self._writing: contextlib.AbstractContextManager | None = None
         if lock:
             self._acquire()
+        self._check_format()
         write_document(
             self.dir / layout.RUN_INFO,
             json.dumps(
                 {
+                    "format": layout.FORMAT,
                     "run_id": run_id,
                     "run_uid": self._previous_uid() or uuid.uuid4().hex,
                     "host_id": layout.host_id(),
@@ -189,6 +196,21 @@ class Run:
                     "started_at": now_iso(),
                 }
             ),
+        )
+
+    def _check_format(self) -> None:
+        """Refuse a run directory an earlier attempt left in a format this release does not
+        read (`RunFormatError`), before its `run.json` is replaced."""
+        info = self._info()
+        if info is None:
+            return
+        found = layout.format_of(info)
+        if found in layout.FORMATS:
+            return
+        self.close()
+        raise RunFormatError(
+            f"{self.dir} holds a run of format {info.get('format')!r}; this contraagent reads format "
+            f"{', '.join(map(str, layout.FORMATS))}: resume it with the contraagent that wrote it, or start a new run id"
         )
 
     def _previous_uid(self) -> str | None:

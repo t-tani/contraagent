@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter, WithJsonSchema
 
 from contraagent._internal.errors import ContraagentError
 
@@ -87,7 +87,12 @@ def _secret_text(v: Secret) -> str:
 
 
 #: A secret in a credential: written `env:NAME` / `file:/path`, recorded as that text, never resolved here.
-SecretField = Annotated[Secret, BeforeValidator(_secret), PlainSerializer(_secret_text, return_type=str)]
+SecretField = Annotated[
+    Secret,
+    BeforeValidator(_secret),
+    PlainSerializer(_secret_text, return_type=str),
+    WithJsonSchema({"type": "string", "pattern": "^(env|file):.+", "description": "env:NAME or file:/path"}),
+]
 
 
 # --- credential types -------------------------------------------------------

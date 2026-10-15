@@ -1,0 +1,1 @@
+{"kind": "review", "plugin": false, "role": null, "plugin_dirs": [], "files": [{"path": "instructions", "part": "instructions", "text": "Review the file in params.path."}], "params": null, "requires": [], "changes": [], "output": "Review", "validators": [], "output_from": "file", "preserve": [], "output_of": null, "tools": null}

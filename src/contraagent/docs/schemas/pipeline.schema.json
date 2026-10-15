@@ -1,0 +1,871 @@
+{
+  "$defs": {
+    "Ambient": {
+      "additionalProperties": false,
+      "description": "The host's default, untouched: the coding agent runs with the parent's environment\n(its credential variables included) and loads whatever it would load by itself.\nNo guarantees, so no traits: a task that `requires` any is never run on it.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": false,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "ambient",
+          "default": "ambient",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "Ambient",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "ApiKey": {
+      "additionalProperties": false,
+      "description": "A provider's own API key, at the provider's own endpoint. Anything else is a `Gateway`.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "api_key",
+          "default": "api_key",
+          "title": "Type",
+          "type": "string"
+        },
+        "provider": {
+          "default": "anthropic",
+          "title": "Provider",
+          "type": "string"
+        },
+        "key": {
+          "description": "env:NAME or file:/path",
+          "pattern": "^(env|file):.+",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "type"
+      ],
+      "title": "ApiKey",
+      "type": "object"
+    },
+    "Bedrock": {
+      "additionalProperties": false,
+      "description": "Amazon Bedrock: an AWS profile (or the default chain), or a Bedrock API key (`bearer`).",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "bedrock",
+          "default": "bedrock",
+          "title": "Type",
+          "type": "string"
+        },
+        "region": {
+          "title": "Region",
+          "type": "string"
+        },
+        "aws_profile": {
+          "type": "string",
+          "title": "Aws Profile"
+        },
+        "bearer": {
+          "description": "env:NAME or file:/path",
+          "pattern": "^(env|file):.+",
+          "type": "string"
+        }
+      },
+      "required": [
+        "region",
+        "type"
+      ],
+      "title": "Bedrock",
+      "type": "object"
+    },
+    "DefaultsTable": {
+      "additionalProperties": false,
+      "description": "`[defaults]`: run-wide routing, and what every kind without its own takes.",
+      "properties": {
+        "_comment": {
+          "description": "a comment; never read",
+          "title": "Comment"
+        },
+        "agent": {
+          "type": "string",
+          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex",
+          "title": "Agent"
+        },
+        "model": {
+          "type": "string",
+          "title": "Model"
+        },
+        "effort": {
+          "type": "string",
+          "title": "Effort"
+        },
+        "credential": {
+          "type": "string",
+          "description": "a `[credentials.<name>]`; without it, \"ambient\"",
+          "title": "Credential"
+        },
+        "model_failover": {
+          "type": "boolean",
+          "title": "Model Failover"
+        },
+        "fallbacks": {
+          "items": {
+            "$ref": "#/$defs/FallbackTable"
+          },
+          "type": "array",
+          "description": "the failover chain; block order is hop order",
+          "title": "Fallbacks"
+        },
+        "max_passes": {
+          "minimum": 1,
+          "type": "integer",
+          "description": "the passes each `while` loop of flow code may make",
+          "title": "Max Passes"
+        },
+        "preflight": {
+          "enum": [
+            "substitute",
+            "stop",
+            "off"
+          ],
+          "type": "string",
+          "title": "Preflight"
+        },
+        "claim_capacity": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "$ref": "#/$defs/PerTaskTable"
+              }
+            ]
+          },
+          "type": "object",
+          "description": "how many running tasks may claim each name, by the name or an fnmatch pattern",
+          "title": "Claim Capacity"
+        },
+        "context_warn_pct": {
+          "maximum": 99,
+          "minimum": 1,
+          "type": "integer",
+          "title": "Context Warn Pct"
+        }
+      },
+      "title": "DefaultsTable",
+      "type": "object"
+    },
+    "FallbackTable": {
+      "additionalProperties": false,
+      "description": "One block of a failover chain, `[[defaults.fallbacks]]` or `[[tasks.<kind>.fallbacks]]`:\nthe next hop. Block order is hop order.",
+      "properties": {
+        "_comment": {
+          "description": "a comment; never read",
+          "title": "Comment"
+        },
+        "agent": {
+          "description": "a registered coding agent",
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "credential": {
+          "default": "",
+          "description": "a `[credentials.<name>]`; without it, the kind's own",
+          "title": "Credential",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent",
+        "model"
+      ],
+      "title": "FallbackTable",
+      "type": "object"
+    },
+    "Gateway": {
+      "additionalProperties": false,
+      "description": "Your own endpoint: an LLM gateway (LiteLLM and the like) or a self-hosted API.\n\nClaude Code speaks the Anthropic Messages API to `base_url`, sending `token`\nas a bearer token (`auth = \"bearer\"`) or as an API key (`auth = \"api_key\"`).\nomp addresses it as provider `provider` (models are `<provider>/<model>`;\n`litellm` by default), with `<PROVIDER>_BASE_URL` and the provider's key\nvariable; pi as a provider of that name speaking the OpenAI chat-completions\nAPI to `base_url`. `headers` go on every request (Anthropic-API endpoints only).\n`base_url` may be `env:NAME` too, read when the launch is made.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "gateway",
+          "default": "gateway",
+          "title": "Type",
+          "type": "string"
+        },
+        "base_url": {
+          "title": "Base Url",
+          "type": "string"
+        },
+        "token": {
+          "description": "env:NAME or file:/path",
+          "pattern": "^(env|file):.+",
+          "type": "string"
+        },
+        "auth": {
+          "default": "bearer",
+          "enum": [
+            "bearer",
+            "api_key"
+          ],
+          "title": "Auth",
+          "type": "string"
+        },
+        "provider": {
+          "default": "litellm",
+          "title": "Provider",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Headers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "base_url",
+        "type"
+      ],
+      "title": "Gateway",
+      "type": "object"
+    },
+    "OAuthToken": {
+      "additionalProperties": false,
+      "description": "A long-lived OAuth token (`claude setup-token`).",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "oauth_token",
+          "default": "oauth_token",
+          "title": "Type",
+          "type": "string"
+        },
+        "provider": {
+          "default": "anthropic",
+          "title": "Provider",
+          "type": "string"
+        },
+        "token": {
+          "description": "env:NAME or file:/path",
+          "pattern": "^(env|file):.+",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token",
+        "type"
+      ],
+      "title": "OAuthToken",
+      "type": "object"
+    },
+    "PerTaskTable": {
+      "additionalProperties": false,
+      "description": "What one running task that claims a name needs of the host (`PerTask`): give one or both.",
+      "properties": {
+        "_comment": {
+          "description": "a comment; never read",
+          "title": "Comment"
+        },
+        "memory_mb": {
+          "minimum": 1,
+          "type": "integer",
+          "title": "Memory Mb"
+        },
+        "cores": {
+          "minimum": 1,
+          "type": "integer",
+          "title": "Cores"
+        }
+      },
+      "title": "PerTaskTable",
+      "type": "object"
+    },
+    "Pool": {
+      "additionalProperties": false,
+      "description": "Several credentials used as one, e.g. two subscriptions or a set of OAuth tokens.\n\n`strategy`: `in_order` uses the first member that is not cooling down\n(the next one only after a 429); `round_robin` turns to the next member on\nevery launch. A member that answers 429 cools down for the provider's stated\nretry-after, or `cooldown_s`; when every member is cooling, the launch is\nrate limited and the route's own failover takes over. A pool's traits are\nthose every member carries, never declared on the pool itself.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "pool",
+          "default": "pool",
+          "title": "Type",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Members",
+          "type": "array"
+        },
+        "strategy": {
+          "default": "in_order",
+          "enum": [
+            "in_order",
+            "round_robin"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "cooldown_s": {
+          "default": 900.0,
+          "title": "Cooldown S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "members",
+        "type"
+      ],
+      "title": "Pool",
+      "type": "object"
+    },
+    "Subscription": {
+      "additionalProperties": false,
+      "description": "A stored login (Claude Pro/Max/Team/Enterprise, an omp or pi provider login).\n\n`config_dir`: the directory holding that login: Claude Code's `CLAUDE_CONFIG_DIR`,\npi's agent directory (default: the user's own). `profile`: omp's profile holding it\n(default: the default profile).",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "subscription",
+          "default": "subscription",
+          "title": "Type",
+          "type": "string"
+        },
+        "provider": {
+          "default": "anthropic",
+          "title": "Provider",
+          "type": "string"
+        },
+        "config_dir": {
+          "format": "path",
+          "type": "string",
+          "title": "Config Dir"
+        },
+        "profile": {
+          "type": "string",
+          "title": "Profile"
+        }
+      },
+      "title": "Subscription",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "TaskTable": {
+      "additionalProperties": false,
+      "description": "`[tasks.<kind>]`, a task table: one kind's routing, budgets and failover chain.",
+      "properties": {
+        "_comment": {
+          "description": "a comment; never read",
+          "title": "Comment"
+        },
+        "agent": {
+          "type": "string",
+          "description": "a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex",
+          "title": "Agent"
+        },
+        "model": {
+          "type": "string",
+          "title": "Model"
+        },
+        "effort": {
+          "type": "string",
+          "title": "Effort"
+        },
+        "credential": {
+          "type": "string",
+          "description": "a `[credentials.<name>]`; without it, \"ambient\"",
+          "title": "Credential"
+        },
+        "model_failover": {
+          "type": "boolean",
+          "title": "Model Failover"
+        },
+        "fallbacks": {
+          "items": {
+            "$ref": "#/$defs/FallbackTable"
+          },
+          "type": "array",
+          "description": "the failover chain; block order is hop order",
+          "title": "Fallbacks"
+        },
+        "disallowed_tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "tools its launches may not use: \"WebFetch\", \"Bash(git push:*)\"",
+          "title": "Disallowed Tools"
+        },
+        "max_turns": {
+          "type": "integer",
+          "title": "Max Turns"
+        },
+        "timeout_s": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Timeout S"
+        },
+        "max_budget_usd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Max Budget Usd"
+        },
+        "stall_s": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Stall S"
+        },
+        "context_budget": {
+          "type": "integer",
+          "title": "Context Budget"
+        },
+        "context_warn_pct": {
+          "maximum": 99,
+          "minimum": 1,
+          "type": "integer",
+          "title": "Context Warn Pct"
+        },
+        "max_denials": {
+          "type": "integer",
+          "title": "Max Denials"
+        },
+        "max_concurrent": {
+          "type": "integer",
+          "title": "Max Concurrent"
+        },
+        "retries": {
+          "type": "integer",
+          "title": "Retries"
+        },
+        "retry_backoff_base": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Retry Backoff Base"
+        }
+      },
+      "title": "TaskTable",
+      "type": "object"
+    },
+    "Vertex": {
+      "additionalProperties": false,
+      "description": "Google Vertex AI. `credentials_file` may be a service-account key or a workload\nidentity federation (`external_account`) config.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "vertex",
+          "default": "vertex",
+          "title": "Type",
+          "type": "string"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "region": {
+          "title": "Region",
+          "type": "string"
+        },
+        "credentials_file": {
+          "format": "path",
+          "type": "string",
+          "title": "Credentials File"
+        }
+      },
+      "required": [
+        "project",
+        "region",
+        "type"
+      ],
+      "title": "Vertex",
+      "type": "object"
+    },
+    "WorkloadIdentity": {
+      "additionalProperties": false,
+      "description": "Anthropic workload identity federation: an identity token exchanged for API access.",
+      "properties": {
+        "traits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Traits",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "isolate": {
+          "default": true,
+          "title": "Isolate",
+          "type": "boolean"
+        },
+        "max_five_hour_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Five Hour Pct"
+        },
+        "max_seven_day_pct": {
+          "exclusiveMinimum": 0,
+          "maximum": 100,
+          "type": "number",
+          "title": "Max Seven Day Pct"
+        },
+        "type": {
+          "const": "workload_identity",
+          "default": "workload_identity",
+          "title": "Type",
+          "type": "string"
+        },
+        "provider": {
+          "default": "anthropic",
+          "title": "Provider",
+          "type": "string"
+        },
+        "federation_rule_id": {
+          "title": "Federation Rule Id",
+          "type": "string"
+        },
+        "organization_id": {
+          "title": "Organization Id",
+          "type": "string"
+        },
+        "identity_token_file": {
+          "format": "path",
+          "title": "Identity Token File",
+          "type": "string"
+        },
+        "service_account_id": {
+          "type": "string",
+          "title": "Service Account Id"
+        },
+        "workspace_id": {
+          "type": "string",
+          "title": "Workspace Id"
+        }
+      },
+      "required": [
+        "federation_rule_id",
+        "identity_token_file",
+        "organization_id",
+        "type"
+      ],
+      "title": "WorkloadIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A pipeline config file (`pipeline.toml`).",
+  "properties": {
+    "_comment": {
+      "description": "a comment; never read",
+      "title": "Comment"
+    },
+    "defaults": {
+      "$ref": "#/$defs/DefaultsTable"
+    },
+    "tasks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/TaskTable"
+      },
+      "type": "object",
+      "description": "the task tables, by kind",
+      "title": "Tasks"
+    },
+    "credentials": {
+      "additionalProperties": {
+        "discriminator": {
+          "mapping": {
+            "ambient": "#/$defs/Ambient",
+            "api_key": "#/$defs/ApiKey",
+            "bedrock": "#/$defs/Bedrock",
+            "gateway": "#/$defs/Gateway",
+            "oauth_token": "#/$defs/OAuthToken",
+            "pool": "#/$defs/Pool",
+            "subscription": "#/$defs/Subscription",
+            "vertex": "#/$defs/Vertex",
+            "workload_identity": "#/$defs/WorkloadIdentity"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/Ambient"
+          },
+          {
+            "$ref": "#/$defs/Subscription"
+          },
+          {
+            "$ref": "#/$defs/ApiKey"
+          },
+          {
+            "$ref": "#/$defs/OAuthToken"
+          },
+          {
+            "$ref": "#/$defs/Gateway"
+          },
+          {
+            "$ref": "#/$defs/WorkloadIdentity"
+          },
+          {
+            "$ref": "#/$defs/Bedrock"
+          },
+          {
+            "$ref": "#/$defs/Vertex"
+          },
+          {
+            "$ref": "#/$defs/Pool"
+          }
+        ]
+      },
+      "type": "object",
+      "description": "identities a launch may authenticate as, by name; `ambient` is built in",
+      "title": "Credentials"
+    },
+    "pipeline": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "object",
+      "description": "the pipeline tables: a pipeline's own, never checked",
+      "title": "Pipeline"
+    }
+  },
+  "title": "PipelineFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

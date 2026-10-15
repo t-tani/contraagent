@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "run": "review",
+  "key": "review-gamma",
+  "kind": "review",
+  "unit": "gamma",
+  "params": {
+    "path": "src/gamma.py"
+  },
+  "output": {
+    "path": "/work/review/runs/review/out/review/gamma.json",
+    "format": "json",
+    "from": "file",
+    "json_schema": {
+      "$defs": {
+        "Finding": {
+          "properties": {
+            "line": {
+              "minimum": 1,
+              "title": "Line",
+              "type": "integer"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "line",
+            "text"
+          ],
+          "title": "Finding",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "verdict": {
+          "enum": [
+            "approve",
+            "change"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "verdict"
+      ],
+      "title": "Review",
+      "type": "object"
+    },
+    "schema_ref": null,
+    "commands": [],
+    "preserve": []
+  },
+  "cwd": "/work/review"
+}

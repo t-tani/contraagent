@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "`run.json` in a run directory of format 1.",
+  "$defs": {
+    "DroppedRoute": {
+      "additionalProperties": false,
+      "description": "A route the preflight dropped: not in its agent's model list, or its probe did not\ncomplete. `kinds`: the kinds whose chain held it.",
+      "properties": {
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "description": "empty: the coding agent's default model",
+          "title": "Model",
+          "type": "string"
+        },
+        "credential": {
+          "title": "Credential",
+          "type": "string"
+        },
+        "reason": {
+          "description": "not in its coding agent's model list, or how its probe ended (`rate limited`, ...)",
+          "title": "Reason",
+          "type": "string"
+        },
+        "kinds": {
+          "description": "the kinds whose chain held it",
+          "items": {
+            "type": "string"
+          },
+          "title": "Kinds",
+          "type": "array"
+        }
+      },
+      "required": [
+        "agent",
+        "model",
+        "credential",
+        "reason",
+        "kinds"
+      ],
+      "title": "DroppedRoute",
+      "type": "object"
+    },
+    "KeptKind": {
+      "additionalProperties": false,
+      "description": "A kind with no route left, run as configured all the same (`substitute`), and why.",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "agent",
+        "model",
+        "reason"
+      ],
+      "title": "KeptKind",
+      "type": "object"
+    },
+    "PreflightRecord": {
+      "additionalProperties": false,
+      "description": "What a preflight did, as `run.json` records it (`preflight`): its policy, the routes\nit dropped, and, for each kind left with no route, its substitution, the kind kept\nas configured, or the kind that stopped the run (`stopped`).",
+      "properties": {
+        "policy": {
+          "description": "`Pipeline(preflight=)`; `off`: no route was probed",
+          "enum": [
+            "substitute",
+            "stop",
+            "off"
+          ],
+          "title": "Policy",
+          "type": "string"
+        },
+        "dropped": {
+          "items": {
+            "$ref": "#/$defs/DroppedRoute"
+          },
+          "title": "Dropped",
+          "type": "array"
+        },
+        "substituted": {
+          "items": {
+            "$ref": "#/$defs/Substitution"
+          },
+          "title": "Substituted",
+          "type": "array"
+        },
+        "kept": {
+          "items": {
+            "$ref": "#/$defs/KeptKind"
+          },
+          "title": "Kept",
+          "type": "array"
+        },
+        "stopped": {
+          "description": "the kinds with no route left that stopped the run (policy `stop`)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Stopped",
+          "type": "array"
+        }
+      },
+      "required": [
+        "policy"
+      ],
+      "title": "PreflightRecord",
+      "type": "object"
+    },
+    "Substitution": {
+      "additionalProperties": false,
+      "description": "A kind with no route left, run on the first route that answered (`substitute`).",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "from_agent": {
+          "title": "From Agent",
+          "type": "string"
+        },
+        "from_model": {
+          "title": "From Model",
+          "type": "string"
+        },
+        "to_agent": {
+          "title": "To Agent",
+          "type": "string"
+        },
+        "to_model": {
+          "title": "To Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "from_agent",
+        "from_model",
+        "to_agent",
+        "to_model"
+      ],
+      "title": "Substitution",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "`runs/<run>/run.json`: who drives the run (`pid`, `start_ticks`, `host_id`), which run\nit is (`run_id`, `run_uid`), its format, and what the run recorded about itself since.\n`Run.update_info` may add fields of a caller's own.",
+  "properties": {
+    "format": {
+      "default": 1,
+      "description": "the format of the run directory; a run.json without it is format 1",
+      "minimum": 1,
+      "title": "Format",
+      "type": "integer"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "run_uid": {
+      "description": "the id no other run has, on any host; kept when the run is resumed",
+      "title": "Run Uid",
+      "type": "string"
+    },
+    "host_id": {
+      "description": "the host that drives the run (`CONTRAAGENT_HOST_ID`, else the host name)",
+      "title": "Host Id",
+      "type": "string"
+    },
+    "run_group": {
+      "title": "Run Group",
+      "type": "string"
+    },
+    "pid": {
+      "title": "Pid",
+      "type": "integer"
+    },
+    "start_ticks": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "the start time of `pid` in clock ticks after boot (`/proc/<pid>/stat`)",
+      "title": "Start Ticks"
+    },
+    "argv": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Argv",
+      "type": "array"
+    },
+    "cwd": {
+      "description": "the run's working directory, absolute",
+      "title": "Cwd",
+      "type": "string"
+    },
+    "started_at": {
+      "description": "when the latest run start began",
+      "title": "Started At",
+      "type": "string"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "when the run finished; absent while it runs or after it was killed",
+      "title": "Finished At"
+    },
+    "stub": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "true for a stub run",
+      "title": "Stub"
+    },
+    "replay": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the recordings directory a replay plays",
+      "title": "Replay"
+    },
+    "max_workers": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "how many tasks run at once",
+      "title": "Max Workers"
+    },
+    "quota_caps": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "five_hour_pct",
+                "seven_day_pct"
+              ]
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "by credential, the quota caps of each that has one",
+      "title": "Quota Caps"
+    },
+    "quota_rule": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the quota rule's `module.qualname`; empty without one",
+      "title": "Quota Rule"
+    },
+    "preflight": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PreflightRecord"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "what the run's preflight did"
+    }
+  },
+  "required": [
+    "run_id",
+    "run_uid",
+    "host_id",
+    "run_group",
+    "pid",
+    "start_ticks",
+    "argv",
+    "cwd",
+    "started_at"
+  ],
+  "title": "RunInfo",
+  "type": "object"
+}

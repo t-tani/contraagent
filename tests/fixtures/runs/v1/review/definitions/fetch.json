@@ -1,0 +1,1 @@
+{"kind": "fetch", "executor": "python", "function": "__main__.fetch", "output": "str", "validators": [], "signature": "fetch(unit: str) -> str", "params": "unit", "file": "tests/fixtures/runs/make_v1.py", "line": 40, "files": [{"path": "tests/fixtures/runs/make_v1.py", "part": "source", "text": "@python_task\ndef fetch(unit: str) -> str:\n    return f\"src/{unit}.py\"\n"}]}
