@@ -34,7 +34,7 @@ documentation. No other word is used for the same thing.
 |---|---|---|
 | **interface** | what an agent task takes, produces and may spend | `agent_task(params=, output=, max_turns=, ...)` |
 | **implementation** | how an agent task is done: a plugin directory, with the skills of the skill plugins it names. One declaration may name several by name, each a kind of its own | `agent_task(plugin=)`, `agent_task(implementations=)`, `Plugin` |
-| **base kind** | the kind a declaration of several implementations names (`review`); each implementation is the kind `<base kind>-<name>` (`review-go`), takes the base kind's task table below its own, and is drawn in the base kind's group | `agent_task(implementations=)`, `Implementations`, `AgentTask.base_kind`, `Task.base_kind`; `plan.jsonl` and definition `base_kind` |
+| **base kind** | the kind a declaration of several implementations names (`review`); each implementation is the kind `<base kind>-<name>` (`review-go`), takes the base kind's task table below its own, and is drawn in the base kind's group; no other declaration may have the base kind or an implementation kind as its kind | `agent_task(implementations=)`, `Implementations`, `graph.kind_clash`, `AgentTask.base_kind`, `Task.base_kind`; `plan.jsonl` and definition `base_kind` |
 | **skill plugin** | a plugin that holds skills and nothing else that acts; tasks with different plugins load it to share its skills | `agent_task(skills_from=)`, `Plugin.skills_only` |
 | **role** | a named agent definition in a plugin: its procedure | `agents/<role>.md`, `Launch.role`, Claude Code's `--agent` |
 | **instructions** | text before the call protocol, for an agent task with no plugin | `agent_task(instructions=)` |

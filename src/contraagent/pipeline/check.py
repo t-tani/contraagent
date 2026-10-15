@@ -53,7 +53,7 @@ from contraagent.calls import schema_ref_of
 from contraagent.dispatch.flow import FlowDriver
 from contraagent.dispatch.task import kind_name
 from contraagent.errors import ContraagentError, did_you_mean
-from contraagent.pipeline.graph import Graph, Node, Pending
+from contraagent.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent.pipeline.reach import reachable
 from contraagent.routing.plan import RoutingError, RoutingPlan
 from contraagent.validators import CommandValidator
@@ -142,8 +142,10 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     for node in graph.nodes:
         report.kinds[node.spec.kind] = report.kinds.get(node.spec.kind, 0) + 1
     specs = {node.spec.kind: node.spec for node in graph.nodes}
+    found = reachable(flow, *args, *kwargs.values()) if driven else []
+    report.add("tasks", _kind_clashes([*dict.fromkeys(node.spec for node in graph.nodes), *found]))
     if driven:
-        _add_reachable(specs, reachable(flow, *args, *kwargs.values()), report)
+        _add_reachable(specs, found, report)
     keys = {n.key for n in graph.nodes}
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
@@ -152,6 +154,18 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("plugins", _plugin_errors(agent_specs))
     _check_routing(pipeline, agent_specs, report)
     return report
+
+
+def _kind_clashes(declarations: list[Any]) -> list[str]:
+    """Every pair of declarations whose kinds cannot be in one run (`kind_clash`), once."""
+    out: list[str] = []
+    seen: list[Any] = []
+    for spec in declarations:
+        if any(spec is s for s in seen):
+            continue
+        out += [f"flow: {m}" for s in seen if (m := kind_clash(s, spec)) and f"flow: {m}" not in out]
+        seen.append(spec)
+    return out
 
 
 def _add_reachable(specs: dict[str, Any], found: list[Any], report: CheckReport) -> None:

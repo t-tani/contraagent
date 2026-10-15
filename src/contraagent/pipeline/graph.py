@@ -237,6 +237,7 @@ class Graph:
         self._digests: dict[int, str] = {}  # id(spec) -> its definition's digest
         self._specs: dict[str, Any] = {}  # agent kind -> the declaration its tasks were created by
         self._reached: dict[str, Any] = {}  # agent kind with no task yet -> the reachable declaration routed
+        self._named: dict[int, Any] = {}  # id(spec) -> every declaration reached or created, for `kind_clash`
         self._prefix: dict[str, tuple[Frame, ...]] = {}  # flow call id -> the frames before its own
         self._produced: dict[int, tuple[Any, Pending]] = {}  # id(output) -> (output, its Pending)
         self._taken = 0
@@ -419,7 +420,9 @@ class Graph:
         """Make a reachable agent kind one of the run's (`agent_specs`) before any task of it
         is created: `new_kind` is called for a kind not seen yet. The flow's code may reach
         other declarations of a kind too (a default argument the caller replaces); which one
-        it creates is known only when it does (`declare`)."""
+        it creates is known only when it does (`declare`). A kind that clashes with another
+        declaration's (`kind_clash`) raises."""
+        self._name(spec)
         if spec.executor != "agent" or spec.kind in self._specs or spec.kind in self._reached:
             return
         if self.new_kind is not None:
@@ -430,7 +433,9 @@ class Graph:
         """Make an agent task's kind one of the run's as a task of it is added. One kind, one
         declaration: a second declaration of the kind that differs from the first one created
         (`AgentTask.differences`) raises. `new_kind` is called the first time, unless the
-        kind was reached with the same `config`, `requires` and `tools` (its routing)."""
+        kind was reached with the same `config`, `requires` and `tools` (its routing). A kind
+        that clashes with another declaration's (`kind_clash`) raises."""
+        self._name(spec)
         if spec.executor != "agent":
             return
         seen = self._specs.get(spec.kind)
@@ -446,6 +451,15 @@ class Graph:
         if self.new_kind is not None and (routed is None or (routed.config, routed.requires, routed.tools) != routing):
             self.new_kind(spec)
         self._specs[spec.kind] = spec
+
+    def _name(self, spec: Any) -> None:
+        """Remember `spec` among the run's declarations; raise when its kind clashes with one's."""
+        if id(spec) in self._named:
+            return
+        for other in self._named.values():
+            if message := kind_clash(other, spec):
+                raise ValueError(message)
+        self._named[id(spec)] = spec
 
     def _dependency(self, value: Any, received: set[str]) -> Any:
         """`value` with every output this graph answered replaced by its `Pending`; the keys
@@ -539,6 +553,36 @@ class Graph:
 
 #: A claim's `{params.<name>}` field.
 CLAIM_PARAM = re.compile(r"params\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def kind_clash(a: Any, b: Any) -> str | None:
+    """Why two task declarations cannot be in one run, or None: the kind of one is the base
+    kind of the other (`agent_task(implementations=)`), or both have one kind and are not
+    implementations of one base kind. Two declarations of one kind otherwise are judged by
+    `AgentTask.differences`."""
+    for one, two in ((a, b), (b, a)):
+        base = getattr(two, "base_kind", "")
+        if base and one.kind == base:
+            return (
+                f"kind {base!r} of {_declaration(one)} is also the base kind of {_declaration(two, base_only=True)}, "
+                f"whose implementation kinds take its [tasks.{base}] table and its group; give one of them another name"
+            )
+    if a.kind == b.kind and getattr(a, "base_kind", "") != getattr(b, "base_kind", ""):
+        first, second = (a, b) if getattr(a, "base_kind", "") else (b, a)  # the implementation first
+        return f"kind {a.kind!r} is declared by {_declaration(first)} and by {_declaration(second)}; give one of them another name"
+    return None
+
+
+def _declaration(spec: Any, *, base_only: bool = False) -> str:
+    """A task declaration as its code wrote it."""
+    if spec.executor == "python":
+        return f"@python_task {spec.kind}"
+    base = getattr(spec, "base_kind", "")
+    if not base:
+        return f"agent_task({spec.kind!r})"
+    if base_only:
+        return f"agent_task({base!r}, implementations=...)"
+    return f"agent_task({base!r}, implementations=...) (implementation {spec.kind[len(base) + 1 :]!r})"
 
 
 def _expand_claims(spec: Any, unit: str, key: str, params: dict[str, Any]) -> tuple[str, ...]:
