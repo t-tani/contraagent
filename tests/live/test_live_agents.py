@@ -12,6 +12,7 @@ the in-session stop hook, the runner's output check, the journal and the monitor
     claude    claude-haiku-5-5                effort low
     omp       anthropic/claude-haiku-5-5      effort low
     opencode  CONTRAAGENT_LIVE_OPENCODE_MODEL (default: OpenCode Zen's free Muse model)
+    codex     gpt-5.6-luna                    effort low   (codex's own login)
 
 Then a generator flow on each coding agent (`test_review_flow_*`): two units, each
 summarized, then checked by a Python task and revised in a `while` loop until the check
@@ -37,7 +38,7 @@ pytestmark = [
 
 from pydantic import BaseModel, Field  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, OpencodeBackend, Pipeline, agent_task, python_task  # noqa: E402
+from contraagent import ClaudeBackend, CodexBackend, OmpBackend, OpencodeBackend, Pipeline, agent_task, python_task  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
@@ -57,14 +58,25 @@ model = "anthropic/claude-haiku-5-5"
 [tasks.summarize_opencode]
 agent = "opencode"
 model = "{OPENCODE_MODEL}"
+
+[tasks.summarize_codex]
+agent = "codex"
+model = "gpt-5.6-luna"
+effort = "low"
 """
 
 #: Each coding agent's backend, for every pipeline below.
-BACKENDS = {"claude": ClaudeBackend, "omp": OmpBackend, "opencode": OpencodeBackend}
+BACKENDS = {"claude": ClaudeBackend, "omp": OmpBackend, "opencode": OpencodeBackend, "codex": CodexBackend}
 #: The coding agents this live run launches: CONTRAAGENT_LIVE_AGENTS (comma-separated), else all.
-AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(BACKENDS)).split(",") if a]
+#: A name this file has no backend for (another file's agent) is left out.
+AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(BACKENDS)).split(",") if a in BACKENDS]
 #: Each agent's task and unit in the summarize run.
-SUMMARIZE = {"claude": ("summarize", "c1"), "omp": ("summarize_omp", "o1"), "opencode": ("summarize_opencode", "p1")}
+SUMMARIZE = {
+    "claude": ("summarize", "c1"),
+    "omp": ("summarize_omp", "o1"),
+    "opencode": ("summarize_opencode", "p1"),
+    "codex": ("summarize_codex", "x1"),
+}
 
 
 def only(agent: str) -> None:
@@ -114,7 +126,7 @@ def ws():
     new_plugin(root / "plugins" / "summarize")
     (root / "plugins" / "summarize" / "agents" / "worker.md").write_text(ROLE)
     (root / "in").mkdir()
-    for unit in ("c1", "o1", "p1"):
+    for unit in ("c1", "o1", "p1", "x1"):
         (root / "in" / f"{unit}.md").write_text(DOC)
     (root / "pipeline.toml").write_text(CONFIG)
     return root
@@ -139,7 +151,7 @@ def run_all(ws):
         ws / "pipeline.toml",
         runs_dir=ws / "runs",
         cwd=ws,
-        max_concurrent=3,
+        max_concurrent=4,
         backends={name: cls() for name, cls in BACKENDS.items()},
         log=print,
     )
@@ -159,6 +171,7 @@ def run_all(ws):
         ("summarize-c1", "c1", "claude", "claude-haiku-5-5"),
         ("summarize_omp-o1", "o1", "omp", "anthropic/claude-haiku-5-5"),
         ("summarize_opencode-p1", "p1", "opencode", OPENCODE_MODEL),
+        ("summarize_codex-x1", "x1", "codex", "gpt-5.6-luna"),
     ],
 )
 def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, unit, agent, model):
@@ -179,7 +192,7 @@ def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, un
 def test_monitor_sees_every_run_as_valid_outputs(run_all):
     mon, tally = run_all["monitor"], run_all["monitor"].outputs("live")["tally"]
     print("\n  outputs tally:", {k: v for k, v in tally.items() if v})
-    assert tally["valid"] == len(AGENTS) and tally["invalid"] == tally["refused"] == tally["failed"] == 0
+    assert tally["valid"] == len([a for a in AGENTS if a in SUMMARIZE]) and tally["invalid"] == tally["refused"] == tally["failed"] == 0
     assert {e["key"] for e in mon.journal("live")[0]} == {f"{kind}-{unit}" for a, (kind, unit) in SUMMARIZE.items() if a in AGENTS}
     assert not mon.procs("live")["alive"]  # run.finish() marked it done
 
@@ -209,6 +222,11 @@ def test_the_role_reaches_each_coding_agent_its_own_way(run_all, agent):
         assert "--agent" in argv and "worker" in argv and "--plugin-dir" in argv
     elif agent == "omp":
         assert any("worker.md" in a for a in argv) and "--plugin-dir" in argv  # attached, omp has no --agent
+    elif agent == "codex":
+        # codex has no named-agent flag: the role's file is written into the prompt
+        launch = next(e for e in page["events"] if e["type"] == "launch")
+        assert "--agent" not in argv and not any("worker" in a for a in argv[:-1])
+        assert "worker.md" in launch["prompt"] and "Summarizes the document" in launch["prompt"]
     else:
         # opencode takes the role and the plugin as config (`instructions`, `skills`), not on its command line
         assert not any("worker" in a for a in argv[:-1])
@@ -228,15 +246,26 @@ def _project_with_its_own_instructions(root):
     skill = root / ".opencode" / "skills" / "opencode-canary"
     skill.mkdir(parents=True)
     skill.joinpath("SKILL.md").write_text("---\nname: opencode-canary\ndescription: A project skill.\n---\nbody\n")
+    skill = root / ".agents" / "skills" / "agents-canary"  # where codex and pi look for a project's skills
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("---\nname: agents-canary\ndescription: A project skill.\n---\nbody\n")
+    skill = root / ".codex" / "skills" / "codex-canary"
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("---\nname: codex-canary\ndescription: A project skill.\n---\nbody\n")
 
 
 ASK = "No tools. Name every skill available to you, comma-separated, then say hello in three words."
-LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canary")
+LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canary", "agents-canary", "codex-canary")
 
 
 @pytest.mark.parametrize(
     "backend, model",
-    [(ClaudeBackend, "claude-haiku-5-5"), (OmpBackend, "anthropic/claude-haiku-5-5"), (OpencodeBackend, OPENCODE_MODEL)],
+    [
+        (ClaudeBackend, "claude-haiku-5-5"),
+        (OmpBackend, "anthropic/claude-haiku-5-5"),
+        (OpencodeBackend, OPENCODE_MODEL),
+        (CodexBackend, "gpt-5.6-luna"),
+    ],
 )
 def test_a_task_agent_takes_no_instructions_from_the_project(tmp_path, backend, model):
     """Each coding agent would load the project's instruction files and skills: neither may."""
@@ -297,6 +326,40 @@ def test_opencode_sends_only_events_its_reader_knows(tmp_path):
     assert dict(reader.tool_uses) == {"read": 1, "bash": 1}
 
 
+#: A launch that makes the agent read a file, run a command and think: the events a task's
+#: launch sends, for the tests below.
+WIRE_ASK = "Read the file notes.txt, then run the shell command `wc -l notes.txt`. Answer with the file's first word and its line count."
+
+
+def _wire_launch(backend, model: str, cwd: Path):
+    from contraagent import Launch, Limits
+
+    (cwd / "notes.txt").write_text("retry\nqueue\ndead-letter\n")
+    launch = Launch(prompt=WIRE_ASK, label="wire", model=model, effort="low", cwd=cwd, limits=Limits(timeout_s=180, max_turns=6))
+    result = backend().run(launch)
+    print(f"\n  {backend.name}: stop={result.stop} tool_uses={dict(result.tool_uses)} unread={result.unread_events}")
+    assert result.ok, (result.stop, result.result_text[-300:], result.stderr_tail)
+    assert result.tool_uses
+    return result
+
+
+def test_claude_sends_only_events_its_reader_knows(tmp_path):
+    """The Claude Code installed here: every event of a launch is one `claude/wire.py`'s
+    KNOWN_EVENTS lists. A failure after an upgrade: add the new type to the list and read it."""
+    only("claude")
+    result = _wire_launch(ClaudeBackend, "claude-haiku-5-5", tmp_path)
+    assert not result.unread_events, "claude sent events the reader does not know"
+
+
+def test_codex_sends_only_events_its_reader_knows(tmp_path):
+    """The codex installed here: every `--json` event of a launch is one `codex/wire.py`'s
+    KNOWN_EVENTS lists. A failure after an upgrade: add the new type to the list and read it."""
+    only("codex")
+    result = _wire_launch(CodexBackend, "gpt-5.6-luna", tmp_path)
+    assert not result.unread_events, "codex sent events the reader does not know"
+    assert result.usage.calls and result.init_model == "gpt-5.6-luna"  # read from the rollout file
+
+
 # --- a generator flow on each coding agent -------------------------------------------------
 
 #: The word the check requires: the first summary is told not to use it, so pass 1 of each
@@ -310,7 +373,7 @@ model = "{model}"
 effort = "low"
 """
 
-FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5", "opencode": OPENCODE_MODEL}
+FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5", "opencode": OPENCODE_MODEL, "codex": "gpt-5.6-luna"}
 FLOW_UNITS = ["a", "b"]
 
 

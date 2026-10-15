@@ -25,6 +25,9 @@ pytestmark = [
     pytest.mark.skipif(
         os.environ.get("CONTRAAGENT_LIVE") != "1", reason="live test: also set CONTRAAGENT_LIVE=1 (it calls real coding agents)"
     ),
+    pytest.mark.skipif(
+        "pi" not in os.environ.get("CONTRAAGENT_LIVE_AGENTS", "pi").split(","), reason="pi is not in CONTRAAGENT_LIVE_AGENTS"
+    ),
 ]
 
 from pydantic import BaseModel, Field  # noqa: E402
