@@ -167,7 +167,7 @@ class Pipeline:
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
         `record`: a directory each task attempt's recording is written to
-        (`<record>/<kind>/<key>.json` and its files): its outputs,
+        (`<record>/<kind>/<key>.json` and its files; `contraagent docs testing` has the layout): its outputs,
         the files its `changes=` patterns saw change, its transcript and its result; for a
         Python task, how its call ended and its output.
         `replay`: a directory of recordings, played in place of every agent task's launch and
@@ -279,9 +279,31 @@ class Pipeline:
         )
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
-        """Build the task graph `run` would, and check everything that needs no launch:
-        the flow, parameters, output schemas (importable by the in-session hook), command
-        validators, plugins and routing. Writes no run directory and spends nothing."""
+        """Build the task graph `run` would, and check everything that needs no launch.
+
+        * the flow: it builds; every `after=` names a task of the run. A generator flow
+          is run to its first wait (every flow call it starts, up to the first `yield`
+          that waits for a task), and an exception in any of them is reported;
+        * the kinds of the run: those of the tasks the flow created, and for a generator
+          flow also its reachable kinds (`contraagent docs concepts`, "reachable kind"),
+          since it creates the rest as it runs. Two reachable declarations of one kind
+          that differ (a default argument the caller replaces) are a warning, and the
+          kind is checked as the first one found;
+        * each task created: its parameters fit its `params` model;
+        * the output files: no two kinds, reachable ones included, whose `output_name`
+          templates name one file;
+        * each kind: an agent task's output schema has a JSON Schema and can be imported
+          by the in-session hook (in a fresh interpreter, as the hook does); its command
+          validators' programs are on PATH;
+        * each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
+        * routing: the config against those kinds (budgets, efforts, failover chains,
+          credentials and the traits tasks require), the coding agents' programs on
+          PATH, and each model against the list its coding agent keeps locally
+          (`Backend.catalogue`, e.g. `omp models --json`).
+
+        Nothing is launched, no run directory is written and no token is spent. The one
+        check left to a run is the preflight (`Pipeline(preflight="stop")`), which probes
+        each route of the same kinds. The `CheckReport` holds every problem found."""
         return check_flow(self, flow, args, kwargs)
 
     def run(self, flow: Callable[..., Any], /, *args: Any, run_id: str | None = None, resume: bool = False, **kwargs: Any) -> RunReport:

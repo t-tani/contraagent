@@ -343,7 +343,7 @@ def agent_task[Out](
     that needs no tool (a classification in one turn), it saves the turn the `Write` takes.
     `unwrap`: with `output_from="message"` and a JSON output, the message may wrap the
     document (a sentence before it, a fenced block): the runner takes the document out of it
-    and keeps the whole message beside the output file
+    (the last fenced block that parses, else the longest JSON value) and keeps the whole message beside the output file
     (`<output>.message.txt`). By default the whole message must be the document.
     `tools`: None (default), the tools its role and settings allow; `()`, none: a **light
     launch**, for a judgement in one turn. The role's text (without its frontmatter), or for a

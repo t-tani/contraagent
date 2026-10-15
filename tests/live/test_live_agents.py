@@ -25,6 +25,7 @@ task's instructions changed (that task and the tasks that received a changed out
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -365,14 +366,14 @@ def test_codex_sends_only_events_its_reader_knows(tmp_path):
 
 def test_codex_writes_temporary_files_in_its_own_directory_not_in_tmp(tmp_path):
     """A command codex runs makes a temporary file with `mktemp`: it lands in the launch's own
-    directory under `<temp dir>/contraagent/`, which is gone after the launch, and the sandbox
+    directory under `<temp dir>/contraagent-<uid>/`, which is gone after the launch, and the sandbox
     leaves nothing directly in the system's temporary directory."""
     only("codex")
     from contraagent._internal.backends.base import temp_root
     from contraagent.backends import Launch
     from contraagent.config import Limits
 
-    system_tmp = temp_root().parent
+    system_tmp = tempfile.gettempdir()
     before = set(os.listdir(system_tmp))
     prompt = 'Run this shell command and reply with its output only: f=$(mktemp) && echo hello > "$f" && cat "$f" && echo "$f"'
     launch = Launch(prompt=prompt, label="tmp-probe", model="gpt-5.6-luna", effort="low", cwd=tmp_path, limits=Limits(timeout_s=300))

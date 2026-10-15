@@ -72,8 +72,8 @@ class TaskAdapter:
 
         A dict with `role` (the named agent, `agents/<role>.md`),
         `plugin_dirs`, and `files` (`[{"path", "part", "text"}]`: the prompt
-        template, the schema, the role's definition ...). A `Pipeline` fills it from the
-        task's `agent_task` declaration and its plugin; the
+        template, the schema, the role's definition ...). `Pipeline`'s adapter
+        fills it from the task's `agent_task` declaration and its plugin; the
         default says only which role and plugin directories the task runs with.
         """
         return {"role": self.role(task), "plugin_dirs": list(self.plugin_dirs(task)), "files": []}

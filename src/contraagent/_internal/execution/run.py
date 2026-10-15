@@ -1,26 +1,5 @@
-"""One run of a pipeline: its directory, journal, lock, and queue wiring.
-
-A `Run` owns `runs/<run-id>/`:
-
-    run.json                who is running it (pid, start time, working directory) and
-                            which run it is across hosts (`run_uid`, `host_id`) — how a
-                            monitor knows it is live
-    journal.jsonl           one `JournalRow` per finished task
-    launches.jsonl          the full `LaunchResult` of each agent launch
-    streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
-    plan.jsonl              every task a queue accepted, with its `after`, its `claims`, its
-                            `priority` and its origin (`flow`, `created_from`, `flow_call`)
-    flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
-                            (`state`, `error`)
-    deferred.jsonl          one row per deferred task: its key and why it was not launched
-                            (`reason`, and `cause` as data: `Deferral`)
-    rests.jsonl             each start and end of a credential's quota rest (`routing.quota`)
-    inflight/<key>.json     one marker per running task
-    contracts/, definitions/  what each task declared, for the monitor
-
-and the run lock `runs/<run-id>.lock`, which refuses a second process
-driving the same run id: two drivers would launch the same work twice and
-bill for it twice.
+"""One run of a pipeline: its directory, journal, lock, and queue wiring (the `Run`
+docstring lists its files).
 
 It builds `WorkQueue`s that journal every result, record the plan and mark
 running tasks, and reads its own journal back (`Journal`) so a resumed
@@ -139,7 +118,32 @@ class RunFormatError(ContraagentError):
 
 
 class Run:
-    """One run of a pipeline: `runs/<run-id>/`, its journal, its lock, and its queues."""
+    """One run of a pipeline: `runs/<run-id>/`, its journal, its lock, and its queues.
+
+    A `Run` owns `runs/<run-id>/`:
+
+        run.json                who is running it (pid, start time, working directory) and
+                                which run it is across hosts (`run_uid`, `host_id`) — how a
+                                monitor knows it is live
+        journal.jsonl           one `JournalRow` per finished task
+        launches.jsonl          the full `LaunchResult` of each agent launch
+        streams/<key>.stream.jsonl  the raw agent transcript, when `keep_transcripts`
+        plan.jsonl              every task a queue accepted, with its `after`, its `claims`, its
+                                `priority` and its origin (`flow`, `created_from`, `flow_call`)
+        flow_calls.jsonl        each flow call's start (`parent`, `function`, `flow`) and end
+                                (`state`, `error`)
+        deferred.jsonl          one row per deferred task: its key and why it was not launched
+                                (`reason`, and `cause` as data: `Deferral`)
+        rests.jsonl             each start and end of a credential's quota rest (`QuotaRests`)
+        inflight/<key>.json     one marker per running task
+        contracts/, definitions/  what each task declared, for the monitor
+        pipeline/<name>.jsonl   a pipeline log: the rows of `contraagent.log(name, row)`
+        pipeline/<name>.json    a pipeline document: the last `contraagent.save(name, value)`
+
+    and the run lock `runs/<run-id>.lock`, which refuses a second process
+    driving the same run id: two drivers would launch the same work twice and
+    bill for it twice.
+    """
 
     def __init__(
         self,

@@ -3,6 +3,7 @@ writes, the readers of stdout and stderr. No token is spent; `tests/live/` runs 
 
 import json
 import os
+import tempfile
 import time
 
 import pytest
@@ -122,7 +123,8 @@ def test_a_light_launch_runs_as_its_own_agent_with_no_tool(tmp_path):
     assert env["XDG_CONFIG_HOME"] != "/home/u/.config"  # no user config: with no tool, nothing else reads it
 
 
-def test_a_resumable_launch_keeps_its_session_in_its_own_directory(tmp_path):
+def test_a_resumable_launch_keeps_its_session_in_its_own_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the session directory: under tmp_path
     backend = OpencodeBackend(base_env={})
     launch = backend.resumable(Launch(prompt="x", label="t", cwd=tmp_path))
     assert backend.env(launch)["OPENCODE_DB"] == str(launch.session_dir.resolve() / "opencode.db")

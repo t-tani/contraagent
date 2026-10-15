@@ -37,6 +37,7 @@ from contraagent import Overrides, Pipeline
 from contraagent.backends import Backend, CallFile, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage
 from contraagent.config import QuotaReading
 from contraagent.docs.examples.demo.tasks import docs
+from contraagent.monitor import Panel, RunRecords
 
 HERE = Path(__file__).resolve().parent
 
@@ -174,6 +175,16 @@ class DemoAgent(Backend):
         return done()
 
 
+def notes(run: RunRecords) -> dict:
+    """Each unit's note, read through the run's records, so it shows on a hub too."""
+    keys = {row["unit"]: row["key"] for row in run.journal() if row["kind"] == "write_note" and row["ok"]}
+    return {unit: note.text for unit, key in sorted(keys.items()) if (note := run.output(key)) is not None}
+
+
+#: The demo's own view in the monitor: a tab of each run.
+PANELS = {"notes": Panel(notes, title="notes", description="What write_note produced", icon="✎")}
+
+
 def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--real", metavar="AGENT", help="use a real coding agent (claude, omp) instead of the demo agent")
@@ -193,16 +204,9 @@ def main(argv: list[str] | None = None):
         pipeline = Pipeline(HERE / "pipeline.toml", runs_dir="demo-runs", backends={"stub": DemoAgent(pace=0.03 if args.fast else 1.0)})
 
     if not args.no_serve:
-        from contraagent.monitor import Monitor, Panel, RunRecords, serve
+        from contraagent.monitor import Monitor, serve
 
-        def notes(run: RunRecords) -> dict:
-            return {p.stem: p.read_text(encoding="utf-8") for p in sorted(Path("demo-runs", run.id, "out", "write_note").glob("*.md"))}
-
-        monitor = Monitor(
-            "demo-runs",
-            title="contraagent demo",
-            panels={"notes": Panel(notes, title="notes", description="What write_note produced", icon="✎")},
-        )
+        monitor = Monitor("demo-runs", title="contraagent demo", panels=PANELS)
         threading.Thread(target=serve, daemon=True, args=(monitor, "127.0.0.1", args.port)).start()
         time.sleep(1)
         print(f"monitor: http://127.0.0.1:{args.port}", flush=True)

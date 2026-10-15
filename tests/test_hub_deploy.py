@@ -1,10 +1,13 @@
 """The hub's deployment example (`docs/examples/hub`): the image, compose.yaml, the tokens
-`make-tokens` writes, and the relay's systemd unit.
+`make-tokens` writes, and the relay's systemd unit; and the developer's hub image built
+from this repository (`Dockerfile` at its root).
 
 The fast tests read the files (and validate compose.yaml with `docker compose config` when
-docker is available). The `e2e` test builds the image, starts the compose project on a
-random port under a project name of its own, ships the demo runs to it with a relay on
-this host, and removes the project and its volumes: `uv run pytest -m e2e -k deploy`."""
+docker is available). The `e2e` test starts the compose project on a random port under a
+project name of its own, with the hub's image built either as a user builds it (the
+example alone, copied out of the package, installing a wheel built from this checkout) or
+from the repository's Dockerfile; it ships the demo runs to it with a relay on this host,
+and removes the project, its volumes and the image: `uv run pytest -m e2e -k deploy`."""
 
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from importlib import metadata
 from pathlib import Path
 
 import pytest
@@ -30,6 +34,9 @@ HUB = docs.DIR / "examples" / "hub"
 COMPOSE = HUB / "compose.yaml"
 DOCKERFILE = HUB / "Dockerfile"
 REPO = Path(__file__).resolve().parent.parent
+#: The developer's hub image: this checkout's sources and uv.lock.
+REPO_DOCKERFILE = REPO / "Dockerfile"
+VERSION = metadata.version("contraagent")
 #: A tag that names a version: digits, not `latest` or a bare major version.
 PINNED = re.compile(r"^[\w./-]+:(?!latest$)[\w.-]*\d[\w.-]*\.[\w.-]*\d[\w.-]*$|^[\w./-]+:RELEASE\.[\w.-]+$")
 
@@ -56,8 +63,8 @@ def _env_file(path: Path) -> dict[str, str]:
     return out
 
 
-def _compose(where: Path, project: str, *args: str, env: dict[str, str] | None = None, timeout: float = 120):
-    argv = ["docker", "compose", "-p", project, "-f", str(COMPOSE), "--env-file", str(where / ".env"), *args]
+def _compose(where: Path, project: str, *args: str, env: dict[str, str] | None = None, timeout: float = 120, compose: Path = COMPOSE):
+    argv = ["docker", "compose", "-p", project, "-f", str(compose), "--env-file", str(where / ".env"), *args]
     return subprocess.run(
         argv,
         capture_output=True,
@@ -77,8 +84,9 @@ def _outside_env() -> dict[str, str]:
 # --- the files ---------------------------------------------------------------------------
 
 
-def test_the_dockerfile_pins_its_bases_and_runs_the_hub_as_a_user_with_a_data_volume():
-    lines = DOCKERFILE.read_text().replace("\\\n", " ").splitlines()
+@pytest.mark.parametrize("dockerfile", [DOCKERFILE, REPO_DOCKERFILE], ids=["example", "repository"])
+def test_the_dockerfile_pins_its_bases_and_runs_the_hub_as_a_user_with_a_data_volume(dockerfile):
+    lines = dockerfile.read_text().replace("\\\n", " ").splitlines()
     instructions = [line.split(None, 1) for line in lines if line.strip() and not line.lstrip().startswith("#")]
     by = lambda op: [rest for o, rest in instructions if o == op]
     bases = [rest.split()[0] for rest in by("FROM")]
@@ -91,11 +99,25 @@ def test_the_dockerfile_pins_its_bases_and_runs_the_hub_as_a_user_with_a_data_vo
     assert "/healthz" in by("HEALTHCHECK")[-1]
 
 
-def test_the_build_context_holds_only_what_the_image_installs():
-    ignore = [line for line in (HUB / "Dockerfile.dockerignore").read_text().splitlines() if line and not line.startswith("#")]
+def test_the_example_builds_from_its_own_directory_with_the_version_it_came_with():
+    """Copied out of the installed package, the example has no source tree: its image
+    installs contraagent[hub] at CONTRAAGENT_VERSION, or a wheel beside it, and copies
+    nothing else in."""
+    text = DOCKERFILE.read_text()
+    assert not re.findall(r"^COPY (?!--from)", text, re.M)
+    assert not re.search(r"pyproject|uv\.lock|\bsrc/", text)
+    assert "contraagent[hub]==$CONTRAAGENT_VERSION" in text and "$CONTRAAGENT_WHEEL[hub]" in text
+    ignore = [line for line in (HUB / ".dockerignore").read_text().splitlines() if line and not line.startswith("#")]
+    assert ignore == ["*", "!*.whl"]
+    env = _env_file(HUB / ".env.example")
+    assert env["CONTRAAGENT_VERSION"] == VERSION and env["CONTRAAGENT_WHEEL"] == ""
+
+
+def test_the_repository_image_builds_only_from_what_it_installs():
+    ignore = [line for line in (REPO / ".dockerignore").read_text().splitlines() if line and not line.startswith("#")]
     assert ignore[0] == "*"
     assert {line[1:].rstrip("/") for line in ignore if line.startswith("!")} == {"pyproject.toml", "uv.lock", "LICENSE", "src"}
-    copied = {p for rest in re.findall(r"^COPY (?!--from)(.+)$", DOCKERFILE.read_text(), re.M) for p in rest.split()[:-1]}
+    copied = {p for rest in re.findall(r"^COPY (?!--from)(.+)$", REPO_DOCKERFILE.read_text(), re.M) for p in rest.split()[:-1]}
     assert copied == {"pyproject.toml", "uv.lock", "LICENSE", "src"}
     assert all((REPO / p).exists() for p in copied)
 
@@ -177,7 +199,9 @@ def test_compose_config_validates(tmp_path):
     }
     assert all("healthcheck" in services[s] for s in ("hub", "postgres", "rustfs"))
     assert hub["ports"][0]["target"] == 8790
-    assert Path(hub["build"]["context"]) == REPO
+    assert Path(hub["build"]["context"]) == HUB
+    assert hub["build"]["args"] == {"CONTRAAGENT_VERSION": VERSION, "CONTRAAGENT_WHEEL": ""}
+    assert hub["image"] == f"contraagent-hub:{VERSION}"
     assert not any("PASSWORD" in arg or "secret" in arg.lower() for arg in hub["command"] if "secrets/" not in arg)
     assert "--retain-days=30" in hub["command"]
     assert config["secrets"]["read-token"]["file"] == str(tmp_path / "secrets" / "read-token")
@@ -203,24 +227,59 @@ def _get(url: str, token: str | None = None) -> tuple[int, bytes]:
         return e.code, e.read()
 
 
+def _copy_of_the_example(to: Path) -> Path:
+    """The example as a user copies it out of the installed package: its own files, none of
+    the tokens, passwords or wheels a checkout may hold beside them."""
+
+    def local(where: str, names: list[str]) -> list[str]:
+        made = lambda n: n == ".env" or n.endswith(".whl") or (Path(where).name == "secrets" and not n.endswith(".example"))
+        return [n for n in names if made(n)]
+
+    shutil.copytree(HUB, to, ignore=local)
+    return to
+
+
+def _build(built_from: str, tmp_path: Path, image: str) -> tuple[Path, Path, dict[str, str]]:
+    """Where the compose project's .env and secrets are, its compose.yaml, and the settings
+    that build or name its hub image.
+
+    `package`: a copy of the example alone, with a wheel of this checkout beside it (the
+    example's local-wheel option), built by compose. `repository`: the image built from the
+    repository's Dockerfile, named by CONTRAAGENT_HUB_IMAGE."""
+    if built_from == "package":
+        if shutil.which("uv") is None:
+            pytest.skip("uv is not available to build the wheel")
+        where = _copy_of_the_example(tmp_path / "hub")
+        built = subprocess.run(["uv", "build", "--wheel", "--out-dir", str(where), str(REPO)], capture_output=True, text=True, timeout=300)
+        assert built.returncode == 0, built.stderr
+        (wheel,) = where.glob("*.whl")
+        settings = {"CONTRAAGENT_WHEEL": wheel.name}
+        compose = where / "compose.yaml"
+    else:
+        built = subprocess.run(["docker", "build", "--tag", image, str(REPO)], capture_output=True, text=True, timeout=600)
+        assert built.returncode == 0, built.stderr
+        where, settings, compose = tmp_path, {}, COMPOSE
+    tokens = subprocess.run(["sh", str(compose.parent / "make-tokens"), "-d", str(where), "e2e-host"], capture_output=True, text=True)
+    assert tokens.returncode == 0, tokens.stderr
+    return where, compose, {**settings, "CONTRAAGENT_HUB_IMAGE": image, "CONTRAAGENT_SECRETS_DIR": str(where / "secrets")}
+
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _docker(), reason="docker is not available")
-def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs):
+@pytest.mark.parametrize("built_from", ["package", "repository"])
+def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs, built_from):
     began = time.monotonic()
     tag = uuid.uuid4().hex[:10]
     project, image, port = f"contraagent-e2e-{tag}", f"contraagent-hub:e2e-{tag}", _free_port()
-    assert _make_tokens(tmp_path, "e2e-host").returncode == 0
-    env = {
-        "CONTRAAGENT_SECRETS_DIR": str(tmp_path / "secrets"),
-        "CONTRAAGENT_HUB_IMAGE": image,
-        "CONTRAAGENT_HUB_BIND": "127.0.0.1",
-        "CONTRAAGENT_HUB_PORT": str(port),
-    }
     url = f"http://127.0.0.1:{port}"
-    read = read_read_token(tmp_path / "secrets" / "read-token")
-    relay_env = _env_file(tmp_path / "secrets" / "relay-e2e-host.env")
+    where, compose, env = tmp_path, COMPOSE, {}
+    compose_ = lambda *args, timeout=120: _compose(where, project, *args, env=env, timeout=timeout, compose=compose)
     try:
-        up = _compose(tmp_path, project, "up", "--detach", "--build", env=env, timeout=600)
+        where, compose, env = _build(built_from, tmp_path, image)
+        env |= {"CONTRAAGENT_HUB_BIND": "127.0.0.1", "CONTRAAGENT_HUB_PORT": str(port)}
+        read = read_read_token(where / "secrets" / "read-token")
+        relay_env = _env_file(where / "secrets" / "relay-e2e-host.env")
+        up = compose_("up", "--detach", "--build" if built_from == "package" else "--no-build", timeout=600)
         assert up.returncode == 0, up.stderr
         deadline = time.monotonic() + 120
         while True:
@@ -230,11 +289,13 @@ def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs
                     break
             except OSError:
                 status, body = 0, b""
-            assert time.monotonic() < deadline, f"/healthz: {status} {body!r}\n{_compose(tmp_path, project, 'logs', env=env).stdout}"
+            assert time.monotonic() < deadline, f"/healthz: {status} {body!r}\n{compose_('logs').stdout}"
             time.sleep(0.5)
         assert json.loads(body) == {"status": "ok", "failed": {}}
         healthy = time.monotonic() - began
         assert _get(f"{url}/api/runs")[0] == 401
+        version = compose_("exec", "-T", "hub", "contraagent", "--version")
+        assert version.stdout.strip() == f"contraagent {VERSION}", version.stderr
 
         relay = subprocess.run(
             [sys.executable, "-m", "contraagent", "relay", "--once", "--runs-dir", str(demo_runs), "--hub", url],
@@ -250,11 +311,11 @@ def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs
         assert local and sorted(r["run"] for r in json.loads(body)) == sorted(f"{r}@e2e-host" for r in local)
         relayed = time.monotonic() - began
 
-        assert _compose(tmp_path, project, "stop", "postgres", env=env).returncode == 0
+        assert compose_("stop", "postgres").returncode == 0
         status, body = _get(f"{url}/healthz")
         assert status == 503 and json.loads(body)["failed"].keys() >= {"records"}, body
-        print(f"\ndeploy e2e: healthy after {healthy:.1f}s, relayed after {relayed:.1f}s")
+        print(f"\ndeploy e2e ({built_from}): healthy after {healthy:.1f}s, relayed after {relayed:.1f}s")
     finally:
-        down = _compose(tmp_path, project, "down", "--volumes", "--remove-orphans", env=env, timeout=180)
+        down = compose_("down", "--volumes", "--remove-orphans", timeout=180) if env else None
         subprocess.run(["docker", "image", "rm", "--force", image], capture_output=True, timeout=60)
-        assert down.returncode == 0, down.stderr
+        assert down is None or down.returncode == 0, down.stderr

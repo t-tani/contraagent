@@ -294,6 +294,7 @@ uv run pyright          # 0 errors; the "yaml" source warning is expected
 uv run lint-imports     # the import contracts (pyproject.toml); tests/test_layers.py runs it too
 uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
 uv run pytest -m e2e    # the hub and relays as processes over Postgres and RustFS (docker)
+docker build -t contraagent-hub:dev .   # the hub's image from these sources and uv.lock
 uv run pyright --verifytypes contraagent --ignoreexternal
 uv run griffe check --search src contraagent --against <last tag>
 ```

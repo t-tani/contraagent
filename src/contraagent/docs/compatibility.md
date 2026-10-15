@@ -18,7 +18,8 @@ change. The version is `MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)).
   union of exported types. An alias of literal values is not a type of its own: the
   annotation lists its values (`Task.executor: Literal["agent", "python"]`).
 - **The command line**: the commands and their options, as `contraagent --help`
-  and `contraagent <command> --help` print them, and the exit codes they document.
+  and `contraagent <command> --help` print them, and the exit status each `--help`
+  states at its end.
 - **The pipeline config file**: its tables and keys, as
   `examples/reference/pipeline.toml` writes every one of them and the JSON Schema
   `schemas/pipeline.schema.json` states them. A first line

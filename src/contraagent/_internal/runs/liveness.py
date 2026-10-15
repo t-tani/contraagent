@@ -27,7 +27,9 @@ class Liveness(Protocol):
         ...
 
     def snapshot(self, run: str) -> dict[str, Any]:
-        """One run's live processes (see the module's docstring)."""
+        """One run's live processes: `run`, `alive`, what `run.json` says (`pid`, `argv`,
+        `started_at`, `max_workers`, `run_group`), and its `launches`, process `tree` and
+        running `python_tasks`."""
         ...
 
     def unresponsive(self) -> set[str]:

@@ -158,7 +158,15 @@ def mcp_servers(mcp_config: str) -> dict[str, Any]:
 
 
 class OpencodeBackend(OpencodeKeyAccount, Backend):
-    """Headless opencode: `opencode run --format json`."""
+    """Headless opencode: `opencode run --format json`.
+
+    Every launch sets `OPENCODE_DISABLE_PROJECT_CONFIG`, `OPENCODE_DISABLE_CLAUDE_CODE`,
+    `OPENCODE_DISABLE_EXTERNAL_SKILLS` and `OPENCODE_DISABLE_AUTOUPDATE` to `1`: no
+    project config, AGENTS.md or `.opencode/`, none of the user's Claude Code files
+    (`~/.claude/CLAUDE.md`, its skills), no skills under `~/.agents/`, no self-update. The
+    task's role, skills, MCP servers and hooks are given as config
+    (`OPENCODE_CONFIG_CONTENT`), and a session stays out of the user's database.
+    """
 
     name = "opencode"
     binary = "opencode"

@@ -1,33 +1,6 @@
 """`Pipeline.check`: everything about a flow that can be found wrong without launching anything.
 
-It builds the task graph the way `Pipeline.run` does, then checks what a run
-would otherwise find out one launch at a time:
-
-* the flow: it builds; every `after=` names a task of the run. A generator
-  flow is run to its first wait (every flow call it starts, up to the first
-  `yield` that waits for a task), and an exception in any of them is
-  reported;
-* the kinds of the run: those of the tasks the flow created, and for a
-  generator flow also its reachable kinds, the task declarations its code
-  can reach (`reach.py`), since it creates the rest as it runs. Its code may
-  reach two declarations of one kind that differ (a default argument the
-  caller replaces): a warning, since only creating tasks of both is an error,
-  and the kind is checked as the first one found;
-* each task created: its parameters fit its `params` model;
-* the output files: no two kinds, reachable ones included, whose `output_name`
-  templates name one file (`Graph.layout`);
-* each kind: an agent task's output schema has a JSON Schema and can be
-  imported by the in-session hook (in a fresh interpreter, as the hook does),
-  its command validators' programs are on PATH;
-* each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
-* routing: the config against those kinds (budgets, efforts, failover chains,
-  credentials and the traits tasks require), the coding agents' programs on
-  PATH, and each model against the list its coding agent keeps locally
-  (`Backend.catalogue`, e.g. `omp models --json`).
-
-Nothing is launched, no run directory is written and no token is spent. The
-one check left to a run is the preflight (`Pipeline(preflight="stop")`), which
-probes each route of the same kinds.
+The `Pipeline.check` docstring lists the checks; `reach.py` finds the reachable kinds.
 """
 
 from __future__ import annotations
@@ -72,6 +45,11 @@ _NOT_OWN = tuple(
 _LOG_TAG = re.compile(r"^\[\w+\] ")  # a log line's `[task]`, not part of the warning
 
 
+def _count(n: int, noun: str) -> str:
+    """`1 task`, `2 tasks`."""
+    return f"{n} {noun}{'' if n == 1 else 's'}"
+
+
 @dataclass
 class CheckReport:
     """What `Pipeline.check` found. `ok` when there is no error; warnings do not fail it."""
@@ -105,7 +83,7 @@ class CheckReport:
         later = f"; later kinds: {', '.join(self.later_kinds)}" if self.later_kinds else ""
         mark = "✓" if self.ok else "✗"
         if self.kinds:
-            head = f"{mark} {tasks} tasks, {len(self.kinds)} kinds: {counts}{later}"
+            head = f"{mark} {_count(tasks, 'task')}, {_count(len(self.kinds), 'kind')}: {counts}{later}"
         elif later:
             head = f"{mark} 0 tasks{later}"
         else:

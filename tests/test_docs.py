@@ -33,6 +33,61 @@ def test_every_relative_link_resolves():
             assert (page.parent / target).exists(), f"{page.name}: {target}"
 
 
+def _resolve(path: str) -> tuple[str, list[str]]:
+    """The longest importable module a dotted path starts with, and the names after it,
+    each an attribute of the one before."""
+    import importlib
+
+    parts = path.split(".")
+    for i in range(len(parts), 0, -1):
+        try:
+            obj = importlib.import_module(".".join(parts[:i]))
+        except ImportError:
+            continue
+        for name in parts[i:]:
+            obj = getattr(obj, name)
+        return ".".join(parts[:i]), parts[i:]
+    raise ImportError(path)
+
+
+def test_the_topics_name_public_paths_only():
+    """A topic names a public module or object, never a file or module of `_internal`
+    (but compatibility.md, which says it is not public); every dotted `contraagent.` path
+    in code resolves, through a public module and a name in its `__all__`."""
+    import importlib
+
+    for page in docs.DIR.glob("*.md"):
+        text = page.read_text()
+        if page.name != "compatibility.md":
+            assert "_internal" not in text, f"{page.name} names _internal"
+        for code in re.findall(r"`([^`\n]+)`", text):
+            for path in re.findall(r"\bcontraagent(?:\.[A-Za-z_]\w*)+", code):
+                if path == "contraagent._internal" and page.name == "compatibility.md":
+                    continue
+                try:
+                    module, names = _resolve(path)
+                except (ImportError, AttributeError):
+                    pytest.fail(f"{page.name}: `{path}` names nothing")
+                public = getattr(importlib.import_module(module), "__all__", None)
+                assert "_internal" not in module, f"{page.name}: `{path}` is not public"
+                assert not names or public is None or names[0] in public, f"{page.name}: `{path}` is not in {module}.__all__"
+
+
+def test_the_examples_import_public_modules_only():
+    import ast
+
+    for file in EXAMPLES.rglob("*.py"):
+        for node in ast.walk(ast.parse(file.read_text())):
+            names = (
+                [a.name for a in node.names]
+                if isinstance(node, ast.Import)
+                else [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else []
+            )
+            assert not [n for n in names if "_internal" in n], f"{file.relative_to(EXAMPLES)} imports _internal"
+
+
 def test_a_topic_is_printed_and_an_unknown_one_named(capsys):
     assert main(["docs", "testing"]) == 0
     assert capsys.readouterr().out.startswith("# Checking and testing")
@@ -98,6 +153,14 @@ def test_the_demo_runs_end_to_end_as_its_docstring_says(tmp_path, monkeypatch):
     assert [r["stop"] for r in rows if r["key"] in ("revise-gamma", "python:score-gamma~2", "review-gamma~2")] == [
         "completed"
     ] * 3  # pass 2
+
+    # Its panel reads the run through its records, not through a path of its own.
+    from contraagent.monitor import DirectorySource, RunRecords
+
+    monkeypatch.chdir(tmp_path.parent)
+    notes = demo.notes(RunRecords("docs", DirectorySource(tmp_path / "demo-runs")))
+    assert sorted(notes) == ["alpha", "beta", "delta", "epsilon", "gamma"]
+    assert notes["alpha"].startswith("# alpha\n")
 
 
 def test_the_demo_tests_pass_on_the_stub_agent():
@@ -179,8 +242,91 @@ def test_the_implementations_example_launches_each_unit_s_kind_with_its_plugin(t
     assert [(g["id"], g["total"], g["done"]) for g in groups] == [("review", 3, 3)]
 
 
-def test_the_reference_config_has_every_task_table_key():
-    from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
+def test_the_reference_config_writes_every_key_of_the_schema():
+    """Every key the config's JSON Schema names is written in the reference, as a setting or
+    as a commented-out `# key = ...` line, in a table of its kind: a kind of credential's
+    own keys in a table of that type, the keys every type shares in some credential table
+    (in each type's when its default differs between types, as `isolate`'s does);
+    `_comment`, which every table takes, at least once."""
+    import tomllib
 
+    schema = json.loads((docs.DIR / "schemas" / "pipeline.schema.json").read_text())
+    defs = schema["$defs"]
+    types = {
+        t: ref.rsplit("/", 1)[-1]
+        for t, ref in schema["properties"]["credentials"]["additionalProperties"]["discriminator"]["mapping"].items()
+    }
     text = (EXAMPLES / "reference" / "pipeline.toml").read_text()
-    assert [k for k in TASK_TABLE_KEYS if not re.search(rf"^{k} =", text, re.M)] == []
+    config = tomllib.loads(text)
+
+    def table_of(parts: list[str]) -> str | None:
+        if parts[0] == "credentials":
+            return types[config["credentials"][parts[1]]["type"]]
+        return {"defaults": "DefaultsTable", "tasks": "TaskTable"}.get(parts[0])
+
+    written: dict[str, set[str]] = {name: set() for name in defs}
+    table = None
+    for line in text.splitlines():
+        if header := re.match(r"^\[\[?([^\]]+)\]\]?", line):
+            parts = header[1].replace('"', "").split(".")
+            parent = table_of(parts)
+            sub = parts[-1] if len(parts) == (2 if parts[0] == "defaults" else 3) else None
+            if parent and sub:  # a sub-table: [defaults.claim_capacity], [[tasks.x.fallbacks]]
+                written[parent].add(sub)
+            table = "FallbackTable" if sub == "fallbacks" else None if sub else parent
+        elif (key := re.match(r"^#?\s*(\w+)\s*=", line)) and table is not None:
+            written[table].add(key[1])
+    for entry in config["defaults"]["claim_capacity"].values():
+        if isinstance(entry, dict):
+            written["PerTaskTable"] |= set(entry)
+
+    credentials = [defs[name] for name in types.values()]
+    shared = set.intersection(*(set(d["properties"]) for d in credentials))
+    same = {k for k in shared if len({json.dumps(d["properties"][k].get("default")) for d in credentials}) == 1}
+    in_some = set().union(*(written[name] for name in types.values()))
+    missing = {}
+    for name, d in defs.items():
+        keys = set(d["properties"]) - written[name] - {"_comment"}
+        if name in types.values():
+            keys -= same & in_some
+        missing[name] = sorted(keys)
+    assert {name: keys for name, keys in missing.items() if keys} == {}
+    assert set(types) == {config["credentials"][c]["type"] for c in config["credentials"]}
+    assert re.search(r"^_comment =", text, re.M)
+
+
+def test_the_runner_adds_a_journal_column_and_resumes(tmp_path, monkeypatch):
+    from contraagent.docs.examples.runner import run as runner
+    from contraagent.testing import StubAgent
+
+    monkeypatch.chdir(tmp_path)
+    agent = StubAgent({"review": lambda launch: {"severity": "high" if launch.unit == "alpha" else "low", "summary": "s"}})
+    assert runner.main(["alpha", "beta"], backends=agent.backends()).ok
+    rows = [json.loads(line) for line in (tmp_path / "runs" / "reviews" / "journal.jsonl").read_text().splitlines()]
+    assert {r["unit"]: r["severity"] for r in rows} == {"alpha": "high", "beta": "low"}
+    assert runner.main(["alpha", "beta", "gamma", "--resume"], backends=agent.backends()).ok
+    assert sorted(launch.unit for launch in agent.launches) == ["alpha", "beta", "gamma"]  # the resume reviews gamma only
+
+
+def test_the_runner_s_quota_rule_rests_past_80_percent():
+    from contraagent.config import QuotaReading
+    from contraagent.docs.examples.runner.run import rest_past_80
+
+    assert rest_past_80("personal", QuotaReading(five_hour_pct=80)) is None
+    rest = rest_past_80("personal", QuotaReading(five_hour_pct=91, five_hour_resets_at="2026-10-15T12:00:00+00:00"))
+    assert isinstance(rest, tuple) and rest[0] == "5-hour usage 91% is past 80%" and rest[1].hour == 12
+
+
+def test_routing_names_every_key_defaults_takes():
+    from contraagent._internal.routing.config import DEFAULTS_KEYS
+
+    precedence = docs.text("routing").split("## Precedence", 1)[1].split("\n## ", 1)[0]
+    assert [k for k in DEFAULTS_KEYS if f"`{k}`" not in precedence] == []
+
+
+def test_the_testing_module_lists_every_kind_of_reply():
+    import contraagent.testing
+
+    doc = contraagent.testing.__doc__ or ""
+    replies = [n for n in contraagent.testing.__all__ if n[0].islower()]
+    assert [n for n in replies if f"`{n}(" not in doc] == []

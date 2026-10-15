@@ -226,7 +226,15 @@ def prompt_args(launch: Launch) -> list[str]:
 
 
 class OmpBackend(Backend):
-    """Headless oh-my-pi: `omp -p` with text output."""
+    """Headless oh-my-pi: `omp -p` with text output.
+
+    Every launch runs with contraagent's own config overlay (`--config`): each discovery
+    provider is off but `claude-plugins`, which loads the task's `--plugin-dir`, so omp
+    reads no AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` or other tools' context files,
+    skills, rules, hooks, tools or MCP servers; the overlay's directory, which holds no
+    plugins, is the agent's `CLAUDE_CONFIG_DIR`, so the user's installed Claude Code
+    plugins are not loaded either.
+    """
 
     name = "omp"
     binary = "omp"

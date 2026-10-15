@@ -1,5 +1,7 @@
 # Operations, not definitions: which coding agent and model each kind runs on, and
 # where it goes on a 429. Budgets declared in tasks.py are defaults this file outranks.
+# `stub` is the demo's own coding agent (`DemoAgent` in run.py, which registers it);
+# `contraagent check tasks.py:docs --config pipeline.toml --stub` checks this file.
 
 [defaults]
 agent = "stub"

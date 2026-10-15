@@ -45,8 +45,8 @@ the turn. It saves the turn a `Write` takes, and the permission to write.
 
 By default the whole message must be the document. A model that is told so
 still puts a sentence before it now and then, or a fence around it, and each
-time costs a round. `unwrap=True` takes the document out of the message instead
-(`contracts.unwrap_json`): the last fenced block that parses, else the longest
+time costs a round. `unwrap=True` takes the document out of the message instead:
+the last fenced block that parses, else the longest
 JSON object or array in the message. The document is the output file, the whole
 message is kept beside it (`<output>.message.txt`), and the run's progress line
 and `launches.jsonl` (`unwrapped`) say that it was taken out. A message that holds

@@ -20,7 +20,7 @@ opencode gets its parts as config (its role as `instructions`, its skills as
 `skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`), and
 Codex, which loads no plugin directory, its role's file, its skills, its
 `.mcp.json` and its rendered hooks as config (below). The
-docstring of `contraagent/_internal/plugins/plugin.py` lists its parts. The demo's:
+docstring of `contraagent.plugins.Plugin` lists its parts. The demo's:
 
 ```
 examples/demo/plugins/docs/
@@ -118,12 +118,12 @@ user's home; every launch keeps that out, and keeps what the agent itself can do
 
 A launch also leaves out the variables that tie it to a Claude Code session the
 pipeline was started from. A skill, a hook, a permission or an MCP server a task
-needs belongs in its plugin. omp's part is the overlay
-`contraagent/_internal/backends/omp/isolation/config.yml`; opencode's, the variables in
-`DEFAULT_ENV` of `contraagent/_internal/backends/opencode/backend.py`. pi runs with an agent
+needs belongs in its plugin. omp's part is a config overlay of contraagent's own;
+opencode's, the variables each launch sets. pi runs with an agent
 directory of contraagent's own (`PI_CODING_AGENT_DIR`, under
 `~/.cache/contraagent/pi/`) that links the user's logins and holds nothing else of
-theirs, and with its discovery turned off by flag (`contraagent/_internal/backends/pi/agent_dir.py`).
+theirs, and with its discovery turned off by flag. The docstrings of
+`contraagent.backends.OmpBackend`, `OpencodeBackend` and `PiBackend` give each in full.
 Codex finds skills only in fixed places, so it runs with a `HOME` of its own whose
 `.agents/skills` links to each skill of the task's plugin, then of its
 `skills_from` (a name already taken is not linked again); the commands it runs see
@@ -144,7 +144,7 @@ part of it:
 | omp | every built-in tool is on; it runs `--approval-mode yolo` and reads neither `tools:` nor `settings.json` | the built-in `web_search` (`web_search.enabled`, on by default), with the search provider configured in omp; a page is read with `read` and its URL (`fetch.enabled`) |
 | opencode | the role's `tools:` lists it (Claude Code's names, as opencode's permissions); with no `tools:`, every built-in tool is on. It runs `--auto` and does not read `settings.json` | `websearch` (opencode's own search, where opencode offers it) and `webfetch` |
 | pi | its default tools are on (`read`, `bash`, `edit`, `write`), and the tools of the plugin's MCP servers; it asks no permission and reads neither `tools:` nor `settings.json` | none built in: a plugin's MCP server or a script the task runs |
-| Codex | every built-in tool is on; it runs in its `workspace-write` sandbox (network on), which may write in the working directory and in a temporary directory of its own (its `TMPDIR`, under `<temp dir>/contraagent/`, removed when the launch ends) but not in `/tmp` itself, and reads neither `tools:` nor `settings.json` | the built-in `web_search`, which also opens a page by its URL |
+| Codex | every built-in tool is on; it runs in its `workspace-write` sandbox (network on), which may write in the working directory and in a temporary directory of its own (its `TMPDIR`, under `<temp dir>/contraagent-<uid>/`, removed when the launch ends) but not in `/tmp` itself, and reads neither `tools:` nor `settings.json` | the built-in `web_search`, which also opens a page by its URL |
 
 `contraagent plugin new` denies `WebFetch` and `WebSearch` so that a Claude
 Code task stays on its inputs; a task that searches removes them from `deny`.
@@ -179,7 +179,7 @@ user's and the project's own hooks do not run; with any credential but `ambient`
 the user's `config.toml` is not read at all. Hooks an administrator manages
 (`requirements.toml`, MDM) run as Codex decides. A launch with no hook runs with
 Codex's hooks turned off. How the key and the hash are made is in the docstring
-of `contraagent/_internal/backends/codex/hooks.py`.
+of `contraagent.backends.CodexBackend`.
 
 Hook scripts read the JSON Claude Code sends hooks; the omp and pi extensions
 (`omp/index.ts`, `pi/index.ts`, both declared in `package.json`) and the opencode

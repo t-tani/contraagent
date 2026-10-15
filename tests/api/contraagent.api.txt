@@ -2285,7 +2285,7 @@ class Monitor
         liveness: Liveness | None = None,
         many_hosts: bool = False,
         title: str = 'contraagent',
-        panels: dict[str, Panel | PanelFn] | None = None,
+        panels: Mapping[str, Panel | PanelFn] | None = None,
         task_detail: TaskDetailFn | None = None,
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,
@@ -2408,6 +2408,7 @@ class PeriodRuns(list[str])
     def info(self, run: str) -> dict[str, Any]
     def journal(self, run: str) -> list[dict[str, Any]]
     def log(self, run: str, name: str) -> list[dict[str, Any]]
+    def output(self, run: str, key: str) -> RunFile | None
     def records(self, run: str, log: str) -> list[dict[str, Any]]
     def run(self, run: str) -> RunRecords
 
@@ -2425,6 +2426,7 @@ class RunRecords
     def info(self) -> dict[str, Any]
     def journal(self) -> list[dict[str, Any]]
     def log(self, name: str) -> list[dict[str, Any]]
+    def output(self, key: str) -> RunFile | None
     def records(self, log: str) -> list[dict[str, Any]]
 
 class RunSource(Protocol)

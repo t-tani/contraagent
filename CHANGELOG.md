@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `RunRecords.output(key)` and `PeriodRuns.output(run, key)`: a task's output file, read
+  wherever the monitor reads the run (a runs directory or a hub), so a panel shows an
+  output without a path of its own. The demo's `notes` panel reads its notes this way.
+- `contraagent --help`, `contraagent check --help` and `contraagent run --help` end with
+  the exit status each command returns.
+- `examples/runner/run.py`: a flow run from a program, with a journal column
+  (`row_extras`) made from each task's output, a `quota_rule` and `--resume`; its
+  docstring lists what `contraagent run` cannot pass.
+- The reference config (`examples/reference/pipeline.toml`) writes every key of the
+  config's JSON Schema: `isolate` and the quota caps on each credential type, a
+  `workload_identity` table (with `service_account_id`, `workspace_id`), a `bedrock`
+  and a `vertex` table, `_comment`.
 - Plugin hooks on Codex: `contraagent plugin render` writes `codex/hooks.json` (Codex's
   own hook format) from `hooks.toml`, and a Codex launch passes it as config, each hook
   trusted by the hash Codex asks for, with the user's own hooks turned off. The stop
@@ -766,6 +778,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `help()` of a public method or property names its public module, as `help()` of its
   class does, and no public docstring names `contraagent._internal`
   (`tests/test_public_api.py` checks both).
+- The documentation names public paths only. What it sent the reader to `_internal` files
+  for is in the public objects' docstrings: the stub agent's replies in `contraagent.testing`,
+  every check in `Pipeline.check`, a run directory's files in `contraagent.engine.Run`, the
+  meaning of each stop in `contraagent.backends.Stop`, a plugin's parts in
+  `contraagent.plugins.Plugin`, each coding agent's isolation in its backend class, and a
+  recording directory's layout in `contraagent docs testing`. `contraagent check` says
+  `1 kind`, not `1 kinds`.
 - One public path per name. The implementation moved under `contraagent._internal`; the
   public modules only re-export, and each class and function names its public module as
   `__module__` (reprs, tracebacks, pickle): `contraagent` (tasks, flows, the pipeline,
@@ -1424,14 +1443,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The hub's compose example works from the installed package alone: copied out of
+  `examples/hub/`, its `Dockerfile` installs `contraagent[hub]` from PyPI at
+  `CONTRAAGENT_VERSION` (in `.env.example`, the version the example came with), or a wheel
+  in the directory named by `CONTRAAGENT_WHEEL`, and fails when the installed version
+  differs. It built from a source checkout before. The image from the sources and `uv.lock`
+  is the repository's own `Dockerfile`. `contraagent --version` prints the installed version.
 - A Codex launch no longer writes into `/tmp` itself: its Linux sandbox left empty `.git`,
   `.agents` and `.codex` paths in each writable root, and an empty `/tmp/.git` made `/tmp`
   look like a git repository. `/tmp` and `$TMPDIR` are no longer writable roots; each launch
-  gets its own owner-only directory, `<temp dir>/contraagent/codex-<label>-<random>`, as its
+  gets its own directory, `<temp dir>/contraagent-<uid>/codex-<label>-<random>`, as its
   `TMPDIR`, `TMP` and `TEMP` and as the sandbox's writable root besides the working
   directory, removed when the launch ends. Every other temporary directory contraagent makes
-  (a backend's scratch directory, an omp session directory, `contraagent check`'s) is under
-  `<temp dir>/contraagent/` too.
+  (a backend's scratch directory, a session directory, `contraagent check`'s) is under
+  `<temp dir>/contraagent-<uid>/` too: one directory per user, owner-only (0700), refused
+  when it is a symlink, not a directory or another user's, and made owner-only again when
+  others can reach it.
 - A hook on omp, pi or opencode received `tool_input.file_path` as the model wrote it,
   which may be relative to the session's directory (`notes/a.md`), where Claude Code always
   passes an absolute path: a script matching `*/notes/*` never matched. The rendered
