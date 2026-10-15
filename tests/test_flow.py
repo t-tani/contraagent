@@ -326,13 +326,16 @@ def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
     assert any(line.startswith("[end] summarize-u: completed") and "2 rounds" in line for line in lines)
 
 
-def test_claude_s_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir):
+@pytest.mark.parametrize("coding_agent", ["claude", "codex"])
+def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir, coding_agent):
+    """Claude Code and Codex continue the session when a Stop hook objects: each runs its own
+    rendered hooks file (`hooks/hooks.json`, `codex/hooks.json`)."""
     lint = CommandValidator(
         [sys.executable, "-c", "import sys; sys.exit('no heading' if not open(sys.argv[1]).read().startswith('#') else 0)"], name="heading"
     )
     write_doc = agent_task("write_doc", plugin=plugin_dir, output=str, validators=[lint], max_turns=5, timeout_s=60)
     agent = StubAgent({"write_doc": ["plain", "# Doc\n"]})
-    rep = pipeline(tmp_path, agent).run(lambda: write_doc("u"))
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: write_doc("u"))
     assert rep.ok and rep.results["write_doc-u"].launch_result.rounds == 1  # fixed before the turn ended
     first, second = agent.launches
     assert not first.in_turn and second.in_turn and not second.resumed

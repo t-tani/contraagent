@@ -197,16 +197,18 @@ options:
   --json                print the report as JSON
 
 $ contraagent plugin --help
-usage: contraagent plugin [-h] {new,lint,render} ...
+usage: contraagent plugin [-h] {new,lint,render,hook} ...
 
 positional arguments:
-  {new,lint,render}
-    new              create a plugin from the template
-    lint             check that a plugin's parts agree
-    render           write each coding agent's native hooks from hooks.toml
+  {new,lint,render,hook}
+    new                 create a plugin from the template
+    lint                check that a plugin's parts agree
+    render              write each coding agent's native hooks from hooks.toml
+    hook                run a hook script on the input a coding agent's hook got, in Claude Code's
+                        shape
 
 options:
-  -h, --help         show this help message and exit
+  -h, --help            show this help message and exit
 
 $ contraagent plugin new --help
 usage: contraagent plugin new [-h] [--name NAME] directory
@@ -235,8 +237,22 @@ positional arguments:
 
 options:
   -h, --help     show this help message and exit
-  --agent AGENT  claude, omp (default: every renderer)
+  --agent AGENT  claude, codex, omp, opencode, pi (default: every renderer)
   --check        only report files that are out of date
+
+$ contraagent plugin hook --help
+usage: contraagent plugin hook [-h] --agent {codex} --root ROOT [--tool TOOL] [--match MATCH]
+                               script
+
+positional arguments:
+  script           the hook script, relative to the plugin
+
+options:
+  -h, --help       show this help message and exit
+  --agent {codex}  the coding agent that runs the hook
+  --root ROOT      the plugin's directory
+  --tool TOOL      the tool the hook is for, as hooks.toml names it (default: every tool)
+  --match MATCH    run only when the command holds this text
 
 $ contraagent call --help
 usage: contraagent call [-h] {validate} ...

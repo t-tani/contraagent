@@ -2,8 +2,9 @@
 
 A task's behaviour includes hooks: a script that gates a tool call, one that
 reacts to a result, a check when the agent is about to stop. Each coding agent
-wires hooks its own way (Claude Code in `hooks/hooks.json`, omp and pi each in a
-TypeScript extension, opencode in a JavaScript plugin), so written by hand they
+wires hooks its own way (Claude Code in `hooks/hooks.json`, Codex in its own
+`hooks.json`, omp and pi each in a TypeScript extension, opencode in a JavaScript
+plugin), so written by hand they
 exist once per agent and drift. A plugin declares
 them once, agent-neutrally, in `hooks.toml`:
 
@@ -21,8 +22,9 @@ and `contraagent plugin render` (`write`) writes what each agent needs, so the
 hooks run *inside* the coding agent, on its own machinery. The scripts stay
 neutral: they read the JSON Claude Code sends hooks on stdin
 (`{"tool_name": "Bash", "tool_input": {"command": ...}}`); the omp and pi
-extensions and the opencode plugin build the same payload, so one script serves
-every agent. A `pre_tool` script blocks by exiting 2 with the reason on stderr.
+extensions, the opencode plugin and the Codex bridge (`run_codex_hook`) build the
+same payload, so one script serves every agent. A `pre_tool` script blocks by
+exiting 2 with the reason on stderr.
 
 What each agent can do differs, and the difference is recorded rather than
 hidden (`render` returns notes, `lint` shows them):
@@ -35,6 +37,12 @@ hidden (`render` returns notes, `lint` shows them):
                                        continue a session an extension       session is idle.
                                        resumes at `agent_end`.
                For omp, pi and opencode, the runner's own contract check resumes the session instead.
+
+    Codex (codex/hooks.json, Codex's own format, passed as config by the Codex backend):
+    `PreToolUse`, `PostToolUse` and `Stop` hooks with Claude Code's semantics (exit 2
+    blocks, sends the words back, continues the session). A shell command reaches the
+    script as `Bash`; a file change (`apply_patch`) as `Write` or `Edit` per file. Codex
+    has no read, grep or glob tool: a hook for one does not run there.
 
 A script reads the tool input in Claude Code's shape on every agent: each agent's
 argument names are renamed to Claude Code's (`TOOL_ARGS`: opencode's `filePath`,
@@ -50,9 +58,15 @@ A new coding agent registers a renderer with `register_renderer`.
 from __future__ import annotations
 
 import json
+import os
+import re
+import shlex
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from contraagent._internal.backends.codex.hooks import HOOKS_FILE as CODEX_HOOKS_FILE
 
 if TYPE_CHECKING:
     from contraagent._internal.plugins.plugin import Plugin
@@ -429,7 +443,156 @@ def render_opencode(plugin: Plugin) -> Rendered:
     return {"opencode/index.js": text.replace("__PRE__", view(pre)).replace("__POST__", view(post))}, notes
 
 
+#: Codex's tools, as its hooks name them (`tool_name`), for each tool `hooks.toml` names:
+#: shell commands are `Bash`; a file written or edited goes through `apply_patch`. Codex has
+#: no tool that only reads or searches: it reads and searches with shell commands.
+CODEX_MATCHER = {"bash": "Bash", "write": "apply_patch", "edit": "apply_patch"}
+#: What a Codex hook with a script runs: the bridge that hands the script Claude Code's input.
+CODEX_BRIDGE = '"${CONTRAAGENT_PYTHON:-python3}" -m contraagent plugin hook --agent codex --root "${CLAUDE_PLUGIN_ROOT}"'
+
+
+def render_codex(plugin: Plugin) -> Rendered:
+    """`codex/hooks.json`, in Codex's own hook format. The Codex backend passes it into every
+    launch of a task of this plugin as config, trusted (`backends.codex.hooks`).
+
+    Codex sends its hooks Claude Code's input with its own tool names: a shell command is
+    `Bash` with `command`, as on Claude Code; a file change is `apply_patch` with the patch as
+    `command`. So a hook with a script runs through `contraagent plugin hook --agent codex`
+    (`run_codex_hook`), which hands the script Claude Code's `Write` or `Edit` for each file
+    the patch adds or updates. The stop hook runs as on Claude Code: Codex continues the
+    session with what it says (checked against codex-cli 0.162.1)."""
+    notes: list[str] = []
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for h in plugin.hooks:
+        if h["on"] == "stop":
+            cmd = STOP_VALIDATE if h.get("run") == "validate" else f"{CODEX_BRIDGE} {shlex.quote(h['script'])}"
+            groups.setdefault(("Stop", ""), []).append({"type": "command", "command": cmd})
+            continue
+        tool = h.get("tool", "")
+        if tool and tool not in CODEX_MATCHER:
+            notes.append(f"codex: no {tool} tool (it reads and searches with shell commands): {h['script']} does not run there")
+            continue
+        args = [f"--tool {shlex.quote(tool)}"] if tool else []
+        if h.get("match"):
+            args.append(f"--match {shlex.quote(str(h['match']))}")
+        event = "PreToolUse" if h["on"] == "pre_tool" else "PostToolUse"
+        cmd = " ".join([CODEX_BRIDGE, *args, shlex.quote(h["script"])])
+        groups.setdefault((event, CODEX_MATCHER.get(tool, "")), []).append({"type": "command", "command": cmd})
+    if not groups:
+        return {}, notes
+    hooks: dict[str, list] = {}
+    for (event, matcher), cmds in groups.items():
+        hooks.setdefault(event, []).append({"matcher": matcher, "hooks": cmds} if matcher else {"hooks": cmds})
+    return {CODEX_HOOKS_FILE: json.dumps({"hooks": hooks}, indent=2) + "\n"}, notes
+
+
+#: An `apply_patch` patch's file operations (`*** Add File: <path>` and the others).
+_PATCH_OP_RE = re.compile(r"^\*\*\* (Add|Update|Delete) File: (.+)$")
+_PATCH_MOVE_RE = re.compile(r"^\*\*\* Move to: (.+)$")
+
+
+def patch_inputs(patch: str, cwd: str) -> list[tuple[str, dict]]:
+    """The Claude Code tool calls an `apply_patch` patch amounts to: `Write` with `file_path`
+    and `content` for a file it adds; `Edit` with `file_path` (the path it moves the file to,
+    when it moves it) for one it updates, and with `old_string` and `new_string` when the
+    update is one hunk. A file it deletes has no Claude Code call. Paths are absolute,
+    a relative one taken from `cwd`."""
+    calls: list[tuple[str, dict]] = []
+    op: list | None = None  # [kind, path, body lines]
+    for line in patch.splitlines():
+        found = _PATCH_OP_RE.match(line)
+        if found or line.startswith("*** End Patch"):
+            if op is not None:
+                calls += _patch_call(op, cwd)
+            op = [found.group(1), found.group(2).strip(), []] if found else None
+        elif op is not None and (moved := _PATCH_MOVE_RE.match(line)):
+            op[1] = moved.group(1).strip()
+        elif op is not None:
+            op[2].append(line)
+    if op is not None:
+        calls += _patch_call(op, cwd)
+    return calls
+
+
+def _patch_call(op: list, cwd: str) -> list[tuple[str, dict]]:
+    kind, path, lines = op
+    file_path = os.path.abspath(os.path.join(cwd, os.path.expanduser(path)))
+    if kind == "Add":
+        return [("Write", {"file_path": file_path, "content": "".join(f"{x[1:]}\n" for x in lines if x.startswith("+"))})]
+    if kind == "Delete":
+        return []
+    hunks: list[list[str]] = [[]]
+    for x in lines:
+        if x.startswith("@@"):
+            hunks.append([])
+        elif x[:1] in (" ", "-", "+"):
+            hunks[-1].append(x)
+    hunks = [h for h in hunks if any(x[:1] in ("-", "+") for x in h)]
+    tool_input: dict = {"file_path": file_path}
+    if len(hunks) == 1:
+        tool_input["old_string"] = "\n".join(x[1:] for x in hunks[0] if x[:1] != "+")
+        tool_input["new_string"] = "\n".join(x[1:] for x in hunks[0] if x[:1] != "-")
+    return [("Edit", tool_input)]
+
+
+def codex_inputs(payload: dict) -> list[tuple[str, dict]]:
+    """The tool calls, under Claude Code's names and in its shapes, of the input a Codex tool
+    hook got: an `apply_patch` as one call per file (`patch_inputs`), any other tool as it is
+    (a shell command is already Claude Code's `Bash` with `command`)."""
+    name = str(payload.get("tool_name") or "")
+    tool_input = payload.get("tool_input")
+    if name == "apply_patch" and isinstance(tool_input, dict):
+        return patch_inputs(str(tool_input.get("command") or ""), str(payload.get("cwd") or os.getcwd()))
+    return [(name, tool_input if isinstance(tool_input, dict) else {})]
+
+
+def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "", match: str = "") -> tuple[int, str, str]:
+    """What a Codex hook with a script runs (`contraagent plugin hook --agent codex`): the
+    script, once for each tool call of the input (`codex_inputs`) that `tool` and `match`
+    select, or once for any other event, with the input on stdin in Claude Code's shape, in
+    the session's directory, with `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PROJECT_DIR` set as Claude
+    Code sets them. Returns (exit code, stdout, stderr): 2 and the reasons when a run exits
+    2 (a `pre_tool` hook stops at the first), else the first other failure's code and words,
+    else 0; stdout is the script's when it ran once."""
+    try:
+        payload = json.loads(stdin_text or "{}")
+    except ValueError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    event = payload.get("hook_event_name")
+    cwd = str(payload.get("cwd") or os.getcwd())
+    root = Path(root)
+    env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(root), "CLAUDE_PROJECT_DIR": cwd}
+    runs = [payload]
+    if event in ("PreToolUse", "PostToolUse"):
+        runs = [
+            {**payload, "tool_name": name, "tool_input": tool_input}
+            for name, tool_input in codex_inputs(payload)
+            if (not tool or CLAUDE_TOOL.get(tool, tool) == name) and (not match or match in str(tool_input.get("command") or ""))
+        ]
+    objections: list[str] = []
+    failure: tuple[int, str] | None = None
+    outs: list[str] = []
+    for run in runs:
+        proc = subprocess.run(["bash", str(root / script)], input=json.dumps(run), capture_output=True, text=True, cwd=cwd, env=env)
+        outs.append(proc.stdout)
+        if proc.returncode == 2:
+            objections.append(proc.stderr.strip() or "a task hook objected")
+            if event == "PreToolUse":
+                break
+        elif proc.returncode != 0 and failure is None:
+            failure = (proc.returncode, proc.stderr.strip())
+    stdout = outs[0] if len(outs) == 1 else ""
+    if objections:
+        return 2, stdout, "\n".join(objections)
+    if failure is not None:
+        return failure[0], stdout, failure[1]
+    return 0, stdout, ""
+
+
 register_renderer("claude", render_claude)
+register_renderer("codex", render_codex)
 register_renderer("omp", render_omp)
 register_renderer("opencode", render_opencode)
 register_renderer("pi", render_pi)

@@ -60,9 +60,9 @@ description: How to write a task's output file so it passes its checks. Use when
 }
 """,
     "hooks.toml": """# Hooks, declared once for every coding agent. `contraagent plugin render` writes
-# from this file hooks/hooks.json (Claude Code) and package.json (omp), and for a
-# pre_tool or post_tool hook omp/index.ts and opencode/index.js, which run it in omp
-# and opencode.
+# from this file hooks/hooks.json (Claude Code), codex/hooks.json (Codex) and
+# package.json (omp), and for a pre_tool or post_tool hook omp/index.ts and
+# opencode/index.js, which run it in omp and opencode.
 
 # The output check, inside the session: the agent fixes its file before it stops.
 [[hooks]]
@@ -86,7 +86,7 @@ Each task's interface (parameters, output schema, budget) is the `agent_task(...
 | `skills/` | detail the agent loads when it needs it |
 | `settings.json` | what the agent may do (Claude Code; omp runs every built-in tool). It denies `WebFetch` and `WebSearch`: a task that searches the web removes them from `deny`, allows them (`WebFetch(domain:...)`) and lists them in its role's `tools:` (`contraagent docs plugins`) |
 | `hooks.toml` | hooks, declared once (the stop hook checks the output in-session) |
-| `hooks/hooks.json`, `package.json`, `omp/` | **generated** from `hooks.toml` by `contraagent plugin render` |
+| `hooks/hooks.json`, `codex/`, `package.json`, `omp/` | **generated** from `hooks.toml` by `contraagent plugin render` |
 
 Each task's data arrives in a call file the prompt names; nothing here mentions a run or a path.
 `contraagent plugin lint .` checks that the parts agree.

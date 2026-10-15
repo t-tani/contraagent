@@ -13,7 +13,7 @@ import re
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop
 from contraagent._internal.backends.refusal import Ending, Signals
-from contraagent._internal.backends.wire import EventFold, first_text, tokens, tool_preview
+from contraagent._internal.backends.wire import EventFold, feedback_errors, first_text, tokens, tool_preview
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, QuotaWindow
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -59,17 +59,6 @@ def stop_hook_feedback(ev: dict) -> str | None:
         if isinstance(text, str) and text.startswith(STOP_HOOK_FEEDBACK):
             return text
     return None
-
-
-def feedback_errors(text: str) -> list[str]:
-    """The errors a check's feedback lists (its `- ` lines outside code), else the text itself."""
-    errors, fenced = [], False
-    for line in text.splitlines():
-        if line.startswith("```"):
-            fenced = not fenced
-        elif not fenced and line.startswith("- "):
-            errors.append(line[2:])
-    return errors or [text.strip()]
 
 
 #: The fields of `rate_limit_info` a reading names; the rest go to `QuotaReading.extra`.

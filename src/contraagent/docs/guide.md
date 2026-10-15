@@ -95,8 +95,8 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
   a credential used on opencode never rests on a quota; a launch it runs sees
   the user's own opencode config (`~/.config/opencode`), except a light launch.
 - Codex runs no light launch (`agent_task(tools=())`), takes of a plugin its
-  role's file, its skills and its `.mcp.json` (no hooks, so the runner's check
-  and its session resume enforce the output), and enforces neither `max_budget_usd` nor
+  role's file, its skills, its `.mcp.json` and its hooks (no hook for a read, grep or
+  glob tool, which Codex does not have), and enforces neither `max_budget_usd` nor
   `context_budget`: it reports no cost, and its per-call tokens only after the
   launch (its peak context and `context_warn_pct` still hold).
 - `workload_identity`, `bedrock` and `vertex` follow Claude Code's

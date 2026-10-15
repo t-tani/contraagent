@@ -12,11 +12,14 @@ The events carry no per-call token counts, no model name and no account
 usage. The rollout file codex writes for a persisted session
 (`$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*-<thread id>.jsonl`) does: one
 `event_msg` `token_count` per API call (`last_token_usage`, the model's
-`model_context_window`, `rate_limits`) and a `turn_context` with the model. `read_rollout` takes those.
+`model_context_window`, `rate_limits`), a `turn_context` with the model, and what a Stop
+hook sent back (a user message `<hook_prompt hook_run_id="...">text</hook_prompt>`, the
+text XML-escaped). `read_rollout` takes those.
 """
 
 from __future__ import annotations
 
+import html
 import json
 import re
 from dataclasses import dataclass, field
@@ -24,7 +27,7 @@ from pathlib import Path
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import FAILED_STOPS, Ending, Signals
-from contraagent._internal.backends.wire import EventFold, positive_int, tokens
+from contraagent._internal.backends.wire import EventFold, feedback_errors, positive_int, tokens
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -41,6 +44,8 @@ SIGNALS = Signals(
 )
 #: `Reconnecting... 2/5 (unexpected status 401 Unauthorized: ...)`
 _RECONNECT_RE = re.compile(r"^Reconnecting\.\.\. (\d+)/(\d+) \((.*)\)$", re.S)
+#: How a rollout records what a Stop hook sent back: one user message part per hook.
+_HOOK_PROMPT_RE = re.compile(r"^\s*<hook_prompt hook_run_id=\"[^\"]*\">(.*)</hook_prompt>\s*$", re.S)
 #: The rollout's rate-limit windows by length: 5 hours and 7 days.
 _FIVE_HOUR_MIN, _SEVEN_DAY_MIN = 300, 10080
 
@@ -174,6 +179,7 @@ class EventReader(EventFold):
             api_retries=self.api_retries,
             retry_errors=dict(self.retry_errors),
             stderr_tail=self.failure,
+            hook_errors=list(rollout.hook_errors) if rollout is not None else [],
             raw_result={"usage": self.turn_usage} if self.turn_usage else {},
         )
 
@@ -189,6 +195,22 @@ class Rollout:
     context_window: int | None = None
     cli_version: str = ""
     quota: list[QuotaReading] = field(default_factory=list)
+    #: What the plugin's Stop hook sent back within the launch: one list of errors per objection.
+    hook_errors: list[list[str]] = field(default_factory=list)
+
+
+def hook_prompt(payload: dict) -> str | None:
+    """The text a Stop hook sent back, when a rollout's `response_item` is the user message
+    that carries it, else None."""
+    if payload.get("type") != "message" or payload.get("role") != "user":
+        return None
+    said = []
+    for part in payload.get("content") or []:
+        found = _HOOK_PROMPT_RE.match(str(part.get("text") or "")) if isinstance(part, dict) else None
+        if found is None:
+            return None
+        said.append(html.unescape(found.group(1)))
+    return "\n".join(said) if said else None
 
 
 def call_usage(u: dict, model: str) -> CallUsage:
@@ -262,6 +284,8 @@ def read_rollout(path: Path, start: int = 0) -> Rollout:
         typ = ev.get("type")
         if typ == "session_meta":
             out.cli_version = str(payload.get("cli_version") or "")
+        elif typ == "response_item" and (said := hook_prompt(payload)) is not None:
+            out.hook_errors.append(feedback_errors(said))
         elif typ == "turn_context":
             out.model = str(payload.get("model") or out.model)
         elif typ == "event_msg" and payload.get("type") == "token_count":

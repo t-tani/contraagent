@@ -6,8 +6,9 @@ and the session's rollout file read after it ends (`wire.read_rollout`) for
 what the events do not carry: per-call tokens, the model, the plan's usage.
 
 What a launch sees (checked against codex-cli 0.162.1): no AGENTS.md
-(`project_doc_max_bytes=0`), no hooks, plugins or execpolicy rules, and of the
-skills only its plugins' and codex's own. Codex finds skills only in fixed
+(`project_doc_max_bytes=0`), no plugins or execpolicy rules, of the hooks only its
+plugins' (`codex.hooks`: rendered into `codex/hooks.json`, passed as config and trusted
+by hash), and of the skills only its plugins' and codex's own. Codex finds skills only in fixed
 places (`$HOME/.agents/skills`, a project's `.agents/skills` and `.codex/skills`,
 `/etc/codex/skills`, its bundled ones), so codex runs with a `HOME` of its own whose
 `.agents/skills` links to each plugin's `skills/<name>`, and each project skill is
@@ -33,6 +34,7 @@ from pathlib import Path
 from contraagent._internal.backends import plugin_files
 from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById
 from contraagent._internal.backends.codex import wire as codex_wire
+from contraagent._internal.backends.codex.hooks import HOOKS_FILE, hooks_config
 from contraagent._internal.backends.codex.wire import EventReader, find_rollout, read_rollout
 from contraagent._internal.backends.credentials import (
     Ambient,
@@ -50,11 +52,10 @@ from contraagent._internal.backends.process import via_stdin
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 
 #: Config every launch gets: nothing the user or the project would add to the
-#: instructions, and network access for the commands the agent runs.
+#: instructions, and network access for the commands the agent runs. Hooks are turned on
+#: only for a launch whose plugins have some (`hook_args`).
 ISOLATION_ARGS = (
     "--ignore-rules",
-    "--disable",
-    "hooks",
     "--disable",
     "plugins",
     "-c",
@@ -126,6 +127,7 @@ class CodexBackend(ResumeById, Backend):
 
     name = "codex"
     binary = "codex"
+    stop_hooks_file = HOOKS_FILE
     # `model_reasoning_effort`; the levels `~/.codex/models_cache.json` lists for each model.
     effort_levels = ("low", "medium", "high", "xhigh", "max", "ultra")
     # No `--agent`: the role's file goes into the prompt.
@@ -266,7 +268,7 @@ class CodexBackend(ResumeById, Backend):
         a = [self.binary, "exec"]
         if launch.resume:
             a += ["resume", launch.resume]
-        a += ["--json", "--skip-git-repo-check", *ISOLATION_ARGS]
+        a += ["--json", "--skip-git-repo-check", *ISOLATION_ARGS, *self.hook_args(launch)]
         # codex runs with the launch's own HOME (`skill_home`); the commands it runs do not.
         a += ["-c", f"shell_environment_policy.set.HOME={toml(self.real_home())}"]
         # The project's own skills: codex has no switch for them, only a per-file `enabled = false`.
@@ -297,6 +299,16 @@ class CodexBackend(ResumeById, Backend):
         a += self.bind_credential(launch.credential, launch.model, env=self._base_env, label=launch.label).args
         a.append("-" if via_stdin(launch) else launch.prompt)
         return a
+
+    def hook_args(self, launch: Launch) -> list[str]:
+        """The plugins' rendered hooks (`codex/hooks.json`), trusted by hash, with the user's own
+        turned off (`codex.hooks.hooks_config`); hooks turned off when there are none."""
+        binding = self.bind_credential(launch.credential, launch.model, env=self._base_env, label=launch.label)
+        user_config = None if binding.isolated else self.codex_home(launch) / "config.toml"
+        table = hooks_config(launch.plugin_dirs, self.real_home(), user_config)
+        if table is None:
+            return ["--disable", "hooks"]
+        return ["--enable", "hooks", "-c", f"hooks={toml(table)}"]
 
     # --- run ---------------------------------------------------------------
 
