@@ -110,7 +110,7 @@ def check_task_tables(tables: Mapping[str, dict], kinds: Iterable, bases: Mappin
     known = {kind_name(k) for k in kinds} | {b for b in (bases or {}).values() if b}
     unknown = sorted(set(tables) - known)
     for name in unknown:
-        guess = did_you_mean(name, known) or " — a typo?"
+        guess = did_you_mean(name, known) or " (a typo?)"
         _logger.warning(f"[config] [tasks.{name}] is not a kind of this run (kinds: {', '.join(sorted(known))}); ignored{guess}")
     return unknown
 
