@@ -46,7 +46,8 @@ from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent
 from contraagent.plugins import new_plugin  # noqa: E402
 
 ROUTES = {"claude": ("claude", "claude-haiku-5-5"), "omp": ("omp", "anthropic/claude-haiku-5-5")}
-AGENTS = list(ROUTES)
+#: The coding agents this live run launches: CONTRAAGENT_LIVE_AGENTS (comma-separated), else both.
+AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(ROUTES)).split(",") if a in ROUTES]
 
 #: Where the runs are kept, so the monitor can be pointed at them. Wiped at the start.
 LIVE_DIR = Path(os.environ.get("CONTRAAGENT_LIVE_DIR") or Path(__file__).resolve().parents[2] / "live-demo") / "features"
@@ -415,7 +416,8 @@ def test_a_fix_up_round_is_charged_once(ws, agent):
     print(f"  cost {row['cost_usd']} rounds {row['rounds']} round costs {launch['round_costs']}")
     assert report.ok, report.failed
     assert row["rounds"] == 2 and len(launch["round_costs"]) == 2
-    assert row["cost_usd"] == pytest.approx(sum(launch["round_costs"]), abs=1e-6)
+    # each round's cost and the row's are rounded to 6 places apiece: their sum may differ by 1e-6
+    assert row["cost_usd"] == pytest.approx(sum(launch["round_costs"]), abs=2e-6)
     assert row["hops"][0]["cost_usd"] == pytest.approx(row["cost_usd"], abs=1e-6)
     if agent == "claude":
         reported = result_costs(report, f"note_{agent}-tea")

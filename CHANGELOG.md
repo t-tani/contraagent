@@ -1184,6 +1184,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrote through a temporary file of a fixed name, which two writers could share: each write
   takes a unique one (`write_document`).
 
+- A codex launch no longer loads the project's skills (`.agents/skills` and `.codex/skills`
+  in the working directory and each directory above it up to the repository's root): each
+  is turned off by its path (`skills.config`). The task's plugin skills stay on.
 - Claude Code's quota refusal printed on stderr is `rate_limited`: `ClaudeBackend.reclassify`
   was never called.
 - `omp-rpc` reads a quota refusal on stderr, checks the credential the agent reports, takes
