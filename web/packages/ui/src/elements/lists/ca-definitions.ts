@@ -27,15 +27,16 @@ export class CaDefinitions extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
+      /* A container: the list of kinds goes above the definition when the element is narrow, whatever the window's width. */
+      :host { display: block; container-type: inline-size; }
       .defs { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
       .deflist { display: flex; flex-direction: column; gap: 6px; }
       .defitem { padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; color: inherit; text-align: start;
         display: flex; flex-direction: column; gap: 2px; }
       .defitem:hover { border-color: var(--line2); }
       .defitem.sel { border-color: var(--accent); background: var(--accent-bg); }
-      @media (max-width: 900px) {
-        .defs { grid-template-columns: 1fr; }
+      @container (max-width: 720px) {
+        .defs { grid-template-columns: minmax(0, 1fr); }
       }
     `,
   ];

@@ -44,9 +44,12 @@ export class CaDefinition extends LitElement {
       .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }
       .df { border-top: 1px solid var(--line); }
       /* A file: its name opens and closes it (a disclosure button), and a Markdown file has its own toggle beside it. */
-      .df-hd { padding: 6px 2px; display: flex; gap: 10px; align-items: center; }
-      .df-sum { flex: 1 1 auto; min-width: 0; display: flex; gap: 10px; align-items: center; padding: 0; background: none; border: 0;
+      /* Too narrow for the name and the toggle on one line: the toggle goes under the name. */
+      .df-hd { padding: 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+      .df-sum { flex: 1 1 16em; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 0; background: none; border: 0;
         color: inherit; text-align: start; cursor: pointer; }
+      .df-sum .jmono { min-width: 0; overflow-wrap: anywhere; }
+      .df-tog { flex: none; margin-inline-start: auto; }
       .df-sum::before { content: '▸'; color: var(--text-muted); width: 10px; flex: none; transition: transform 0.15s; }
       .df-sum[aria-expanded='true']::before { transform: rotate(90deg); }
       .py-sig { font-family: var(--mono); font-size: 14px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line);

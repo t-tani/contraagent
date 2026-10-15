@@ -13,6 +13,8 @@ export const transcriptStyles = css`
   .stab:hover { border-color: var(--accent); }
   .stab.sel { background: var(--accent-bg); border-color: var(--accent); color: var(--text); }
   .stab-m { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); margin-left: 4px; }
+  /* on the selected tab's tint, the secondary words take the secondary text colour, which reads on it */
+  .stab.sel .stab-m { color: var(--text-2); }
   .stab .dot { width: 6px; height: 6px; margin-left: 4px; }
   .stab .mk { margin-right: 4px; }
   .stab .mk.ok { color: var(--status-done); }

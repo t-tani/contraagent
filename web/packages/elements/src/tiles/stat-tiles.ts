@@ -16,8 +16,8 @@ const reducedMotion = () => globalThis.matchMedia?.('(prefers-reduced-motion: re
  * `<cae-count>`), the lines of facts under it and a link. A tile whose number
  * changes bumps, unless `bump` is off or the reader asks for reduced motion.
  *
- * Its look: `columns` (fewer on a narrow screen: 4 below 1150px, 2 below
- * 700px), `--cae-stat-tiles-gap` and the parts.
+ * Its look: `columns` (fewer in a narrow element: 4 below 1100px of its
+ * width, 2 below 660px, 1 below 240px), `--cae-stat-tiles-gap` and the parts.
  *
  * @tagname cae-stat-tiles
  * @fires cae-action - `{id, action}`: a tile's link, by the tile's id and the action's id

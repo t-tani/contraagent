@@ -1,22 +1,24 @@
 // The styles of `ca-monitor`: its header, the filter bar and the view below.
-// The tab list's are in `tabs.ts`.
+// The tab list's are in `tabs.ts`. The monitor is a container (`ca-monitor`):
+// its parts follow the width it is given, not the window's, so it fits any box
+// of a page that embeds it.
 import { css } from 'lit';
 
 export const monitorStyles = css`
   :host { display: flex; flex-direction: column; height: 100%; min-height: 0; font: 13px/1.5 var(--sans); color: var(--text);
-    background: var(--backdrop); }
+    background: var(--backdrop); container: ca-monitor / inline-size; }
   header { flex: none; display: flex; gap: 14px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line);
     background: color-mix(in srgb, var(--bg) 75%, transparent); backdrop-filter: blur(10px); position: relative; z-index: 20; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.02em; }
   /* the name stays on one line and whole up to a third of the width; the run button gives up its width instead */
-  .brand { flex: none; max-width: 30vw; white-space: nowrap; }
+  .brand { flex: none; max-width: 30cqi; white-space: nowrap; }
   .brand span { overflow: hidden; text-overflow: ellipsis; }
   .brand svg { width: 22px; height: 22px; flex: none; }
   .logo-core { fill: var(--accent); transform-origin: 12px 12px; }
   .logo-ring { stroke: var(--accent); opacity: 0.5; transform-origin: 12px 12px; }
   :host([live]) .logo-core { animation: core-beat 1.8s var(--ease) infinite; }
   :host([live]) .logo-ring { animation: turn 7s linear infinite; }
-  .runbtn { display: flex; align-items: center; gap: 10px; min-width: 150px; max-width: 52vw; cursor: pointer; padding: 6px 13px;
+  .runbtn { display: flex; align-items: center; gap: 10px; min-width: min(150px, 100%); max-width: 52cqi; cursor: pointer; padding: 6px 13px;
     border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--text); transition: border-color 0.2s, background 0.2s; }
   .runbtn:hover { border-color: var(--line2); background: var(--panel2); }
   .rn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; max-width: 40%; }
@@ -29,7 +31,7 @@ export const monitorStyles = css`
   ca-run-picker { inset-inline-start: 110px; }
   /* the controls keep their width; the name and the run button give theirs */
   .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex: none; white-space: nowrap; }
-  .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40vw;
+  .nowline { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; max-width: 40cqi;
     display: inline-flex; align-items: center; gap: 4px; }
   .clock { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
   .langs { --cae-segmented-radius: 999px; --cae-segmented-height: auto; --cae-segmented-padding: 2px 9px; --cae-segmented-font-size: 11px;
@@ -47,17 +49,23 @@ export const monitorStyles = css`
   main { border-top: 1px solid var(--line); flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 18px 48px; }
   main.stream { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
   /* too narrow for one line: the controls go under the name and the run button */
-  @media (max-width: 1000px) {
+  @container ca-monitor (max-width: 1000px) {
     header { flex-wrap: wrap; row-gap: 8px; }
   }
-  @media (max-width: 760px) {
-    header { flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
-    .runbtn { max-width: calc(100vw - 130px); }
+  @container ca-monitor (max-width: 760px) {
+    header { gap: 8px; padding: 8px 12px; }
+    /* the run button takes the rest of the first line; its run line gives up its width first */
+    .runbtn { flex: 1 1 0; min-width: 0; max-width: none; }
     /* the run picker spans the header, 16px from each side */
     ca-run-picker { inset-inline: 16px; width: auto; }
-    .hdr-right { width: 100%; margin-left: 0; flex-wrap: wrap; }
-    .nowline { max-width: none; flex: 1; }
-    nav { padding: 4px 8px 0; }
+    .hdr-right { width: 100%; margin-left: 0; flex-wrap: wrap; row-gap: 6px; }
+    .nowline { max-width: none; flex: 1 1 100%; }
     main { padding: 12px 12px 40px; }
+    .bar { padding: 8px 12px; }
+    .bar input { flex: 1 1 10em; min-width: 0; }
+  }
+  @container ca-monitor (max-width: 420px) {
+    .brand { max-width: 40cqi; }
+    .runbtn { padding: 6px 10px; gap: 8px; }
   }
 `;

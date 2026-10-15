@@ -22,7 +22,8 @@ export const checkTableStyles = css`
   th:last-child, td:last-child { padding-right: 0; }
   td.value { overflow-wrap: anywhere; }
   tbody tr:last-child td { border-bottom: 0; }
-  td:first-child { white-space: nowrap; font-weight: 600; }
+  /* a name stays on one line while the table has the room, and breaks where it must */
+  td:first-child { font-weight: 600; overflow-wrap: anywhere; }
   td:last-child { white-space: nowrap; }
   i { font-style: normal; color: var(--text-muted); font-size: 11px; margin-left: 4px; }
   .js { color: var(--code-string); }

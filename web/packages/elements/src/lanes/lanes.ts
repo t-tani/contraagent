@@ -111,7 +111,7 @@ export class CaeLanes extends LitElement {
           const look = this.barStyles[bar.style];
           return html`<span class="bar ${bar.end === null ? 'running' : ''}" part="bar" data-style=${bar.style}
             data-pattern=${look?.pattern ?? 'solid'} title=${bar.label}
-            style="--bar:${look?.color ?? 'var(--line2)'};--row:${row};left:${box.left.toFixed(3)}%;width:${box.width.toFixed(3)}%"></span>`;
+            style="--bar:${look?.color ?? 'var(--line2)'};--row:${row};left:min(${box.left.toFixed(3)}%, 100% - max(3px, ${box.width.toFixed(3)}%));width:${box.width.toFixed(3)}%"></span>`;
         })}
       </div>
     </div>`;

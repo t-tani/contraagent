@@ -1,10 +1,12 @@
 // The look of `<cae-data-table>`. A row is a grid of the columns' tracks
 // (`--cae-data-table-columns`, set from the columns' widths), so every row
-// lines up with the header without a table layout pass.
+// lines up with the header without a table layout pass. Rows wider than the
+// host scroll sideways inside the table; the host is a container, so the
+// host's `cellStyles` can drop or narrow columns by its width (`@container`).
 import { css } from 'lit';
 
 export const dataTableStyles = css`
-  :host { display: block; }
+  :host { display: block; container-type: inline-size; }
   table { display: block; width: 100%; border-collapse: collapse; overflow-x: auto; }
   caption { display: block; text-align: start; }
   thead, tbody { display: block; }
