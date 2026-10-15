@@ -50,6 +50,7 @@ dev = [
     "pytest-xdist>=3.8",
     "griffe==2.3.0",        # tests/api: the public API snapshot; `griffe check`
     "import-linter>=2.15",
+    "towncrier>=26.9",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -73,6 +74,53 @@ exclude = [
     "web/playwright-report",
     "web/packages/ui/custom-elements.json",
 ]
+
+# The changelog: one fragment per user-visible change in changelog.d/ (`<slug>.<type>.md`,
+# or `+<slug>.<type>.md` for an orphan), its types Keep a Changelog's sections in their order.
+# `uv run towncrier build --version X` writes them into CHANGELOG.md at a release.
+[tool.towncrier]
+name = "contraagent"
+directory = "changelog.d"
+filename = "CHANGELOG.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## [{version}] - {project_date}"
+template = "changelog.d/template.md"
+ignore = []   # a file here whose name has no fragment type fails the build
+orphan_prefix = "+"
+issue_format = ""
+issue_pattern = "[a-z0-9][a-z0-9_-]*"   # the slug
+wrap = false
+all_bullets = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

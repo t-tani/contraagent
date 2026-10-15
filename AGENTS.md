@@ -297,6 +297,8 @@ uv run pytest -m e2e    # the hub and relays as processes over Postgres and Rust
 docker build -t contraagent-hub:dev .   # the hub's image from these sources and uv.lock
 uv run pyright --verifytypes contraagent --ignoreexternal
 uv run griffe check --search src contraagent --against <last tag>
+uv run towncrier build --draft --version X   # the next release's changelog; tests/test_changelog.py runs it and checks the fragments' names
+uv run towncrier check --compare-with origin/main   # a branch with a user-visible change adds a fragment
 ```
 
 `--verifytypes` lists every public symbol whose type is unknown or only inferred; it
@@ -380,7 +382,12 @@ version; nothing else holds that text.
   rewrite it with `uv run python web/apps/docs/scripts/fixture.py` after a change
   to what the monitor returns.
 - The root `README.md` points to the packages and holds no documentation of its own.
-- `CHANGELOG.md`: record user-visible changes under `[Unreleased]`.
+- `CHANGELOG.md` (Keep a Changelog) is written by towncrier: record a
+  user-visible change as a fragment in `changelog.d/` (`<slug>.<type>.md`, or
+  `+<slug>.<type>.md`; types `added`, `changed`, `deprecated`, `removed`,
+  `fixed`, `security`; Markdown, one bullet per fragment; `changelog.d/README.md`).
+  At a release, `uv run towncrier build --version X` writes the fragments into
+  `CHANGELOG.md` and removes them; `--draft` previews the section.
 
 ## Compatibility
 
@@ -391,10 +398,10 @@ change it freely, with no aliases or shims inside it.
 
 - **Until 0.1.0 is tagged**: rename the public API freely too, with no
   compatibility aliases, no deprecation shims and no readers for old run
-  directories; `CHANGELOG.md` records each rename as old → new.
+  directories; a `changelog.d/` fragment records each rename as old → new.
 - **From 0.1.0**: a change to the public API is deliberate. The checks (the
   API snapshot, the `--help` snapshot, `openapi.json`, the file schemas) show
-  it, `CHANGELOG.md` records it, and it waits for a minor release (from 1.0, a
+  it, a `changelog.d/` fragment records it, and it waits for a minor release (from 1.0, a
   major one, after `ContraagentDeprecationWarning` for two minor releases).
   A record change that a reader of the current run format cannot read raises
   `FORMAT` in `_internal/runs/layout.py` and adds the new format's fixture
