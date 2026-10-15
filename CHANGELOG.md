@@ -1390,6 +1390,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The hub's compose example works from the installed package alone: copied out of
+  `examples/hub/`, its `Dockerfile` installs `contraagent[hub]` from PyPI at
+  `CONTRAAGENT_VERSION` (in `.env.example`, the version the example came with), or a wheel
+  in the directory named by `CONTRAAGENT_WHEEL`, and fails when the installed version
+  differs. It built from a source checkout before. The image from the sources and `uv.lock`
+  is the repository's own `Dockerfile`. `contraagent --version` prints the installed version.
 - A Codex launch no longer writes into `/tmp` itself: its Linux sandbox left empty `.git`,
   `.agents` and `.codex` paths in each writable root, and an empty `/tmp/.git` made `/tmp`
   look like a git repository. `/tmp` and `$TMPDIR` are no longer writable roots; each launch
