@@ -15,6 +15,8 @@ Open http://127.0.0.1:8787 while it runs. With the demo agent:
 * `alpha`'s note has no heading first: the `heading` linter sends it back;
 * `gamma`'s first review fails twice before it succeeds (retries), and does not
   approve: its summary is revised, scored and reviewed again (pass 2);
+* `epsilon`'s `score` is partial: its word counter is unavailable, so its figures are a
+  placeholder; the review runs on them, and a resume would score it again;
 * `zeta`'s `prepare` raises: its summary is refused before launch, so its review
   loop ends there, and the report covers the other units.
 """

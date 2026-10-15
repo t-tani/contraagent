@@ -2491,7 +2491,8 @@
               "invalid_output",
               "invalid_input",
               "credential_mismatch",
-              "skipped"
+              "skipped",
+              "partial"
             ],
             "title": "Stop"
           },

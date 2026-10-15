@@ -1,5 +1,6 @@
 // Words for the facts of a task definition that need more than a label: a Python
-// task's retries, the parts of an output file it keeps, another kind's output it writes.
+// task's retries, the parts of an output file it keeps, another kind's output it writes,
+// the kind it is one implementation of.
 import { msg, str } from '@lit/localize';
 
 /** The label of a Python task's retries. */
@@ -28,3 +29,12 @@ export const outputOfText = (kind: string): string => msg(str`output of ${kind}`
 
 /** What that is, for its tooltip. */
 export const outputOfTip = (): string => msg('The kind whose output file this task writes (output_of)');
+
+/** The label of the kind an implementation kind is one implementation of (`base_kind`). */
+export const implementationOfLabel = (): string => msg('Implementation of', { desc: 'A task definition: the kind that this kind is one implementation of' });
+
+/** An implementation kind, in a list of kinds: `Implementation of review`. */
+export const implementationOfText = (kind: string): string => msg(str`Implementation of ${kind}`);
+
+/** What a base kind is, for its tooltip. */
+export const implementationOfTip = (): string => msg('Kind with several implementations, each a kind of its own (base_kind)');

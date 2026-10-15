@@ -12,6 +12,7 @@ export const markStyles = css`
   .mark[data-shape='ring'] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tone, var(--line2)); }
   .mark[data-shape='hatched'] { border-radius: 2px; background: repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in srgb, var(--tone) 55%, transparent) 2px 3px);
     box-shadow: inset 0 0 0 1.5px var(--tone); opacity: 1; }
+  .mark[data-shape='half'] { background: linear-gradient(0deg, var(--tone) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--tone); opacity: 1; }
   .mark[data-shape='square'] { border-radius: 2px; opacity: 1; }
   .big .mark[data-tone='failed']::after { content: '✕'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--bg);
     font-size: calc(var(--m) - 3px); line-height: 1; font-weight: 700; }

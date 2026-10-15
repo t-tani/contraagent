@@ -100,7 +100,7 @@ test.describe('docs: a review loop per unit', () => {
     await expect(row('prepare').locator('.st .n')).toHaveText('5/6');
     await expect(row('prepare').locator('.st .err')).toHaveText('1 failed');
     await expect(row('summarize').locator('.st .warn')).toHaveText('1 not started');
-    await expect(row('score').locator('.st .sep')).toHaveCount(0);
+    await expect(row('score').locator('.st .warn')).toHaveText('1 partly done'); // epsilon's word counter is unavailable
     await expect(table.locator('thead th')).toHaveText(['Kind', 'Status', 'Waits for', 'Created after', 'Later tasks']);
     // A click on a row selects it, with the node's card beside it.
     await row('summarize').locator('td').first().click();

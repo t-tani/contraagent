@@ -53,6 +53,7 @@ export const trendWords = () => ({
   group: msg('Group'),
   tasks: msg('Tasks'),
   tasksPassed: msg('Tasks passed'),
+  partial: msg('Partly done', { id: 'trends-partial', desc: 'A column: tasks or attempts whose output is a placeholder (partial)' }),
   medianTime: msg('Median time'),
   totalTime: msg('Total time'),
   models: msg('Models'),

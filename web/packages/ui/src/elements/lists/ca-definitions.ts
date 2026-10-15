@@ -5,6 +5,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { factList } from '../../words/format.js';
+import { implementationOfText } from '../../words/task-definition.js';
 import { factLine } from '@contraagent/elements/primitives';
 import { base } from '@contraagent/elements/styles';
 import '../shared/ca-definition.js';
@@ -131,7 +132,11 @@ export class CaDefinitions extends LitElement {
           (d) => html`<button type="button" class="defitem ${d.kind === selKind ? 'sel' : ''}" aria-current=${d.kind === selKind ? 'true' : nothing}
             @click=${() => emit(this, 'ca-navigate', { def: d.kind })}>
             <b class="jmono">${d.kind}</b>
-            <span class="meta words">${factLine([d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'), ...counts(d.kind)])}</span>
+            <span class="meta words">${factLine([
+              ...(d.base_kind ? [implementationOfText(d.base_kind)] : []),
+              d.executor === 'python' ? 'Python' : d.role ? msg(str`Role ${d.role}`) : msg('No role'),
+              ...counts(d.kind),
+            ])}</span>
           </button>`,
         )}
         ${repeat(

@@ -119,6 +119,7 @@ export function kpiTiles(journal: readonly JournalRow[], d: Pick<RunDerived, 'ou
     { text: c.skipped ? stateCount('skipped', c.skipped) : '', tone: 'neutral' },
     { text: c.failed ? stateCount('failed', c.failed) : '', tone: problemTone(c.failed, 'failed') },
     { text: c.not_started ? stateCount('not_started', c.not_started) : '', tone: problemTone(c.not_started, 'attention') },
+    { text: c.partial ? stateCount('partial', c.partial) : '', tone: problemTone(c.partial, 'attention') },
   ];
   return [
     { id: 'tasks', label: msg('Tasks', { id: 'tasks', desc: 'A count of tasks' }), value: c.total, sub: [parts] },

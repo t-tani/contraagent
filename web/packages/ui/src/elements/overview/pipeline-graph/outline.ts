@@ -32,7 +32,7 @@ export interface OutlineItem {
   parts: { id: string; layer: string[]; name: string }[];
 }
 
-const ZERO = (): NodeCounts => ({ total: 0, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 });
+const ZERO = (): NodeCounts => ({ total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0 });
 
 /** The outline of the flow: the places of `stats` (from the top of the flow) as a tree, a loop an item around the places in it. */
 export function outlineTree(stats: ReadonlyMap<string, PlaceStats>): OutlineItem[] {
@@ -118,7 +118,7 @@ export function outline(h: OutlineHost, tree: readonly OutlineItem[]) {
   const row = (it: OutlineItem, above = ''): unknown => {
     const open = it.kids.length > 0 && h.expanded(it.id);
     const c = it.counts;
-    const pct = c.total ? Math.round(((c.done + c.skipped) / c.total) * 100) : 0;
+    const pct = c.total ? Math.round(((c.done + c.partial + c.skipped) / c.total) * 100) : 0;
     const all = notesOf(it);
     const said = all.map(([, t]) => t).join('|');
     const notes = said === above ? [] : all;

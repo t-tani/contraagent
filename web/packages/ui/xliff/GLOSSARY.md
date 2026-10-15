@@ -50,6 +50,9 @@ unit names, stop values such as `completed`, model and role names).
 | wall time | 所要時間 |
 | snapshot | スナップショット |
 | stub agent (a coding agent with scripted replies instead of a model; a stub run's mark) | スタブエージェント |
+| replay (a run that played its attempts from recordings) / replay and new sessions (one that also launched) | リプレイ / リプレイと新しいセッション |
+| replayed (an attempt played from its recording) / played from a recording | リプレイ / 記録から再生 |
+| implementation (one way an agent task is done, a kind of its own) / Implementation of (the base kind) | 実装 / 実装する種別; `kind` の実装 |
 | export (the monitor's views written as files, read with no server; `contraagent monitor export`) | 書き出し（「エクスポート」と書かない）; `time` 時点の書き出し |
 | hover | ホバー |
 | instructions (an agent task with no plugin) | 指示 |
@@ -78,6 +81,7 @@ wherever the UI shows a state or a count to the reader.
 | English (UI) | 日本語 |
 |---|---|
 | done / done after retrying | 完了 / リトライ後に完了 |
+| partly done (a task or attempt whose output is a placeholder: partial; neither done nor failed) | 一部のみ完了（「部分的に完了」「一部完了」は使わない） |
 | failed / not started | 失敗 / 未実行（文の中では「実行されていません」「実行されなかった」） |
 | waiting / running / skipped | 待機中 / 実行中 / スキップ |
 | status (a task's outcome: done, failed, not started, ...) | 状態 |

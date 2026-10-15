@@ -89,9 +89,9 @@ export function reduceRun(state: RunState, actions: readonly RunAction[]): RunSt
 
 // --- selectors ----------------------------------------------------------------
 
-/** A finished attempt that neither completed nor was skipped. */
+/** A finished attempt that neither completed, nor was partial (ok, its output a placeholder), nor was skipped. */
 export const isBad = (row: { stop?: string | undefined }): boolean =>
-  !!row.stop && row.stop !== 'completed' && row.stop !== 'skipped';
+  !!row.stop && row.stop !== 'completed' && row.stop !== 'partial' && row.stop !== 'skipped';
 
 /** A Python task (the journal, plan and contracts say who executed it). */
 export const isPython = (x: { executor?: string | undefined }): boolean => x.executor === 'python';

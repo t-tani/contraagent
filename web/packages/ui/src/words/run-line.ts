@@ -46,8 +46,31 @@ export const replayLabel = (): string => msg('replay', { desc: 'A run whose agen
 /** What a replay's mark means, for its tooltip: where its recordings are. */
 export const replayTip = (dir: string): string => msg(str`Agent sessions played from the recordings in ${dir} (replay)`);
 
-/** The mark beside a run's name: a replay, else a stub run; null for a run of coding agents. */
+/**
+ * A replay that also launched (`RunSummary.replay` with `stub` false, `record_missing`):
+ * some attempts played their recordings, the others ran and were recorded. Only
+ * then is each played attempt (`JournalRow.replayed`) marked: in a replay that
+ * launched nothing, the run's mark says it of every attempt.
+ */
+export const mixedReplay = (r: Pick<RunSummary, 'stub' | 'replay'> | undefined): boolean => !!r?.replay && !r.stub;
+
+/** A replay that also launched: its mark. */
+export const mixedReplayLabel = (): string =>
+  msg('replay and new sessions', { desc: 'A run that played some attempts from recordings and ran the others as new agent sessions' });
+
+/** What that mark means, for its tooltip: where its recordings are. */
+export const mixedReplayTip = (dir: string): string =>
+  msg(str`Agent sessions played from the recordings in ${dir}, and new agent sessions recorded there (replay, record_missing)`);
+
+/** An attempt played from its recording (`JournalRow.replayed`), in a replay that also launched. */
+export const replayedLabel = (): string => msg('replayed', { desc: 'An attempt played from its recording, not run again' });
+
+/** What that mark means, for its tooltip. */
+export const replayedTip = (): string => msg('Played from a recording (replayed)');
+
+/** The mark beside a run's name: a replay (one that also launched, or not), else a stub run; null for a run of coding agents. */
 export function runMark(r: Pick<RunSummary, 'stub' | 'replay'> | undefined): { text: string; title: string } | null {
+  if (r?.replay && mixedReplay(r)) return { text: mixedReplayLabel(), title: mixedReplayTip(r.replay) };
   if (r?.replay) return { text: replayLabel(), title: replayTip(r.replay) };
   if (r?.stub) return { text: stubLabel(), title: stubTip() };
   return null;

@@ -6,7 +6,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight, mdFile } from '@contraagent/elements/markdown';
 import { instructionsHtml, markInstructions } from '../../words/prompt.js';
 import { facts as row } from '../../words/format.js';
-import { outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText, retriesTip } from '../../words/task-definition.js';
+import { implementationOfLabel, implementationOfTip, outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText, retriesTip } from '../../words/task-definition.js';
 import { RememberedSet } from '../../core/memory.js';
 import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
@@ -85,6 +85,7 @@ export class CaDefinition extends LitElement {
       : def.output || '';
     const preserve = def.preserve ?? [];
     const facts: [string, string | TemplateResult][] = [
+      ...(def.base_kind ? [[implementationOfLabel(), html`<span class="jmono" title=${implementationOfTip()}>${def.base_kind}</span>`] as [string, TemplateResult]] : []),
       [msg('Role'), def.role || msg('none', { id: 'none', desc: 'An empty value' })],
       [
         dirs.length > 1 ? msg('Plugin directories') : msg('Plugin directory'),

@@ -325,12 +325,13 @@ def test_a_task_shows_every_param_it_was_given(demo_runs):
 
 
 def test_the_run_list_counts_tasks_as_the_run_page_does(demo_runs):
-    """31 tasks: 29 done, 1 failed (prepare-zeta), 1 never started; 33 journal rows, 1 of them never ran."""
+    """31 tasks: 28 done, 1 partial (score-epsilon), 1 failed (prepare-zeta), 1 never started;
+    33 journal rows, 1 of them never ran."""
     row = next(r for r in Monitor(demo_runs).runs() if r["run"] == "docs")
     assert row["tasks"] == {
         "total": 31,
-        "done": 29,
-        "partial": 0,
+        "done": 28,
+        "partial": 1,
         "failed": 1,
         "not_started": 1,
         "running": 0,

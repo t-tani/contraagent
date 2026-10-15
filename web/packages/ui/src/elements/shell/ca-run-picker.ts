@@ -225,6 +225,7 @@ export class CaRunPicker extends LitElement {
     const parts = [msg(str`${t.done} of ${t.total} tasks done`)];
     if (t.failed) parts.push(stateCount('failed', t.failed));
     if (t.not_started) parts.push(stateCount('not_started', t.not_started));
+    if (t.partial) parts.push(stateCount('partial', t.partial));
     if (t.skipped) parts.push(stateCount('skipped', t.skipped));
     if (t.running) parts.push(stateCount('running', t.running));
     if (t.waiting) parts.push(stateCount('waiting', t.waiting));

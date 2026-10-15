@@ -44,6 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its recordings in place of "stub agent" (`RunSummary.replay`); a Python task's retries and
   retried exceptions, an agent task's `output_of` and the JSON pointers it must keep
   unchanged (`preserve`) in its definition and its checked output file.
+- The monitor shows partial results, replayed attempts and implementations. A partial task
+  is "partly done" (an attention mark, a half-filled one in the graph), counted apart from
+  done and failed in the run header, the run list, the graph's nodes, legend and outline, the
+  overview's problems, and the trends' kinds and runs; its reason follows "Partly done:" in
+  its header and the tasks list. A replay that also launched (`record_missing`) is marked
+  "replay and new sessions", and there each attempt played from a recording says "replayed"
+  in the history (with a filter) and in its attempt chip; a replay that launched nothing
+  keeps its one mark. A task definition of an implementation kind names the kind it is an
+  implementation of, and a group of several kinds lists them. The journal schema lists the
+  stop `partial`. The demo's `epsilon` scores partially.
 - One step declared with several implementations: `agent_task("review",
   implementations={"python": "plugins/review-python", "go": "plugins/review-go"}, ...)`
   declares the kinds `review-python` and `review-go`, each with its own plugin and every other

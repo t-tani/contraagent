@@ -35,6 +35,7 @@ describe('sortTasks', () => {
       task('a-6', 'a', '', 'not_started'),
     ];
     expect(sortTasks(ts).map((t) => t.key)).toEqual(['a-5', 'a-4', 'a-6', 'a-2', 'a-3', 'a-1']);
+    expect(sortTasks([...ts, task('a-7', 'a', 'partial', 'partial', '2026-10-11T00:00:01')]).map((t) => t.key)).toEqual(['a-5', 'a-4', 'a-6', 'a-7', 'a-2', 'a-3', 'a-1']);
   });
 });
 
@@ -42,6 +43,12 @@ describe('filterJournal', () => {
   const rs = [row('1', 'a', 'completed'), row('2', 'a', 'timeout', { reason: 'slow' }), row('3', 'b', 'skipped'), row('4', 'b', 'error')];
   it('bad keeps every attempt that did not complete', () => {
     expect(filterJournal(rs, '', 'bad', '').map((e) => e.key)).toEqual(['2', '4']);
+  });
+  it('a partial attempt is not bad; replayed keeps the attempts played from a recording', () => {
+    const more = [...rs, row('5', 'c', 'partial', { ok: true }), row('6', 'a', 'completed', { replayed: true })];
+    expect(filterJournal(more, '', 'bad', '').map((e) => e.key)).toEqual(['2', '4']);
+    expect(filterJournal(more, '', 'partial', '').map((e) => e.key)).toEqual(['5']);
+    expect(filterJournal(more, '', 'replayed', '').map((e) => e.key)).toEqual(['6']);
   });
   it('an exact stop, a kind and a text', () => {
     expect(filterJournal(rs, '', 'skipped', '').map((e) => e.key)).toEqual(['3']);

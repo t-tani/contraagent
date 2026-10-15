@@ -24,13 +24,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from contraagent.backends.launch import Stop
-from contraagent.dispatch.task import STOP_SKIPPED
+from contraagent.dispatch.task import STOP_PARTIAL, STOP_SKIPPED
 
 # --- journal ---------------------------------------------------------------
 
-#: The `stop` values contraagent writes: every `Stop`, and `skipped`. The schema lists
-#: them as an enum; a row a domain's own code wrote with another value still validates.
-JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED)
+#: The `stop` values contraagent writes: every `Stop`, `skipped`, and a Python task's `partial`.
+#: The schema lists them as an enum; a row a domain's own code wrote with another value still validates.
+JOURNAL_STOPS: tuple[str, ...] = (*(s.value for s in Stop), STOP_SKIPPED, STOP_PARTIAL)
 
 
 class TokenUsage(BaseModel):

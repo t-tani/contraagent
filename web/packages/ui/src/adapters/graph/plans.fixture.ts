@@ -8,7 +8,7 @@ export const node = (key: string, unit: string, group: string, state: PlanNode['
   key, kind: group, unit, group, state, level: 0, ...extra,
 });
 export const group = (id: string, counts: Partial<Plan['groups'][number]> = {}): Plan['groups'][number] => ({
-  id, label: id, total: 0, done: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, ...counts,
+  id, label: id, total: 0, done: 0, partial: 0, failed: 0, running: 0, pending: 0, skipped: 0, blocked: 0, ...counts,
 });
 
 /** A frame of a flow path, with the loops around its call site (each at pass 1). */

@@ -22,7 +22,7 @@ there: one word, one meaning, on every screen. Japanese follows
 
 | Code term | UI (English) | UI (Japanese) |
 |---|---|---|
-| a task's outcome (`Outcome`: done, recovered, failed, not_started, running, waiting, skipped) | status: done, done after retrying, failed, not started, running, waiting, skipped | 状態: 完了, リトライ後に完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; a trends column: Partly done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
@@ -66,6 +66,9 @@ there: one word, one meaning, on every screen. Japanese follows
 | `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
 | `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
+| a replay (`RunSummary.replay`), a mark beside the run's name; one that also launched (`stub` false, `record_missing`) | replay; replay and new sessions | リプレイ; リプレイと新しいセッション |
+| a played attempt (`JournalRow.replayed`), marked only in a replay that also launched | replayed (an attempt's fact); a history filter: attempts replayed; tooltip: Played from a recording (replayed) | リプレイ; リプレイした試行 |
+| an implementation kind's base kind (`TaskDefinition.base_kind`); a group named by a base kind shows its kinds | Implementation of (a task definition's fact); Implementation of `kind` (a list of kinds); Kinds (a group's) | 実装する種別; `kind` の実装; 種別 |
 | an export (`Info.export`), the header's mark in place of the connection; a view it does not hold | Exported `time`; tooltip: Not in this export: transcripts and processes; not in this export | `time` 時点の書き出し; この書き出しに含まれないもの; 書き出しに含まれない |
 | `unread_events` | unrecognized events | 未対応のイベント |
 | `quota` (a subscription's utilization, account-wide) | 5-hour / weekly usage at the start of a session | 5 時間枠 / 週の利用率（セッション開始時点） |

@@ -10,11 +10,12 @@ import { SEVERITY } from './states.js';
 import type { GraphNode, LayerGraph, LayerMark, NodeCounts } from './types.js';
 
 /** The states the legend can show, in this order; it shows the ones the view has. */
-export const LEGEND: readonly TaskState[] = ['done', 'running', 'pending', 'failed', 'blocked', 'skipped'];
+export const LEGEND: readonly TaskState[] = ['done', 'partial', 'running', 'pending', 'failed', 'blocked', 'skipped'];
 
-/** How each task state looks: done round, running round and breathing, waiting a ring, failed square, not started hatched, skipped muted. */
+/** How each task state looks: done round, partly done half filled, running round and breathing, waiting a ring, failed square, not started hatched, skipped muted. */
 const LOOKS: Record<TaskState, Pick<StateStyle, 'tone' | 'shape'>> = {
   done: { tone: 'done', shape: 'round' },
+  partial: { tone: 'attention', shape: 'half' },
   running: { tone: 'running', shape: 'round' },
   pending: { tone: 'neutral', shape: 'ring' },
   failed: { tone: 'failed', shape: 'square' },
@@ -50,12 +51,12 @@ export function doneOf(c: NodeCounts): string {
   return msg(str`${c.done} of ${c.total} tasks done`);
 }
 
-/** The tasks that are not done, by state, most severe first: "1 failed", "1 not started". */
+/** The tasks that are not done, by state, most severe first: "1 failed", "1 not started", "1 partly done". */
 export function notDone(c: NodeCounts, live: boolean): string[] {
-  return (['failed', 'blocked', 'running', 'pending', 'skipped'] as const).filter((s) => c[s]).map((s) => countOf(s, c[s], live));
+  return (['failed', 'blocked', 'partial', 'running', 'pending', 'skipped'] as const).filter((s) => c[s]).map((s) => countOf(s, c[s], live));
 }
 
-/** A fact's class: failed, not started, running, or muted (waiting, not run, skipped). */
+/** A fact's class: failed, not started or partly done, running, or muted (waiting, not run, skipped). */
 export type ExceptionClass = 'err' | 'warn' | 'live' | 'mut';
 
 /** What a node needs a word for: its tasks that are not done, by state, and its flow calls that stopped with an error. */
@@ -65,6 +66,7 @@ export function exceptions(n: Pick<GraphNode, 'counts' | 'errors'>, live: boolea
   if (c.failed) out.push(['err', countOf('failed', c.failed, live)]);
   if (n.errors) out.push(['err', n.errors === 1 ? msg('1 flow call stopped with an error') : msg(str`${n.errors} flow calls stopped with an error`)]);
   if (c.blocked) out.push(['warn', countOf('blocked', c.blocked, live)]);
+  if (c.partial) out.push(['warn', countOf('partial', c.partial, live)]);
   if (c.running) out.push(['live', countOf('running', c.running, live)]);
   if (c.pending) out.push(['mut', countOf('pending', c.pending, live)]);
   if (c.skipped) out.push(['mut', countOf('skipped', c.skipped, live)]);
@@ -128,7 +130,8 @@ export interface MarkContext {
 /** What a mark says: its name, state, passes, attempts, tasks and time, for its tooltip and its label. */
 export function markText(label: string, m: LayerMark, x: MarkContext, pass = ''): { name: string; parts: string[]; id: string } {
   const t = m.flow ? undefined : x.task;
-  const name = kindUnit({ kind: label, unit: m.unit });
+  // A mark of one task is named by its kind: a group's node holds several kinds (the implementations of a base kind).
+  const name = kindUnit({ kind: m.count === 1 && t ? t.kind : label, unit: m.unit });
   const cause = !m.flow && m.state === 'blocked' ? x.causeOf(m.key) : '';
   const state = cause ? msg(str`Not started: ${cause}`) : stateWord(m.state, x.live);
   const attempts = t?.attempts ?? 1;
@@ -138,6 +141,6 @@ export function markText(label: string, m: LayerMark, x: MarkContext, pass = '')
   // A flow call's tasks that are not done, and its own error: what its state comes from.
   const not = m.counts ? notDone(m.counts, x.live) : [];
   const error = m.error === undefined ? [] : [msg('Flow call stopped with an error'), m.error];
-  const time = !m.flow && (m.state === 'done' || m.state === 'failed') && t?.wall_s ? fmtDur(t.wall_s) : '';
+  const time = !m.flow && (m.state === 'done' || m.state === 'partial' || m.state === 'failed') && t?.wall_s ? fmtDur(t.wall_s) : '';
   return { name, parts: [state, pass, passes, tries, many, ...not, ...error, time].filter(Boolean), id: m.flow ? msg(str`Flow call ${m.key}`) : m.key };
 }

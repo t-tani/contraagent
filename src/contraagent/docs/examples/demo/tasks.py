@@ -14,7 +14,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from contraagent import CommandValidator, TaskFailed, agent_task, python_task
+from contraagent import CommandValidator, Partial, TaskFailed, agent_task, python_task
 
 INPUT_DIR = Path("inputs")
 
@@ -99,9 +99,13 @@ def prepare(unit: str) -> Prepared:
 
 
 @python_task
-def score(unit: str, summary: Summary) -> Score:
-    """A Python task: figures the reviewer reads beside the summary."""
-    return Score(points=len(summary.points), words=sum(len(p.split()) for p in summary.points))
+def score(unit: str, summary: Summary) -> Score | Partial[Score]:
+    """A Python task: figures the reviewer reads beside the summary. For `epsilon` the
+    word counter is unavailable: a partial result, its words 0 (a resume scores it again)."""
+    points = len(summary.points)
+    if unit == "epsilon":
+        return Partial(Score(points=points, words=0), reason="the word counter is unavailable: words left at 0")
+    return Score(points=points, words=sum(len(p.split()) for p in summary.points))
 
 
 @python_task

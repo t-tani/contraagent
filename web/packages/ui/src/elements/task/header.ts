@@ -6,7 +6,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
 import { pill } from '@contraagent/elements/primitives';
 import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents, usd } from '../../words/format.js';
-import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, stopLabel, type ChangeKind } from '../../words/index.js';
+import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, type ChangeKind } from '../../words/index.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
@@ -21,9 +21,11 @@ import { correctionsOf, hadSession, isPy, notStartedWhy, stateOf, type TaskConte
 /** Keys of `TaskDetail` the header shows itself; any other key (a `task_detail` callback's) is shown as JSON. */
 const SHOWN_KEYS = new Set(['key', 'rows', 'launches', 'stream', 'task_detail_error', 'definition', 'io', 'row_extras']);
 
-/** The status mark and the word a screen reader says for it. */
-const mark = (ok: boolean) =>
-  html`<span aria-hidden="true">${ok ? '✓' : '✕'}</span><span class="sr">${ok ? msg('passed') : msg('failed')}</span>`;
+/** The status mark and the word a screen reader says for it: a partly done attempt is ok, with the mark of a state needing attention. */
+const mark = (r: JournalRow) =>
+  r.stop === 'partial'
+    ? html`<span aria-hidden="true">◌</span><span class="sr">${outcomeLabel('partial')}</span>`
+    : html`<span aria-hidden="true">${r.ok ? '✓' : '✕'}</span><span class="sr">${r.ok ? msg('passed') : msg('failed')}</span>`;
 
 /** One line under the title: what happened to the task, in words, and its tone (`failed`, `attention`, `muted`, or none). */
 function verdict(c: TaskContext): [text: string, tone: Tone] {
@@ -44,6 +46,10 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
     case 'not_started': {
       const cause = notStartedWhy(c);
       return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
+    }
+    case 'partial': {
+      const why = runRelative(last?.reason, c.run);
+      return [why ? msg(str`Partly done: ${why}`) : msg('Partly done'), 'attention'];
     }
     case 'failed': {
       const why = runRelative(last?.reason, c.run) || stopLabel(last?.stop);
@@ -261,7 +267,8 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
 
 /** One finished attempt: how it ended, how long, its cost; the rest (when, corrections, model, model switch) in its tooltip. */
 function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, extras: readonly string[]) {
-  const ok = r.ok;
+  const look = r.stop === 'partial' ? 'part' : r.ok ? 'ok' : 'bad';
+  const played = !!c.replayMarks && !!r.replayed;
   const reason = runRelative(r.reason, c.run);
   const sw = modelSwitch(r.hops, null, r.skipped_hops);
   const tip = [
@@ -273,12 +280,13 @@ function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, 
     r.context_warned ? contextWarnedText(r) : '',
     reason,
     r.route || '',
+    played ? replayedTip() : '',
     ...customValues(r, extras).map(([k, v]) => `${k}: ${v}`),
   ]
     .filter(Boolean)
     .join('\n');
   const cost = r.cost_usd !== null && r.cost_usd !== undefined ? usd(r.cost_usd) : '';
-  return html`<span class="runchip ${ok ? 'ok' : 'bad'}" title=${tip}>
-    ${mark(ok)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost)}
+  return html`<span class="runchip ${look}" title=${tip}>
+    ${mark(r)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost, played ? replayedLabel() : '')}
   </span>`;
 }

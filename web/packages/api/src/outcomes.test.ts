@@ -3,7 +3,7 @@ import { isFinished, latestTask, loopPass, outcomeCounts, outcomeOf, planOutcome
 import type { JournalRow, Plan, PlanNode, Stop } from './types.js';
 
 const row = (key: string, stop: Stop, attempt = 0): JournalRow => ({
-  ts: `2026-10-11T00:00:0${attempt}`, key, kind: key.split('-')[0]!, stop, ok: stop === 'completed', attempt,
+  ts: `2026-10-11T00:00:0${attempt}`, key, kind: key.split('-')[0]!, stop, ok: stop === 'completed' || stop === 'partial', attempt,
 });
 const node = (key: string, state: PlanNode['state'], after: string[] = []): PlanNode => ({
   key, kind: key.split('-')[0]!, unit: key.split('-')[1] ?? '', after, state, level: 0, group: key.split('-')[0]!,
@@ -42,6 +42,15 @@ describe('outcomeOf', () => {
     expect(outcomeOf({ state: 'done' }, [row('a', 'invalid_input', 0), row('a', 'timeout', 1), row('a', 'completed', 2)])).toBe('recovered');
   });
 
+  it('a partial last attempt is partly done: ok, and neither done nor failed', () => {
+    expect(outcomeOf({ state: 'partial' }, [row('a', 'partial')])).toBe('partial');
+    expect(outcomeOf({ state: 'partial' }, [row('a', 'error', 0), row('a', 'partial', 1)])).toBe('partial');
+    expect(outcomeOf({ state: 'done' }, [row('a', 'partial', 0), row('a', 'completed', 1)])).toBe('done');
+    const o = taskOutcomes([row('a', 'partial')], { nodes: [node('a', 'partial')], groups: [] });
+    expect(outcomeCounts(o)).toMatchObject({ partial: 1, done: 0, failed: 0, total: 1 });
+    expect(problems(o).partial.map((t) => t.key)).toEqual(['a']);
+  });
+
   it('without rows, the plan state decides', () => {
     expect(outcomeOf(undefined, [])).toBe('waiting');
     expect(outcomeOf({ state: 'blocked' }, [])).toBe('not_started');
@@ -72,10 +81,11 @@ describe('planOutcome', () => {
     expect(planOutcome('skipped')).toBe('skipped');
   });
 
-  it('finished: done, done after retrying, skipped', () => {
-    expect((['done', 'recovered', 'skipped', 'failed', 'not_started', 'running', 'waiting'] as const).filter(isFinished)).toEqual([
-      'done', 'recovered', 'skipped',
+  it('finished: done, done after retrying, partly done, skipped', () => {
+    expect((['done', 'recovered', 'partial', 'skipped', 'failed', 'not_started', 'running', 'waiting'] as const).filter(isFinished)).toEqual([
+      'done', 'recovered', 'partial', 'skipped',
     ]);
+    expect(planOutcome('partial')).toBe('partial');
   });
 });
 

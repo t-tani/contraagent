@@ -19,6 +19,8 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
       return msg('done', { id: 'stop-completed', desc: 'How an attempt ended: completed' });
     case 'skipped':
       return msg('skipped');
+    case 'partial':
+      return msg('partly done', { id: 'stop-partial', desc: 'How an attempt ended: partial, its output a placeholder' });
     case 'invalid_input': {
       const kinds = new Set(inputProblems(reason).map((p) => p.problem));
       if (kinds.size === 1 && kinds.has('missing')) return msg('not started (input missing)');

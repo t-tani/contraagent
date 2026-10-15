@@ -31,6 +31,7 @@ describe('stopTone', () => {
   // The Python `Stop` values plus `skipped`: the keys are checked against the generated schema type.
   const expected: Record<Stop, Tone> = {
     completed: 'done',
+    partial: 'attention',
     invalid_input: 'attention',
     skipped: 'muted',
     timeout: 'failed',
@@ -53,7 +54,7 @@ describe('stopTone', () => {
 
   it('lists every stop contraagent writes', () => {
     expect([...ALL_STOPS].sort()).toEqual(Object.keys(expected).sort());
-    expect(ALL_STOPS).toHaveLength(19);
+    expect(ALL_STOPS).toHaveLength(20);
   });
 
   it('gives every stop its tone and its words', () => {
