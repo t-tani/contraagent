@@ -176,6 +176,11 @@ class StubAgent(Backend):
     # can do what that agent can (`_named`), so routing refuses there what it refuses for real.
     light_launch = True
 
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """It denies what it is told to: it calls no tool."""
+        return None
+
     def __init__(self, script: Script | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
@@ -205,6 +210,7 @@ class StubAgent(Backend):
         if cls is not None:
             view.light_launch = cls.light_launch
             view.cost_is_session_total = cls.cost_is_session_total
+            view.tool_deny_problem = cls.tool_deny_problem  # type: ignore[method-assign]
         return view
 
     def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]:

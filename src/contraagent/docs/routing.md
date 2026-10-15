@@ -27,6 +27,15 @@ call and ends the launch (`budget`) once it passes the cap; Codex reports no
 cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
 Every key: the reference at the end.
 
+`disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
+launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
+tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
+role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode a
+`Bash(...)` pattern as a command pattern and any other tool whole; pi whole tools
+(`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
+deny a tool, and a route on them is refused before anything launches
+(`Backend.tool_deny_problem`), failover hops included.
+
 ## Failover
 
 Each kind gets its own failover breaker: on a 429 the task walks its chain of
