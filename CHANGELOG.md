@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Retries of a Python task: `@python_task(retries=2, retry_on=(ConnectionError, TimeoutError))`
+  calls the function again after an exception of a class in `retry_on`, up to `retries` more
+  times, each attempt a journal row of its own; any other exception, an off-contract input and
+  an off-contract output fail the task at once. One given without the other raises at the
+  decorator. A task definition shows them (`TaskDefinition.retries`, `retry_on`). Example:
+  `examples/retries/flow.py`.
+
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

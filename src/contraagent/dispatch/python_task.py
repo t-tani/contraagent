@@ -16,7 +16,7 @@ from contraagent.dispatch.task import PYTHON_KEY_PREFIX, Task
 
 @dataclass(frozen=True)
 class PythonTaskPayload:
-    """The payload of a Python task: the contracts it declares.
+    """The payload of a Python task: the contracts it declares, and its retries.
 
     The contracts are opaque here; `execution.python_tasks.PythonTaskRunner`
     checks them.
@@ -26,6 +26,10 @@ class PythonTaskPayload:
     output_contracts: tuple = ()
     #: What defines the task's kind, as JSON for `definitions/<kind>.json` (opaque here).
     definition: dict | None = None
+    #: Fresh attempts after the first, each after an exception of `retry_on` (`@python_task(retries=)`).
+    retries: int = 0
+    #: The exception classes that give an attempt a fresh one.
+    retry_on: tuple[type[Exception], ...] = ()
 
 
 def make_python_task(

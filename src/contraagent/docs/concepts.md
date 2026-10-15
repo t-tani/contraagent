@@ -84,7 +84,8 @@ documentation. No other word is used for the same thing.
 | **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
 | **other model** | a model a launch called besides the one it ran on (Claude Code summarizes a fetched page on a smaller model): its cost is in the launch's, its tokens are not in the launch's `usage`, and the models' spend counts it apart | `LaunchResult.other_models`, `Hop.other_models` (`OtherModel`) |
 | **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
-| **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |
+| **attempt** | one try of a task, numbered from 0: an agent task's in a fresh session, a Python task's a call of its function | `RetryingRunner`, `PythonTaskRunner`, `Task.attempt`, journal rows |
+| **retries** | the fresh attempts a task may make after its first: an agent task's after one that made no progress, a Python task's after an exception of a class in its `retry_on` | `KindConfig.retries`; `@python_task(retries=, retry_on=)`, `PythonTask.retries`, `PythonTask.retry_on` |
 | **result** | a task's final result / what `Pipeline.run` returns | `TaskResult` / `RunReport` |
 | **run** / **run group** | one `runs/<id>/` directory / a label grouping runs | `Run`, `Run(run_group=)` |
 | **run uid** / **host id** | the id no other run has, on any host, kept when the run is resumed / the host that drives the run | `run.json` `run_uid` / `host_id` (`CONTRAAGENT_HOST_ID`, else the host name) |

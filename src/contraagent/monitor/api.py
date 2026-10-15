@@ -627,6 +627,11 @@ class TaskDefinition(Open):
     doc: str | None = Field(None, description="Python task: the function's docstring")
     file: str | None = Field(None, description="Python task: the source file, relative to the run's working directory when inside it")
     line: int | None = Field(None, description="Python task: the function's first line in `file`")
+    retries: int | None = Field(
+        None,
+        description="Python task: the fresh attempts after the first, each after an exception of `retry_on` (`@python_task(retries=)`)",
+    )
+    retry_on: list[str] | None = Field(None, description="Python task: the exception classes that give an attempt a fresh one")
 
 
 # --- cursor ----------------------------------------------------------------

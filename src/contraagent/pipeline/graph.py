@@ -499,6 +499,8 @@ class Graph:
                 input_contracts=tuple(node.input_contracts()),
                 output_contracts=tuple(node.output_contracts(params=node.resolved_params)),
                 definition=node.spec.definition(),
+                retries=node.spec.retries,
+                retry_on=node.spec.retry_on,
             ),
         )
 

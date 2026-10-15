@@ -12,7 +12,10 @@ from the cause. `PythonTaskRunner` checks, around each Python task:
   freshness check, so a stale file from an earlier run does not pass.
 
 There is no resume: a Python task is deterministic, so running it again with
-the same inputs would write the same file. The failure is the result.
+the same inputs would write the same file. The failure is the result, except
+for an exception the task names in `retry_on` (`@python_task(retries=, retry_on=)`):
+a call that raised one gets a fresh attempt, up to `retries` of them, after
+`RetryingRunner`'s backoff. Each attempt is its own journal row.
 
 Contracts come from the task itself (`make_python_task(..., input_contracts=, output_contracts=)`)
 and, when given, from a `TaskAdapter`, exactly as for agent tasks.
@@ -22,6 +25,8 @@ from __future__ import annotations
 
 import json
 import time
+import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +41,8 @@ from contraagent.dispatch.task import (
     Task,
     TaskResult,
 )
+from contraagent.execution.runner import RetryingRunner
+from contraagent.routing.kind_config import KindConfig
 
 
 @dataclass(frozen=True)
@@ -51,10 +58,24 @@ class PythonTaskRunner:
 
     The queue's runner for a run that mixes Python tasks with agent tasks.
     Without `inner`, an agent task reaching it is a wiring mistake, and it says so.
+
+    A Python task with `retries` (`PythonTaskPayload`) calls its function again after
+    an exception of its `retry_on`. `on_failed_attempt` sees each attempt a fresh one
+    follows (`Run.record_attempt` journals it); the last attempt is the task's result,
+    which the queue records.
     """
 
-    def __init__(self, inner=None, *, adapter=None, run_dir: str | Path | None = None, cwd: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        inner=None,
+        *,
+        adapter=None,
+        run_dir: str | Path | None = None,
+        cwd: str | Path | None = None,
+        on_failed_attempt: Callable[[TaskResult], None] | None = None,
+    ) -> None:
         self._inner = inner
+        self._on_failed_attempt = on_failed_attempt
         self._adapter = adapter
         self._run_dir = Path(run_dir) if run_dir else None
         self._cwd = Path(cwd) if cwd else Path.cwd()
@@ -88,7 +109,7 @@ class PythonTaskRunner:
         self._record_definition(task)
         outs, ins = self.contracts(task)
         if not (outs or ins):
-            return self._call(task)
+            return self._attempts(task)
         if self._run_dir is not None:
             record_contracts(self._run_dir, task, outs, ins, self._cwd)
         bad = [e for c in ins for e in check_input(c, self._cwd)]
@@ -101,7 +122,7 @@ class PythonTaskRunner:
                 rounds=0,
             )
         before = {c.resolve(self._cwd): file_stamp(c.resolve(self._cwd)) for c in outs}
-        res = self._call(task)
+        res = self._attempts(task)
         if res.stop != STOP_COMPLETED:
             return res  # the function itself failed; its own error is the story
         t0 = time.monotonic()
@@ -131,16 +152,38 @@ class PythonTaskRunner:
         except OSError:  # a definition the monitor cannot show must not fail the task
             pass
 
+    def _attempts(self, task: Task) -> TaskResult:
+        """Call the function, and again after an exception of the task's `retry_on`, up to
+        `retries` more times; the last call's result."""
+        retries = getattr(task.payload, "retries", 0)
+        retry_on = tuple(getattr(task.payload, "retry_on", ()))
+        attempt = 0
+        while True:
+            task.attempt = attempt
+            res, exc = self._call(task)
+            if exc is None or attempt >= retries or not isinstance(exc, retry_on):
+                return res
+            if self._on_failed_attempt is not None:
+                try:
+                    self._on_failed_attempt(res)
+                except Exception:  # a journal write must not fail the task
+                    traceback.print_exc()
+            time.sleep(RetryingRunner.backoff(KindConfig.retry_backoff_base, attempt))
+            attempt += 1
+
     @staticmethod
-    def _call(task: Task) -> TaskResult:
-        """Call the function; an exception is the task's result, never a crash of the queue."""
+    def _call(task: Task) -> tuple[TaskResult, Exception | None]:
+        """Call the function: its result, and the exception it raised. An exception is the
+        task's result, never a crash of the queue."""
         assert task.fn is not None
         t0 = time.monotonic()
         reason = ""
+        error: Exception | None = None
         try:
             task.fn()
             stop = STOP_COMPLETED
         except Exception as exc:  # a Python task's failure is its result
-            stop = STOP_ERROR
+            stop, error = STOP_ERROR, exc
             reason = f"{type(exc).__name__}: {exc}"[:300]
-        return TaskResult(task=task, ok=stop == STOP_COMPLETED, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
+        result = TaskResult(task=task, ok=stop == STOP_COMPLETED, stop=stop, wall_s=time.monotonic() - t0, reason=reason)
+        return result, error
