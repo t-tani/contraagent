@@ -389,6 +389,17 @@ version; nothing else holds that text.
   `docs/assets/readme/` (outside the package, and out of the sdist) come from the
   showcase runs of the demo pipelines (`web/scripts/showcase.py`, every task done):
   `pnpm --dir web screenshots` makes them again.
+- Prose style, for the READMEs and the topics: write plain declarative sentences
+  and short paragraphs, as a careful engineer writes a README. A paragraph or a list
+  item starts with a sentence that carries its point, not with a bold run-in label
+  ("**Resume.** ...", "**Failover**: ..."); a part that needs a label gets a real
+  heading. Bold marks at most a few words in a page. A link sits inside the
+  sentence, on the words it names ("[A hub](hub.md) serves ..."), never as a
+  parenthetical after it ("([the hub](hub.md))"). No slogan fragments ("Checked,
+  and corrected in the same session.") and no "Label: fragment" sentences. Vary
+  the openings of sentences and items rather than repeat one template. A screenshot's
+  caption is one or two plain sentences under the image. The global-English rules
+  of "Form" above apply here too.
 - `CHANGELOG.md` (Keep a Changelog) is written by towncrier: record a
   user-visible change as a fragment in `changelog.d/` (`<slug>.<type>.md`, or
   `+<slug>.<type>.md`; types `added`, `changed`, `deprecated`, `removed`,
