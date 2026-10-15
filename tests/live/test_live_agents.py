@@ -363,6 +363,27 @@ def test_codex_sends_only_events_its_reader_knows(tmp_path):
     assert result.usage.calls and result.init_model == "gpt-5.6-luna"  # read from the rollout file
 
 
+def test_codex_writes_temporary_files_in_its_own_directory_not_in_tmp(tmp_path):
+    """A command codex runs makes a temporary file with `mktemp`: it lands in the launch's own
+    directory under `<temp dir>/contraagent/`, which is gone after the launch, and the sandbox
+    leaves nothing directly in the system's temporary directory."""
+    only("codex")
+    from contraagent._internal.backends.base import temp_root
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
+
+    system_tmp = temp_root().parent
+    before = set(os.listdir(system_tmp))
+    prompt = 'Run this shell command and reply with its output only: f=$(mktemp) && echo hello > "$f" && cat "$f" && echo "$f"'
+    launch = Launch(prompt=prompt, label="tmp-probe", model="gpt-5.6-luna", effort="low", cwd=tmp_path, limits=Limits(timeout_s=300))
+    result = CodexBackend().run(launch)
+    assert result.ok, result.stderr_tail
+    assert "hello" in result.result_text and f"{temp_root()}/codex-tmp-probe-" in result.result_text, result.result_text
+    new = set(os.listdir(system_tmp)) - before
+    assert not new & {".git", ".agents", ".codex"} and not any(n.startswith("codex-") for n in new), new
+    assert not list(temp_root().glob("codex-tmp-probe-*"))  # removed with the launch
+
+
 # --- a generator flow on each coding agent -------------------------------------------------
 
 #: The word the check requires: the first summary is told not to use it, so pass 1 of each
