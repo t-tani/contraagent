@@ -152,9 +152,9 @@ CORS headers unless origins are opted in (`--cors-origin`), and answers only
 requests whose `Host` names this machine.
 
 It reads a run's records only through a run source and liveness
-(`contraagent/monitor/source.py`): by default the runs directory and this host's
+(`contraagent/runs/`): by default the runs directory and this host's
 `/proc`. `Monitor(source=..., liveness=...)` serves the same views from another
-store; the layout of a run's records is `contraagent/rundir.py`.
+store; the layout of a run's records is `contraagent/runs/layout.py`.
 
 ## Your own views: panels
 
@@ -183,7 +183,7 @@ a tab of each run; `trends`, `fn(runs, period)`, over the runs of a period, for 
 view of many runs. A panel reads runs only through what it is given, never through a
 path of its own, so it shows the same on one host and on a hub. `run`
 (`RunRecords`) is one run's records: its `id`, `info()` (its `run.json`),
-`journal()`, `records(log)` for another log contraagent writes (`rundir.DEFERRED`,
+`journal()`, `records(log)` for another log contraagent writes (`runs.layout.DEFERRED`,
 ...), `log(name)` and `document(name)` for the pipeline's own logs and documents
 (what `contraagent.log` and `contraagent.save` wrote; see
 [tasks and flows](tasks.md)), and `dir()` for a file that is none of these, an

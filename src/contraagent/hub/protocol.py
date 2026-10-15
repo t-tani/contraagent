@@ -105,7 +105,7 @@ class RunLiveness(BaseModel):
 
     run: RunRef
     alive: bool
-    snapshot: dict = Field(description="the run's live processes, in `monitor.procs.snapshot`'s shape")
+    snapshot: dict = Field(description="the run's live processes, in `Liveness.snapshot`'s shape (`contraagent.runs.liveness`)")
 
 
 class Heartbeat(BaseModel):

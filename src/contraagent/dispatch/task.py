@@ -29,10 +29,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 from contraagent.dispatch.records import Changes, DeferralCause, Executor, Frame, Hop, SkippedHop, TimeBoxRecord
+from contraagent.runs.times import iso_of, now_iso
 
 #: The key prefix of a Python task (`Task.fn`): `python:<kind>` or `python:<kind>-<unit>`.
 PYTHON_KEY_PREFIX = "python:"
@@ -90,9 +90,7 @@ class TimeBox:
         """The box as `flow_calls.jsonl` records it; `started_at`: when its flow call
         started (`time.time()`), now when None."""
         return TimeBoxRecord(
-            started_at=datetime.fromtimestamp(started_at, UTC).isoformat(timespec="seconds")
-            if started_at is not None
-            else datetime.now(UTC).isoformat(timespec="seconds"),
+            started_at=iso_of(started_at) if started_at is not None else now_iso(),
             deadline_s=self.deadline_s,
             grace_s=self.grace_s,
             slack_s=self.slack_s,

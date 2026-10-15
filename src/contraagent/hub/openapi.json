@@ -502,7 +502,7 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Snapshot",
-            "description": "the run's live processes, in `monitor.procs.snapshot`'s shape"
+            "description": "the run's live processes, in `Liveness.snapshot`'s shape (`contraagent.runs.liveness`)"
           }
         },
         "type": "object",

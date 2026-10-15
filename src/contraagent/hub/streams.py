@@ -29,13 +29,13 @@ import threading
 from collections.abc import Sequence
 from typing import NamedTuple, Protocol
 
-from contraagent import rundir
-from contraagent.monitor.source import page
+from contraagent.runs import layout
+from contraagent.runs.source import page
 
 
 def is_stream(log: str) -> bool:
     """Whether a log's layout name is a task transcript (`streams/<key>.stream.jsonl`)."""
-    return log.startswith(rundir.STREAMS + "/")
+    return log.startswith(layout.STREAMS + "/")
 
 
 class Held(NamedTuple):

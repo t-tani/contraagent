@@ -9,6 +9,9 @@ command line.
 
 from __future__ import annotations
 
+#: Every variable below starts with this.
+PREFIX = "CONTRAAGENT_"
+
 RUN = "CONTRAAGENT_RUN"
 TASK = "CONTRAAGENT_TASK"
 KIND = "CONTRAAGENT_KIND"

@@ -59,7 +59,6 @@ import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +75,7 @@ from contraagent.calls import CallFile
 from contraagent.contracts import smallest
 from contraagent.dispatch.records import QuotaReading
 from contraagent.routing.preflight import PROBE_PROMPT
+from contraagent.runs.times import now_iso
 
 _UNSET: Any = object()
 #: How many times a stop hook may send the output back within one launch.
@@ -464,7 +464,7 @@ def _observed(reading: QuotaReading) -> QuotaReading:
     """The reading with the time it arrived, now when the script gives none."""
     if reading.observed_at:
         return reading
-    return reading.model_copy(update={"observed_at": datetime.now(UTC).isoformat(timespec="seconds")})
+    return reading.model_copy(update={"observed_at": now_iso()})
 
 
 def _text_of(value: Any) -> str:

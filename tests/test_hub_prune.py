@@ -14,12 +14,12 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import rundir
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
 from contraagent.hub.segment_objects import MemorySegmentObjects, S3SegmentObjects
 from contraagent.hub.segments import MemorySegmentIndex, PostgresSegmentIndex, SegmentedStreamLogs
 from contraagent.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent.runs import layout
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -32,7 +32,7 @@ NOW = datetime.now(UTC).replace(microsecond=0)
 OLD = NOW - timedelta(days=40)
 RECENT = NOW - timedelta(days=1)
 RETAIN = timedelta(days=30)
-LOG, OTHER = rundir.stream("summarize-a"), rundir.stream("summarize-b")
+LOG, OTHER = layout.stream("summarize-a"), layout.stream("summarize-b")
 
 
 def iso(at: datetime) -> str:
@@ -77,8 +77,8 @@ def ship(hub: Hub, run_id: str, at: datetime, *, host: str = "h1", uid: str | No
     and an open one (`OTHER`), all received at `at`; its hub name."""
     ref = RunRef(host_id=host, run_id=run_id, run_uid=uid or f"uid-{run_id}")
     refs = [FileRef(path=p, sha256=sha, size=1, mtime="m") for p, sha in (files or {}).items()]
-    docs = [DocumentPut(name=rundir.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
-    journal = LogChunk(log=rundir.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
+    docs = [DocumentPut(name=layout.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
+    journal = LogChunk(log=layout.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
     hub.store.put_batch(RecordBatch(run=ref, logs=[journal], documents=docs, files=refs), iso(at))
     streams = hub.streams
     streams.append(ref.name, ref.run_uid, LOG, 0, [f'{{"i": {i}, "pad": "{"x" * 50}"}}' for i in range(200)], iso(at))
@@ -111,7 +111,7 @@ def test_old_runs_go_and_live_unresponsive_and_recent_runs_stay(hub, tmp_path):
     unresponsive = ship(hub, "lost", OLD, host="h3")
     heartbeat(hub, "h3", OLD, alive=["lost"])
     finished = ship(hub, "finished", OLD, host="h4")  # its host's last heartbeat reported it alive, but run.json says it finished
-    finished_info = DocumentPut(name=rundir.RUN_INFO, text='{"run_id": "finished", "finished_at": "x"}')
+    finished_info = DocumentPut(name=layout.RUN_INFO, text='{"run_id": "finished", "finished_at": "x"}')
     hub.store.put_batch(
         RecordBatch(run=RunRef(host_id="h4", run_id="finished", run_uid="uid-finished"), documents=[finished_info]), iso(OLD)
     )
@@ -182,7 +182,8 @@ def test_a_blob_shared_with_a_kept_run_stays(hub, tmp_path):
     report = hub.prune(older_than=RETAIN, now=later)
     assert report.runs == ["old@h1"] and report.blobs == [own] and report.blob_bytes == len(b"only the old run")
     assert hub.blobs.has(shared) and not hub.blobs.has(own)
-    assert hub.source().file("kept@h1", "/w/a") == ("shared", 1, "m")
+    got = hub.source().file("kept@h1", "/w/a")
+    assert got is not None and (got.text, got.size, got.mtime) == ("shared", 6, "m")
 
 
 def test_an_unreferenced_blob_stays_while_young_and_goes_when_old(hub, tmp_path):
@@ -263,7 +264,7 @@ def test_a_prune_during_ingest_loses_nothing(hub, tmp_path):
                 RecordBatch(
                     run=ref,
                     logs=[
-                        LogChunk(log=rundir.PLAN, offset=n, lines=[f"plan {n}"]),
+                        LogChunk(log=layout.PLAN, offset=n, lines=[f"plan {n}"]),
                         LogChunk(log=LOG, offset=n, lines=[f"line {n}"]),
                     ],
                 )
@@ -279,7 +280,7 @@ def test_a_prune_during_ingest_loses_nothing(hub, tmp_path):
         worker.join()
     assert sorted(report.runs) == sorted(olds)
     n = sent["lines"]
-    assert hub.store.lines("busy@h1", rundir.PLAN) == ([f"plan {i}" for i in range(n)], n)
+    assert hub.store.lines("busy@h1", layout.PLAN) == ([f"plan {i}" for i in range(n)], n)
     assert hub.streams.read("busy@h1", "uid-busy", LOG, 0) == ([f"line {i}" for i in range(n)], n)
     assert hub.prune(older_than=RETAIN).runs == []
 

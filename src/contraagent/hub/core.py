@@ -1,7 +1,7 @@
 """The hub, framework-free: what it does with each request, and the monitor it serves.
 
-`contraagent hub` (`server.py`) is a thin HTTP shell over `Hub`; `client.DirectClient`
-calls it in-process.
+`contraagent hub` (`server.py`) is a thin HTTP shell over `Hub`, and serves the monitor
+over `Hub.source()` and `Hub.liveness()`; `client.DirectClient` calls it in-process.
 
 A batch is split by what its logs are: task transcripts (`streams.is_stream`) go to the
 `StreamLogs`, everything else to the `HubStore`. A journal row in a batch ends its task, so
@@ -13,17 +13,17 @@ longer holds, heartbeats of hosts long gone, and blobs no file ref references.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
-from contraagent import rundir
 from contraagent.hub.protocol import Accepted, Heartbeat, HeartbeatAck, LogChunk, RecordBatch
 from contraagent.hub.source import DEFAULT_TTL_S, HeartbeatLiveness, HubSource
 from contraagent.hub.store import BlobStore, HubStore
 from contraagent.hub.streams import MemoryStreamLogs, StreamLogs, is_stream
-from contraagent.monitor import Monitor
+from contraagent.runs import layout, times
+from contraagent.runs.files import iter_rows
+from contraagent.runs.times import now_iso, parse_iso
 
 log_ = logging.getLogger(__name__)
 
@@ -60,32 +60,9 @@ class PruneReport:
     kept_heartbeats: dict[str, str] = field(default_factory=dict)
 
 
-def _when(iso: str | None) -> datetime | None:
-    """An ISO 8601 time, timezone-aware (UTC when it names none); None when absent or unreadable."""
-    if not iso:
-        return None
-    try:
-        at = datetime.fromisoformat(iso)
-    except ValueError:
-        return None
-    return at if at.tzinfo else at.replace(tzinfo=UTC)
-
-
-def utcnow_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="milliseconds")
-
-
 def _ended_tasks(chunk: LogChunk) -> set[str]:
     """The task keys whose journal rows a journal chunk carries."""
-    keys = set()
-    for line in chunk.lines:
-        try:
-            key = json.loads(line).get("key")
-        except (ValueError, AttributeError):
-            continue
-        if isinstance(key, str) and key:
-            keys.add(key)
-    return keys
+    return {key for row in iter_rows(chunk.lines) if isinstance(key := row.get("key"), str) and key}
 
 
 class Hub:
@@ -98,7 +75,7 @@ class Hub:
         self.ttl_s = ttl_s
 
     def records(self, batch: RecordBatch) -> Accepted:
-        received = utcnow_iso()
+        received = now_iso("milliseconds")
         transcripts = [c for c in batch.logs if is_stream(c.log)]
         rest = batch.model_copy(update={"logs": [c for c in batch.logs if not is_stream(c.log)]})
         accepted = self.store.put_batch(rest, received)
@@ -109,13 +86,13 @@ class Hub:
             held = self.streams.append(name, uid, chunk.log, chunk.offset, chunk.lines, received)
             logs[chunk.log], durable[chunk.log] = held.held, held.durable
         for chunk in rest.logs:
-            if chunk.log == rundir.JOURNAL:
+            if chunk.log == layout.JOURNAL:
                 for key in _ended_tasks(chunk):
-                    self.streams.close(name, uid, rundir.stream(key))
+                    self.streams.close(name, uid, layout.stream(key))
         return Accepted(logs=logs, durable=durable)
 
     def heartbeat(self, heartbeat: Heartbeat) -> HeartbeatAck:
-        self.store.put_heartbeat(heartbeat, utcnow_iso())
+        self.store.put_heartbeat(heartbeat, now_iso("milliseconds"))
         return HeartbeatAck(ttl_s=self.ttl_s)
 
     def has_blob(self, sha256: str) -> bool:
@@ -126,16 +103,17 @@ class Hub:
         self.blobs.put(sha256, data)
 
     def source(self) -> HubSource:
+        """Every host's runs, as a run source (what the hub's monitor reads)."""
         return HubSource(self.store, self.blobs, self.streams)
 
-    def monitor(self, **kwargs) -> Monitor:
-        """The monitor's views of every host's runs (`Monitor`'s keyword arguments pass through)."""
-        return Monitor(source=self.source(), liveness=HeartbeatLiveness(self.store, self.ttl_s), many_hosts=True, **kwargs)
+    def liveness(self) -> HeartbeatLiveness:
+        """Which of the runs are live, by their hosts' heartbeats."""
+        return HeartbeatLiveness(self.store, self.ttl_s)
 
     # --- retention -------------------------------------------------------------------------
 
     def _activity(self, name: str, uid: str) -> datetime | None:
-        times = [t for t in (_when(self.store.activity(name)), _when(self.streams.activity(name, uid))) if t]
+        times = [t for t in (parse_iso(self.store.activity(name)), parse_iso(self.streams.activity(name, uid))) if t]
         return max(times) if times else None
 
     def prune(
@@ -174,7 +152,7 @@ class Hub:
         How often: once a day, or every hour for a short `older_than`. Each call reads every
         run's activity and lists every blob; when nothing is old it does no more.
         """
-        now = now or datetime.now(UTC)
+        now = now or times.now()
         cutoff = now - older_than
         report = PruneReport(dry_run=dry_run, cutoff=cutoff.isoformat(timespec="milliseconds"))
         liveness = HeartbeatLiveness(self.store, self.ttl_s, clock=now.timestamp)
@@ -203,7 +181,7 @@ class Hub:
         for name, uid in sorted(self.streams.runs()):
             if held.get(name) == uid:
                 continue
-            at = _when(self.streams.activity(name, uid))
+            at = parse_iso(self.streams.activity(name, uid))
             if at is None:
                 log_.warning("transcripts of %s (run uid %s) have no activity time: kept", name, uid)
                 continue
@@ -216,7 +194,7 @@ class Hub:
             report.transcripts.append((name, uid))
 
         for host_id, (heartbeat, received_at) in sorted(self.store.heartbeats().items()):
-            at = _when(received_at)
+            at = parse_iso(received_at)
             if at is None or at >= cutoff:
                 continue
             if any(r.alive and r.run.name in unresponsive and r.run.name in held for r in heartbeat.runs):

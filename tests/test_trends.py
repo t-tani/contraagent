@@ -8,8 +8,9 @@ from pathlib import Path
 import pytest
 
 from contraagent.monitor import Monitor, Panel, api, trends
-from contraagent.monitor.source import DirectorySource, StaticLiveness
 from contraagent.monitor.trends import Period, PeriodError
+from contraagent.runs.liveness import StaticLiveness
+from contraagent.runs.source import DirectorySource
 
 TOKYO = "Asia/Tokyo"
 
@@ -458,7 +459,7 @@ def test_slot_digests_sum_to_what_the_attempts_sum_to(tmp_path, start, end, tz):
 
 
 def test_a_source_other_than_a_directory_is_summed_the_same_and_keeps_nothing_on_disk(runs, tmp_path):
-    from contraagent.monitor.source import MemorySource
+    from contraagent.runs.source import MemorySource
 
     records: dict[str, dict] = {}
     for run in ("r1", "r2"):

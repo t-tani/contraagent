@@ -186,6 +186,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The run records layer, `contraagent.runs`: `contraagent.rundir` is `contraagent.runs.layout`
+  (its `write_document` is `contraagent.runs.files.write_document`); `contraagent.monitor.source`
+  is `contraagent.runs.source` (`RunSource`, `DirectorySource`, `MemorySource`, `page`,
+  `Pager`) with `contraagent.runs.liveness` (`Liveness`, `StaticLiveness`, `empty_snapshot`)
+  and `contraagent.runs.procs` (`ProcLiveness`); `contraagent.monitor.paths` is
+  `contraagent.runs.names` (`BadName`, `check_name`, `is_plain`). Every reader and writer of
+  a run's files goes through it: `files.append_lines` appends log lines,
+  `files.read_lines` and `files.lines_at` read a log's complete lines (by line number and by
+  byte offset), `files.parse_rows` its rows, and `contraagent.runs.times` (`now_iso`,
+  `iso_of`, `parse_iso`) writes and reads its times.
+- `RunSource` names a run's logs and documents (`logs`, `documents`), gives a record's size
+  and time (`stat`, `Stat`), reads a log from a kept position (`lines_at`, `position`,
+  `LogPosition`), the files a contract names without their content (`file_stat`), the run's
+  directory (`dir`) and the trends digest kept of a run (`kept`, `keep`). `RunSource.file`
+  returns a `RunFile` (`data`, `size`, `mtime`, `text`). A relay, the trends and
+  `RunRecords.dir` read only through it.
+- A log's last line without its newline is not read by the monitor either (a relay never
+  shipped it): every reader takes complete lines only, and a line breaks at a newline only
+  (a U+2028 in a JSON string no longer splits it).
+- A task's files take one name in every folder (`runs.layout.file_name(key)`): its
+  transcript (`streams/`) and in-flight marker (`inflight/`) are named as its contract record
+  and call file were, every character but a letter, a digit, `-`, `_` and `.` turned into
+  `_` (a key with `~`, `:` or `@` names a transcript `review-a_2.stream.jsonl`). The
+  monitor finds a call file and a transcript by that name.
+- `Hub.monitor()` is `contraagent.hub.server.hub_monitor(hub)`, and `Hub.liveness()` gives
+  the hub's `HeartbeatLiveness`: no module of `contraagent.hub` but `server` imports
+  `contraagent.monitor`. `HubStore` lists a run's logs and documents (`logs`, `documents`)
+  and bounds `lines` by bytes too (`max_bytes`).
+- `contraagent.hub.postgres.SCHEMA_VERSION` is `POSTGRES_SCHEMA_VERSION`.
+- The telemetry line of a prompt is written and read by `contraagent.telemetry`;
+  `procfs.read_environ` returns a dict, and `procfs` lists pids, the boot time and the clock
+  ticks.
+- `trends.restore` is `trends.from_kept`, and `pipeline_files.restore` is
+  `pipeline_files.write_captured` (it writes as `contraagent.log` and `contraagent.save` do).
+  `estimates.recent_journals` and `journal_rows` are `estimates.recent_runs(source)`;
+  `recording.safe_name` is `runs.layout.file_name`.
+
 - The command line is one argparse tree (`contraagent.cli.parser`): `monitor`, `relay` and
   `hub` hold their arguments and work in `add_arguments(parser)` and `run(args)`, and share
   their option groups, `load_attr` and errors from `contraagent.commandline`. Every command
@@ -615,6 +652,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tasks deferred past the deadline.
 
 ### Removed
+
+- `contraagent.read_stream`: no part of contraagent read a stream file with it; a reader
+  takes a log's lines through a `RunSource` (`lines_at` from a kept position).
 
 - `contraagent.monitor.server.main`, `contraagent.monitor.export.main`,
   `contraagent.hub.server.main` and `prune_main`, `contraagent.hub.relay.main`: the commands
@@ -1134,6 +1174,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the `StreamController` that tails the stream feed.
 
 ### Fixed
+
+- The monitor read a file a contract names by a relative path from its own working
+  directory: it reads it under the run's `cwd` (`run.json`), as a relay ships it.
+- The monitor did not find the call file of a task whose key has a character outside
+  letters, digits, `-`, `_` and `.` (`summarize-a~2`): it looked it up by the key, not by
+  the file name the call file was written under.
+- `CursorStore`, a relay's progress file, `DirectoryBlobs` and `DirectorySegmentObjects`
+  wrote through a temporary file of a fixed name, which two writers could share: each write
+  takes a unique one (`write_document`).
 
 - Claude Code's quota refusal printed on stderr is `rate_limited`: `ClaudeBackend.reclassify`
   was never called.

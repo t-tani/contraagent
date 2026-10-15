@@ -1,7 +1,7 @@
 """The hub: runs of many hosts in one monitor.
 
 Each host keeps writing its runs to its own `runs/` directory, as without a hub. A
-`contraagent relay` on the host ships each run's records (`contraagent.rundir`) and a
+`contraagent relay` on the host ships each run's records (`contraagent.runs.layout`) and a
 heartbeat to a `contraagent hub`, which stores them and serves the monitor's views of
 every host's runs through `HubSource` and `HeartbeatLiveness`.
 

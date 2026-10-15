@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends import opencode_key, plugin_files
@@ -40,6 +39,7 @@ from contraagent.backends.omp import wire as omp_wire
 from contraagent.backends.omp.config import OmpModelChains, load_model_chains
 from contraagent.backends.process import via_stdin
 from contraagent.dispatch.records import QuotaReading, QuotaWindow
+from contraagent.runs.times import iso_of
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
 # for Claude Code stays canonical; this preamble carries the substitution
@@ -79,7 +79,7 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> Quota
         at = (limit.get("window") or {}).get("resetsAt")
         windows[name] = QuotaWindow(
             pct=round(float(fraction) * 100, 1) if isinstance(fraction, (int, float)) else None,
-            resets_at=_iso(at) if isinstance(at, (int, float)) else None,
+            resets_at=iso_of(at / 1000) if isinstance(at, (int, float)) else None,
         )
     if not account:
         return None
@@ -88,17 +88,13 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> Quota
     return QuotaReading.from_windows(
         windows,
         status="allowed" if statuses <= {"ok"} else ",".join(sorted(statuses - {"ok"})),
-        observed_at=_iso(seen) if isinstance(seen, (int, float)) else None,
+        observed_at=iso_of(seen / 1000) if isinstance(seen, (int, float)) else None,
         account=account_digest(ACCOUNT_UUID, str(meta.get("accountId") or "")),
     )
 
 
 #: omp's window ids, as Claude Code's readings name the windows.
 _OMP_WINDOWS = {"5h": "five_hour", "7d": "seven_day"}
-
-
-def _iso(ms: float) -> str:
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat(timespec="seconds")
 
 
 #: What a task agent may see beyond its plugin and call file: nothing (`isolation/config.yml`).

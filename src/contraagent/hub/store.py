@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
+import time
 from collections.abc import Callable, Collection, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -33,6 +34,8 @@ from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from contraagent.hub.protocol import Accepted, FileRef, Heartbeat, RecordBatch, RunRef
+from contraagent.runs.files import write_document
+from contraagent.runs.source import page
 
 
 class HubStore(Protocol):
@@ -54,8 +57,17 @@ class HubStore(Protocol):
         """The run held under `name`, or None."""
         ...
 
-    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
-        """Lines `since`.. (at most `limit`) of a run's log, and how many it holds; ([], 0) when none."""
+    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
+        """Lines `since`.. of a run's log, bounded as `runs.source.page` bounds them, and how
+        many it holds; ([], 0) when none."""
+        ...
+
+    def logs(self, name: str) -> list[str]:
+        """The layout names of the run's logs held here, sorted."""
+        ...
+
+    def documents(self, name: str) -> list[str]:
+        """The layout names of the run's documents, sorted."""
         ...
 
     def count(self, name: str, log: str) -> int:
@@ -210,12 +222,21 @@ class MemoryHubStore:
             run = self._runs.get(name)
             return run.entry if run else None
 
-    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None) -> tuple[list[str], int]:
+    def lines(self, name: str, log: str, since: int = 0, limit: int | None = None, max_bytes: int | None = None) -> tuple[list[str], int]:
         with self._lock:
             run = self._runs.get(name)
             every = run.logs.get(log, []) if run else []
-            page = every[since:] if limit is None else every[since : since + limit]
-            return list(page), len(every)
+            return page(every[since:], limit, max_bytes), len(every)
+
+    def logs(self, name: str) -> list[str]:
+        with self._lock:
+            run = self._runs.get(name)
+            return sorted(run.logs) if run else []
+
+    def documents(self, name: str) -> list[str]:
+        with self._lock:
+            run = self._runs.get(name)
+            return sorted(run.documents) if run else []
 
     def count(self, name: str, log: str) -> int:
         with self._lock:
@@ -280,7 +301,7 @@ class MemoryBlobs:
 
     def __init__(self, clock: Callable[[], float] | None = None) -> None:
         self._blobs: dict[str, tuple[bytes, float]] = {}
-        self._clock = clock or (lambda: datetime.now(UTC).timestamp())
+        self._clock = clock or time.time
         self._lock = threading.Lock()
 
     def has(self, sha256: str) -> bool:
@@ -309,7 +330,8 @@ class MemoryBlobs:
 
 
 class DirectoryBlobs:
-    """A `BlobStore` in a directory: `<root>/<sha[:2]>/<sha>`, written atomically."""
+    """A `BlobStore` in a directory: `<root>/<sha[:2]>/<sha>`, written atomically
+    (`write_document`)."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
@@ -328,9 +350,7 @@ class DirectoryBlobs:
         if path.is_file():
             return
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_bytes(data)
-        tmp.replace(path)
+        write_document(path, data)
 
     def get(self, sha256: str) -> bytes | None:
         try:

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pydantic_core import to_jsonable_python
 
-from contraagent import envvars, rundir
+from contraagent import envvars
 from contraagent.backends.base import Backend
 from contraagent.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
 from contraagent.contracts import InputContract, OutputContract
@@ -21,13 +21,14 @@ from contraagent.dispatch.task import Task
 from contraagent.execution.adapter import TaskAdapter
 from contraagent.pipeline.graph import Node
 from contraagent.plugins.scaffold import DEFAULT_SETTINGS
+from contraagent.runs import layout
 from contraagent.validators import CommandValidator
 
 
 class SpecAdapter(TaskAdapter):
     def __init__(self, run_id: str, run_dir: Path, cwd: Path | None = None) -> None:
         self.run_id = run_id
-        self.calls_dir = Path(run_dir) / rundir.CALLS
+        self.calls_dir = Path(run_dir) / layout.CALLS
         self.cwd = Path(cwd) if cwd is not None else Path.cwd()
 
     @staticmethod
@@ -35,8 +36,7 @@ class SpecAdapter(TaskAdapter):
         return task.payload
 
     def call_path(self, task: Task) -> Path:
-        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in task.key)
-        return self.calls_dir / f"{safe}.json"
+        return self.calls_dir.parent / layout.task_entry(layout.CALLS, task.key)
 
     def call(self, task: Task) -> CallFile:
         node = self._node(task)

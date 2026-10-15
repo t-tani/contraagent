@@ -42,16 +42,6 @@ def test_every_deliberate_error_shares_one_base():
         assert issubclass(cls, contraagent.ContraagentError), cls
 
 
-def test_read_stream_tails_by_offset(tmp_path):
-    f = tmp_path / "s.log"
-    f.write_text("plain text line\npartial")
-    first = list(contraagent.read_stream("omp", f))
-    assert len(first) == 1  # partial trailing line is held back
-    f.write_text("plain text line\npartial done\n")
-    rest = list(contraagent.read_stream("omp", f, first[-1][0]))
-    assert len(rest) == 1
-
-
 def test_a_table_the_config_does_not_define_is_refused_not_ignored(tmp_path):
     from contraagent import ConfigError, PipelineConfig
 

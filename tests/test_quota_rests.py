@@ -423,7 +423,8 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
 
 
 def test_a_queued_task_waits_only_in_a_live_run(tmp_path):
-    from contraagent.monitor.source import DirectorySource, StaticLiveness
+    from contraagent.runs.liveness import StaticLiveness
+    from contraagent.runs.source import DirectorySource
 
     run = tmp_path / "runs" / "r"
     run.mkdir(parents=True)
@@ -495,7 +496,8 @@ def test_a_cap_is_a_percentage(tmp_path, bad):
 
 
 def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
-    from contraagent.monitor.source import DirectorySource, StaticLiveness
+    from contraagent.runs.liveness import StaticLiveness
+    from contraagent.runs.source import DirectorySource
 
     def run(name: str, rests: list[dict]) -> None:
         d = tmp_path / "runs" / name

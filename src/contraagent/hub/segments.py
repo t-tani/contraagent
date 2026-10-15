@@ -19,7 +19,7 @@ listed in a `SegmentIndex`; the open one is a file on the hub's local disk.
   that end is first joined by any objects of the log the index lacks, and dropped when
   still not contiguous (the relay resends from `held`). Files that follow one another
   are sealed but the last, which stays open.
-* **Read.** Pages are bounded as `monitor.source.page` bounds them. Sealed lines come
+* **Read.** Pages are bounded as `runs.source.page` bounds them. Sealed lines come
   through the block table with one ranged read per segment a page touches (normally
   one), and decompressed blocks are kept in an LRU of `cache_bytes`; open lines are read
   from the file. `count` and `held` read no data.
@@ -63,6 +63,7 @@ from urllib.parse import quote, unquote
 from contraagent.hub import segment_format as fmt
 from contraagent.hub.segment_objects import SegmentObjects, open_objects
 from contraagent.hub.streams import Held, Waiters
+from contraagent.runs.source import Pager
 
 if TYPE_CHECKING:
     import psycopg
@@ -539,35 +540,6 @@ def _contiguous(segments: Sequence[Segment]) -> list[_Sealed]:
     return out
 
 
-class _Pager:
-    """Takes lines as `monitor.source.page` does, from several sources in turn."""
-
-    def __init__(self, limit: int | None, max_bytes: int | None) -> None:
-        self.limit = limit
-        self.max_bytes = max_bytes
-        self.out: list[str] = []
-        self.used = 0
-        self.full = False
-
-    def take(self, lines: Sequence[str]) -> None:
-        for line in lines:
-            if self.limit is not None and len(self.out) >= self.limit:
-                self.full = True
-                return
-            size = len(line.encode()) + 1
-            if self.out and self.max_bytes is not None and self.used + size > self.max_bytes:
-                self.full = True
-                return
-            self.out.append(line)
-            self.used += size
-
-    def lines_wanted(self) -> int | None:
-        return None if self.limit is None else self.limit - len(self.out)
-
-    def bytes_wanted(self) -> int | None:
-        return None if self.max_bytes is None else max(self.max_bytes - self.used, 1)
-
-
 def _span(firsts: Sequence[int], sizes: Sequence[int], pos: int, lines: int | None, nbytes: int | None) -> tuple[int, int]:
     """The blocks (first, last, inclusive) that hold line `pos` and at least `lines` lines
     and `nbytes` bytes after it, as far as the blocks reach."""
@@ -979,7 +951,7 @@ class SegmentedStreamLogs:
             path.unlink(missing_ok=True)
 
     def _read(self, sealed: list[_Sealed], hot: list[_HotView], pos: int, limit: int | None, max_bytes: int | None) -> list[str]:
-        pager = _Pager(limit, max_bytes)
+        pager = Pager(limit, max_bytes)
         if limit is not None and limit <= 0:
             return []
         start = bisect.bisect_right([s.first_line for s in sealed], pos) - 1

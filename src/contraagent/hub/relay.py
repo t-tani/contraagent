@@ -2,21 +2,22 @@
 
     contraagent relay --runs-dir runs --hub http://hub:8790 --token-file hub.token
 
-Each pass (`Relay.pass_once`) reads every run under the runs directory, in the layout
-`contraagent.rundir` names, and sends the hub what it does not hold yet:
+Each pass (`Relay.pass_once`) reads every run under the runs directory through its run
+source (`DirectorySource`; `contraagent.runs.layout` names the records), and sends the hub
+what it does not hold yet:
 
-* **Logs** (`rundir.LOGS`, `streams/<key>.stream.jsonl`, the pipeline logs
-  `pipeline/<name>.jsonl`): complete lines only (a trailing
-  line without its newline waits for the next pass), from the line the hub holds on, read
-  by byte offset so a long transcript is not read again each pass. A request carries at
+* **Logs** (`RunSource.logs`: `layout.LOGS`, the transcripts, the pipeline logs
+  `pipeline/<name>.jsonl`): complete lines only (a trailing line without its newline waits
+  for the next pass), from the line the hub holds on, read from a kept position
+  (`RunSource.lines_at`) so a long transcript is not read again each pass. A request carries at
   most `batch_bytes` of lines (a longer line goes alone) and `batch_lines` lines.
-* **Documents** (`run.json`, `cursor.json`, and the files in `contracts/`,
-  `definitions/`, `calls/`, `inflight/`, `pipeline/`): a document whose content changed; `text: null`
-  for one that is gone. One that does not parse as JSON is half written and waits.
+* **Documents** (`RunSource.documents`: `run.json`, `cursor.json`, and the files in
+  `contracts/`, `definitions/`, `calls/`, `inflight/`, `pipeline/`): a document whose
+  content changed; `text: null` for one that is gone. One that does not parse as JSON is half written and waits.
 * **Files a contract names** (`outputs[].path`, `inputs[].path`): when their size or
   modification time changed, their content as a blob (`has_blob`, `put_blob`) and a
-  `FileRef`; `sha256: null` for a missing one. A relative path is taken from the run's
-  `cwd` in `run.json`.
+  `FileRef`; `sha256: null` for a missing one. A relative path is under the run's `cwd`
+  in `run.json` (`layout.file_path`).
 
 Every `interval_s` seconds a heartbeat (`Relay.heartbeat_once`) reports the runs this
 host's liveness (`ProcLiveness`) counts live, with their process snapshots.
@@ -59,16 +60,18 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from contraagent import rundir
 from contraagent.commandline import UsageError, add_runs_dir, setup_logging
 from contraagent.hub.client import HttpClient, HubClient, HubRefused, HubUnavailable
 from contraagent.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.monitor import paths
-from contraagent.monitor.source import DirectorySource, Liveness, ProcLiveness
+from contraagent.runs import layout
+from contraagent.runs.files import parse_rows, write_document
+from contraagent.runs.liveness import Liveness
+from contraagent.runs.procs import ProcLiveness
+from contraagent.runs.source import DirectorySource, LogPosition
+from contraagent.runs.times import iso_of
 
 _logger = logging.getLogger(__name__)
 
@@ -88,10 +91,6 @@ FAST_S = 0.25
 ACTIVE_S = 5.0
 #: Seconds between two writes of the progress file during a long pass.
 _SAVE_EVERY_S = 5.0
-_READ_BLOCK = 1 << 20
-
-#: The folders whose `*.json` files are documents.
-_FOLDERS = (rundir.CONTRACTS, rundir.DEFINITIONS, rundir.CALLS, rundir.INFLIGHT, rundir.PIPELINE)
 
 
 def default_progress_path(runs_dir: str | Path) -> Path:
@@ -100,68 +99,8 @@ def default_progress_path(runs_dir: str | Path) -> Path:
     return runs.with_name(runs.name + ".relay.json")
 
 
-def _iso(ts: float, timespec: str = "seconds") -> str:
-    return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec=timespec)
-
-
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def _plain(name: str) -> bool:
-    try:
-        paths.check_name(name)
-    except paths.BadName:
-        return False
-    return True
-
-
-# --- reading logs by byte offset ---------------------------------------------------------
-
-
-def read_lines(path: Path, start: int, max_bytes: int = BATCH_BYTES, max_lines: int = BATCH_LINES) -> tuple[list[str], int]:
-    """The complete lines of `path` from byte `start` (at a line's start), without their
-    newline: at most `max_lines`, and at most `max_bytes` unless the first line alone is
-    longer. Returns them and the byte offset after the last one; ([], start) when no
-    complete line follows `start`."""
-    with open(path, "rb") as f:
-        f.seek(start)
-        buf = f.read(max_bytes)
-        cut = buf.rfind(b"\n")
-        while cut < 0:
-            more = f.read(_READ_BLOCK)
-            if not more:
-                return [], start
-            found = more.find(b"\n")
-            if found >= 0:
-                cut = len(buf) + found
-            buf += more
-        raw = buf[: cut + 1].split(b"\n")[:-1][:max_lines]
-    end = start + sum(len(line) + 1 for line in raw)
-    # A newline byte is never inside a UTF-8 sequence, so each line decodes on its own.
-    return [line.decode("utf-8", errors="replace") for line in raw], end
-
-
-def seek_line(path: Path, n: int) -> tuple[int, int]:
-    """Line `n` of `path`: `(n, byte offset where it starts)`; when the file has fewer
-    complete lines, `(their count, byte offset after the last)`."""
-    count = pos = after = 0
-    if n <= 0:
-        return 0, 0
-    with open(path, "rb") as f:
-        while block := f.read(_READ_BLOCK):
-            here = block.count(b"\n")
-            if count + here < n:
-                count += here
-                if here:
-                    after = pos + block.rfind(b"\n") + 1
-                pos += len(block)
-                continue
-            at = -1
-            for _ in range(n - count):
-                at = block.find(b"\n", at + 1)
-            return n, pos + at + 1
-    return count, after
 
 
 # --- the relay's progress ----------------------------------------------------------------
@@ -211,7 +150,7 @@ class Relay:
     """Ships the runs under `runs_dir` to a hub through `client`.
 
     `progress_path` is the relay's progress file (`default_progress_path`); `host_id`
-    names this host on the hub (default `rundir.host_id()`); `hub` is written into the
+    names this host on the hub (default `layout.host_id()`); `hub` is written into the
     progress file, and progress kept for another hub or host is not used. `interval_s` is
     the heartbeat's interval and the wait between passes; `since_days`, when set, leaves
     out the runs the relay has not shipped yet whose records last changed longer ago than
@@ -239,7 +178,7 @@ class Relay:
         self.runs_dir = Path(runs_dir).resolve()
         self.source = DirectorySource(self.runs_dir)
         self.progress_path = Path(progress_path) if progress_path is not None else default_progress_path(self.runs_dir)
-        self.host_id = host_id or rundir.host_id()
+        self.host_id = host_id or layout.host_id()
         self.hub = hub
         self.interval_s = interval_s
         self.since_days = since_days
@@ -282,11 +221,9 @@ class Relay:
     def save(self) -> None:
         """Write the progress file atomically."""
         data = {"hub": self.hub, "host_id": self.host_id, "runs": {r: p.to_json() for r, p in sorted(self.runs.items())}}
-        tmp = self.progress_path.with_name(self.progress_path.name + ".tmp")
         try:
             self.progress_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp.write_text(json.dumps(data, separators=(",", ":")))
-            tmp.replace(self.progress_path)
+            write_document(self.progress_path, json.dumps(data, separators=(",", ":")))
         except OSError as exc:
             _logger.warning("cannot write the progress file %s: %s", self.progress_path, exc)
 
@@ -377,22 +314,13 @@ class Relay:
     def _eligible(self, run: str) -> bool:
         if self.since_days is None:
             return True
-        times = []
-        for name in ("", rundir.RUN_INFO, *rundir.LOGS):
-            try:
-                times.append(self.source.path(run, name).stat().st_mtime)
-            except OSError:
-                continue
+        times = [st.mtime_ns / 1e9 for name in ("", layout.RUN_INFO, *layout.LOGS) if (st := self.source.stat(run, name)) is not None]
         return bool(times) and max(times) >= self.clock() - self.since_days * 86400
 
     def _ship(self, run: str, resync: bool) -> None:
-        info_bytes = self._read(run, rundir.RUN_INFO)
-        try:
-            info = json.loads(info_bytes) if info_bytes is not None else None
-        except ValueError:
-            return  # half written: the next pass
-        if not isinstance(info, dict):
-            return
+        info = self.source.info(run)
+        if info is None:
+            return  # none yet, or half written: the next pass
         uid = str(info.get("run_uid") or run)
         prog = self.runs.get(run)
         if prog is not None and prog.run_uid != uid:
@@ -411,7 +339,7 @@ class Relay:
             pending = _Pending()
             if whole:
                 self._documents(run, prog, pending)
-                self._files(run, info, prog, pending)
+                self._files(run, prog, pending)
             self._logs(run, prog, pending, probe)
             if pending.empty():
                 break
@@ -438,30 +366,16 @@ class Relay:
             whole = lost
             probe = False
 
-    def _read(self, run: str, name: str) -> bytes | None:
-        try:
-            return self.source.path(run, name).read_bytes()
-        except OSError:
-            return None
-
     def _documents(self, run: str, prog: RunProgress, pending: _Pending) -> None:
-        names = [rundir.RUN_INFO, rundir.CURSOR]
-        for folder in _FOLDERS:
-            d = self.source.path(run, folder)
-            try:
-                names += sorted(rundir.entry(folder, f.stem) for f in d.glob("*.json") if f.is_file() and _plain(f.name))
-            except OSError:
-                continue
         present = set()
-        for name in names:
-            data = self._read(run, name)
-            if data is None:
+        for name in self.source.documents(run):
+            text = self.source.document(run, name)
+            if text is None:
                 continue
             present.add(name)
-            sha = _sha(data)
+            sha = _sha(text.encode())
             if prog.documents.get(name) == sha:
                 continue
-            text = data.decode("utf-8", errors="replace")
             try:
                 json.loads(text)
             except ValueError:
@@ -472,80 +386,44 @@ class Relay:
             pending.documents.append(DocumentPut(name=name, text=None))
             pending.doc_shas[name] = None
 
-    def _contract_paths(self, run: str) -> list[str]:
-        out: dict[str, None] = {}
-        for text in self.source.folder(run, rundir.CONTRACTS):
-            try:
-                rec = json.loads(text)
-            except ValueError:
-                continue
-            if not isinstance(rec, dict):
-                continue
-            for spec in [*rec.get("outputs", []), *rec.get("inputs", [])]:
-                if isinstance(spec, dict) and isinstance(spec.get("path"), str) and spec["path"]:
-                    out[spec["path"]] = None
-        return list(out)
-
-    def _files(self, run: str, info: dict, prog: RunProgress, pending: _Pending) -> None:
-        cwd = Path(str(info.get("cwd") or "."))
-        for path in self._contract_paths(run):
-            where = cwd / path
-            try:
-                st = where.stat()
-            except OSError:
+    def _files(self, run: str, prog: RunProgress, pending: _Pending) -> None:
+        for path in layout.contract_paths(self.source.folder(run, layout.CONTRACTS)):
+            st = self.source.file_stat(run, path)
+            if st is None:
                 if path in prog.files and prog.files[path] is None:
                     continue
                 pending.files.append(FileRef(path=path, sha256=None))
                 pending.file_stats[path] = None
                 continue
-            stat = [st.st_size, st.st_mtime_ns]
+            stat = [st.size, st.mtime_ns]
             held = prog.files.get(path)
             if held is not None and held[:2] == stat:
                 continue
-            try:
-                data = where.read_bytes()
-            except OSError:
+            got = self.source.file(run, path)
+            if got is None:
                 continue
-            sha = _sha(data)
+            sha = _sha(got.data)
             if not self._call(self.client.has_blob, sha):
-                self._call(self.client.put_blob, sha, data)
-            pending.files.append(FileRef(path=path, sha256=sha, size=len(data), mtime=_iso(st.st_mtime)))
+                self._call(self.client.put_blob, sha, got.data)
+            pending.files.append(FileRef(path=path, sha256=sha, size=got.size, mtime=st.mtime))
             pending.file_stats[path] = [*stat, sha]
-
-    def _log_names(self, run: str) -> list[str]:
-        names = [log for log in rundir.LOGS if self.source.path(run, log).is_file()]
-        streams = self.source.path(run, rundir.STREAMS)
-        suffix = ".stream.jsonl"
-        try:
-            keys = sorted(f.name[: -len(suffix)] for f in streams.iterdir() if f.name.endswith(suffix) and f.is_file())
-        except OSError:
-            keys = []
-        try:
-            mine = sorted(f.stem for f in self.source.path(run, rundir.PIPELINE).glob("*.jsonl") if f.is_file() and _plain(f.name))
-        except OSError:
-            mine = []
-        return names + [rundir.stream(k) for k in keys if _plain(k)] + [f"{rundir.PIPELINE}/{n}.jsonl" for n in mine]
 
     def _logs(self, run: str, prog: RunProgress, pending: _Pending, probe: bool, names: list[str] | None = None) -> None:
         budget_bytes, budget_lines = self.batch_bytes, self.batch_lines
-        for log in self._log_names(run) if names is None else names:
-            path = self.source.path(run, log)
+        for log in self.source.logs(run) if names is None else names:
             held = prog.logs.get(log)
             lines_at, byte_at = held if held is not None else (0, 0)
-            try:
-                size = path.stat().st_size
-            except OSError:
+            st = self.source.stat(run, log)
+            if st is None:
                 continue
-            if size < byte_at:
+            if st.size < byte_at:
                 _logger.warning("run %s: %s is shorter than the part already sent; sending it from its start", run, log)
                 lines_at, byte_at = 0, 0
             lines: list[str] = []
             end = byte_at
-            if size > byte_at and budget_lines > 0 and (budget_bytes > 0 or not pending.chunks):
-                try:
-                    lines, end = read_lines(path, byte_at, max(budget_bytes, 1), budget_lines)
-                except OSError:
-                    continue
+            if st.size > byte_at and budget_lines > 0 and (budget_bytes > 0 or not pending.chunks):
+                lines, after = self.source.lines_at(run, log, LogPosition(lines_at, byte_at), budget_lines, max(budget_bytes, 1))
+                end = after.offset
                 budget_bytes -= end - byte_at
                 budget_lines -= len(lines)
             if lines or held is None or probe:
@@ -567,10 +445,7 @@ class Relay:
                 continue
             if held < chunk.offset:
                 lost = True
-            try:
-                prog.logs[chunk.log] = list(seek_line(self.source.path(run, chunk.log), held))
-            except OSError:
-                prog.logs.pop(chunk.log, None)
+            prog.logs[chunk.log] = list(self.source.position(run, chunk.log, held))
         return lost
 
     # --- the fast path: active transcripts ---
@@ -578,32 +453,18 @@ class Relay:
     def _active(self, run: str, running: set[str]) -> list[str]:
         """The run's active transcripts (see the module's docstring), by layout name."""
         keys = set(running)
-        inflight = self.source.path(run, rundir.INFLIGHT)
-        try:
-            markers = [f for f in inflight.iterdir() if f.suffix == ".json"]
-        except OSError:
-            markers = []
-        for marker in markers:
-            try:
-                key = json.loads(marker.read_text()).get("key")
-            except (OSError, ValueError, AttributeError):
-                continue
-            if isinstance(key, str):
-                keys.add(key)
+        for marker in parse_rows(self.source.folder(run, layout.INFLIGHT)):
+            if isinstance(marker.get("key"), str):
+                keys.add(marker["key"])
+        names = {layout.file_name(k) for k in keys}
         recent = self.clock() - ACTIVE_S
         out = []
-        for log in self._log_names(run):
-            if not log.startswith(rundir.STREAMS + "/"):
+        for log in self.source.logs(run):
+            name = layout.stream_name(log)
+            if name is None:
                 continue
-            key = log[len(rundir.STREAMS) + 1 : -len(".stream.jsonl")]
-            if key in keys:
+            if name in names or ((st := self.source.stat(run, log)) is not None and st.mtime_ns / 1e9 >= recent):
                 out.append(log)
-                continue
-            try:
-                if self.source.path(run, log).stat().st_mtime >= recent:
-                    out.append(log)
-            except OSError:
-                continue
         return out
 
     def fast_once(self) -> bool:
@@ -685,7 +546,7 @@ class Relay:
                 reports.append(RunLiveness(run=ref, alive=True, snapshot=snapshot))
             with self._lock:
                 self._running = running
-            beat = Heartbeat(host_id=self.host_id, sent_at=_iso(self.clock(), "milliseconds"), interval_s=self.interval_s, runs=reports)
+            beat = Heartbeat(host_id=self.host_id, sent_at=iso_of(self.clock(), "milliseconds"), interval_s=self.interval_s, runs=reports)
         except Exception:
             _logger.exception("heartbeat not built")
             return False
@@ -711,7 +572,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
     add_runs_dir(ap, "the runs directory to ship (default: runs)")
     ap.add_argument("--hub", required=True, help="the hub's address, for example http://hub:8790")
     ap.add_argument("--token-file", help=f"a file holding the hub's ingest token (default: the environment variable {TOKEN_ENV})")
-    ap.add_argument("--host-id", help=f"this host's name on the hub (default: {rundir.HOST_ID_ENV}, else the host name)")
+    ap.add_argument("--host-id", help=f"this host's name on the hub (default: {layout.HOST_ID_ENV}, else the host name)")
     ap.add_argument("--interval", type=float, default=3.0, help="seconds between heartbeats and between passes (default: 3)")
     ap.add_argument(
         "--since",

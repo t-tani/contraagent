@@ -57,6 +57,7 @@ from pydantic import BaseModel, ConfigDict
 
 from contraagent.backends.credentials import CredentialBase, Pool
 from contraagent.dispatch.records import WINDOWS, QuotaReading, Rest, window_spec
+from contraagent.runs.times import parse_iso
 
 #: `quota_rule(credential, reading)`: a reason the credential rests now, or None; or the
 #: reason and when the rest ends (a `datetime`; one with no time zone is UTC).
@@ -64,16 +65,6 @@ QuotaRule = Callable[[str, QuotaReading], "str | tuple[str, datetime] | None"]
 
 #: `account(credential)`: the account a launch as the credential bills now (`Backend.account`), '' unknown.
 AccountOf = Callable[[str], str]
-
-
-def _time(iso: str | None) -> datetime | None:
-    if not iso:
-        return None
-    try:
-        t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
 
 
 def _aware(t: datetime) -> datetime:
@@ -85,11 +76,11 @@ def stale_at(reading: QuotaReading) -> datetime | None:
     """When `reading` stops standing: the earliest reset among its windows, a window that
     names no reset standing for its length after `observed_at` (a window not in `WINDOWS`,
     the shortest's); None when it says neither."""
-    observed = _time(reading.observed_at)
+    observed = parse_iso(reading.observed_at)
     shortest = min(spec.length for spec in WINDOWS.values())
     ends: list[datetime] = []
     for name, w in reading.named_windows().items():
-        resets = _time(w.resets_at)
+        resets = parse_iso(w.resets_at)
         if resets is not None:
             ends.append(resets)
         elif observed is not None:
@@ -174,8 +165,8 @@ class QuotaRests:
         key = (reading.credential, reading.account)
         with self._lock:
             old = self._latest.get(key)
-            if old is None or (_time(reading.observed_at) or datetime.max.replace(tzinfo=UTC)) >= (
-                _time(old.observed_at) or datetime.min.replace(tzinfo=UTC)
+            if old is None or (parse_iso(reading.observed_at) or datetime.max.replace(tzinfo=UTC)) >= (
+                parse_iso(old.observed_at) or datetime.min.replace(tzinfo=UTC)
             ):
                 self._latest[key] = reading
 
@@ -184,7 +175,7 @@ class QuotaRests:
         named. `account` '' or None (not known): the newest of any account."""
         with self._lock:
             found = [r for (n, a), r in self._latest.items() if n == name and (not account or a in (account, ""))]
-        return max(found, key=lambda r: _time(r.observed_at) or datetime.min.replace(tzinfo=UTC)) if found else None
+        return max(found, key=lambda r: parse_iso(r.observed_at) or datetime.min.replace(tzinfo=UTC)) if found else None
 
     def rests(self, name: str, kind: str = "", account: AccountOf | None = None) -> list[Rest]:
         """Why credential `name` rests for a task of `kind` now: one `Rest`, or for a pool
@@ -273,8 +264,8 @@ class QuotaRests:
             pct = getattr(reading, f"{window}_pct")
             if cap is None or pct is None or pct < cap:
                 continue
-            resets = _time(getattr(reading, f"{window}_resets_at"))
-            observed = _time(reading.observed_at)
+            resets = parse_iso(getattr(reading, f"{window}_resets_at"))
+            observed = parse_iso(reading.observed_at)
             if resets is not None and resets <= now:
                 continue  # the window this reading describes is over
             if resets is None and observed is not None and now - observed > length:

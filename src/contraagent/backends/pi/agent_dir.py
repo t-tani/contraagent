@@ -27,6 +27,7 @@ import tempfile
 from pathlib import Path
 
 from contraagent.backends.wire import positive_int
+from contraagent.runs.files import write_document
 
 #: What every launch's `settings.json` holds: a project's `.pi/` files are never trusted
 #: (with no saved decision, as in every launch, this also comes from `--no-approve`), no
@@ -92,7 +93,7 @@ def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_mo
         text = json.dumps(doc, indent=2) + "\n"
         f = target / name
         if not f.is_file() or f.read_text() != text:
-            _replace(target, name, lambda tmp, text=text: Path(tmp).write_text(text))
+            write_document(f, text)
     for name, src in links.items():
         f = target / name
         if f.is_symlink() and os.readlink(f) == str(src):
@@ -104,7 +105,8 @@ def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_mo
 
 
 def _replace(directory: Path, name: str, create) -> None:
-    """Create `name` in `directory` under a temporary name with `create(path)`, then rename it over."""
+    """Create the link `name` in `directory` under a temporary name with `create(path)`, then
+    rename it over (a file is written by `write_document`)."""
     tmp = Path(tempfile.mktemp(prefix=f".{name}.", dir=directory))
     create(tmp)
     os.replace(tmp, directory / name)

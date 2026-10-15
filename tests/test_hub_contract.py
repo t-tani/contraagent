@@ -11,14 +11,15 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import rundir
 from contraagent.hub.client import DirectClient, HubClient
 from contraagent.hub.core import Hub
 from contraagent.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent.hub.server import hub_monitor
 from contraagent.hub.source import HeartbeatLiveness
 from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent.monitor import Monitor
-from contraagent.monitor.source import DirectorySource
+from contraagent.runs import layout
+from contraagent.runs.source import DirectorySource
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -68,36 +69,36 @@ def batch(*logs: LogChunk, documents=(), files=(), run: RunRef = RUN) -> RecordB
 
 
 def test_a_log_keeps_each_line_once_in_order(store):
-    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t1").logs == {rundir.JOURNAL: 2}
+    assert store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"])), "t1").logs == {layout.JOURNAL: 2}
     # resent and overlapping: the held lines are dropped, the new one kept
-    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=1, lines=["b", "c"])), "t2").logs == {rundir.JOURNAL: 3}
-    assert store.lines("r1@h1", rundir.JOURNAL) == (["a", "b", "c"], 3)
-    assert store.lines("r1@h1", rundir.JOURNAL, 1, 1) == (["b"], 3)
-    assert store.count("r1@h1", rundir.JOURNAL) == 3
+    assert store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=1, lines=["b", "c"])), "t2").logs == {layout.JOURNAL: 3}
+    assert store.lines("r1@h1", layout.JOURNAL) == (["a", "b", "c"], 3)
+    assert store.lines("r1@h1", layout.JOURNAL, 1, 1) == (["b"], 3)
+    assert store.count("r1@h1", layout.JOURNAL) == 3
 
 
 def test_a_chunk_that_leaves_a_gap_is_refused_and_says_where_to_resume(store):
-    store.put_batch(batch(LogChunk(log=rundir.PLAN, offset=0, lines=["a"])), "t1")
-    assert store.put_batch(batch(LogChunk(log=rundir.PLAN, offset=5, lines=["f"])), "t2").logs == {rundir.PLAN: 1}
-    assert store.lines("r1@h1", rundir.PLAN) == (["a"], 1)
+    store.put_batch(batch(LogChunk(log=layout.PLAN, offset=0, lines=["a"])), "t1")
+    assert store.put_batch(batch(LogChunk(log=layout.PLAN, offset=5, lines=["f"])), "t2").logs == {layout.PLAN: 1}
+    assert store.lines("r1@h1", layout.PLAN) == (["a"], 1)
 
 
 def test_documents_are_replaced_whole_and_removed_by_null(store):
-    marker = rundir.entry(rundir.INFLIGHT, "k")
-    first = [DocumentPut(name=rundir.RUN_INFO, text='{"run_id": "r1"}'), DocumentPut(name=marker, text="{}")]
+    marker = layout.entry(layout.INFLIGHT, "k")
+    first = [DocumentPut(name=layout.RUN_INFO, text='{"run_id": "r1"}'), DocumentPut(name=marker, text="{}")]
     store.put_batch(batch(documents=first), "t1")
-    assert store.exists("r1@h1", rundir.INFLIGHT) and store.document("r1@h1", marker) == "{}"
-    second = [DocumentPut(name=rundir.RUN_INFO, text='{"run_id": "r1", "x": 1}'), DocumentPut(name=marker, text=None)]
+    assert store.exists("r1@h1", layout.INFLIGHT) and store.document("r1@h1", marker) == "{}"
+    second = [DocumentPut(name=layout.RUN_INFO, text='{"run_id": "r1", "x": 1}'), DocumentPut(name=marker, text=None)]
     store.put_batch(batch(documents=second), "t2")
-    assert store.document("r1@h1", rundir.RUN_INFO) == '{"run_id": "r1", "x": 1}'
-    assert store.document("r1@h1", marker) is None and not store.exists("r1@h1", rundir.INFLIGHT)
+    assert store.document("r1@h1", layout.RUN_INFO) == '{"run_id": "r1", "x": 1}'
+    assert store.document("r1@h1", marker) is None and not store.exists("r1@h1", layout.INFLIGHT)
 
 
 def test_a_folder_lists_its_own_documents_by_name(store):
-    docs = [DocumentPut(name=rundir.entry(rundir.DEFINITIONS, n), text=n) for n in ("b", "a")]
+    docs = [DocumentPut(name=layout.entry(layout.DEFINITIONS, n), text=n) for n in ("b", "a")]
     store.put_batch(batch(documents=[*docs, DocumentPut(name="definitions/x/deeper.json", text="no")]), "t1")
-    assert store.folder("r1@h1", rundir.DEFINITIONS) == ["a", "b"]
-    assert store.folder("r1@h1", rundir.CONTRACTS) == []
+    assert store.folder("r1@h1", layout.DEFINITIONS) == ["a", "b"]
+    assert store.folder("r1@h1", layout.CONTRACTS) == []
 
 
 def test_files_runs_and_activity(store):
@@ -110,27 +111,27 @@ def test_files_runs_and_activity(store):
 
 
 def test_activity_is_when_a_batch_last_changed_what_is_held(store):
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t1")
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=2, lines=[])), "t2")  # how many lines are held
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t3")  # a resend
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"])), "t1")
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=2, lines=[])), "t2")  # how many lines are held
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"])), "t3")  # a resend
     assert store.activity("r1@h1") == "t1"
-    store.put_batch(batch(documents=[DocumentPut(name=rundir.RUN_INFO, text="{}")]), "t4")
-    store.put_batch(batch(documents=[DocumentPut(name=rundir.RUN_INFO, text="{}")]), "t5")
+    store.put_batch(batch(documents=[DocumentPut(name=layout.RUN_INFO, text="{}")]), "t4")
+    store.put_batch(batch(documents=[DocumentPut(name=layout.RUN_INFO, text="{}")]), "t5")
     assert store.activity("r1@h1") == "t4"
 
 
 def test_a_new_run_uid_under_a_name_replaces_the_old_run(store):
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["old"])), "t1")
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["new"]), run=RunRef(host_id="h1", run_id="r1", run_uid="u2")), "t2")
-    assert store.lines("r1@h1", rundir.JOURNAL) == (["new"], 1)
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["old"])), "t1")
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["new"]), run=RunRef(host_id="h1", run_id="r1", run_uid="u2")), "t2")
+    assert store.lines("r1@h1", layout.JOURNAL) == (["new"], 1)
     assert [e.run_uid for e in store.runs()] == ["u2"]
 
 
 def test_absent_things_are_empty(store):
-    assert store.lines("nope@h1", rundir.JOURNAL) == ([], 0)
-    assert store.count("nope@h1", rundir.JOURNAL) == -1
-    assert store.document("nope@h1", rundir.RUN_INFO) is None
-    assert store.folder("nope@h1", rundir.CONTRACTS) == [] and not store.exists("nope@h1", rundir.STREAMS)
+    assert store.lines("nope@h1", layout.JOURNAL) == ([], 0)
+    assert store.count("nope@h1", layout.JOURNAL) == -1
+    assert store.document("nope@h1", layout.RUN_INFO) is None
+    assert store.folder("nope@h1", layout.CONTRACTS) == [] and not store.exists("nope@h1", layout.STREAMS)
 
 
 def test_the_latest_heartbeat_of_each_host_is_kept(store):
@@ -142,20 +143,20 @@ def test_the_latest_heartbeat_of_each_host_is_kept(store):
 
 def test_delete_run_removes_everything_held_of_the_run(store):
     ref = FileRef(path="/w/out/a.json", sha256="a" * 64, size=3, mtime="m")
-    docs = [DocumentPut(name=rundir.RUN_INFO, text="{}")]
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a"]), documents=docs, files=[ref]), "t1")
-    store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["k"]), run=RunRef(host_id="h2", run_id="r1", run_uid="u2")), "t1")
+    docs = [DocumentPut(name=layout.RUN_INFO, text="{}")]
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a"]), documents=docs, files=[ref]), "t1")
+    store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["k"]), run=RunRef(host_id="h2", run_id="r1", run_uid="u2")), "t1")
     assert not store.delete_run("r1@h1", run_uid="other")  # another run under the name
     assert store.delete_run("r1@h1", run_uid="u1")
     assert store.entry("r1@h1") is None and [e.name for e in store.runs()] == ["r1@h2"]
-    assert store.lines("r1@h1", rundir.JOURNAL) == ([], 0) and store.count("r1@h1", rundir.JOURNAL) == -1
-    assert store.document("r1@h1", rundir.RUN_INFO) is None and store.file("r1@h1", ref.path) is None
-    assert store.activity("r1@h1") is None and not store.exists("r1@h1", rundir.JOURNAL)
+    assert store.lines("r1@h1", layout.JOURNAL) == ([], 0) and store.count("r1@h1", layout.JOURNAL) == -1
+    assert store.document("r1@h1", layout.RUN_INFO) is None and store.file("r1@h1", ref.path) is None
+    assert store.activity("r1@h1") is None and not store.exists("r1@h1", layout.JOURNAL)
     assert not store.delete_run("r1@h1")  # again: nothing to remove
-    assert store.lines("r1@h2", rundir.JOURNAL) == (["k"], 1)
+    assert store.lines("r1@h2", layout.JOURNAL) == (["k"], 1)
     # a batch after the removal starts the run anew: a log that leaves a gap is refused
-    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=1, lines=["b"])), "t2").logs == {rundir.JOURNAL: 0}
-    assert store.put_batch(batch(LogChunk(log=rundir.JOURNAL, offset=0, lines=["a", "b"])), "t3").logs == {rundir.JOURNAL: 2}
+    assert store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=1, lines=["b"])), "t2").logs == {layout.JOURNAL: 0}
+    assert store.put_batch(batch(LogChunk(log=layout.JOURNAL, offset=0, lines=["a", "b"])), "t3").logs == {layout.JOURNAL: 2}
 
 
 def test_delete_heartbeat_removes_the_hosts_heartbeat(store):
@@ -229,7 +230,7 @@ def test_storing_a_held_blob_again_keeps_its_age(tmp_path):
 
 def test_a_run_is_live_while_its_host_heartbeats_report_it(store):
     hub = Hub(store, MemoryBlobs(), ttl_s=15)
-    store.put_batch(batch(documents=[DocumentPut(name=rundir.RUN_INFO, text='{"run_id": "r1", "pid": 7}')]), "t0")
+    store.put_batch(batch(documents=[DocumentPut(name=layout.RUN_INFO, text='{"run_id": "r1", "pid": 7}')]), "t0")
     snap = {"run": "r1", "alive": True, "launches": [{"key": "k"}], "tree": [], "python_tasks": []}
     report = RunLiveness(run=RUN, alive=True, snapshot=snap)
     store.put_heartbeat(Heartbeat(host_id="h1", sent_at="s", interval_s=3, runs=[report]), "2026-10-13T00:00:00+00:00")
@@ -261,7 +262,7 @@ def ship(root: Path, client: HubClient, host_id: str) -> None:
                 logs.append(LogChunk(log=name, offset=0, lines=text.splitlines()))
             else:
                 documents.append(DocumentPut(name=name, text=text))
-        for text in source.folder(run, rundir.CONTRACTS):
+        for text in source.folder(run, layout.CONTRACTS):
             rec = json.loads(text)
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
                 p = Path(spec["path"])
@@ -273,7 +274,7 @@ def ship(root: Path, client: HubClient, host_id: str) -> None:
                 if not client.has_blob(sha):
                     client.put_blob(sha, data)
                 got = source.file(run, spec["path"])
-                files.append(FileRef(path=spec["path"], sha256=sha, size=len(data), mtime=got[2] if got else ""))
+                files.append(FileRef(path=spec["path"], sha256=sha, size=len(data), mtime=got.mtime if got else ""))
         client.send_records(RecordBatch(run=ref, logs=logs, documents=documents, files=files))
 
 
@@ -295,7 +296,7 @@ def views(mon: Monitor, run: str) -> dict:
 def test_runs_shipped_to_a_hub_have_every_view_of_their_directory(demo_runs, store, blobs):
     hub = Hub(store, blobs)
     ship(demo_runs, DirectClient(hub), "h1")
-    local, remote = Monitor(demo_runs), hub.monitor()
+    local, remote = Monitor(demo_runs), hub_monitor(hub)
     names = [r["run"] for r in local.runs()]
     assert names and sorted(r["run"] for r in remote.runs()) == sorted(f"{n}@h1" for n in names)
     for name in names:

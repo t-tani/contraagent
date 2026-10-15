@@ -25,8 +25,9 @@ from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from contraagent import envvars, rundir
+from contraagent import envvars
 from contraagent.contracts import Check, OutputContract, check_file, correction_prompt
+from contraagent.runs.files import write_document
 from contraagent.validators import CommandValidator
 
 
@@ -74,7 +75,7 @@ class CallFile(BaseModel):
     def write(self, path: Path) -> Path:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        return rundir.write_document(path, self.model_dump_json(indent=2) + "\n")
+        return write_document(path, self.model_dump_json(indent=2) + "\n")
 
     @classmethod
     def read(cls, path: Path) -> CallFile:

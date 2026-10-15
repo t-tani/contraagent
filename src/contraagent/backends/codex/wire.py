@@ -20,13 +20,13 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent.backends.refusal import FAILED_STOPS, Ending, Signals
 from contraagent.backends.wire import EventFold, positive_int, tokens
 from contraagent.dispatch.records import QuotaReading
+from contraagent.runs.times import iso_of, now_iso
 
 #: How Codex words a refusal: for usage or rate (ChatGPT plan limits, a provider's 429), a
 #: refused credential, a safety refusal. A process that printed nothing failed to start
@@ -218,14 +218,14 @@ def quota_reading(limits: dict) -> QuotaReading | None:
 
     def at(w: dict) -> str | None:
         ts = w.get("resets_at")
-        return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds") if isinstance(ts, (int, float)) else None
+        return iso_of(ts) if isinstance(ts, (int, float)) else None
 
     def pct(w: dict) -> float | None:
         v = w.get("used_percent")
         return round(float(v), 1) if isinstance(v, (int, float)) else None
 
     return QuotaReading(
-        observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        observed_at=now_iso(),
         status=str(limits.get("rate_limit_reached_type") or "allowed"),
         five_hour_pct=pct(five),
         five_hour_resets_at=at(five),

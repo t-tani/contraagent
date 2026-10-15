@@ -10,12 +10,12 @@ a Stop hook's feedback), `rate_limit_event` (the subscription's utilization) and
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 
 from contraagent.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop
 from contraagent.backends.refusal import Ending, Signals
 from contraagent.backends.wire import EventFold, first_text, tokens, tool_preview
 from contraagent.dispatch.records import OtherModel, QuotaReading, QuotaWindow
+from contraagent.runs.times import iso_of, now_iso
 
 #: A safety refusal in an error result's text (a result that is no error may say it in passing).
 REFUSAL_RE = re.compile(r"safeguard|refus", re.I)
@@ -87,7 +87,7 @@ def _share_pct(u: object) -> float | None:
 
 
 def _at(ts: object) -> str | None:
-    return datetime.fromtimestamp(ts, tz=UTC).isoformat(timespec="seconds") if isinstance(ts, (int, float)) and ts else None
+    return iso_of(ts) if isinstance(ts, (int, float)) and ts else None
 
 
 def _reading_from_event(ev: dict) -> QuotaReading:
@@ -107,7 +107,7 @@ def _reading_from_event(ev: dict) -> QuotaReading:
     using = info.get("isUsingOverage")
     return QuotaReading.from_windows(
         windows,
-        observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        observed_at=now_iso(),
         status=str(info.get("status", "")),
         status_window=kind,
         threshold_pct=_share_pct(info.get("surpassedThreshold")),

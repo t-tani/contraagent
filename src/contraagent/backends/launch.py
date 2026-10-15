@@ -20,6 +20,7 @@ from pathlib import Path
 
 from contraagent.backends.credentials import AMBIENT, CredentialBase
 from contraagent.dispatch.records import OtherModel, QuotaReading, TokenUsage
+from contraagent.runs.files import append_lines
 
 # Prompt text beyond this size goes over stdin, not argv
 # (Linux caps one argv element at 128KB; stdin takes 10MB).
@@ -453,8 +454,7 @@ class LaunchResult:
         """Append the telemetry line. Creates parent dirs."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(self.as_dict(), ensure_ascii=False) + "\n")
+        append_lines(path, [json.dumps(self.as_dict(), ensure_ascii=False)])
 
 
 def _short_argv(argv: list[str]) -> list[str]:

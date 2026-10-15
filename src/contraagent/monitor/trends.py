@@ -15,7 +15,7 @@ It works in two steps, so that any period, time zone or grouping costs little:
   lies in one day and one hour of any period: a digest answers any period exactly. It
   depends only on the run's files, so it is kept: in memory, keyed by the run's
   `signature`, and, for a finished run in a runs directory, in the run's `trends.json`
-  (`rundir.TRENDS`), so a restarted monitor reads it back.
+  (`layout.TRENDS`), so a restarted monitor reads it back.
 * `aggregate(digests, period, groups)`: the trends of a period over digests,
   with `bodies(view)`, the same numbers as panel bodies (`{"type": "blocks", ...}`)
   for a page that draws them without words of its own.
@@ -28,22 +28,20 @@ and each hour's highest, not every reading); a run start on the day and hour of
 
 from __future__ import annotations
 
-import json
-import os
-import stat
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import ValidationError
 
-from contraagent import rundir
 from contraagent.dispatch.records import WINDOWS, RestEvent, window_words
 from contraagent.execution.schemas import DeferredRow
-from contraagent.monitor import paths
 from contraagent.monitor.aggregate import TOKENS, add_model_usage, model_usage, number, token_counts
-from contraagent.monitor.source import DirectorySource
+from contraagent.runs import layout
+from contraagent.runs.files import parse_rows
+from contraagent.runs.source import RunSource
+from contraagent.runs.times import parse_iso
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
 DIGEST_VERSION = 12
@@ -64,7 +62,7 @@ DEFAULT_DAYS = 14
 #: The fields of a `rests.jsonl` row a digest keeps.
 _REST_FIELDS = {"ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading"}
 
-DIGEST_LOGS = (rundir.JOURNAL, rundir.LAUNCHES, rundir.RESTS, rundir.DEFERRED)
+DIGEST_LOGS = (layout.JOURNAL, layout.LAUNCHES, layout.RESTS, layout.DEFERRED)
 
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -121,36 +119,13 @@ class Period:
 
     def day_of(self, ts: object) -> date | None:
         """The day of an ISO time in this period's time zone, when it is inside the period."""
-        t = when(ts)
+        t = parse_iso(ts)
         if t is None or not (self.opens <= t < self.closes):
             return None
         return t.astimezone(self.zone).date()
 
     def as_dict(self) -> dict:
         return {"from": self.start.isoformat(), "to": self.end.isoformat(), "tz": self.tz, "days": [d.isoformat() for d in self.days]}
-
-
-def when(ts: object) -> datetime | None:
-    """An ISO 8601 time as an aware datetime (a naive one is UTC); None when it is not one."""
-    if not isinstance(ts, str) or not ts:
-        return None
-    try:
-        t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return t if t.tzinfo is not None else t.replace(tzinfo=UTC)
-
-
-def _parse(lines: Iterable[str]) -> list[dict]:
-    out = []
-    for line in lines:
-        try:
-            v = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(v, dict):
-            out.append(v)
-    return out
 
 
 # --- a run's digest --------------------------------------------------------------------
@@ -161,54 +136,23 @@ SLOT_S = 900
 
 
 def _slot(ts: object) -> int | None:
-    t = when(ts)
+    t = parse_iso(ts)
     return int(t.timestamp() // SLOT_S) if t is not None else None
 
 
-def run_dir(source: DirectorySource, run: str) -> str:
-    """The run's directory, checked: a plain name that is no symbolic link, under the runs
-    directory (which `DirectorySource` resolved), is inside it, one `lstat` for what
-    `source.path` (every part resolved) would say; a link takes that full check."""
-    base = os.path.join(source.root, paths.check_name(run, "run id"))
-    try:
-        if not stat.S_ISLNK(os.lstat(base).st_mode):
-            return base
-    except OSError:
-        pass
-    return str(source.path(run))
-
-
-def run_files(source, run: str, infos: dict | None = None) -> tuple[dict, dict]:
+def run_files(source: RunSource, run: str, infos: dict | None = None) -> tuple[dict, dict]:
     """A run's `run.json` and its `signature`: what its digest depends on (its logs' sizes,
-    and when it started and finished). In a runs directory the run's directory is checked
-    once, and `run.json` and each log are opened by name in it, not each path checked
-    again: a period over hundreds of runs asks for thousands. `infos` keeps each run's
-    `run.json` by its `stat`, so an unchanged one is not read again."""
-    if isinstance(source, DirectorySource):
-        base = run_dir(source, run)
-        info = None
-        try:
-            path = os.path.join(base, rundir.RUN_INFO)
-            st = os.stat(path)
-            held = (infos or {}).get(run)
-            if held is not None and held[0] == (st.st_mtime_ns, st.st_size):
-                info = held[1]
-            else:
-                with open(path, encoding="utf-8") as f:
-                    info = json.loads(f.read())
-                if infos is not None:
-                    infos[run] = ((st.st_mtime_ns, st.st_size), info)
-        except (OSError, ValueError):
-            pass
-        sizes = {}
-        for log in DIGEST_LOGS:
-            try:
-                sizes[log] = os.stat(os.path.join(base, log)).st_size
-            except OSError:
-                sizes[log] = -1
+    and when it started and finished). `infos` keeps each run's `run.json` by its `stat`,
+    so an unchanged one is not read again: a period over hundreds of runs asks for each."""
+    st = source.stat(run, layout.RUN_INFO)
+    held = (infos or {}).get(run)
+    if st is not None and held is not None and held[0] == st:
+        info = held[1]
     else:
         info = source.info(run)
-        sizes = {log: source.size(run, log) for log in DIGEST_LOGS}
+        if infos is not None and st is not None:
+            infos[run] = (st, info)
+    sizes = {log: source.size(run, log) for log in DIGEST_LOGS}
     info = info if isinstance(info, dict) else {}
     return info, {**sizes, "started_at": info.get("started_at", ""), "finished_at": info.get("finished_at", "")}
 
@@ -241,7 +185,7 @@ def digest(source, run: str) -> dict:
     key_kind: dict[str, str] = {}
     attempts: dict[str, dict[str, list[int]]] = {}
     peaks: dict[tuple[int, str, str, str], float] = {}
-    for e in _parse(source.lines(run, rundir.JOURNAL)[0]):
+    for e in parse_rows(source.lines(run, layout.JOURNAL)[0]):
         key, kind = str(e.get("key", "")), str(e.get("kind", "?"))
         key_kind[key] = kind
         slot = _slot(e.get("ts"))
@@ -292,7 +236,7 @@ def digest(source, run: str) -> dict:
         kinds[kind]["tasks"] = len(keys)
         kinds[kind]["tasks_ok"] = sum(pairs[-1] == 1 for pairs in keys.values())
         kinds[kind]["tasks_partial"] = sum(pairs[-1] == PARTIAL for pairs in keys.values())
-    for row in _parse(line for line in source.lines(run, rundir.PLAN)[0] if '"base_kind"' in line):
+    for row in parse_rows(line for line in source.lines(run, layout.PLAN)[0] if '"base_kind"' in line):
         if row.get("kind") in kinds and row.get("base_kind"):
             kinds[row["kind"]]["base_kind"] = str(row["base_kind"])
     total: dict = {"last_ts": "", "kinds": {}, "models": model_usage([r for slot in sorted(rows_of) for r in rows_of[slot]])}
@@ -318,7 +262,7 @@ def digest(source, run: str) -> dict:
     for t in total["kinds"].values():
         t["walls"].sort()
     denied: dict[tuple[int, str, str], int] = {}
-    for launch in _parse(source.lines(run, rundir.LAUNCHES)[0]):
+    for launch in parse_rows(source.lines(run, layout.LAUNCHES)[0]):
         slot = _slot(launch.get("ts"))
         if slot is None:
             continue
@@ -327,13 +271,13 @@ def digest(source, run: str) -> dict:
                 at = (slot, str(d["tool"]), key_kind.get(str(launch.get("label", "")), ""))
                 denied[at] = denied.get(at, 0) + 1
     rests = []
-    for r in _parse(source.lines(run, rundir.RESTS)[0]):
+    for r in parse_rows(source.lines(run, layout.RESTS)[0]):
         try:
             rests.append(RestEvent.model_validate(r).model_dump(mode="json", include=_REST_FIELDS, exclude_unset=True))
         except ValidationError:
             continue
     deferred = []
-    for d in _parse(source.lines(run, rundir.DEFERRED)[0]):
+    for d in parse_rows(source.lines(run, layout.DEFERRED)[0]):
         try:
             row = DeferredRow.model_validate(d)
         except ValidationError:
@@ -379,12 +323,12 @@ def _reading_windows(q: Mapping) -> dict[str, float]:
 
 def kept_form(dg: dict) -> dict:
     """A digest as `trends.json` keeps it: its total without the wall times its slots hold
-    (`restore` puts them back), so a file holds each one once."""
+    (`from_kept` puts them back), so a file holds each one once."""
     total = {**dg["total"], "kinds": {k: {f: v for f, v in t.items() if f != "walls"} for k, t in dg["total"]["kinds"].items()}}
     return {**dg, "total": total}
 
 
-def restore(dg: dict) -> dict:
+def from_kept(dg: dict) -> dict:
     """A digest read from `trends.json` (`kept_form`) made whole again: its total's wall times."""
     walls: dict[str, list[float]] = {}
     for _, s in dg["slots"]:
@@ -398,7 +342,7 @@ def restore(dg: dict) -> dict:
 def in_period(info: Mapping, period: Period) -> bool:
     """Whether a run may have done something in `period`, by its `run.json` alone: started
     before it closes, and not finished before it opens. A run that does not say is kept."""
-    started, finished = when(info.get("started_at")), when(info.get("finished_at"))
+    started, finished = parse_iso(info.get("started_at")), parse_iso(info.get("finished_at"))
     if started is not None and started >= period.closes:
         return False
     return not (finished is not None and finished < period.opens)
@@ -473,7 +417,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
         if not mine and started is None:
             continue
         if started is not None:
-            t = when(dg["started_at"]).astimezone(period.zone)  # type: ignore[union-attr]
+            t = parse_iso(dg["started_at"]).astimezone(period.zone)  # type: ignore[union-attr]
             starts[t.weekday()][t.hour] += 1
         cost: float | None = None
         n = ok = partial = 0

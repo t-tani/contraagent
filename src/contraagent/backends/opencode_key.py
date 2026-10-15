@@ -25,12 +25,12 @@ import os
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends.credentials import CredentialBase, CredentialError
 from contraagent.backends.launch import ACCOUNT_SECRET, Launch, account_digest
 from contraagent.dispatch.records import QuotaReading, QuotaWindow
+from contraagent.runs.times import iso_of, now_iso, parse_iso
 
 #: The variable every agent reads an OpenCode key from.
 KEY_VAR = "OPENCODE_API_KEY"
@@ -84,16 +84,6 @@ def account_of_key(key: str) -> str:
     return account_digest(ACCOUNT_SECRET, key)
 
 
-def _iso(stamp: object) -> str | None:
-    if not isinstance(stamp, str):
-        return None
-    try:
-        t = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return t.astimezone(UTC).isoformat(timespec="seconds")
-
-
 def _status(window: Mapping) -> str:
     """A window's state as omp names it: `exhausted` when refused or full, `warning` from 80%."""
     pct = window["percent"]
@@ -116,12 +106,14 @@ def go_reading(body: object, key: str = "") -> QuotaReading | None:
         w = usage.get(field)
         if not isinstance(w, dict) or isinstance(w.get("percent"), bool) or not isinstance(w.get("percent"), (int, float)):
             return None
-        windows[name] = QuotaWindow(pct=float(w["percent"]), resets_at=_iso(w.get("resetsAt")))
+        windows[name] = QuotaWindow(
+            pct=float(w["percent"]), resets_at=iso_of(at.timestamp()) if (at := parse_iso(w.get("resetsAt"))) else None
+        )
         states.add(_status(w))
     return QuotaReading.from_windows(
         windows,
         status="allowed" if states <= {"ok"} else ",".join(sorted(states - {"ok"})),
-        observed_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        observed_at=now_iso(),
         account=account_of_key(key),
     )
 

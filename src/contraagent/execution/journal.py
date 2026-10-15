@@ -7,19 +7,14 @@ reads to skip finished work; `runs/<id>/launches.jsonl` keeps the full
 
 from __future__ import annotations
 
-import json
-import threading
 from collections.abc import Callable
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends.process import signal_of
 from contraagent.dispatch.task import Task, TaskResult, kind_name
 from contraagent.execution.schemas import JournalRow
-
-
-def utcnow_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+from contraagent.runs.files import append_lines, read_rows
+from contraagent.runs.times import now_iso
 
 
 class Journal:
@@ -41,7 +36,6 @@ class Journal:
         self.run_group = run_group
         self._unit_of = unit_of
         self._row_extras = row_extras
-        self._lock = threading.Lock()
 
     def row(self, result: TaskResult) -> JournalRow:
         """The journal row for one finished attempt."""
@@ -49,7 +43,7 @@ class Journal:
         exit_code = o.exit_code if o is not None else None
         task = result.task
         return JournalRow(
-            ts=utcnow_iso(),
+            ts=now_iso(),
             run_id=self.run_id,
             run_group=self.run_group,
             key=task.key,
@@ -90,26 +84,14 @@ class Journal:
         """Append one row, plus the full `LaunchResult` when the attempt was an agent launch.
         Returns the row."""
         row = self.row(result)
-        line = row.model_dump_json() + "\n"
-        with self._lock, open(self.path, "a") as f:
-            f.write(line)
+        append_lines(self.path, [row.model_dump_json()])
         if result.launch_result is not None:
             result.launch_result.record(self.launches_path)
         return row
 
     def rows(self) -> list[dict]:
         """Every row on disk, as dicts (a domain's extra columns included)."""
-        try:
-            lines = self.path.read_text().splitlines()
-        except OSError:
-            return []
-        out = []
-        for line in lines:
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-        return out
+        return read_rows(self.path)
 
     def last_rows(self) -> dict[str, dict]:
         """Each key's last row: what a resume compares a task with."""

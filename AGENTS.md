@@ -180,9 +180,14 @@ for each kind of text.
 ## Layers
 
 Each layer imports only the layers above it in the list in the
-`src/contraagent/__init__.py` docstring (`errors`, `docs`, `dispatch`, `backends`,
-`contracts`, `routing`, `execution`, `plugins`, `pipeline`, `monitor`).
-`dispatch/` imports nothing outside the standard library and pydantic (its record types, `dispatch/records.py`, are what every later layer writes and reads). Never import a later
+`src/contraagent/__init__.py` docstring (`errors`, `docs`, `runs`, `dispatch`,
+`backends`, `contracts`, `routing`, `execution`, `plugins`, `pipeline`, `monitor`,
+`hub`). `runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
+imports only the standard library and the leaf modules `procfs`, `envvars` and
+`telemetry`; every reader and writer of a run's files goes through it.
+`dispatch/` imports nothing outside the standard library, pydantic and `runs/` (its record types, `dispatch/records.py`, are what every later layer writes and reads).
+`hub/` does not import `monitor/`, but for `hub/server.py`, which serves the monitor's
+app (`tests/test_run_files.py` checks both). Never import a later
 layer from an earlier one; pass a callback or a protocol instead.
 
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
