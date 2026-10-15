@@ -1,28 +1,14 @@
-"""Live monitoring of a pipeline run: journal, plan, process tree, agent transcripts.
+"""Live monitoring of runs: journal, plan, process tree, agent transcripts.
 
-    from contraagent._internal.monitor import Monitor, serve
-    serve(Monitor("runs"), port=8787)
+Read-only: it tails what `Run` (`execution/run.py`) writes under `runs/<run>/` and never
+touches the pipeline.
 
-Read-only: it tails what `contraagent._internal.execution.run.Run` writes under `runs/<run>/`
-and never touches the pipeline. The web server (`serve`, `create_app`, from
-`contraagent._internal.monitor.server`, imported when first named) needs the `monitor` extra
-(`pip install contraagent[monitor]`: fastapi, uvicorn, sse-starlette); `Monitor`
-itself and the response models in `contraagent._internal.monitor.api` do not.
+* `core`       `Monitor` (every view, as plain data), `Panel`, `RunRecords`, `PeriodRuns`
+* `trends`     `Period`, and what the runs of a period add up to
+* `aggregate`  token, cost and model sums shared by a run's views and the trends
+* `api`        the HTTP contract: one pydantic model per response and live-feed event
+* `views`      the view table the routes, the live feed and the export read
+* `export`     the views as files a static page reads (`contraagent monitor export`)
+* `server`     the web server (`serve`, `create_app`); needs the `monitor` extra
+* `static/`    the built web UI (from `web/`); `openapi.json`, the committed contract
 """
-
-from typing import TYPE_CHECKING, Any
-
-from contraagent._internal.monitor.core import Monitor, Panel, Period, PeriodRuns, RunRecords
-
-if TYPE_CHECKING:
-    from contraagent._internal.monitor.server import create_app, serve
-
-__all__ = ["Monitor", "Panel", "Period", "PeriodRuns", "RunRecords", "create_app", "serve"]
-
-
-def __getattr__(name: str) -> Any:
-    if name in ("create_app", "serve"):
-        from contraagent._internal.monitor import server
-
-        return getattr(server, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -167,7 +167,7 @@ def test_the_cli_takes_panels_groups_and_task_detail_as_the_monitor_does(tmp_pat
     rd = runs(tmp_path, ids=("only",))
     views = tmp_path / "views.py"
     views.write_text(
-        "from contraagent._internal.monitor import Panel\n"
+        "from contraagent.monitor import Panel\n"
         "def kinds(runs, period):\n"
         "    return {'type': 'tiles', 'tiles': [{'id': 'n', 'label': 'Rows', 'value': sum(len(runs.journal(r)) for r in runs)}]}\n"
         "PANELS = {'kinds': Panel(kinds, scope='trends')}\n"

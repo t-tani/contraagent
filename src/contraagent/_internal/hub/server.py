@@ -93,7 +93,7 @@ from contraagent._internal.hub.retention import (
 from contraagent._internal.hub.source import DEFAULT_TTL_S
 from contraagent._internal.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
 from contraagent._internal.hub.streams import MemoryStreamLogs, StreamLogs
-from contraagent._internal.monitor import Monitor
+from contraagent._internal.monitor.core import Monitor
 from contraagent._internal.monitor.server import LOCAL_HOSTS, create_app, host_names, is_loopback, require_extra
 
 log = logging.getLogger(__name__)

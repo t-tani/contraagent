@@ -152,9 +152,9 @@ CORS headers unless origins are opted in (`--cors-origin`), and answers only
 requests whose `Host` names this machine.
 
 It reads a run's records only through a run source and liveness
-(`contraagent/runs/`): by default the runs directory and this host's
+(`contraagent/_internal/runs/`): by default the runs directory and this host's
 `/proc`. `Monitor(source=..., liveness=...)` serves the same views from another
-store; the layout of a run's records is `contraagent/runs/layout.py`.
+store; the layout of a run's records is `contraagent/_internal/runs/layout.py`.
 
 ## Your own views: panels
 
@@ -171,7 +171,7 @@ by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
 what a part shows, how to read a number; any markup in it is shown as text), and
 `blocks` of them one under another, each with an optional `title` and folded
 when `collapsed`. A tone is one of `failed`, `attention`, `done`, `running`,
-`muted` and `neutral`. The models are in `contraagent.monitor.api`
+`muted` and `neutral`. The models are in `contraagent.monitor`
 (`PanelBody`); a panel returns one, or a dict with its `type`. Any other dict is
 shown as a JSON tree. A typed body that does not validate (an unknown tone
 included) is an error, never a JSON tree.
@@ -300,7 +300,7 @@ taken out. Written again, the export holds only the runs chosen then.
 In another page, `<ca-monitor export="data/">` reads an export, and
 `createExportClient` with `openExportFeed` (in `@contraagent/api`) give a
 `MonitorStore` the same data; `export(monitor, out, ...)` in
-`contraagent.monitor.export` writes one from Python.
+`contraagent.monitor` writes one from Python.
 
 ## Its API and its page
 

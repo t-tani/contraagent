@@ -1,7 +1,7 @@
 # Tasks and flows
 
 Every argument is in the docstrings of `agent_task`, `python_task`
-(`contraagent/pipeline/spec.py`) and `Pipeline` (`contraagent/pipeline/pipeline.py`).
+(`contraagent/_internal/pipeline/spec.py`) and `Pipeline` (`contraagent/_internal/pipeline/pipeline.py`).
 
 ## Agent tasks
 
@@ -195,7 +195,7 @@ outputs: a random choice or the clock belongs in a Python task too.
 
 The queue starts first the ready tasks with the longest work after them. In a
 generator flow that work is not queued yet, so it is estimated (a task's tail,
-`JournalEstimates` in `contraagent/execution/estimates.py`): the median, over
+`JournalEstimates` in `contraagent/_internal/execution/estimates.py`): the median, over
 tasks of the same kind created by the same functions in the same passes of
 their loops (pass 3 and later counted as one), of the longest chain of wall
 times that followed them. The samples come from the 10 most recent runs in the
@@ -220,8 +220,8 @@ where the task is declared: the task call takes these words itself.
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
 its parent where the parent yielded it (`flow`), and its end
-(`flow_calls.jsonl`); the docstring of `contraagent/execution/run.py` lists the
-files and `Origin` (`contraagent/dispatch/task.py`) the fields. A flow that does
+(`flow_calls.jsonl`); the docstring of `contraagent/_internal/execution/run.py` lists the
+files and `Origin` (`contraagent/_internal/dispatch/task.py`) the fields. A flow that does
 not yield is flow call `0`, and its tasks have no `created_from`.
 `contraagent check` runs a generator flow to its first wait and checks the kinds
 its code reaches (see [Checking and testing](testing.md)).
@@ -255,7 +255,7 @@ pass; for a child flow call the parent receives it at the `yield`. A `for` loop
 has no limit: it ends with its iterable. A comprehension has none either.
 
 Passes are counted from the loops' back edges as the flow runs
-(`sys.monitoring`, `contraagent/pipeline/loops.py`), about 1 µs each time flow
+(`sys.monitoring`, `contraagent/_internal/pipeline/loops.py`), about 1 µs each time flow
 code goes back to the start of a loop. When the two monitoring tool ids it can
 use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 
@@ -426,7 +426,7 @@ A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
 output, ok; a resume runs it again), `invalid_output` (still off-contract
 after every fix-up round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
-rest of `contraagent.Stop`, each with its meaning in `contraagent/backends/launch.py`.
+rest of `contraagent.backends.Stop`, each with its meaning in `contraagent/_internal/backends/launch.py`.
 
 A run that is stopped stops its agents. Each agent runs in a session of its own, so
 a terminal's Ctrl-C does not reach it: `Pipeline.run` (on the main thread) stops the
@@ -436,7 +436,8 @@ first agent, stops the agents still running once that process is gone.
 
 ## The engine underneath
 
-The parts under `Pipeline` work on their own; their docstrings describe them.
+The parts under `Pipeline` work on their own (`contraagent.engine`); their docstrings
+describe them.
 With its default callbacks, `FlowDriver` drives generators that yield `Task`s
 and receive `TaskResult`s.
 
@@ -449,5 +450,5 @@ and receive `TaskResult`s.
 | `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
-| `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |
+| `run_until_valid` (with `OutputContract` / `InputContract` from `contraagent`) | files checked by schema and validators; resume until they pass |
 | `CursorStore` | resume cursor: stage, per-unit step, in-flight work, markers |

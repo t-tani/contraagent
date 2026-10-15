@@ -172,7 +172,7 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
 
     views = tmp_path / "views.py"
     views.write_text(
-        "from contraagent._internal.monitor import Panel\n"
+        "from contraagent.monitor import Panel\n"
         "PANELS = {'facts': Panel(lambda run: {'run': run.id}, title='Facts')}\n"
         "GROUPS = [{'id': 'all', 'label': 'All', 'kinds': ['write']}]\n"
         "def detail(run, key, rows):\n    return {'n': len(rows)}\n"

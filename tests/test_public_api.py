@@ -255,3 +255,33 @@ def test_the_task_and_the_result_a_callback_is_given_are_frozen():
     with pytest.raises(dataclasses.FrozenInstanceError):
         result.ok = False  # type: ignore[misc]
     assert dataclasses.replace(result, ok=False).ok is False and result.ok
+
+
+def _imported(path) -> list[str]:
+    tree = ast.parse(path.read_text())
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            out += [node.module] if node.module != "contraagent" else [f"contraagent.{a.name}" for a in node.names]
+    return [m for m in out if m == "contraagent" or m.startswith("contraagent.")]
+
+
+def test_internal_imports_no_public_module_and_the_examples_only_public_ones():
+    from pathlib import Path
+
+    import contraagent
+
+    root = Path(contraagent.__file__).parent
+    internal = [
+        f"{p.relative_to(root)}: {m}"
+        for p in (root / "_internal").rglob("*.py")
+        for m in _imported(p)
+        if not m.startswith(("contraagent._internal", "contraagent.docs"))
+    ]
+    assert internal == []
+    examples = [
+        f"{p.relative_to(root)}: {m}" for p in (root / "docs").rglob("*.py") for m in _imported(p) if m.startswith("contraagent._internal")
+    ]
+    assert examples == []
