@@ -1936,11 +1936,18 @@ export type components = {
         };
         /**
          * QuotaReading
-         * @description A subscription's utilization as the coding agent reported it during a launch
-         *     (Claude Code: when a session starts or resumes; omp: at each launch, what the
-         *     account's latest request reported). Account-wide: it includes whatever else used the
-         *     same account, parallel tasks too. `LaunchResult.quota` holds a launch's, the journal's
-         *     `quota` an attempt's that give a 5-hour or weekly utilization.
+         * @description A subscription's utilization during a launch, from one of these sources:
+         *
+         *     * Claude Code: in its stream, when a session starts or resumes;
+         *     * Codex: in its stream, with each API call of a ChatGPT login;
+         *     * omp (`omp`, `omp-rpc`): at each launch, what the account's latest request reported
+         *       (`omp usage --json`, read before the launch: `Backend.usage_reading`);
+         *     * opencode and pi: for an OpenCode Go model only, OpenCode's usage endpoint, read by
+         *       contraagent before each launch (`Backend.usage_reading`); the agents report none.
+         *
+         *     Account-wide: it includes whatever else used the same account, parallel tasks too.
+         *     `LaunchResult.quota` holds a launch's, the journal's `quota` an attempt's that give a
+         *     5-hour or weekly utilization.
          */
         QuotaReading: {
             /** Observed At */

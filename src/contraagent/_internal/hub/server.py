@@ -65,6 +65,9 @@ from contraagent._internal.commandline import (
     add_command,
     add_http,
     add_openapi,
+    address,
+    bind_option,
+    serve_on,
     setup_logging,
     write_openapi,
 )
@@ -711,6 +714,7 @@ def run(args: argparse.Namespace) -> int:
     days = retain_days(args.retain_days)
     if days is None and args.prune_every is not None:
         raise UsageError(f"--prune-every needs --retain-days or ${RETENTION_ENV}")
+    sock = bind_option(args.host, args.port)  # a taken port ends the command before the store opens
     try:
         tokens = read_ingest_tokens(args.ingest_token_file)
         read_token = read_read_token(args.read_token_file) if args.read_token_file else None
@@ -730,10 +734,8 @@ def run(args: argparse.Namespace) -> int:
         title=args.title,
         max_blob_bytes=int(args.max_blob_mb * 2**20),
     )
-    import uvicorn
-
     store, blobs = args.store.split("://")[0], args.blobs.split(":")[0]  # a DSN may hold a password
-    log.info("%s on http://%s:%s  store=%s blobs=%s ingest tokens=%d", args.title, args.host, args.port, store, blobs, len(tokens))
+    log.info("%s on %s  store=%s blobs=%s ingest tokens=%d", args.title, address(sock), store, blobs, len(tokens))
     pruner: Pruner | None = None
     if days is not None:
         every = args.prune_every if args.prune_every is not None else default_prune_every(days)
@@ -747,7 +749,7 @@ def run(args: argparse.Namespace) -> int:
     try:
         if pruner is not None:
             pruner.start()
-        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+        serve_on(app, sock)
     finally:
         if pruner is not None:
             pruner.stop()

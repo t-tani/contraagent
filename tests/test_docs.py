@@ -375,3 +375,13 @@ def test_the_agents_table_says_what_each_backend_class_does():
             assert says(row, agent) or limit not in cls.watched_limits, f"{row} / {agent}"
         session = "session's so far" in table["Cost of a resumed session (`cost_is_session_total`)"][agent]
         assert session == cls.cost_is_session_total, agent
+
+
+def test_the_demo_takes_every_registered_coding_agent(capsys):
+    from contraagent.backends import known_agents
+    from contraagent.docs.examples.demo.run import main as demo
+
+    with pytest.raises(SystemExit):
+        demo(["--help"])
+    help = " ".join(capsys.readouterr().out.split())
+    assert f"({', '.join(known_agents())})" in help

@@ -99,11 +99,16 @@ STOP_VALIDATE = '"${CONTRAAGENT_PYTHON:-python3}" -m contraagent call validate'
 Rendered = tuple[dict[str, str], list[str]]  # ({relative path: content}, notes)
 Renderer = Callable[["Plugin"], Rendered]
 RENDERERS: dict[str, Renderer] = {}
+#: The files each agent's renderer writes, relative to the plugin: those it writes for any
+#: hook, and those it writes only for a `pre_tool` or `post_tool` hook.
+RENDERED_FILES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
 
 
-def register_renderer(agent: str, fn: Renderer) -> None:
-    """Teach `contraagent plugin render` a coding agent's native hook wiring."""
+def register_renderer(agent: str, fn: Renderer, files: tuple[str, ...] = (), tool_files: tuple[str, ...] = ()) -> None:
+    """Teach `contraagent plugin render` a coding agent's native hook wiring. `files` and
+    `tool_files` name what `fn` writes (`RENDERED_FILES`)."""
     RENDERERS[agent] = fn
+    RENDERED_FILES[agent] = (files, tool_files)
 
 
 def hook_errors(hooks) -> list[str]:
@@ -591,11 +596,11 @@ def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "
     return 0, stdout, ""
 
 
-register_renderer("claude", render_claude)
-register_renderer("codex", render_codex)
-register_renderer("omp", render_omp)
-register_renderer("opencode", render_opencode)
-register_renderer("pi", render_pi)
+register_renderer("claude", render_claude, files=("hooks/hooks.json",))
+register_renderer("codex", render_codex, files=(CODEX_HOOKS_FILE,))
+register_renderer("omp", render_omp, files=("package.json",), tool_files=("omp/index.ts",))
+register_renderer("opencode", render_opencode, tool_files=("opencode/index.js",))
+register_renderer("pi", render_pi, files=("package.json",), tool_files=("pi/index.ts",))
 
 
 def render(plugin: Plugin, agents=None) -> Rendered:

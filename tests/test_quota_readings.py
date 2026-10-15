@@ -234,3 +234,20 @@ def test_the_runner_names_each_reading_s_account_and_asks_once(tmp_path):
     assert (read.credential, read.account) == ("personal", agent.acct)
     r.run(Task("k", key="t2"))
     assert agent.asked == 1  # asked once a run
+
+
+def test_the_reading_names_every_coding_agent_that_reports_one():
+    import re
+
+    from contraagent._internal.backends import backend_class, known_agents
+
+    def reports(name: str) -> bool:  # read before a launch, or found in the agent's stream
+        cls = backend_class(name)
+        assert cls is not None
+        return cls.usage_reading is not Backend.usage_reading or hasattr(cls.wire, "QuotaReading")
+
+    doc = QuotaReading.__doc__ or ""
+    sources = [name for name in known_agents() if reports(name)]
+    assert {"claude", "codex", "omp", "omp-rpc", "opencode", "pi"} <= set(sources)
+    for name in sources:
+        assert re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", doc, re.IGNORECASE), name

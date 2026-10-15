@@ -360,6 +360,9 @@ class RoutingError(ContraagentError, ValueError)
     errors: list[str]
 
 class RunExists(ContraagentError)
+    def __init__(self, run_dir: Path, rows: int)
+    rows: int
+    run_dir: Path
 
 class RunFormatError(ContraagentError)
 
@@ -1514,6 +1517,8 @@ class Usage
 
 def create_backend(name: str, **kwargs: Any) -> Backend
 
+def known_agents() -> tuple[str, ...]
+
 def normalize_stream_line(format: str, raw_line: str) -> list[dict[str, Any]]
 
 def register_backend(name: str, cls: type[Backend]) -> None
@@ -1940,6 +1945,7 @@ class Run
         *,
         run_group: str = '',
         lock: bool = True,
+        fresh: bool = False,
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
         unit_of: Callable[[Task], str] | None = None,
         log: Callable[[str], None] | None = None,

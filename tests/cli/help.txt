@@ -44,8 +44,8 @@ options:
                         http://localhost:5173 for a UI dev server
   --title TITLE
   --stream-format AGENT=FORMAT
-                        render a custom coding agent's transcript as a built-in format (claude or
-                        omp), e.g. --stream-format myagent=claude
+                        render a custom coding agent's transcript as a built-in format (claude,
+                        omp, omp-rpc, opencode, pi, codex), e.g. --stream-format myagent=claude
   --panels MODULE:ATTR  the pipeline's own views: a dict of name -> Panel (or a callable), as
                         path/to/views.py:PANELS or package.module:PANELS
   --groups MODULE:ATTR  the plan's columns and the trends' groups: a list of {"id", "label",

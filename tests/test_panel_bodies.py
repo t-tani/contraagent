@@ -178,7 +178,8 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
         "def detail(run, key, rows):\n    return {'n': len(rows)}\n"
     )
     seen = {}
-    monkeypatch.setattr(server, "serve", lambda monitor, *a, **k: seen.setdefault("monitor", monitor))
+    monkeypatch.setattr(server, "bind_option", lambda host, port: None)
+    monkeypatch.setattr(server, "_serve", lambda monitor, *a, **k: seen.setdefault("monitor", monitor))
     monkeypatch.chdir(tmp_path)
     argv = ["--runs-dir", str(tmp_path), "--panels", f"{views}:PANELS", "--groups", "views.py:GROUPS"]
     assert cli_main(["monitor", *argv, "--task-detail", "views:detail"]) == 0

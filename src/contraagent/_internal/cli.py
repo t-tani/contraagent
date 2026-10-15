@@ -250,10 +250,19 @@ def _flow_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     return parser
 
 
+def _spent(s: dict) -> str:
+    """A run's time, cost and correction rounds, from its `RunReport.summary`."""
+    spent = [f"{s.get('wall_s', 0):.1f}s"]
+    spent += [f"${s['cost_usd']:.4f}"] if s.get("cost_usd") is not None else []
+    spent += [f"{s['corrections']} correction round{'s' if s['corrections'] != 1 else ''}"] if s.get("corrections") else []
+    return ", ".join(spent)
+
+
 def _flow_command(args) -> int:
     import json
 
     from contraagent._internal.errors import ContraagentError
+    from contraagent._internal.execution.run import RunExists
     from contraagent._internal.pipeline import Pipeline
     from contraagent._internal.pipeline.check import where
     from contraagent._internal.routing import Overrides
@@ -318,18 +327,21 @@ def _flow_command(args) -> int:
     setup_logging("%(asctime)s %(message)s", "%H:%M:%S")
     try:
         result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)
-    except ContraagentError as exc:  # refused before anything ran: routing, a run id that holds a run, the preflight
+    except RunExists as exc:  # in the command line's words, not the Python API's
+        print(
+            f"✗ {args.flow}\n  error: {exc.run_dir} already holds a run ({exc.rows} journal rows): "
+            "continue it with --resume, or start a new one with another --run-id"
+        )
+        return 1
+    except ContraagentError as exc:  # refused before anything ran: routing, the preflight
         print(f"✗ {args.flow}\n  error: {exc}")
         return 1
     done = len(result.results) - len(result.failed) - len(result.deferred)
-    s = result.summary
-    spent = [f"{s.get('wall_s', 0):.1f}s"]
-    spent += [f"${s['cost_usd']:.4f}"] if s.get("cost_usd") is not None else []
-    spent += [f"{s['fixups']} fix-up{'s' if s['fixups'] != 1 else ''}"] if s.get("fixups") else []
+    spent = _spent(result.summary)
     if stub is not None:
         _print_created(result)
     later = f", {len(result.deferred)} deferred" if result.deferred else ""
-    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {', '.join(spent)}; run in {result.run_dir}")
+    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {spent}; run in {result.run_dir}")
     for failed in result.failed:
         print(f"  {failed.task.key}: {failed.stop} {failed.reason[:300]}")
     for deferred in result.deferred:

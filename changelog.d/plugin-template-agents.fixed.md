@@ -1,0 +1,1 @@
+- The `plugin new` template names every coding agent it renders hooks for, and each file it renders, in `hooks.toml` and `README.md`.
