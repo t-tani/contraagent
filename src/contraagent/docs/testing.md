@@ -170,11 +170,13 @@ and `backends=` apply to the launches it makes; `--stub` and `--record` are refu
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call
 file like a real one and plays the reply scripted for each task: an output to
 write, nothing, a failure, or a rate limit. Only the coding agent is replaced;
-output checks, fix-up rounds, failover, retries and the journal run for real.
+output checks, correction rounds, failover, retries and the journal run for real.
 `stub.backends()` puts it under every coding agent's name, so the pipeline's
-own config routes to it, and under each name it acts as that agent does: as
-Claude Code it runs the plugin's Stop hooks before it ends its turn and replies
-again when one sends the output back (`launch.in_turn`); as omp it stops. A
+own config routes to it, and under each name it acts as that agent does: under
+the name of an agent whose stop hook continues the session (Claude Code, Codex) it
+runs the plugin's Stop hooks before it ends its turn and replies again when one
+sends the output back (`launch.in_turn`); under the others (omp, opencode, pi) it
+stops. A
 429 in a test moves the kind's later tasks to the hop too (see `routing`). A reply that
 reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)
 rests a credential past its quota cap or its `quota_rule`, so a test can follow a task to
@@ -186,7 +188,7 @@ outside the project's package needs the project root on `sys.path` (pytest's
 ::code{file="examples/demo/test_demo.py" from="def summary(launch):" to="@pytest.fixture"}
 
 Every launch is recorded (`stub.launches`, `stub.launches_of(key)`): which
-model it ran on, whether it was a fix-up round, the prompt it was sent, its
+model it ran on, whether it was a correction round, the prompt it was sent, its
 call file and the launch itself (its budget, environment and plugin).
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_flow_checks_clean" to="def test_the_report_covers"}

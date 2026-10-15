@@ -20,17 +20,18 @@ themes once `adoptThemes(document)` has added their rules ([Theming](docs/themin
 import '@contraagent/elements/segmented/define'; // <cae-segmented>
 import '@contraagent/elements/data-table/define'; // <cae-data-table>
 import '@contraagent/elements/tiles/define'; // <cae-stat-tiles>
-import '@contraagent/elements/graph/define'; // <cae-layered-graph>, <cae-mark-matrix>
+import '@contraagent/elements/graph/define'; // <cae-layered-graph>, <cae-mark-matrix>, <cae-segmented>
+import '@contraagent/elements/charts/define'; // <cae-column-chart>, <cae-line-chart>, <cae-heatmap>, <cae-state-grid>, <cae-bar-chart>
 import '@contraagent/elements/define'; // every cae-* element
 import { pill, legend, base } from '@contraagent/elements';
 ```
 
 The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
-`matrix`, `tiles`, `lanes`, `check-table`, `transcript`, `json-tree`,
+`matrix`, `tiles`, `lanes`, `charts`, `check-table`, `transcript`, `json-tree`,
 `markdown` and `count`, and a `define` entry for each element
 (`segmented/define`, `data-table/define`, `graph/define`, `matrix/define`,
-`tiles/define`, `lanes/define`, `check-table/define`, `transcript/define`,
-`json-tree/define`, `markdown/define`, `count/define`).
+`tiles/define`, `lanes/define`, `charts/define`, `check-table/define`,
+`transcript/define`, `json-tree/define`, `markdown/define`, `count/define`).
 
 The package is not in the npm registry; install it from a checkout of the
 repository.

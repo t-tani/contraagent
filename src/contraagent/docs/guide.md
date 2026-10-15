@@ -12,6 +12,7 @@ and the **flow**, a plain function that calls the tasks. The demo is all three:
 ```
 examples/demo/
   tasks.py        the interface (agent tasks, Python tasks) and the flows
+  checks.py       a check run as a command (a CommandValidator's program)
   plugins/docs/   the implementation, loaded by the coding agent itself
   pipeline.toml   routing: which coding agent and model each kind runs on
   test_demo.py    the flows checked and tested without spending tokens
@@ -19,7 +20,8 @@ examples/demo/
 ```
 
 `python -m contraagent.docs.examples.demo.run` runs it on a demo agent (no
-coding agent needed) and serves the monitor on http://127.0.0.1:8787.
+coding agent needed) and serves the monitor on http://127.0.0.1:8787 (`--port`
+for another port).
 
 ## Steps
 
@@ -61,7 +63,7 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 - An output model in the script you run or inside a function: the agent's own
   check cannot import it.
 - A Python validator runs in the runner only, so the agent hears of its errors in
-  a fix-up round. A rule the agent should meet before it stops is a
+  a correction round. A rule the agent should meet before it stops is a
   `CommandValidator` (given `{call}` when it needs the params).
 - A kind with no `max_turns` or `timeout_s`, in code or in the config, is refused.
 - A relative `plugin=` path is relative to the file that calls `agent_task`.
@@ -83,25 +85,31 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 - A failed task refuses every task that reads its output; a task that reads
   every unit's output (a report) is refused when any of them failed.
 - The library reports through `logging` (`contraagent.*`): configure it at INFO
-  to see routing, each task's start and end, fix-ups and model switches.
+  to see routing, each task's start and end, correction rounds and model switches.
 - Running a flow again under the same run id needs `resume=True` (`--resume`), or another run id.
 
 ## Limits
 
 - Linux only: run locks and process tracking use `fcntl` and `/proc`.
-- On omp no stop hook can keep a session going: the runner's check and its
-  session resume enforce the output instead. omp's credential isolation is
-  verified for the `anthropic`, `openai-codex` and `litellm` providers only.
-- opencode is the same on stop hooks. It reports no 5-hour or weekly usage, so
-  a credential used on opencode never rests on a quota; a launch it runs sees
-  the user's own opencode config (`~/.config/opencode`), except a light launch.
-- Codex runs no light launch (`agent_task(tools=())`), takes of a plugin its
-  role's file, its skills, its `.mcp.json` and its hooks (no hook for a read, grep or
-  glob tool, which Codex does not have), and enforces neither `max_budget_usd` nor
-  `context_budget`: it reports no cost, and its per-call tokens only after the
-  launch (its peak context and `context_warn_pct` still hold).
+- The coding agents differ in what they enforce, and [Coding agents](agents.md)
+  has a row for each difference. In short: only Claude Code and Codex run a stop
+  hook that continues the session, so on omp, opencode and pi the runner's check
+  and a correction round hold the output to its contract; Codex runs no light
+  launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
+  `context_budget`; omp and pi do not enforce `max_turns`.
+- A credential rests on a quota only where its coding agent reports quota
+  readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
+  login, and opencode and pi for an `opencode-go` model, through the OpenCode Go
+  usage ([Routing](routing.md#quota-caps)). A gateway, an API key or another
+  opencode or pi model never rests on a quota.
+- omp's credential isolation is verified for the `anthropic`, `openai-codex` and
+  `litellm` providers only. A launch opencode runs sees the user's own opencode
+  config (`~/.config/opencode`), except a light launch.
 - `workload_identity`, `bedrock` and `vertex` follow Claude Code's
   documentation and are not yet checked against the real CLI.
+- contraagent writes outside the run directory: its scratch directories under
+  `<temp dir>/contraagent-<uid>/`, and pi's and Codex's directories under
+  `~/.cache/contraagent/` ([Coding agents](agents.md#directories-outside-the-run)).
 
 ## The API
 

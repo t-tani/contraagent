@@ -17,10 +17,12 @@ agent_task (interface) ──► call file ──► coding agent + plugin (impl
 
 A plugin is a directory Claude Code and omp load natively (`--plugin-dir`);
 opencode gets its parts as config (its role as `instructions`, its skills as
-`skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`), and
-Codex, which loads no plugin directory, its role's file, its skills, its
-`.mcp.json` and its rendered hooks as config (below). The
-docstring of `contraagent.plugins.Plugin` lists its parts. The demo's:
+`skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin`); pi
+gets its skills by `--skill`, its rendered hooks as an extension (`-e pi/index.ts`)
+and its `.mcp.json` through an extension of contraagent's own; and Codex, which
+loads no plugin directory, its role's file, its skills, its `.mcp.json` and its
+rendered hooks as config (below). [Coding agents](agents.md) has the same in one
+table. The docstring of `contraagent.plugins.Plugin` lists its parts. The demo's:
 
 ```
 examples/demo/plugins/docs/
@@ -39,15 +41,15 @@ examples/demo/plugins/docs/
 
 ## Roles
 
-A role is a named agent definition. Claude Code gets `--agent <role>`; omp,
-which has no named-agent flag, gets the role's file attached, and Codex gets it
-in its prompt; opencode gets it
-added to its own system prompt (`instructions`: opencode's free models refuse a
-session whose system prompt is replaced). The plugin's `settings.json` (what the
-agent may do) is Claude Code's; omp runs with `--approval-mode yolo` and Codex in
-its `workspace-write` sandbox, so there a role is held to its procedure, not to
-permissions. opencode allows the tools
-the role's `tools:` lists and denies the others. A role reads its
+A role is a named agent definition. Claude Code gets `--agent <role>`; omp and
+pi, which have no named-agent flag, get the role's file attached to the prompt,
+and Codex gets it in its prompt; opencode gets it added to its own system prompt
+(`instructions`: opencode's free models refuse a session whose system prompt is
+replaced). The plugin's `settings.json` (what the agent may do) is Claude Code's;
+omp runs with `--approval-mode yolo`, pi asks no permission, and Codex runs in its
+`workspace-write` sandbox, so there a role is held to its procedure, not to
+permissions. opencode allows the tools the role's `tools:` lists and denies the
+others. A role reads its
 call file, does the work, writes the output as the call describes, and stops:
 
 ::code{file="examples/demo/plugins/docs/agents/summarizer.md"}

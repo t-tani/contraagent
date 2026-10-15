@@ -2,7 +2,7 @@
 
 `<ca-monitor>` is the complete monitor: header, run switcher, tabs, filters,
 views and notifications. It holds the data (a `MonitorStore`) and the view route.
-Its attributes (`base-url`, `history`, `shortcuts`, `run`, `locale`, `theme`) are described in
+Its attributes (`base-url`, `export`, `history`, `shortcuts`, `run`, `locale`, `theme`) are described in
 `custom-elements.json`. `history="url"` suits a page that is the monitor;
 inside an application that manages its own URL, use `history="memory"`.
 
@@ -27,8 +27,9 @@ Alt or Meta, or a key a listener of the host already handled with
 shows no key hint; `shortcuts="page"` gives an embedded monitor the whole page.
 
 While the run switcher or the theme menu is open, a click elsewhere in the page
-closes it. The monitor listens on the document for that click only while one
-of them is open, and neither stops nor prevents it.
+closes it (for the theme menu, a press of the pointer). The monitor listens on the
+document for that event only while one of them is open, and neither stops nor
+prevents it.
 
 Two monitors on one page each keep their own view route, scroll positions, open
 sections and shortcuts. They share what is one per page:
@@ -67,12 +68,21 @@ monitor then never shows "No runs yet". The causes (`ApiError.failure` in
 | Cause | Typical reason |
 |---|---|
 | the response is HTML, not JSON | `base-url` names a server without the API, such as a development server that answers every path with the page (`index.html`) |
+| the response is not JSON | the server at `base-url` answers with an empty body or with text |
 | the response status is 404 | `base-url` names a server, or a path on it, without the API |
 | network error, no response | the monitor server is not running, or it does not allow the page's origin (`--cors-origin`, below) |
 
 The run list (`/api/runs`) is asked for every 5 seconds, and the title and the
 custom views (`/api/info`) with it until they arrive, so a server that starts
 later is read when it answers, and the message goes.
+
+## An export, with no server
+
+`export` names an export's `data/` directory (`contraagent monitor export`) in
+place of a server: `<ca-monitor export="data/">`, relative to the page or
+absolute; set, it outranks `base-url`. The monitor then makes no request to an API
+and opens no feed: it reads the export's files, and its header shows when the
+export was written in place of the connection. An export holds no transcripts and no processes.
 
 ## Without a build step
 

@@ -38,10 +38,11 @@ anything launches.
 
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
-on omp and opencode contraagent sums the cost the agent reports for each API
+on omp, opencode and pi contraagent sums the cost the agent reports for each API
 call and ends the launch (`budget`) once it passes the cap; Codex reports no
-cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
-Every key: the reference at the end.
+cost, so the cap does not hold there. On Codex `max_turns` counts tool calls, and
+omp and pi do not enforce it. [Coding agents](agents.md) has each agent's budgets
+in one table. Every key: the reference at the end.
 
 `context_budget` caps a launch's peak context: the whole input (fresh input,
 cache read and cache write) of its largest API call. Claude Code and opencode
@@ -71,7 +72,7 @@ each after the rule the tool had, so the rest of the tool stays allowed; a patte
 another tool there is refused; pi whole tools
 (`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
 deny a tool, and a route on them is refused before anything launches
-(`Backend.tool_deny_problem`), failover hops included.
+(`Backend.tool_deny_problem`), failover hops included ([Coding agents](agents.md)).
 
 ## Failover
 
@@ -82,7 +83,7 @@ kind starts on the hop, not only the one that was rate limited (the log says so:
 `[route] <key>: starting on hop 2/2 ...`).
 
 Any other failure of a launch (an error, a refusal, a timeout, an output still
-off-contract after its fix-ups, ...) moves only that task to the next hop; the
+off-contract after its correction rounds, ...) moves only that task to the next hop; the
 next task still starts on the primary. Two failures do not move it: an input
 that is off-contract (nothing was launched) and a launch that ran as another
 identity than its credential (`credential_mismatch`). A launch ended by a signal

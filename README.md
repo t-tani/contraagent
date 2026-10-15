@@ -1,7 +1,18 @@
 # contraagent
 
-Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`, `pi -p`) as typed, supervised, observable
-tasks.
+Run coding-agent CLIs (`claude -p`, `omp -p`, `opencode run`, `pi -p`, `codex exec`) as typed,
+supervised, observable tasks.
+
+```
+uv add 'contraagent[monitor]'
+```
+
+The main path: the tasks and the flow in `tasks.py`, how the agent does each task in
+a plugin (`contraagent plugin new`), `contraagent check` and a stub run before
+anything is spent, `contraagent run` on the coding agent the config names, and
+`contraagent monitor` to watch it. The
+[tutorial](src/contraagent/docs/tutorial.md) takes these steps from an empty
+directory.
 
 This repository holds four packages, each with its documentation:
 

@@ -6,8 +6,13 @@ your own: you know which part goes where, how to check it without spending
 tokens, and how to read what a run did.
 
 You need Linux, Python 3.12 or later and [uv](https://docs.astral.sh/uv/). Steps
-1 to 7 call no model and cost nothing. Step 8 runs Claude Code (`claude` on
-your `PATH`, logged in); omp works too.
+1 to 7 call no model and cost nothing. Step 8 runs a coding agent: any of the five
+contraagent runs (Claude Code, omp, opencode, pi, Codex), on your `PATH` and logged
+in. Step 8's config uses Claude Code: install it as its
+[setup page](https://docs.claude.com/en/docs/claude-code/setup) says, then run
+`claude` once and log in (`/login`) with a Claude subscription or an Anthropic API
+key. `--agent <name>` runs the same pipeline on another coding agent
+([Coding agents](agents.md)).
 
 The finished pipeline is installed with the package:
 `$(contraagent docs --path)/examples/tutorial/`. The code on this page is quoted
@@ -80,9 +85,9 @@ run:
                                       call file: params, output path, schema
                                           │
  plugins/triage ──── loaded by ─────────► ▼
-                                      claude -p / omp -p, as the role
+                                      the coding agent (claude -p, ...), as the role
                                           │ reads params.report, writes the output file
-                                          │ stop hook: checks the file before the agent stops
+                                          │ stop hook (Claude Code, Codex): checks the file before the agent stops
                                           ▼
                                       runner: checks the file (schema, then validators)
                                           │ fails ──► the same session, with the errors
@@ -125,9 +130,12 @@ cp -r "$(uv run contraagent docs --path)/examples/tutorial/issues" .
 ## 2. Describe the output
 
 An agent task's result is a file the agent writes, and its contract is a
-pydantic model. Write it in `tasks.py`, at the top level of the module: the
-agent checks its own file with this model before it stops, so the agent must be
-able to import it.
+pydantic model. Start `tasks.py` with the imports the whole file needs:
+
+::code{file="examples/tutorial/tasks.py" from="from __future__ import" to="class Triage("}
+
+Then write the model, at the top level of the module: the check of the agent's
+file imports this model, so it must be importable.
 
 ::code{file="examples/tutorial/tasks.py" from="class Triage(" to="class FixPlan("}
 
@@ -236,23 +244,37 @@ uv run contraagent run tasks.py:triage_all --stub --kwargs '{"reports": ["login-
 ✓ 4/4 tasks done in 1.3s; run in runs/triage_all-stub
 ```
 
+Each line names a task, how it ended, and the flow function and line that created
+it: the lines of the finished `tasks.py`, so yours may differ. Before these lines,
+the log on stderr gives each kind's route (`[route]`) and each task's start and end
+(`[start]`, `[end]`).
+
+The run id is the flow's name, with `-stub` for a stub run, and a run id that
+already holds a run is refused. Run the stub again with `--resume`, which continues
+that run, or give it a new id with `--run-id` (both in step 8).
+
 Open the run in the monitor:
 
 ```
 uv run contraagent monitor --runs-dir runs      # http://127.0.0.1:8787
 ```
 
-The run directory is what the monitor reads, and you can read it too:
+`--port` serves it on another port. The run directory is what the monitor reads,
+and you can read it too. Among its files:
 
 ```
 runs/triage_all-stub/
   calls/triage-login-timeout.json   the call file the agent was given
   out/triage/login-timeout.json     its output, checked
-  out/write_table/write_table.json  the table
+  out/write_table/write_table.json  the table: in a stub run "", the smallest string
   plan.jsonl                        every task the flow created
   journal.jsonl                     every finished attempt
   streams/                          the agents' transcripts
 ```
+
+In a stub run no Python task's function runs: the stub plays `write_table` too, so
+its file holds the smallest string. `--execute write_table` runs the real function.
+[Compatibility](compatibility.md#the-run-directory) lists every file of a run directory.
 
 ## 8. Run it on a coding agent
 
@@ -268,18 +290,27 @@ uv run contraagent check tasks.py:triage_all --config pipeline.toml --kwargs '{"
 uv run contraagent run tasks.py:triage_all --config pipeline.toml --kwargs '{"reports": ["login-timeout", "csv-export", "dark-mode"]}'
 ```
 
+`--kwargs '{"reports": ["login-timeout"]}'` runs one report, and so spends a
+third. `--agent codex --model <model>` runs every kind on Codex instead (or on
+`omp`, `opencode`, `pi`), with a model of that coding agent: each one names its
+models its own way.
+
 For each triage, contraagent writes the call file, starts `claude -p` with the
 plugin loaded and the role selected, and waits. Before the agent stops, the
 plugin's stop hook checks its output file against the schema; when it fails,
-the agent reads the errors and fixes the file in the same turn. After the
-session, the runner checks the file again, with the validators too. An output
-that still fails goes back to the same session with the errors, a **fix-up
-round** (the monitor calls it a correction). A session that ends without
-progress is tried again in a fresh session, a new **attempt** (`retries`).
+the agent reads the errors and fixes the file in the same turn. Claude Code and
+Codex run this stop hook; omp, opencode and pi have none that continues a session
+([Coding agents](agents.md)), so for them the runner's check below does this work.
+After the session, the runner checks the file again, with the validators too. An
+output that still fails goes back to the same session with the errors, a
+**correction round** ([Contracts](contracts.md) has the details). A session that
+ends without progress is tried again in a fresh session, a new **attempt**
+(`retries`).
 
 Watch it in the monitor while it runs: each task's status, its transcript as
-the agent writes it, its cost and tokens, its fix-up rounds, and its output field
-by field. The table is in `runs/triage_all/out/write_table/write_table.json`.
+the agent writes it, its cost and tokens, its corrections, and its output field
+by field. The table is in `runs/triage_all/out/write_table/write_table.json`, as a
+JSON string: `jq -r . runs/triage_all/out/write_table/write_table.json` prints it.
 
 The run id is the flow's name. Running the same flow again under that id needs
 `--resume`, which skips every task that finished with the same params and
@@ -332,10 +363,18 @@ In the monitor, the overview draws the flow as a graph: a node for
 
 ## 10. Test it
 
-A test runs the real pipeline (its checks, fix-up rounds, retries and journal)
+A test runs the real pipeline (its checks, correction rounds, retries and journal)
 with `StubAgent` in place of the coding agent. You script what each task
 replies, and assert on what happened. Here the triage of `login-timeout` is
 high severity, and its first summary is too long:
+
+Start `test_tasks.py` with its imports. The example imports the flows from the
+package, `contraagent.docs.examples.tutorial.tasks`; your test imports them from
+your own module, `from tasks import triage_all, triage_and_plan`:
+
+::code{file="examples/tutorial/test_tutorial.py" from="from __future__ import" to="def triage(launch):"}
+
+Then the replies and the tests:
 
 ::code{file="examples/tutorial/test_tutorial.py" from="def triage(launch):" to="def test_the_flows_check_clean"}
 
@@ -343,8 +382,7 @@ high severity, and its first summary is too long:
 
 `agent.backends()` registers the stub under every coding agent's name, so the
 pipeline's own config routes to it: the first test also shows that `plan_fix`
-ran on the model `pipeline.toml` gave it. Save the tests as `test_tasks.py`
-(import from `tasks` instead of the package path), then:
+ran on the model `pipeline.toml` gave it. With the tests in `test_tasks.py`:
 
 ```
 uv add --dev pytest
