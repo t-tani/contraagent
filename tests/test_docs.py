@@ -99,6 +99,12 @@ def test_the_pointer_names_the_commands_it_points_to(capsys):
     assert main(["docs", "--pointer"]) == 0
     out = capsys.readouterr().out
     assert out == docs.POINTER and "`contraagent docs`" in out and "`contraagent check`" in out
+    # what to read first and the loop that checks a pipeline, each a topic that exists
+    assert "Read `guide`, then `tutorial`." in out and "--stub" in out and "StubAgent" in out
+    assert {"guide", "tutorial", "testing"} <= {t.name for t in docs.topics()}
+    # for any coding agent: no agent's name and no instruction file of one
+    for name in ("Claude", "CLAUDE.md", "AGENTS.md", "Codex", "opencode", "omp", " pi "):
+        assert name not in out
 
 
 def test_check_errors_name_topics_that_exist():

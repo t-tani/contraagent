@@ -1,9 +1,10 @@
 # Tutorial: your first pipeline
 
 This tutorial builds a small pipeline from an empty directory, one part at a
-time, and runs it at each stage. When you finish, you can design a pipeline of
-your own: you know which part goes where, how to check it without spending
-tokens, and how to read what a run did.
+time, and runs it at each stage. Its reader writes the pipeline: usually a coding
+agent that a person asked for one, or a person who wants to understand each part.
+When you finish, you can design a pipeline of your own: you know which part goes
+where, how to check it without spending tokens, and how to read what a run did.
 
 You need Linux, Python 3.12 or later and [uv](https://docs.astral.sh/uv/). Steps
 1 to 7 call no model and cost nothing. Step 8 runs a coding agent: any of the five
@@ -277,6 +278,10 @@ its file holds the smallest string. `--execute write_table` runs the real functi
 [Compatibility](compatibility.md#the-run-directory) lists every file of a run directory.
 
 ## 8. Run it on a coding agent
+
+This step spends tokens. When a coding agent follows this tutorial for a person, it
+writes the config and checks it, and the person starts the run and watches it in the
+monitor.
 
 The config says where each kind runs. Write `pipeline.toml`:
 

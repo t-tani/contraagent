@@ -13,7 +13,52 @@ handles failover, quotas, deadlines and resume, and a live monitor shows every r
 ![Linux](https://img.shields.io/badge/platform-Linux-555)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
+## Start
+
+You ask your coding agent to write the pipeline. It can, because the package ships
+its documentation for coding agents: `contraagent docs` prints it, and it matches
+the installed version.
+
+Install contraagent in your project. Real runs need Linux, Python 3.12 or later, and
+a coding agent on `PATH`.
+
+```
+uv add 'contraagent[monitor]'       # or: pip install 'contraagent[monitor]'
+```
+
+`contraagent docs --pointer` prints a short block for the instruction file that your
+coding agent reads. The block tells the agent where the documentation is, what to
+read first, and how to check its work. Add it to that file yourself, for example to
+`AGENTS.md` (Claude Code reads `CLAUDE.md`). contraagent does not write into your
+project.
+
+```
+contraagent docs --pointer >> AGENTS.md
+```
+
+Then ask for the pipeline in plain words. The request names no coding agent, so
+Claude Code, Codex, opencode, omp and pi can each take it.
+
+```text
+Use contraagent to write a pipeline that reviews each module in src/ and writes a
+JSON report per module with its findings. Check it with `contraagent check` and test
+it with a stub run.
+```
+
+The agent runs `contraagent check` and the stub run itself. Neither launches a
+coding agent, and neither spends anything. You then run the pipeline on the real
+coding agents with `contraagent run --config pipeline.toml`, and watch it in
+`contraagent monitor`.
+
+To see the monitor first, `python -m contraagent.docs.examples.demo.run` runs the
+demo pipeline on a demo agent, which launches no coding agent and spends nothing. It
+serves the monitor on http://127.0.0.1:8787.
+
 ## Example
+
+The code below is part of the tutorial's pipeline, which triages bug reports. A
+pipeline that your coding agent writes has the same parts: pydantic models, agent
+tasks and a flow.
 
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="from typing import" to="class Triage"} -->
 <!-- ::code{file="src/contraagent/docs/examples/tutorial/tasks.py" from="class Triage" to="class FixPlan"} -->
@@ -72,7 +117,8 @@ contraagent run tasks.py:triage_all --config pipeline.toml --kwargs '{"reports":
 contraagent monitor --runs-dir runs      # http://127.0.0.1:8787
 ```
 
-The [tutorial](src/contraagent/docs/tutorial.md) builds this pipeline from an empty
+To write a pipeline yourself, or to understand what the agent wrote, follow the
+[tutorial](src/contraagent/docs/tutorial.md). It builds this pipeline from an empty
 directory.
 
 <img src="docs/assets/readme/overview.png" width="880" alt="The monitor's header with the run docs: 44 of 44 tasks done. Below it, part of the pipeline graph: summarize, then a loop of score, review and revise, up to 2 passes, then write_note, each with a mark per unit, all done. Below that, the totals: 44 tasks, 44 attempts, the cost and the tokens">
@@ -140,11 +186,10 @@ and adds what a pipeline of them needs.
 - A task whose input is missing does not start, and its recorded cause names the
   earlier task. On resume, a task's `fingerprint`, a digest of its parameters, its
   definition and the outputs it received, decides whether it runs again.
-- A coding agent can write these pipelines too. The package installs its
-  documentation (`contraagent docs`, `contraagent docs <topic>`), and
-  `contraagent docs --pointer` prints a block that points a project's coding agent to
-  it. The public API is typed and documented in docstrings. `contraagent check`
-  reports every problem at once, each with the topic that explains it.
+- The documentation, the docstrings of the typed public API and the messages of
+  `contraagent check` are written for the coding agent that writes the pipeline, so
+  it needs no source code of contraagent. `contraagent check` reports every problem
+  at once, each with the topic that explains it.
 - The public modules ship `py.typed`, and a test compares the public API with a saved
   snapshot. Every file that a run writes has a JSON Schema, and so does the config
   file. The monitor's HTTP API has an OpenAPI document.
@@ -259,18 +304,6 @@ repeatable.
 Their CLIs enforce different things, such as stop hooks, budgets, quota readings and
 tool denial. The page [Coding agents](src/contraagent/docs/agents.md) lists each
 difference. A coding agent of your own is a subclass of `Backend`.
-
-## Install
-
-Real runs need Linux, Python 3.12 or later, and a coding agent on `PATH`.
-
-```
-uv add 'contraagent[monitor]'       # or: pip install 'contraagent[monitor]'
-```
-
-`python -m contraagent.docs.examples.demo.run` runs the demo pipeline on a demo
-agent, which launches no coding agent and spends nothing. It serves the monitor on
-http://127.0.0.1:8787.
 
 ## Documentation
 

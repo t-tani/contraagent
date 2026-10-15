@@ -403,6 +403,12 @@ version; nothing else holds that text.
   `pnpm --dir web screenshots --only readme` makes them again. Each is one region of a
   view at most 880 CSS px wide, captured at device scale 2 and never scaled, and the
   README shows it as `<img ... width="<its CSS width>">`, so its text shows at its own size.
+- Audience. The package documentation (`src/contraagent/docs/`, which
+  `contraagent docs` prints), the docstrings and the messages of `contraagent check`
+  are written for a coding agent that writes a pipeline from them alone. The root
+  `README.md` and the monitor are for the person who asks for the pipeline, runs it
+  and reviews it. Write for both by being exact and complete: every fact that an
+  agent needs is reachable from `contraagent docs`, without contraagent's source.
 - Prose style, for the READMEs and the topics: write plain declarative sentences
   and short paragraphs, as a careful engineer writes a README. A paragraph or a list
   item starts with a sentence that carries its point, not with a bold run-in label
