@@ -8,7 +8,9 @@ import json
 import os
 import stat
 import sys
+from pathlib import Path
 
+from contraagent._internal.backends.base import temp_root
 from contraagent.backends import ClaudeBackend, Launch, LaunchResult, OmpBackend, OmpRpcBackend, Stop
 from contraagent.config import ApiKey, Limits
 
@@ -80,7 +82,8 @@ def test_claude_backend_runs_a_launch_end_to_end(tmp_path):
     assert env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] == env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
     argv = launch_result.argv
     assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings files
-    assert "/contraagent/claude-" in env["CLAUDE_CONFIG_DIR"]  # isolated: no stored login to fall back to
+    # isolated: no stored login to fall back to
+    assert Path(env["CLAUDE_CONFIG_DIR"]).is_relative_to(temp_root()) and "/claude-" in env["CLAUDE_CONFIG_DIR"]
 
 
 def test_omp_backend_runs_a_launch_end_to_end(tmp_path):

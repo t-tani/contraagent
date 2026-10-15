@@ -223,7 +223,7 @@ def test_a_launch_writes_temporary_files_in_its_own_directory_not_in_tmp(fake, t
     _, r, seen = fake()
     assert r.ok, r.stderr_tail
     tmp = Path(seen["env"]["TMPDIR"])
-    assert tmp.parent == tmp_path / "systmp" / "contraagent" and tmp.name.startswith("codex-t-")
+    assert tmp.parent == tmp_path / "systmp" / f"contraagent-{os.getuid()}" and tmp.name.startswith("codex-t-")
     assert seen["env"]["TMP"] == seen["env"]["TEMP"] == str(tmp) and seen["tmp_mode"] == 0o700
     argv = seen["argv"]
     assert {
@@ -233,14 +233,14 @@ def test_a_launch_writes_temporary_files_in_its_own_directory_not_in_tmp(fake, t
         *(f'shell_environment_policy.set.{var}="{tmp}"' for var in ("TMPDIR", "TMP", "TEMP")),
     } <= set(argv)
     assert not tmp.exists()  # removed with what the launch wrote in it
-    assert os.listdir(tmp_path / "systmp") == ["contraagent"]
+    assert os.listdir(tmp_path / "systmp") == [f"contraagent-{os.getuid()}"]
 
 
 def test_a_killed_launch_removes_its_temporary_directory(fake, tmp_path, monkeypatch):
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     _, r, seen = fake(limits=Limits(timeout_s=30, max_turns=1))
     assert r.stop is Stop.MAX_TURNS and seen["tmp_mode"] == 0o700
-    assert not Path(seen["env"]["TMPDIR"]).exists() and os.listdir(tmp_path / "contraagent") == []
+    assert not Path(seen["env"]["TMPDIR"]).exists() and os.listdir(tmp_path / f"contraagent-{os.getuid()}") == []
 
 
 def test_credentials_codex_cannot_use_are_refused():

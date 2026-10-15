@@ -4,6 +4,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -177,7 +178,8 @@ def test_a_light_launch_has_no_tools_and_its_own_system_prompt(tmp_path, home):
     assert "builtin:mcp" not in argv and "CONTRAAGENT_PI_MCP_CONFIG" not in env
 
 
-def test_a_resumed_launch_opens_its_session_by_id(tmp_path, home):
+def test_a_resumed_launch_opens_its_session_by_id(tmp_path, home, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the session directory: under tmp_path
     be = backend(tmp_path, home)
     first = be.resumable(Launch(prompt="hello", label="t", model="openai/m", cwd=tmp_path))
     result, argv, _ = run(be, tmp_path, model="openai/m", session_dir=first.session_dir)

@@ -1393,11 +1393,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Codex launch no longer writes into `/tmp` itself: its Linux sandbox left empty `.git`,
   `.agents` and `.codex` paths in each writable root, and an empty `/tmp/.git` made `/tmp`
   look like a git repository. `/tmp` and `$TMPDIR` are no longer writable roots; each launch
-  gets its own owner-only directory, `<temp dir>/contraagent/codex-<label>-<random>`, as its
+  gets its own directory, `<temp dir>/contraagent-<uid>/codex-<label>-<random>`, as its
   `TMPDIR`, `TMP` and `TEMP` and as the sandbox's writable root besides the working
   directory, removed when the launch ends. Every other temporary directory contraagent makes
-  (a backend's scratch directory, an omp session directory, `contraagent check`'s) is under
-  `<temp dir>/contraagent/` too.
+  (a backend's scratch directory, a session directory, `contraagent check`'s) is under
+  `<temp dir>/contraagent-<uid>/` too: one directory per user, owner-only (0700), refused
+  when it is a symlink, not a directory or another user's, and made owner-only again when
+  others can reach it.
 - A hook on omp, pi or opencode received `tool_input.file_path` as the model wrote it,
   which may be relative to the session's directory (`notes/a.md`), where Claude Code always
   passes an absolute path: a script matching `*/notes/*` never matched. The rendered
