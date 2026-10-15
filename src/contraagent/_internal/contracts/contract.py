@@ -80,9 +80,9 @@ class OutputContract(_FileContract):
     With `fresh` (the default) a file that predates the launch and was never
     rewritten fails the check: a stale document from an earlier run is
     otherwise indistinguishable from this run's answer. `validators` run
-    after the schema check, on the parsed value (`contraagent._internal.contracts.validators`).
-    `preserve`: JSON pointers (`contraagent._internal.contracts.pointers`) to the parts of a JSON file the
-    launch must keep: each value they select in the file as it was before the launch
+    after the schema check, on the parsed value (`Validator`).
+    `preserve`: JSON pointers (RFC 6901, a segment `*` for every member of an array or
+    object) to the parts of a JSON file the launch must keep: each value they select in the file as it was before the launch
     (`before`) must be in it after, equal.
     """
 

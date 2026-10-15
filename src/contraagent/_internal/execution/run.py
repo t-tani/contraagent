@@ -29,7 +29,16 @@ from contraagent._internal.backends.launch import Stop
 from contraagent._internal.dispatch.flow import FlowState
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.python_task import make_python_task
-from contraagent._internal.dispatch.queue import TaskRunner, WorkQueue
+from contraagent._internal.dispatch.queue import (
+    GRACE_S,
+    MAX_CONCURRENT,
+    OVERDUE_S,
+    RETRY_WAIT_S,
+    THROTTLE_S,
+    FollowUp,
+    TaskRunner,
+    WorkQueue,
+)
 from contraagent._internal.dispatch.records import DeferralCause, Frame, QuotaReading, Rest, RestEvent, TimeBoxRecord
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent._internal.errors import ContraagentError
@@ -44,9 +53,10 @@ from contraagent._internal.execution.runner import AgentRunner
 from contraagent._internal.execution.schemas import DeferredRow, FlowCallRow, PlanRow
 from contraagent._internal.platform import procfs
 from contraagent._internal.routing.capacity import sized
-from contraagent._internal.routing.config import PipelineConfig
+from contraagent._internal.routing.config import PerTask, PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
+from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, write_document
 from contraagent._internal.runs.source import DirectorySource, parse_info
@@ -357,9 +367,42 @@ class Run:
 
     # --- running tasks -----------------------------------------------------
 
-    def agent_runner(self, backends: Backend | Mapping[str, Backend], configs: Mapping[str, KindConfig], **kwargs: Any) -> AgentRunner:
-        """An `AgentRunner` whose launches are attributed to this run and recorded under it."""
-        return AgentRunner(backends, configs, run_dir=self.dir, run_id=self.run_id, **kwargs)
+    def agent_runner(
+        self,
+        backends: Backend | Mapping[str, Backend],
+        configs: Mapping[str, KindConfig],
+        *,
+        adapter: TaskAdapter | None = None,
+        routers: Mapping[str, Router] | None = None,
+        model: str = "",
+        model_failover: bool = False,
+        credentials: Mapping[str, Credential] | None = None,
+        env: Mapping[str, str] | None = None,
+        keep_transcripts: bool = False,
+        cwd: Path | str | None = None,
+        scopes: Sequence[TaskScope] = (),
+        enrichers: Sequence[ResultEnricher] = (),
+        rests: QuotaRests | None = None,
+    ) -> AgentRunner:
+        """An `AgentRunner` whose launches are attributed to this run and recorded under it;
+        every argument is the `AgentRunner`'s."""
+        return AgentRunner(
+            backends,
+            configs,
+            run_dir=self.dir,
+            run_id=self.run_id,
+            adapter=adapter,
+            routers=routers,
+            model=model,
+            model_failover=model_failover,
+            credentials=credentials,
+            env=env,
+            keep_transcripts=keep_transcripts,
+            cwd=cwd,
+            scopes=scopes,
+            enrichers=enrichers,
+            rests=rests,
+        )
 
     def python_runner(
         self,
@@ -394,13 +437,20 @@ class Run:
             self._estimates = JournalEstimates(self.runs_dir)
         return self._estimates
 
-    def quota_rests(self, credentials: Mapping[str, Credential], rule: QuotaRule | None = None, **kwargs: Any) -> QuotaRests:
+    def quota_rests(
+        self,
+        credentials: Mapping[str, Credential],
+        rule: QuotaRule | None = None,
+        *,
+        finishing_kinds: Iterable[str] = (),
+        grace_s: float = GRACE_S,
+    ) -> QuotaRests:
         """The run's quota rests (`QuotaRests`) over `credentials`, told the utilization
         readings of the recent runs' journals (this run's included, when resumed): an
-        account's windows outlast a run. `kwargs`: `finishing_kinds`, `grace_s`.
+        account's windows outlast a run. `finishing_kinds`, `grace_s`: the `QuotaRests`'.
         `run.json` records the caps (`quota_caps`, by credential) and the rule's name
         (`quota_rule`, '' for none); `rests.jsonl` each start and end of a rest."""
-        rests = QuotaRests(credentials, rule, on_change=self._record_rest, **kwargs)
+        rests = QuotaRests(credentials, rule, finishing_kinds=finishing_kinds, grace_s=grace_s, on_change=self._record_rest)
         caps = {c.credential: c.model_dump(exclude={"credential"}, exclude_none=True) for c in caps_of(credentials)}
         self.update_info(quota_caps=caps, quota_rule=_name_of(rule) if rule is not None else "")
         source = DirectorySource(self.runs_dir)
@@ -417,27 +467,54 @@ class Run:
         self,
         runner: TaskRunner,
         *,
-        follow_up: Callable[[TaskResult], list[Task]] | None = None,
+        follow_up: FollowUp | None = None,
         resume: bool = False,
-        **kwargs: Any,
+        max_concurrent: int = MAX_CONCURRENT,
+        deadline_s: float | None = None,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
+        skip: Callable[[Task], bool] | None = None,
+        grace_s: float = GRACE_S,
+        retry_on: frozenset[str] = RETRY_ON,
+        throttle_on: frozenset[str] = THROTTLE_ON,
+        finishing_kinds: Iterable[str] = (),
+        claim_capacity: Mapping[str, int | PerTask] | None = None,
+        estimate: Callable[[Task], float | None] | None = None,
+        overdue_s: float = OVERDUE_S,
+        slack_s: float | None = None,
     ) -> WorkQueue:
-        """A `WorkQueue` over `runner` that records the plan and journals Python tasks.
+        """A `WorkQueue` over `runner` that records the plan and journals Python tasks; every
+        other argument is the `WorkQueue`'s.
 
         Agent tasks are journaled per attempt by `RetryingRunner(on_attempt=
         run.record_attempt)`, so nothing is written twice. `resume=True` skips every
-        task an earlier attempt finished (`resume_skip`). `kwargs` pass through
-        (`max_concurrent`, `claim_capacity`, `finishing_kinds`, `deadline_s`...);
-        `retry_on`/`throttle_on` default to the stop sets above; a `PerTask` entry of
-        `claim_capacity` is sized by this host (a `PerTask` capacity).
+        task an earlier attempt finished, unless `skip` is given. `retry_on` and `throttle_on`
+        default to the stops of a coding agent's failure (`api_error`, `no_output`,
+        `launch_failed`) and of its rate limit (`rate_limited`); `estimate`, to what the
+        recent runs' journals say (`Run.estimator`). A `PerTask` entry of `claim_capacity`
+        is sized by this host.
         """
-        if kwargs.get("claim_capacity"):
-            kwargs["claim_capacity"] = sized(kwargs["claim_capacity"])
-        kwargs.setdefault("retry_on", RETRY_ON)
-        kwargs.setdefault("throttle_on", THROTTLE_ON)
-        kwargs.setdefault("estimate", self.estimator().estimate)
-        if resume:
-            kwargs.setdefault("skip", resume_skip(self.journal.last_rows()))
-        q = WorkQueue(runner, follow_up=follow_up, on_event=self._on_event, on_result=self._journal_python_task, **kwargs)
+        if skip is None and resume:
+            skip = resume_skip(self.journal.last_rows())
+        q = WorkQueue(
+            runner,
+            follow_up=follow_up,
+            on_event=self._on_event,
+            on_result=self._journal_python_task,
+            max_concurrent=max_concurrent,
+            deadline_s=deadline_s,
+            retry_wait_s=retry_wait_s,
+            throttle_s=throttle_s,
+            skip=skip,
+            grace_s=grace_s,
+            retry_on=retry_on,
+            throttle_on=throttle_on,
+            finishing_kinds=tuple(finishing_kinds),
+            claim_capacity=sized(claim_capacity) if claim_capacity else None,
+            estimate=estimate if estimate is not None else self.estimator().estimate,
+            overdue_s=overdue_s,
+            slack_s=slack_s,
+        )
         self.update_info(max_workers=q.max_concurrent)
         return q
 

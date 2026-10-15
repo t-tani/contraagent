@@ -31,7 +31,7 @@ from contraagent._internal.monitor.api import (
     TableColumn,
     TilesBody,
 )
-from contraagent._internal.monitor.core import Monitor, Panel, PeriodRuns, RunRecords
+from contraagent._internal.monitor.core import Monitor, Panel, PanelFn, PeriodRuns, RunRecords, TaskDetailFn, TrendsPanelFn
 from contraagent._internal.monitor.export import ExportReport, export
 from contraagent._internal.monitor.trends import Period, PeriodError
 from contraagent._internal.public import publish
@@ -59,6 +59,7 @@ __all__ = [
     "NoteBody",
     "Panel",
     "PanelBody",
+    "PanelFn",
     "PanelTile",
     "Period",
     "PeriodError",
@@ -70,7 +71,9 @@ __all__ = [
     "StatusGridBody",
     "TableBody",
     "TableColumn",
+    "TaskDetailFn",
     "TilesBody",
+    "TrendsPanelFn",
     "create_app",
     "export",
     "serve",

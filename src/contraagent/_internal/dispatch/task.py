@@ -193,7 +193,7 @@ class Partial[Out]:
     needs was unavailable): `value`, its output as usual (checked against its output
     schema, written to its output file, and what the flow receives), and `reason`, why,
     in one line. The task finishes ok with stop `partial`, so the flow and later tasks go
-    on; a resume runs it again."""
+    on; a resume runs it again (`Pipeline.run(resume=True)`)."""
 
     value: Out
     reason: str
@@ -210,7 +210,7 @@ class Deferral:
     The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
     `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; the first three name
     the time box's `flow_call` when the deadline is one's (`TimeBox`), not the run's. A
-    runner adds its own (`rest`: `QuotaRests`)."""
+    runner adds its own (`rest`: its credential rests, `QuotaRests`)."""
 
     reason: str
     cause: DeferralCause

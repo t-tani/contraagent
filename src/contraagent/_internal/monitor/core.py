@@ -26,11 +26,11 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ValidationError
 
@@ -40,6 +40,7 @@ from contraagent._internal.execution.cursor import parse_cursor
 from contraagent._internal.execution.schemas import JournalRow
 from contraagent._internal.monitor import trends
 from contraagent._internal.monitor.aggregate import TOKENS, add_tokens, model_usage
+from contraagent._internal.monitor.api import PanelBody
 from contraagent._internal.monitor.trends import Period
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
@@ -51,10 +52,21 @@ from contraagent._internal.runs.procs import ProcLiveness
 from contraagent._internal.runs.source import PAGE_BYTES, DirectorySource, RunFile, RunSource
 from contraagent._internal.runs.times import now, parse_iso
 
-#: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`), given the run's records (`RunRecords`).
-PanelFn = Callable[["RunRecords"], Any]
-#: A trends panel: `fn(runs, period) -> body`, over the runs of the period (`PeriodRuns`).
-TrendsPanelFn = Callable[["PeriodRuns", Period], Any]
+
+class PanelFn(Protocol):
+    """A run panel's function: `fn(run)`, given the run's records (`RunRecords`), returns the
+    panel's body: a typed body (`PanelBody`: tiles, a table, charts), as a model or as a dict
+    with its `type`, or any other JSON object, shown as a tree (`Panel`)."""
+
+    def __call__(self, run: RunRecords, /) -> PanelBody | BaseModel | Mapping[str, Any]: ...
+
+
+class TrendsPanelFn(Protocol):
+    """A trends panel's function: `fn(runs, period)`, given the runs of the period
+    (`PeriodRuns`) and the `Period`, returns the panel's body, as a `PanelFn` does
+    (`Panel(scope="trends")`)."""
+
+    def __call__(self, runs: PeriodRuns, period: Period, /) -> PanelBody | BaseModel | Mapping[str, Any]: ...
 
 
 def _document(source: RunSource, run: str, name: str) -> Any:
@@ -211,8 +223,12 @@ def panel_body(value: Any) -> dict[str, Any]:
     return value
 
 
-#: The `task_detail` callback: `fn(run, key, rows) -> dict`, merged into `Monitor.task_detail`.
-TaskDetailFn = Callable[[str, str, list], dict]
+class TaskDetailFn(Protocol):
+    """The `Monitor(task_detail=)` function: `fn(run, key, rows)`, given the run's id, the
+    task's key and its journal rows (one per attempt, as JSON objects), returns facts of the
+    domain merged into the task's detail (`Monitor.task_detail`); None adds nothing."""
+
+    def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None: ...
 
 
 def _running_keys(snap: dict[str, Any]) -> set:
@@ -277,7 +293,7 @@ class Monitor:
         liveness: Liveness | None = None,
         many_hosts: bool = False,
         title: str = "contraagent",
-        panels: dict[str, Panel | PanelFn] | None = None,
+        panels: Mapping[str, Panel | PanelFn] | None = None,
         task_detail: TaskDetailFn | None = None,
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,

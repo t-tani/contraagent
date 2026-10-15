@@ -9,9 +9,14 @@ change. The version is `MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)).
   `contraagent.config`, `contraagent.backends`, `contraagent.engine`,
   `contraagent.plugins`, `contraagent.monitor`, `contraagent.monitor.api` and
   `contraagent.testing`, with its signature, its fields and its documented
-  behaviour. Each object has one public path, and its `__module__` names it.
+  behaviour. Each object has one public path, and a class's or a function's
+  `__module__` names it (a type alias, such as `PanelBody`, has none of its own).
 - **The types they reach**: every contraagent type that a public signature, a
-  field or an argument given to a callback names is exported from a public module.
+  field or an argument given to a callback names is exported from a public module:
+  a class; a protocol, the type of a function a user writes (a quota rule, a scope, a
+  validator, a panel, a callback), whose docstring states the call; or an alias, a
+  union of exported types. An alias of literal values is not a type of its own: the
+  annotation lists its values (`Task.executor: Literal["agent", "python"]`).
 - **The command line**: the commands and their options, as `contraagent --help`
   and `contraagent <command> --help` print them, and the exit status each `--help`
   states at its end.

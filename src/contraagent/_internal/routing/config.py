@@ -52,6 +52,10 @@ DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "co
 #: The keys of a task table beside `TASK_TABLE_KEYS` (and `_comment`).
 TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools")
 
+#: Every key of a task table (`[tasks.<kind>]`, but `_comment`); each is an `agent_task`
+#: argument too, the kind's default.
+TASK_KEYS = (*TASK_ROUTING_KEYS, *TASK_TABLE_KEYS)
+
 
 def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, ...] = ()) -> str:
     """`elsewhere`: keys of another table, named when an unknown key is close to one of them."""
@@ -106,8 +110,7 @@ class PerTask:
     each task with a `PerTask` claim started in the last 30 seconds (one just started has
     not grown yet); where there is no `/proc/meminfo` (not Linux), memory does not limit
     it. A pattern with a `PerTask` sizes each name it matches on its own: one name,
-    claimed by every such task, shares one limit. `contraagent._internal.routing.capacity` works
-    it out.
+    claimed by every such task, shares one limit.
     """
 
     memory_mb: int | None = None
@@ -172,7 +175,7 @@ class PipelineConfig:
     def defaults(self, errors: list[str] | None = None) -> dict[str, Any]:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
         model_failover), `max_passes` (`Pipeline(max_passes=)`), `preflight`
-        (`Pipeline(preflight=)`, a `PreflightPolicy`) and `context_warn_pct` (the warning
+        (`Pipeline(preflight=)`: `substitute`, `stop` or `off`) and `context_warn_pct` (the warning
         of every kind with a `context_budget` and none of its own). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""

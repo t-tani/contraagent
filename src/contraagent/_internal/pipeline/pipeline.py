@@ -32,7 +32,7 @@ from typing import Any
 from contraagent._internal.backends import Backend, create_backend, known_agents
 from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent._internal.dispatch.queue import GRACE_S
+from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
 from contraagent._internal.dispatch.task import STOP_PARTIAL, Task, TaskResult
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
@@ -118,7 +118,14 @@ class Pipeline:
         execute: Sequence[str] = (),
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
-        **queue_options: Any,
+        deadline_s: float | None = None,
+        grace_s: float = GRACE_S,
+        slack_s: float | None = None,
+        finishing_kinds: Sequence[str] = (),
+        overdue_s: float = OVERDUE_S,
+        claim_capacity: Mapping[str, int | PerTask] | None = None,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
         `[credentials.<name>]`); None runs on each task's declared defaults.
@@ -185,11 +192,20 @@ class Pipeline:
         end (but `.git`, `__pycache__`, the recordings and the run's own files): each path
         created, modified or deleted that no task's outputs or `changes=` cover is an
         undeclared change, written to `<recordings>/undeclared.json` and named in a warning.
-        `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
-        `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
-        `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
-        value is a number or a `PerTask` (what one task that claims the name needs of the
-        host); another value raises `ConfigError`."""
+
+        The rest schedule the run's tasks, as `WorkQueue` takes them:
+        `deadline_s`: the run's deadline, in seconds from its start (None: none). Past it only
+        `finishing_kinds` still launch, for `grace_s` seconds; every other task is deferred.
+        From `deadline_s - slack_s` on (default a quarter of `deadline_s`) the tasks are
+        ordered for the deadline: `finishing_kinds` first, then the shortest remaining work.
+        `overdue_s`: how long a task that can start may wait before it comes first.
+        `claim_capacity`: how many running tasks may hold each claimed name at once, by the
+        name or an `fnmatch` pattern; a value is a number or a `PerTask` (what one task that
+        claims the name needs of the host), another raises `ConfigError`. It outranks the
+        config's `[defaults.claim_capacity]` key by key.
+        `retry_wait_s`: the wait before the one retry of a task that ended `api_error`,
+        `no_output` or `launch_failed`. `throttle_s`: how long two `rate_limited` ends in a
+        row halve the tasks running at once."""
         if config is None:
             config = PipelineConfig()
         elif not isinstance(config, PipelineConfig):
@@ -245,12 +261,22 @@ class Pipeline:
         self.enrichers: tuple[ResultEnricher, ...] = tuple(enrichers)
         self.row_extras = row_extras
         # A malformed [defaults.claim_capacity] is reported by the routing plan too.
-        given = dict(queue_options.pop("claim_capacity", None) or {})
+        given = dict(claim_capacity or {})
         for name, value in given.items():
             if not isinstance(value, PerTask) and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ConfigError(f"Pipeline(claim_capacity=) {name!r} = {value!r} is not a non-negative integer or a PerTask")
-        claim_capacity = {**config.claim_capacity([]), **given}
-        self.queue_options: dict[str, Any] = {**queue_options, **({"claim_capacity": claim_capacity} if claim_capacity else {})}
+        capacity = {**config.claim_capacity([]), **given}
+        #: What the run's `WorkQueue` is given beside its runner (`Run.queue`).
+        self.queue_options: dict[str, Any] = dict(
+            deadline_s=deadline_s,
+            grace_s=grace_s,
+            slack_s=slack_s,
+            finishing_kinds=tuple(finishing_kinds),
+            overdue_s=overdue_s,
+            claim_capacity=capacity or None,
+            retry_wait_s=retry_wait_s,
+            throttle_s=throttle_s,
+        )
 
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport:
         """Build the task graph `run` would, and check everything that needs no launch.

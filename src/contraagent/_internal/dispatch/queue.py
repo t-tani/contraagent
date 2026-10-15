@@ -125,9 +125,38 @@ SLACK_SHARE = 0.25
 #: How long `finishing_kinds` still launch past the deadline, when `grace_s` is not given.
 GRACE_S = 900.0
 
-OnEvent = Callable[..., None]  # on_event(event: str, task: Task | None, **fields)
-FollowUp = Callable[[TaskResult], list[Task]]
-OnResult = Callable[[TaskResult, int], None]  # on_result(result, attempt)
+#: Tasks running at once, when `max_concurrent` is not given.
+MAX_CONCURRENT = 8
+
+#: The wait before the one retry of a task whose stop is in `retry_on`.
+RETRY_WAIT_S = 60.0
+
+#: How long two `throttle_on` results in a row halve the slots.
+THROTTLE_S = 300.0
+
+
+class OnEvent(Protocol):
+    """`on_event(event, task, **fields)`: what a `WorkQueue` reports as it runs. `event`:
+    `queued`, `start`, `retry`, `throttle`, `deferred`, `end`, `duplicate_key_refused` or
+    `note`; `task`: the task it is about (None for a note about none); `fields`: the
+    event's facts (`reason=`, `cause=` of a deferral, `result=` of an end ...)."""
+
+    def __call__(self, event: str, task: Task | None, /, **fields: Any) -> None: ...
+
+
+class FollowUp(Protocol):
+    """`follow_up(result)`: the tasks to queue after a task finished with `result` (its last
+    attempt's, or a skip or a deferral). Called on the queue's thread; an exception is
+    reported as a `note` and queues nothing."""
+
+    def __call__(self, result: TaskResult, /) -> list[Task]: ...
+
+
+class OnResult(Protocol):
+    """`on_result(result, attempt)`: every attempt's result, a retried one included;
+    `attempt` counts from 1."""
+
+    def __call__(self, result: TaskResult, attempt: int, /) -> None: ...
 
 
 def _named(reason: str, box: TimeBox) -> str:
@@ -162,8 +191,8 @@ class RunnerConfig(Protocol):
 
 class TaskRunner(Protocol):
     """The entire surface `WorkQueue` needs from a runner: a per-task
-    concurrency cap, and a way to actually run one. `AgentRunner` satisfies this with no changes and no
-    inheritance -- structural, not nominal."""
+    concurrency cap, and a way to actually run one. `AgentRunner` satisfies this with no
+    changes and no inheritance -- structural, not nominal."""
 
     def config(self, task: Task) -> RunnerConfig: ...
 
@@ -184,10 +213,10 @@ class WorkQueue:
         follow_up: FollowUp | None = None,
         on_event: OnEvent | None = None,
         on_result: OnResult | None = None,
-        max_concurrent: int = 8,
+        max_concurrent: int = MAX_CONCURRENT,
         deadline_s: float | None = None,
-        retry_wait_s: float = 60.0,
-        throttle_s: float = 300.0,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
         skip: Callable[[Task], bool] | None = None,
         grace_s: float = GRACE_S,
         retry_on: frozenset[str] = frozenset(),

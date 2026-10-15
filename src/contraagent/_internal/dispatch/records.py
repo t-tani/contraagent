@@ -262,7 +262,8 @@ class QuotaReading(BaseModel):
 
     def named_windows(self) -> dict[str, QuotaWindow]:
         """Every window the reading gives a utilization or a reset for, by name: each
-        `Window` from its fields, then those of `windows` (which win for the same name)."""
+        window of its fields (`five_hour`, `seven_day`), then those of `windows` (which win
+        for the same name)."""
         named = {w: QuotaWindow(pct=getattr(self, f"{w}_pct"), resets_at=getattr(self, f"{w}_resets_at")) for w in WINDOWS}
         named.update(self.windows)
         return {k: v for k, v in named.items() if v.pct is not None or v.resets_at}

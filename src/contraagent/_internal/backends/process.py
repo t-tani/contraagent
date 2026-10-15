@@ -14,7 +14,7 @@ import signal
 import subprocess
 import threading
 import time
-from collections.abc import Callable
+from typing import Protocol
 
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
@@ -46,9 +46,12 @@ class LaunchError(ContraagentError):
     """The child process could not be started (missing binary, bad cwd, ...)."""
 
 
-# One newline-stripped stdout line in; an early Stop to end the run right
-# there (same effect as a limit timeout/stall), or None to keep reading.
-Sink = Callable[[bytes], Stop | None]
+class Sink(Protocol):
+    """`sink(line)`: one line of a coding agent's output, its newline stripped, as it comes
+    (`Backend.watch_stderr`). It returns a `Stop` to end the launch there, as a limit does,
+    or None to read on."""
+
+    def __call__(self, line: bytes, /) -> Stop | None: ...
 
 
 def via_stdin(launch: Launch) -> bool:

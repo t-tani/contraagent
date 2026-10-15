@@ -744,6 +744,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Public API and names
 
+- Every argument a public signature takes is a named, typed parameter with its
+  documentation, not a `**` catch-all. `agent_task(...)` takes each key of a
+  `[tasks.<kind>]` table by name, None by default: `agent`, `model`, `effort`,
+  `credential`, `model_failover`, `fallbacks`, `disallowed_tools`, `max_turns`,
+  `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`,
+  `max_denials`, `max_concurrent`, `retries`, `retry_backoff_base` (a test holds them
+  equal to the table's keys). A misspelt one is a `TypeError` now; a wrong value is still a
+  `ConfigError`. `Pipeline(...)` takes the run's scheduling by name: `deadline_s`,
+  `grace_s`, `slack_s`, `finishing_kinds`, `overdue_s`, `claim_capacity`, `retry_wait_s`,
+  `throttle_s`, with `WorkQueue`'s defaults. `Run.queue`, `Run.agent_runner` and
+  `Run.quota_rests` name the arguments of `WorkQueue`, `AgentRunner` and `QuotaRests`.
+
+  | Old | New |
+  |---|---|
+  | `agent_task(..., **config)` | `agent_task(..., agent=, model=, effort=, credential=, model_failover=, fallbacks=, disallowed_tools=, max_turns=, timeout_s=, max_budget_usd=, stall_s=, context_budget=, context_warn_pct=, max_denials=, max_concurrent=, retries=, retry_backoff_base=)` |
+  | `Pipeline(..., **queue_options)` | `Pipeline(..., deadline_s=, grace_s=, slack_s=, finishing_kinds=, overdue_s=, claim_capacity=, retry_wait_s=, throttle_s=)` |
+  | `Run.queue(runner, **kwargs)`, `Run.agent_runner(backends, configs, **kwargs)`, `Run.quota_rests(credentials, rule, **kwargs)` | each argument by name |
+- The type of a function a user writes or passes is a `Protocol` exported where the user
+  meets it, its docstring stating the call and its `__call__` the signature, in place of a
+  `Callable` alias that `help()` could not describe. `QuotaRule` documents its arguments:
+  `rule(credential, reading)`, `credential` the `<name>` of `[credentials.<name>]`.
+
+  | Old | New |
+  |---|---|
+  | `contraagent.QuotaRule`, `TaskScope`, `Validator` (aliases of `Callable`) | the same names, protocols |
+  | `contraagent._internal.monitor.core.PanelFn`, `TrendsPanelFn`, `TaskDetailFn` | `contraagent.monitor.PanelFn`, `TrendsPanelFn`, `TaskDetailFn` |
+  | `contraagent._internal.dispatch.queue.FollowUp`, `OnEvent`, `OnResult` | `contraagent.engine.FollowUp`, `OnEvent`, `OnResult` |
+  | `contraagent._internal.dispatch.flow.WaitsFor`, `Answer`, `Created`, `OnFlowCall` | `contraagent.engine.WaitsFor`, `Answer`, `Created`, `OnFlowCall` |
+  | `contraagent._internal.routing.quota.AccountOf` | `contraagent.engine.AccountOf` |
+  | `contraagent._internal.backends.process.Sink` | `contraagent.backends.Sink` |
+  | `contraagent._internal.testing.Script` | `StubAgent(script=)` is a `Mapping[str, Any]` |
+- `help()` of a public method or property names its public module, as `help()` of its
+  class does, and no public docstring names `contraagent._internal`
+  (`tests/test_public_api.py` checks both).
 - The documentation names public paths only. What it sent the reader to `_internal` files
   for is in the public objects' docstrings: the stub agent's replies in `contraagent.testing`,
   every check in `Pipeline.check`, a run directory's files in `contraagent.engine.Run`, the

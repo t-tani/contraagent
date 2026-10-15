@@ -35,7 +35,7 @@ from contraagent._internal.dispatch.task import Partial
 from contraagent._internal.pipeline.graph import CLAIM_PARAM, Pending, current_graph
 from contraagent._internal.plugins import Plugin, PluginError
 from contraagent._internal.plugins.plugin import body
-from contraagent._internal.routing.config import ConfigError, PipelineConfig
+from contraagent._internal.routing.config import TASK_KEYS, ConfigError, PipelineConfig
 
 Out = TypeVar("Out")
 
@@ -69,7 +69,7 @@ class AgentTask[Out]:
     tools: tuple[str, ...] | None = None
     #: A resume runs its tasks again even when an earlier attempt finished them.
     rerun_on_resume: bool = False
-    #: JSON pointers to the parts of the output file a launch must keep (`contraagent._internal.contracts.pointers`).
+    #: JSON pointers to the parts of the output file a launch must keep (`agent_task(preserve=)`).
     preserve: tuple[str, ...] = ()
     #: The task declaration whose output file this kind writes (`agent_task(output_of=)`).
     output_of: AgentTask[Any] | PythonTask[Any] | None = None
@@ -195,7 +195,23 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> AgentTask[Out]: ...
 
 
@@ -221,7 +237,23 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> Mapping[str, AgentTask[Out]]: ...
 
 
@@ -246,7 +278,23 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
@@ -331,11 +379,33 @@ def agent_task[Out](
     Each implementation kind takes the `[tasks.<kind>]` table of the base kind, then its own
     `[tasks.<kind>-<name>]` table key by key (its `fallbacks` replace the base kind's); the
     monitor draws its tasks in the base kind's group, unless `Monitor(groups=)` lists the kind.
-    `config`: defaults for its task table, any key a `[tasks.<kind>]` table takes
-    (`max_turns`, `timeout_s`, `model`, `agent`, `effort` ...); the config file
-    outranks them. Every kind needs `max_turns` and `timeout_s`, here or there;
-    `contraagent docs routing` lists every key.
+
+    The rest are the kind's defaults for its task table: each is a key of `[tasks.<kind>]`,
+    and the config file outranks it there (None: not given here). Every kind needs
+    `max_turns` and `timeout_s`, here or in the config; `contraagent docs routing` tells more.
+    `agent`: the coding agent it runs on, a registered `Backend` name (`"claude"`, `"omp"`).
+    `model`: the model, in its coding agent's own name; empty, the agent's default.
+    `effort`: the reasoning effort, one of the agent's own levels (`Backend.effort_levels`).
+    `credential`: the `[credentials.<name>]` it launches with; `"ambient"`, the host's own setup.
+    `model_failover`: hand the same-agent models of its failover chain to the coding agent's own
+    flag, so it may change model inside one launch.
+    `fallbacks`: its failover chain, hop by hop, each a table as `[[tasks.<kind>.fallbacks]]`
+    writes one (`{"agent": "omp", "model": "..."}`); it replaces `[[defaults.fallbacks]]`.
+    `disallowed_tools`: tools its launches may not use, in Claude Code's names and patterns
+    (`["WebFetch", "Bash(git push:*)"]`).
+    `max_turns`: turns per launch. `timeout_s`: seconds per launch. `max_budget_usd`: cost per
+    launch, as the coding agent reports it. `stall_s`: stop a launch whose transcript is silent
+    this many seconds. `context_budget`: stop a launch once one call's input passes this many
+    tokens. `context_warn_pct`: warn once a launch's peak context passes this percent of
+    `context_budget` (1 to 99); the launch goes on. `max_denials`: stop a launch after this
+    many permission denials.
+    `max_concurrent`: tasks of this kind running at once (`Pipeline(max_concurrent=)` caps the run).
+    `retries`: fresh-session attempts after the first, each after one that made no progress;
+    `retry_backoff_base`: the seconds before the first of them, doubled per attempt.
     """
+    # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
+    given = locals()
+    table = {key: _table_value(given[key]) for key in TASK_KEYS if given[key] is not None}
     base = _caller_dir()
     if implementations is not None:
         plugins = _checked_implementations(kind, implementations, plugin, instructions)
@@ -362,7 +432,7 @@ def agent_task[Out](
                         rerun_on_resume=rerun_on_resume,
                         preserve=preserve,
                         output_of=output_of,
-                        **config,
+                        **table,
                     ),
                     base_kind=kind,
                 )
@@ -397,10 +467,10 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): tools=() (a light launch) writes no file: give output_from="message" and an output')
     if checked_tools == () and skills_from:
         raise TypeError(f"agent_task({kind!r}): tools=() loads no skill: drop skills_from, or the tools=()")
-    if config:
-        # The same checks a [tasks.<kind>] table gets, so a typo is an error here too.
+    if table:
+        # The same checks a [tasks.<kind>] table gets, so a wrong value is an error here too.
         try:
-            PipelineConfig({"tasks": {kind: dict(config)}}).task_tables()
+            PipelineConfig({"tasks": {kind: dict(table)}}).task_tables()
         except ConfigError as exc:
             raise ConfigError(str(exc).replace("<config>: [tasks.", "agent_task: [", 1)) from None
     changes = tuple(changes)
@@ -423,7 +493,7 @@ def agent_task[Out](
         plugin=loaded,
         role=resolved_role,
         instructions=instructions,
-        config=dict(config),
+        config=table,
         validators=tuple(validators),
         requires=tuple(requires),
         claims=checked_claims,
@@ -437,6 +507,14 @@ def agent_task[Out](
         preserve=checked_preserve,
         output_of=output_of,
     )
+
+
+def _table_value(value: Any) -> Any:
+    """An argument as a task table holds it: a list for a sequence (`fallbacks` a list of
+    tables). A string stays a string, so the table's check refuses it."""
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return [dict(v) if isinstance(v, Mapping) else v for v in value]
+    return value
 
 
 #: An implementation's name: what follows its base kind in its kind (`review-go`).

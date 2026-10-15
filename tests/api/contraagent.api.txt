@@ -243,7 +243,14 @@ class Pipeline
         execute: Sequence[str] = (),
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
-        **queue_options: Any,
+        deadline_s: float | None = None,
+        grace_s: float = GRACE_S,
+        slack_s: float | None = None,
+        finishing_kinds: Sequence[str] = (),
+        overdue_s: float = OVERDUE_S,
+        claim_capacity: Mapping[str, int | PerTask] | None = None,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
     ) -> None
     backends: dict[str, Backend]
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport
@@ -337,7 +344,8 @@ class PythonTask[Out]
     retry_on: tuple[type[Exception], ...] = ()
     validators: tuple[Validator, ...]
 
-QuotaRule = Callable[[str, QuotaReading], 'str | tuple[str, datetime] | None']
+class QuotaRule(Protocol)
+    def __call__(self, credential: str, reading: QuotaReading, /) -> str | tuple[str, datetime] | None
 
 class RecordingError(ContraagentError)
 
@@ -482,7 +490,8 @@ class TaskResult
     task: Task
     wall_s: float = 0.0
 
-TaskScope = Callable[[Task], AbstractContextManager[None]]
+class TaskScope(Protocol)
+    def __call__(self, task: Task, /) -> AbstractContextManager[None]
 
 class TextOutput(str)
 
@@ -518,7 +527,8 @@ class TokenUsage(BaseModel)
 
 class TooManyPasses(ContraagentError)
 
-Validator = Callable[..., Iterable[str] | None]
+class Validator(Protocol)
+    def __call__(self, *args: Any, **kwargs: Any) -> Iterable[str] | None
 
 @overload
 def agent_task(
@@ -542,7 +552,23 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> AgentTask[Out]
 @overload
 def agent_task(
@@ -566,7 +592,23 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
@@ -589,7 +631,23 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
-    **config: Any,
+    agent: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    credential: str | None = None,
+    model_failover: bool | None = None,
+    fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    disallowed_tools: Sequence[str] | None = None,
+    max_turns: int | None = None,
+    timeout_s: float | None = None,
+    max_budget_usd: float | None = None,
+    stall_s: float | None = None,
+    context_budget: int | None = None,
+    context_warn_pct: int | None = None,
+    max_denials: int | None = None,
+    max_concurrent: int | None = None,
+    retries: int | None = None,
+    retry_backoff_base: float | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
@@ -1417,6 +1475,9 @@ class Signals
     def status_in(self, text: str) -> int | None
     stderr_stops: frozenset[Stop] = field(default=FAILED_STOPS)
 
+class Sink(Protocol)
+    def __call__(self, line: bytes, /) -> Stop | None
+
 class Stop(str, enum.Enum)
     ABORTED = 'aborted'
     API_ERROR = 'api_error'
@@ -1461,6 +1522,9 @@ def register_normalizer(
 ) -> None
 
 ## contraagent.engine
+
+class AccountOf(Protocol)
+    def __call__(self, credential: str, /) -> str
 
 class AgentRunner
     def __init__(
@@ -1513,6 +1577,9 @@ class AgentRunner
     run_id
     scopes: Sequence[TaskScope] = tuple(scopes)
 
+class Answer(Protocol)
+    def __call__(self, item: Any, result: TaskResult, /) -> Any
+
 @dataclass(frozen=True)
 class Before
     def __init__(
@@ -1546,6 +1613,9 @@ class Check
 class ClaimCapacity(Protocol)
     def allowed(self, held: int) -> int
     def started(self) -> None
+
+class Created(Protocol)
+    def __call__(self) -> Iterable[Task]
 
 class Cursor(BaseModel)
     completed_stages: list[str] = Field(default_factory=list)
@@ -1644,6 +1714,9 @@ class FlowDriver
     def time_boxes(self, call: FlowCall | None) -> tuple[TimeBox, ...]
     @property waiting: list[FlowCall]
 
+class FollowUp(Protocol)
+    def __call__(self, result: TaskResult, /) -> list[Task]
+
 class HistoryEntry(BaseModel)
     at: datetime
     model_config: ConfigDict = ConfigDict(extra='forbid', validate_assignment=True)
@@ -1685,6 +1758,15 @@ class JournalEstimates
     def observe_attempt(self, row: dict[str, Any]) -> None
     def observe_plan(self, row: dict[str, Any]) -> None
     def tail(self, task: Task) -> float | None
+
+class OnEvent(Protocol)
+    def __call__(self, event: str, task: Task | None, /, **fields: Any) -> None
+
+class OnFlowCall(Protocol)
+    def __call__(self, event: str, call: FlowCall, /) -> None
+
+class OnResult(Protocol)
+    def __call__(self, result: TaskResult, attempt: int, /) -> None
 
 @dataclass(frozen=True)
 class OutputContract(_FileContract)
@@ -1740,7 +1822,7 @@ class QuotaRests
         rule: QuotaRule | None = None,
         *,
         finishing_kinds: Iterable[str] = (),
-        grace_s: float = 900.0,
+        grace_s: float = GRACE_S,
         on_change: Callable[[str, Rest], None] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         clock: Callable[[], float] = time.monotonic,
@@ -1865,7 +1947,18 @@ class Run
         self,
         backends: Backend | Mapping[str, Backend],
         configs: Mapping[str, KindConfig],
-        **kwargs: Any,
+        *,
+        adapter: TaskAdapter | None = None,
+        routers: Mapping[str, Router] | None = None,
+        model: str = '',
+        model_failover: bool = False,
+        credentials: Mapping[str, Credential] | None = None,
+        env: Mapping[str, str] | None = None,
+        keep_transcripts: bool = False,
+        cwd: Path | str | None = None,
+        scopes: Sequence[TaskScope] = (),
+        enrichers: Sequence[ResultEnricher] = (),
+        rests: QuotaRests | None = None,
     ) -> AgentRunner
     def close(self) -> None
     config
@@ -1896,15 +1989,29 @@ class Run
         self,
         runner: TaskRunner,
         *,
-        follow_up: Callable[[TaskResult], list[Task]] | None = None,
+        follow_up: FollowUp | None = None,
         resume: bool = False,
-        **kwargs: Any,
+        max_concurrent: int = MAX_CONCURRENT,
+        deadline_s: float | None = None,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
+        skip: Callable[[Task], bool] | None = None,
+        grace_s: float = GRACE_S,
+        retry_on: frozenset[str] = RETRY_ON,
+        throttle_on: frozenset[str] = THROTTLE_ON,
+        finishing_kinds: Iterable[str] = (),
+        claim_capacity: Mapping[str, int | PerTask] | None = None,
+        estimate: Callable[[Task], float | None] | None = None,
+        overdue_s: float = OVERDUE_S,
+        slack_s: float | None = None,
     ) -> WorkQueue
     def quota_rests(
         self,
         credentials: Mapping[str, Credential],
         rule: QuotaRule | None = None,
-        **kwargs: Any,
+        *,
+        finishing_kinds: Iterable[str] = (),
+        grace_s: float = GRACE_S,
     ) -> QuotaRests
     def record_attempt(self, result: TaskResult) -> None
     def record_flow_call(
@@ -1961,6 +2068,9 @@ class UnitCursor(BaseModel)
     stage: str | None = None
     step: str | None = None
 
+class WaitsFor(Protocol)
+    def __call__(self, item: Any, /) -> Task
+
 class WorkQueue
     def __init__(
         self,
@@ -1969,10 +2079,10 @@ class WorkQueue
         follow_up: FollowUp | None = None,
         on_event: OnEvent | None = None,
         on_result: OnResult | None = None,
-        max_concurrent: int = 8,
+        max_concurrent: int = MAX_CONCURRENT,
         deadline_s: float | None = None,
-        retry_wait_s: float = 60.0,
-        throttle_s: float = 300.0,
+        retry_wait_s: float = RETRY_WAIT_S,
+        throttle_s: float = THROTTLE_S,
         skip: Callable[[Task], bool] | None = None,
         grace_s: float = GRACE_S,
         retry_on: frozenset[str] = frozenset(),
@@ -2175,7 +2285,7 @@ class Monitor
         liveness: Liveness | None = None,
         many_hosts: bool = False,
         title: str = 'contraagent',
-        panels: dict[str, Panel | PanelFn] | None = None,
+        panels: Mapping[str, Panel | PanelFn] | None = None,
         task_detail: TaskDetailFn | None = None,
         static_dir: str | Path | None = None,
         stream_formats: dict[str, str] | None = None,
@@ -2260,7 +2370,10 @@ class Panel
     tab: str = ''
     title: str = ''
 
-PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[JsonObject, Tag('untyped')], Discriminator(_panel_kind)]
+PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
+
+class PanelFn(Protocol)
+    def __call__(self, run: RunRecords, /) -> PanelBody | BaseModel | Mapping[str, Any]
 
 class PanelTile(Closed)
     id: str
@@ -2383,12 +2496,18 @@ class TableColumn(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     tip: str | None = None
 
+class TaskDetailFn(Protocol)
+    def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None
+
 class TilesBody(_Body)
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     tiles: list[PanelTile]
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['tiles'] = 'tiles'
+
+class TrendsPanelFn(Protocol)
+    def __call__(self, runs: PeriodRuns, period: Period, /) -> PanelBody | BaseModel | Mapping[str, Any]
 
 def create_app(
     monitor: Monitor,
@@ -2493,7 +2612,7 @@ class CursorMessage(Closed)
 class CursorView(Closed)
     completed_stages: list[str] = Field(default_factory=list)
     history: list[StageEntry] = Field(default_factory=list)
-    markers: dict[str, list[JsonObject]] = Field(default_factory=dict, description='free-form event lists by name')
+    markers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict, description='free-form event lists by name')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     stage: str | None = None
     units: dict[str, UnitPosition] = Field(default_factory=dict)
@@ -3086,7 +3205,7 @@ class TrendTotals(Closed)
     wall_s: float
 
 class Trends(Closed)
-    bodies: dict[str, JsonObject]
+    bodies: dict[str, dict[str, Any]]
     daily: list[TrendDay]
     deferred: list[TrendDeferral]
     deferred_causes: dict[str, int]
@@ -3146,7 +3265,7 @@ class Reply
 class StubAgent(Backend)
     def __init__(
         self,
-        script: Script | None = None,
+        script: Mapping[str, Any] | None = None,
         *,
         default: Any = _UNSET,
         execute: Iterable[str] = (),

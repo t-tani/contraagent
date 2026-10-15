@@ -77,7 +77,7 @@ from collections import deque
 from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass, field, replace
 from types import GeneratorType
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from contraagent._internal.dispatch.queue import GRACE_S, SLACK_SHARE, WorkQueue
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Task, TaskResult, TimeBox
@@ -85,10 +85,33 @@ from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KE
 _logger = logging.getLogger(__name__)
 
 FlowState = Literal["running", "returned", "raised", "closed"]
-WaitsFor = Callable[[Any], Task]
-Answer = Callable[[Any, TaskResult], Any]
-Created = Callable[[], Iterable[Task]]
-OnFlowCall = Callable[[str, "FlowCall"], None]
+
+
+class WaitsFor(Protocol):
+    """`waits_for(item)`: the task a flow waits for when it yields `item` (not a generator);
+    by default the item is the task."""
+
+    def __call__(self, item: Any, /) -> Task: ...
+
+
+class Answer(Protocol):
+    """`answer(item, result)`: what the flow receives at its `yield` for `item`, once its task
+    finished with `result` (ok); by default the result itself."""
+
+    def __call__(self, item: Any, result: TaskResult, /) -> Any: ...
+
+
+class Created(Protocol):
+    """`created()`: the tasks the flow code created since it was last asked, to queue."""
+
+    def __call__(self) -> Iterable[Task]: ...
+
+
+class OnFlowCall(Protocol):
+    """`on_flow_call(event, call)`: a flow call started (`event` `"start"`) or ended
+    (`"end"`, its `state` and `value` or `error` set)."""
+
+    def __call__(self, event: str, call: FlowCall, /) -> None: ...
 
 
 class TaskFailed(Exception):
