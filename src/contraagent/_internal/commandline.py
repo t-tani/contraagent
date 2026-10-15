@@ -43,11 +43,12 @@ def add_command(
     add_arguments: Callable[[argparse.ArgumentParser], None],
     run: Callable[[argparse.Namespace], int],
     serves: bool = False,
+    epilog: str | None = None,
 ) -> argparse.ArgumentParser:
     """Add the command `name` to `subparsers`: its arguments, and `run` as what it does.
     `serves`: it runs until stopped (a server, a relay), so its output is not cut short by a
-    closed pipe."""
-    parser = subparsers.add_parser(name, help=help)
+    closed pipe. `epilog`: printed after its options (its exit status)."""
+    parser = subparsers.add_parser(name, help=help, epilog=epilog)
     add_arguments(parser)
     parser.set_defaults(run=run, parser=parser, serves=serves)
     return parser

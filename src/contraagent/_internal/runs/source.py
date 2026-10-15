@@ -239,7 +239,7 @@ def parse_info(text: str | None) -> dict[str, Any] | None:
 
 
 class DirectorySource:
-    """The runs in one `runs/` directory, as `execution.Run` writes them."""
+    """The runs in one `runs/` directory, as `contraagent.engine.Run` writes them."""
 
     def __init__(self, root: str | Path) -> None:
         self.root: Path = Path(root).resolve()

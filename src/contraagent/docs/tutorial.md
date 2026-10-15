@@ -341,8 +341,8 @@ high severity, and its first summary is too long:
 
 ::code{file="examples/tutorial/test_tutorial.py" from="def test_only_a_high" to="def test_the_table_lists"}
 
-`stub.backends()` registers the stub under every coding agent's name, so the
-pipeline's own config routes to it: the second test also shows that `plan_fix`
+`agent.backends()` registers the stub under every coding agent's name, so the
+pipeline's own config routes to it: the first test also shows that `plan_fix`
 ran on the model `pipeline.toml` gave it. Save the tests as `test_tasks.py`
 (import from `tasks` instead of the package path), then:
 

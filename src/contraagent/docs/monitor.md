@@ -152,9 +152,11 @@ CORS headers unless origins are opted in (`--cors-origin`), and answers only
 requests whose `Host` names this machine.
 
 It reads a run's records only through a run source and liveness
-(`contraagent/_internal/runs/`): by default the runs directory and this host's
-`/proc`. `Monitor(source=..., liveness=...)` serves the same views from another
-store; the layout of a run's records is `contraagent/_internal/runs/layout.py`.
+(`contraagent.monitor.RunSource`, `contraagent.monitor.Liveness`): by default the runs
+directory (`DirectorySource`) and this host's `/proc`. `Monitor(source=..., liveness=...)`
+serves the same views from another store; the records of a run and their JSON Schemas
+are in [Compatibility](compatibility.md#run-formats-and-schemas), and the files of a run
+directory in the docstring of `contraagent.engine.Run`.
 
 ## Your own views: panels
 
@@ -186,8 +188,8 @@ path of its own, so it shows the same on one host and on a hub. `run`
 `journal()`, `records(log)` for another log contraagent writes (`deferred.jsonl`,
 ...), `log(name)` and `document(name)` for the pipeline's own logs and documents
 (what `contraagent.log` and `contraagent.save` wrote; see
-[tasks and flows](tasks.md)), and `dir()` for a file that is none of these, an
-output (None on a hub). `runs` (`PeriodRuns`) is the period's run ids, newest
+[tasks and flows](tasks.md)), `output(key)` for a task's output file, and `dir()`, the
+run's directory on this host, for a file that is none of these (None on a hub). `runs` (`PeriodRuns`) is the period's run ids, newest
 activity first, with the same methods taking the run id first (`journal(run)`,
 `log(run, name)`, ...) and `run(run)`, its `RunRecords`. `Period` holds its `start`, `end` and the time zone
 `tz` its days are counted in; `period.day_of(ts)` is the day of a time inside the
@@ -214,7 +216,12 @@ whose ids lead to each run in the monitor:
 `contraagent monitor --panels views.py:PANELS` loads them from a file or a
 module (`package.module:PANELS`), a dict of name to `Panel`; `--groups`
 (the plan's columns) and `--task-detail` (`fn(run, key, rows)`, merged into a
-task's detail) take the same form. From Python, `Monitor(panels=...)`:
+task's detail) take the same form. The demo's panel shows each unit's note, the
+output of its `write_note` task, read with `output(key)`:
+
+::code{file="examples/demo/run.py" from="def notes(" to="def main("}
+
+From Python, `Monitor(panels=...)`:
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
 

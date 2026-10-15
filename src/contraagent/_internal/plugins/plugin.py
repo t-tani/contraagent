@@ -1,31 +1,4 @@
-"""A plugin: the implementation of an agent task, as the coding agent itself loads it.
-
-The Python side declares a task's *interface* (`agent_task`: its parameters,
-its output, its budget); the plugin holds everything about *how* the task is
-done, in the form Claude Code and omp read natively through `--plugin-dir` (pi is given
-its skills and hooks by flag):
-
-    plugins/summarize/
-      .claude-plugin/plugin.json   what makes the directory a plugin
-      agents/<role>.md             the procedure: who the agent is and how it works
-      skills/<name>/SKILL.md       detail the agent loads when it needs it
-                                   (Claude Code names it `<plugin name>:<name>`)
-      settings.json                what the agent may do
-      .mcp.json                    tools it may call (optional)
-      hooks.toml                   hooks, declared once for every coding agent
-      hooks/*.sh                   the hook scripts
-      hooks/hooks.json             hooks as Claude Code reads them   (rendered)
-      package.json, omp/           hooks as omp reads them           (rendered)
-      package.json, pi/            hooks as pi reads them            (rendered)
-      codex/hooks.json             hooks as Codex reads them         (rendered)
-
-Nothing in it names a run, a unit or a file path: those arrive per task in the
-call file (`contraagent._internal.contracts.calls`).
-
-A plugin that holds skills and nothing else that acts (`besides_skills`) is a
-skill plugin: tasks load it beside their own (`agent_task(skills_from=)`) to share
-its skills.
-"""
+"""A plugin: the implementation of an agent task (the `Plugin` docstring lists its parts)."""
 
 from __future__ import annotations
 
@@ -60,6 +33,38 @@ def is_plugin(path: str | Path) -> bool:
 
 @dataclass(frozen=True)
 class Plugin:
+    """A plugin: the implementation of an agent task, as the coding agent itself loads it.
+
+    The Python side declares a task's *interface* (`agent_task`: its parameters,
+    its output, its budget); the plugin holds everything about *how* the task is
+    done, in the form Claude Code and omp read natively through `--plugin-dir` (pi is given
+    its skills and hooks by flag; opencode and Codex, its parts as config):
+
+        plugins/summarize/
+          .claude-plugin/plugin.json   what makes the directory a plugin
+          agents/<role>.md             the procedure: who the agent is and how it works
+          skills/<name>/SKILL.md       detail the agent loads when it needs it
+                                       (Claude Code names it `<plugin name>:<name>`)
+          settings.json                what the agent may do
+          .mcp.json                    tools it may call (optional)
+          hooks.toml                   hooks, declared once for every coding agent
+          hooks/*.sh                   the hook scripts
+          hooks/hooks.json             hooks as Claude Code reads them   (rendered)
+          package.json, omp/           hooks as omp reads them           (rendered)
+          package.json, pi/            hooks as pi reads them            (rendered)
+          opencode/index.js            hooks as opencode reads them      (rendered)
+          codex/hooks.json             hooks as Codex reads them         (rendered)
+
+    Nothing in it names a run, a unit or a file path: those arrive per task in the
+    call file (`contraagent.backends.CallFile`).
+
+    A plugin that holds skills and nothing else that acts (`besides_skills`) is a
+    skill plugin: tasks load it beside their own (`agent_task(skills_from=)`) to share
+    its skills.
+
+    `Plugin.load(root)` reads one; `lint()` lists what its parts do not agree on.
+    """
+
     root: Path
     name: str
     hooks: tuple[dict[str, Any], ...] = ()

@@ -143,7 +143,16 @@ _PI_TOOLS = {
 
 
 class PiBackend(OpencodeKeyAccount, Backend):
-    """Headless pi: `pi --mode json -p`."""
+    """Headless pi: `pi --mode json -p`.
+
+    Every launch turns pi's discovery off by flag (`--no-extensions`, `--no-skills`,
+    `--no-prompt-templates`, `--no-themes`, `--no-context-files`) and runs with an agent
+    directory of contraagent's own (`PI_CODING_AGENT_DIR`, under `~/.cache/contraagent/pi/`):
+    its settings (no project trust, no cache warming, no telemetry) and links to the
+    user's logins (`auth.json`), custom providers (`models.json`), model catalogue and
+    `fd` and `rg`, and nothing else of theirs. Launches made alike share one directory,
+    so they refresh one OAuth login once.
+    """
 
     name = "pi"
     binary = "pi"

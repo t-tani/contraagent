@@ -13,7 +13,8 @@ change. The version is `MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)).
 - **The types they reach**: every contraagent type that a public signature, a
   field or an argument given to a callback names is exported from a public module.
 - **The command line**: the commands and their options, as `contraagent --help`
-  and `contraagent <command> --help` print them, and the exit codes they document.
+  and `contraagent <command> --help` print them, and the exit status each `--help`
+  states at its end.
 - **The pipeline config file**: its tables and keys, as
   `examples/reference/pipeline.toml` writes every one of them and the JSON Schema
   `schemas/pipeline.schema.json` states them. A first line

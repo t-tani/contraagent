@@ -136,7 +136,25 @@ def mcp_servers(path: str) -> dict[str, dict]:
 
 
 class CodexBackend(ResumeById, Backend):
-    """Headless Codex CLI: `codex exec --json`."""
+    """Headless Codex CLI: `codex exec --json`.
+
+    A plugin's hooks reach Codex as config: `codex/hooks.json` (`contraagent plugin
+    render`) is passed as one `-c hooks={...}` value, and nothing is written into a
+    `CODEX_HOME`. Codex runs a hook an administrator does not manage only when the config
+    trusts it, `hooks.state."<key>".trusted_hash` equal to the hook's hash, so the launch
+    sets that for each of the plugin's hooks:
+
+    - the key is `<source>:<event>:<group index>:<handler index>`, the source of `-c`
+      values being the path `/<session-flags>/config.toml`, the event in snake case
+      (`pre_tool_use`, `post_tool_use`, `stop`);
+    - the hash is `sha256:` and the hex SHA-256 of a compact JSON with sorted keys of the
+      normalized hook: `event_name`, the group's `matcher` (none for `Stop`) and its one
+      handler with its `timeout` filled in (600 seconds when unset) and `async`.
+
+    The same `hooks.state` turns off every hook the user's `config.toml` trusts
+    (`enabled = false`); with any credential but `ambient`, the user's config is not read
+    at all.
+    """
 
     name = "codex"
     binary = "codex"

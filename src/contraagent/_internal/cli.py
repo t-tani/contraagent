@@ -79,7 +79,11 @@ def main(argv: list[str] | None = None) -> int:
 def parser(command: str | None = "") -> argparse.ArgumentParser:
     """The command line. A command of `MODULES` gets its arguments only when it is `command`
     (its module is imported only then); `""` gives every command its arguments."""
-    ap = argparse.ArgumentParser(prog="contraagent")
+    ap = argparse.ArgumentParser(
+        prog="contraagent",
+        epilog="exit status: 0 on success, 1 when the command found a problem or a task failed, 2 on a usage error; "
+        "`contraagent <command> --help` says what each command's means",
+    )
     ap.add_argument("--version", action="version", version=f"%(prog)s {metadata.version('contraagent')}")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, (module, help) in MODULES.items():
@@ -120,6 +124,8 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         help="check a flow, its plugins and its routing without launching anything",
         add_arguments=_check_arguments,
         run=_flow_command,
+        epilog="exit status: 0 when every check passes (warnings included), 1 when one fails or the flow's module "
+        "cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)",
     )
     add_command(
         sub,
@@ -127,6 +133,9 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         help="run a flow, as `check` names it, and report its tasks (for more control, call Pipeline.run from Python)",
         add_arguments=_run_arguments,
         run=_flow_command,
+        epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not, "
+        "or when the run is refused before its first task (the config, the routing, a run id that holds a run, the "
+        "preflight), 2 on a usage error (the flow's name, --kwargs, options that do not go together)",
     )
     add_command(
         sub, "docs", help="the documentation installed with this version: the index, or one topic", add_arguments=_docs_arguments, run=_docs

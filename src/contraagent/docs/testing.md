@@ -19,7 +19,7 @@ the documentation topic that explains it. A declaration that is wrong where it
 is written (a role the plugin does not define, an unknown budget key in
 `agent_task`) stops the import of the module that declares it, so it is the one
 error reported until it is fixed. `Pipeline.check(flow, ...)`
-does the same in Python; its docstring (`contraagent/_internal/pipeline/check.py`) lists
+does the same in Python; its docstring (`help(contraagent.Pipeline.check)`) lists
 every check, and `contraagent check --help` every option.
 
 A generator flow creates its tasks as it runs, so `check` runs it to its first
@@ -27,7 +27,7 @@ wait: every flow call it starts runs up to the first `yield` that waits for a
 task, and the tasks created by then are checked like a flow's that does not
 yield. The kinds it creates later are found in its code: the task declarations
 the flow refers to, directly or through the functions, modules, closures and
-containers it refers to (the docstring of `contraagent/_internal/pipeline/reach.py` says
+containers it refers to (the glossary's **reachable kind**, in [Concepts](concepts.md), says
 exactly what is followed). Their declarations and routing are checked too, and
 the report lists them as later kinds. Two declarations of one kind that differ
 and are both reachable are a warning, not an error: the flow may create tasks of
@@ -61,7 +61,7 @@ task and names the rule. Flow code itself runs as in any run: a side effect in
 the flow's own body happens in a stub run too. Put side effects in Python tasks.
 In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
 execute=[...]))` scripts the replies of both kinds of task, as a test does
-(`contraagent/_internal/testing.py` lists the replies).
+(the `contraagent.testing` module docstring lists the replies).
 
 ## Record once, replay in CI
 
@@ -115,8 +115,20 @@ after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change
-matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. The module docstring (`contraagent/_internal/execution/recording.py`) gives the
-layout of a recording directory.
+matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. A recording
+directory holds:
+
+```
+recordings/<kind>/<key>.json         the task's recording: one entry per attempt, in order
+recordings/<kind>/<key>/<id>/        the files of one attempt:
+    output-<n>                       the final contents of its n-th output file
+    output-<n>.message.txt           the whole final message beside an unwrapped output
+    files/<path>                     what its `changes=` patterns saw created or modified
+    stream.jsonl                     its part of the transcript, when transcripts are kept
+    pipeline/<name>.jsonl            a Python task's rows of `contraagent.log(name, ...)`, in order
+    pipeline/<name>.json             a Python task's last `contraagent.save(name, ...)`
+recordings/undeclared.json           the undeclared changes of the last recording run (below)
+```
 
 ### Undeclared changes
 
@@ -168,8 +180,8 @@ reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)
 rests a credential past its quota cap or its `quota_rule`, so a test can follow a task to
 its next hop, or to `deferred`. Tests import the flow's module like any other code: one
 outside the project's package needs the project root on `sys.path` (pytest's
-`pythonpath` setting). The module docstring (`contraagent/_internal/testing.py`) lists
-every kind of reply.
+`pythonpath` setting). The `contraagent.testing` module docstring
+(`help(contraagent.testing)`) lists every kind of reply.
 
 ::code{file="examples/demo/test_demo.py" from="def summary(launch):" to="@pytest.fixture"}
 
