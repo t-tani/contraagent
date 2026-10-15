@@ -98,7 +98,7 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
   role's file, its skills and its `.mcp.json` (no hooks, so the runner's check
   and its session resume enforce the output), and enforces neither `max_budget_usd` nor
   `context_budget`: it reports no cost, and its per-call tokens only after the
-  launch.
+  launch (its peak context and `context_warn_pct` still hold).
 - `workload_identity`, `bedrock` and `vertex` follow Claude Code's
   documentation and are not yet checked against the real CLI.
 

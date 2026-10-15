@@ -100,6 +100,7 @@ def _hop(label: str, result: TaskResult) -> dict:
                 "cache_read": u.cache_read,
                 "cache_creation": u.cache_creation,
                 "calls": u.n_calls,
+                "peak_context": u.peak_context if u.calls else None,
             }
             if u is not None and (u.calls or u.output_total)
             else None
@@ -349,7 +350,8 @@ class AgentRunner:
     # --- execution ---------------------------------------------------------
 
     def run(self, task: Task) -> TaskResult:
-        """Run one task, failing over on a 429.
+        """Run one task, failing over on a 429. A launch whose peak context passed its kind's
+        `context_warn_pct` is noted (`TaskResult.notes["context_warned"]`).
 
         Brackets the whole dispatch (every failover hop) with every
         `TaskScope`, entered in order and exited in reverse; each
@@ -363,6 +365,13 @@ class AgentRunner:
             result = self._run(task)
         for enricher, before in snapshots:
             enricher.enrich(task, before, result)
+        o = result.launch_result
+        if o is not None and o.context_warned:
+            result.notes["context_warned"] = {
+                "peak_context": o.peak_context,
+                "context_budget": o.context_budget,
+                "context_warn_pct": self.config(task).context_warn_pct,
+            }
         return result
 
     def _record_contracts(self, task: Task) -> None:
@@ -572,8 +581,8 @@ class AgentRunner:
             reading.account = reading.account or self.account_of(backend, credential, launch.model)
             if self.rests is not None:
                 self.rests.observe(reading)
-        warn = self.config(task).context_warn
-        over = bool(warn and launch_result.usage.context_total > warn)
+        launch_result.context_budget = launch.limits.context_budget
+        launch_result.context_warned = launch_result.context_warned or launch.limits.context_warned(launch_result.peak_context)
         reason = (launch_result.stderr_tail or "")[-200:].strip()
         if launch_result.stop == Stop.INVALID_OUTPUT and launch_result.round_errors:
             reason = "; ".join(launch_result.round_errors[-1])[:240]
@@ -593,7 +602,6 @@ class AgentRunner:
             ok=launch_result.ok,
             wall_s=launch_result.wall_s,
             stop=launch_result.stop.value,
-            over_budget=over,
             reason=reason,
         )
 
@@ -645,9 +653,12 @@ class RetryingRunner:
         rc = self._runner.config(task)
         attempts = max(1, rc.retries)
         last: TaskResult | None = None
+        notes: dict = {}  # every attempt's, for the one result the queue sees
         for attempt in range(attempts):
             task.attempt = attempt
             last = self._runner.run(task)
+            notes.update(last.notes)
+            last.notes = dict(notes)
             if last.stop == STOP_DEFERRED:  # nothing launched: not an attempt, nothing to journal
                 return last
             if self._on_attempt is not None:

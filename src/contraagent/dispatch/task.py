@@ -238,7 +238,10 @@ class TaskResult:
     wall_s: float = 0.0
     # Why it ended the way it did, in one line (empty when nothing needs saying).
     reason: str = ""
-    over_budget: bool = False
+    # What the runner reports beside the verdict, as data: the queue sends it as one
+    # `on_event("note", task, **notes)` when the task finishes (`context_warned`: a launch's
+    # peak context passed its kind's `context_warn_pct`). Empty: no note.
+    notes: dict[str, Any] = field(default_factory=dict)
     # (agent, model) the launch actually ran on. Differs from the Kind's
     # configured model whenever the router failed over, so a postmortem can
     # tell "the model did this" from "the model we asked for did this".

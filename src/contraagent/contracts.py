@@ -334,8 +334,8 @@ def add_other_models(a: dict[str, dict], b: dict[str, dict]) -> dict[str, dict]:
 
 
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
-    """Carry the spend, the web searches and the unread events from `total` into `nxt`, the
-    launch after it; everything else is `nxt`'s.
+    """Carry the spend, the web searches, the unread events and a context warning from
+    `total` into `nxt`, the launch after it; everything else is `nxt`'s.
 
     `resumed`: `nxt` resumed `total`'s session (a fix-up round), else it is a session of its
     own (a failover hop, a pool member). The costs (and `other_models`) add up, but a resumed launch whose
@@ -357,6 +357,7 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
     nxt.rate_limits = total.rate_limits + nxt.rate_limits
     nxt.hook_errors = total.hook_errors + nxt.hook_errors
     nxt.web_queries = total.web_queries + nxt.web_queries
+    nxt.context_warned = nxt.context_warned or total.context_warned
     for k, v in total.unread_events.items():
         nxt.unread_events[k] = nxt.unread_events.get(k, 0) + v
     for k, v in total.tool_uses.items():

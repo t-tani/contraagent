@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Peak context: every coding agent's launch reports the whole input of its largest API call
+  (`LaunchResult.peak_context`; `usage.peak_context` per hop and per attempt in the journal,
+  `peak_context` per model in the monitor's models). `context_warn_pct` (a task table,
+  `agent_task(...)`, `[defaults]`) warns once a launch's peak context passes that percent of
+  `context_budget`, without stopping it: the journal row records `context_warned` and
+  `context_budget`, and the run logs a `[context]` line. A `context_warn_pct` without a
+  `context_budget` is refused before anything launches. It replaces `context_warn`, an
+  absolute count of tokens. `writes(value, peak_context=...)` makes the stub agent report one.
 - A trends panel's `tab` (`Panel(scope="trends", tab="Reliability")`): the Trends page shows
   the panels of each `tab` on a tab of their own, after a first tab of the trends and the
   panels of no `tab`, and names the open tab in its address (`?page=trends&tab=Reliability`).

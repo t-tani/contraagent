@@ -64,7 +64,7 @@ documentation. No other word is used for the same thing.
 | **routing plan** | how each kind is routed (not `plan.jsonl`) | `RoutingPlan` |
 | **`KindConfig`** | one kind's resolved routing and budgets | `RoutingPlan.configs` |
 | **hop** | one route in a failover chain | `Route`, `Router` |
-| **budget** | the turn, time, cost and stall caps of a launch | `max_turns`, `timeout_s`, ...; `Limits`, `Launch.limits` |
+| **budget** | the turn, time, cost, context and stall caps of a launch | `max_turns`, `timeout_s`, `context_budget`, ...; `Limits`, `Launch.limits` |
 | **credential** | the identity (and so the account) an agent's API calls are billed to | `[credentials.<name>]`, `Launch.credential` |
 | **trait** | a label on a credential that a task may require (`zdr`) | `traits`, `agent_task(requires=)` |
 | **pool** / **gateway** | several credentials used as one / your own endpoint (LiteLLM, a proxy) | `Pool`, `Gateway` |
@@ -82,6 +82,7 @@ documentation. No other word is used for the same thing.
 | **launch** | one run of a coding agent, and its result | `Launch`, `Backend.run`, `LaunchResult` |
 | **light launch** | the launch of an agent task declared with no tools: its role's text (or its instructions) replaces the coding agent's system prompt, its params and output schema are in the prompt, no plugin, settings or MCP server is loaded, and its final message is its output | `agent_task(tools=())`, `AgentTask.light`, `KindConfig.light`, `Backend.light_launch` |
 | **resident** | the whole input of an attempt's first API call: what the coding agent loads before the task starts | `TokenUsage.resident`, `Usage.resident` |
+| **peak context** | the whole input (fresh input, cache read and cache write) of a launch's largest API call; of an attempt, the largest of its hops' and rounds'. `context_budget` stops a launch whose peak context passes it; `context_warn_pct` warns past that % of it and stops nothing | `LaunchResult.peak_context`, `Usage.peak_context`, `TokenUsage.peak_context`, `ModelUsage.peak_context`; `JournalRow.context_budget`, `JournalRow.context_warned`; a queue `note` with `context_warned` |
 | **other model** | a model a launch called besides the one it ran on (Claude Code summarizes a fetched page on a smaller model): its cost is in the launch's, its tokens are not in the launch's `usage`, and the models' spend counts it apart | `LaunchResult.other_models`, `Hop.other_models` (`OtherModel`) |
 | **round** | one launch within a session: the first, or a resume after contract errors; an attempt's cost counts each round once | `rounds`, `round_costs` |
 | **attempt** | a retry of a task with a fresh session | `RetryingRunner`, journal rows |

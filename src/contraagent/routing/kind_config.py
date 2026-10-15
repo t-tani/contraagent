@@ -38,7 +38,9 @@ class KindConfig:
     max_concurrent: int | None = None
     settings: str = ""
     context_budget: int | None = None
-    context_warn: int | None = None
+    #: Warn (`JournalRow.context_warned`, a queue `note`) when a launch's peak context passes
+    #: this % of `context_budget`; it does not stop the launch. Needs a `context_budget`.
+    context_warn_pct: int | None = None
     max_denials: int | None = None
     disallowed_tools: tuple[str, ...] = ()
     exclude_dynamic_sections: bool = False
@@ -68,6 +70,7 @@ class KindConfig:
             max_turns=self.max_turns,
             max_budget_usd=self.max_budget_usd,
             context_budget=self.context_budget,
+            context_warn_pct=self.context_warn_pct,
             stall_s=self.stall_s,
             disallowed_tools=self.disallowed_tools,
             max_denials=self.max_denials,
@@ -86,7 +89,7 @@ TASK_TABLE_KEYS: dict[str, type | tuple[type, ...]] = {
     "max_budget_usd": (int, float),
     "stall_s": (int, float),
     "context_budget": int,
-    "context_warn": int,
+    "context_warn_pct": int,
     "max_denials": int,
     "max_concurrent": int,
     "retries": int,
@@ -119,6 +122,24 @@ def require_budgets(configs: dict, tables: dict[str, dict], required: tuple[str,
     errors = missing_budgets(configs, tables, required)
     if errors:
         raise ValueError("; ".join(errors))
+
+
+def with_context_warn(configs: dict, default_pct: int | None) -> dict:
+    """Give `[defaults].context_warn_pct` to each kind that has a `context_budget` and no
+    `context_warn_pct` of its own."""
+    if default_pct is None:
+        return configs
+    return {k: c.with_(context_warn_pct=default_pct) if c.context_budget and c.context_warn_pct is None else c for k, c in configs.items()}
+
+
+def context_warn_problems(configs: dict) -> list[str]:
+    """One message per kind with a `context_warn_pct` but no `context_budget` to be a percent of."""
+    return sorted(
+        f"kind {kind_name(k)} has context_warn_pct = {c.context_warn_pct} but no context_budget: "
+        f"set context_budget in agent_task({kind_name(k)!r}, context_budget=...) or in [tasks.{kind_name(k)}]"
+        for k, c in configs.items()
+        if c.context_warn_pct is not None and not c.context_budget
+    )
 
 
 def missing_budgets(configs: dict, tables: dict[str, dict], required: tuple[str, ...] = ("max_turns", "timeout_s")) -> list[str]:

@@ -104,3 +104,17 @@ def test_a_turn_that_ends_on_an_empty_message_completes():
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == ""
     cut = {**end, "stopReason": "toolUse"}
     assert read({"type": "message_end", "message": cut}).stop == Stop.NO_OUTPUT
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_a_recorded_launch_reports_its_peak_context(version):
+    result = parse_events(LAUNCH, "pi", (FIXTURES / version / "json.jsonl").read_bytes(), 0, None)
+    usages = [
+        e["message"]["usage"]
+        for e in events(version)
+        if e.get("type") == "message_end"
+        and e.get("message", {}).get("role") == "assistant"
+        and isinstance(e["message"].get("usage"), dict)
+    ]
+    want = max(u.get("input", 0) + u.get("cacheRead", 0) + u.get("cacheWrite", 0) for u in usages)
+    assert result.peak_context == want >= result.usage.resident > 0

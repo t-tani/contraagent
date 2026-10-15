@@ -1027,15 +1027,27 @@ def model_usage(rows: list[dict]) -> list[dict]:
     """What the agent sessions of journal `rows` spent per model (`api.ModelUsage`), in order
     of first use: each hop on its own model (its agent, tokens, cost and time), and what it
     spent on other models (`Hop.other_models`) on each of them, taken out of its own model's
-    cost. A row of one hop with no tokens of its own gives the hop the row's. Python rows
-    and hops that never launched (`skipped_hops`) are not counted."""
+    cost. A row of one hop with no tokens of its own gives the hop the row's. `peak_context`
+    is the largest of its hops'. Python rows and hops that never launched (`skipped_hops`)
+    are not counted."""
     out: dict[tuple[str, str], dict] = {}
 
     def add(agent: str, model: str, usage: object, cost: float | None, sessions: int, wall_s: float) -> None:
         m = out.setdefault(
             (agent, model),
-            {"agent": agent, "model": model, "sessions": 0, **dict.fromkeys(_TOKENS, 0), "cost_usd": None, "wall_s": 0.0},
+            {
+                "agent": agent,
+                "model": model,
+                "sessions": 0,
+                **dict.fromkeys(_TOKENS, 0),
+                "cost_usd": None,
+                "wall_s": 0.0,
+                "peak_context": None,
+            },
         )
+        peak = usage.get("peak_context") if isinstance(usage, dict) else None
+        if isinstance(peak, int) and not isinstance(peak, bool):
+            m["peak_context"] = max(m["peak_context"] or 0, peak)
         m["sessions"] += sessions
         for k in _TOKENS:
             v = usage.get(k) if isinstance(usage, dict) else None
