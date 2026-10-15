@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A validator may take `before`, the output file as it was before the task, parsed as its
+  value is (the model instance, or the text; None when there was no file or it did not meet
+  its schema): `def adds_an_idea(path, backlog: Backlog, *, before: Backlog | None)`. It is
+  the file ahead of the first round on every correction round, for agent and Python tasks
+  alike; the file is read only for a contract with such a validator, and an attempt that does
+  not pass puts it back as it was. A `CommandValidator` is not given it.
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history
   tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak

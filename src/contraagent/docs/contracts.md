@@ -142,6 +142,18 @@ declares `call` is given the path of an agent task's call file.
 
 ::code{file="examples/demo/tasks.py" from="def its_own_unit" to="#: A linter"}
 
+A rule about what the task changed takes `before`: the file as it was before the
+task, parsed as `value` is (the model instance, or the text), or None when there
+was no file or it did not meet its schema then. It is the file ahead of the
+task's first round, on every correction round alike, so a round is judged by
+all that the task changed, not by what it changed since the last round. The
+runner reads the file ahead of the task only for a contract with such a
+validator, and an attempt that does not pass puts the file back as it was, so
+the next attempt has the same `before`. A Python task's validators get the
+same: the file before its function was called.
+
+::code{file="examples/before/flow.py" from="def adds_an_idea" to="def backlogs"}
+
 `CommandValidator` turns an external program (textlint, a structure checker)
 into one: exit 0 passes, anything else fails with the program's output as the
 errors. `{path}` in its arguments is the output file and `{call}` the call file,
@@ -163,6 +175,7 @@ runs it before it stops:
 |---|---|---|
 | Runs in the runner | yes | yes |
 | Runs inside the agent's session | no | yes: it travels in the call file |
+| Takes `before` | yes | no: it reads the file as it is |
 
 ## Inputs
 
