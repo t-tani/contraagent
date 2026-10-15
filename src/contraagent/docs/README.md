@@ -7,34 +7,37 @@ function whose body is a coding agent, and its result is a file that contraagent
 checks against a pydantic model. The runner handles scheduling, failover, quotas,
 deadlines and resume, and a live monitor shows every run.
 
-- The same task, plugin and config run on all five coding agents. One TOML file
-  chooses the coding agent, model, budget and credential (the account that the
-  agent's API calls are billed to) for each kind of task.
-- An agent task's implementation is a plugin in the coding agent's own format, with
-  roles, skills, MCP servers and hooks, and the agent keeps its built-in tools. You
-  write hooks once, and contraagent renders them for each agent.
-- Each task starts in a clean context with its role, plugin, skills and call file.
-  The user's and the project's settings, instruction files, skills, hooks and MCP
-  servers are excluded, and so are the conversations of other tasks.
-  [Plugins](plugins.md) lists the exceptions for each agent.
-- When an output fails its schema or its validators, the errors go to the same
-  session.
-- After a rate limit, a failed launch or a safeguard refusal, a task moves to another
-  model, coding agent or credential. Caps on a subscription's 5-hour and weekly usage
-  pause a credential.
-- Work that cannot finish before its deadline is deferred. The deadline is the run's
-  own, or that of a
-  [time box](tasks.md#a-deadline-over-part-of-a-flow-time-boxes) (a deadline over part of the flow). A
-  resumed run repeats only the tasks whose inputs or definition changed.
-- `contraagent check` reports every problem and launches nothing. A stub agent, stub
-  runs (runs that launch no coding agent) and recorded replays test a flow without
-  spending anything.
-- The read-only [monitor](monitor.md) shows the pipeline graph, each task's
-  transcript, inputs, outputs and checks, the history of attempts, and trends over a
-  period. A [hub](hub.md) serves the runs of many hosts in one monitor.
-- A coding agent can write these pipelines too. This documentation is installed with
-  the package (`contraagent docs`), and `contraagent docs --pointer` points a
-  project's coding agent to it.
+## How a task runs
+
+An agent task's implementation is a [plugin](plugins.md) in the coding agent's own
+format, with roles, skills, MCP servers and hooks, and the agent keeps its built-in
+tools. contraagent launches the agent in a clean context with its role, plugin,
+skills and call file. The user's and the project's settings, instruction files,
+skills, hooks and MCP servers are excluded, and so are the conversations of other
+tasks.
+
+The agent writes the output file, and contraagent checks it against the pydantic
+model and the validators. When a check fails, the errors go to the same session for
+a correction round. The flow receives the output as a typed object only after it
+passes.
+
+Around each launch, a task moves to another model, coding agent or credential (the
+account that the agent's API calls are billed to) after a rate limit, a failed launch
+or a safeguard refusal. Caps on a subscription's 5-hour and weekly usage pause a
+credential. Work that cannot finish before the run's deadline, or before the
+deadline of a [time box](tasks.md#a-deadline-over-part-of-a-flow-time-boxes) over
+part of the flow, is deferred. A resumed run repeats only the tasks whose inputs or
+definition changed.
+
+One TOML file chooses the coding agent, model, budget and credential for each kind
+of task, and the same task, plugin and config run on all five coding agents.
+`contraagent check` reports every problem and launches nothing. A stub agent, stub
+runs (runs that launch no coding agent) and recorded replays test a flow without
+spending anything. The read-only [monitor](monitor.md) shows each run, and a
+[hub](hub.md) serves the runs of many hosts in one monitor. A coding agent can write
+these pipelines too: this documentation is installed with the package
+(`contraagent docs`), and `contraagent docs --pointer` points a project's coding
+agent to it.
 
 ## Install
 
