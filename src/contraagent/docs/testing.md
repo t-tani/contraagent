@@ -80,6 +80,19 @@ how its call ended and its output file, which is what the flow receives from it.
 else of the working directory is kept. A task's first attempt in a run replaces its
 recording. Record on a real coding agent once, and commit the directory with the tests.
 
+A recorded file larger than 4 MB (`--record-max-file-mb N`, `Pipeline(record_max_file_mb=N)`)
+is kept by its SHA-256 and size only, so the directory stays small enough to commit; a
+warning names each one (`[record] <key>: <path> (<size>) stored by hash only`), and the run
+ends with one line on what it recorded:
+
+```
+[record] recordings/: 1,284 files, 212 MB | 3 files stored by hash | 2 tasks cannot be replayed: kinds extract, index
+```
+
+A task whose recording holds a file by hash only cannot be played: in a replay it ends
+`error` at once, its reason naming the file and its size. Run its kind with `--execute`
+(a Python task), record it again with a larger cap, or let `--record-missing` record it again.
+
 A **replay** (`--replay DIR`, `Pipeline(replay=DIR)`) plays those recordings in place of
 every agent task's launch and every Python task's function: attempt 1 the first
 recording, attempt 2 the second, past the last the last again. Each writes the recorded

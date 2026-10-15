@@ -428,6 +428,11 @@ class Run:
                 f"[context] {task.key}: peak context {peak} tokens{share}, past context_warn_pct {w.get('context_warn_pct')}%",
             )
 
+    def progress(self, line: str, *, warning: bool = False) -> None:
+        """A progress line of the run's (a recording's file kept by hash, its summary): to
+        the caller's `log`, else to this module's logger, at WARNING with `warning`."""
+        self._log(logging.WARNING if warning else logging.INFO, line)
+
     def _log(self, level: int, line: str) -> None:
         """A progress line to the caller's `log`, else to this module's logger at `level`:
         a refused duplicate or a flow callback that raised is a warning, a retry is routine."""

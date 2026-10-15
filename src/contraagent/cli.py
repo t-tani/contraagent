@@ -117,6 +117,14 @@ def main(argv: list[str] | None = None) -> int:
         "(but the kinds of --execute); nothing is spent (run id: <flow>-replay). Not with --stub or --record",
     )
     run.add_argument(
+        "--record-max-file-mb",
+        type=float,
+        default=None,
+        metavar="N",
+        help="with --record or --record-missing: keep a recorded file larger than N MB by its SHA-256 and size only "
+        "(default 4); its task cannot be replayed",
+    )
+    run.add_argument(
         "--record-missing",
         action="store_true",
         help="with --replay: a task with no recording in DIR launches (or runs its function) as in any run, and its "
@@ -234,6 +242,7 @@ def _flow_command(args) -> int:
             replay=replay,
             execute=args.execute if replay is not None else (),
             record_missing=bool(getattr(args, "record_missing", False)),
+            record_max_file_mb=getattr(args, "record_max_file_mb", None),
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "

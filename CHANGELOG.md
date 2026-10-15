@@ -70,7 +70,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Pipeline(replay=DIR, record_missing=True)` (`--replay DIR --record-missing`) plays the
   tasks that have a recording and launches (or runs) the others as in any run, recording
   them into DIR; such a run is no stub run, and a played attempt's journal row says
-  `replayed` (`JournalRow.replayed`).
+  `replayed` (`JournalRow.replayed`). A recorded file over 4 MB (`record_max_file_mb=`,
+  `--record-max-file-mb`) is kept by its SHA-256 and size only, with a warning naming it and
+  a closing line on what the run recorded; its task's recording cannot be played.
 - A claim capacity sized by the host: `claim_capacity={"index": PerTask(memory_mb=1500, cores=1)}`,
   or `index = { memory_mb = 1500, cores = 1 }` in `[defaults.claim_capacity]`, runs as many
   tasks that claim `index` at once as the host's free memory (`MemAvailable`, less what tasks

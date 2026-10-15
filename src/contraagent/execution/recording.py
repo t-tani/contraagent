@@ -11,6 +11,10 @@ without a launch or a call of the function:
         files/<path>                     what its `changes=` patterns saw created or modified
         stream.jsonl                     its part of the transcript, when transcripts are kept
 
+A file over the recording's cap (`max_file_mb`, default 4 MB, `Pipeline(record_max_file_mb=)`,
+`--record-max-file-mb`) is kept by its SHA-256 and size only (the entry's `by_hash`), so a
+recording stays small enough to commit; the task's recording cannot be played then.
+
 An agent task attempt's entry holds the facts of its last launch (stop, ok, final message,
 structured output, turns, agent, model, ...), the task's fingerprint, and the paths its
 patterns saw deleted. A Python task attempt's entry holds how its call ended (stop, ok,
@@ -35,12 +39,15 @@ on the same directory records it there; the tasks with one are played. A key
 minted with `~n` that has no recording of its own plays the first recording of its base
 key after it (`summarize-alpha~3`, `summarize-alpha~4`, ... for `summarize-alpha~2`)
 that no task of this run has played. A task
-with no recording ends `error` after one attempt: `no recording for <key>`. A recording made with another
+with no recording ends `error` after one attempt: `no recording for <key>`; so does a task
+whose recording holds a file by hash only, its reason naming the file. With `record_missing`
+such a recording counts as missing. A recording made with another
 fingerprint is played all the same; the result's reason says so.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import secrets
@@ -83,6 +90,24 @@ LAUNCH_FIELDS = (
 )
 
 _TILDE = re.compile(r"^(?P<base>.+)~(?P<n>[0-9]+)$")
+
+#: The size above which a recorded file is kept by hash only, in MB (MiB).
+MAX_FILE_MB = 4.0
+_MB = 1024 * 1024
+
+
+def megabytes(size: int) -> str:
+    """A file size in MB, for a line: `120 MB`, `4.5 MB`, `<0.1 MB`."""
+    mb = size / _MB
+    return f"{mb:,.0f} MB" if mb >= 10 else f"{mb:.1f} MB" if mb >= 0.05 else "<0.1 MB"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 class RecordingError(ContraagentError):
@@ -133,6 +158,8 @@ class Recorder:
     `outputs(task)`: an agent task's output contracts (`TaskAdapter.output_contracts`); `cwd`:
     where its changes and outputs are resolved; `run_dir`: the run whose transcripts are
     copied. It runs after the enricher that records the task's changes, so it sees them.
+    `max_file_mb`: an output or changed file larger is kept by hash only, and `log` is given
+    a line naming it; `summary()` is the line that sums up what this run recorded.
     """
 
     def __init__(
@@ -143,8 +170,16 @@ class Recorder:
         cwd: Path,
         run_dir: Path,
         run_id: str = "",
+        max_file_mb: float = MAX_FILE_MB,
+        log: Callable[[str], None] | None = None,
     ) -> None:
         self.directory = Path(directory)
+        self.max_file_mb = max_file_mb
+        self._log = log or (lambda line: None)
+        self._files = 0
+        self._bytes = 0
+        self._hashed = 0
+        self._unplayable: dict[str, str] = {}  # key -> kind, of the tasks with a file kept by hash
         self._outputs = outputs
         self._cwd = Path(cwd)
         self._run_dir = Path(run_dir)
@@ -164,12 +199,13 @@ class Recorder:
         if result.stop in (STOP_DEFERRED, STOP_INVALID_INPUT) or result.launch_result is None or result.replayed:
             return
         token, files = self._attempt_dir(task)
+        by_hash: list[dict[str, Any]] = []
 
         outputs: list[dict[str, Any]] = []
         for n, (out, message) in enumerate(_outputs(self._outputs(task), self._cwd)):
             name = f"output-{n}"
-            kept = _copy(out, files / name)
-            beside = _copy(message, files / f"{name}.message.txt")
+            kept = self._store(task, out, files / name, by_hash)
+            beside = self._store(task, message, files / f"{name}.message.txt", by_hash)
             outputs.append({"file": name if kept else None, "message": f"{name}.message.txt" if beside else None})
 
         changes = result.changes
@@ -178,7 +214,7 @@ class Recorder:
         if changes is not None:
             removed = set(changes.removed)
             for rel in (*changes.created, *changes.modified):
-                if rel not in removed and _copy(self._cwd / rel, files / "files" / rel):
+                if rel not in removed and self._store(task, self._cwd / rel, files / "files" / rel, by_hash):
                     written.append(rel)
             deleted = list(changes.deleted)
 
@@ -193,6 +229,7 @@ class Recorder:
         if part:
             _write(files / "stream.jsonl", part)
             stream = "stream.jsonl"
+            self._count(len(part))
 
         o: LaunchResult = result.launch_result
         launch = {name: getattr(o, name) for name in LAUNCH_FIELDS}
@@ -205,6 +242,7 @@ class Recorder:
             "written": written,
             "deleted": deleted,
             "stream": stream,
+            "by_hash": by_hash,
         }
         self._keep(task, "agent", attempt)
 
@@ -212,13 +250,63 @@ class Recorder:
         """Keep one call of a Python task's function: how it ended, `retry` (it raised an
         exception of its task's `retry_on`), and, when it completed, its output files."""
         token, files = self._attempt_dir(task)
+        by_hash: list[dict[str, Any]] = []
         kept: list[dict[str, Any]] = []
         for n, (out, message) in enumerate(_outputs(outputs, self._cwd)):
             name = f"output-{n}"
-            stored = result.stop == STOP_COMPLETED and _copy(out, files / name)
-            beside = result.stop == STOP_COMPLETED and _copy(message, files / f"{name}.message.txt")
+            stored = result.stop == STOP_COMPLETED and self._store(task, out, files / name, by_hash)
+            beside = result.stop == STOP_COMPLETED and self._store(task, message, files / f"{name}.message.txt", by_hash)
             kept.append({"file": name if stored else None, "message": f"{name}.message.txt" if beside else None})
-        self._keep(task, "python", {**self._facts(task, token, result), "retry_on": retry, "outputs": kept})
+        facts = {**self._facts(task, token, result), "retry_on": retry, "outputs": kept, "by_hash": by_hash}
+        self._keep(task, "python", facts)
+
+    def _store(self, task: Task, src: Path, dst: Path, by_hash: list[dict[str, Any]]) -> bool:
+        """Copy `src` into the recording; one over the cap goes to `by_hash` (its path, SHA-256
+        and size) instead. Whether its content was kept."""
+        try:
+            size = src.stat().st_size
+        except OSError:
+            return False
+        if size <= self.max_file_mb * _MB:
+            kept = _copy(src, dst)
+            if kept:
+                self._count(size)
+            return kept
+        shown = self._shown(src)
+        try:
+            by_hash.append({"path": shown, "sha256": _sha256(src), "bytes": size})
+        except OSError:
+            return False
+        with self._lock:
+            self._hashed += 1
+            self._unplayable[task.key] = kind_name(task.kind)
+        self._log(f"[record] {task.key}: {shown} ({megabytes(size)}) stored by hash only, over {self.max_file_mb:g} MB")
+        return False
+
+    def _count(self, size: int) -> None:
+        with self._lock:
+            self._files += 1
+            self._bytes += size
+
+    def _shown(self, path: Path) -> str:
+        """A recorded file's path for a line: relative to the working directory, or else to the run."""
+        for root in (self._cwd, self._run_dir):
+            try:
+                return path.resolve().relative_to(root.resolve()).as_posix()
+            except ValueError:
+                continue
+        return str(path)
+
+    def summary(self) -> str:
+        """What this run recorded, in one line: files and size, the files kept by hash only,
+        and the tasks those make unplayable, with their kinds."""
+        with self._lock:
+            facts = [f"{self._files:,} file{'s' if self._files != 1 else ''}, {megabytes(self._bytes)}"]
+            if self._hashed:
+                facts.append(f"{self._hashed:,} file{'s' if self._hashed != 1 else ''} stored by hash")
+                n, kinds = len(self._unplayable), sorted(set(self._unplayable.values()))
+                facts.append(f"{n} task{'s' if n != 1 else ''} cannot be replayed: kind{'s' if len(kinds) != 1 else ''} {', '.join(kinds)}")
+        return f"[record] {self.directory}: " + " | ".join(facts)
 
     def _attempt_dir(self, task: Task) -> tuple[str, Path]:
         """A fresh folder for one attempt's files: its name and its path."""
@@ -276,6 +364,8 @@ class _Playing:
     key: str | None  # the recorded key played; None when there is none
     attempts: list[dict] = field(default_factory=list)
     folder: Path | None = None
+    #: Why the recording cannot be played (a file kept by hash only); empty when it can.
+    blocked: str = ""
 
 
 class Replay:
@@ -354,13 +444,29 @@ class Replay:
                 self._playing[task.key].task = task
                 return self._playing[task.key]
             key = self._choose(task.key)
-            playing = _Playing(task=task, key=key)
+            blocked = self._blocked(task, key) if key is not None else ""
+            if blocked and self.record_missing:  # recorded again in full
+                key, blocked = None, ""
+            playing = _Playing(task=task, key=key, blocked=blocked)
             if key is not None:
                 self._played.add(key)
                 body, folder = self.recordings[key]
                 playing.attempts, playing.folder = list(body["attempts"]), folder
             self._playing[task.key] = playing
             return playing
+
+    def _blocked(self, task: Task, key: str) -> str:
+        """Why the recording `key` cannot be played for `task`: a file it keeps by hash only."""
+        body, _ = self.recordings[key]
+        for attempt in body.get("attempts") or ():
+            for kept in attempt.get("by_hash") or ():
+                kind = kind_name(task.kind)
+                fix = f"run kind {kind} with --execute" if task.fn is not None else "record it again with a larger --record-max-file-mb"
+                return (
+                    f"the recording of {key} holds {kept.get('path')} ({megabytes(int(kept.get('bytes') or 0))}) "
+                    f"by hash only: {fix}, or use --record-missing"
+                )
+        return ""
 
     def enrich(self, task: Task, before: None, result: TaskResult) -> None:
         """A played attempt is `replayed`; a task with no recording is not retried (no attempt
@@ -369,7 +475,9 @@ class Replay:
             playing = self._playing.get(task.key)
         if playing is None:
             return
-        if playing.key is not None and result.launch_result is not None:
+        if playing.blocked:
+            result.retryable = False
+        elif playing.key is not None and result.launch_result is not None:
             result.replayed = True
         elif playing.key is None and not self.record_missing:
             result.retryable = False
@@ -400,6 +508,8 @@ class Replay:
             if self.record_missing:
                 return None
             return TaskResult(task=task, ok=False, stop=STOP_ERROR, reason=f"no recording for {task.key}", retryable=False), False
+        if playing.blocked:
+            return TaskResult(task=task, ok=False, stop=STOP_ERROR, reason=playing.blocked, retryable=False), False
         attempt = playing.attempts[min(task.attempt, len(playing.attempts) - 1)]
         self._place(playing.folder / str(attempt.get("files", "")), attempt, outputs, cwd)
         reason = "; ".join([*self._notes(playing, task, attempt), *([attempt["reason"]] if attempt.get("reason") else [])])
@@ -442,7 +552,7 @@ class Replay:
         key = launch.env.get(envvars.TASK, launch.label)
         with self._lock:
             playing = self._playing.get(key)
-        if playing is None or playing.key is None or playing.folder is None:
+        if playing is None or playing.key is None or playing.folder is None or playing.blocked:
             return LaunchResult(
                 label=launch.label,
                 agent=agent,
@@ -450,7 +560,7 @@ class Replay:
                 ok=False,
                 model=launch.model,
                 credential=launch.credential.label,
-                stderr_tail=f"no recording for {key}",
+                stderr_tail=playing.blocked if playing is not None and playing.blocked else f"no recording for {key}",
                 cost_usd=0.0,
             )
         task = playing.task
@@ -562,4 +672,4 @@ class ReplayAgent(Backend):
         return real.run(launch) if real is not None else self.replay.play(launch, self.name)
 
 
-__all__ = ["Recorder", "RecordingError", "Replay", "ReplayAgent", "base_key", "safe_name"]
+__all__ = ["MAX_FILE_MB", "Recorder", "RecordingError", "Replay", "ReplayAgent", "base_key", "megabytes", "safe_name"]

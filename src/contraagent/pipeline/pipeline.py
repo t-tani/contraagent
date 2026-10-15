@@ -34,7 +34,7 @@ from contraagent.dispatch.flow import FlowCall, FlowDriver
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.queue import GRACE_S
 from contraagent.dispatch.task import Task, TaskResult
-from contraagent.execution.recording import Recorder, Replay
+from contraagent.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent.execution.run import Run, RunExists
 from contraagent.execution.runner import AgentRunner, RetryingRunner
 from contraagent.pipeline.adapter import SpecAdapter
@@ -110,6 +110,7 @@ class Pipeline:
         replay: str | Path | None = None,
         execute: Sequence[str] = (),
         record_missing: bool = False,
+        record_max_file_mb: float | None = None,
         **queue_options: Any,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
@@ -167,6 +168,11 @@ class Pipeline:
         (`run.json` `stub: false`, `replay` the directory); each played attempt's journal row
         says `replayed`. With it, `backends` and `preflight` are allowed; `record` and `stub`
         are not.
+        `record_max_file_mb`: with `record` or `record_missing`, the size in MB (MiB) above
+        which a recorded output or changed file is kept by its SHA-256 and size only, and a
+        warning names it (default 4); such a recording cannot be played. The run ends with
+        one line on what it recorded (files, size, files kept by hash, tasks that cannot be
+        replayed).
         `queue_options` go to the `WorkQueue` (`deadline_s`, `slack_s`, `finishing_kinds`,
         `overdue_s`, `claim_capacity`, ...); its docstring has the scheduling rules.
         `claim_capacity` outranks the config's `[defaults.claim_capacity]` key by key; a
@@ -180,6 +186,11 @@ class Pipeline:
         self.runs_dir = Path(runs_dir)
         if stub is not None and backends is not None:
             raise TypeError("Pipeline: give stub= or backends=, not both (a stub run's coding agents are the stub's)")
+        if record_max_file_mb is not None and record is None and not record_missing:
+            raise TypeError("Pipeline: record_max_file_mb= caps a recording's files; give record= (or replay= with record_missing=True)")
+        if record_max_file_mb is not None and not record_max_file_mb > 0:
+            raise ValueError(f"Pipeline: record_max_file_mb={record_max_file_mb!r} is not a positive number of MB")
+        self.record_max_file_mb = record_max_file_mb if record_max_file_mb is not None else MAX_FILE_MB
         if record_missing and replay is None:
             raise TypeError("Pipeline: record_missing= fills in a replay's recordings; give replay= the recordings directory")
         if replay is not None:
@@ -330,7 +341,15 @@ class Pipeline:
                     recorder = None
                     into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
                     if into is not None:  # last: it records the result the enrichers leave
-                        recorder = Recorder(into, adapter.output_contracts, cwd=self.cwd, run_dir=run_dir, run_id=run.run_id)
+                        recorder = Recorder(
+                            into,
+                            adapter.output_contracts,
+                            cwd=self.cwd,
+                            run_dir=run_dir,
+                            run_id=run.run_id,
+                            max_file_mb=self.record_max_file_mb,
+                            log=lambda line: run.progress(line, warning=True),
+                        )
                         enrichers.append(recorder)
                     # A pure replay plays each attempt's last launch: it walks no failover hop.
                     pure = self.replay is not None and not self.replay.record_missing
@@ -368,6 +387,8 @@ class Pipeline:
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
+            if recorder is not None:
+                run.progress(recorder.summary())
             run.finish()
             errors = [c for c in driver.calls.values() if c.parent is None and c.state == "raised"]
             return RunReport(

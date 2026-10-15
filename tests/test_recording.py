@@ -275,6 +275,41 @@ def test_record_missing_runs_a_python_task_with_no_recording_and_records_it(tmp_
     assert json.loads((tmp_path / "new" / "count" / "python_count.json").read_text())["attempts"][0]["stop"] == "completed"
 
 
+def test_a_file_over_the_cap_is_kept_by_hash_and_its_task_cannot_be_replayed(tmp_path):
+    lines: list[str] = []
+    cwd = tree(tmp_path / "live")
+    rec = tmp_path / "rec"
+    pipeline = Pipeline(runs_dir=tmp_path / "runs", cwd=cwd, stub=stub(), record=rec, record_max_file_mb=1e-6, log=lines.append)
+    live = pipeline.run(lambda units: [write(units[0]), count(notes=[Note(title="a")] * 10)], units=["alpha"])
+    assert live.ok, live.failed
+    hashed = [line for line in lines if "stored by hash only" in line]
+    assert any(line.startswith("[record] write-alpha: out/write/alpha.json (<0.1 MB)") for line in hashed), lines
+    body = json.loads((tmp_path / "rec" / "write" / "write-alpha.json").read_text())
+    assert {k["path"] for k in body["attempts"][0]["by_hash"]} >= {"out/write/alpha.json", "topics/alpha/old.md"}
+    assert not list((tmp_path / "rec" / "write" / "write-alpha").rglob("alpha.json"))
+    summary = lines[-1]
+    assert summary.startswith(f"[record] {rec}: ")
+    assert summary.endswith("files stored by hash | 2 tasks cannot be replayed: kinds count, write")
+
+    played = replay(tmp_path, flow_=lambda units: [write(units[0]), count(notes=[Note(title="a")] * 10)], units=["alpha"])
+    agent, python = played.results["write-alpha"], played.results["python:count"]
+    assert agent.stop == python.stop == "error"
+    assert agent.reason.startswith("the recording of write-alpha holds out/write/alpha.json (<0.1 MB) by hash only: record it again")
+    assert python.reason.endswith("by hash only: run kind count with --execute, or use --record-missing")
+    assert [r["key"] for r in journal(played)].count("write-alpha") == 1  # not retried
+
+    ran.clear()
+    executed = replay(tmp_path, flow_=lambda units: count(notes=[]), name="executed", execute=["count"])
+    assert executed.ok and ran == ["count"]
+
+    agent = stub()
+    runs, cwd = tmp_path / "fill-runs", tree(tmp_path / "fill")
+    filled = Pipeline(PipelineConfig({}), runs_dir=runs, cwd=cwd, replay=rec, record_missing=True, backends=agent.backends())
+    assert filled.run(lambda: write("alpha")).ok
+    assert [launch.key for launch in agent.launches] == ["write-alpha"]  # a recording by hash counts as missing
+    assert json.loads((rec / "write" / "write-alpha.json").read_text())["attempts"][0]["by_hash"] == []
+
+
 def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
     with pytest.raises(TypeError, match="give replay= the recordings directory"):
         Pipeline(record_missing=True)
@@ -283,3 +318,7 @@ def test_record_missing_is_refused_where_it_cannot_record(tmp_path):
             Pipeline(replay=tmp_path / "rec", record_missing=True, **given)
     with pytest.raises(TypeError, match="execute= is for a replay"):
         Pipeline(execute=["count"])
+    with pytest.raises(TypeError, match="record_max_file_mb= caps a recording's files"):
+        Pipeline(record_max_file_mb=10)
+    with pytest.raises(ValueError, match="not a positive number"):
+        Pipeline(record=tmp_path / "x", record_max_file_mb=0)
