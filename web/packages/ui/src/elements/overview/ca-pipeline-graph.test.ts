@@ -100,7 +100,7 @@ describe('ca-pipeline-graph', () => {
     expect([...m.querySelectorAll('table.matrix thead th.group')].map((n) => n.textContent)).toEqual(['Pass 1', 'Pass 2']);
   });
 
-  it('sets the route right, after the update, for a layer the run does not have', async () => {
+  it('sets the view route right, after the update, for a layer the run does not have', async () => {
     const { root, sent } = await graph(staticDemo(), { layer: 'flows.gone' });
     await Promise.resolve();
     expect(sent.map((e) => e.detail)).toEqual([{ layer: '', unit: '', sel: '', replace: true }]);

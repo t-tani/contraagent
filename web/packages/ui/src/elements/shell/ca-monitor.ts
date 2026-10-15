@@ -19,8 +19,8 @@ import type { ChooseThemeDetail, FilterDetail, NavigateDetail, OpenTaskDetail, S
 import { LOCALE_NAMES, allLocales, chooseLocale, configureLocales, getLocale, isLocale, type Locale } from '../../core/i18n.js';
 import { LocalMemory, flushMemory, keepMemory, memoryOf } from '../../core/memory.js';
 import { ScrollMemory } from '../../core/scroll.js';
-import type { Route, RoutePatch, Tab } from '../../core/route.js';
-import { Router, type RouteCause, type RouterMode } from '../../core/router.js';
+import type { ViewRoute, ViewRoutePatch, Tab } from '../../core/view-route.js';
+import { ViewRouter, type ViewRouteCause, type ViewRouterMode } from '../../core/view-router.js';
 import { LocaleController } from '../../controllers/locale.js';
 import { ShortcutsController, isShortcutScope, type ShortcutScope } from '../../controllers/shortcuts.js';
 import { ThemeController } from '../../controllers/theme.js';
@@ -55,7 +55,7 @@ const Q_DEBOUNCE_MS = 250;
 
 /**
  * The whole monitor: header, run switcher, tabs, filters and the views, live.
- * It owns the data (`MonitorStore`) and the route (`Router`); every view below
+ * It owns the data (`MonitorStore`) and the view route (`ViewRouter`); every view below
  * it only renders what it is given and sends `ca-*` events back up.
  */
 @customElement('ca-monitor')
@@ -82,15 +82,15 @@ export class CaMonitor extends LitElement {
    */
   @property({ attribute: 'export' }) exportUrl = '';
   /**
-   * `url`: the monitor is the page. The route lives in the address bar (Back
+   * `url`: the monitor is the page. The view route lives in the address bar (Back
    * and reload return to it), and the monitor sets the page's title, `lang` and
-   * theme. `memory`: for a monitor embedded in another page. The route, the
+   * theme. `memory`: for a monitor embedded in another page. The view route, the
    * scroll positions and the open sections live in the element, and the page's
    * URL, history, title and `<html>` attributes stay the host's. A change after
-   * connecting takes effect at once: `memory` keeps the route shown, `url`
+   * connecting takes effect at once: `memory` keeps the view route shown, `url`
    * reads the address bar's.
    */
-  @property() history: RouterMode = 'url';
+  @property() history: ViewRouterMode = 'url';
   /**
    * Where the single-key shortcuts (1 to 9 for the tabs, `r` for the runs, `/`
    * for the filter) work: `page`, anywhere in the page except in a text field;
@@ -120,7 +120,7 @@ export class CaMonitor extends LitElement {
   @property({ type: Boolean, reflect: true }) live = false;
 
   @state() private snap!: MonitorSnapshot;
-  @state() private route!: Route;
+  @state() private viewRoute!: ViewRoute;
   @state() private pickerOpen = false;
   /** The filter text as typed, ahead of the URL. */
   @state() private qDraft: string | null = null;
@@ -139,14 +139,14 @@ export class CaMonitor extends LitElement {
     wrap: true,
   });
   private store!: MonitorStore;
-  private router!: Router;
-  /** The `baseUrl` the store was made for, and the `history` the router was. */
+  private viewRouter!: ViewRouter;
+  /** The `baseUrl` the store was made for, and the `history` the view router was. */
   private storeBase = '';
-  private routerMode: RouterMode = 'url';
+  private viewRouterMode: ViewRouterMode = 'url';
   /** Stop listening to the store. */
   private readonly storeCleanups: (() => void)[] = [];
   private readonly mainScroll = new ScrollMemory('main', () => memoryOf(this));
-  private pendingScroll: RouteCause | null = null;
+  private pendingScroll: ViewRouteCause | null = null;
   private qTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly cleanups: (() => void)[] = [];
   /** The scroll positions and open sections, with `history="memory"`. */
@@ -180,7 +180,7 @@ export class CaMonitor extends LitElement {
     adoptThemes(this.ownerDocument);
     super.connectedCallback();
     this.openStore();
-    this.openRouter();
+    this.openViewRouter();
     void this.store.start();
     this.cleanups.push(() => {
       this.listenOutside(false);
@@ -231,21 +231,21 @@ export class CaMonitor extends LitElement {
   }
 
   /**
-   * A router for `history`, started at the `run` property's run; when it replaces
-   * another router, `memory` starts at the route shown and `url` at the address bar's.
+   * A view router for `history`, started at the `run` property's run; when it replaces
+   * another view router, `memory` starts at the view route shown and `url` at the address bar's.
    */
-  private openRouter(): void {
-    this.routerMode = this.history;
+  private openViewRouter(): void {
+    this.viewRouterMode = this.history;
     keepMemory(this, this.history === 'memory' ? this.localMemory : null);
-    const at = !this.route ? (this.run ? { run: this.run } : {}) : this.history === 'memory' ? this.route : {};
-    this.router = new Router(this.history, (route, cause) => this.onRoute(route, cause), at, flushMemory);
-    this.router.start();
+    const at = !this.viewRoute ? (this.run ? { run: this.run } : {}) : this.history === 'memory' ? this.viewRoute : {};
+    this.viewRouter = new ViewRouter(this.history, (viewRoute, cause) => this.onViewRoute(viewRoute, cause), at, flushMemory);
+    this.viewRouter.start();
   }
 
   /**
    * A connection property changed while connected: a new `base-url` gets a new
    * store (the feeds of the old one close) and the run named by `run`, else the
-   * newest of the new server's; a new `history` gets a new router; a new `run` opens it.
+   * newest of the new server's; a new `history` gets a new view router; a new `run` opens it.
    */
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (!this.isConnected || !this.store) return;
@@ -253,12 +253,12 @@ export class CaMonitor extends LitElement {
       this.closeStore();
       this.openStore();
       this.navigate({ run: this.run }, { replace: true });
-      this.store.selectRun(this.route.run);
+      this.store.selectRun(this.viewRoute.run);
       void this.store.start();
     }
-    if (this.history !== this.routerMode) {
-      this.router.stop();
-      this.openRouter();
+    if (this.history !== this.viewRouterMode) {
+      this.viewRouter.stop();
+      this.openViewRouter();
     }
     if (changed.has('run') && changed.get('run') !== undefined && this.run) this.navigate({ run: this.run });
   }
@@ -293,25 +293,25 @@ export class CaMonitor extends LitElement {
     super.disconnectedCallback();
     for (const fn of this.cleanups.splice(0)) fn();
     keepMemory(this, null);
-    this.router.stop();
+    this.viewRouter.stop();
     this.closeStore();
     this.mainScroll.detach();
   }
 
-  /** Go elsewhere: the route changes, and with it the URL (pushing an entry for a new place). */
-  navigate(patch: RoutePatch, opts: { replace?: boolean } = {}): void {
-    this.router.navigate(patch, opts);
+  /** Go elsewhere: the view route changes, and with it the URL (pushing an entry for a new place). */
+  navigate(patch: ViewRoutePatch, opts: { replace?: boolean } = {}): void {
+    this.viewRouter.navigate(patch, opts);
   }
 
-  private onRoute(route: Route, cause: RouteCause): void {
-    const before = this.route;
-    this.route = route;
+  private onViewRoute(viewRoute: ViewRoute, cause: ViewRouteCause): void {
+    const before = this.viewRoute;
+    this.viewRoute = viewRoute;
     if (cause !== 'replace') this.qDraft = null;
-    this.store.selectRun(route.run);
+    this.store.selectRun(viewRoute.run);
     // Another tab of the same trends shows what is loaded already.
-    const sameTrends = before?.page === 'trends' && JSON.stringify(trendsQuery(before)) === JSON.stringify(trendsQuery(route));
-    if (route.page !== 'trends') this.store.closeTrends();
-    else if (!sameTrends) void this.store.loadTrends(trendsQuery(route));
+    const sameTrends = before?.page === 'trends' && JSON.stringify(trendsQuery(before)) === JSON.stringify(trendsQuery(viewRoute));
+    if (viewRoute.page !== 'trends') this.store.closeTrends();
+    else if (!sameTrends) void this.store.loadTrends(trendsQuery(viewRoute));
     this.pickDefaultRun();
     if (cause !== 'replace') this.pendingScroll = cause;
   }
@@ -322,13 +322,13 @@ export class CaMonitor extends LitElement {
    */
   private pickDefaultRun(): void {
     const { info, runs } = this.snap;
-    if (this.route.page === 'trends') return;
-    if (this.route.page === 'hosts') {
+    if (this.viewRoute.page === 'trends') return;
+    if (this.viewRoute.page === 'hosts') {
       if (!info.api_version || info.hosts) return;
       this.navigate({ page: '' }, { replace: true });
     }
     const first = runs[0];
-    if (!this.route.run && first) this.navigate({ run: first.run }, { replace: true });
+    if (!this.viewRoute.run && first) this.navigate({ run: first.run }, { replace: true });
   }
 
   private onKey(e: KeyboardEvent): void {
@@ -338,7 +338,7 @@ export class CaMonitor extends LitElement {
     } else if (e.key === '/') {
       e.preventDefault();
       this.renderRoot.querySelector<HTMLInputElement>('.bar input')?.focus();
-    } else if (/^[1-9]$/.test(e.key) && !this.route.page) {
+    } else if (/^[1-9]$/.test(e.key) && !this.viewRoute.page) {
       const tab = monitorTabs(this.snap.info.panels)[Number(e.key) - 1];
       if (tab) this.navigate({ tab: tab.id });
     }
@@ -346,7 +346,7 @@ export class CaMonitor extends LitElement {
 
   /** The index of the selected tab in the tab list, or -1 (a custom view the run does not have). */
   private selectedTab(): number {
-    return monitorTabs(this.snap.info.panels).findIndex((t) => t.id === this.route.tab);
+    return monitorTabs(this.snap.info.panels).findIndex((t) => t.id === this.viewRoute.tab);
   }
 
   /** Close the run picker; the focus goes back to the button that opens it when it was in the picker. */
@@ -363,7 +363,7 @@ export class CaMonitor extends LitElement {
     this.listenOutside(this.isConnected && this.pickerOpen);
     this.observeNav();
     // Tab comes back into the tab list on the selected tab.
-    if (this.snap && this.route) this.tabFocus.set(Math.max(0, this.selectedTab()));
+    if (this.snap && this.viewRoute) this.tabFocus.set(Math.max(0, this.selectedTab()));
     moveTabIndicator(this.renderRoot);
     if (this.main) this.mainScroll.attach(this.main);
     if (this.pendingScroll) {
@@ -401,15 +401,15 @@ export class CaMonitor extends LitElement {
   }
 
   override render() {
-    if (!this.snap || !this.route) return nothing;
-    const { snap, route } = this;
+    if (!this.snap || !this.viewRoute) return nothing;
+    const { snap, viewRoute } = this;
     const acts = liveActivities(snap.state.procs);
     const derived = deriveRun(snap.state.journal, snap.state.plan);
     const tab = this.selectedTab();
     const keys = this.shortcutScope !== 'off';
     const hub = !!snap.info.hosts;
-    const hostsPage = route.page === 'hosts';
-    const trendsPage = route.page === 'trends';
+    const hostsPage = viewRoute.page === 'hosts';
+    const trendsPage = viewRoute.page === 'trends';
     return html`
       <header>
         ${brand(snap.info.title)}
@@ -431,18 +431,18 @@ export class CaMonitor extends LitElement {
             : connection(snap.connected)}
           <ca-clock class="clock"></ca-clock>
         </div>
-        <ca-run-picker .runs=${snap.runs} current=${route.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} page=${route.page}
+        <ca-run-picker .runs=${snap.runs} current=${viewRoute.run} ?open=${this.pickerOpen} ?hub=${hub} .hosts=${snap.hosts?.hosts ?? []} page=${viewRoute.page}
           @ca-close=${() => this.closePicker()}></ca-run-picker>
       </header>
       ${hostsPage
         ? html`${this.renderApiError()}<main id="main"><ca-hosts .hosts=${snap.hosts}></ca-hosts></main>`
         : trendsPage
-        ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${route.days} from=${route.from} to=${route.to}
-            tz=${route.tz || browserZone()} group=${route.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
-            tab=${route.trendsTab} ?exported=${!!snap.info.export}></ca-trends></main>`
+        ? html`${this.renderApiError()}<main id="main"><ca-trends .view=${snap.trends} days=${viewRoute.days} from=${viewRoute.from} to=${viewRoute.to}
+            tz=${viewRoute.tz || browserZone()} group=${viewRoute.group} .groups=${runGroups(snap.runs)} .panels=${snap.info.panels}
+            tab=${viewRoute.trendsTab} ?exported=${!!snap.info.export}></ca-trends></main>`
         : html`${this.renderTabs(derived, acts.length)} ${this.renderBar(derived)} ${this.renderApiError()}
-            <main id="main" class=${route.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
-              >${tabView({ snap, route, derived, q: this.qDraft ?? route.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
+            <main id="main" class=${viewRoute.tab === 'stream' ? 'stream' : ''} role="tabpanel" aria-labelledby=${tab >= 0 ? tabId(tab) : nothing}
+              >${tabView({ snap, viewRoute, derived, q: this.qDraft ?? viewRoute.q, client: this.store.client, baseUrl: this.store.client.baseUrl })}</main>`}
       <ca-toasts></ca-toasts>
     `;
   }
@@ -453,13 +453,13 @@ export class CaMonitor extends LitElement {
    * the run line, which the button may cut), its run line.
    */
   private runLabel(hub: boolean, derived: RunDerived) {
-    const { snap, route } = this;
+    const { snap, viewRoute } = this;
     const summary = runRow(snap.runs, snap.run);
     const activity = runActivity(summary, !!snap.state.procs?.alive);
     const dot = runTone(activity, summary?.tasks);
     const host = hub ? (summary?.host_id ?? '') : '';
     return html`<span class="dot" data-tone=${toneAttr(dot)} aria-hidden="true"></span>
-      <span class="rn" title=${host ? route.run : nothing}>${summary && host ? runIdOf(summary) : route.run || '—'}</span>
+      <span class="rn" title=${host ? viewRoute.run : nothing}>${summary && host ? runIdOf(summary) : viewRoute.run || '—'}</span>
       ${host ? html`<span class="hostchip" title=${hostFact(host)}><span class="sr">${hostFact(host)}</span><span aria-hidden="true">${host}</span></span>` : nothing}
       ${activity === 'unresponsive' ? pill({ text: noReportLabel(), tone: 'attention', title: lastReport(hostOf(snap.hosts?.hosts, summary)) }) : nothing}
       ${runMark(summary) ? pill({ ...runMark(summary)!, tone: 'muted' }) : nothing}
@@ -497,22 +497,22 @@ export class CaMonitor extends LitElement {
           : id === 'procs'
             ? [state.procs?.alive ? busy || '' : '', 'running']
             : null;
-    return tabBar(monitorTabs(this.snap.info.panels), this.route.tab, badge, (id) => this.navigate({ tab: id }), 'main', this.shortcutScope !== 'off');
+    return tabBar(monitorTabs(this.snap.info.panels), this.viewRoute.tab, badge, (id) => this.navigate({ tab: id }), 'main', this.shortcutScope !== 'off');
   }
 
   private renderBar(d: RunDerived) {
-    const { route } = this;
-    if (route.tab !== 'tasks' && route.tab !== 'journal') return nothing;
+    const { viewRoute } = this;
+    if (viewRoute.tab !== 'tasks' && viewRoute.tab !== 'journal') return nothing;
     const { counts, kinds } = d;
     const total = counts.total;
     return html`<div class="bar">
       <select title=${msg('Kind')} aria-label=${msg('Kind')} @change=${(e: Event) => this.navigate({ kind: (e.target as HTMLSelectElement).value })}>
-        <option value="" ?selected=${!route.kind}>${msg('All kinds')}</option>
-        ${kinds.map((k) => html`<option ?selected=${k === route.kind}>${k}</option>`)}
+        <option value="" ?selected=${!viewRoute.kind}>${msg('All kinds')}</option>
+        ${kinds.map((k) => html`<option ?selected=${k === viewRoute.kind}>${k}</option>`)}
       </select>
-      <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? route.q}
+      <input placeholder=${msg('Filter')} aria-label=${msg('Text filter')} size="22" title=${this.shortcutScope !== 'off' ? msg('Text filter (/)') : msg('Text filter')} .value=${this.qDraft ?? viewRoute.q}
         @input=${(e: Event) => this.setQ((e.target as HTMLInputElement).value)} />
-      <span class="meta">${route.tab === 'journal'
+      <span class="meta">${viewRoute.tab === 'journal'
         ? triesLine(d.tries)
         : total === 1 ? msg('1 task') : msg(str`${total} tasks`)}</span>
     </div>`;

@@ -1,5 +1,5 @@
 // The layers of the run's flow: the graph of one, the one the graph opens on, and
-// the layer a route's segments name.
+// the layer a view route's segments name.
 import type { Plan } from '@contraagent/api';
 import { arrange, type GraphOrder } from '@contraagent/elements/graph';
 import { indexOf, instanceOf, placeOf, shortName, startsWith, type FlowTask } from './flow-index.js';

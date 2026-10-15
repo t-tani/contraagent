@@ -1,5 +1,5 @@
 // Where the monitor is: one typed value, kept in the URL. Pure: parsing and
-// formatting only; `router.ts` binds it to the browser's history.
+// formatting only; `view-router.ts` binds it to the browser's history.
 
 export const BUILTIN_TABS = ['overview', 'tasks', 'journal', 'outputs', 'definitions', 'procs', 'stream'] as const;
 export type BuiltinTab = (typeof BUILTIN_TABS)[number];
@@ -16,7 +16,7 @@ export type Page = '' | 'hosts' | 'trends';
 /** The lengths of a period the trends page offers, in days, ending today. */
 export const TREND_DAYS = [7, 14, 30] as const;
 
-export interface Route {
+export interface ViewRoute {
   /** '' for a run's views; `hosts` for the hosts (on a hub), with no run. */
   page: Page;
   /** The run; '' until one is picked. */
@@ -54,9 +54,9 @@ export interface Route {
   trendsTab: string;
 }
 
-export type RoutePatch = Partial<Route>;
+export type ViewRoutePatch = Partial<ViewRoute>;
 
-export const DEFAULT_ROUTE: Route = {
+export const DEFAULT_VIEW_ROUTE: ViewRoute = {
   page: '',
   run: '',
   tab: 'overview',
@@ -81,7 +81,7 @@ export const DEFAULT_ROUTE: Route = {
 const isTab = (t: string): t is Tab => (BUILTIN_TABS as readonly string[]).includes(t) || /^panel:.+/.test(t);
 const isTaskView = (v: string): v is TaskView => (TASK_VIEWS as readonly string[]).includes(v);
 
-export function parseRoute(search: string): Route {
+export function parseViewRoute(search: string): ViewRoute {
   const p = new URLSearchParams(search);
   const tab = p.get('tab') ?? '';
   const view = p.get('view') ?? '';
@@ -107,7 +107,7 @@ export function parseRoute(search: string): Route {
     layer: p.get('layer') ?? '',
     unit: p.get('unit') ?? '',
     sel: p.get('sel') ?? '',
-    days: range ? 0 : (TREND_DAYS as readonly number[]).includes(days) ? days : DEFAULT_ROUTE.days,
+    days: range ? 0 : (TREND_DAYS as readonly number[]).includes(days) ? days : DEFAULT_VIEW_ROUTE.days,
     from: range ? from : '',
     to: range ? to : '',
     tz: p.get('tz') ?? '',
@@ -116,15 +116,15 @@ export function parseRoute(search: string): Route {
   };
 }
 
-/** The query string for a route: only what differs from the defaults, and only what its tab uses. */
-export function formatRoute(r: Route): string {
+/** The query string for a view route: only what differs from the defaults, and only what its tab uses. */
+export function formatViewRoute(r: ViewRoute): string {
   if (r.page === 'hosts') return '?page=hosts';
   if (r.page === 'trends') {
     const p = new URLSearchParams({ page: 'trends' });
     if (r.days === 0 && r.from && r.to) {
       p.set('from', r.from);
       p.set('to', r.to);
-    } else if (r.days !== DEFAULT_ROUTE.days) p.set('days', String(r.days));
+    } else if (r.days !== DEFAULT_VIEW_ROUTE.days) p.set('days', String(r.days));
     if (r.tz) p.set('tz', r.tz);
     if (r.group) p.set('group', r.group);
     if (r.trendsTab) p.set('tab', r.trendsTab);
@@ -152,7 +152,7 @@ export function formatRoute(r: Route): string {
 }
 
 /** Apply a patch. Leaving a task (another key, run) forgets its view and round; another run forgets every selection. */
-export function applyPatch(r: Route, patch: RoutePatch): Route {
+export function applyPatch(r: ViewRoute, patch: ViewRoutePatch): ViewRoute {
   const next = { ...r, ...patch };
   if (patch.run !== undefined && patch.run !== r.run) {
     Object.assign(next, { key: null, def: null, round: null, layer: '', unit: '', sel: '', ...patch });
@@ -171,7 +171,7 @@ export function applyPatch(r: Route, patch: RoutePatch): Route {
  * so Back returns) or only a refinement of this one (the entry is replaced, so
  * typing in a filter, highlighting a unit or selecting in the graph does not fill the history).
  */
-export function isNewPlace(a: Route, b: Route): boolean {
-  const place = (r: Route) => formatRoute({ ...r, kind: '', stop: '', q: '', unit: '', sel: '' });
+export function isNewPlace(a: ViewRoute, b: ViewRoute): boolean {
+  const place = (r: ViewRoute) => formatViewRoute({ ...r, kind: '', stop: '', q: '', unit: '', sel: '' });
   return place(a) !== place(b);
 }

@@ -10,7 +10,7 @@ generic parts they are built from (design tokens, themes, primitives, `cae-*`
 elements) are [`@contraagent/elements`](../elements/README.md), a package of
 its own for pages that need no contraagent data.
 
-The words used here (run, task, attempt, round, element, route, ...) are
+The words used here (run, task, attempt, round, element, view route, ...) are
 contraagent's, each with one meaning: `contraagent docs concepts` in the Python
 package.
 
@@ -77,7 +77,7 @@ pnpm add <checkout>/web/tarballs/*.tgz
 
 - [Embed the monitor](docs/embed.md): the whole monitor inside a page or an application of your own.
 - [Live data](docs/live-data.md): elements fed by the client, the live feeds and the store.
-- [Events and routing](docs/events.md): what elements ask for, and how the monitor keeps the reader's place.
+- [Events and the view route](docs/events.md): what elements ask for, and how the monitor keeps the reader's place.
 - [Theming](docs/theming.md): colours and fonts as `--ca-*` custom properties.
 - [Languages](docs/languages.md): English and Japanese, and how to add a language.
 

@@ -1,9 +1,9 @@
-# Events and routing
+# Events and the view route
 
 ## Events
 
 An element never changes what is shown on its own. It sends an event saying
-what the reader asked for; its host decides. The monitor changes its route;
+what the reader asked for; its host decides. The monitor changes its view route;
 another page might open its own view, or ignore it. Each event crosses shadow
 roots and all but `ca-rounds` bubble, so you can listen on any ancestor, and
 each is typed in `HTMLElementEventMap`:
@@ -16,12 +16,12 @@ document.addEventListener('ca-open-task', (e) => {
 });
 ```
 
-## The route
+## The view route
 
 `<ca-monitor>` keeps one typed value for where the reader is, and mirrors it in
 the URL (or in memory, with `history="memory"`):
 
-::code{file="../src/core/route.ts" from="export interface Route" to="export type RoutePatch"}
+::code{file="../src/core/view-route.ts" from="export interface ViewRoute" to="export type ViewRoutePatch"}
 
 Moving to another place (a tab, a task, a view, a round, a definition, a run)
 pushes a history entry, so Back returns. Changing a filter replaces the entry,
@@ -30,7 +30,7 @@ so typing does not fill the history.
 ## The reader's place
 
 What the URL does not say is kept in the history entry itself
-(`history.state`, under one key, merged with whatever a host's router keeps
+(`history.state`, under one key, merged with whatever the host keeps
 there): how far each list is scrolled and which cards are open. Back, Forward
 and a reload return to it; a new place starts at the top. Restoring waits until
 the content, which arrives over the network, is tall enough to scroll to the

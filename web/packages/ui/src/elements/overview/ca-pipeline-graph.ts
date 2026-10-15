@@ -95,7 +95,7 @@ const EMPTY_LAYER: LayerGraph = {
  * and the tasks joined to it, as the selected mark does. The graph opens on the first
  * layer with more than one node (a static flow's kinds), or on a single function node
  * whose flow call raised; a layer the run does not have opens that one, with a line
- * naming it, and the route is set right in place (a function named by its qualified
+ * naming it, and the view route is set right in place (a function named by its qualified
  * name alone opens its layer when the run reaches it by one flow path). A loop's
  * passes are a row per unit and a column per node and pass, a nested loop's passes as
  * a group of columns inside each pass of the outer one, the units sortable by number
@@ -105,7 +105,7 @@ const EMPTY_LAYER: LayerGraph = {
  * loop's passes, "Graph" opens the layer the loop is in, with its box selected.
  *
  * @fires ca-open-task - `{key, view?}`: a mark's task detail was opened (a task that did not start opens on its input, a Python task on its output)
- * @fires ca-navigate - `{sel}`: a mark, a node, a table row or a loop box was selected, or the selection cleared; `{tab: 'tasks', kind}`: a kind node's tasks (`kind` '' for a node of several kinds); `{layer, unit?}`: a function's layer, a loop's passes, a flow call's function or the breadcrumb, or Escape; `{layer, unit, sel}`: "Graph" in a loop's passes, its box selected; `{layer, unit, sel, replace: true}`: the route's layer set right
+ * @fires ca-navigate - `{sel}`: a mark, a node, a table row or a loop box was selected, or the selection cleared; `{tab: 'tasks', kind}`: a kind node's tasks (`kind` '' for a node of several kinds); `{layer, unit?}`: a function's layer, a loop's passes, a flow call's function or the breadcrumb, or Escape; `{layer, unit, sel}`: "Graph" in a loop's passes, its box selected; `{layer, unit, sel, replace: true}`: the view route's layer set right
  */
 @customElement('ca-pipeline-graph')
 @localized()
@@ -147,9 +147,9 @@ export class CaPipelineGraph extends LitElement {
   private tall = false;
   /** A loop's passes: how its units are sorted. */
   private sort: MatrixSort = 'order';
-  /** The layer the route named that this run does not have (shown once the graph fell back to its opening layer). */
+  /** The layer the view route named that this run does not have (shown once the graph fell back to its opening layer). */
   private missing = '';
-  /** The route's layer to set right after this update, and that change, which is not the reader's. */
+  /** The view route's layer to set right after this update, and that change, which is not the reader's. */
   private fixLayer: string | null = null;
   private replacing = false;
 
@@ -226,7 +226,7 @@ export class CaPipelineGraph extends LitElement {
       this.auto = autoLayer(this.plan);
       this.segments = this.layer ? this.layer.split('/') : this.auto;
       // A layer the plan does not have (a stale link, a typo): the one it names when that is
-      // unique, else the opening layer; either way the route is set right in place, once this update is done.
+      // unique, else the opening layer; either way the view route is set right in place, once this update is done.
       if (this.layer && this.plan.nodes.length) {
         const found = resolveLayer(this.plan, this.segments);
         if (!found) {
@@ -379,7 +379,7 @@ export class CaPipelineGraph extends LitElement {
       if (el) void el.updateComplete.then(() => el.focusToggle(id));
     }
     if (this.fixLayer !== null) {
-      // Set the route's layer right, in place: the reader did not go anywhere.
+      // Set the view route's layer right, in place: the reader did not go anywhere.
       const layer = this.fixLayer;
       this.fixLayer = null;
       this.replacing = true;

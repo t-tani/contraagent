@@ -5,7 +5,7 @@ import { isRunPanel, type Info } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
-import type { Tab } from '../../core/route.js';
+import type { Tab } from '../../core/view-route.js';
 import type { Tone } from '../../lib/tone.js';
 
 export interface TabInfo {

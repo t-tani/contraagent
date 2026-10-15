@@ -1,10 +1,10 @@
 # Embed the monitor
 
 `<ca-monitor>` is the complete monitor: header, run switcher, tabs, filters,
-views and notifications. It holds the data (a `MonitorStore`) and the route.
+views and notifications. It holds the data (a `MonitorStore`) and the view route.
 Its attributes (`base-url`, `history`, `shortcuts`, `run`, `locale`, `theme`) are described in
 `custom-elements.json`. `history="url"` suits a page that is the monitor;
-inside an application with its own router, use `history="memory"`.
+inside an application that manages its own URL, use `history="memory"`.
 
 ## What the host page keeps
 
@@ -12,7 +12,7 @@ With `history="memory"`, the monitor leaves the page to its host:
 
 | | `history="url"` (the monitor is the page) | `history="memory"` (embedded) |
 |---|---|---|
-| Route (run, tab, filters) | the URL's query; Back and Forward | the element; the URL and the history are the host's |
+| View route (run, tab, filters) | the URL's query; Back and Forward | the element; the URL and the history are the host's |
 | Scroll positions, open sections | the page's history entry, under `contraagent` | the element |
 | `document.title` | "<title> monitor" | not written |
 | `<html lang>`, `<html data-ca-theme>` | follow the monitor's language and theme | not written; `lang` and `data-ca-theme` are set on `<ca-monitor>` |
@@ -30,7 +30,7 @@ While the run switcher or the theme menu is open, a click elsewhere in the page
 closes it. The monitor listens on the document for that click only while one
 of them is open, and neither stops nor prevents it.
 
-Two monitors on one page each keep their own route, scroll positions, open
+Two monitors on one page each keep their own view route, scroll positions, open
 sections and shortcuts. They share what is one per page:
 
 - the language: Lit Localize has one locale per page, so `locale` on one
@@ -55,7 +55,7 @@ package loads:
 | Attribute | A change after connecting |
 |---|---|
 | `base-url` | closes the old server's feeds and reads the new server: the run named by `run`, else its newest run |
-| `history` | `memory` keeps the route shown; `url` takes the address bar's |
+| `history` | `memory` keeps the view route shown; `url` takes the address bar's |
 | `run` | opens that run |
 | `locale`, `theme`, `shortcuts` | show at once |
 

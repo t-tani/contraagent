@@ -104,7 +104,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
 | a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
 | trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
-| a tab of the Trends page (`Panel.tab`, route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
+| a tab of the Trends page (`Panel.tab`, view route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
 | a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
 | a task's `priority` (`PlanNode.priority`), only when not 0 | Priority 2; tooltip: Tie-breaker in the queue's order (priority) | 優先度 2 |
 | peak context (`usage.peak_context`, `ModelUsage.peak_context`), `context_budget`, `context_warned` | Peak context: 142k \| 71% of the context limit 200k; near the context limit (91%) | 最大コンテキスト; コンテキストの上限; コンテキストの上限に接近（91%） |
@@ -242,7 +242,7 @@ parts: tokens, themes, primitives; no contraagent data) come before
 `@contraagent/ui` (the contraagent elements), which comes before `apps/monitor`
 (the page). `api` and `elements` never import each other. Within `ui`, an
 element renders what its properties give it and sends `ca-*` events
-(`core/events.ts`); only `ca-monitor` holds the store and the router. No
+(`core/events.ts`); only `ca-monitor` holds the store and the view router. No
 module changes the page at import: the languages (`configureLocales()`) and the
 themes (`adoptThemes()`) are set up by the page or by `ca-monitor` when it
 connects. A `cae-*`
@@ -254,7 +254,7 @@ element of `elements` takes plain data and its words (`strings`), and sends
 | `@contraagent/api` | its own files; no `lit`, `@lit/*` or other `@contraagent/*` |
 | `@contraagent/elements` | its own files and `lit`; no `@contraagent/*`, no `@lit/localize`, no `msg()`, and no glossary word in an exported name or in a `types.ts` property |
 | `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`table/`, `matrix/`, `json/`, `markdown/`, `count/`, ...); `graph/` (it shows a mark matrix); `define/` | the folders before it and its own; a component imports another only from an earlier rank, and only `define/` registers a tag |
-| `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
+| `ui`: `core/` (view route, view router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
 | `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `adapters/`, `controllers/` or `elements/` |
 | `ui`: `adapters/` (run data → what a generic element takes: a table's columns, the lists' filters) | the above and each other; never `controllers/` or `elements/` |
 | `ui`: `controllers/` (Lit reactive controllers: a task's detail, the theme, the language, the shortcuts) | the above and each other; never `elements/` |

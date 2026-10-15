@@ -8,7 +8,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { getLocale } from '../../core/i18n.js';
-import { TREND_DAYS } from '../../core/route.js';
+import { TREND_DAYS } from '../../core/view-route.js';
 import { trendSections } from '../../adapters/trends.js';
 import { daysBefore, trendsTabs } from '../../lib/trends.js';
 import {
