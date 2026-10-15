@@ -17,6 +17,7 @@ inside the message text, not context_files.
 from __future__ import annotations
 
 import base64
+import dataclasses
 import json
 import queue
 import subprocess
@@ -26,9 +27,11 @@ from pathlib import Path
 
 from contraagent.backends import live_processes
 from contraagent.backends.launch import Launch, Stop
+from contraagent.backends.omp import wire as omp_wire
 from contraagent.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, prompt_args, session_args
 from contraagent.backends.omp.wire import TraceReader
 from contraagent.backends.process import LaunchError
+from contraagent.backends.refusal import FAILED_STOPS
 from contraagent.backends.wire import EventFold, LimitsWatch, positive_int
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
@@ -134,6 +137,9 @@ class OmpRpcBackend(OmpBackend):
     name = "omp-rpc"
     # The RPC wire is JSON frames only.
     plaintext_stream = False
+    # No exit status to weigh: a process that ended before any agent event is a launch
+    # failure, and a quota refusal it printed on stderr makes it `rate_limited`.
+    signals = dataclasses.replace(omp_wire.SIGNALS, stderr_stops=FAILED_STOPS | {Stop.LAUNCH_FAILED})
 
     def argv(self, launch: Launch) -> list[str]:
         a = [self.binary, "--mode", "rpc"]

@@ -13,8 +13,8 @@ from contraagent.backends.base import Backend, window_of
 from contraagent.backends.launch import CallUsage, LaunchResult, Usage
 from contraagent.backends.omp.catalogue import parse_models as omp_models
 from contraagent.backends.opencode.catalogue import parse_models as opencode_models
-from contraagent.backends.wire import EventFold
 from contraagent.backends.pi import agent_dir
+from contraagent.backends.wire import EventFold
 from contraagent.contracts import fold_spend
 from contraagent.routing.config import ConfigError
 from contraagent.testing import StubAgent, writes
