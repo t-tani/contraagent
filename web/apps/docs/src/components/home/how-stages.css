@@ -1,0 +1,191 @@
+/* Written by scripts/how_css.py from the stages' shares of the scroll; change the script, not this file. */
+
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .how-stage, .how-text, .how-glow, .how-n::after, .how-words, .how-loop-step::before,
+    .how-rail-fill, .how-depth, .slip, .term-loop, .run-mark {
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: --how;
+      animation-range: contain 0% contain 100%;
+    }
+    .how-rail-fill { animation-name: how-rail; }
+    .how-depth { animation-name: how-depth; }
+    .how-stage[data-k='0'], .how-step[data-k='0'] .how-text { animation-name: how-stage-0; }
+    .how-step[data-k='0'] .how-glow, .how-step[data-k='0'] .how-n::after { animation-name: how-on-0; }
+    .how-step[data-k='0'] .how-words { animation-name: how-words-0; }
+    .how-stage[data-k='1'], .how-step[data-k='1'] .how-text { animation-name: how-stage-1; }
+    .how-step[data-k='1'] .how-glow, .how-step[data-k='1'] .how-n::after { animation-name: how-on-1; }
+    .how-step[data-k='1'] .how-words { animation-name: how-words-1; }
+    .how-stage[data-k='2'], .how-step[data-k='2'] .how-text { animation-name: how-stage-2; }
+    .how-step[data-k='2'] .how-glow, .how-step[data-k='2'] .how-n::after { animation-name: how-on-2; }
+    .how-step[data-k='2'] .how-words { animation-name: how-words-2; }
+    .how-stage[data-k='3'], .how-step[data-k='3'] .how-text { animation-name: how-stage-3; }
+    .how-step[data-k='3'] .how-glow, .how-step[data-k='3'] .how-n::after { animation-name: how-on-3; }
+    .how-step[data-k='3'] .how-words { animation-name: how-words-3; }
+    .how-stage[data-k='4'], .how-step[data-k='4'] .how-text { animation-name: how-stage-4; }
+    .how-step[data-k='4'] .how-glow, .how-step[data-k='4'] .how-n::after { animation-name: how-on-4; }
+    .how-step[data-k='4'] .how-words { animation-name: how-words-4; }
+    .how-stage[data-k='5'], .how-step[data-k='5'] .how-text { animation-name: how-stage-5; }
+    .how-step[data-k='5'] .how-glow, .how-step[data-k='5'] .how-n::after { animation-name: how-on-5; }
+    .how-step[data-k='5'] .how-words { animation-name: how-words-5; }
+    .how-stage[data-k='6'], .how-step[data-k='6'] .how-text { animation-name: how-stage-6; }
+    .how-step[data-k='6'] .how-glow, .how-step[data-k='6'] .how-n::after { animation-name: how-on-6; }
+    .how-step[data-k='6'] .how-words { animation-name: how-words-6; }
+    .how-loop-step:nth-child(1)::before { animation-name: how-loop-3; }
+    .how-loop-step:nth-child(2)::before { animation-name: how-loop-4; }
+    .how-loop-step:nth-child(3)::before { animation-name: how-loop-4b; }
+    .how-loop-step:nth-child(4)::before { animation-name: how-loop-5; }
+    .how-loop-step:nth-child(5)::before { animation-name: how-loop-6; }
+    .slip-1 { animation-name: how-slip-1; }
+    .slip-2 { animation-name: how-slip-2; }
+    .slip-3 { animation-name: how-slip-3; }
+    .term-loop { animation-name: how-scroll; }
+    .run-mark {
+      animation-name: how-mark;
+      animation-range: contain calc(88.50% + var(--i) * 0.2%) contain calc(89.50% + var(--i) * 0.2%);
+    }
+  }
+
+  /* Without scroll-driven animations: the states by data-stage and data-sub (how-scene.ts), by transitions. */
+  @supports not (animation-timeline: view()) {
+    .how-stage, .how-text {
+      opacity: 0;
+      transform: translate3d(0, 1.25rem, 0) scale(0.985);
+      transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .how-glow, .how-n::after { transition: opacity 0.4s ease; }
+    .how-words { opacity: 0.55; transition: opacity 0.4s ease; }
+    .how-loop-step::before { opacity: 0; transition: opacity 0.4s ease; }
+    .how-rail-fill { transform: scaleY(var(--how-p)); }
+    .how-track:not([data-stage]) .how-stage[data-k='0'],
+    .how-track:not([data-stage]) .how-step[data-k='0'] .how-text { opacity: 1; transform: none; }
+    .how-track[data-stage='0'] .how-stage[data-k='0'],
+    .how-track[data-stage='0'] .how-step[data-k='0'] .how-text,
+    .how-track[data-stage='0'] .how-step[data-k='0'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='0'] .how-step[data-k='0'] .how-glow,
+    .how-track[data-stage='0'] .how-step[data-k='0'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='1'] .how-stage[data-k='1'],
+    .how-track[data-stage='1'] .how-step[data-k='1'] .how-text,
+    .how-track[data-stage='1'] .how-step[data-k='1'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='1'] .how-step[data-k='1'] .how-glow,
+    .how-track[data-stage='1'] .how-step[data-k='1'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='2'] .how-stage[data-k='2'],
+    .how-track[data-stage='2'] .how-step[data-k='2'] .how-text,
+    .how-track[data-stage='2'] .how-step[data-k='2'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='2'] .how-step[data-k='2'] .how-glow,
+    .how-track[data-stage='2'] .how-step[data-k='2'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='3'] .how-stage[data-k='3'],
+    .how-track[data-stage='3'] .how-step[data-k='3'] .how-text,
+    .how-track[data-stage='3'] .how-step[data-k='3'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='3'] .how-step[data-k='3'] .how-glow,
+    .how-track[data-stage='3'] .how-step[data-k='3'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='4'] .how-stage[data-k='4'],
+    .how-track[data-stage='4'] .how-step[data-k='4'] .how-text,
+    .how-track[data-stage='4'] .how-step[data-k='4'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='4'] .how-step[data-k='4'] .how-glow,
+    .how-track[data-stage='4'] .how-step[data-k='4'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='5'] .how-stage[data-k='5'],
+    .how-track[data-stage='5'] .how-step[data-k='5'] .how-text,
+    .how-track[data-stage='5'] .how-step[data-k='5'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='5'] .how-step[data-k='5'] .how-glow,
+    .how-track[data-stage='5'] .how-step[data-k='5'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='6'] .how-stage[data-k='6'],
+    .how-track[data-stage='6'] .how-step[data-k='6'] .how-text,
+    .how-track[data-stage='6'] .how-step[data-k='6'] .how-words { opacity: 1; transform: none; }
+    .how-track[data-stage='6'] .how-step[data-k='6'] .how-glow,
+    .how-track[data-stage='6'] .how-step[data-k='6'] .how-n::after { opacity: 1; }
+    .how-track[data-stage='3'] .how-loop-step:nth-child(1)::before,
+    .how-track[data-stage='4'] .how-loop-step:nth-child(1)::before,
+    .how-track[data-stage='5'] .how-loop-step:nth-child(1)::before,
+    .how-track[data-stage='6'] .how-loop-step:nth-child(1)::before { opacity: 1; }
+    .how-track[data-stage='4'] .how-loop-step:nth-child(2)::before,
+    .how-track[data-stage='5'] .how-loop-step:nth-child(2)::before,
+    .how-track[data-stage='6'] .how-loop-step:nth-child(2)::before { opacity: 1; }
+    .how-track[data-stage='4'] .how-loop-step:nth-child(3)::before,
+    .how-track[data-stage='5'] .how-loop-step:nth-child(3)::before,
+    .how-track[data-stage='6'] .how-loop-step:nth-child(3)::before { opacity: 1; }
+    .how-track[data-stage='5'] .how-loop-step:nth-child(4)::before,
+    .how-track[data-stage='6'] .how-loop-step:nth-child(4)::before { opacity: 1; }
+    .how-track[data-stage='6'] .how-loop-step:nth-child(5)::before { opacity: 1; }
+    /* The check stage's three states (0: the problems, 1: the fix, 2: the check passes). */
+    .slip, .term-loop { transition: opacity 0.4s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .how-track[data-sub='0'] .slip-2, .how-track[data-sub='0'] .slip-3, .how-track[data-sub='1'] .slip-3 { opacity: 0; }
+    .how-track[data-sub='1'] .term-loop { transform: translate3d(0, -22%, 0); }
+    .how-track[data-sub='2'] .term-loop { transform: translate3d(0, -47%, 0); }
+    .how-track[data-sub='2'] .slip-1 { opacity: 0.4; }
+  }
+}
+
+@keyframes how-stage-0 {
+  0%, 9.90% { opacity: 1; transform: none; }
+  12.30%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-0 { 0% { opacity: 1; } 1.00%, 11.50% { opacity: 1; } 13.50%, 100% { opacity: 0; } }
+@keyframes how-words-0 { 0% { opacity: 1; } 1.00%, 11.50% { opacity: 1; } 13.50%, 100% { opacity: 0.55; } }
+@keyframes how-stage-1 {
+  0%, 12.70% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  15.10%, 22.40% { opacity: 1; transform: none; }
+  24.80%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-1 { 0%, 11.50% { opacity: 0; } 13.50%, 24.00% { opacity: 1; } 26.00%, 100% { opacity: 0; } }
+@keyframes how-words-1 { 0%, 11.50% { opacity: 0.55; } 13.50%, 24.00% { opacity: 1; } 26.00%, 100% { opacity: 0.55; } }
+@keyframes how-stage-2 {
+  0%, 25.20% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  27.60%, 34.90% { opacity: 1; transform: none; }
+  37.30%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-2 { 0%, 24.00% { opacity: 0; } 26.00%, 36.50% { opacity: 1; } 38.50%, 100% { opacity: 0; } }
+@keyframes how-words-2 { 0%, 24.00% { opacity: 0.55; } 26.00%, 36.50% { opacity: 1; } 38.50%, 100% { opacity: 0.55; } }
+@keyframes how-stage-3 {
+  0%, 37.70% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  40.10%, 47.40% { opacity: 1; transform: none; }
+  49.80%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-3 { 0%, 36.50% { opacity: 0; } 38.50%, 49.00% { opacity: 1; } 51.00%, 100% { opacity: 0; } }
+@keyframes how-words-3 { 0%, 36.50% { opacity: 0.55; } 38.50%, 49.00% { opacity: 1; } 51.00%, 100% { opacity: 0.55; } }
+@keyframes how-stage-4 {
+  0%, 50.20% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  52.60%, 72.40% { opacity: 1; transform: none; }
+  74.80%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-4 { 0%, 49.00% { opacity: 0; } 51.00%, 74.00% { opacity: 1; } 76.00%, 100% { opacity: 0; } }
+@keyframes how-words-4 { 0%, 49.00% { opacity: 0.55; } 51.00%, 74.00% { opacity: 1; } 76.00%, 100% { opacity: 0.55; } }
+@keyframes how-stage-5 {
+  0%, 75.20% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  77.60%, 84.90% { opacity: 1; transform: none; }
+  87.30%, 100% { opacity: 0; transform: translate3d(0, -1.5rem, 0) scale(0.98); }
+}
+@keyframes how-on-5 { 0%, 74.00% { opacity: 0; } 76.00%, 86.50% { opacity: 1; } 88.50%, 100% { opacity: 0; } }
+@keyframes how-words-5 { 0%, 74.00% { opacity: 0.55; } 76.00%, 86.50% { opacity: 1; } 88.50%, 100% { opacity: 0.55; } }
+@keyframes how-stage-6 {
+  0%, 87.70% { opacity: 0; transform: translate3d(0, 1.5rem, 0) scale(0.97); }
+  90.10%, 100% { opacity: 1; transform: none; }
+}
+@keyframes how-on-6 { 0%, 86.50% { opacity: 0; } 88.50%, 100% { opacity: 1; } }
+@keyframes how-words-6 { 0%, 86.50% { opacity: 0.55; } 88.50%, 100% { opacity: 1; } }
+@keyframes how-loop-3 { 0%, 36.50% { opacity: 0; } 38.50%, 100% { opacity: 1; } }
+@keyframes how-loop-4 { 0%, 49.00% { opacity: 0; } 51.00%, 100% { opacity: 1; } }
+@keyframes how-loop-5 { 0%, 74.00% { opacity: 0; } 76.00%, 100% { opacity: 1; } }
+@keyframes how-loop-6 { 0%, 86.50% { opacity: 0; } 88.50%, 100% { opacity: 1; } }
+@keyframes how-loop-4b { 0%, 57.33% { opacity: 0; } 59.33%, 100% { opacity: 1; } }
+@keyframes how-scroll {
+  0%, 57.33% { transform: none; }
+  59.33%, 65.67% { transform: translate3d(0, -22%, 0); }
+  67.67%, 100% { transform: translate3d(0, -47%, 0); }
+}
+@keyframes how-slip-1 { 0%, 65.67% { opacity: 1; } 67.67%, 100% { opacity: 0.4; } }
+@keyframes how-slip-2 {
+  0%, 57.33% { opacity: 0; transform: translate3d(0, 0.75rem, 0); }
+  59.33%, 100% { opacity: 1; transform: none; }
+}
+@keyframes how-slip-3 {
+  0%, 65.67% { opacity: 0; transform: translate3d(0, 0.75rem, 0); }
+  67.67%, 100% { opacity: 1; transform: none; }
+}
+@keyframes how-mark { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
+@keyframes how-rail { from { transform: scaleY(0.02); } to { transform: scaleY(1); } }
+@keyframes how-depth { from { transform: translate3d(0, 6%, 0); } to { transform: translate3d(0, -6%, 0); } }
+
+/* The fallback's progress (how-scene.ts sets it on the rail's fill): not inherited. */
+@property --how-p { syntax: '<number>'; inherits: false; initial-value: 1; }

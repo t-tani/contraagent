@@ -1,7 +1,7 @@
 // Where the browser has no scroll-driven animations: each part of the page below
 // the replay gets .is-in once it comes into view, and ./reveal.css moves it there
 // by a transition. Nothing is hidden before this runs, nor with reduced motion.
-const PARTS = '.steps, .step, .ca-runner .card, .ca-start section';
+const PARTS = '.ca-runner .card, .ca-start section';
 
 if (!CSS.supports('animation-timeline: view()') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const parts = document.querySelectorAll<HTMLElement>(PARTS);
