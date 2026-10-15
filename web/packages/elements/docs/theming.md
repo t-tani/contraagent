@@ -13,6 +13,8 @@ break it and its CSS cannot leak into your page. What reaches it are the
 
 With neither, an element shows contraagent Dark.
 
+![The CI pipeline's page in the contraagent Dark theme](images/theming-dark.webp)
+
 ## The built-in themes
 
 | `data-ca-theme` | Name | Source |

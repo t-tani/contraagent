@@ -6,6 +6,10 @@ reader names each cell by its column and its row. Register it with
 `@contraagent/elements/data-table/define`; the types and `sortRows` are in
 `@contraagent/elements/data-table`.
 
+![A data table of three jobs with their minutes and their state: done, failed, running](images/data-table.webp)
+
+Live, with its source: the documentation site's Live elements page (`pnpm docs` in `web/`), under `<cae-data-table>`.
+
 ::code{file="examples/data-table.ts"}
 
 ## Columns

@@ -348,7 +348,7 @@ pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
 pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
-pnpm screenshots        # the root README's screenshots: the demo run, the real monitor, Playwright (about a minute)
+pnpm screenshots        # the screenshots of the root README and of the packages' docs (docs/images/): the showcase runs (scripts/showcase.py) in the real monitor, and each elements example alone (scripts/examples-page/); --only readme,ui,elements
 ```
 
 ## Documentation
@@ -387,7 +387,8 @@ version; nothing else holds that text.
   does not expand `::code`), each block after `<!-- ::code{...} -->` lines that
   `tests/test_docs.py` checks against the example files. Its screenshots in
   `docs/assets/readme/` (outside the package, and out of the sdist) come from the
-  demo pipeline: `pnpm --dir web screenshots` makes them again.
+  showcase runs of the demo pipelines (`web/scripts/showcase.py`, every task done):
+  `pnpm --dir web screenshots` makes them again.
 - `CHANGELOG.md` (Keep a Changelog) is written by towncrier: record a
   user-visible change as a fragment in `changelog.d/` (`<slug>.<type>.md`, or
   `+<slug>.<type>.md`; types `added`, `changed`, `deprecated`, `removed`,
