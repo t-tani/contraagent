@@ -152,9 +152,9 @@ CORS headers unless origins are opted in (`--cors-origin`), and answers only
 requests whose `Host` names this machine.
 
 It reads a run's records only through a run source and liveness
-(`contraagent/runs/`): by default the runs directory and this host's
+(`contraagent/_internal/runs/`): by default the runs directory and this host's
 `/proc`. `Monitor(source=..., liveness=...)` serves the same views from another
-store; the layout of a run's records is `contraagent/runs/layout.py`.
+store; the layout of a run's records is `contraagent/_internal/runs/layout.py`.
 
 ## Your own views: panels
 
@@ -171,7 +171,7 @@ by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
 what a part shows, how to read a number; any markup in it is shown as text), and
 `blocks` of them one under another, each with an optional `title` and folded
 when `collapsed`. A tone is one of `failed`, `attention`, `done`, `running`,
-`muted` and `neutral`. The models are in `contraagent.monitor.api`
+`muted` and `neutral`. The models are in `contraagent.monitor`
 (`PanelBody`); a panel returns one, or a dict with its `type`. Any other dict is
 shown as a JSON tree. A typed body that does not validate (an unknown tone
 included) is an error, never a JSON tree.
@@ -183,7 +183,7 @@ a tab of each run; `trends`, `fn(runs, period)`, over the runs of a period, for 
 view of many runs. A panel reads runs only through what it is given, never through a
 path of its own, so it shows the same on one host and on a hub. `run`
 (`RunRecords`) is one run's records: its `id`, `info()` (its `run.json`),
-`journal()`, `records(log)` for another log contraagent writes (`runs.layout.DEFERRED`,
+`journal()`, `records(log)` for another log contraagent writes (`deferred.jsonl`,
 ...), `log(name)` and `document(name)` for the pipeline's own logs and documents
 (what `contraagent.log` and `contraagent.save` wrote; see
 [tasks and flows](tasks.md)), and `dir()` for a file that is none of these, an
@@ -193,6 +193,10 @@ activity first, with the same methods taking the run id first (`journal(run)`,
 `tz` its days are counted in; `period.day_of(ts)` is the day of a time inside the
 period and None outside it, for a run that began before the period or ended after
 it. The monitor offers the panels in the order of the dict it is given.
+A test calls a panel as the monitor does, over a runs directory:
+`fn(RunRecords(run_id, DirectorySource(runs_dir)))` for a run panel,
+`fn(PeriodRuns(run_ids, DirectorySource(runs_dir)), Period.parse(start, end))` for a
+trends panel (all in `contraagent.monitor`).
 
 ::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
 
@@ -300,12 +304,12 @@ taken out. Written again, the export holds only the runs chosen then.
 In another page, `<ca-monitor export="data/">` reads an export, and
 `createExportClient` with `openExportFeed` (in `@contraagent/api`) give a
 `MonitorStore` the same data; `export(monitor, out, ...)` in
-`contraagent.monitor.export` writes one from Python.
+`contraagent.monitor` writes one from Python.
 
 ## Its API and its page
 
 The monitor publishes its contract as OpenAPI at `/api/openapi.json`
-(`contraagent/monitor/openapi.json`), browsable at `/api/docs` when started with
+(`contraagent monitor --openapi PATH` writes it), browsable at `/api/docs` when started with
 `--docs`; every response is checked against its pydantic model before it is
 sent. `curl http://127.0.0.1:8787/api/runs` lists the runs, and every route
 under `/api/runs/<run>/` (the journal, the plan, outputs, one task by its key,

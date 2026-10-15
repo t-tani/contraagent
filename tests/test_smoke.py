@@ -1,16 +1,19 @@
 import pytest
 
 import contraagent
-from contraagent.backends import known_agents
-from contraagent.routing import Route, Router, load_fallbacks
+from contraagent._internal.backends import known_agents
+from contraagent._internal.routing import load_fallbacks
+from contraagent.backends import create_backend
+from contraagent.config import Route
+from contraagent.engine import Router
 
 
 def test_create_backend():
-    assert type(contraagent.create_backend("claude")).__name__ == "ClaudeBackend"
+    assert type(create_backend("claude")).__name__ == "ClaudeBackend"
     assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi", "codex")
-    assert type(contraagent.create_backend("opencode")).__name__ == "OpencodeBackend"
+    assert type(create_backend("opencode")).__name__ == "OpencodeBackend"
     with pytest.raises(KeyError):
-        contraagent.create_backend("nope")
+        create_backend("nope")
 
 
 def test_fallbacks_from_toml(tmp_path):

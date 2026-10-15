@@ -12,8 +12,18 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from contraagent.monitor import Panel, Period, PeriodRuns, RunRecords
-from contraagent.monitor.api import BlocksBody, GridCell, NoteBody, StatusGridBody, TableBody, TableColumn
+from contraagent.monitor import (
+    BlocksBody,
+    GridCell,
+    NoteBody,
+    Panel,
+    Period,
+    PeriodRuns,
+    RunRecords,
+    StatusGridBody,
+    TableBody,
+    TableColumn,
+)
 
 HOURS = [f"{h:02d}" for h in range(24)]
 

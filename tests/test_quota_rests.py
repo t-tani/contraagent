@@ -8,26 +8,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    AgentRunner,
-    Backend,
-    KindConfig,
-    LaunchResult,
-    Pipeline,
-    PipelineConfig,
-    QuotaReading,
-    Route,
-    Router,
-    Stop,
-    Task,
-    TaskAdapter,
-    TaskResult,
-    agent_task,
-)
-from contraagent.dispatch import Deferral
-from contraagent.dispatch.queue import WorkQueue
-from contraagent.monitor import Monitor, api
-from contraagent.routing.quota import QuotaRests
+from contraagent import Deferral, Pipeline, PipelineConfig, Task, TaskResult, agent_task
+from contraagent._internal.monitor import api
+from contraagent.backends import Backend, LaunchResult, Stop
+from contraagent.config import KindConfig, QuotaReading, Route
+from contraagent.engine import AgentRunner, QuotaRests, Router, TaskAdapter, WorkQueue
+from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
@@ -423,8 +409,8 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
 
 
 def test_a_queued_task_waits_only_in_a_live_run(tmp_path):
-    from contraagent.runs.liveness import StaticLiveness
-    from contraagent.runs.source import DirectorySource
+    from contraagent._internal.runs.liveness import StaticLiveness
+    from contraagent.monitor import DirectorySource
 
     run = tmp_path / "runs" / "r"
     run.mkdir(parents=True)
@@ -496,8 +482,8 @@ def test_a_cap_is_a_percentage(tmp_path, bad):
 
 
 def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
-    from contraagent.runs.liveness import StaticLiveness
-    from contraagent.runs.source import DirectorySource
+    from contraagent._internal.runs.liveness import StaticLiveness
+    from contraagent.monitor import DirectorySource
 
     def run(name: str, rests: list[dict]) -> None:
         d = tmp_path / "runs" / name

@@ -10,7 +10,7 @@ def pytest_configure(config) -> None:
     """A retried attempt does not wait out its backoff here: the wait is random and seconds
     long, and what it is (`backoff_s`) has a test of its own. Subprocesses (the docs' example
     tests) keep the real wait."""
-    from contraagent.execution.runner import RetryingRunner
+    from contraagent.engine import RetryingRunner
 
     RetryingRunner.backoff = staticmethod(lambda base, attempt: 0.0)
 

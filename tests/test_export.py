@@ -10,11 +10,9 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 
 from contraagent import Pipeline, agent_task
-from contraagent.cli import main as cli_main
-from contraagent.monitor import Monitor, RunRecords, api
-from contraagent.monitor.core import Panel
-from contraagent.monitor.export import export
-from contraagent.monitor.trends import Period
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.monitor import api
+from contraagent.monitor import Monitor, Panel, Period, RunRecords, export
 from contraagent.testing import StubAgent
 
 

@@ -5,7 +5,7 @@
 #
 # (compose.yaml beside this file builds it the same way). Dockerfile.dockerignore lists
 # what enters the context: pyproject.toml, uv.lock, LICENSE and src/. The monitor's UI is
-# committed in src/contraagent/monitor/static, so no Node build runs here.
+# committed in src/contraagent/_internal/monitor/static, so no Node build runs here.
 #
 # The hub runs as the user `contraagent` (uid 10001). /data is its volume: the open
 # transcript segments go to /data/streams. Tokens are files, mounted read-only at

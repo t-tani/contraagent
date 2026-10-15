@@ -28,7 +28,8 @@ pytestmark = [
 from pydantic import BaseModel  # noqa: E402
 
 from contraagent import Pipeline, agent_task  # noqa: E402
-from contraagent.plugins import Plugin, hooks, new_plugin  # noqa: E402
+from contraagent._internal.plugins import hooks  # noqa: E402
+from contraagent.plugins import Plugin, new_plugin  # noqa: E402
 
 OPENCODE_MODEL = os.environ.get("CONTRAAGENT_LIVE_OPENCODE_MODEL", "opencode/muse-spark-1.3-contributor-free")
 ROUTES = {

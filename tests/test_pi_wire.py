@@ -10,10 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, Stop
-from contraagent.backends.omp.wire import normalize_event
-from contraagent.backends.pi.wire import PiTraceReader
-from contraagent.backends.streams import normalize_stream_line
+from contraagent._internal.backends.omp.wire import normalize_event
+from contraagent._internal.backends.pi.wire import PiTraceReader
+from contraagent.backends import Launch, Stop, normalize_stream_line
 
 FIXTURES = Path(__file__).parent / "fixtures" / "pi"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))

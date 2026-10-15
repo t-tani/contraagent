@@ -6,12 +6,13 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, PythonTaskRunner, Stop
-from contraagent.contracts import OutputContract
-from contraagent.dispatch.python_task import make_python_task
-from contraagent.dispatch.task import STOP_INVALID_OUTPUT
+from contraagent import CommandValidator, OutputContract, Pipeline, PipelineConfig
+from contraagent._internal.contracts.validators import run_validators, wanted_context
+from contraagent._internal.dispatch.python_task import make_python_task
+from contraagent._internal.dispatch.task import STOP_INVALID_OUTPUT
+from contraagent.backends import Stop
+from contraagent.engine import PythonTaskRunner
 from contraagent.testing import StubAgent, fails
-from contraagent.validators import CommandValidator, run_validators, wanted_context
 
 
 class Doc(BaseModel):

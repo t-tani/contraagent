@@ -11,17 +11,18 @@ import pytest
 from pydantic import BaseModel
 
 import contraagent
-from contraagent import NoCurrentRun, Pipeline, Run
+from contraagent import NoCurrentRun, Pipeline
+from contraagent._internal.hub.client import DirectClient
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.relay import Relay
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.monitor import api
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
 from contraagent.docs.examples.panels.records import PANELS, tally
-from contraagent.hub.client import DirectClient
-from contraagent.hub.core import Hub
-from contraagent.hub.relay import Relay
-from contraagent.hub.server import hub_monitor
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, api
-from contraagent.runs import layout
-from contraagent.runs.liveness import StaticLiveness
-from contraagent.runs.source import DirectorySource
+from contraagent.engine import Run
+from contraagent.monitor import DirectorySource, Monitor, Panel, Period, PeriodRuns
 
 TEXTS = {"alpha": "one two three", "beta": "four five"}
 
@@ -166,7 +167,7 @@ def test_a_flow_and_its_python_tasks_read_their_pipeline_table(tmp_path):
 def test_a_cli_run_reads_the_pipeline_table_of_its_config(tmp_path, monkeypatch):
     import sys
 
-    from contraagent.cli import main
+    from contraagent._internal.cli import main
 
     (tmp_path / "pipeline.toml").write_text("[pipeline.index]\nport = 8080\n")
     (tmp_path / "steps.py").write_text(

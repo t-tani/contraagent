@@ -4,7 +4,7 @@
 
 Writes every page an index lists into src/content/docs/<section>/ (not
 committed): the title from the page's heading, the order and description from
-its index, each `::code{...}` expanded by `contraagent.docs.expand` (the one
+its index, each `::code{...}` expanded by `contraagent._internal.docs.expand` (the one
 implementation `contraagent docs` uses too), each link pointed at the page it
 names. A quote or a link that does not resolve stops it.
 """
@@ -17,7 +17,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from contraagent import docs
+from contraagent._internal import docs
 
 ROOT = Path(__file__).resolve().parents[4]
 CONTENT = Path(__file__).resolve().parents[1] / "src" / "content" / "docs"

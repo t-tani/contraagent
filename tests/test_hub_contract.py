@@ -11,15 +11,14 @@ from pathlib import Path
 
 import pytest
 
-from contraagent.hub.client import DirectClient, HubClient
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.hub.server import hub_monitor
-from contraagent.hub.source import HeartbeatLiveness
-from contraagent.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor
-from contraagent.runs import layout
-from contraagent.runs.source import DirectorySource
+from contraagent._internal.hub.client import DirectClient, HubClient
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import DocumentPut, FileRef, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.source import HeartbeatLiveness
+from contraagent._internal.hub.store import BlobStore, DirectoryBlobs, HubStore, MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
+from contraagent.monitor import DirectorySource, Monitor
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -30,13 +29,13 @@ pytestmark = pytest.mark.usefixtures("hub_services")
 
 
 def _postgres(tmp: Path) -> HubStore:
-    from contraagent.hub.postgres import PostgresHubStore
+    from contraagent._internal.hub.postgres import PostgresHubStore
 
     return PostgresHubStore(postgres_dsn())
 
 
 def _s3(tmp: Path) -> BlobStore:
-    from contraagent.hub.s3 import S3Blobs
+    from contraagent._internal.hub.s3 import S3Blobs
 
     return S3Blobs(s3_url())
 

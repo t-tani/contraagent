@@ -48,21 +48,21 @@
     "@contraagent/ui/core": 512.0,
     "@contraagent/ui/localize": 512.0,
     "@contraagent/ui/bundle": 512.0,
-    "src/contraagent/monitor/static/app.js": 512.0,
-    "src/contraagent/monitor/static/ja.js": 512.0
+    "src/contraagent/_internal/monitor/static/app.js": 512.0,
+    "src/contraagent/_internal/monitor/static/ja.js": 512.0
   },
-  "files": ["src/contraagent/monitor/static/app.js", "src/contraagent/monitor/static/ja.js"],
+  "files": ["src/contraagent/_internal/monitor/static/app.js", "src/contraagent/_internal/monitor/static/ja.js"],
   "consumer": 512.0,
   "baseline": {
     "gzipBytes": {
-      "src/contraagent/monitor/static/app.js": 112186,
+      "src/contraagent/_internal/monitor/static/app.js": 112186,
       "packages/ui/dist/contraagent-ui.js": 122786,
       "@contraagent/api": 7251,
       "@contraagent/ui": 106835,
       "@contraagent/ui/themes": 4041
     },
     "rawBytes": {
-      "src/contraagent/monitor/static/app.js": 365924,
+      "src/contraagent/_internal/monitor/static/app.js": 365924,
       "packages/ui/dist/contraagent-ui.js": 426684
     },
     "largestFiles": {

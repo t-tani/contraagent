@@ -18,7 +18,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from contraagent import Launch, Limits, OpencodeBackend
+from contraagent.backends import Launch, OpencodeBackend
+from contraagent.config import Limits
 
 PROMPT = (
     "Do these two steps, one tool call each: 1) read the file note.txt; 2) run the shell command `echo hi`. "

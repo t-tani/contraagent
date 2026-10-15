@@ -177,14 +177,30 @@ for each kind of text.
 | `hollow` | defined in the `LaunchResult` docstring |
 | `RoutingPlan` | routing; `plan.jsonl` is the queue |
 
-## Layers
+## Public modules and layers
 
-Each layer imports only the layers above it in the list in the
-`src/contraagent/__init__.py` docstring (`errors`, `docs`, `runs`, `dispatch`,
-`backends`, `contracts`, `routing`, `execution`, `plugins`, `pipeline`, `monitor`,
-`hub`). `runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
-imports only the standard library and the leaf modules `procfs`, `envvars` and
-`telemetry`; every reader and writer of a run's files goes through it.
+The implementation is under `src/contraagent/_internal/`. A user imports only the
+public modules: `contraagent`, `contraagent.config`, `contraagent.backends`,
+`contraagent.engine`, `contraagent.plugins`, `contraagent.monitor`,
+`contraagent.monitor.api` and `contraagent.testing`. A public module holds no
+definitions: it imports names from `_internal`, lists them in `__all__` and calls
+`publish(__name__, __all__)` (`_internal/public.py`), which makes it each name's
+`__module__`. Public modules import only from `_internal`; nothing in `_internal`
+imports a public module. Each object has one public path. A name a user, the
+documentation or an example uses gets a public home; every contraagent type a public
+signature, field or callback argument reaches is exported too; the rest stays in
+`_internal`. The examples in `docs/examples/` import only public modules.
+`tests/test_public_api.py` checks all of this.
+
+Inside `_internal`, each layer imports only the layers above it in the list in the
+`src/contraagent/_internal/__init__.py` docstring (`errors`, `platform`,
+`commandline`, `public`, `docs`, `runs`, `dispatch`, `backends`, `contracts`,
+`routing`, `execution`, `plugins`, `pipeline`, `monitor`, `hub`, `testing`, `cli`).
+`platform/` (`procfs`, `envvars`, `telemetry`: the host and the names of a live agent
+process) and `commandline` are leaf modules, importing nothing else of the package.
+`runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
+imports only the standard library and `platform/`; every reader and writer of a run's
+files goes through it.
 `dispatch/` imports nothing outside the standard library, pydantic and `runs/` (its record types, `dispatch/records.py`, are what every later layer writes and reads).
 `hub/` does not import `monitor/`, but for `hub/server.py`, which serves the monitor's
 app (`tests/test_run_files.py` checks both). Never import a later
@@ -250,7 +266,7 @@ spends a few cents) and run `tests/test_omp_wire.py`: an event `TraceReader` doe
 not know fails it.
 
 After changing a monitor response model or route, regenerate the committed
-contract: `uv run python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`
+contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
 
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
@@ -259,7 +275,7 @@ published at least 14 days ago), in `web/`:
 ```
 pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest (every package)
-pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
+pnpm build              # rebuilds src/contraagent/_internal/monitor/static (committed; CI fails if stale), and the site
 pnpm check:dist         # the built packages type-check as an npm consumer sees them, stay within the gzip budgets in size-budgets.json, and web/consumer builds one component alone (consumer/consumer.test.mjs)
 pnpm tarballs           # builds the three packages into tarballs/*.tgz that npm and pnpm install from this checkout
 pnpm dev                # live-reload UI against a monitor on :8787

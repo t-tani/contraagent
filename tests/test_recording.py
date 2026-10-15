@@ -9,9 +9,10 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Partial, Pipeline, PipelineConfig, Stop, agent_task, python_task
-from contraagent.cli import main
-from contraagent.execution.recording import RecordingError, base_key
+from contraagent import Partial, Pipeline, PipelineConfig, RecordingError, agent_task, python_task
+from contraagent._internal.cli import main
+from contraagent._internal.execution.recording import base_key
+from contraagent.backends import Stop
 from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent, fails
 

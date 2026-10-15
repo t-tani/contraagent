@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from contraagent._internal.runs import layout
 from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, RunRecords
-from contraagent.runs import layout
 
 PERIOD = Period.parse("2026-10-13", "2026-10-15", "UTC")
 
@@ -112,7 +112,7 @@ def test_a_trends_panel_is_checked_as_a_run_panel_is(tmp_path):
     from fastapi.exceptions import ResponseValidationError
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
     panels = {
@@ -133,7 +133,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
     pytest.importorskip("fastapi")
     import httpx
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
 
@@ -172,7 +172,7 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
     """The run feed reads its views off the event loop: while a run panel takes its time,
     the loop goes on serving."""
     pytest.importorskip("fastapi")
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
 

@@ -25,18 +25,17 @@ pytest.importorskip("httpx")
 
 import httpx
 
-from contraagent.hub import server as hub_server
-from contraagent.hub.client import DirectClient, HttpClient
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import DocumentPut, LogChunk, RecordBatch, RunRef
-from contraagent.hub.relay import Relay
-from contraagent.hub.server import hub_monitor
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor
-from contraagent.monitor.server import stream_feed
-from contraagent.runs import layout
-from contraagent.runs.liveness import StaticLiveness
-from contraagent.runs.source import DirectorySource
+from contraagent._internal.hub import server as hub_server
+from contraagent._internal.hub.client import DirectClient, HttpClient
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import DocumentPut, LogChunk, RecordBatch, RunRef
+from contraagent._internal.hub.relay import Relay
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.monitor.server import stream_feed
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent.monitor import DirectorySource, Monitor
 
 KEY = "t1"
 LOG = layout.stream(KEY)

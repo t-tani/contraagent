@@ -8,13 +8,14 @@ import sys
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
-from contraagent.cli import main
-from contraagent.dispatch.task import kind_name
+from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.cli import main
+from contraagent._internal.dispatch.task import kind_name
+from contraagent._internal.pipeline.reach import reachable
 from contraagent.docs.examples.review import flow as example
-from contraagent.pipeline.reach import reachable
+from contraagent.engine import RoutingPlan
+from contraagent.monitor.api import PreflightRecord
 from contraagent.plugins import new_plugin
-from contraagent.routing.plan import RoutingPlan
 from contraagent.testing import StubAgent
 
 

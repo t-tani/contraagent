@@ -8,10 +8,8 @@ from types import SimpleNamespace
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, agent_task, python_task
-from contraagent.dispatch import Task, TaskResult, WorkQueue
-from contraagent.routing.config import ConfigError
-from contraagent.routing.plan import RoutingError
+from contraagent import ConfigError, Pipeline, PipelineConfig, RoutingError, Task, TaskResult, agent_task, python_task
+from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
 
 

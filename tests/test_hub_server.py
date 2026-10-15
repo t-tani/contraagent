@@ -17,10 +17,10 @@ pytest.importorskip("sse_starlette")
 
 from fastapi.testclient import TestClient
 
-from contraagent.cli import main as cli_main
-from contraagent.hub import server
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import (
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.hub import server
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import (
     HEALTHZ,
     INGEST_HEARTBEAT,
     INGEST_RECORDS,
@@ -33,10 +33,10 @@ from contraagent.hub.protocol import (
     RunLiveness,
     RunRef,
 )
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import empty_snapshot
 from contraagent.monitor import Monitor
-from contraagent.runs import layout
-from contraagent.runs.liveness import empty_snapshot
 from test_hub_contract import ship
 
 INGEST = "ingest-secret"
@@ -377,7 +377,7 @@ def test_healthz_answers_ok_over_segmented_transcripts(tmp_path):
 def test_healthz_names_the_store_that_fails_and_its_error_kind(caplog):
     hub = Hub(_Broken(), MemoryBlobs())  # type: ignore[arg-type]
     c = TestClient(server.create_hub_app(hub, ingest_tokens=[INGEST], read_token=None), base_url="http://127.0.0.1")
-    with caplog.at_level("WARNING", logger="contraagent.hub.server"):
+    with caplog.at_level("WARNING", logger="contraagent._internal.hub.server"):
         for _ in range(3):
             r = c.get(HEALTHZ)
             assert r.status_code == 503
@@ -421,7 +421,7 @@ def test_healthz_is_in_the_ingest_contract_only():
 
 def test_the_committed_openapi_document_is_current():
     assert server.OPENAPI_FILE.read_text() == server.openapi_document(), (
-        "src/contraagent/hub/openapi.json is stale: run `contraagent hub --openapi src/contraagent/hub/openapi.json`"
+        "src/contraagent/_internal/hub/openapi.json is stale: run `contraagent hub --openapi src/contraagent/_internal/hub/openapi.json`"
     )
     doc = json.loads(server.openapi_document())
     assert set(doc["paths"]) == {INGEST_RECORDS, INGEST_HEARTBEAT, "/ingest/blobs/{sha256}", HEALTHZ}

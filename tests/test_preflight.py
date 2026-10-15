@@ -6,25 +6,13 @@ import sys
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    Backend,
-    KindConfig,
-    LaunchResult,
-    Pipeline,
-    PipelineConfig,
-    PreflightStopped,
-    QuotaRefusal,
-    Route,
-    Router,
-    RoutingError,
-    RoutingPlan,
-    Stop,
-    agent_task,
-)
-from contraagent.cli import main
-from contraagent.monitor.api import Plan
-from contraagent.monitor.core import Monitor
-from contraagent.routing.preflight import DroppedRoute, KeptKind, Substitution
+from contraagent import Pipeline, PipelineConfig, PreflightStopped, RoutingError, agent_task
+from contraagent._internal.cli import main
+from contraagent.backends import Backend, LaunchResult, QuotaRefusal, Stop
+from contraagent.config import KindConfig, Route
+from contraagent.engine import Router, RoutingPlan
+from contraagent.monitor import Monitor
+from contraagent.monitor.api import DroppedRoute, KeptKind, Plan, Substitution
 from contraagent.testing import StubAgent
 
 

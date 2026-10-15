@@ -12,16 +12,16 @@ from pydantic import BaseModel
 from contraagent import (
     Pipeline,
     PipelineConfig,
+    RoutingError,
     TaskDeferred,
     TaskFailed,
+    TextOutput,
     TooManyPasses,
     agent_task,
     python_task,
 )
-from contraagent.cli import main
+from contraagent._internal.cli import main
 from contraagent.docs.examples.review import flow as example
-from contraagent.pipeline.graph import TextOutput
-from contraagent.routing.plan import RoutingError
 from contraagent.testing import StubAgent, fails, writes_nothing
 
 

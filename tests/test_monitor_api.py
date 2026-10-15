@@ -14,10 +14,11 @@ pytest.importorskip("sse_starlette")
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from contraagent.backends.streams import normalize_stream_line
-from contraagent.cli import main as cli_main
-from contraagent.monitor import Monitor, Panel, api, server
-from contraagent.runs.names import BadName, check_name
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.monitor import api, server
+from contraagent._internal.runs.names import BadName, check_name
+from contraagent.backends import normalize_stream_line
+from contraagent.monitor import Monitor, Panel
 
 
 def client_for(monitor: Monitor, **kwargs) -> TestClient:
@@ -157,7 +158,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
 def test_the_committed_openapi_document_is_current():
     committed = server.OPENAPI_FILE.read_text()
     assert committed == server.openapi_document(), (
-        "src/contraagent/monitor/openapi.json is stale: run `python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`"
+        "openapi.json is stale: run `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`"
     )
 
 
@@ -296,7 +297,7 @@ def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
 
 
 def test_process_ages_use_the_kernel_clock_rate():
-    from contraagent.runs import procs
+    from contraagent._internal.runs import procs
 
     assert procs._CLK == os.sysconf("SC_CLK_TCK")
 
@@ -364,7 +365,7 @@ def test_the_run_list_says_how_the_subscription_went(demo_runs):
 
 def test_utilization_is_kept_per_account():
     """Two subscriptions (a pool): each account's readings stay apart; the one closest to its weekly limit first."""
-    from contraagent.monitor.core import _first_last
+    from contraagent._internal.monitor.core import _first_last
 
     def r(cred, at, week):
         return {"credential": cred, "observed_at": f"2026-10-11T00:00:0{at}+00:00", "seven_day_pct": week, "five_hour_pct": 10.0}

@@ -6,10 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from contraagent import PerTask, Pipeline, PipelineConfig, procfs, python_task
-from contraagent.dispatch import Task, TaskResult, WorkQueue
-from contraagent.routing.capacity import STARTUP_S, HostCapacity, sized
-from contraagent.routing.config import ConfigError
+from contraagent import ConfigError, PerTask, Pipeline, PipelineConfig, Task, TaskResult, python_task
+from contraagent._internal.platform import procfs
+from contraagent._internal.routing.capacity import STARTUP_S, HostCapacity, sized
+from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
 
 

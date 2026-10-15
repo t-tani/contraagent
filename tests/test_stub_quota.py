@@ -4,7 +4,8 @@ import json
 
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, QuotaReading, TaskDeferred, agent_task
+from contraagent import Pipeline, PipelineConfig, TaskDeferred, agent_task
+from contraagent.config import QuotaReading
 from contraagent.testing import StubAgent, writes
 
 CONFIG = {

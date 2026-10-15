@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import ApiKey, CodexBackend, Gateway, Launch, Limits, Stop, Subscription
-from contraagent.backends import CredentialError
-from contraagent.backends.codex.wire import EventReader, normalize_event, read_rollout
-from contraagent.backends.streams import normalize_stream_line
+from contraagent import CredentialError
+from contraagent._internal.backends.codex.wire import EventReader, normalize_event, read_rollout
+from contraagent.backends import CodexBackend, Launch, Stop, normalize_stream_line
+from contraagent.config import ApiKey, Gateway, Limits, Subscription
 
 THREAD = "01a13afd-d786-78c2-9439-7b6c086efc20"
 

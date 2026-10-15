@@ -3,11 +3,12 @@ monitor sums them per model (`Plan.models`)."""
 
 import threading
 
-from contraagent import AgentRunner, Backend, KindConfig, LaunchResult, Route, Router, Stop, Task, TaskAdapter
-from contraagent.backends.launch import CallUsage
-from contraagent.dispatch.records import OtherModel
-from contraagent.execution.journal import Journal
-from contraagent.monitor.aggregate import model_usage
+from contraagent import OtherModel, Task
+from contraagent._internal.execution.journal import Journal
+from contraagent._internal.monitor.aggregate import model_usage
+from contraagent.backends import Backend, CallUsage, LaunchResult, Stop
+from contraagent.config import KindConfig, Route
+from contraagent.engine import AgentRunner, Router, TaskAdapter
 
 
 class Agent(Backend):
@@ -128,7 +129,7 @@ def test_a_hop_s_spend_on_other_models_counts_on_each_of_them():
 
 
 def test_claude_code_s_model_usage_less_the_launch_s_own_model():
-    from contraagent.backends.claude.wire import other_models
+    from contraagent._internal.backends.claude.wire import other_models
 
     used = {
         "big-1": {"inputTokens": 8, "outputTokens": 900, "costUSD": 0.05},
@@ -142,7 +143,7 @@ def test_claude_code_s_model_usage_less_the_launch_s_own_model():
 
 
 def test_the_rounds_of_a_session_hold_its_spend_on_other_models():
-    from contraagent.contracts import fold_spend
+    from contraagent._internal.contracts.contract import fold_spend
 
     def launch(cost, small):
         return LaunchResult(label="t", cost_usd=cost, other_models={"small": OtherModel(cost_usd=small, input=10)})
@@ -176,7 +177,7 @@ def test_the_monitor_s_plan_carries_the_models(tmp_path):
 
 
 def test_claude_code_s_context_window_is_its_own_model_s():
-    from contraagent.backends.claude.wire import context_window
+    from contraagent._internal.backends.claude.wire import context_window
 
     used = {
         "big-1": {"outputTokens": 900, "contextWindow": 1_000_000},

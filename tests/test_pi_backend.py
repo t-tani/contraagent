@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import AMBIENT, ApiKey, CredentialError, Gateway, Launch, Limits, PiBackend, Stop, Subscription
-from contraagent.backends.pi import agent_dir
-from contraagent.backends.pi.backend import MCP_EXTENSION
-from contraagent.backends.pi.catalogue import parse_models
+from contraagent import CredentialError
+from contraagent._internal.backends.pi import agent_dir
+from contraagent._internal.backends.pi.backend import MCP_EXTENSION
+from contraagent._internal.backends.pi.catalogue import parse_models
+from contraagent.backends import Launch, PiBackend, Stop
+from contraagent.config import AMBIENT, ApiKey, Gateway, Limits, Subscription
 
 PI = r"""
 import json, os, sys

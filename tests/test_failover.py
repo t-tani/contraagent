@@ -5,23 +5,10 @@ import threading
 
 import pytest
 
-from contraagent import (
-    AgentRunner,
-    Backend,
-    KindConfig,
-    LaunchResult,
-    Overrides,
-    PipelineConfig,
-    QuotaRefusal,
-    Route,
-    Router,
-    RoutingError,
-    RoutingPlan,
-    Stop,
-    Task,
-    TaskAdapter,
-)
-from contraagent.backends.credentials import CredentialBinding
+from contraagent import Overrides, PipelineConfig, RoutingError, Task
+from contraagent.backends import Backend, CredentialBinding, LaunchResult, QuotaRefusal, Stop
+from contraagent.config import KindConfig, Route
+from contraagent.engine import AgentRunner, Router, RoutingPlan, TaskAdapter
 
 
 class Agent(Backend):
@@ -216,7 +203,7 @@ agent = "omp-rpc"
 model = "no-backend-here"
 """)
     backends = {"claude": Agent("claude", lambda m: Stop.COMPLETED), "omp": Agent("omp", lambda m: Stop.COMPLETED)}
-    with caplog.at_level(logging.INFO, logger="contraagent.routing"):
+    with caplog.at_level(logging.INFO, logger="contraagent._internal.routing"):
         routers = RoutingPlan.build(PipelineConfig.load(cfg), ["a", "b"], backends).routers
     assert routers["a"].chain().endswith("omp/global-backup") and len(routers["a"].routes) == 2  # omp-rpc hop dropped
     assert routers["b"].chain().endswith("omp/b-backup")  # its own chain wins
@@ -255,8 +242,8 @@ def test_an_effort_the_agent_does_not_accept_is_a_config_error(tmp_path):
 
 def test_an_attempt_counts_the_tokens_and_cost_of_every_hop(tmp_path):
     """A rate-limited hop still spent tokens; the attempt and its journal row carry the sum."""
-    from contraagent.backends.launch import CallUsage, Usage
-    from contraagent.execution.journal import Journal
+    from contraagent._internal.execution.journal import Journal
+    from contraagent.backends import CallUsage, Usage
 
     class Spending(Agent):
         def run(self, launch):
@@ -277,7 +264,7 @@ def test_an_agent_or_model_override_runs_every_kind_without_hops(tmp_path, caplo
     cfg = PipelineConfig({"tasks": {"a": {"max_turns": 3, "timeout_s": 10}}, "defaults": {"fallbacks": [{"agent": "omp", "model": "x"}]}})
     backends = {"claude": Agent("claude", lambda m: Stop.COMPLETED), "omp": Agent("omp", lambda m: Stop.COMPLETED)}
     assert RoutingPlan.build(cfg, ["a"], backends).routers
-    with caplog.at_level(logging.WARNING, logger="contraagent.routing"):
+    with caplog.at_level(logging.WARNING, logger="contraagent._internal.routing"):
         assert RoutingPlan.build(cfg, ["a"], backends, Overrides(agent="omp")).routers == {}
     assert "a: no failover hops; the override agent=omp" in caplog.text
 

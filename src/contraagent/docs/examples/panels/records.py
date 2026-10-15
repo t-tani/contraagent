@@ -15,8 +15,7 @@ from pydantic import BaseModel
 
 import contraagent
 from contraagent import python_task
-from contraagent.monitor import Panel, RunRecords
-from contraagent.monitor.api import BlocksBody, PanelTile, TableBody, TableColumn, TilesBody
+from contraagent.monitor import BlocksBody, Panel, PanelTile, RunRecords, TableBody, TableColumn, TilesBody
 
 
 class Count(BaseModel):

@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from contraagent import Pipeline, PipelineConfig, python_task, time_box
-from contraagent.dispatch import FlowDriver, Task, TaskDeferred, TaskResult, WorkQueue, result_or_raise
+from contraagent import Pipeline, PipelineConfig, Task, TaskDeferred, TaskResult, python_task, time_box
+from contraagent._internal.dispatch import result_or_raise
+from contraagent.engine import FlowDriver, WorkQueue
 from contraagent.monitor import Monitor
 
 
@@ -237,8 +238,8 @@ class FakeTime:
 
 @pytest.fixture
 def clock(monkeypatch):
-    import contraagent.dispatch.flow as flow_module
-    import contraagent.dispatch.queue as queue_module
+    import contraagent._internal.dispatch.flow as flow_module
+    import contraagent._internal.dispatch.queue as queue_module
 
     fake = FakeTime()
     monkeypatch.setattr(queue_module, "time", fake)

@@ -186,6 +186,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- One public path per name. The implementation moved under `contraagent._internal`; the
+  public modules only re-export, and each class and function names its public module as
+  `__module__` (reprs, tracebacks, pickle): `contraagent` (tasks, flows, the pipeline,
+  contracts, the task and result a callback is given, every error), `contraagent.config`
+  (credentials, routes, budgets, quota readings), `contraagent.backends` (the coding
+  agents and what a custom one implements), `contraagent.engine` (the runners and
+  schedulers underneath a pipeline), `contraagent.plugins`, `contraagent.monitor` (with the
+  panel body types), `contraagent.monitor.api` (the HTTP responses) and
+  `contraagent.testing`. Every contraagent type a public signature reaches is exported
+  (`tests/test_public_api.py`). Names with no user and no documentation are not public.
+
+  | Old import | New import |
+  |---|---|
+  | `contraagent.AMBIENT` | `contraagent.config.AMBIENT` |
+  | `contraagent.OMP_PREAMBLE` | not public |
+  | `contraagent.STDIN_THRESHOLD` | not public |
+  | `contraagent.AgentRunner` | `contraagent.engine.AgentRunner` |
+  | `contraagent.ApiKey` | `contraagent.config.ApiKey` |
+  | `contraagent.Backend` | `contraagent.backends.Backend` |
+  | `contraagent.Bedrock` | `contraagent.config.Bedrock` |
+  | `contraagent.ClaudeBackend` | `contraagent.backends.ClaudeBackend` |
+  | `contraagent.CodexBackend` | `contraagent.backends.CodexBackend` |
+  | `contraagent.Credential` | `contraagent.config.Credential` |
+  | `contraagent.CursorStore` | `contraagent.engine.CursorStore` |
+  | `contraagent.FlowDriver` | `contraagent.engine.FlowDriver` |
+  | `contraagent.Gateway` | `contraagent.config.Gateway` |
+  | `contraagent.KindConfig` | `contraagent.config.KindConfig` |
+  | `contraagent.Launch` | `contraagent.backends.Launch` |
+  | `contraagent.LaunchResult` | `contraagent.backends.LaunchResult` |
+  | `contraagent.Limits` | `contraagent.config.Limits` |
+  | `contraagent.OAuthToken` | `contraagent.config.OAuthToken` |
+  | `contraagent.OmpBackend` | `contraagent.backends.OmpBackend` |
+  | `contraagent.OmpRpcBackend` | `contraagent.backends.OmpRpcBackend` |
+  | `contraagent.OpencodeBackend` | `contraagent.backends.OpencodeBackend` |
+  | `contraagent.PiBackend` | `contraagent.backends.PiBackend` |
+  | `contraagent.Plugin` | `contraagent.plugins.Plugin` |
+  | `contraagent.PreflightRecord` | `contraagent.monitor.api.PreflightRecord` |
+  | `contraagent.Pool` | `contraagent.config.Pool` |
+  | `contraagent.PythonTaskRunner` | `contraagent.engine.PythonTaskRunner` |
+  | `contraagent.QuotaReading` | `contraagent.config.QuotaReading` |
+  | `contraagent.QuotaRefusal` | `contraagent.backends.QuotaRefusal` |
+  | `contraagent.QuotaWindow` | `contraagent.config.QuotaWindow` |
+  | `contraagent.RetryingRunner` | `contraagent.engine.RetryingRunner` |
+  | `contraagent.Route` | `contraagent.config.Route` |
+  | `contraagent.Router` | `contraagent.engine.Router` |
+  | `contraagent.RoutingPlan` | `contraagent.engine.RoutingPlan` |
+  | `contraagent.Run` | `contraagent.engine.Run` |
+  | `contraagent.Secret` | `contraagent.config.Secret` |
+  | `contraagent.Stop` | `contraagent.backends.Stop` |
+  | `contraagent.Subscription` | `contraagent.config.Subscription` |
+  | `contraagent.TaskAdapter` | `contraagent.engine.TaskAdapter` |
+  | `contraagent.Vertex` | `contraagent.config.Vertex` |
+  | `contraagent.WorkQueue` | `contraagent.engine.WorkQueue` |
+  | `contraagent.WorkloadIdentity` | `contraagent.config.WorkloadIdentity` |
+  | `contraagent.check_input` | not public |
+  | `contraagent.configs_from_tables` | not public |
+  | `contraagent.create_backend` | `contraagent.backends.create_backend` |
+  | `contraagent.kind_name` | not public |
+  | `contraagent.make_python_task` | not public |
+  | `contraagent.normalize_stream_line` | `contraagent.backends.normalize_stream_line` |
+  | `contraagent.register_backend` | `contraagent.backends.register_backend` |
+  | `contraagent.register_normalizer` | `contraagent.backends.register_normalizer` |
+  | `contraagent.require_budgets` | not public |
+  | `contraagent.run_until_valid` | `contraagent.engine.run_until_valid` |
+  | `contraagent.monitor.api.BlocksBody` | `contraagent.monitor.BlocksBody` |
+  | `contraagent.monitor.api.ChartSeries` | `contraagent.monitor.ChartSeries` |
+  | `contraagent.monitor.api.ColumnsBody` | `contraagent.monitor.ColumnsBody` |
+  | `contraagent.monitor.api.GridCell` | `contraagent.monitor.GridCell` |
+  | `contraagent.monitor.api.HBar` | `contraagent.monitor.HBar` |
+  | `contraagent.monitor.api.HBarsBody` | `contraagent.monitor.HBarsBody` |
+  | `contraagent.monitor.api.HeatmapBody` | `contraagent.monitor.HeatmapBody` |
+  | `contraagent.monitor.api.LinesBody` | `contraagent.monitor.LinesBody` |
+  | `contraagent.monitor.api.NoteBody` | `contraagent.monitor.NoteBody` |
+  | `contraagent.monitor.api.PANEL_TYPES` | `contraagent.monitor.PANEL_TYPES` |
+  | `contraagent.monitor.api.PanelBody` | `contraagent.monitor.PanelBody` |
+  | `contraagent.monitor.api.PanelTile` | `contraagent.monitor.PanelTile` |
+  | `contraagent.monitor.api.StatusGridBody` | `contraagent.monitor.StatusGridBody` |
+  | `contraagent.monitor.api.TableBody` | `contraagent.monitor.TableBody` |
+  | `contraagent.monitor.api.TableColumn` | `contraagent.monitor.TableColumn` |
+  | `contraagent.monitor.api.TilesBody` | `contraagent.monitor.TilesBody` |
+  | `contraagent.monitor.api.Tone` | `contraagent.monitor.Tone` |
+  | `contraagent.monitor.api.ValueFormat` | `contraagent.monitor.ValueFormat` |
+  | `contraagent.backends.launch.Usage`, `.CallUsage` | `contraagent.backends.Usage`, `contraagent.backends.CallUsage` |
+  | `contraagent.backends.process.write_launch_marker` | `contraagent.backends.write_launch_marker` |
+  | `contraagent.backends.opencode.backend.PERMISSION_OF` | `contraagent.backends.OpencodeBackend.PERMISSION_OF` |
+  | `launch.env[contraagent.envvars.CALL]` | `contraagent.CallFile.path_of(launch)` |
+  | `contraagent.runs.source.DirectorySource`, `MemorySource`, `RunSource` | `contraagent.monitor.DirectorySource`, `MemorySource`, `RunSource` |
+  | `contraagent.runs.liveness.Liveness` | `contraagent.monitor.Liveness` |
+  | `contraagent.monitor.export.export` | `contraagent.monitor.export` |
+  | `contraagent.monitor.trends.PeriodError` | `contraagent.monitor.PeriodError` |
+  | `contraagent.dispatch.FlowCall`, `TimeBoxed`, `Deferral` | `contraagent.FlowCall`, `TimeBoxed`, `Deferral` |
+  | `contraagent.execution.recording.RecordingError` | `contraagent.RecordingError` |
+  | `contraagent.routing.quota.QuotaRule` | `contraagent.QuotaRule` |
+  | `contraagent.routing.quota.QuotaRests` | `contraagent.engine.QuotaRests` |
+  | `contraagent.execution.schemas.Cursor`, `UnitCursor`, `Inflight`, `HistoryEntry` | `contraagent.engine.Cursor`, `UnitCursor`, `Inflight`, `HistoryEntry` |
+  | `contraagent.execution.schemas.JournalRow`, `PlanRow`; `contraagent.routing.quota.QuotaCap`; `contraagent.dispatch.Rest`, `RestEvent`, `TimeBoxRecord` | `contraagent.monitor.api.JournalRow`, `PlanRow`, `QuotaCap`, `Rest`, `RestEvent`, `TimeBoxRecord` |
+  | `contraagent.dispatch.Hop`, `SkippedHop`, `Changes`, `DeferralCause`, `Frame`, `Loop`, `OtherModel`, `TokenUsage`, `Executor`, `Origin` | `contraagent.Hop`, ... (the same names) |
+  | `contraagent.<layer>.<module>` (`dispatch`, `execution`, `routing`, `runs`, `hub`, `cli`, `procfs`, `envvars`, `telemetry`, `pointers`, `validators`, `calls`, `contracts`, `errors`) | not public: `contraagent._internal.<layer>.<module>` |
+  | `python -m contraagent.monitor ...` | `contraagent monitor ...` (or `python -m contraagent monitor ...`) |
+
+- A task and a result given to a scope, an enricher or `row_extras` are frozen
+  (`Task`, `TaskResult`: frozen dataclasses). `ResultEnricher.enrich` returns the result
+  as it should be (`dataclasses.replace(result, payload=...)`), or None to leave it.
+- `CallFile.path_of(launch)`: the call file a launch hands its agent, for a custom backend.
+- The committed OpenAPI documents and the built web UI are under
+  `src/contraagent/_internal/monitor/` and `src/contraagent/_internal/hub/`; regenerate the
+  monitor's with `contraagent monitor --openapi PATH`.
+
 - The run records layer, `contraagent.runs`: `contraagent.rundir` is `contraagent.runs.layout`
   (its `write_document` is `contraagent.runs.files.write_document`); `contraagent.monitor.source`
   is `contraagent.runs.source` (`RunSource`, `DirectorySource`, `MemorySource`, `page`,

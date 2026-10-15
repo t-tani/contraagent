@@ -1,4 +1,4 @@
-"""Loops and passes (`contraagent.pipeline.loops`), and fingerprints.
+"""Loops and passes (`contraagent._internal.pipeline.loops`), and fingerprints.
 
 A pass is one iteration of one loop of flow code, counted from the loop's back edges
 (`sys.monitoring`). Bytecode differs between Python versions; run this on each one
@@ -14,7 +14,7 @@ import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, TooManyPasses, agent_task, python_task
-from contraagent.pipeline import loops
+from contraagent._internal.pipeline import loops
 from contraagent.testing import StubAgent
 
 # --- counting, against counters the flows keep themselves ------------------------------
