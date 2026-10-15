@@ -76,14 +76,37 @@
   .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child)::before { display: inline; min-width: 9rem; }
 }
 
-/* The landing page. */
-.ca-home-shot { margin: 0 0 1rem; }
-.ca-home-shot img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 12px;
-  box-shadow: var(--sl-shadow-md);
+/* The landing page: the hero's text, the coding agents, the entry points (the replay and the steps style themselves). */
+[data-has-hero] .hero { padding-block: 2rem 1.25rem; }
+[data-has-hero] .hero h1 { letter-spacing: -0.03em; }
+[data-has-hero] .hero .tagline { max-width: 44rem; }
+.ca-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2.5rem;
 }
-.ca-home-shot figcaption { font-size: var(--sl-text-sm); color: var(--sl-color-gray-3); margin-top: 0.5rem; }
+.ca-agents li {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 999px;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-white);
+}
+.ca-agents code { font-size: var(--sl-text-xs); color: var(--sl-color-gray-3); background: none; padding: 0; }
+.ca-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+.ca-start section { display: flex; flex-direction: column; gap: 0.75rem; }
+.ca-start h3 { margin: 0; font-size: var(--sl-text-xl); color: var(--sl-color-white); }
+.ca-start p { margin: 0; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); }
+.ca-start .sl-link-card { margin: 0; }
