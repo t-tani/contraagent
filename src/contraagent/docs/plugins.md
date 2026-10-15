@@ -130,13 +130,27 @@ own hook system, so they run inside the agent:
 | event | claude | omp, pi | opencode |
 |---|---|---|---|
 | `pre_tool` | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
-| `post_tool` | `PostToolUse` | `tool_result` event | `tool.execute.after` |
+| `post_tool` | `PostToolUse`; exit 2 sends the script's words to the agent | `tool_result` event; exit 2 adds the script's words to the result the agent sees | `tool.execute.after`; exit 2 adds the script's words to the tool's output |
 | `stop` | the agent checks its own file and carries on in the same turn | none: `omp -p` and `pi -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
+
+On every agent, a `post_tool` script that exits 2 has the agent fix what it says
+in the same session (checked live on each).
 
 Hook scripts read the JSON Claude Code sends hooks; the omp and pi extensions
 (`omp/index.ts`, `pi/index.ts`, both declared in `package.json`) and the opencode
 plugin (`opencode/index.js`) build the same
-payload, so one script serves every agent.
+payload, so one script serves every agent. The tool input comes in Claude Code's
+names whatever the agent calls its arguments:
+
+| Claude Code | omp | pi | opencode |
+|---|---|---|---|
+| `file_path` (Read, Write, Edit) | `path` | `path` | `filePath` |
+| `old_string`, `new_string` (Edit) | `old_string`, `new_string` | `edits: [{oldText, newText}]`, when it holds one edit | `oldString`, `newString` |
+| `replace_all` (Edit) | `replace_all` | none | `replaceAll` |
+| `command`, `pattern`, `path` (Bash, Grep, Glob), `content` (Write) | the same | the same | the same |
+
+The `tool` of a hook names the tool as `hooks.toml` does (`bash`, `read`, `write`,
+`edit`, `grep`, `glob`), so a `glob` hook runs on pi's and omp's `find` too.
 
 ## Commands
 

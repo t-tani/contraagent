@@ -2,6 +2,7 @@
 
 import json
 import runpy
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -242,3 +243,52 @@ def test_render_leaves_a_skill_plugin_alone_and_lint_names_what_it_left(tmp_path
     assert errs == ["hooks, package.json: written by `contraagent plugin render`, which a skill plugin does not need; remove them"]
     with pytest.raises(PluginError, match="written by `contraagent plugin render`; remove them"):
         agent_task("t", instructions="x", skills_from=[common])
+
+
+DRIVE = """
+const [, , root] = process.argv;
+const out = {};
+const write = { path: `${root}/n.md`, content: "x" };
+const oc = await (await import(`${root}/opencode/index.js`)).ContraagentHooks({ directory: root });
+const result = { title: "edit", output: "Edited.", metadata: {} };
+await oc["tool.execute.after"]({ tool: "edit", args: { filePath: write.path, oldString: "a", newString: "b" } }, result);
+out.opencode = result.output;
+for (const agent of ["omp", "pi"]) {
+  const handlers = {};
+  (await import(`${root}/${agent}/index.ts`)).default({ on: (name, fn) => (handlers[name] = fn) });
+  const input = agent === "pi"
+    ? { path: write.path, edits: [{ oldText: "a", newText: "b" }] }
+    : { path: write.path, old_string: "a", new_string: "b" };
+  const r = await handlers.tool_result({ toolName: "edit", input, content: [{ type: "text", text: "Edited." }] }, { cwd: root });
+  out[agent] = r.content.map((c) => c.text).join(" | ");
+  out[`${agent}_unnamed`] = await handlers.tool_result({ toolName: "read", input: { path: "x" }, content: [] }, { cwd: root }) ?? null;
+}
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.mark.skipif(shutil.which("bun") is None, reason="bun runs the rendered omp and pi extensions")
+def test_each_agent_s_hooks_read_claude_code_s_input_and_return_a_post_tool_objection(plugin, tmp_path):
+    """The rendered omp and pi extensions and the opencode plugin, driven as each agent calls
+    them: the script reads `file_path`, `old_string` and `new_string` whatever the agent named
+    them, and its exit 2 reaches the result the agent sees."""
+    (plugin / "hooks" / "object.sh").write_text(
+        '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n'
+        'echo "add a title line" >&2\nexit 2\n'
+    )
+    (plugin / "hooks" / "object.sh").chmod(0o755)
+    add_hooks(plugin, '\n[[hooks]]\non = "post_tool"\ntool = "edit"\nscript = "hooks/object.sh"\n')
+    hooks.write(Plugin.load(plugin))
+    (tmp_path / "drive.mjs").write_text(DRIVE)
+    proc = subprocess.run(["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve())], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    out = json.loads(proc.stdout)
+    said = hooks.FEEDBACK.replace("\\n", "\n") + "add a title line"  # the JS template literal reads `\\n` as a line break
+    assert out["opencode"] == f"Edited.\n\n{said}"
+    assert out["omp"] == out["pi"] == f"Edited. | {said}"
+    assert out["omp_unnamed"] is None and out["pi_unnamed"] is None  # a tool the hook does not name: unchanged
+    seen = [json.loads(line) for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    assert [s["tool_name"] for s in seen] == ["Edit"] * 3
+    for s in seen:
+        assert s["tool_input"]["file_path"].endswith("/n.md")
+        assert (s["tool_input"]["old_string"], s["tool_input"]["new_string"]) == ("a", "b")

@@ -859,6 +859,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On omp, pi and opencode a `post_tool` hook that exits 2 has its words added to the
+  tool's result, so the agent fixes what it says in the same session, as on Claude Code
+  (they were dropped). The hook script reads the tool input in Claude Code's names on every
+  agent: omp's and pi's `path` and opencode's `filePath` are `file_path`, opencode's
+  `oldString`/`newString` and pi's one-edit `edits` are `old_string`/`new_string`.
 - omp reads `.env` files at start (its working directory's, its agent directory's, its config
   root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
   there came back after contraagent removed it: an isolated omp binding now names the file
