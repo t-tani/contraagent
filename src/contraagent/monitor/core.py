@@ -33,15 +33,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from contraagent import rundir
 from contraagent.backends.streams import normalize_stream_line, resolve_format
+from contraagent.dispatch.records import DeferralCause, Rest, RestEvent, TimeBoxRecord
 from contraagent.execution.cursor import parse_cursor
 from contraagent.execution.schemas import JournalRow
 from contraagent.monitor import paths, trends
 from contraagent.monitor.source import PAGE_BYTES, DirectorySource, Liveness, ProcLiveness, RunSource, StaticLiveness
 from contraagent.monitor.trends import Period
+from contraagent.routing.preflight import PreflightRecord
+from contraagent.routing.quota import QuotaCap
 
 #: A run panel: `fn(run) -> body`, a dict or a typed body (`api.PanelBody`), given the run's records (`RunRecords`).
 PanelFn = Callable[["RunRecords"], Any]
@@ -217,32 +220,24 @@ def _number(v: object) -> float | None:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
-def _deferral_cause(cause: dict) -> dict:
-    """A `deferred.jsonl` row's `cause` (`Deferral.cause`) as the monitor serves it
-    (`DeferralCause`): its name, a deadline's figures, and the rests of a resting credential."""
-    rests = [r for r in cause.get("rests") or () if isinstance(r, dict) and isinstance(r.get("credential"), str)]
-    return {
-        "cause": str(cause.get("cause")),
-        "need_s": _number(cause.get("need_s")),
-        "left_s": _number(cause.get("left_s")),
-        "flow_call": cause["flow_call"] if isinstance(cause.get("flow_call"), str) else None,
-        "rests": [{**r, "window": r.get("window") or "", "rule": r.get("rule") or "", "until": r.get("until") or ""} for r in rests],
-    }
+def _deferral_cause(cause: object) -> dict | None:
+    """A `deferred.jsonl` row's `cause` (a `DeferralCause`) as the monitor serves it: its
+    name, a deadline's figures, and each rest as the row recorded it. None for a row with no
+    cause, or one that is not a `DeferralCause`."""
+    try:
+        c = DeferralCause.model_validate(cause)
+    except ValidationError:
+        return None
+    return {**c.model_dump(mode="json", exclude={"rests"}), "rests": [r.model_dump(mode="json", exclude_unset=True) for r in c.rests]}
 
 
 def _time_box(box: object) -> dict | None:
-    """A flow call's time box as `flow_calls.jsonl` records it (`TimeBoxInfo`); None
+    """A flow call's time box as `flow_calls.jsonl` records it (a `TimeBoxRecord`); None
     for a flow call with none."""
-    if not isinstance(box, dict) or _number(box.get("deadline_s")) is None:
+    try:
+        return TimeBoxRecord.model_validate(box).model_dump(mode="json") if box is not None else None
+    except ValidationError:
         return None
-    kinds = box.get("finishing_kinds")
-    return {
-        "started_at": str(box.get("started_at") or ""),
-        "deadline_s": _number(box.get("deadline_s")),
-        "grace_s": _number(box.get("grace_s")) or 0.0,
-        "slack_s": _number(box.get("slack_s")) or 0.0,
-        "finishing_kinds": [k for k in kinds if isinstance(k, str)] if isinstance(kinds, list) else [],
-    }
 
 
 def _shown(file: str, cwd: Path | None) -> str:
@@ -554,8 +549,7 @@ class Monitor:
             if state == "pending" and r["key"] in deferred:
                 d = deferred[r["key"]]
                 node["deferred"] = str(d.get("reason") or "")
-                cause = d.get("cause")
-                node["deferred_cause"] = _deferral_cause(cause) if isinstance(cause, dict) and cause.get("cause") else None
+                node["deferred_cause"] = _deferral_cause(d.get("cause"))
             if j:
                 node.update(
                     {
@@ -603,50 +597,38 @@ class Monitor:
     def _preflight(self, run: str) -> dict:
         """`preflight`: what the run's preflight did (`run.json`), when it records it."""
         record = (self.source.info(run) or {}).get("preflight")
-        if not isinstance(record, dict) or record.get("policy") not in ("substitute", "stop", "off"):
+        if record is None:
             return {}
-
-        def rows(name: str, fields: tuple[str, ...]) -> list[dict]:
-            items = record.get(name)
-            return [{f: item.get(f, "") for f in fields} for item in (items if isinstance(items, list) else ()) if isinstance(item, dict)]
-
-        dropped = rows("dropped", ("agent", "model", "credential", "reason", "kinds"))
-        for d in dropped:
-            d["kinds"] = [k for k in d["kinds"] if isinstance(k, str)] if isinstance(d["kinds"], list) else []
-        stopped = record.get("stopped")
-        return {
-            "preflight": {
-                "policy": record["policy"],
-                "dropped": dropped,
-                "substituted": rows("substituted", ("kind", "from_agent", "from_model", "to_agent", "to_model")),
-                "kept": rows("kept", ("kind", "agent", "model", "reason")),
-                "stopped": [k for k in stopped if isinstance(k, str)] if isinstance(stopped, list) else [],
-            }
-        }
+        try:
+            return {"preflight": PreflightRecord.model_validate(record).model_dump(mode="json")}
+        except ValidationError:
+            return {}
 
     def _quota(self, run: str) -> dict:
         """The run's quota caps and rule (`run.json`), and each credential's rests
         (`rests.jsonl`): a start folded with its end, in start order."""
         info = self.source.info(run) or {}
         caps = info.get("quota_caps")
-        quota_caps = [
-            {"credential": c, "five_hour_pct": v.get("five_hour_pct"), "seven_day_pct": v.get("seven_day_pct")}
-            for c, v in (caps.items() if isinstance(caps, dict) else ())
-            if isinstance(v, dict)
-        ]
+        quota_caps = []
+        for c, v in caps.items() if isinstance(caps, dict) else ():
+            try:
+                quota_caps.append(QuotaCap.model_validate({**v, "credential": c}).model_dump(mode="json"))
+            except (TypeError, ValidationError):
+                continue
         rests: list[dict] = []
         open_: dict[tuple[str, str], dict] = {}
         for row in _parse(self.source.lines(run, rundir.RESTS)[0]):
-            if not isinstance(row, dict) or not isinstance(row.get("credential"), str):
+            try:
+                event = RestEvent.model_validate(row)
+            except ValidationError:
                 continue
-            name = (row["credential"], row.get("account") or "")
-            if row.get("event") == "start":
-                rest = {k: row.get(k) for k in ("credential", "window", "pct", "cap", "rule", "until", "account", "reading")}
-                rest = {**rest, **{k: rest[k] or "" for k in ("window", "rule", "until", "account")}}
-                open_[name] = {**rest, "since": row.get("ts", ""), "ended": ""}
+            name = (event.credential, event.account)
+            if event.event == "start":
+                rest = event.model_dump(mode="json", include=set(Rest.model_fields))
+                open_[name] = {**rest, "since": event.ts, "ended": ""}
                 rests.append(open_[name])
-            elif row.get("event") == "end" and name in open_:
-                open_.pop(name)["ended"] = row.get("ts", "")
+            elif name in open_:
+                open_.pop(name)["ended"] = event.ts
         rule = info.get("quota_rule")
         return {"quota_caps": quota_caps, "quota_rule": rule if isinstance(rule, str) else "", "rests": rests}
 

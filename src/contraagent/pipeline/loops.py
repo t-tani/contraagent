@@ -48,7 +48,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import CodeType, FrameType
 
-from contraagent.dispatch.task import Loop
+from contraagent.dispatch.records import Loop
 from contraagent.pipeline.origin import flow_code
 
 #: The tool ids tried, in order: 0, 1, 2 and 5 are the debugger's, coverage's, the profiler's and the optimizer's.
@@ -281,7 +281,7 @@ class LoopCounter:
         if not info.loops:
             return ()
         counts = self._counts.get(f, {})
-        return tuple(Loop(line, counts.get(line, 1) + ahead if self.active else None) for line, ahead in around(info, f))
+        return tuple(Loop(line=line, pass_=counts.get(line, 1) + ahead if self.active else None) for line, ahead in around(info, f))
 
     def drop(self, call: object) -> None:
         """Forget the counts of the frames of flow call `call`."""

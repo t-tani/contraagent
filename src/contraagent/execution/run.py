@@ -40,16 +40,17 @@ import sys
 import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent import procfs, rundir
 from contraagent.backends.base import Backend
 from contraagent.backends.launch import RateLimit, Stop
+from contraagent.dispatch.flow import FlowState
 from contraagent.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent.dispatch.python_task import make_python_task
 from contraagent.dispatch.queue import WorkQueue
-from contraagent.dispatch.task import STOP_PARTIAL, Frame, Task, TaskResult, TimeBox, kind_name
+from contraagent.dispatch.records import DeferralCause, Frame, Rest, RestEvent
+from contraagent.dispatch.task import STOP_PARTIAL, Task, TaskResult, TimeBox, kind_name
 from contraagent.errors import ContraagentError
 from contraagent.execution import teardown as _teardown
 from contraagent.execution.cursor import CursorStore
@@ -58,9 +59,10 @@ from contraagent.execution.journal import Journal, utcnow_iso
 from contraagent.execution.pipeline_files import writing_into
 from contraagent.execution.python_tasks import PythonTaskRunner
 from contraagent.execution.runner import AgentRunner
+from contraagent.execution.schemas import DeferredRow, FlowCallRow, PlanRow
 from contraagent.routing.capacity import sized
 from contraagent.routing.config import PipelineConfig
-from contraagent.routing.quota import QuotaRests, QuotaRule, Rest, caps_of
+from contraagent.routing.quota import QuotaRests, QuotaRule, caps_of
 
 _logger = logging.getLogger(__name__)
 
@@ -102,15 +104,6 @@ def _name_of(fn: Callable) -> str:
     fn = getattr(fn, "__func__", fn)
     qualname = getattr(fn, "__qualname__", "") or type(fn).__qualname__
     return f"{getattr(fn, '__module__', '') or ''}.{qualname}".lstrip(".")
-
-
-def frames_row(frames: Sequence[Frame]) -> list[dict]:
-    """A flow path as `plan.jsonl` and `flow_calls.jsonl` record it: `{function, file, line,
-    loops: [{line, pass}]}` per frame, outermost first."""
-    return [
-        {"function": f.function, "file": f.file, "line": f.line, "loops": [{"line": loop.line, "pass": loop.pass_} for loop in f.loops]}
-        for f in frames
-    ]
 
 
 class RunLocked(ContraagentError):
@@ -377,7 +370,8 @@ class Run:
         `run.json` records the caps (`quota_caps`, by credential) and the rule's name
         (`quota_rule`, '' for none); `rests.jsonl` each start and end of a rest."""
         rests = QuotaRests(credentials, rule, on_change=self._record_rest, **kwargs)
-        self.update_info(quota_caps=caps_of(credentials), quota_rule=_name_of(rule) if rule is not None else "")
+        caps = {c.credential: c.model_dump(exclude={"credential"}, exclude_none=True) for c in caps_of(credentials)}
+        self.update_info(quota_caps=caps, quota_rule=_name_of(rule) if rule is not None else "")
         fields = {f.name for f in dataclasses.fields(RateLimit)}
         for path in recent_journals(self.runs_dir):
             for row in journal_rows(path):
@@ -456,7 +450,7 @@ class Run:
                 self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
         if event == "deferred" and task is not None:
             cause = fields.get("cause")
-            self._record_deferral(task, str(fields.get("reason") or ""), cause if isinstance(cause, dict) else {})
+            self._record_deferral(task, str(fields.get("reason") or ""), cause if isinstance(cause, DeferralCause) else None)
         if event == "duplicate_key_refused":
             self._log(logging.WARNING, f"[refused] {fields.get('key')}: already in flight")
         elif event == "retry" and task is not None:
@@ -493,48 +487,38 @@ class Run:
         A task with no origin (built by hand) has an empty `flow` and `created_from`, and
         `flow_call` null. `base_kind` is there only for an implementation kind."""
         origin = task.origin
-        row = {
-            "ts": utcnow_iso(),
-            "key": task.key,
-            "kind": kind_name(task.kind),
-            "unit": self._unit_of(task),
-            "claims": list(task.claims),
-            "after": list(task.after),
-            "priority": task.priority,
-            "executor": task.executor,
-            "flow": frames_row(origin.flow) if origin is not None else [],
-            "created_from": list(origin.created_from) if origin is not None else [],
-            "flow_call": origin.flow_call if origin is not None else None,
-            **({"base_kind": task.base_kind} if task.base_kind else {}),
-        }
+        row = PlanRow(
+            ts=utcnow_iso(),
+            key=task.key,
+            kind=kind_name(task.kind),
+            unit=self._unit_of(task),
+            claims=list(task.claims),
+            after=list(task.after),
+            priority=task.priority,
+            executor=task.executor,
+            flow=list(origin.flow) if origin is not None else [],
+            created_from=list(origin.created_from) if origin is not None else [],
+            flow_call=origin.flow_call if origin is not None else None,
+            base_kind=task.base_kind,
+        ).to_dict()
         self._append(rundir.PLAN, row)
         if self._estimates is not None:
             self._estimates.observe_plan(row)
 
-    def _record_deferral(self, task: Task, reason: str, cause: dict) -> None:
-        """Record a task the queue deferred in `deferred.jsonl` (`{ts, key, kind, unit, reason,
-        cause}`: `cause` is `Deferral.cause`): the monitor names why it did not run. A task
-        deferred after it started (its runner found no way to launch it) loses its running
-        marker too."""
+    def _record_deferral(self, task: Task, reason: str, cause: DeferralCause | None) -> None:
+        """Record a task the queue deferred in `deferred.jsonl` (a `DeferredRow`): the
+        monitor names why it did not run. A task deferred after it started (its runner found
+        no way to launch it) loses its running marker too."""
         self._mark_inflight(task, running=False)
-        self._append(
-            rundir.DEFERRED,
-            {
-                "ts": utcnow_iso(),
-                "key": task.key,
-                "kind": kind_name(task.kind),
-                "unit": self._unit_of(task),
-                "reason": reason,
-                "cause": cause,
-            },
-        )
+        row = DeferredRow(ts=utcnow_iso(), key=task.key, kind=kind_name(task.kind), unit=self._unit_of(task), reason=reason, cause=cause)
+        self._append(rundir.DEFERRED, row.to_dict())
         self._log(logging.INFO, f"[deferred] {task.key}: {reason}")
 
     def _record_rest(self, event: str, rest: Rest) -> None:
-        """One line of `rests.jsonl`: `{ts, event, credential, window, pct, cap, rule, until}`,
-        `event` `start` when the credential began resting, `end` when it was found not
-        resting again (with the rest that ended)."""
-        self._append(rundir.RESTS, {"ts": utcnow_iso(), "event": event, **rest.to_dict()})
+        """One line of `rests.jsonl` (a `RestEvent`): `event` `start` when the credential
+        began resting, `end` when it was found not resting again (with the rest that ended)."""
+        row = RestEvent.model_validate({"ts": utcnow_iso(), "event": event, **rest.to_dict()})
+        self._append(rundir.RESTS, row.model_dump(mode="json", exclude_unset=True))
         self._log(logging.INFO, f"[rest] {rest.text()}" if event == "start" else f"[rest] {rest.credential} rests no more")
 
     def record_flow_call(
@@ -545,37 +529,28 @@ class Run:
         parent: str | None = None,
         function: str = "",
         flow: Sequence[Frame] = (),
-        state: str = "",
+        state: FlowState | None = None,
         error: BaseException | None = None,
         time_box: TimeBox | None = None,
         started_at: float | None = None,
     ) -> None:
-        """One line of `flow_calls.jsonl`. `event` "start": `{ts, id, parent, function,
-        flow}`, where `flow` is the flow path where the parent yielded it (the parent's
-        frames, with their loops' passes, as in `plan.jsonl`; empty for a top flow call),
-        and for a flow call yielded through `time_box`, `time_box`: `{started_at,
-        deadline_s, grace_s, slack_s, finishing_kinds}` (`started_at`: when the flow
-        call started, where its deadline counts from);
-        "end": `{ts, id, state, error}`, where `state` is `returned`, `raised` or `closed`
-        and `error` is `"<type>: <message>"` or null."""
-        row: dict = {"ts": utcnow_iso(), "id": call_id, "event": event}
+        """One line of `flow_calls.jsonl` (a `FlowCallRow`). `event` "start": its `parent`,
+        `function` and `flow`, the flow path where the parent yielded it (the parent's frames,
+        with their loops' passes, as in `plan.jsonl`; empty for a top flow call), and for a
+        flow call yielded through `time_box`, its `time_box` (`TimeBox.record`; `started_at`:
+        when the flow call started, where its deadline counts from); "end": its `state` and
+        `error`."""
+        ts = utcnow_iso()
         if event == "start":
-            row |= {"parent": parent, "function": function, "flow": frames_row(flow)}
-            if time_box is not None:
-                row["time_box"] = {
-                    "started_at": (
-                        datetime.fromtimestamp(started_at, UTC).isoformat(timespec="seconds") if started_at is not None else row["ts"]
-                    ),
-                    "deadline_s": time_box.deadline_s,
-                    "grace_s": time_box.grace_s,
-                    "slack_s": time_box.slack_s,
-                    "finishing_kinds": sorted(time_box.finishing_kinds),
-                }
+            box = {"time_box": time_box.record(started_at)} if time_box is not None else {}
+            start = {"ts": ts, "id": call_id, "event": "start", "parent": parent, "function": function, "flow": list(flow)}
+            row = FlowCallRow.model_validate(start | box)
         else:
-            row |= {"state": state, "error": f"{type(error).__name__}: {error}" if error is not None else None}
-        self._append(rundir.FLOW_CALLS, row)
+            error_text = f"{type(error).__name__}: {error}" if error is not None else None
+            row = FlowCallRow(ts=ts, id=call_id, event="end", state=state, error=error_text)
+        self._append(rundir.FLOW_CALLS, row.to_dict())
         if event == "end" and self._estimates is not None:
-            self._estimates.flow_call_ended(call_id, state)
+            self._estimates.flow_call_ended(call_id, state or "")
 
     def _append(self, name: str, row: dict) -> None:
         with self._plan_lock, open(self.dir / name, "a") as f:

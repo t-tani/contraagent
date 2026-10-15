@@ -59,7 +59,8 @@ from pydantic_core import to_jsonable_python
 from contraagent.contracts import InputContract, OutputContract, check_file
 from contraagent.dispatch.flow import TaskFailed, result_or_raise
 from contraagent.dispatch.python_task import PythonTaskPayload
-from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Frame, Origin, Partial, Task, TaskResult
+from contraagent.dispatch.records import Frame
+from contraagent.dispatch.task import PYTHON_KEY_PREFIX, STOP_DUPLICATE_KEY, STOP_INVALID_OUTPUT, Origin, Partial, Task, TaskResult
 from contraagent.errors import ContraagentError
 from contraagent.pipeline import origin as origins
 from contraagent.pipeline.loops import LoopCounter, counting, is_while

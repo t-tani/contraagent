@@ -14,9 +14,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from contraagent.backends.process import signal_of
+from contraagent.dispatch.records import TokenUsage
 from contraagent.dispatch.task import Task, TaskResult, kind_name
-from contraagent.execution import schemas
-from contraagent.execution.schemas import Hop, JournalRow, QuotaReading, SkippedHop, TokenUsage
+from contraagent.execution.schemas import JournalRow, QuotaReading
 
 
 def _usage(o) -> TokenUsage | None:
@@ -34,13 +34,6 @@ def _usage(o) -> TokenUsage | None:
         peak_context=u.peak_context if u.calls else None,
         context_window=o.context_window,
     )
-
-
-def _changes(result: TaskResult) -> schemas.Changes | None:
-    c = result.changes
-    if c is None:
-        return None
-    return schemas.Changes(created=list(c.created), modified=list(c.modified), deleted=list(c.deleted), removed=list(c.removed))
 
 
 def utcnow_iso() -> str:
@@ -86,8 +79,8 @@ class Journal:
             model=o.model if o is not None else "",
             credential=o.credential if o is not None else "",
             route=result.route,
-            hops=[Hop.model_validate(h) for h in result.hops],
-            skipped_hops=[SkippedHop.model_validate(h) for h in result.skipped_hops],
+            hops=list(result.hops),
+            skipped_hops=list(result.skipped_hops),
             stop=result.stop,
             ok=result.ok,
             wall_s=round(result.wall_s, 1),
@@ -106,7 +99,7 @@ class Journal:
             ],
             web_queries=list(o.web_queries) if o is not None else [],
             unread_events=dict(o.unread_events) if o is not None else {},
-            changes=_changes(result),
+            changes=result.changes,
             context_budget=getattr(o, "context_budget", None),
             context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,

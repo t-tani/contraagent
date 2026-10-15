@@ -40,7 +40,7 @@ def drive(*flows, wait_s: float = 0.0, **queue_options):
 
     def on_event(event, task, **fields):
         if event == "deferred":
-            deferred.append({"key": task.key, **fields})
+            deferred.append({"key": task.key, **fields, "cause": fields["cause"].to_dict()})
 
     runner = Runner()
     driver = FlowDriver(answer=result_or_raise)

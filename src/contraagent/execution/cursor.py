@@ -33,7 +33,7 @@ from pathlib import Path
 from contraagent import procfs
 from contraagent.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
 
-SCHEMA_VERSION = "1.0"
+CURSOR_SCHEMA_VERSION = "1.0"
 
 
 def utcnow() -> datetime:
@@ -110,7 +110,7 @@ class CursorStore:
         """The cursor, or a fresh one when none exists yet. A malformed file raises."""
         if self.path.is_file() and self.path.read_text().strip():
             return Cursor.model_validate_json(self.path.read_text())
-        return Cursor(schema_version=SCHEMA_VERSION, run=self.run, updated_at=utcnow())
+        return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=utcnow())
 
     # --- mutations ---------------------------------------------------------
 

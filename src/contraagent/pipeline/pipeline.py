@@ -351,9 +351,9 @@ class Pipeline:
                     try:
                         preflight = plan.preflight(self.preflight)
                     except PreflightStopped as exc:
-                        run.update_info(preflight=exc.record.as_dict())
+                        run.update_info(preflight=exc.record.model_dump(mode="json"))
                         raise
-                    run.update_info(preflight=preflight.as_dict())
+                    run.update_info(preflight=preflight.model_dump(mode="json"))
                     plan.log()
                     rests = run.quota_rests(
                         plan.credentials,

@@ -384,7 +384,7 @@ def test_the_preflight_probes_every_reachable_kind(tmp_path, monkeypatch):
 
     def preflight(self, policy):
         probed.append(sorted(map(kind_name, self.configs)))
-        return PreflightRecord(policy)
+        return PreflightRecord(policy=policy)
 
     monkeypatch.setattr(RoutingPlan, "preflight", preflight)
     agent = StubAgent({"summarize": {"unit": "a", "points": ["p"]}, "review": {"approved": True, "note": ""}})

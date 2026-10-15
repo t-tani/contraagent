@@ -43,7 +43,12 @@ from pydantic import (
     model_validator,
 )
 
-from contraagent.execution.schemas import JournalRow, QuotaReading, QuotaRest, SkippedHop, TokenUsage  # part of this contract
+# The record types a run writes are part of this contract: a response holds them as they are.
+from contraagent.dispatch.flow import FlowState
+from contraagent.dispatch.records import DeferralCause, Executor, Frame, Rest, RestEvent, TimeBoxRecord, TokenUsage
+from contraagent.execution.schemas import JournalRow, PlanRow, QuotaReading
+from contraagent.routing.preflight import PreflightRecord
+from contraagent.routing.quota import QuotaCap
 
 API_VERSION = "3.4.0"
 
@@ -104,10 +109,6 @@ class Info(Closed):
 
 
 # --- /api/runs -------------------------------------------------------------
-
-
-#: Who executes a task: a coding agent, or this process in Python (`Task.executor`).
-Executor = Literal["agent", "python"]
 
 
 class TaskCounts(Closed):
@@ -284,15 +285,10 @@ class TrendQuota(Closed):
     )
 
 
-class TrendRest(Open):
-    """A start or end of a credential's rest (`rests.jsonl`), with its run."""
+class TrendRest(RestEvent):
+    """A start or end of a credential's rest (a `rests.jsonl` row), with its run."""
 
     run: str
-    ts: str | None = None
-    event: str | None = None
-    credential: str | None = None
-    account: str = Field("", description="the account whose reading it is (`QuotaRest.account`); empty when not known")
-    reading: dict | None = Field(None, description="for the quota rule's rest, the reading it judged (`QuotaRest.reading`)")
 
 
 class TrendDeferral(Closed):
@@ -371,93 +367,25 @@ class JournalPage(Closed):
 TaskState = Literal["pending", "running", "done", "partial", "failed", "skipped", "blocked"]
 
 
-#: A flow call's state: `running` until it `returned`, `raised` or was `closed`.
-FlowCallState = Literal["running", "returned", "raised", "closed"]
-
-
-class FlowLoop(Closed):
-    """A loop of a generator around a call site, and the pass the call site was in."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    line: int = Field(description="the loop's first line, which names it")
-    pass_: int | None = Field(
-        alias="pass",
-        description="one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted",
-    )
-
-
-class FlowFrame(Closed):
-    """One frame of a flow path (outermost first): a call site in flow code."""
-
-    function: str = Field(description="`module.qualname`")
-    file: str = Field(description="relative to the run's working directory when under it, else as recorded")
-    line: int
-    loops: list[FlowLoop] = Field(
-        default_factory=list,
-        description="the loops of a generator whose pass `line` was in, outermost first; empty outside a loop and for any other frame",
-    )
-
-
-class TimeBoxInfo(Closed):
-    """A flow call's own deadline (`time_box`), as `flow_calls.jsonl` records it."""
-
-    started_at: str = Field(description="when the flow call started, where its deadline counts from (UTC ISO 8601)")
-    deadline_s: float = Field(description="seconds from `started_at` to the deadline")
-    grace_s: float = Field(description="seconds past the deadline its `finishing_kinds` still launch")
-    slack_s: float = Field(description="seconds before the deadline from which its tasks are ordered for it")
-    finishing_kinds: list[str] = Field(default_factory=list, description="the kinds that still launch past the deadline")
-
-
 class FlowCallNode(Closed):
     """One flow call (`flow_calls.jsonl`): a generator the run drove, or the flow itself."""
 
     id: str = Field(description="`0` for the top flow, `<parent>.<n>` for a child")
     parent: str | None = Field(description="the parent flow call's id; null for a top flow")
     function: str = Field(description="`module.qualname` of the generator function (or of a flow that does not yield)")
-    flow: list[FlowFrame] = Field(
+    flow: list[Frame] = Field(
         default_factory=list, description="the flow path where the parent yielded it, with its loops' passes; empty for a top flow"
     )
-    state: FlowCallState
+    state: FlowState
     error: str | None = Field(None, description="`<type>: <message>` of what it raised (or what closing it raised); else null")
-    time_box: TimeBoxInfo | None = Field(None, description="its own deadline, for a flow call yielded through `time_box`; else null")
+    time_box: TimeBoxRecord | None = Field(None, description="its own deadline, for a flow call yielded through `time_box`; else null")
 
 
-class DeferralCause(Closed):
-    """Why the queue deferred a task, as data (`Deferral.cause`). `cause`: `deadline`,
-    `grace_window` (past the deadline's grace window), `cannot_finish` (`need_s`, `left_s`),
-    `dependency_not_queued`, `rest` (the credential of every hop it could take rests:
-    `rests`), or a runner's own name."""
-
-    cause: str
-    need_s: float | None = Field(None, description="`cannot_finish`: the work it needed, in seconds")
-    left_s: float | None = Field(None, description="`cannot_finish`: the time left before the deadline, in seconds")
-    flow_call: str | None = Field(
-        None, description="`deadline`, `grace_window`, `cannot_finish`: the flow call whose time box it is; null for the run's deadline"
-    )
-    rests: list[SkippedHop] = Field(default_factory=list, description="`rest`: each hop passed over and why its credential rests")
-
-
-class PlanNode(Open):
+class PlanNode(PlanRow):
     """A queued task (a `plan.jsonl` row, passed through) with its state and
     layout. The journal fields (`wall_s` .. `attempts`) appear once it finished.
     The origin fields (`flow` .. `flow_call`) say where the flow created it."""
 
-    key: str
-    kind: str
-    unit: str = ""
-    claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
-    after: list[str] = Field(default_factory=list, description="task keys it waits for")
-    priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
-    executor: Executor = "agent"
-    flow: list[FlowFrame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
-    created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
-    flow_call: str | None = Field(None, description="the id of the flow call that created it; null for a task with no origin")
-    ts: str = Field("", description="when it was queued (absent for a node rebuilt from the journal)")
-    base_kind: str = Field(
-        "",
-        description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty",
-    )
     state: TaskState
     level: int = Field(description="depth in the dependency graph, 0 for a task that waits for nothing")
     group: str
@@ -474,58 +402,11 @@ class PlanNode(Open):
     )
 
 
-class QuotaCap(Closed):
-    """One credential's quota caps (`[credentials.<name>] max_five_hour_pct`, `max_seven_day_pct`)."""
-
-    credential: str
-    five_hour_pct: float | None = None
-    seven_day_pct: float | None = None
-
-
-class CredentialRest(QuotaRest):
+class CredentialRest(Rest):
     """A rest of one credential (`rests.jsonl`): why it began, when, and when it ended."""
 
     since: str = Field(description="when it began resting, ISO 8601")
     ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
-
-
-class PreflightDropped(Closed):
-    """A route the preflight dropped (`DroppedRoute`)."""
-
-    agent: str
-    model: str = Field(description="empty: the coding agent's default model")
-    credential: str
-    reason: str = Field(description="not in its coding agent's model list, or how its probe ended (`rate limited`, ...)")
-    kinds: list[str] = Field(description="the kinds whose chain held it")
-
-
-class PreflightSubstitution(Closed):
-    """A kind with no route left, run on the first route that answered (`Substitution`)."""
-
-    kind: str
-    from_agent: str
-    from_model: str
-    to_agent: str
-    to_model: str
-
-
-class PreflightKept(Closed):
-    """A kind with no route left, run as configured all the same (`KeptKind`)."""
-
-    kind: str
-    agent: str
-    model: str
-    reason: str
-
-
-class Preflight(Closed):
-    """What the run's preflight did (`run.json` `preflight`, a `PreflightRecord`)."""
-
-    policy: Literal["substitute", "stop", "off"] = Field(description="`Pipeline(preflight=)`; `off`: no route was probed")
-    dropped: list[PreflightDropped] = Field(default_factory=list)
-    substituted: list[PreflightSubstitution] = Field(default_factory=list)
-    kept: list[PreflightKept] = Field(default_factory=list)
-    stopped: list[str] = Field(default_factory=list, description="the kinds with no route left that stopped the run (policy `stop`)")
 
 
 class PlanGroup(Closed):
@@ -583,7 +464,9 @@ class Plan(Closed):
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
     models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
-    preflight: Preflight | None = Field(None, description="what the run's preflight did (`run.json`); null when its run.json records none")
+    preflight: PreflightRecord | None = Field(
+        None, description="what the run's preflight did (`run.json`); null when its run.json records none"
+    )
 
 
 # --- outputs (contracts) -----------------------------------------------------
@@ -714,6 +597,8 @@ class TaskDefinition(Open):
 
 
 class StageEntry(Closed):
+    """One transition of the cursor (`HistoryEntry`), its time as `datetime.isoformat` gives it."""
+
     name: str
     at: str
 
