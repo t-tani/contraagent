@@ -6,8 +6,10 @@ import { CaeColumnChart } from './column-chart.js';
 import { CaeHeatmap, heatStep } from './heatmap.js';
 import { CaeLineChart, linePath } from './line-chart.js';
 import { foldSeries, labelStride, niceAxis, OTHER_COLOUR } from './scale.js';
+import { CaeStateGrid, stateFill, statesOf } from './state-grid.js';
 
 defineElement('cae-column-chart', CaeColumnChart);
+defineElement('cae-state-grid', CaeStateGrid);
 defineElement('cae-line-chart', CaeLineChart);
 defineElement('cae-heatmap', CaeHeatmap);
 defineElement('cae-bar-chart', CaeBarChart);
@@ -137,6 +139,61 @@ describe('cae-heatmap', () => {
     key(el, 'ArrowDown');
     await el.updateComplete;
     expect(tipLines(el)).toEqual(['Tue | 0', '—']);
+  });
+});
+
+describe('cae-state-grid', () => {
+  const ok = { label: 'done', tone: 'done' as const };
+  const bad = { label: 'failed', tone: 'failed' as const, tip: 'run 0312' };
+  const paused = { label: 'paused', tone: 'attention' as const };
+  const cells = [
+    [ok, bad, null],
+    [paused, ok, ok],
+  ];
+
+  it('names each state once in the legend, the exceptions first, then in the order the cells give them', () => {
+    expect(statesOf(cells).map((s) => s.label)).toEqual(['failed', 'paused', 'done']);
+    const two = [[{ label: 'late', tone: 'done' as const }, ok]];
+    expect(statesOf(two).map((s) => s.label)).toEqual(['late', 'done']);
+  });
+
+  it('colours a cell by its tone with its mark beside the colour, and leaves a null cell empty', async () => {
+    const el = await mount<CaeStateGrid>('cae-state-grid', { x: ['00', '01', '02'], y: ['Mon', 'Tue'], cells });
+    // Each entry: its key (the cell's colour and mark, hidden from screen readers), then its word.
+    const keys = [...root(el).querySelectorAll('[part="legend"] .key')];
+    expect(keys.map((k) => [k.getAttribute('aria-hidden'), k.textContent])).toEqual([
+      ['true', '✕'],
+      ['true', '◌'],
+      ['true', '✓'],
+    ]);
+    expect(legendWords(el)).toEqual(['✕failed', '◌paused', '✓done']);
+    const rects = [...root(el).querySelectorAll('svg rect')];
+    expect(rects).toHaveLength(6);
+    expect(rects[1]!.getAttribute('fill')).toBe(stateFill('failed'));
+    expect(rects[2]!.getAttribute('fill')).toBe('none');
+    expect([...root(el).querySelectorAll('svg text.mark')].map((t) => t.textContent)).toEqual(['✓', '✕', '◌', '✓', '✓']);
+  });
+
+  it('says a cell\'s row, column, state and fact; the arrow keys move by a row with up and down', async () => {
+    const el = await mount<CaeStateGrid>('cae-state-grid', { x: ['00', '01', '02'], y: ['Mon', 'Tue'], cells });
+    key(el, 'ArrowRight');
+    key(el, 'ArrowRight');
+    await el.updateComplete;
+    expect(tipLines(el)).toEqual(['Mon | 01', 'failed', 'run 0312']);
+    key(el, 'ArrowDown');
+    await el.updateComplete;
+    expect(tipLines(el)).toEqual(['Tue | 01', 'done']);
+  });
+
+  it('shows every state in words in its table', async () => {
+    const el = await mount<CaeStateGrid>('cae-state-grid', { x: ['00', '01', '02'], y: ['Mon', 'Tue'], cells });
+    root(el).querySelector<HTMLButtonElement>('.switch')!.click();
+    await el.updateComplete;
+    const rows = [...root(el).querySelectorAll('tbody tr')].map((r) => [...r.children].map((c) => c.textContent));
+    expect(rows).toEqual([
+      ['Mon', 'done', 'failed', '—'],
+      ['Tue', 'paused', 'done', 'done'],
+    ]);
   });
 });
 

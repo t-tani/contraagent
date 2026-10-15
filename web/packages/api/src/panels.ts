@@ -15,18 +15,30 @@ export type LinesBody = S['LinesBody'];
 export type HeatmapBody = S['HeatmapBody'];
 export type HBarsBody = S['HBarsBody'];
 export type HBar = S['HBar'];
+export type StatusGridBody = S['StatusGridBody'];
+export type GridCell = S['GridCell'];
+export type NoteBody = S['NoteBody'];
 export type BlocksBody = S['BlocksBody'];
 export type ChartSeries = S['ChartSeries'];
 /** How a number of a body is written: `pct` is a fraction (0.97 is 97%), `duration` seconds, `datetime` an ISO time. */
 export type ValueFormat = NonNullable<TableColumn['format']>;
 
 /** A body with a `type`: drawn with the monitor's own elements. */
-export type TypedPanelBody = TilesBody | TableBody | ColumnsBody | LinesBody | HeatmapBody | HBarsBody | BlocksBody;
+export type TypedPanelBody =
+  | TilesBody
+  | TableBody
+  | ColumnsBody
+  | LinesBody
+  | HeatmapBody
+  | HBarsBody
+  | StatusGridBody
+  | NoteBody
+  | BlocksBody;
 /** What a panel returns: a typed body, or any JSON object. */
 export type PanelBody = TypedPanelBody | JsonObject;
 
 /** The `type` of each typed body. */
-export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'blocks'] as const;
+export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'blocks'] as const;
 
 /** `body` as a typed body, or null when it is any other JSON object (a JSON tree). */
 export function typedBody(body: unknown): TypedPanelBody | null {

@@ -662,6 +662,12 @@
                       "$ref": "#/components/schemas/HBarsBody"
                     },
                     {
+                      "$ref": "#/components/schemas/StatusGridBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoteBody"
+                    },
+                    {
                       "$ref": "#/components/schemas/BlocksBody"
                     },
                     {
@@ -940,6 +946,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/HBarsBody"
+                },
+                {
+                  "$ref": "#/components/schemas/StatusGridBody"
+                },
+                {
+                  "$ref": "#/components/schemas/NoteBody"
                 },
                 {
                   "$ref": "#/components/schemas/BlocksBody"
@@ -1828,6 +1840,46 @@
         ],
         "title": "FlowLoop",
         "description": "A loop of a generator around a call site, and the pass the call site was in."
+      },
+      "GridCell": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "failed",
+              "attention",
+              "done",
+              "running",
+              "muted",
+              "neutral"
+            ],
+            "title": "Tone"
+          },
+          "tip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tip"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone"
+        ],
+        "title": "GridCell",
+        "description": "One cell of a status grid: the state it is in, in words, and that state's tone.\n`tip` adds a fact about this cell to its tooltip (a run's id, a count)."
       },
       "HBar": {
         "properties": {
@@ -2814,6 +2866,64 @@
         "title": "ModelUsage",
         "description": "What a run's agent sessions spent on one model of one coding agent, from each\njournal row's hops (a failover's hops on two models count apart). Python tasks have\nno model and are not counted."
       },
+      "NoteBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "note",
+            "title": "Type",
+            "default": "note"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "NoteBody",
+        "description": "Text beside the figures: what a part shows, how to read a number. `text` is\nmarkdown (paragraphs, lists, emphasis, code, http(s) links; any markup in it is shown\nas text). `tone` marks a note that warns (`attention`) or reports a failure (`failed`)."
+      },
       "NoticeEvent": {
         "properties": {
           "type": {
@@ -3000,6 +3110,12 @@
                 "$ref": "#/components/schemas/HBarsBody"
               },
               {
+                "$ref": "#/components/schemas/StatusGridBody"
+              },
+              {
+                "$ref": "#/components/schemas/NoteBody"
+              },
+              {
                 "$ref": "#/components/schemas/BlocksBody"
               },
               {
@@ -3030,13 +3146,17 @@
           "value": {
             "anyOf": [
               {
+                "type": "integer"
+              },
+              {
                 "type": "number"
               },
               {
                 "type": "string"
               }
             ],
-            "title": "Value"
+            "title": "Value",
+            "description": "a number (kept an integer when it is one) or text"
           },
           "tone": {
             "anyOf": [
@@ -4090,6 +4210,74 @@
         ],
         "title": "StageEntry"
       },
+      "StatusGridBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "status_grid",
+            "title": "Type",
+            "default": "status_grid"
+          },
+          "x": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Y"
+          },
+          "cells": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GridCell"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cells"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "cells"
+        ],
+        "title": "StatusGridBody",
+        "description": "A state per row (`y`) and column (`x`): `cells[row][column]`, null where there is\nnone. Each cell is coloured by its tone and named by its label (in the legend, the\ntooltip and the table): the states of hourly cycles by day, say."
+      },
       "StreamMessage": {
         "additionalProperties": false,
         "description": "`/events/stream`: the first message is the transcript's tail page, then each\nmessage carries only the events after the previous one.",
@@ -4219,7 +4407,7 @@
           "rows"
         ],
         "title": "TableBody",
-        "description": "Rows of values, one key per column; a row's `_tone` is its status."
+        "description": "Rows of values, one key per column; a row's `_tone` is its status (a `Tone`)."
       },
       "TableColumn": {
         "properties": {
@@ -4270,6 +4458,19 @@
             "title": "Bar",
             "default": false
           },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "the key of the row that holds the cell's URL"
+          },
           "tip": {
             "anyOf": [
               {
@@ -4289,7 +4490,7 @@
           "label"
         ],
         "title": "TableColumn",
-        "description": "A column of a table body: `id` names the key of each row it shows. `bar`: a bar in\nthe cell, as long as the value against the column's largest."
+        "description": "A column of a table body: `id` names the key of each row it shows. `bar`: a bar in\nthe cell, as long as the value against the column's largest. `link`: the key of each\nrow that holds the URL the cell leads to (http or https; any other is no link)."
       },
       "TaskCounts": {
         "properties": {

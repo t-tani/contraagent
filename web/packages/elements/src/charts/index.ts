@@ -6,4 +6,5 @@ export * from './base.js';
 export * from './column-chart.js';
 export * from './line-chart.js';
 export * from './heatmap.js';
+export * from './state-grid.js';
 export * from './bar-chart.js';

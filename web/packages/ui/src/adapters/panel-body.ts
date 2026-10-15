@@ -29,7 +29,21 @@ function compareCells(a: unknown, b: unknown): number {
   return cellKey(a).localeCompare(cellKey(b));
 }
 
-/** The columns of a table body: each cell written by its column's format, a number right-aligned, a `bar` column with a bar. */
+/** `v` as a URL a cell may lead to: http or https only; null for anything else. */
+export function cellUrl(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^https?:\/\//i.test(v.trim())) return null;
+  try {
+    const u = new URL(v.trim());
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The columns of a table body: each cell written by its column's format, a number
+ * right-aligned, a `bar` column with a bar, a `link` column a link to its row's URL.
+ */
 export function bodyColumns(body: TableBody): DataColumn<BodyRow>[] {
   return body.columns.map((c: TableColumn, i): DataColumn<BodyRow> => {
     const numeric = c.format ? NUMERIC.has(c.format) : body.rows.some((r) => typeof (r as BodyRow)[c.id] === 'number');
@@ -45,6 +59,8 @@ export function bodyColumns(body: TableBody): DataColumn<BodyRow>[] {
       cell: (r) => {
         const v = r[c.id];
         const text = cellText(v, c.format);
+        const url = c.link ? cellUrl(r[c.link]) : null;
+        if (url) return html`<a href=${url} target="_blank" rel="noopener noreferrer">${text}</a>`;
         if (!c.bar || typeof v !== 'number') return text;
         // A measure, not a verdict: the bar stays neutral; the row's tone marks its status.
         return html`${text}<span class="jdur" aria-hidden="true"><i style="width: ${top > 0 ? (100 * Math.max(0, v)) / top : 0}%"></i></span>`;

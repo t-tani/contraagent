@@ -160,13 +160,19 @@ A pipeline adds views of its own with `monitor.Panel`: a function that returns
 the view's body, sent live whenever it changes. A typed body is drawn with the
 monitor's own elements: `tiles` (figures), a `table` (columns, each with a
 format: `usd`, `pct` (a fraction), `duration` (seconds), `tokens`, `datetime`,
-`number`; `bar` draws a bar in its cells, and a row's `_tone` is its status),
-`columns` (vertical bars, `stacked` or side by side), `lines`, a `heatmap`,
-`hbars` (horizontal bars), and `blocks` of them one under another, each with an
-optional `title` and folded when `collapsed`. The models are in
-`contraagent.monitor.api` (`PanelBody`); a panel returns one, or a dict with its
-`type`. Any other dict is shown as a JSON tree. A typed body that does not
-validate is an error, never a JSON tree.
+`number`; `bar` draws a bar in its cells, `link` names the key of each row that
+holds the URL its cell leads to (http or https), and a row's `_tone` is its
+status), `columns` (vertical bars, `stacked` or side by side), `lines`, a
+`heatmap` (a number per row and column, in shades of one colour), a
+`status_grid` (a state per row and column, each coloured by its tone and named
+by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
+what a part shows, how to read a number; any markup in it is shown as text), and
+`blocks` of them one under another, each with an optional `title` and folded
+when `collapsed`. A tone is one of `failed`, `attention`, `done`, `running`,
+`muted` and `neutral`. The models are in `contraagent.monitor.api`
+(`PanelBody`); a panel returns one, or a dict with its `type`. Any other dict is
+shown as a JSON tree. A typed body that does not validate (an unknown tone
+included) is an error, never a JSON tree.
 
 ::code{file="examples/panels/views.py" from="def spend(" to="def cost_by_day("}
 
@@ -176,6 +182,12 @@ a tab of each run; `trends`, `fn(runs, period)`, over the run ids of a period
 for a view of many runs.
 
 ::code{file="examples/panels/views.py" from="def cost_by_day(" to="#: What"}
+
+A pipeline run once an hour, as a trends panel: how each hour's run ended, day
+by day, in a status grid, with a note on how to read it and the runs as a table
+whose ids lead to each run in the monitor:
+
+::code{file="examples/panels/cycles.py" from="def cycles(" to="#: What"}
 
 `contraagent monitor --panels views.py:PANELS` loads them from a file or a
 module (`package.module:PANELS`), a dict of name to `Panel`; `--groups`

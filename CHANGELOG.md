@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Panel bodies: a `status_grid` (a state per row and column, each named by its `label`
+  and coloured by its `tone`, with its mark, a legend of the states and their words in the
+  tooltip and the table: `<cae-state-grid>`), a `note` (markdown beside the figures,
+  shown escaped), and a table column's `link` (the key of each row that holds the URL its
+  cell leads to; http or https). A row's `_tone` is checked like every other tone: an
+  unknown one is an error naming the tones. `examples/panels/cycles.py` shows hourly
+  runs as a status grid.
 - An OpenCode key is one account on every agent that runs its models (`backends/opencode/login.py`):
   opencode, pi and omp give the digest of the key they would send, so a quota rest on one
   holds on the others. opencode and pi read the OpenCode Go subscription's usage at each
@@ -859,6 +866,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A panel tile's integer `value` stays an integer (`3`, not `3.0`).
 - omp reads `.env` files at start (its working directory's, its agent directory's, its config
   root's and `~/.env`) and fills from them every variable a launch leaves unset, so a key
   there came back after contraagent removed it: an isolated omp binding now names the file
