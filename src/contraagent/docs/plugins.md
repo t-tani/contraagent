@@ -144,7 +144,7 @@ part of it:
 | omp | every built-in tool is on; it runs `--approval-mode yolo` and reads neither `tools:` nor `settings.json` | the built-in `web_search` (`web_search.enabled`, on by default), with the search provider configured in omp; a page is read with `read` and its URL (`fetch.enabled`) |
 | opencode | the role's `tools:` lists it (Claude Code's names, as opencode's permissions); with no `tools:`, every built-in tool is on. It runs `--auto` and does not read `settings.json` | `websearch` (opencode's own search, where opencode offers it) and `webfetch` |
 | pi | its default tools are on (`read`, `bash`, `edit`, `write`), and the tools of the plugin's MCP servers; it asks no permission and reads neither `tools:` nor `settings.json` | none built in: a plugin's MCP server or a script the task runs |
-| Codex | every built-in tool is on; it runs in its `workspace-write` sandbox (network on), which may write in the working directory and in a temporary directory of its own (its `TMPDIR`, under `<temp dir>/contraagent/`, removed when the launch ends) but not in `/tmp` itself, and reads neither `tools:` nor `settings.json` | the built-in `web_search`, which also opens a page by its URL |
+| Codex | every built-in tool is on; it runs in its `workspace-write` sandbox (network on), which may write in the working directory and in a temporary directory of its own (its `TMPDIR`, under `<temp dir>/contraagent-<uid>/`, removed when the launch ends) but not in `/tmp` itself, and reads neither `tools:` nor `settings.json` | the built-in `web_search`, which also opens a page by its URL |
 
 `contraagent plugin new` denies `WebFetch` and `WebSearch` so that a Claude
 Code task stays on its inputs; a task that searches removes them from `deny`.

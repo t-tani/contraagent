@@ -19,6 +19,7 @@ import dataclasses
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -56,12 +57,41 @@ PARENT_SESSION_ENV = (
 
 
 def temp_root() -> Path:
-    """`contraagent` in the system's temporary directory (`tempfile.gettempdir()`, so
-    `$TMPDIR` or `/tmp`): where every temporary directory contraagent makes goes, never the
-    temporary directory itself. Made owner-only when it does not exist."""
-    root = Path(tempfile.gettempdir()) / "contraagent"
-    root.mkdir(mode=0o700, exist_ok=True)
-    return root
+    """This user's directory for temporary files, `<temp dir>/contraagent-<uid>` (the temp dir
+    is `tempfile.gettempdir()`: `$TMPDIR` or `/tmp`): every temporary directory contraagent
+    makes goes there, never in the temporary directory itself.
+
+    It is owner-only (0700), opened without following a symlink, and refused when it is a
+    symlink, not a directory, or another user's; one of ours that others can reach is made
+    owner-only again. A refusal is a `PermissionError` naming the path."""
+    tmp = Path(tempfile.gettempdir())
+    if not hasattr(os, "getuid"):  # no uids to keep users apart (Windows)
+        root = tmp / "contraagent"
+        root.mkdir(exist_ok=True)
+        return root
+    uid = os.getuid()
+    return _own_dir(tmp / f"contraagent-{uid}", uid)
+
+
+def _own_dir(path: Path, uid: int) -> Path:
+    """Make or check this user's directory (0700): never through a symlink, never another user's."""
+    try:
+        os.mkdir(path, 0o700)
+    except FileExistsError:
+        pass
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise PermissionError(f"refusing {path}: a symlink or not a directory ({exc.strerror})") from exc
+    try:
+        st = os.fstat(fd)
+        if st.st_uid != uid:
+            raise PermissionError(f"refusing {path}: owned by uid {st.st_uid}, not {uid}")
+        if stat.S_IMODE(st.st_mode) != 0o700:
+            os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
+    return path
 
 
 def temp_dir(prefix: str) -> Path:
