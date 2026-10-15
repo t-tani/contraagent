@@ -55,6 +55,25 @@ PARENT_SESSION_ENV = (
 )
 
 
+def temp_root() -> Path:
+    """`contraagent` in the system's temporary directory (`tempfile.gettempdir()`, so
+    `$TMPDIR` or `/tmp`): where every temporary directory contraagent makes goes, never the
+    temporary directory itself. Made owner-only when it does not exist."""
+    root = Path(tempfile.gettempdir()) / "contraagent"
+    root.mkdir(mode=0o700, exist_ok=True)
+    return root
+
+
+def temp_dir(prefix: str) -> Path:
+    """A new owner-only directory under `temp_root()` named `<prefix><random>`; the caller removes it."""
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=temp_root()))
+
+
+def safe_label(label: str) -> str:
+    """A launch label as one path component: anything but letters, digits and `-_.` replaced by `_`."""
+    return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in label) or "launch"
+
+
 class ModelChains(Protocol):
     """What `Backend.model_chains` reports: an agent's own model-level failover
     configuration, as far as a preflight needs to describe it."""
@@ -283,7 +302,7 @@ class Backend(abc.ABC):
     # --- scratch directories ------------------------------------------------
 
     def scratch_parent(self) -> Path | None:
-        """Where this backend's scratch root is made; None: the system's temporary directory."""
+        """Where this backend's scratch root is made; None: `temp_root()`."""
         return None
 
     def scratch(self, label: str, which: str, create: bool = True) -> Path:
@@ -294,10 +313,11 @@ class Backend(abc.ABC):
             parent = self.scratch_parent()
             if parent is not None:
                 parent.mkdir(parents=True, exist_ok=True)
-            own["_scratch_root"] = Path(tempfile.mkdtemp(prefix=f"contraagent-{self.name}-", dir=parent))
+                own["_scratch_root"] = Path(tempfile.mkdtemp(prefix=f"contraagent-{self.name}-", dir=parent))
+            else:
+                own["_scratch_root"] = temp_dir(f"{self.name}-")
             atexit.register(shutil.rmtree, own["_scratch_root"], True)
-        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in label) or "launch"
-        d = own["_scratch_root"] / safe / which
+        d = own["_scratch_root"] / safe_label(label) / which
         if create:
             d.mkdir(parents=True, exist_ok=True)
         return d
@@ -379,7 +399,7 @@ class Backend(abc.ABC):
         """
         if launch.session_dir is not None:
             return launch
-        return dataclasses.replace(launch, session_dir=Path(tempfile.mkdtemp(prefix=f"{self.name}-session-")))
+        return dataclasses.replace(launch, session_dir=temp_dir(f"{self.name}-session-"))
 
     def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
         """The launch that sends `prompt` as the next turn of `prior`'s session.

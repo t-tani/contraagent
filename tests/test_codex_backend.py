@@ -7,6 +7,7 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -22,7 +23,11 @@ CODEX = r"""
 import json, os, pathlib, sys
 if "--version" in sys.argv:
     print("codex-cli 0.162.1"); sys.exit(0)
-json.dump({"argv": sys.argv, "env": dict(os.environ), "stdin": sys.stdin.read() if "-" == sys.argv[-1] else None},
+tmp = os.environ.get("TMPDIR", "")
+if os.path.isdir(tmp):
+    pathlib.Path(tmp, "left.txt").write_text("x")
+json.dump({"argv": sys.argv, "env": dict(os.environ), "stdin": sys.stdin.read() if "-" == sys.argv[-1] else None,
+           "tmp_mode": os.stat(tmp).st_mode & 0o777 if os.path.isdir(tmp) else None},
           open(os.environ["FAKE_DUMP"], "w"))
 mode = os.environ.get("FAKE_MODE", "ok")
 thread = "01a13afd-d786-78c2-9439-7b6c086efc20"
@@ -210,6 +215,32 @@ def test_a_usage_limit_is_a_rate_limit(fake):
 def test_a_tool_call_past_max_turns_ends_the_launch(fake):
     _, r, _ = fake(limits=Limits(timeout_s=30, max_turns=1))
     assert r.stop is Stop.MAX_TURNS and not r.ok
+
+
+def test_a_launch_writes_temporary_files_in_its_own_directory_not_in_tmp(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "systmp"))
+    (tmp_path / "systmp").mkdir()
+    _, r, seen = fake()
+    assert r.ok, r.stderr_tail
+    tmp = Path(seen["env"]["TMPDIR"])
+    assert tmp.parent == tmp_path / "systmp" / "contraagent" and tmp.name.startswith("codex-t-")
+    assert seen["env"]["TMP"] == seen["env"]["TEMP"] == str(tmp) and seen["tmp_mode"] == 0o700
+    argv = seen["argv"]
+    assert {
+        "sandbox_workspace_write.exclude_slash_tmp=true",
+        "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+        f'sandbox_workspace_write.writable_roots=["{tmp}"]',
+        *(f'shell_environment_policy.set.{var}="{tmp}"' for var in ("TMPDIR", "TMP", "TEMP")),
+    } <= set(argv)
+    assert not tmp.exists()  # removed with what the launch wrote in it
+    assert os.listdir(tmp_path / "systmp") == ["contraagent"]
+
+
+def test_a_killed_launch_removes_its_temporary_directory(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    _, r, seen = fake(limits=Limits(timeout_s=30, max_turns=1))
+    assert r.stop is Stop.MAX_TURNS and seen["tmp_mode"] == 0o700
+    assert not Path(seen["env"]["TMPDIR"]).exists() and os.listdir(tmp_path / "contraagent") == []
 
 
 def test_credentials_codex_cannot_use_are_refused():

@@ -987,6 +987,7 @@ class CodexBackend(ResumeById, Backend)
     ) -> tuple[bytes, str, int | None, Stop | None]
     def fold(self, launch: Launch) -> EventFold
     def hook_args(self, launch: Launch) -> list[str]
+    def launch_tmp(self, launch: Launch) -> Path
     name = 'codex'
     needs_inline_role_file = True
     def prepare(self, launch: Launch) -> Launch
@@ -997,6 +998,7 @@ class CodexBackend(ResumeById, Backend)
     signals: Signals = codex_wire.SIGNALS
     def skill_home(self, launch: Launch) -> Path
     stop_hooks_file: str | None = HOOKS_FILE
+    def tmp_args(self, launch: Launch) -> list[str]
     watched_limits: frozenset[str] = frozenset({'max_turns'})
     wire: ModuleType | None = codex_wire
 

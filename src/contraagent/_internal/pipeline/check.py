@@ -51,6 +51,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_core import to_jsonable_python
 
+from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
@@ -119,7 +120,7 @@ class CheckReport:
 
 def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> CheckReport:
     report = CheckReport()
-    with tempfile.TemporaryDirectory(prefix="contraagent-check-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="check-", dir=temp_root()) as tmp:
         graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
         driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, created=graph.take_new, on_flow_call=graph.on_flow_call)
         graph.driver = driver

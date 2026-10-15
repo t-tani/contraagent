@@ -20,6 +20,14 @@ replaces codex's own instructions (`model_instructions_file`),
 becomes `--output-schema`, and a plugin's `.mcp.json` becomes `mcp_servers`.
 
 `Limits.max_turns` counts tool calls and ends the launch past it.
+Codex's `workspace-write` sandbox makes the launch's cwd writable and, by default, `/tmp`
+and `$TMPDIR` too, and its Linux sandbox leaves empty `.git`, `.agents` and `.codex` paths
+behind in a writable root (`codex-rs/linux-sandbox/src/bwrap.rs`). So `/tmp` and `$TMPDIR`
+are taken out (`sandbox_workspace_write.exclude_slash_tmp`, `exclude_tmpdir_env_var`) and the
+launch gets a temporary directory of its own instead (`launch_tmp`), its one writable root
+besides the cwd (`sandbox_workspace_write.writable_roots`) and the `TMPDIR`, `TMP` and `TEMP`
+of codex and of the commands it runs; it is removed when the launch ends.
+
 `max_budget_usd` and `context_budget` are not enforced: codex reports no
 cost, and per-call tokens only in the rollout file, after the launch.
 """
@@ -28,12 +36,13 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import secrets
 import shutil
 from pathlib import Path
 from types import ModuleType
 
 from contraagent._internal.backends import plugin_files
-from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById
+from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend, ResumeById, safe_label, temp_root
 from contraagent._internal.backends.codex import wire as codex_wire
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE, hooks_config
 from contraagent._internal.backends.codex.wire import EventReader, find_rollout, read_rollout
@@ -65,6 +74,8 @@ ISOLATION_ARGS = (
     "-c",
     "sandbox_workspace_write.network_access=true",
 )
+#: The variables that name a temporary directory: each is the launch's own (`launch_tmp`).
+TMP_VARS = ("TMPDIR", "TMP", "TEMP")
 #: `Launch.permission_mode` (Claude Code's names) to codex's sandbox.
 SANDBOX = {"bypassPermissions": "danger-full-access", "plan": "read-only"}
 #: Provider ids codex defines itself; a gateway may not reuse one.
@@ -212,7 +223,15 @@ class CodexBackend(ResumeById, Backend):
         env = child_env(self._base_env, launch.credential, binding, launch.env, drop=PARENT_SESSION_ENV, defaults=defaults)
         env.setdefault("CODEX_HOME", str(self.codex_home(launch)))
         env["HOME"] = str(self.skill_home(launch))
+        env.update(dict.fromkeys(TMP_VARS, str(self.launch_tmp(launch))))
         return env
+
+    def launch_tmp(self, launch: Launch) -> Path:
+        """The launch's own temporary directory, `<temp_root>/codex-<label>-<random>`: its
+        `TMPDIR` and the sandbox's one writable root besides the cwd. `exchange` makes it
+        (owner-only) and removes it when the launch ends, however it ends."""
+        token = vars(self).setdefault("_tmp_token", secrets.token_hex(6))
+        return temp_root() / f"codex-{safe_label(launch.label)}-{token}"
 
     def real_home(self) -> str:
         """The user's own `HOME`: what the commands codex runs see."""
@@ -273,6 +292,7 @@ class CodexBackend(ResumeById, Backend):
         a += ["--json", "--skip-git-repo-check", *ISOLATION_ARGS, *self.hook_args(launch)]
         # codex runs with the launch's own HOME (`skill_home`); the commands it runs do not.
         a += ["-c", f"shell_environment_policy.set.HOME={toml(self.real_home())}"]
+        a += self.tmp_args(launch)
         # The project's own skills: codex has no switch for them, only a per-file `enabled = false`.
         keep = {(Path(p) / "skills").resolve() for p in launch.plugin_dirs}
         disabled = [{"path": str(f), "enabled": False} for f in project_skills(Path(launch.cwd), keep)]
@@ -302,6 +322,22 @@ class CodexBackend(ResumeById, Backend):
         a.append("-" if via_stdin(launch) else launch.prompt)
         return a
 
+    def tmp_args(self, launch: Launch) -> list[str]:
+        """The sandbox's temporary directory: `/tmp` and `$TMPDIR` not writable, the launch's
+        own (`launch_tmp`) writable and named by `TMP_VARS` in the commands codex runs."""
+        tmp = str(self.launch_tmp(launch))
+        a = [
+            "-c",
+            "sandbox_workspace_write.exclude_slash_tmp=true",
+            "-c",
+            "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+            "-c",
+            f"sandbox_workspace_write.writable_roots={toml([tmp])}",
+        ]
+        for var in TMP_VARS:
+            a += ["-c", f"shell_environment_policy.set.{var}={toml(tmp)}"]
+        return a
+
     def hook_args(self, launch: Launch) -> list[str]:
         """The plugins' rendered hooks (`codex/hooks.json`), trusted by hash, with the user's own
         turned off (`codex.hooks.hooks_config`); hooks turned off when there are none."""
@@ -322,12 +358,18 @@ class CodexBackend(ResumeById, Backend):
     ) -> tuple[bytes, str, int | None, Stop | None]:
         """The events read live (a refused credential and `max_turns` end the launch), then the
         session's rollout file for what they do not carry; a launch that keeps no session
-        leaves no rollout behind. A resumed thread's rollout is read from where it ended."""
+        leaves no rollout behind. A resumed thread's rollout is read from where it ended. The
+        launch's temporary directory (`launch_tmp`) lives only as long as its process."""
         assert isinstance(fold, EventReader)
         home = Path(env.get("CODEX_HOME") or Path.home() / ".codex")
         earlier = find_rollout(home, launch.resume) if launch.resume else None
         start = earlier.stat().st_size if earlier is not None else 0
-        out = super().exchange(launch, argv, env, fold, watch)
+        tmp = self.launch_tmp(launch)
+        tmp.mkdir(mode=0o700, exist_ok=True)
+        try:
+            out = super().exchange(launch, argv, env, fold, watch)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
         found = find_rollout(home, fold.thread_id)
         if found is not None:
             fold.rollout = read_rollout(found, start if found == earlier else 0)
