@@ -136,6 +136,51 @@ def test_the_reference_config_builds_a_routing_plan():
     assert config.table("report")["title"] == "Weekly summary"  # [pipeline.report]
 
 
+def test_the_security_config_checks_on_its_flow(capsys):
+    """`contraagent check --config` on the security example: three hops, three coding agents."""
+    flow, config = EXAMPLES / "security" / "flow.py", EXAMPLES / "security" / "pipeline.toml"
+    assert main(["check", f"{flow}:audit_all", "--config", str(config), "--kwargs", '{"modules": ["auth"]}']) == 0
+    out = capsys.readouterr().out
+    assert "audit: claude/claude-opus-5-5" in out and "credential=anthropic-key" in out
+    assert "codex/gpt-6.1-sol@openai-key then opencode/opencode-go/deepseek-v4.1-flash@opencode-go" in out
+
+
+def test_a_refusal_moves_only_that_task_along_the_security_chain(tmp_path):
+    """What the README's diagram draws: a refused task takes hop 2, then hop 3, and is
+    never launched on the same route again; the other tasks stay on hop 1."""
+    from contraagent import Pipeline
+    from contraagent.backends import Stop
+    from contraagent.docs.examples.security import flow
+    from contraagent.testing import StubAgent, fails
+
+    refused = fails(Stop.REFUSED, "the provider declined the request")
+    findings = {"findings": []}
+    agent = StubAgent(
+        {
+            "audit-upload": lambda launch: refused if launch.model == "claude-opus-5-5" else findings,
+            "audit-exploit": refused,
+            "audit": findings,
+        }
+    )
+    pipeline = Pipeline(EXAMPLES / "security" / "pipeline.toml", runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
+    report = pipeline.run(flow.audit_all, modules=["auth", "upload", "exploit"])
+    rows = {r["key"]: r for r in map(json.loads, (report.run_dir / "journal.jsonl").read_text().splitlines())}
+    assert len(rows) == 3  # one attempt each: a refusal is not retried
+    hops = {key: [(h["agent"], h["model"], h["stop"]) for h in row["hops"]] for key, row in rows.items()}
+    assert hops["audit-auth"] == [("claude", "claude-opus-5-5", "completed")]
+    assert hops["audit-upload"] == [("claude", "claude-opus-5-5", "refused"), ("codex", "gpt-6.1-sol", "completed")]
+    assert rows["audit-upload"]["stop"] == "completed" and rows["audit-upload"]["credential"] == "openai-key"
+    refusal = "safeguard refusal on hop 1/3 claude/claude-opus-5-5@anthropic-key (the provider declined the request)"
+    assert rows["audit-upload"]["reason"].startswith(refusal)
+    assert hops["audit-exploit"] == [
+        ("claude", "claude-opus-5-5", "refused"),
+        ("codex", "gpt-6.1-sol", "refused"),
+        ("opencode", "opencode-go/deepseek-v4.1-flash", "refused"),
+    ]
+    assert rows["audit-exploit"]["stop"] == "refused" and not report.results["audit-exploit"].ok
+    assert [launch.model for launch in agent.launches_of("audit-auth")] == ["claude-opus-5-5"]
+
+
 def test_the_demo_plugin_is_clean():
     assert Plugin.load(EXAMPLES / "demo" / "plugins" / "docs").lint() == []
 
