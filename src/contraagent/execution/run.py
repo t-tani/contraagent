@@ -412,6 +412,14 @@ class Run:
             self._log(logging.INFO, f"[retry] {task.key}: {fields.get('stop') or 'no progress'}; again{wait}")
         elif event == "note" and "follow_up_failed" in fields:
             self._log(logging.WARNING, f"[error] {task.key if task is not None else '?'}: follow_up() raised {fields['follow_up_failed']}")
+        elif event == "note" and isinstance(fields.get("context_warned"), dict) and task is not None:
+            w = fields["context_warned"]
+            peak, budget = w.get("peak_context") or 0, w.get("context_budget") or 0
+            share = f" ({100 * peak // budget}% of context_budget {budget})" if budget else ""
+            self._log(
+                logging.WARNING,
+                f"[context] {task.key}: peak context {peak} tokens{share}, past context_warn_pct {w.get('context_warn_pct')}%",
+            )
 
     def _log(self, level: int, line: str) -> None:
         """A progress line to the caller's `log`, else to this module's logger at `level`:

@@ -26,7 +26,7 @@ from contraagent.backends.credentials import CredentialError, Pool
 from contraagent.dispatch.task import kind_name
 from contraagent.errors import ContraagentError, did_you_mean
 from contraagent.routing.config import PipelineConfig
-from contraagent.routing.kind_config import KindConfig, configs_from_tables, missing_budgets
+from contraagent.routing.kind_config import KindConfig, configs_from_tables, context_warn_problems, missing_budgets, with_context_warn
 from contraagent.routing.router import Route, Router, parse_chain
 
 _logger = logging.getLogger(__name__)
@@ -349,7 +349,8 @@ class RoutingPlan:
         declared = declared or {}
         tables = {name: {**declared.get(name, {}), **file_tables.get(name, {})} for name in {*map(kind_name, kinds), *file_tables}}
         tables = {name: table for name, table in tables.items() if table}
-        configs = configs_from_tables(kinds, tables)
+        configs = with_context_warn(configs_from_tables(kinds, tables), defaults.get("context_warn_pct"))
+        errors += context_warn_problems(configs)
         if budgets_required:
             errors += missing_budgets(configs, tables)
         configs = resolve_routing(configs, tables, defaults, backends, overrides, requirements, errors, light=light)

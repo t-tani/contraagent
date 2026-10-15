@@ -66,7 +66,7 @@ from contraagent import envvars
 from contraagent.backends import Backend, ClaudeBackend, backend_class, known_agents
 from contraagent.backends.claude.stream import feedback_errors
 from contraagent.backends.credentials import CredentialBase, CredentialBinding
-from contraagent.backends.launch import Launch, LaunchResult, RateLimit, Stop
+from contraagent.backends.launch import CallUsage, Launch, LaunchResult, RateLimit, Stop, Usage
 from contraagent.backends.process import write_launch_marker
 from contraagent.backends.streams import resolve_format
 from contraagent.calls import CallFile
@@ -86,15 +86,19 @@ class Reply:
     reason: str = ""
     rate_limit: RateLimit | None = None
     cost_usd: float | None = None
+    peak_context: int | None = None
 
 
-def writes(value: Any, *, cost_usd: float | None = None, rate_limit: RateLimit | None = None) -> Reply:
+def writes(value: Any, *, cost_usd: float | None = None, rate_limit: RateLimit | None = None, peak_context: int | None = None) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
     `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
     session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
     running total, as the agent does. `rate_limit`: the utilization reading the launch reports
-    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge."""
-    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit)
+    (`five_hour_pct`, `seven_day_pct`, ...), which quota caps and `quota_rule` judge.
+    `peak_context`: the launch reports one API call of this many input tokens, its peak
+    context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
+    launch reports no API call."""
+    return Reply(output=value, cost_usd=cost_usd, rate_limit=rate_limit, peak_context=peak_context)
 
 
 #: The output of `writes_smallest()`: built from the output's schema when it is played.
@@ -430,6 +434,7 @@ class StubAgent(Backend):
             rate_limit=reply.rate_limit,
             rate_limits=[_observed(reply.rate_limit)] if _is_reading(reply.rate_limit) else [],
             stderr_tail=reply.reason,
+            usage=Usage(calls=[CallUsage(launch.model, reply.peak_context, 0, 0, 0)]) if reply.peak_context is not None else Usage(),
         )
 
 

@@ -116,3 +116,22 @@ def test_a_launch_that_names_no_model_leaves_the_journals_model_empty(tmp_path):
     result = TaskResult(task=Task("k", key="t"), ok=True, stop="completed", launch_result=LaunchResult(label="t"), route="hop 1/1 stub")
     row = journal.row(result)
     assert row.model == "" and row.route == "hop 1/1 stub"
+
+
+def recorded_peak(version: str, wire: str) -> int:
+    """The largest whole input of one assistant `message_end` of a recording, read apart from the reader."""
+    usages = [
+        e["message"]["usage"]
+        for e in events(version, wire)
+        if e.get("type") == "message_end"
+        and e.get("message", {}).get("role") == "assistant"
+        and isinstance(e["message"].get("usage"), dict)
+    ]
+    return max(u.get("input", 0) + u.get("cacheRead", 0) + u.get("cacheWrite", 0) for u in usages)
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+@pytest.mark.parametrize(("read", "wire"), [(via_json, "json"), (via_rpc, "rpc")], ids=["json", "rpc"])
+def test_a_recorded_launch_reports_its_peak_context(version, read, wire):
+    result = read(version)
+    assert result.peak_context == recorded_peak(version, wire) >= result.usage.resident > 0

@@ -2606,6 +2606,22 @@
               }
             ]
           },
+          "context_budget": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Budget"
+          },
+          "context_warned": {
+            "type": "boolean",
+            "title": "Context Warned",
+            "default": false
+          },
           "fingerprint": {
             "type": "string",
             "title": "Fingerprint",
@@ -2892,6 +2908,18 @@
             "type": "number",
             "title": "Wall S",
             "default": 0.0
+          },
+          "peak_context": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Context",
+            "description": "peak context: the largest input of one API call of a session on it (tokens); null when none reported one"
           }
         },
         "additionalProperties": false,
@@ -5215,6 +5243,17 @@
               }
             ],
             "title": "Resident"
+          },
+          "peak_context": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Context"
           }
         },
         "additionalProperties": true,

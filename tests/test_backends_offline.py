@@ -9,7 +9,7 @@ import os
 import stat
 import sys
 
-from contraagent import ApiKey, ClaudeBackend, Launch, Limits, OmpBackend, OmpRpcBackend, Stop
+from contraagent import ApiKey, ClaudeBackend, Launch, LaunchResult, Limits, OmpBackend, OmpRpcBackend, Stop
 
 CLAUDE = r"""
 import json, os, sys
@@ -163,6 +163,25 @@ def test_omp_ends_a_launch_past_its_cost_cap(tmp_path):
     launch = Launch(prompt="hello", label="t", model="anthropic/x", cwd=tmp_path, limits=Limits(timeout_s=30, max_budget_usd=0.0015))
     result = backend.run(launch)
     assert result.stop == Stop.BUDGET and not result.ok
+
+
+def test_claude_reports_its_peak_context_and_stops_past_its_context_budget():
+    """Claude Code sends one API call's usage on each of its `assistant` lines (several lines
+    per call share the message id): the peak context is the largest call's whole input."""
+    from contraagent.backends.claude.stream import StreamReader
+
+    def call(mid: str, fresh: int, read: int, written: int) -> str:
+        usage = {"input_tokens": fresh, "cache_read_input_tokens": read, "cache_creation_input_tokens": written, "output_tokens": 5}
+        return json.dumps({"type": "assistant", "message": {"id": mid, "model": "claude-haiku-5-5", "content": [], "usage": usage}})
+
+    lines = [call("m1", 3, 0, 9000), call("m1", 3, 0, 9000), call("m2", 2, 9000, 2500), call("m3", 1, 11500, 40)]
+    reader = StreamReader(Limits())
+    assert [reader.feed(line) for line in lines] == [None] * 4
+    result = LaunchResult(label="t", usage=reader.usage)
+    assert (result.usage.n_calls, result.usage.resident, result.peak_context) == (3, 9003, 11541)
+    capped = StreamReader(Limits(context_budget=11000))
+    assert [capped.feed(line) for line in lines][-2:] == [Stop.CONTEXT, Stop.CONTEXT]
+    assert LaunchResult(label="t").peak_context is None  # no API call read
 
 
 def test_claude_records_what_its_stop_hook_sent_back():

@@ -73,7 +73,8 @@ run continues while follow-ups queue work, deferred results included: a
 The queue records nothing itself. It reports through callbacks:
 
 * `on_event(event, task, **fields)` for `queued`, `start`, `retry`, `throttle`,
-  `deferred`, `end`, `duplicate_key_refused` and `note`;
+  `deferred`, `end`, `duplicate_key_refused` and `note` (a callback that raised, or
+  what a runner reports beside a result: `TaskResult.notes`);
 * `on_result(result, attempt)` for every result, discarded retries included;
 * `follow_up(result) -> list[Task]` for the follow-up work (main thread only; an
   exception there is reported as a `note` and isolated to that item). Its tasks
@@ -539,6 +540,8 @@ class WorkQueue:
             self.deferred.append(task)
             self._settle(res)
             return
+        if res.notes:
+            self.on_event("note", task, **res.notes)
         if self._on_result is not None:
             try:
                 self._on_result(res, self._attempt.get(task.id, 0))

@@ -502,6 +502,9 @@ class ModelUsage(Closed):
     cache_creation: int = 0
     cost_usd: float | None = Field(None, description="what the coding agent reported; null when no session on it reported a cost")
     wall_s: float = 0.0
+    peak_context: int | None = Field(
+        None, description="peak context: the largest input of one API call of a session on it (tokens); null when none reported one"
+    )
 
 
 class Plan(Closed):

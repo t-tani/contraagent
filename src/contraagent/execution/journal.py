@@ -31,6 +31,7 @@ def _usage(o) -> TokenUsage | None:
         cache_creation=u.cache_creation,
         calls=u.n_calls,
         resident=u.resident if u.calls else None,
+        peak_context=u.peak_context if u.calls else None,
     )
 
 
@@ -105,6 +106,8 @@ class Journal:
             web_queries=list(o.web_queries) if o is not None else [],
             unread_events=dict(o.unread_events) if o is not None else {},
             changes=_changes(result),
+            context_budget=getattr(o, "context_budget", None),
+            context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,
             flow_call=task.origin.flow_call if task.origin is not None else None,
             **(self._row_extras(result) if self._row_extras else {}),

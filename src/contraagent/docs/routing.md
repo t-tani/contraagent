@@ -27,6 +27,18 @@ call and ends the launch (`budget`) once it passes the cap; Codex reports no
 cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
 Every key: the reference at the end.
 
+`context_budget` caps a launch's peak context: the whole input (fresh input,
+cache read and cache write) of its largest API call. Claude Code and opencode
+launches end `context_budget` once one call passes it; omp, pi and Codex report
+each call's tokens but are not stopped. `context_warn_pct` (1 to 99, in a task
+table, `agent_task(...)` or `[defaults]`) is a percent of `context_budget` and
+stops nothing: an attempt whose peak context passed it is recorded
+(`context_warned` in the journal, beside `context_budget` and
+`usage.peak_context`) and logged (`[context] <key>: peak context ...`). A kind with
+a `context_warn_pct` but no `context_budget` is refused before anything launches;
+`[defaults].context_warn_pct` applies to every kind with a `context_budget` and
+none of its own.
+
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
 tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the

@@ -14,6 +14,7 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # model = "claude-sonnet-5-5"       # without it: the agent's default model
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
 # max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
+# context_warn_pct = 80             # context_warn_pct of every kind with a context_budget and none of its own
 
 # How many running tasks may hold each claimed name (agent_task(claims=...)) at once, by the
 # name or an fnmatch pattern that gives each name it matches a capacity of its own.
@@ -38,7 +39,7 @@ timeout_s = 600                     # seconds per launch
 max_budget_usd = 2.0                # cost per launch, as the coding agent reports it
 stall_s = 300                       # stop a launch whose transcript is silent this long
 context_budget = 150000             # stop a launch once one call's input passes this many tokens
-context_warn = 120000               # mark the result over budget past this many input tokens; it still runs
+context_warn_pct = 80               # warn (journal context_warned, a log line) once a launch's peak context passes 80% of context_budget; it still runs
 max_denials = 5                     # stop a launch after this many permission denials
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)

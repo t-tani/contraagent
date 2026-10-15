@@ -1,7 +1,7 @@
 """Pipeline configuration: one TOML file.
 
     [defaults]              run-wide routing: agent, model, effort, credential, model_failover;
-                            and max_passes
+                            max_passes; and context_warn_pct
     [[defaults.fallbacks]]  the failover chain every kind without its own shares
     [tasks.<kind>]          a task table: one kind's routing and budgets (see profile.TASK_TABLE_KEYS),
                             and optionally its own [[tasks.<kind>.fallbacks]] chain
@@ -54,6 +54,15 @@ def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, 
     return f"{where} has unknown keys {keys}; expected {', '.join(named)}"
 
 
+#: What a `context_warn_pct` that is not one says.
+WARN_PCT_RANGE = "is not a whole percent from 1 to 99"
+
+
+def _is_warn_pct(value: object) -> bool:
+    """A `context_warn_pct`: an int from 1 to 99."""
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 99
+
+
 def _problem(errors: list[str] | None, message: str) -> None:
     if errors is None:
         raise ConfigError(message)
@@ -102,11 +111,22 @@ class PipelineConfig:
 
     def defaults(self, errors: list[str] | None = None) -> dict:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
-        model_failover), and `max_passes` (`Pipeline(max_passes=)`). Its failover chain,
+        model_failover), `max_passes` (`Pipeline(max_passes=)`), and `context_warn_pct`
+        (the warning of every kind with a `context_budget` and none of its own). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
-        allowed = {"agent", "model", "effort", "credential", "model_failover", "max_passes", "fallbacks", "claim_capacity"}
+        allowed = {
+            "agent",
+            "model",
+            "effort",
+            "credential",
+            "model_failover",
+            "max_passes",
+            "fallbacks",
+            "claim_capacity",
+            "context_warn_pct",
+        }
         unknown = set(entry) - allowed - {"_comment"}
         if unknown:
             _problem(errors, f"{self.source}: {_unknown_keys('[defaults]', unknown, allowed, tuple(TASK_TABLE_KEYS))}")
@@ -121,6 +141,12 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].max_passes = {value!r} is not a positive integer")
             else:
                 out["max_passes"] = value
+        if entry.get("context_warn_pct") is not None:
+            value = entry["context_warn_pct"]
+            if not _is_warn_pct(value):
+                _problem(errors, f"{self.source}: [defaults].context_warn_pct = {value!r} {WARN_PCT_RANGE}")
+            else:
+                out["context_warn_pct"] = value
         return out
 
     def claim_capacity(self, errors: list[str] | None = None) -> dict[str, int]:
@@ -180,6 +206,8 @@ class PipelineConfig:
                 )
                 continue
             table[key] = val
+        if "context_warn_pct" in table and not _is_warn_pct(table["context_warn_pct"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].context_warn_pct = {table.pop('context_warn_pct')!r} {WARN_PCT_RANGE}")
         denied = entry.get("disallowed_tools")
         if denied is not None:
             ok = isinstance(denied, list)
