@@ -117,8 +117,8 @@ documentation. No other word is used for the same thing.
 | **stream file** | the raw transcript of a task's launches | `streams/<key>.stream.jsonl`; `keep_transcripts` |
 | **stream format** | how a stream file is parsed (`claude`, `omp`, `opencode`, `pi`, `codex`) | `normalize_stream_line(format, ...)` |
 | **stage** | a run phase | cursor `stage` |
-| **`TaskScope`** | the context manager around one attempt of an agent task (every hop of it) | `Pipeline(scopes=)`, `AgentRunner(scopes=)` |
-| **`ResultEnricher`** | what sees an agent task before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)` |
+| **`TaskScope`** | the context manager around one attempt of a task: every hop of an agent task; the input check, the call and the output check of a Python task | `Pipeline(scopes=)`, `AgentRunner(scopes=)`, `PythonTaskRunner(scopes=)` |
+| **`ResultEnricher`** | what sees a task, agent or Python, before one attempt and its result after, and may add to the result (`payload`) or change its verdict (`ok`, `stop`) | `Pipeline(enrichers=)`, `AgentRunner(enrichers=)`, `PythonTaskRunner(enrichers=)` |
 | **pipeline log** / **pipeline document** | a pipeline's own file in its run, written by its flow code and its Python tasks, shipped to a hub and read by panels: rows appended one per line / one JSON value, replaced whole | `contraagent.log(name, row)` / `contraagent.save(name, value)`; `runs/<id>/pipeline/<name>.jsonl` / `<name>.json` (`rundir.PIPELINE`); `NoCurrentRun`; read with `RunRecords.log` / `.document` |
 | **row extras** | a pipeline's own columns of a journal row, named by the pipeline: what `row_extras(result)` adds | `Pipeline(row_extras=)`, `Run(row_extras=)`; monitor `RunSummary.row_extras`, `TaskDetail.row_extras` |
 

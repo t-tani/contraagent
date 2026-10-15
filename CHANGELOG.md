@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Pipeline(scopes=, enrichers=)` wrap each attempt of a Python task too, as they wrap each
+  attempt of an agent task: a scope (`TaskScope`) around its input check, call and output
+  check, retries included; an enricher (`ResultEnricher`) before and after, able to add a
+  `payload` or change `ok` and `stop`. One for some tasks only tests `task.kind` or
+  `task.executor`. `examples/scopes/` starts a local index server for each attempt of a
+  Python task kind.
 - The monitor shows the new run data: a task's priority (when not 0) in its header and in
   the tasks list; an attempt's peak context with its share of the context limit (history
   tooltip and task header), "near the context limit" past `context_warn_pct`, and a peak

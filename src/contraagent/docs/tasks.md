@@ -344,16 +344,26 @@ A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
 in the pattern, or keep them from running at once (a claim).
 
-`Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of an agent task.
-A scope (`TaskScope`) is a context manager around it, every hop included; an
-enricher (`ResultEnricher`) sees the task before and the result after, after the
-changes are recorded, and may add a `payload` or change `ok` and `stop`;
-`row_extras(result)` adds columns to the journal row. The monitor shows each such
+`Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of a task, agent or
+Python. A scope (`TaskScope`) is a context manager around it: around every hop of an
+agent task, around the input check, the call and the output check of a Python task.
+A scope that raises fails the task. A Python task's exception is the attempt's result,
+so the scope exits without one. An enricher (`ResultEnricher`) sees the task before
+and the result after (an agent task's after its changes are recorded), and may add a
+`payload` or change `ok` and `stop`; `row_extras(result)` adds columns to the journal
+row. The monitor shows each such
 column under its own name, in the history and in the task's attempts (the API names
 them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
 topic:
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
+
+Scopes and enrichers see every task. One for some tasks only tests `task.kind`, or
+`task.executor` (`"agent"` or `"python"`), and leaves the others as they are. Here a
+scope starts a local index server for each attempt of one Python task kind, and stops
+it after; a fresh attempt gets a fresh server:
+
+::code{file="examples/scopes/flow.py" from="@contextlib.contextmanager" to="def topics("}
 
 ## A pipeline's own records
 
