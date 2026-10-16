@@ -6,7 +6,7 @@ adding a factory (one that cannot run here skips itself)."""
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -51,8 +51,10 @@ RUN = RunRef(host_id="h1", run_id="r1", run_uid="u1")
 
 
 @pytest.fixture(params=sorted(STORES))
-def store(request, tmp_path) -> HubStore:
-    return STORES[request.param](tmp_path)
+def store(request, tmp_path) -> Iterator[HubStore]:
+    store = STORES[request.param](tmp_path)
+    yield store
+    store.close()
 
 
 @pytest.fixture(params=sorted(BLOBS))

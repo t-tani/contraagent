@@ -110,6 +110,16 @@ class Hub:
         """Which of the runs are live, by their hosts' heartbeats."""
         return HeartbeatLiveness(self.store, self.ttl_s)
 
+    def close(self) -> None:
+        """Shut down the transcripts (`SegmentedStreamLogs.shutdown`, when they have one) and
+        close the store; the hub is not used after."""
+        shutdown = getattr(self.streams, "shutdown", None)
+        try:
+            if shutdown is not None:
+                shutdown()
+        finally:
+            self.store.close()
+
     # --- retention -------------------------------------------------------------------------
 
     def _activity(self, name: str, uid: str) -> datetime | None:

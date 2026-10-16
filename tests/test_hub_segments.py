@@ -504,7 +504,7 @@ def test_postgres_index_rows_and_activity():
     assert index.keys() == {row.key} and index.activity(NAME, UID) == "t1"
     index.set_activity(NAME, UID, "t2")
     assert index.activity(NAME, UID) == "t2" and index.activity(NAME, "u2") is None
-    PostgresSegmentIndex(index.dsn)  # the tables exist already
+    PostgresSegmentIndex(index.dsn).close()  # the tables exist already
     index.close()
 
 
@@ -525,3 +525,4 @@ def test_a_restart_on_postgres_and_s3(tmp_path):
     rebuilt = MemorySegmentIndex()
     rebuild_index(objects, rebuilt)
     assert rebuilt.segments(NAME, UID, LOG) == again.index.segments(NAME, UID, LOG)
+    again.shutdown()
