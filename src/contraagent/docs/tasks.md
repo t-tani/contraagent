@@ -181,6 +181,43 @@ Its fingerprint does not change when they run again, so a resume would skip it.
 resume run it again whatever an earlier attempt did. A task that takes the output
 of a task that ran again needs no flag: its fingerprint already changes.
 
+A task can also read state that is not in its params or its inputs: a state file
+the pipeline keeps, files another process wrote, a file its instructions tell the
+agent to read. A resume does not see that state change, and would skip the task
+with an output made from the old state. Its declaration gives `outside_state=`, a
+function of the task's unit and params that returns that state as a JSON value,
+and the task's fingerprint covers the value. In the example, both tasks read a
+backlog file, and the function returns the file's digest:
+
+::code{file="examples/outside/flow.py" from="BACKLOG = " to="class OpenItems"}
+
+::code{file="examples/outside/flow.py" from="@python_task(outside_state" to="def topics("}
+
+- The function is called when the task is about to start, once every task it waits
+  for finished, with its params and the outputs it is given. So it sees what those
+  tasks wrote, and a resume compares the state as it is then. A relative path is
+  relative to the pipeline's process, as in the task itself.
+- It returns any JSON value: a digest, a version, a list or a dict of them, a pydantic
+  model. A digest stands for a file of any size; `hashlib.file_digest` reads it in
+  blocks. A file that is missing is a state too: return a value for it (an empty
+  string), so the task runs again once the file appears.
+- A function that raises, or that returns what is not JSON, refuses the task
+  (`invalid_input`, its reason the exception), and the tasks that wait for it do not
+  start. `contraagent check` calls it for every task whose params are known before the
+  run and reports the same.
+- A task that waits for one with outside state, without receiving its output, runs
+  again when that task runs again, as for any change of its fingerprint.
+- A file the task itself writes is no outside state: its digest changes with every
+  run, so the task would run again on every resume. `rerun_on_resume` and
+  `outside_state` do not go together.
+- A recording keeps the digest of the outside state, not the state: a replay calls
+  the function in its own working directory, and plays a recording made with another
+  outside state all the same, its result's reason saying so.
+
+When a resume runs a task again that an earlier attempt finished, its journal row
+says why in `rerun` (`its outside state changed`, `its last result was partial`,
+...), the start line of the log says so too, and the monitor shows it on the task.
+
 A program gives the run id and the resume to `Pipeline.run`, as
 `examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
 

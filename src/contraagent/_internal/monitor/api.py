@@ -405,6 +405,11 @@ class PlanNode(PlanRow):
     deferred_cause: DeferralCause | None = Field(
         None, description="the same as data; null when it was not deferred, or the run recorded no cause"
     )
+    rerun: str = Field(
+        "",
+        description="why a resume ran it again although an earlier attempt of the run had finished it "
+        "(its outside state changed, ...), from its last journal row; empty when no earlier attempt had",
+    )
 
 
 class CredentialRest(Rest):

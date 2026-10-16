@@ -80,22 +80,45 @@ def finished_before(row: dict[str, Any] | None, task: Task) -> bool:
     return bool(row.get("ok")) and row.get("fingerprint", "") == task.fingerprint
 
 
-def resume_skip(last: Mapping[str, dict[str, Any]]) -> Callable[[Task], bool]:
+def resume_skip(last: Mapping[str, dict[str, Any]], reruns: dict[str, str] | None = None) -> Callable[[Task], bool]:
     """What a resume skips, given each key's last journal row: a task `finished_before`,
     unless it waits for a task that runs again because its last result was `partial`, or
     for one that runs again for that reason in turn. Its output was made from a
     placeholder, which a fingerprint does not show when the flow passed the output on
-    without receiving it. Asked once per task, as it is queued."""
+    without receiving it. Asked once per task, as it is queued (a task whose fingerprint is
+    complete only when it starts, then). A task an earlier attempt finished (its last row
+    ok) that is not skipped goes into `reruns`, with why it runs again (`rerun_reason`)."""
     again: set[str] = set()
 
     def skip(task: Task) -> bool:
         row = last.get(task.key)
-        stale = not again.isdisjoint(task.after)
-        if stale or (row is not None and row.get("stop") == STOP_PARTIAL):
+        waits = [k for k in task.after if k in again]
+        if waits or (row is not None and row.get("stop") == STOP_PARTIAL):
             again.add(task.key)
-        return not stale and finished_before(row, task)
+        skipped = not waits and finished_before(row, task)
+        if not skipped and row is not None and row.get("ok") and reruns is not None:
+            reruns[task.key] = rerun_reason(row, task, waits[0] if waits else "")
+        return skipped
 
     return skip
+
+
+def rerun_reason(row: Mapping[str, Any], task: Task, waits_for: str = "") -> str:
+    """Why a resume runs `task` again although its last journal row, `row`, is ok: it is
+    declared `rerun_on_resume`; its last result was `partial`; it waits for `waits_for`, a
+    task that runs again for one of these; its outside state changed; or another part of its
+    fingerprint did."""
+    if task.rerun_on_resume:
+        return "its kind is declared rerun_on_resume"
+    if row.get("stop") == STOP_PARTIAL:
+        return "its last result was partial"
+    if waits_for:
+        return f"it waits for {waits_for}, which runs again"
+    if task.outside and row.get("outside") and task.outside != row["outside"]:
+        return "its outside state changed"
+    if task.fingerprint_at_start and not task.outside and row.get("outside"):
+        return "its outside state could not be worked out"
+    return "its fingerprint changed: its params, its definition or what it waits for"
 
 
 def _name_of(fn: Callable[..., Any]) -> str:
@@ -523,7 +546,7 @@ class Run:
         is sized by this host.
         """
         if skip is None and resume:
-            skip = resume_skip(self.journal.last_rows())
+            skip = resume_skip(self.journal.last_rows(), self.journal.reruns)
         q = WorkQueue(
             runner,
             follow_up=follow_up,
@@ -590,8 +613,10 @@ class Run:
         elif event in ("start", "end") and task is not None:
             self._mark_inflight(task, running=event == "start")
             if event == "start":
+                why = self.journal.reruns.get(task.key, "") if fields.get("attempt") == 1 else ""
                 # The credential its task call names, when that is in effect (the kind's is in `[route]`).
-                self._log(logging.INFO, f"[start] {task.key}" + (f" credential={task.credential}" if task.credential else ""))
+                cred = f" credential={task.credential}" if task.credential else ""
+                self._log(logging.INFO, f"[start] {task.key}{cred}" + (f": runs again, {why}" if why else ""))
             elif fields.get("stop") == "skipped":
                 self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
         if event == "deferred" and task is not None:

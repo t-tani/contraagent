@@ -11,7 +11,8 @@ positional arguments:
                         --help`)
     plugin              agent-task plugins: the implementation of an agent task
     call                agent-task call files
-    recording           recordings a replay plays (`contraagent docs testing`)
+    recording           recordings a replay plays (contraagent docs testing, Record once, replay
+                        in CI)
     check               check a flow, its plugins and its routing without launching anything
     run                 run a flow, as `check` names it, and report its tasks (for more control,
                         call Pipeline.run from Python)

@@ -117,6 +117,12 @@ class JournalRow(BaseModel):
     context_warned: bool = False
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
+    #: The SHA-256 of the outside state its fingerprint covered when the attempt started
+    #: (`agent_task(outside_state=)`); empty for a task that declares none.
+    outside: str = ""
+    #: Why a resume ran the task again although an earlier attempt of the run had finished it
+    #: (its outside state changed, ...); empty when no earlier attempt had.
+    rerun: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.

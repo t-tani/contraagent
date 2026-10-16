@@ -126,6 +126,12 @@ class Task:
     `fingerprint`: a digest of what defines its work, set by whoever builds it;
     a resumed run skips a key only when its last journal row is ok with the
     same fingerprint.
+    `fingerprint_at_start`: its fingerprint is complete only when it is about to start (it
+    covers outside state, its own or that of a task it waits for): the queue asks the
+    runner for the task as it starts (`starting`) and a resume asks whether to skip it
+    then, not when it is queued.
+    `outside`: the SHA-256 of its outside state, once it is about to start; empty for a
+    task that declares none, or before.
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
@@ -151,6 +157,8 @@ class Task:
     payload: Any = None
     origin: Origin | None = None
     fingerprint: str = ""
+    fingerprint_at_start: bool = False
+    outside: str = ""
     base_kind: str = ""
     credential: str = ""
 

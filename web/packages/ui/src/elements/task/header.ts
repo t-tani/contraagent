@@ -135,6 +135,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
               </div>`
             : nothing}
           ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
+          ${node?.rerun ? html`<div class="meta">${msg(str`Ran again after a resume: ${node.rerun}`)}</div>` : nothing}
           ${session
             ? html`<div class="whos">
                 ${tagChips([...whoTags(who), ...identityTags(tries)])}

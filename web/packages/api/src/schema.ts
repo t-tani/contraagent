@@ -1276,6 +1276,16 @@ export type components = {
              * @default
              */
             fingerprint?: string;
+            /**
+             * Outside
+             * @default
+             */
+            outside?: string;
+            /**
+             * Rerun
+             * @default
+             */
+            rerun?: string;
             /** Flow Call */
             flow_call?: string | null;
             /**
@@ -1851,6 +1861,12 @@ export type components = {
             deferred?: string;
             /** @description the same as data; null when it was not deferred, or the run recorded no cause */
             deferred_cause?: components["schemas"]["DeferralCause"] | null;
+            /**
+             * Rerun
+             * @description why a resume ran it again although an earlier attempt of the run had finished it (its outside state changed, ...), from its last journal row; empty when no earlier attempt had
+             * @default
+             */
+            rerun?: string;
         } & {
             [key: string]: unknown;
         };

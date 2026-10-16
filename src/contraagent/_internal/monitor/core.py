@@ -576,6 +576,8 @@ class Monitor:
                         "attempts": j.get("attempt", 0) + 1,
                     }
                 )
+                if j.get("rerun"):
+                    node["rerun"] = str(j["rerun"])
             nodes.append(node)
         by_key = {n["key"]: n for n in nodes}
         changed = True
