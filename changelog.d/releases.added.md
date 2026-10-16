@@ -1,0 +1,1 @@
+A release is a tag: a push of `X.Y.Z` publishes `contraagent` to PyPI and `@contraagent/api`, `@contraagent/elements` and `@contraagent/ui` to npm, with provenance, and creates a GitHub release with that version's notes.

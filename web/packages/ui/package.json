@@ -3,6 +3,23 @@
   "version": "0.1.0",
   "description": "Web components for the contraagent monitor: transcripts, task tables, the journal, plans, contracts. Framework-free (Lit), typed by @contraagent/api",
   "license": "MIT",
+  "keywords": [
+    "contraagent",
+    "coding-agent",
+    "monitor",
+    "web-components",
+    "lit",
+    "custom-elements"
+  ],
+  "homepage": "https://t-tani.github.io/contraagent/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t-tani/contraagent.git",
+    "directory": "web/packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/t-tani/contraagent/issues"
+  },
   "type": "module",
   "exports": {
     ".": {

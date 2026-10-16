@@ -3,6 +3,23 @@
   "version": "0.1.0",
   "description": "Typed client for the contraagent monitor API: generated types, REST client, live feeds and the run state they fold into",
   "license": "MIT",
+  "keywords": [
+    "contraagent",
+    "coding-agent",
+    "monitor",
+    "openapi",
+    "client",
+    "typescript"
+  ],
+  "homepage": "https://t-tani.github.io/contraagent/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t-tani/contraagent.git",
+    "directory": "web/packages/api"
+  },
+  "bugs": {
+    "url": "https://github.com/t-tani/contraagent/issues"
+  },
   "type": "module",
   "sideEffects": false,
   "exports": {
