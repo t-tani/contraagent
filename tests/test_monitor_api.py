@@ -3,6 +3,7 @@
 import asyncio
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from contraagent._internal.cli import main as cli_main
+from contraagent._internal.commandline import base_path
 from contraagent._internal.monitor import api, server
 from contraagent._internal.runs.names import BadName, check_name
 from contraagent.backends import normalize_stream_line
@@ -295,6 +297,81 @@ def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
     assert err.startswith("contraagent monitor: ") and "contraagent[monitor]" in err and "uvicorn" in err
     with pytest.raises(ModuleNotFoundError, match=r"contraagent\[monitor\]"):
         server.create_app(Monitor("nowhere"))
+
+
+# --- under a base path (behind a reverse proxy) ---------------------------------------
+
+#: Every URL the page names in an attribute, and its `<ca-monitor>` tag.
+PAGE_URLS = re.compile(r'\s(?:href|src)="([^"]*)"')
+
+
+def test_without_a_base_path_the_page_is_served_as_built(tmp_path):
+    page = client_for(Monitor(tmp_path)).get("/")
+    assert page.status_code == 200
+    assert page.content == (Path(server.STATIC) / "index.html").read_bytes()
+    assert "<ca-monitor></ca-monitor>" in page.text
+
+
+def test_under_a_base_path_the_page_names_it_in_every_url(tmp_path):
+    c = client_for(Monitor(tmp_path), base_path="/monitor/")
+    page = c.get("/")
+    assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
+    assert '<ca-monitor base-url="/monitor"></ca-monitor>' in page.text
+    urls = PAGE_URLS.findall(page.text)
+    assert {"/monitor/app.js", "/monitor/favicon.svg", "/monitor/favicon-32.png", "/monitor/apple-touch-icon.png"} <= set(urls)
+    assert all(u.startswith("/monitor/") for u in urls), urls
+    # the proxy takes the base path off: the server answers each of them at /
+    for url in urls:
+        assert c.get(url.removeprefix("/monitor")).status_code == 200, url
+    assert c.get("/index.html").text == page.text
+    assert c.get("/api/info").status_code == 200
+
+
+def test_under_a_base_path_the_api_docs_name_it(tmp_path):
+    c = client_for(Monitor(tmp_path), base_path="/tools/monitor", docs=True)
+    assert c.get("/api/openapi.json").json()["servers"] == [{"url": "/tools/monitor"}]
+    assert "'/tools/monitor/api/openapi.json'" in c.get("/api/docs").text
+    # the committed contract names no base path
+    assert "servers" not in json.loads(server.openapi_document())
+
+
+def test_a_base_path_is_escaped_into_the_page():
+    built = (Path(server.STATIC) / "index.html").read_text(encoding="utf-8")
+    assert server.page(built, "") == built
+    assert '<ca-monitor base-url="/a&quot;&lt;b"></ca-monitor>' in server.page(built, '/a"<b')
+
+
+@pytest.mark.parametrize(
+    ("value", "normal"),
+    [("", ""), ("/", ""), ("/monitor", "/monitor"), ("/monitor/", "/monitor"), ("/a/b-c_d.e~f%20", "/a/b-c_d.e~f%20")],
+)
+def test_a_base_path_is_a_path_with_no_trailing_slash(tmp_path, value, normal):
+    assert base_path(value) == normal
+
+
+@pytest.mark.parametrize(
+    ("value", "says"),
+    [
+        ("monitor", "starts with /"),
+        ("https://example.com/monitor", "no scheme or host"),
+        ("//example.com/monitor", "no scheme or host"),
+        ("/a//b", "empty"),
+        ("/a/../b", ".."),
+        ('/a"b', "only letters"),
+        ("/a b", "only letters"),
+        ("/a?b", "only letters"),
+        ("/a#b", "only letters"),
+        ("/a<b>", "only letters"),
+    ],
+)
+def test_a_base_path_that_is_not_a_path_is_refused(tmp_path, capsys, value, says):
+    with pytest.raises(ValueError, match=says):
+        server.create_app(Monitor(tmp_path), base_path=value)
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["monitor", "--runs-dir", str(tmp_path), "--base-path", value])
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "usage: contraagent monitor" in err and "argument --base-path" in err and says in err
 
 
 def test_the_page_makes_no_third_party_requests():

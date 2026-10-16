@@ -38,6 +38,10 @@ to one host. The read token opens the monitor: open `/login?token=<token>` once 
 browser, or send it as `Authorization: Bearer`. With no read token the monitor is open
 to anyone who reaches the port.
 
+A hub [behind a reverse proxy](monitor.md#behind-a-reverse-proxy), under a path of a
+site, takes `--base-path` as one monitor does, and its `/login` then redirects to that
+path.
+
 ## Start a relay on each host
 
 ```

@@ -15,6 +15,7 @@ import errno
 import importlib
 import importlib.util
 import logging
+import re
 import signal
 import socket
 import sys
@@ -90,7 +91,7 @@ def load_extensions(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def add_http(parser: argparse.ArgumentParser, *, port: int) -> None:
-    """Where a server listens and which `Host` names and origins it answers."""
+    """Where a server listens, which `Host` names and origins it answers, and the path a proxy serves it under."""
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=port)
     parser.add_argument(
@@ -107,6 +108,45 @@ def add_http(parser: argparse.ArgumentParser, *, port: int) -> None:
         metavar="ORIGIN",
         help="let a page from this origin read the monitor API, e.g. http://localhost:5173 for a UI dev server",
     )
+    parser.add_argument(
+        "--base-path",
+        type=_base_path_option,
+        default="",
+        metavar="PATH",
+        help="the path a reverse proxy serves the monitor under, e.g. /monitor: the page names it in every URL it reads; "
+        "the proxy takes it off before it passes a request on (default: none, the monitor is at /)",
+    )
+
+
+#: One segment of a base path: unreserved characters of a URL, or a percent-encoded byte.
+_SEGMENT = re.compile(r"(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})+")
+
+
+def base_path(value: str) -> str:
+    """`value` as the path a reverse proxy serves the monitor under: `/monitor` (a
+    trailing `/` dropped), or '' for none (`''` or `/`). `ValueError` names what is wrong
+    with any other value: a scheme or host, a missing leading `/`, an empty, `.` or `..`
+    segment, or a character beside letters, digits, `.`, `_`, `~`, `-` and `%XX`."""
+    path = value.rstrip("/")
+    if not path:
+        return ""
+    if "://" in value or value.startswith("//"):
+        raise ValueError(f"{value!r}: a path such as /monitor, with no scheme or host")
+    if not path.startswith("/"):
+        raise ValueError(f"{value!r}: a path starts with /, such as /monitor")
+    for segment in path[1:].split("/"):
+        if segment in ("", ".", ".."):
+            raise ValueError(f"{value!r}: an empty, . or .. segment")
+        if not _SEGMENT.fullmatch(segment):
+            raise ValueError(f"{value!r}: only letters, digits, . _ ~ - and %XX between the / of a path")
+    return path
+
+
+def _base_path_option(value: str) -> str:
+    try:
+        return base_path(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
 
 
 def bind(host: str, port: int) -> socket.socket:
