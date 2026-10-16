@@ -323,13 +323,13 @@ class CodexBackend(ResumeById, Backend):
             a += ["-c", f"model_reasoning_effort={toml(launch.effort)}"]
         if launch.system_prompt is not None:
             f = self.scratch(launch.label, "instructions") / "system.md"
-            f.write_text(launch.system_prompt, encoding="utf-8")
+            f.write_text(launch.system_prompt, encoding="utf-8", newline="\n")
             a += ["-c", f"model_instructions_file={toml(str(f))}"]
         if launch.append_system_prompt is not None:
             a += ["-c", f"developer_instructions={toml(launch.append_system_prompt)}"]
         if launch.json_schema is not None:
             f = self.scratch(launch.label, "schema") / "schema.json"
-            f.write_text(json.dumps(launch.json_schema, ensure_ascii=False), encoding="utf-8")
+            f.write_text(json.dumps(launch.json_schema, ensure_ascii=False), encoding="utf-8", newline="\n")
             a += ["--output-schema", str(f)]
         if launch.mcp_config is not None:
             for name, table in mcp_servers(launch.mcp_config).items():

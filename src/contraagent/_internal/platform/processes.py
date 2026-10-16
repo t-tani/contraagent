@@ -43,7 +43,7 @@ class LinuxStarts:
 
     def __call__(self, pid: int, /) -> int | None:
         try:
-            data = Path(self.proc_root, str(pid), "stat").read_text()
+            data = Path(self.proc_root, str(pid), "stat").read_text(encoding="utf-8")
         except (OSError, ValueError):
             return None
         # The command name can hold spaces and parentheses: the fields after it follow the last ')'.

@@ -159,10 +159,11 @@ def add_openapi(parser: argparse.ArgumentParser, document: str) -> None:
 def write_openapi(document: str, dest: str) -> None:
     """`document` written to the file `dest`, or to stdout for `-` (piped into `head`, it ends quietly)."""
     if dest == "-":
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        if sys.platform != "win32":  # Windows has no SIGPIPE
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
         sys.stdout.write(document)
     else:
-        Path(dest).write_text(document)
+        Path(dest).write_text(document, encoding="utf-8", newline="\n")
 
 
 def setup_logging(format: str = "%(message)s", datefmt: str | None = None) -> None:

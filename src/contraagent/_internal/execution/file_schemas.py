@@ -78,7 +78,7 @@ def write(into: Path = DIR) -> list[Path]:
     paths = []
     for name, schema in made.items():
         path = into / name
-        path.write_text(render(schema))
+        path.write_text(render(schema), encoding="utf-8", newline="\n")
         paths.append(path)
     return paths
 

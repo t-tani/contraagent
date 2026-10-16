@@ -150,13 +150,13 @@ def _run_roots(monitor: Monitor, run: str) -> list[Path]:
 def _write(path: Path, body: Any) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8", newline="\n")
     return len(text.encode())
 
 
 def _page(static: Path, title: str, data: str) -> str:
     """The monitor's page, reading the export from `data` instead of a server."""
-    html = (static / "index.html").read_text()
+    html = (static / "index.html").read_text(encoding="utf-8")
     html = html.replace("<ca-monitor></ca-monitor>", f'<ca-monitor export="{data}"></ca-monitor>', 1)
     return re.sub(r"<title>.*?</title>", f"<title>{_escape(title)}</title>", html, count=1)
 
@@ -258,7 +258,7 @@ def export(
     for name in ICON_FILES:
         if (static / name).is_file():
             shutil.copyfile(static / name, out / name)
-    (out / "index.html").write_text(_page(static, monitor.title, "data/"))
+    (out / "index.html").write_text(_page(static, monitor.title, "data/"), encoding="utf-8", newline="\n")
     return ExportReport(out=out, runs=chosen, bytes_by_run=sizes, total_bytes=total + sum(sizes.values()))
 
 

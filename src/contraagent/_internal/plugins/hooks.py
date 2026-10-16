@@ -129,7 +129,7 @@ def hook_errors(hooks) -> list[str]:
 
 def _read_json(path: Path) -> dict:
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -580,7 +580,16 @@ def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "
     failure: tuple[int, str] | None = None
     outs: list[str] = []
     for run in runs:
-        proc = subprocess.run(["bash", str(root / script)], input=json.dumps(run), capture_output=True, text=True, cwd=cwd, env=env)
+        proc = subprocess.run(
+            ["bash", str(root / script)],
+            input=json.dumps(run),
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            env=env,
+            encoding="utf-8",
+            errors="replace",
+        )
         outs.append(proc.stdout)
         if proc.returncode == 2:
             objections.append(proc.stderr.strip() or "a task hook objected")
@@ -639,7 +648,7 @@ def stale(plugin: Plugin, agents=None) -> list[str]:
     out = []
     for rel, text in files.items():
         p = plugin.root / rel
-        if not p.is_file() or p.read_text() != text:
+        if not p.is_file() or p.read_text(encoding="utf-8") != text:
             out.append(rel)
     return out
 
@@ -651,7 +660,7 @@ def write(plugin: Plugin, agents=None) -> tuple[list[Path], list[str]]:
     for rel, text in files.items():
         p = plugin.root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        if not p.is_file() or p.read_text() != text:
-            p.write_text(text)
+        if not p.is_file() or p.read_text(encoding="utf-8") != text:
+            p.write_text(text, encoding="utf-8", newline="\n")
             written.append(p)
     return written, notes

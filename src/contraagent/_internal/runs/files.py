@@ -19,7 +19,9 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sys
 import threading
+import time
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import BinaryIO
@@ -28,6 +30,14 @@ from typing import BinaryIO
 BLOCK = 1 << 20
 
 _append_lock = threading.Lock()
+
+#: `os.open`'s flag for a file whose bytes are written as given: on Windows a file descriptor
+#: is opened in text mode otherwise, and each `\n` written becomes `\r\n`.
+BINARY = getattr(os, "O_BINARY", 0)
+
+#: Windows: how long `write_document` tries again to replace a document another process holds
+#: open (a reader's open file is replaced only once it is closed there).
+REPLACE_WAIT_S = 2.0
 
 
 def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bool = False) -> Path:
@@ -39,18 +49,35 @@ def write_document(path: str | os.PathLike[str], text: str | bytes, *, fsync: bo
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
     data = text.encode() if isinstance(text, str) else text
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | BINARY, 0o666)
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
             if fsync:
                 f.flush()
                 os.fsync(f.fileno())
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
     return path
+
+
+def _replace(tmp: Path, path: Path) -> None:
+    """`os.replace`, tried again for `REPLACE_WAIT_S` on Windows while another process has
+    `path` open (`PermissionError`): Python opens a file there without letting it be replaced."""
+    if sys.platform != "win32":
+        os.replace(tmp, path)
+        return
+    deadline = time.monotonic() + REPLACE_WAIT_S
+    while True:
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
 
 
 def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
@@ -61,7 +88,7 @@ def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
     if not data:
         return
     with _append_lock:
-        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o666)
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | BINARY, 0o666)
         try:
             view = memoryview(data)
             while view:

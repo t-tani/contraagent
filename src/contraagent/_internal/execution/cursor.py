@@ -103,14 +103,14 @@ class CursorStore:
         try:
             if not self.path.is_file():
                 return None
-            return parse_cursor(self.path.read_text())
+            return parse_cursor(self.path.read_text(encoding="utf-8"))
         except OSError:
             return None
 
     def load(self) -> Cursor:
         """The cursor, or a fresh one when none exists yet. A malformed file raises."""
-        if self.path.is_file() and self.path.read_text().strip():
-            return Cursor.model_validate_json(self.path.read_text())
+        if self.path.is_file() and self.path.read_text(encoding="utf-8").strip():
+            return Cursor.model_validate_json(self.path.read_text(encoding="utf-8"))
         return Cursor(schema_version=CURSOR_SCHEMA_VERSION, run=self.run, updated_at=now())
 
     # --- mutations ---------------------------------------------------------

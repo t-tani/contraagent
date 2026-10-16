@@ -627,7 +627,7 @@ class Graph:
                 return partial
             doc = value if isinstance(value, schema) else schema.model_validate(value)
             node.output_path.parent.mkdir(parents=True, exist_ok=True)
-            node.output_path.write_text(doc.model_dump_json(indent=2))
+            node.output_path.write_text(doc.model_dump_json(indent=2), encoding="utf-8", newline="\n")
             return partial
 
         return dataclasses.replace(

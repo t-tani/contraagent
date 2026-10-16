@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import io
 import signal
 import sys
 from importlib import metadata
@@ -63,8 +64,13 @@ MODULES = {
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else list(argv)
+    if sys.platform == "win32":
+        # A pipe there carries the code page's text, not UTF-8: a hook's reasons, JSON on stdin.
+        for stream in (sys.stdin, sys.stdout, sys.stderr):
+            if isinstance(stream, io.TextIOWrapper):
+                stream.reconfigure(encoding="utf-8", errors="replace")
     args = parser(argv[0] if argv else None).parse_args(argv)
-    if not args.serves:
+    if not args.serves and sys.platform != "win32":  # Windows has no SIGPIPE
         # Output piped into `head` ends quietly, as a command line tool's should.
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:

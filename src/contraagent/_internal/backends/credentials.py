@@ -64,7 +64,7 @@ class Secret:
                 raise CredentialError(f"secret env:{ref} is not set")
             return env[ref]
         try:
-            value = Path(os.path.expanduser(ref)).read_text().strip()
+            value = Path(os.path.expanduser(ref)).read_text(encoding="utf-8").strip()
         except OSError as exc:
             raise CredentialError(f"secret file:{ref}: {exc}") from exc
         if not value:

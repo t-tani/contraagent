@@ -79,7 +79,7 @@ class DemoAgent(Backend):
 
         def emit(event, pause=0.5):
             if stream:
-                with open(stream, "a") as f:
+                with open(stream, "a", encoding="utf-8", newline="\n") as f:
                     f.write(json.dumps(event, ensure_ascii=False) + "\n")
             time.sleep(self.pace * pause * random.uniform(0.6, 1.4))
 
@@ -134,7 +134,7 @@ class DemoAgent(Backend):
 
         def write(content):
             assert call.output is not None  # every kind of the demo declares an output
-            Path(call.output.path).write_text(content, encoding="utf-8")
+            Path(call.output.path).write_text(content, encoding="utf-8", newline="\n")
             tool("write", {"path": call.output.path}, "ok")
 
         unit = call.unit
@@ -201,7 +201,9 @@ def main(argv: list[str] | None = None):
     inputs = Path("inputs")
     inputs.mkdir(exist_ok=True)
     for u in UNITS:  # the raw input each unit starts from
-        (inputs / f"{u}.md").write_text(f"# {u}\nThe {u} component parses a config file, validates it and reports errors.\n")
+        (inputs / f"{u}.md").write_text(
+            f"# {u}\nThe {u} component parses a config file, validates it and reports errors.\n", encoding="utf-8", newline="\n"
+        )
 
     if args.real:
         pipeline = Pipeline(None, runs_dir="demo-runs", overrides=Overrides(agent=args.real))

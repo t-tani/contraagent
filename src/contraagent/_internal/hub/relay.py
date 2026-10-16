@@ -201,7 +201,7 @@ class Relay:
 
     def _load(self) -> dict[str, RunProgress]:
         try:
-            data = json.loads(self.progress_path.read_text())
+            data = json.loads(self.progress_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError) as exc:
@@ -591,7 +591,7 @@ def add_arguments(ap: argparse.ArgumentParser) -> None:
 def _token(args: argparse.Namespace) -> str:
     if args.token_file:
         try:
-            return Path(args.token_file).read_text().strip()
+            return Path(args.token_file).read_text(encoding="utf-8").strip()
         except OSError as exc:
             raise UsageError(f"cannot read --token-file: {exc}") from None
     token = os.environ.get(TOKEN_ENV, "").strip()

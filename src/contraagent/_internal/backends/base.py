@@ -21,6 +21,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -65,7 +66,7 @@ def temp_root() -> Path:
     symlink, not a directory, or another user's; one of ours that others can reach is made
     owner-only again. A refusal is a `PermissionError` naming the path."""
     tmp = Path(tempfile.gettempdir())
-    if not hasattr(os, "getuid"):  # no uids to keep users apart (Windows)
+    if sys.platform == "win32":  # no uids; the temp dir is the user's own (%TEMP%)
         root = tmp / "contraagent"
         root.mkdir(exist_ok=True)
         return root
@@ -75,6 +76,7 @@ def temp_root() -> Path:
 
 def _own_dir(path: Path, uid: int) -> Path:
     """Make or check this user's directory (0700): never through a symlink, never another user's."""
+    assert sys.platform != "win32"
     try:
         os.mkdir(path, 0o700)
     except FileExistsError:
@@ -515,7 +517,16 @@ def cli_version(binary: str, env: dict[str, str]) -> str:
     if not exe:
         return ""
     try:
-        p = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30, env=env, stdin=subprocess.DEVNULL)
+        p = subprocess.run(
+            [exe, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+        )
     except (OSError, subprocess.SubprocessError):
         return ""
     m = _VERSION_RE.search(p.stdout or "")

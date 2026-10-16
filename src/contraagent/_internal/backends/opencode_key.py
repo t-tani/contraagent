@@ -66,7 +66,7 @@ def stored_login(provider: str, env: Mapping[str, str]) -> dict | None:
     """The login opencode stores for `provider` (an `api` key or an `oauth` login); None
     when it stores none or the file cannot be read."""
     try:
-        login = json.loads(auth_file(env).read_text()).get(_store_name(provider))
+        login = json.loads(auth_file(env).read_text(encoding="utf-8")).get(_store_name(provider))
     except (OSError, ValueError, AttributeError):
         return None
     return login if isinstance(login, dict) else None
@@ -151,7 +151,7 @@ def dotenv(path: str | os.PathLike) -> dict[str, str]:
     skipped); empty when it cannot be read."""
     out: dict[str, str] = {}
     try:
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return out
     for line in text.splitlines():

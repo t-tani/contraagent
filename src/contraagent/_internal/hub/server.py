@@ -513,7 +513,7 @@ def read_ingest_tokens(path: str | Path) -> dict[str, str | None]:
     """An ingest token file: one token per line, or `host_id token` for a token good for
     that host only; blank lines and lines starting with `#` are skipped."""
     out: dict[str, str | None] = {}
-    for line in Path(path).read_text().splitlines():
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
         fields = line.split()
         if not fields or fields[0].startswith("#"):
             continue
@@ -530,7 +530,7 @@ def read_ingest_tokens(path: str | Path) -> dict[str, str | None]:
 
 def read_read_token(path: str | Path) -> str:
     """The read token: the first line of the file that is not blank or a `#` comment."""
-    for line in Path(path).read_text().splitlines():
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
         token = line.strip()
         if token and not token.startswith("#"):
             return token

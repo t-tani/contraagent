@@ -59,7 +59,7 @@ def windows(source: Path) -> dict[str, int]:
     out: dict[str, int] = {}
     for name in ("models-store.json", "models.json"):
         try:
-            doc = json.loads((source / name).read_text())
+            doc = json.loads((source / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         providers = doc.get("providers") if name == "models.json" and isinstance(doc, dict) else doc
@@ -92,7 +92,7 @@ def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_mo
     for name, doc in plan.items():
         text = json.dumps(doc, indent=2) + "\n"
         f = target / name
-        if not f.is_file() or f.read_text() != text:
+        if not f.is_file() or f.read_text(encoding="utf-8") != text:
             write_document(f, text)
     for name, src in links.items():
         f = target / name

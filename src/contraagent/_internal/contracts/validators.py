@@ -151,7 +151,7 @@ class CommandValidator:
             return ["{call} names the task's call file, and this task has none (a Python task)"]
         argv = self.command_for(Path(path), call)
         try:
-            proc = subprocess.run(argv, capture_output=True, text=True, timeout=self.timeout_s, cwd=cwd)
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=self.timeout_s, cwd=cwd, encoding="utf-8", errors="replace")
         except FileNotFoundError:
             return [f"command not found: {argv[0]}"]
         except subprocess.TimeoutExpired:

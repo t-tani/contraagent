@@ -322,7 +322,7 @@ class Run:
     def _info(self) -> dict[str, Any] | None:
         """`run.json` as this run directory holds it; None before the first write."""
         try:
-            return parse_info((self.dir / layout.RUN_INFO).read_text())
+            return parse_info((self.dir / layout.RUN_INFO).read_text(encoding="utf-8"))
         except OSError:
             return None
 

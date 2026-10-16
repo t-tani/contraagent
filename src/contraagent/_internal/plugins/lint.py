@@ -31,7 +31,7 @@ def lint_plugin(plugin: Plugin) -> list[str]:
     if not plugin.roles:
         errs.append("agents/: no role (agents/<role>.md) — the task has no procedure")
     for role in plugin.roles:
-        fm = frontmatter(plugin.role_file(role).read_text())
+        fm = frontmatter(plugin.role_file(role).read_text(encoding="utf-8"))
         if fm.get("name") != role:
             errs.append(f"agents/{role}.md: frontmatter name is {fm.get('name')!r}, expected {role!r}")
         if not fm.get("description"):
@@ -61,7 +61,7 @@ def lint_skills(plugin: Plugin) -> list[str]:
     r = plugin.root
     errs: list[str] = []
     for skill in sorted((r / "skills").glob("*/SKILL.md")) if (r / "skills").is_dir() else []:
-        fm = frontmatter(skill.read_text())
+        fm = frontmatter(skill.read_text(encoding="utf-8"))
         for k in ("name", "description"):
             if not fm.get(k):
                 errs.append(f"{skill.relative_to(r)}: frontmatter has no {k}")
@@ -70,7 +70,7 @@ def lint_skills(plugin: Plugin) -> list[str]:
 
 def _json_errors(path: Path, required: Sequence[str] = ()) -> list[str]:
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except OSError:
         return [f"{path.name}: missing"]
     except ValueError as exc:

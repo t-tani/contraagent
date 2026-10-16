@@ -317,7 +317,14 @@ def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, s
     """What the hook (`contraagent call validate`, same interpreter) would fail to import."""
     try:
         proc = subprocess.run(
-            [sys.executable, "-c", _IMPORT_PROBE], input=json.dumps(refs), capture_output=True, text=True, timeout=60, check=True
+            [sys.executable, "-c", _IMPORT_PROBE],
+            input=json.dumps(refs),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+            encoding="utf-8",
+            errors="replace",
         )
         return json.loads(proc.stdout)
     except (subprocess.SubprocessError, ValueError, OSError) as exc:

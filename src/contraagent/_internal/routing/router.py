@@ -122,7 +122,7 @@ def load_fallbacks(path: Path | str) -> tuple[Route, ...]:
     429 instead of a config complaint. Both raise `ConfigError`.
     """
     try:
-        raw = tomllib.loads(Path(path).read_text())
+        raw = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ConfigError(f"{path}: {exc}") from exc
     defaults = raw.get("defaults")

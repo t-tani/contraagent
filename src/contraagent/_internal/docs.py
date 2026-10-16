@@ -76,7 +76,7 @@ def entries(index: Path = INDEX) -> list[Entry]:
     """The pages an index lists, in its order."""
     return [
         Entry(m["title"], (index.parent / m["file"]).resolve(), m["summary"])
-        for line in index.read_text().splitlines()
+        for line in index.read_text(encoding="utf-8").splitlines()
         if (m := _ENTRY.match(line))
     ]
 
@@ -89,7 +89,7 @@ def topics() -> list[Entry]:
 def text(topic: str | None = None) -> str:
     """The index, or one topic, with its quotes expanded."""
     if topic is None:
-        return INDEX.read_text()
+        return INDEX.read_text(encoding="utf-8")
     known = {t.name: t for t in topics()}
     if topic not in known:
         raise DocsError(f"no topic {topic!r}; the topics: {', '.join(known)}")
@@ -101,7 +101,7 @@ def expand(page: Path, root: Path) -> str:
     fenced and titled with its path relative to `root` (the package's own directory)."""
     out: list[str] = []
     fenced = False
-    for line in page.read_text().splitlines():
+    for line in page.read_text(encoding="utf-8").splitlines():
         if _FENCE.match(line):
             fenced = not fenced
         m = None if fenced else _CODE.match(line)
@@ -115,7 +115,7 @@ def quote(page: Path, attrs: dict[str, str], root: Path) -> list[str]:
     source = (page.parent / attrs.get("file", "")).resolve()
     if "file" not in attrs or not source.is_file():
         raise DocsError(f"{where}: no such file")
-    lines = source.read_text().rstrip("\n").split("\n")
+    lines = source.read_text(encoding="utf-8").rstrip("\n").split("\n")
     if start := attrs.get("from"):
         i = next((i for i, line in enumerate(lines) if start in line), None)
         if i is None:

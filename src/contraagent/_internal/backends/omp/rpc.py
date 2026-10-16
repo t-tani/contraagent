@@ -185,6 +185,8 @@ class OmpRpcBackend(OmpBackend):
                 cwd=str(launch.cwd),
                 env=env,
                 **groups.popen_options(),
+                encoding="utf-8",
+                errors="replace",
             )
         except OSError as exc:
             raise LaunchError(str(exc)) from exc
@@ -231,7 +233,7 @@ class OmpRpcBackend(OmpBackend):
                     # the stream file itself.
                     if launch.stream_path is not None:
                         try:
-                            with open(launch.stream_path, "a") as f:
+                            with open(launch.stream_path, "a", encoding="utf-8", newline="\n") as f:
                                 f.write(line)
                         except OSError:
                             pass
@@ -320,7 +322,7 @@ class OmpRpcBackend(OmpBackend):
             parts.append(launch.preamble)
         for f in launch.context_files:
             try:
-                parts.append(Path(f).read_text()[:60_000])
+                parts.append(Path(f).read_text(encoding="utf-8")[:60_000])
             except (OSError, ValueError):
                 continue
         parts.append(launch.prompt)
