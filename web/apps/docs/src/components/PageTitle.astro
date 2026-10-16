@@ -1,0 +1,19 @@
+---
+// Starlight's page title, with a line break allowed after each `/`: on a phone,
+// `@contraagent/elements` breaks between its parts, not inside a word.
+const parts = Astro.locals.starlightRoute.entry.data.title.split('/');
+---
+
+<h1 id="_top">{parts.map((part, i) => (i < parts.length - 1 ? <>{part}/<wbr /></> : part))}</h1>
+
+<style>
+  @layer starlight.core {
+    h1 {
+      margin-top: 1rem;
+      font-size: var(--sl-text-h1);
+      line-height: var(--sl-line-height-headings);
+      font-weight: 600;
+      color: var(--sl-color-white);
+    }
+  }
+</style>

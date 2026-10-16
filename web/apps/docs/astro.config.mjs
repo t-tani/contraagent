@@ -36,7 +36,7 @@ export default defineConfig({
       ],
       // A live demo can show @contraagent/elements' example of a theme of one's own.
       // The landing page's first screen (the only page with a `hero`).
-      components: { Hero: './src/components/home/Hero.astro' },
+      components: { Hero: './src/components/home/Hero.astro', PageTitle: './src/components/PageTitle.astro' },
       customCss: ['./src/styles/site.css', './src/styles/pages.css', '../../packages/elements/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
