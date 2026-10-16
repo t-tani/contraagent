@@ -123,16 +123,19 @@
 .ca-eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  flex-wrap: wrap;
+  gap: 0 0.55rem;
   margin: 0 0 1.5rem;
   padding: 0.3rem 0.8rem 0.3rem 0.65rem;
-  border-radius: 999px;
+  /* Round on one line; on a phone the items wrap between themselves, never inside one. */
+  border-radius: 1rem;
   border: 1px solid var(--hero-glass-line);
   background: var(--hero-glass);
   font: 600 0.8rem/1.4 var(--sl-font-mono, var(--sl-font-system-mono));
   letter-spacing: 0.02em;
   color: var(--hero-ink-2);
 }
+.ca-eyebrow > span:not(.ca-eyebrow-dot) { white-space: nowrap; }
 .ca-eyebrow-dot {
   width: 0.5rem;
   height: 0.5rem;
