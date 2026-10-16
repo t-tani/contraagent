@@ -390,7 +390,11 @@ version; nothing else holds that text.
   stylesheet. The live examples read `src/fixtures/demo-run.json` and an export
   of the showcase runs in `public/demo/data/`; rewrite both with
   `uv run python web/apps/docs/scripts/fixture.py` after a change to what the
-  monitor returns.
+  monitor returns. The landing page shows what the CLI prints on the demo
+  from `src/fixtures/landing-outputs.json`; rewrite it with
+  `uv run python web/apps/docs/scripts/landing.py` after a change to what those
+  commands print (a test fails while it is stale). No page of the site runs a
+  command when it renders (a test checks).
 - **No image in an npm package**: a web package's `docs/images/` (screenshots for
   readers of the repository) is left out of its tarball (`"!docs/images"` in
   `files`); `pnpm check:dist` fails on an image in any tarball.
