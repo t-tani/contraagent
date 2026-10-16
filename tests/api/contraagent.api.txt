@@ -1748,9 +1748,11 @@ class InputContract(_FileContract)
         schema: type[BaseModel] | None,
         required: bool = True,
         producer: str = '',
+        producer_failure: Callable[[], str] | None = None,
     ) -> None
     path: Path
     producer: str = ''
+    producer_failure: Callable[[], str] | None = field(default=None, compare=False)
     required: bool = True
     def resolve(self, cwd: Path) -> Path
     schema: type[BaseModel] | None
@@ -2593,7 +2595,7 @@ class ContractRecord(Open)
     kind: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     outputs: list[ContractSpec] = Field(default_factory=list)
-    params: dict[str, str | int | float | bool] = Field(default_factory=dict, description="the task's scalar params")
+    params: dict[str, str | int | float | bool] = Field(default_factory=dict, description="the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`")
     unit: str = ''
 
 class ContractSpec(Open)
@@ -2605,6 +2607,7 @@ class ContractSpec(Open)
     model_config: ConfigDict = ConfigDict(extra='allow')
     path: str
     preserve: list[str] = Field(default_factory=list, description='output: JSON pointers to the parts of the file the task keeps as they were (`*`: every member)')
+    producer: str | None = Field(None, description='input: the key of the task whose output it is')
     required: bool | None = None
     rounds: int | None = Field(None, description='rounds it took to pass, when the journal recorded it')
     schema_name: str

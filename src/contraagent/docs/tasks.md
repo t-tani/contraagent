@@ -41,7 +41,8 @@ lax mode), so a dict given to a model parameter arrives as the model, a list of
 dicts given to `list[Model]` as a list of models, and an output of another task as
 its value. An argument that does not match refuses the task (`invalid_input`, the
 parameter named in its reason) and the function is not called; an unannotated
-parameter takes its argument as it is. It runs in this process and
+parameter takes its argument as it is. It runs in this process, in its current
+directory (a relative path it opens resolves there, not against `Pipeline(cwd=)`), and
 has no budget: budgets cap coding-agent launches. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is

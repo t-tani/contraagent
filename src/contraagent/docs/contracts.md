@@ -147,6 +147,13 @@ params as the keyword argument `params` (an agent task's as its call file holds
 them; a Python task's with every upstream value resolved). A validator that
 declares `call` is given the path of an agent task's call file.
 
+A Python validator runs in the runner's process, in its current directory, for an
+agent task and a Python task alike: a relative path it opens (one from `params`)
+resolves there, not against `Pipeline(cwd=)`, which is where the coding agents and
+`CommandValidator`s run. `contraagent run` runs both in the directory it is started
+in; a test that passes `Pipeline(cwd=project)` runs the Python code in pytest's
+directory, so it calls `monkeypatch.chdir(project)` too.
+
 ::code{file="examples/demo/tasks.py" from="def its_own_unit" to="#: A linter"}
 
 A rule about what the task changed takes `before`: the file as it was before the

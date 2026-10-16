@@ -526,7 +526,7 @@ export type components = {
             executor?: "agent" | "python";
             /**
              * Params
-             * @description the task's scalar params
+             * @description the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`
              */
             params?: {
                 [key: string]: string | number | boolean;
@@ -552,6 +552,11 @@ export type components = {
             io: "output" | "input";
             /** Path */
             path: string;
+            /**
+             * Producer
+             * @description input: the key of the task whose output it is
+             */
+            producer?: string | null;
             /** Schema Name */
             schema_name: string;
             /**

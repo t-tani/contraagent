@@ -25,6 +25,7 @@ from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.dispatch.templates import fill_example
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
 
@@ -79,7 +80,9 @@ def writes_example() -> Reply:
     `examples` (the model's own, a field's), else the smallest value that part accepts
     (required fields only, the shortest lists and strings, numbers nearest zero). A text
     output is the first of the `examples` of its `Annotated[str, Field(examples=[...])]`,
-    else `stub`. A schema rule it cannot build where there is no example (`pattern`)
+    else `stub`. In each string of it, `{unit}`, `{key}`, `{kind}` and `{params.<name>}`
+    are the task call's, as in a claim (`claims=`), when the value is a string or a
+    number; any other field stays as written. A schema rule it cannot build where there is no example (`pattern`)
     fails the reply and names it. As a task's only reply (not in a list, not from a
     callable), a value its validators reject ends the task `invalid_output` after one
     round, with no correction round and no retry."""
@@ -302,6 +305,7 @@ class StubAgent(Backend):
                 value, problems = ("stub", []) if text else example(schema)
                 if problems:
                     return fails(reason=f"stub: no example for {call.key}: {'; '.join(problems)}")
+                value = fill_example(value, unit=call.unit, key=call.key, kind=call.kind, params=call.params)
                 reply = writes(value, cost_usd=reply.cost_usd)
             text = _text_of(reply.output)
             if call.output.from_ == "message":
@@ -369,7 +373,7 @@ class StubAgent(Backend):
             value, problems = example(json_schema)
             if problems:
                 raise RuntimeError(f"stub: no example for {key}: {'; '.join(problems)}")
-            return True, value
+            return True, fill_example(value, unit=unit, key=key, kind=kind, params=params)
         return True, reply.output
 
     # --- internals ---------------------------------------------------------

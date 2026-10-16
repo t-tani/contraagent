@@ -395,6 +395,7 @@ def record_contracts(
             "required": getattr(c, "required", None),
             "validators": [validator_name(v) for v in getattr(c, "validators", ())],
             "preserve": list(getattr(c, "preserve", ())),
+            **({"producer": c.producer} if getattr(c, "producer", "") else {}),
         }
 
     record = {

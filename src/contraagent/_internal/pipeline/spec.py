@@ -33,7 +33,8 @@ from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.validators import Validator, validator_name
 from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
 from contraagent._internal.dispatch.task import Partial
-from contraagent._internal.pipeline.graph import CLAIM_PARAM, Pending, current_graph
+from contraagent._internal.dispatch.templates import PARAM_FIELD
+from contraagent._internal.pipeline.graph import Pending, current_graph
 from contraagent._internal.plugins import Plugin, PluginError
 from contraagent._internal.plugins.plugin import body
 from contraagent._internal.routing.config import TASK_KEYS, ConfigError, PipelineConfig
@@ -1016,7 +1017,7 @@ def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
                 continue
             if spec or conversion:
                 raise ValueError(f"{owner}: claim {claim!r}: {{{field}}} takes no format or conversion")
-            if field not in ("unit", "key", "kind") and not CLAIM_PARAM.fullmatch(field):
+            if field not in ("unit", "key", "kind") and not PARAM_FIELD.fullmatch(field):
                 raise ValueError(f"{owner}: claim {claim!r} names {field}; it may name unit, key, kind and params.<name>")
     return out
 

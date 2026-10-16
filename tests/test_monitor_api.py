@@ -392,6 +392,16 @@ def test_a_unitless_python_task_has_the_same_unit_everywhere(demo_runs):
     assert record["unit"] == row["unit"] == ""
 
 
+def test_a_python_task_s_outputs_from_earlier_tasks_are_its_inputs_by_producer(demo_runs):
+    record = next(r for r in Monitor(demo_runs).outputs("docs")["contracts"] if r["key"] == "python:report")
+    # Given only outputs of earlier tasks: no param of its own, each output an input named by its producer.
+    assert record["params"] == {}
+    producers = {i["producer"] for i in record["inputs"]}
+    assert {"summarize-alpha", "revise-gamma"} <= producers, producers  # a revision writes its summary's file
+    alpha = next(i for i in record["inputs"] if i["producer"] == "summarize-alpha")
+    assert alpha["path"].endswith("out/summarize/alpha.json")
+
+
 # --- flow calls and origins ----------------------------------------------------
 
 

@@ -1219,7 +1219,7 @@
             },
             "type": "object",
             "title": "Params",
-            "description": "the task's scalar params"
+            "description": "the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`"
           },
           "outputs": {
             "items": {
@@ -1257,6 +1257,18 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "producer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Producer",
+            "description": "input: the key of the task whose output it is"
           },
           "schema_name": {
             "type": "string",

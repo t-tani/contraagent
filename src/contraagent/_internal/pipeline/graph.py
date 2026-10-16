@@ -71,6 +71,7 @@ from contraagent._internal.dispatch.task import (
     Task,
     TaskResult,
 )
+from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.pipeline import origin as origins
 from contraagent._internal.pipeline.loops import LoopCounter, counting, is_while
@@ -642,10 +643,6 @@ class Graph:
         )
 
 
-#: A claim's `{params.<name>}` field.
-CLAIM_PARAM = re.compile(r"params\.([A-Za-z_][A-Za-z0-9_]*)")
-
-
 def kind_clash(a: Any, b: Any) -> str | None:
     """Why two task declarations cannot be in one run, or None: the kind of one is the base
     kind of the other (`agent_task(implementations=)`), or both have one kind and are not
@@ -701,7 +698,7 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
         return [unit]
     if field_name in ("key", "kind"):
         return [key if field_name == "key" else kind]
-    m = CLAIM_PARAM.fullmatch(field_name)
+    m = PARAM_FIELD.fullmatch(field_name)
     if m is None:  # the declaration admits no other field (`spec._checked_claims`)
         raise ValueError(f"{kind}(): claim {template!r} names {field_name}; it may name unit, key, kind and params.<name>")
     name = m.group(1)
