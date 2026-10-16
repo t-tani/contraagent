@@ -3,7 +3,7 @@
 
 `PipelineConfig` reads the file itself, with messages that name the table and the key;
 these models state the same tables and keys (`TABLES`, `DEFAULTS_KEYS`,
-`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, the credential types), so an editor or a CI step
+`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, `TASK_ATTEMPT_KEYS`, the credential types), so an editor or a CI step
 can check a file with no contraagent installed.
 """
 
@@ -75,6 +75,9 @@ class _TaskRouting(_Routing):
         None,
         min_length=1,
         description="the stops after which a launch's output that passes every check is a partial result",
+    )
+    keep_failed_changes: StrictBool | None = Field(
+        None, description="leave the files a failed attempt created under the kind's `changes` patterns in place"
     )
 
 

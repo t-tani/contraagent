@@ -10,6 +10,7 @@ stdout (`wire.TextReader`), with no usage or cost.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from types import ModuleType
@@ -42,6 +43,7 @@ from contraagent._internal.backends.process import via_stdin
 from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold
 from contraagent._internal.dispatch.records import QuotaReading, QuotaWindow
+from contraagent._internal.platform.links import links
 from contraagent._internal.runs.times import iso_of
 
 # Runtime mapping read by omp instead of Claude Code. A procedure written
@@ -233,7 +235,9 @@ class OmpBackend(Backend):
     reads no AGENTS.md, CLAUDE.md, `.omp/`, `.claude/` or other tools' context files,
     skills, rules, hooks, tools or MCP servers; the overlay's directory, which holds no
     plugins, is the agent's `CLAUDE_CONFIG_DIR`, so the user's installed Claude Code
-    plugins are not loaded either.
+    plugins are not loaded either. omp takes MCP servers from the plugin's `.mcp.json`
+    only: a launch with servers of its own (`Launch.mcp_config`, another file) loads a
+    copy of the plugin whose `.mcp.json` holds them.
     """
 
     name = "omp"
@@ -423,9 +427,36 @@ class OmpBackend(Backend):
         out = self.run_catalogue(*catalogue.ARGS)
         return (catalogue.parse_models(out) or None) if out is not None else None
 
+    def _loaded_plugin_dirs(self, launch: Launch) -> tuple[str, ...]:
+        """The plugin directories omp is given (`--plugin-dir`). omp takes MCP servers from a
+        plugin's `.mcp.json` alone, so a launch whose `mcp_config` is another file gets, in
+        place of its first plugin, a copy of it in a scratch directory: a link to each of
+        that plugin's files and folders, and `mcp_config` as its `.mcp.json` (with no plugin,
+        a plugin of that file alone)."""
+        dirs = tuple(launch.plugin_dirs)
+        if not launch.mcp_config or launch.tools == ():
+            return dirs
+        given = Path(launch.mcp_config).resolve()
+        if dirs and (Path(dirs[0]) / ".mcp.json").resolve() == given:
+            return dirs
+        mirror = self.scratch(launch.label, "plugin")
+        shutil.rmtree(mirror, ignore_errors=True)  # a launch before it, of the same task
+        mirror.mkdir(parents=True)
+        if dirs:
+            for entry in Path(dirs[0]).iterdir():
+                if entry.name != ".mcp.json":
+                    links.link(entry.resolve(), mirror / entry.name)
+        else:
+            (mirror / ".claude-plugin").mkdir()
+            (mirror / ".claude-plugin" / "plugin.json").write_text(
+                json.dumps({"name": "mcp", "version": "0.0.0"}), encoding="utf-8", newline="\n"
+            )
+        shutil.copyfile(given, mirror / ".mcp.json")
+        return (str(mirror), *dirs[1:])
+
     def argv(self, launch: Launch) -> list[str]:
         a = [self.binary]
-        for plug in launch.plugin_dirs:
+        for plug in self._loaded_plugin_dirs(launch):
             a += ["--plugin-dir", plug]
         a += plugin_extension_args(launch.plugin_dirs)
         # `effort` is the neutral name for reasoning depth; omp spells it

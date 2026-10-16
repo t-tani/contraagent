@@ -3147,6 +3147,10 @@
   <source>The run was stopped by a signal</source>
   <target>実行がシグナルで停止された</target>
 </trans-unit>
+<trans-unit id="se414b08e593473b2">
+  <source>created, kept after the failed attempt</source>
+  <target>作成、試行の失敗後も保持</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

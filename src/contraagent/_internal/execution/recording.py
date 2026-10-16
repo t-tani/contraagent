@@ -80,7 +80,7 @@ from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
 from contraagent._internal.errors import ContraagentError
-from contraagent._internal.execution.changes import compare, scan, scan_tree
+from contraagent._internal.execution.changes import compare, excluded, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
@@ -212,7 +212,7 @@ class Recorder:
         self._patterns = patterns
         self._tree: dict[str, tuple[int, int]] | None = None
         self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
-        self._declared_patterns: set[str] = set()
+        self._declared_patterns: set[tuple[str, ...]] = set()  # one task's patterns each: a `!` holds for its own
         self.max_file_mb = max_file_mb
         self._log = log or (lambda line: None)
         self._files = 0
@@ -340,7 +340,8 @@ class Recorder:
                 if rel is not None:
                     self._declared.add(rel)
             self._declared.update(seen)
-            self._declared_patterns.update(patterns)
+            if patterns:
+                self._declared_patterns.add(tuple(patterns))
 
     def _relative(self, path: Path) -> str | None:
         try:
@@ -367,11 +368,13 @@ class Recorder:
             return []
         cwd = self._cwd.resolve()
         found = compare(self._tree, scan_tree(cwd, self._skip()))
-        covered, dirs = scan(cwd, sorted(self._declared_patterns))
+        scans = [(group, *scan(cwd, group)) for group in sorted(self._declared_patterns)]
 
         def declared(rel: str) -> bool:
             parents = [p.as_posix() for p in Path(rel).parents][:-1]
-            return rel in self._declared or rel in covered or any(p in dirs for p in parents)
+            return rel in self._declared or any(
+                rel in covered or (any(p in dirs for p in parents) and not excluded(group, rel)) for group, covered, dirs in scans
+            )
 
         body = {
             "run": self._run_id,

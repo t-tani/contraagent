@@ -15,7 +15,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from contraagent import agent_task, python_task
+from contraagent import agent_task, max_passes, python_task
 
 
 class DataFile(BaseModel):
@@ -116,9 +116,11 @@ def summary(reports: list[Report]) -> str:
     return "\n".join(f"{r.bundle}: {r.columns} columns" for r in reports)
 
 
+@max_passes(4)
 def analyse_file(cls: Class):
     """One data file: parse it by its format, rank its columns, then propose a
-    meaning for each top column and refine it until `verify` accepts it."""
+    meaning for each top column and refine it until `verify` accepts it. The `while`
+    loop makes at most 4 passes: the `verify` of a fifth raises `TooManyPasses`."""
     parse = parse_csv if cls.format == "csv" else parse_json  # a kind chosen at run time; both reachable
     table = yield parse(cls.name, file=cls)
     ranked = yield rank_columns(cls.name, table=table)

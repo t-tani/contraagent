@@ -10,7 +10,8 @@ part in full, and this one links to them.
 Each task runs in a new session of its coding agent. The session receives the task's
 role, its plugin (skills, hooks, MCP servers, permissions), its call file (the
 parameters and the output contract), the working directory, one credential and the
-coding agent's built-in tools. The user's and the project's settings, instruction
+coding agent's built-in tools. A pipeline may give a task other MCP servers than its
+plugin's ([MCP servers built for each task](plugins.md#mcp-servers-built-for-each-task)). The user's and the project's settings, instruction
 files (`CLAUDE.md`, `AGENTS.md`), the user's skills, hooks and MCP servers, and the
 sessions of other tasks are kept out. The table in
 [What a task agent sees](plugins.md#what-a-task-agent-sees) lists what each coding

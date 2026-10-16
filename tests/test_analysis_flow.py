@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from contraagent import Overrides, Pipeline
+from contraagent import Overrides, Pipeline, TooManyPasses
 from contraagent.docs.examples.analysis import flow as example
 from contraagent.testing import StubAgent
 
@@ -98,3 +98,18 @@ def test_it_runs_end_to_end_and_records_its_structure(tmp_path):
     assert loops("propose-east-0-amount") == [(outer, 2)]
     assert loops("python:verify-east-0-amount") == [(outer, 2), (inner, 1)]
     assert len(agent.launches_of("propose-east-0-id")) == 1 and len(agent.launches_of("refine-east-0-id")) == 1
+
+
+def test_a_reading_verify_never_accepts_stops_at_the_file_flow_s_own_bound(tmp_path):
+    def short(launch):
+        column = launch.params["column"]["name"] if "column" in launch.params else launch.params["meaning"]["column"]
+        return {"column": column, "reads": "short"}
+
+    agent = StubAgent({"classify": classify, "parse_csv": table, "parse_json": table, "propose": short, "refine": short})
+    report = pipeline(tmp_path / "runs", agent).run(example.analyse, bundles=["west"], run_id="analyse")
+    assert not report.ok
+    [call] = report.flow_errors
+    assert isinstance(call.error, TooManyPasses), call.error
+    assert "max_passes=4 of " in str(call.error) and "analyse_file" in str(call.error)
+    refines = [launch.key for launch in agent.launches if launch.kind == "refine" and launch.unit == "west-0-id"]
+    assert refines == ["refine-west-0-id", "refine-west-0-id~2", "refine-west-0-id~3", "refine-west-0-id~4"]  # then pass 5 raises

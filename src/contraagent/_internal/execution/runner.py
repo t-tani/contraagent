@@ -177,7 +177,7 @@ class AgentRunner:
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
         self.rests = rests
-        self._changes = ChangesEnricher(self.adapter.changes, self.cwd)
+        self._changes = ChangesEnricher(self.adapter.changes, self.cwd, keep=self._keeps_failed_changes)
         self._defined: set[str] = set()
         # The account each coding agent bills as each credential for a model, asked once a run.
         self._accounts: dict[tuple[str, str, str], str] = {}
@@ -192,6 +192,10 @@ class AgentRunner:
         if rc is None:
             raise KeyError(f"no [tasks.{kind_name(task.kind)}] in the config: every kind needs agent/model routing and budgets")
         return rc
+
+    def _keeps_failed_changes(self, task: Task) -> bool:
+        rc = self.configs.get(task.kind)
+        return rc is not None and rc.keep_failed_changes
 
     def router_for(self, task: Task) -> Router | None:
         return self.routers.get(task.kind)

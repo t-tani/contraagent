@@ -49,12 +49,15 @@ ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fal
 #: The keys of `[defaults]` (and `_comment`, anywhere).
 DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
 
-#: The keys of a task table beside `TASK_TABLE_KEYS` (and `_comment`).
+#: The keys of a task table beside `TASK_TABLE_KEYS` and `TASK_ATTEMPT_KEYS` (and `_comment`).
 TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on")
+
+#: The keys of a task table that say what becomes of an attempt's work: booleans.
+TASK_ATTEMPT_KEYS = ("keep_failed_changes",)
 
 #: Every key of a task table (`[tasks.<kind>]`, but `_comment`); each is an `agent_task`
 #: argument too, the kind's default.
-TASK_KEYS = (*TASK_ROUTING_KEYS, *TASK_TABLE_KEYS)
+TASK_KEYS = (*TASK_ROUTING_KEYS, *TASK_TABLE_KEYS, *TASK_ATTEMPT_KEYS)
 
 
 def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, ...] = ()) -> str:
@@ -253,7 +256,7 @@ class PipelineConfig:
 
     def _task_table(self, kind: str, entry: object, errors: list[str] | None) -> dict[str, Any]:
         routing = ("agent", "model", "effort", "credential")
-        allowed = set(TASK_ROUTING_KEYS) | set(TASK_TABLE_KEYS) | {"_comment"}
+        allowed = set(TASK_KEYS) | {"_comment"}
         named = ", ".join(sorted(allowed - {"_comment"}))
         if not isinstance(entry, dict):
             _problem(errors, f"{self.source}: [tasks.{kind}] must be a table with any of {named}")
@@ -264,6 +267,14 @@ class PipelineConfig:
         table = {k: entry[k] for k in routing if entry.get(k) not in (None, "")}
         if entry.get("model_failover") is not None:
             table["model_failover"] = _as_bool(self.source, f"[tasks.{kind}]", entry["model_failover"])
+        for key in TASK_ATTEMPT_KEYS:
+            val = entry.get(key)
+            if val is None:
+                continue
+            if isinstance(val, bool):
+                table[key] = val
+            else:
+                _problem(errors, f"{self.source}: [tasks.{kind}].{key} = {val!r} is not a boolean; write true or false")
         for key, want in TASK_TABLE_KEYS.items():
             val = entry.get(key)
             if val is None:

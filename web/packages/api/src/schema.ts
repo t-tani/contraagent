@@ -439,6 +439,11 @@ export type components = {
              * @default []
              */
             removed?: string[];
+            /**
+             * Kept
+             * @default []
+             */
+            kept?: string[];
         } & {
             [key: string]: unknown;
         };

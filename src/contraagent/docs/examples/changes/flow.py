@@ -3,7 +3,8 @@
 `write` may change the files under `topics/<unit>/`: each attempt's changes are
 recorded in its journal row, and the files a failed attempt created are removed.
 `Effect`, a `ResultEnricher`, names what the attempt did to the topic from those
-changes, and `row_extras` puts that in the journal row beside them.
+changes, and `row_extras` puts that in the journal row beside them. `study` keeps
+the notes a failed attempt wrote under `notes/<unit>/` (`keep_failed_changes`).
 """
 
 from __future__ import annotations
@@ -46,6 +47,17 @@ class Effect:
 def topics(subjects: dict[str, str]):
     for unit, subject in subjects.items():
         write(unit, subject=subject)
+
+
+study = agent_task(
+    "study",
+    instructions="Study the topic under topics/${unit}/ and keep your working notes under notes/${unit}/.",
+    output=Written,
+    changes=["notes/{unit}/**", "!notes/{unit}/.cache/**"],  # but its tools' cache
+    keep_failed_changes=True,  # a failed attempt's notes stay: they say how far it got
+    max_turns=40,
+    timeout_s=1800,
+)
 
 
 def pipeline(**options: Any) -> Pipeline:

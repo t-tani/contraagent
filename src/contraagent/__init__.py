@@ -30,12 +30,14 @@ from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScop
 from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResult, TimeBox
 from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
+from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
 from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
 from contraagent._internal.execution.services import Service, service_address
 from contraagent._internal.pipeline.check import CheckReport
 from contraagent._internal.pipeline.graph import Pending, TextOutput, TooManyPasses
+from contraagent._internal.pipeline.loops import max_passes
 from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
 from contraagent._internal.pipeline.spec import AgentTask, PythonTask, agent_task, python_task
 from contraagent._internal.plugins.plugin import PluginError
@@ -59,6 +61,7 @@ __all__ = [
     "Hop",
     "LaunchError",
     "Loop",
+    "McpServers",
     "NoCurrentRun",
     "Origin",
     "OtherModel",
@@ -94,6 +97,7 @@ __all__ = [
     "Validator",
     "agent_task",
     "log",
+    "max_passes",
     "pipeline_table",
     "python_task",
     "save",

@@ -124,7 +124,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
 - [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks, the flow, flows that depend on results, time boxes, claims, services, files a task changes, scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
-- [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
+- [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks, and the MCP servers a pipeline builds for each task.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
 - [Coding agents](agents.md): what each of the five coding agents does and does not do, and how to add another.
@@ -139,6 +139,7 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
+`examples/mcp/flow.py` builds an MCP server for each task from its params;
 `examples/implementations/flow.py` declares a step with two implementations and chooses one per unit;
 `examples/runner/run.py` runs a flow from a program, with what `contraagent run` cannot pass;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The

@@ -3,6 +3,7 @@ to its runner (`scopes`, `enrichers`, `row_extras`)."""
 
 import contextlib
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -72,6 +73,7 @@ def test_each_attempt_records_what_it_created_modified_and_deleted(tmp_path, plu
         "modified": ["topics/alpha/old.md"],
         "deleted": ["topics/alpha/gone.md"],
         "removed": [],
+        "kept": [],
     }
 
 
@@ -86,6 +88,78 @@ def test_a_failed_attempt_has_the_files_it_created_removed(tmp_path, plugin_dir)
     assert row["changes"]["created"] == row["changes"]["removed"] == ["topics/alpha/draft/x.md", "topics/alpha/y.md"]
     assert not (tmp_path / "topics" / "alpha").exists()  # the directories it created, emptied, go too
     assert (tmp_path / "topics" / "kept.md").exists()
+
+
+def test_a_kind_that_keeps_failed_changes_leaves_them_for_the_next_attempt(tmp_path, plugin_dir):
+    write = agent_task(
+        "write",
+        plugin=plugin_dir,
+        output=Note,
+        changes=["topics/{unit}/**"],
+        max_turns=5,
+        timeout_s=60,
+        retries=1,
+        keep_failed_changes=True,
+    )
+
+    def reply(launch):
+        root = Path(launch.call.cwd) / "topics" / launch.unit
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "log.md").write_text(f"attempt {launch.n}\n", encoding="utf-8", newline="\n")
+        return fails(Stop.API_ERROR, "the service went away") if launch.n == 1 else {"title": launch.unit}
+
+    report = run(tmp_path, StubAgent({"write": reply}), lambda: write("alpha"))
+    assert report.ok, report.failed
+    first, second = journal(report)
+    assert not first["ok"] and first["changes"]["created"] == first["changes"]["kept"] == ["topics/alpha/log.md"]
+    assert first["changes"]["removed"] == []
+    assert second["changes"]["created"] == [] and second["changes"]["modified"] == ["topics/alpha/log.md"]
+
+
+def test_a_task_table_turns_keeping_failed_changes_on(tmp_path, plugin_dir):
+    write = agent_task("write", plugin=plugin_dir, output=Note, changes=["topics/{unit}/**"], max_turns=5, timeout_s=60, retries=0)
+    agent = StubAgent({"write": edits("topics/alpha/x.md", fail=True)})
+    config = PipelineConfig({"tasks": {"write": {"keep_failed_changes": True}}})
+    report = Pipeline(config, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path).run(lambda: write("alpha"))
+    [row] = journal(report)
+    assert row["changes"]["kept"] == ["topics/alpha/x.md"] and (tmp_path / "topics" / "alpha" / "x.md").exists()
+    with pytest.raises(ValueError, match=r"keep_failed_changes = 'yes' is not a boolean"):
+        PipelineConfig({"tasks": {"write": {"keep_failed_changes": "yes"}}}).task_tables()
+
+
+def test_a_resume_finds_the_notes_the_example_s_failed_study_kept(tmp_path):
+    from contraagent.docs.examples.changes import flow as example
+
+    def study(launch):
+        notes = Path(launch.call.cwd) / "notes" / launch.unit
+        notes.mkdir(parents=True, exist_ok=True)
+        seen = sorted(p.name for p in notes.iterdir() if p.name != ".cache")
+        (notes / ".cache").mkdir(exist_ok=True)
+        (notes / ".cache" / "index").write_text("cache\n", encoding="utf-8", newline="\n")  # left out of changes
+        (notes / f"run-{len(seen) + 1}.md").write_text(f"saw {seen}\n", encoding="utf-8", newline="\n")
+        if not seen:
+            return fails(Stop.TIMEOUT, "out of time")
+        return {"topic": f"notes/{launch.unit}/run-{len(seen) + 1}.md"}
+
+    config = PipelineConfig({"tasks": {"study": {"retries": 0}}})
+    pipeline = Pipeline(config, runs_dir=tmp_path / "runs", backends=StubAgent({"study": study}).backends(), cwd=tmp_path)
+    first = pipeline.run(lambda: example.study("alpha"), run_id="r")
+    assert not first.ok
+    assert journal(first)[0]["changes"]["kept"] == journal(first)[0]["changes"]["created"] == ["notes/alpha/run-1.md"]
+    again = pipeline.run(lambda: example.study("alpha"), run_id="r", resume=True)
+    assert again.ok, again.failed
+    assert journal(again)[-1]["changes"]["created"] == ["notes/alpha/run-2.md"]
+    assert (tmp_path / "notes" / "alpha" / "run-2.md").read_text(encoding="utf-8") == "saw ['run-1.md']\n"
+
+
+def test_keeping_failed_changes_needs_patterns(tmp_path, plugin_dir):
+    with pytest.raises(TypeError, match="keep_failed_changes keeps the files under changes="):
+        agent_task("write", plugin=plugin_dir, output=Note, max_turns=5, timeout_s=60, keep_failed_changes=True)
+    write = agent_task("write", plugin=plugin_dir, output=Note, max_turns=5, timeout_s=60)
+    config = PipelineConfig({"tasks": {"write": {"keep_failed_changes": True}}})
+    report = Pipeline(config, runs_dir=tmp_path / "runs", backends=StubAgent({}).backends(), cwd=tmp_path).check(lambda: write("alpha"))
+    assert any("keep_failed_changes" in e and "declares no changes" in e for e in report.errors), report.errors
+    assert "tasks" in report.topics
 
 
 def test_a_task_that_declares_no_changes_records_none(tmp_path, plugin_dir):
@@ -118,6 +192,34 @@ def test_scan_covers_everything_under_a_matched_directory(tmp_path):
     assert dirs == {"a", "a/b"}
     assert sorted(scan(tmp_path, ["a/*.txt"])[0]) == ["a/y.txt"]
     assert compare({"k": (1, 1), "d": (1, 1)}, {"k": (2, 1), "n": (1, 1)}).modified == ("k",)
+
+
+def test_a_pattern_with_a_bang_leaves_paths_out_and_its_folders_are_not_walked(tmp_path, monkeypatch):
+    for rel in (".git/objects/ab/cd", ".git/HEAD", "a.md", ".env", "src/b.py", "src/__pycache__/b.pyc", "cache/x/y"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("x", encoding="utf-8", newline="\n")
+    files, dirs = scan(tmp_path, ["**", "!.git/**", "!**/__pycache__", "!cache"])
+    assert sorted(files) == [".env", "a.md", "src/b.py"]
+    assert ".git" not in dirs and "src/__pycache__" not in dirs and "src" in dirs
+    assert sorted(scan(tmp_path, ["src/*.py", "!src/b.py"])[0]) == []
+    assert sorted(scan(tmp_path, ["[!.]*", "!cache"])[0]) == ["a.md", "src/__pycache__/b.pyc", "src/b.py"]
+    walked = []
+    real = os.walk
+    monkeypatch.setattr(os, "walk", lambda top, *a, **k: (walked.append(step[0]) or step for step in real(top, *a, **k)))
+    scan(tmp_path, ["**", "!.git"])
+    assert not any(".git" in Path(w).parts for w in walked)
+
+
+def test_a_task_leaves_out_what_its_bang_pattern_names(tmp_path, plugin_dir):
+    write = agent_task("write", plugin=plugin_dir, output=Note, changes=["**", "!.git/**", "!runs/**"], max_turns=5, timeout_s=60)
+    report = run(tmp_path, StubAgent({"write": edits(".git/index", "notes/a.md")}), lambda: write("alpha"))
+    assert report.ok, report.failed
+    created = journal(report)[0]["changes"]["created"]
+    assert "notes/a.md" in created and ".git/index" not in created
+    with pytest.raises(TypeError, match="only patterns that leave paths out"):
+        agent_task("write", plugin=plugin_dir, output=Note, changes=["!.git/**"], max_turns=5, timeout_s=60)
+    with pytest.raises(ValueError, match="not inside the working directory"):
+        agent_task("write", plugin=plugin_dir, output=Note, changes=["**", "!../x"], max_turns=5, timeout_s=60)
 
 
 def test_scopes_enrichers_and_row_extras_reach_each_attempt(tmp_path, plugin_dir):

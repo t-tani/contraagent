@@ -27,7 +27,8 @@ is numbered:
   file, or a task given a file another task writes (but by `output_of`), raise
   `ValueError` when the flow reaches the second (`layout`, `add`);
 * each frame of its flow path carries the loops around its call site with
-  their passes (`loops.py`); a pass of a `while` loop past `max_passes` raises
+  their passes (`loops.py`); a pass of a `while` loop past its bound (its
+  function's `@max_passes(n)`, else the run's `max_passes`) raises
   `TooManyPasses` at the task call, and at the `yield` of a child flow call (a
   `for` loop ends with its iterable and has no limit);
 * its fingerprint is a digest of its kind, unit, key and params (a `Pending`
@@ -76,7 +77,7 @@ from contraagent._internal.dispatch.task import (
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.pipeline import origin as origins
-from contraagent._internal.pipeline.loops import LoopCounter, counting, is_while
+from contraagent._internal.pipeline.loops import LoopCounter, bound, counting, is_while
 
 if TYPE_CHECKING:
     from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
@@ -90,8 +91,8 @@ _current: ContextVar[Graph | None] = ContextVar("contraagent_graph", default=Non
 
 
 class TooManyPasses(ContraagentError):
-    """A `while` loop of flow code went past `max_passes` passes: it created a task, or yielded a
-    child flow call, in a later pass."""
+    """A `while` loop of flow code went past its bound (its function's `@max_passes(n)`, else the
+    run's `max_passes`): it created a task, or yielded a child flow call, in a later pass."""
 
 
 class TextOutput(str):
@@ -485,15 +486,25 @@ class Graph:
             self.flow_call_ended(call)
 
     def check_passes(self, frames: tuple[Frame, ...], what: str, call_id: str) -> None:
-        """`TooManyPasses` when a `while` loop of `frames` is past `max_passes`. A `for` loop
-        ends with its iterable and has no limit."""
+        """`TooManyPasses` when a `while` loop of `frames` is past its bound: its function's
+        `@max_passes(n)`, else the run's `max_passes`. A `for` loop ends with its iterable
+        and has no limit."""
         for frame in frames:
             for loop in frame.loops:
-                if loop.pass_ is not None and loop.pass_ > self.max_passes and is_while(frame.file, loop.line):
+                if loop.pass_ is None or not is_while(frame.file, loop.line):
+                    continue
+                own = bound(frame.file, loop.line)
+                limit = own if own is not None else self.max_passes
+                if loop.pass_ > limit:
+                    whose = f"max_passes={limit} of {frame.function}" if own is not None else f"max_passes={limit}"
+                    further = (
+                        f"a larger @max_passes(n) on {frame.function}"
+                        if own is not None
+                        else f"@max_passes(n) on {frame.function}, Pipeline(max_passes=) or [defaults] max_passes"
+                    )
                     raise TooManyPasses(
-                        f"{what}: pass {loop.pass_} of the loop at {frame.file}:{loop.line} is more than "
-                        f"max_passes={self.max_passes} (flow call {call_id}); a `while` loop meant to go further takes "
-                        "Pipeline(max_passes=) or [defaults] max_passes"
+                        f"{what}: pass {loop.pass_} of the loop at {frame.file}:{loop.line} is more than {whose} "
+                        f"(flow call {call_id}); a `while` loop meant to go further takes {further}"
                     )
 
     # --- internals ---------------------------------------------------------------

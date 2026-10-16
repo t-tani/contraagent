@@ -69,6 +69,7 @@ class AgentTask[Out]
 class Changes(BaseModel)
     created: tuple[str, ...] = ()
     deleted: tuple[str, ...] = ()
+    kept: tuple[str, ...] = ()
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     modified: tuple[str, ...] = ()
     removed: tuple[str, ...] = ()
@@ -166,6 +167,15 @@ class Loop(BaseModel)
     model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True, serialize_by_alias=True)
     pass_: int | None = Field(validation_alias=AliasChoices('pass', 'pass_'), serialization_alias='pass', description='one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted')
 
+class McpServers(Protocol)
+    def __call__(
+        self,
+        task: Task,
+        params: dict[str, Any],
+        servers: dict[str, dict[str, Any]],
+        /,
+    ) -> Mapping[str, Mapping[str, Any]] | None
+
 class NoCurrentRun(ContraagentError)
 
 @dataclass(frozen=True)
@@ -239,6 +249,7 @@ class Pipeline
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
+        mcp_servers: McpServers | None = None,
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
@@ -266,6 +277,7 @@ class Pipeline
     log
     max_concurrent
     max_passes: int
+    mcp_servers: McpServers | None
     overrides
     preflight: PreflightPolicy
     queue_options: dict[str, Any]
@@ -586,6 +598,7 @@ def agent_task(
     retries: int | None = None,
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> AgentTask[Out]
 @overload
 def agent_task(
@@ -627,6 +640,7 @@ def agent_task(
     retries: int | None = None,
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
@@ -667,9 +681,12 @@ def agent_task(
     retries: int | None = None,
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
+
+def max_passes(n: int, /) -> Callable[[F], F]
 
 def pipeline_table(name: str) -> dict[str, Any]
 
@@ -779,6 +796,7 @@ class KindConfig
         retries: int = 2,
         retry_backoff_base: float = 2.0,
         partial_on: tuple[str, ...] = (),
+        keep_failed_changes: bool = False,
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -789,6 +807,7 @@ class KindConfig
     disallowed_tools: tuple[str, ...] = ()
     effort: str | None = None
     exclude_dynamic_sections: bool = False
+    keep_failed_changes: bool = False
     light: bool = False
     def limits(self) -> Limits
     max_budget_usd: float | None = None

@@ -37,6 +37,14 @@
           },
           "title": "Removed",
           "type": "array"
+        },
+        "kept": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Kept",
+          "type": "array"
         }
       },
       "title": "Changes",

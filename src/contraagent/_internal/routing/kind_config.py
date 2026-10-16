@@ -59,6 +59,9 @@ class KindConfig:
     #: The stops after which a launch's output, when it passes every check, is kept as a
     #: partial result (`agent_task(partial_on=)`): some of `PARTIAL_STOPS`.
     partial_on: tuple[str, ...] = ()
+    #: Leave the files a failed attempt created under its task's `changes` patterns in place
+    #: (`Changes.kept`) instead of removing them (`Changes.removed`).
+    keep_failed_changes: bool = False
 
     @property
     def partial_stops(self) -> frozenset[Stop]:
