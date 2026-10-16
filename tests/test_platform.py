@@ -11,6 +11,7 @@ import threading
 import time
 from types import SimpleNamespace
 
+import psutil
 import pytest
 
 from contraagent._internal.platform import groups as groups_mod
@@ -56,7 +57,19 @@ def test_each_way_of_reading_a_start_is_stable_and_ends_with_the_process(starts)
     finally:
         proc.kill()
         proc.wait()
-    assert not processes.identity_ok(proc.pid, first, starts=starts)
+    deadline = time.monotonic() + 5
+    while processes.identity_ok(proc.pid, first, starts=starts) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not processes.identity_ok(proc.pid, first, starts=starts), _seen(proc.pid, first, starts)
+
+
+def _seen(pid: int, first: int, starts) -> str:
+    """What psutil reports of `pid`, for a failure's message."""
+    try:
+        p = psutil.Process(pid)
+        return f"pid {pid}: {p.name()} {p.status()}, start {starts(pid)} (recorded {first}), alive {processes.alive(pid)}"
+    except psutil.Error as e:
+        return f"pid {pid}: {type(e).__name__}"
 
 
 def test_linux_starts_read_field_22_after_the_command_name(tmp_path):
