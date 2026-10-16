@@ -286,7 +286,12 @@ def _rustfs_server() -> str:
                 env = {"RUSTFS_ACCESS_KEY": RUSTFS_USER, "RUSTFS_SECRET_KEY": RUSTFS_PASSWORD}
                 _, port = _run(RUSTFS_IMAGE, 9000, env=env, shared=shared)
                 endpoint = f"http://127.0.0.1:{port}"
-                _wait(lambda: urllib.request.urlopen(f"{endpoint}/health", timeout=2).status == 200, RUSTFS_IMAGE)
+
+                def healthy() -> bool:
+                    with urllib.request.urlopen(f"{endpoint}/health", timeout=2) as answer:
+                        return answer.status == 200
+
+                _wait(healthy, RUSTFS_IMAGE)
                 import boto3
 
                 s3 = boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1")

@@ -5,6 +5,7 @@ fingerprints: `test_passes.py`."""
 import json
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
@@ -364,7 +365,7 @@ def test_a_flow_raising_before_its_first_task_raises(tmp_path):
 def test_too_many_passes_raises_at_the_call(tmp_path):
     rep = pipeline(tmp_path, stub({"u": 99}), max_passes=3).run(example.review_loop, "u")
     [call] = rep.flow_errors
-    loop = 1 + next(i for i, line in enumerate(open(example.__file__)) if line.strip() == "while True:")
+    loop = 1 + next(i for i, line in enumerate(Path(example.__file__).read_text().splitlines()) if line.strip() == "while True:")
     assert isinstance(call.error, TooManyPasses) and f"review-u: pass 4 of the loop at {example.__file__}:{loop}" in str(call.error)
     assert sorted(k for k in rep.results if k.startswith("review")) == ["review-u", "review-u~2", "review-u~3"]
 

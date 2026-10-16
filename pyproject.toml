@@ -132,8 +132,19 @@ testpaths = ["tests"]
 # In parallel (pytest-xdist), at most 6 processes: past that the suite waits on CPU, not tests.
 # `--dist loadgroup` keeps the tests of one `xdist_group` on one worker. `-n0` runs it in one process.
 addopts = "-m 'not live and not e2e and not perf' -n auto --maxprocesses=6 --dist loadgroup"
-# A deprecated name contraagent itself still uses fails the tests.
-filterwarnings = ["error::contraagent.ContraagentDeprecationWarning"]
+# Every warning fails the tests: a deprecated name contraagent itself still uses, a new
+# deprecation in a dependency, a connection or file left open. An exception names the
+# warning's source and why it stays; each one is raised only by the oldest versions that
+# the lowest-direct CI job installs, from that dependency's own code.
+filterwarnings = [
+    "error",
+    # The TestClient of starlette 0.36 (with fastapi 0.110) names anyio.abc.BlockingPortal, an alias anyio deprecated.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning:starlette.testclient",
+    # The TestClient of starlette 0.36 passes `app=` to httpx.Client, which httpx 0.27 deprecated.
+    "ignore:The 'app' shortcut is now deprecated:DeprecationWarning:httpx._client",
+    # botocore 1.34 (with boto3 1.34) calls datetime.utcnow(), which Python 3.12 deprecated.
+    "ignore:datetime.datetime.utcnow\\(\\) is deprecated:DeprecationWarning:botocore.auth",
+]
 markers = [
     "perf: times a view over a large made-up runs directory (minutes, machine-dependent); run with `uv run pytest -m perf -s`",
     "live: calls real coding agents and spends tokens; run with `CONTRAAGENT_LIVE=1 uv run pytest -m live`",
