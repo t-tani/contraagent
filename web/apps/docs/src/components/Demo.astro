@@ -54,12 +54,12 @@ const description = describe ? describeTag(Tag) : undefined;
 <script>
   import '@contraagent/ui';
   import { adoptThemes } from '@contraagent/elements/themes';
-  import { createExportClient, type MonitorClient, type StreamPage } from '@contraagent/api';
+  import { createExportClient, taskFileName, type MonitorClient, type StreamPage } from '@contraagent/api';
   import fixture from '../fixtures/demo-run.json';
 
   // The demo export (scripts/fixture.py), and each task's transcript written beside it.
   const exported = createExportClient(new URL('/demo/data/', location.href).href);
-  const streamFile = (run: string, key: string) => `runs/${encodeURIComponent(run)}/streams/${encodeURIComponent(key)}.json`;
+  const streamFile = (run: string, key: string) => `runs/${encodeURIComponent(run)}/streams/${encodeURIComponent(taskFileName(key))}.json`;
 
   // The site has no monitor server: a transcript's feed (`/events/stream`, which
   // `<ca-task-view>` tails) sends the transcript beside the export as its one page.

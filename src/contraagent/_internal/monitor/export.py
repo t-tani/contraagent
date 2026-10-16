@@ -8,9 +8,10 @@ endpoint of the API would answer, one file per endpoint:
     data/runs/<run>/<view>.json          /api/runs/<run>/<view>, for each view of `VIEWS` an
                                          export holds: journal (every row), plan, outputs,
                                          definitions, cursor
-    data/runs/<run>/tasks/<key>.json     /api/runs/<run>/task/<key>, without its `rows` and
+    data/runs/<run>/tasks/<file>.json    /api/runs/<run>/task/<key>, without its `rows` and
                                          `definition` (journal.json and definitions.json hold
-                                         them; the export client puts them back)
+                                         them; the export client puts them back); `<file>` is
+                                         `file_name(key)`, the name the run's own files take
     data/runs/<run>/panels/<name>.json   /api/runs/<run>/panels/<name>
     data/trends/panels/<name>.json       /api/trends/panels/<name>: a panel of `scope="trends"`
     data/<file>                          each file of no run in `SITE_FILES` (`trends.json`)
@@ -52,6 +53,7 @@ from contraagent._internal.monitor import api
 from contraagent._internal.monitor.core import Monitor, row_extras
 from contraagent._internal.monitor.trends import Period
 from contraagent._internal.monitor.views import VIEWS, serialize
+from contraagent._internal.runs.layout import file_name
 
 #: The bundled web UI: the page and its scripts (`Monitor.static_dir` replaces it).
 STATIC = Path(__file__).parent / "static"
@@ -243,7 +245,7 @@ def export(
                     detail.update(monitor.task_detail_fn(run, key, rows) or {})
                 except Exception as exc:  # a domain's callback must not break the export
                     detail["task_detail_error"] = f"{type(exc).__name__}: {exc}"
-            n += _write(d / "tasks" / f"{key}.json", red(_dump(api.TaskDetail, detail)))
+            n += _write(d / "tasks" / f"{file_name(key)}.json", red(_dump(api.TaskDetail, detail)))
         n += _panels(monitor, "run", run, d / "panels", red)
         sizes[run] = n
     total = sum(_write(data / f.file, base(_dump(f.model, f.read(monitor, period)))) for f in SITE_FILES)

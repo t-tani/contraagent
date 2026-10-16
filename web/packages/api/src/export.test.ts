@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from './client.js';
-import { createExportClient, openExportFeed } from './export.js';
+import { createExportClient, openExportFeed, taskFileName } from './export.js';
 import { MonitorStore } from './store.js';
 import type { RunFeedMessage } from './types.js';
 
@@ -28,7 +28,7 @@ const FILES: Record<string, unknown> = {
   'runs/r1/cursor.json': {},
   'runs/r1/definitions.json': [{ kind: 'review', role: 'reviewer' }, { kind: 'report' }],
   'runs/r1/tasks/review-a.json': { key: 'review-a', rows: [], launches: [], definition: null, io: {}, stream: null },
-  'runs/r1/tasks/python%3Areport.json': { key: 'python:report', rows: [], launches: [], definition: null, io: {}, stream: null },
+  'runs/r1/tasks/python_report.json': { key: 'python:report', rows: [], launches: [], definition: null, io: {}, stream: null },
   'runs/r1/panels/p.json': { n: 3 },
 };
 
@@ -66,7 +66,7 @@ describe('createExportClient', () => {
     const a = await client.task('r1', 'review-a');
     expect(a.rows.map((r) => r.ts)).toEqual(['t1']);
     expect(a.definition?.role).toBe('reviewer');
-    // A task with no row yet takes its kind from the plan; its key is encoded in the file's name.
+    // A task with no row yet takes its kind from the plan; its file takes the key's file name.
     const report = await client.task('r1', 'python:report');
     expect(report.rows).toEqual([]);
     expect(report.definition?.kind).toBe('report');
@@ -77,6 +77,22 @@ describe('createExportClient', () => {
     await expect(client.stream('r1', 'review-a')).rejects.toMatchObject({ failure: 'status', status: 404 });
     await expect(client.hosts()).rejects.toBeInstanceOf(ApiError);
     await expect(client.journal('gone')).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('taskFileName', () => {
+  it("names a task's files as Python's file_name does", () => {
+    // The pairs tests/test_run_files.py checks against file_name.
+    const names: [string, string][] = [
+      ['summarize-alpha', 'summarize-alpha'],
+      ['python:prepare-alpha', 'python_prepare-alpha'],
+      ['review-a~2', 'review-a_2'],
+      ['x/../y', 'x____y'],
+      ['.hidden', '_hidden'],
+      ['a@h.1', 'a_h.1'],
+      ['é/ü', 'é_ü'],
+    ];
+    for (const [key, name] of names) expect(taskFileName(key)).toBe(name);
   });
 });
 

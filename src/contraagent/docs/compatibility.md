@@ -101,7 +101,7 @@ through the monitor's API, which is public.
 | `pipeline/<name>.jsonl`, `pipeline/<name>.json` | the pipeline's own log and document (`contraagent.log`, `contraagent.save`) | yes: the rows and the values the pipeline wrote |
 | `contracts/<key>.json`, `definitions/<kind>.json` | what each task and each kind declared | run format only |
 | `inflight/<key>.json` | a marker per task that is running | run format only |
-| `streams/<key>.stream.jsonl` | each agent task's transcript | the path only: the lines are the coding agent's |
+| `streams/<file>.stream.jsonl` | each agent task's transcript | the path only: the lines are the coding agent's |
 | `trends.json` | the monitor's digest of a finished run, made again from the logs whenever they change | no |
 
 Beside the run directory, `runs/<run>.lock` is the run lock, and a relay keeps its

@@ -47,7 +47,8 @@ PRIVATE = sorted({str(REPO), tempfile.gettempdir(), os.path.realpath(tempfile.ge
 
 def in_project(text: str, where: Path) -> str:
     """`text` with the paths under `where` relative to it, and `where` itself as `.`."""
-    for d in {str(where), os.path.realpath(where)}:
+    # The longer first: on macOS the real path (`/private/var/...`) holds the other.
+    for d in sorted({str(where), os.path.realpath(where)}, key=len, reverse=True):
         text = text.replace(d + os.sep, "").replace(d, ".")
     return text
 

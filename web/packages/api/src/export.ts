@@ -30,9 +30,21 @@ export interface ExportClientOptions {
 const seg = encodeURIComponent;
 
 /**
+ * The name task `key`'s files take in a run directory and in an export, without a
+ * suffix: `key` with every character but a letter, a digit, `-`, `_` and `.` turned
+ * into `_`, as are a leading `.` and each `..` (Python's `file_name`, `runs/layout.py`).
+ */
+export function taskFileName(key: string): string {
+  const name = Array.from(key, (ch) => (/^[\p{L}\p{N}._-]$/u.test(ch) ? ch : '_'))
+    .join('')
+    .replace(/\.\.+/g, (m) => '_'.repeat(m.length));
+  return name.startsWith('.') ? `_${name.slice(1)}` : name || '_';
+}
+
+/**
  * A `MonitorClient` over an export at `baseUrl` (its `data/`, relative to the page or
  * absolute). An endpoint is a file: `info.json`, `runs.json`, `runs/<run>/journal.json`,
- * `runs/<run>/tasks/<key>.json` ... A task's file leaves out its rows and its
+ * `runs/<run>/tasks/<file>.json` (`taskFileName`) ... A task's file leaves out its rows and its
  * definition, which the run's journal and definitions hold: the client puts them back.
  * A view the export does not hold (a transcript, the hosts) answers `ApiError` 404.
  * An endpoint of no run is a file under `data/` (`trends.json`, `trends/panels/<name>.json`):
@@ -87,7 +99,7 @@ export function createExportClient(baseUrl: string, options: ExportClientOptions
     definitions: (r) => file<TaskDefinition[]>(run(r, 'definitions.json')),
     async task(r, key): Promise<TaskDetail> {
       const [detail, journal, definitions, plan] = await Promise.all([
-        file<TaskDetail>(run(r, `tasks/${seg(key)}.json`)),
+        file<TaskDetail>(run(r, `tasks/${seg(taskFileName(key))}.json`)),
         file<JournalPage>(run(r, 'journal.json')),
         file<TaskDefinition[]>(run(r, 'definitions.json')),
         file<Plan>(run(r, 'plan.json')),
@@ -96,7 +108,7 @@ export function createExportClient(baseUrl: string, options: ExportClientOptions
       const kind = rows.at(-1)?.kind ?? plan.nodes.find((n) => n.key === key)?.kind;
       return { ...detail, rows, definition: definitions.find((d) => d.kind === kind) ?? null };
     },
-    stream: (r, key) => absent(run(r, `streams/${seg(key)}.json`)),
+    stream: (r, key) => absent(run(r, `streams/${seg(taskFileName(key))}.json`)),
     panel: (r, name) => file<JsonObject>(run(r, `panels/${seg(name)}.json`)),
     // An export holds one period's trends (`Info.export`): a query for another is answered with it.
     trends: () => file<Trends>('trends.json'),

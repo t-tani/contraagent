@@ -11,7 +11,8 @@ directory, then writes
 - `public/demo/data/`: an export of both runs (`contraagent monitor export`),
   what `<ca-monitor export="/demo/data/">` and an export client read, with each
   task's transcript beside it, which an export holds none of
-  (`runs/<run>/streams/<key>.json`, a `StreamPage`, named as `tasks/<key>.json`).
+  (`runs/<run>/streams/<file>.json`, a `StreamPage`, named as `tasks/<file>.json`:
+  `file_name(key)`).
 
 In every file the temporary path is replaced by `/work` and the directory
 contraagent is installed in (where the demo's flow code is) by `/site-packages`.
@@ -29,6 +30,7 @@ from pathlib import Path
 
 import contraagent
 from contraagent._internal.cli import main as cli
+from contraagent._internal.runs.layout import file_name
 from contraagent.monitor import Monitor
 
 HERE = Path(__file__).resolve().parents[1]
@@ -58,7 +60,11 @@ def main() -> None:
 
         def clean(text: str) -> str:
             text = text.replace(str(Path(tmp).resolve()), "/work").replace(tmp, "/work")
-            return text.replace(str(Path(contraagent.__file__).resolve().parents[1]), "/site-packages")
+            installed = Path(contraagent.__file__).resolve().parents[1]
+            # The export writes a path under the home directory as `~/...`.
+            home = f"~/{installed.relative_to(Path.home())}" if installed.is_relative_to(Path.home()) else None
+            text = text.replace(str(installed), "/site-packages")
+            return text.replace(home, "/site-packages") if home else text
 
         mon = Monitor(Path(tmp) / "demo-runs")
         run = "docs"
@@ -79,9 +85,10 @@ def main() -> None:
             for key in sorted({row["key"] for row in mon.journal(r)[0]}):
                 page = mon.stream(r, key, 0)[0]
                 if page["events"]:
-                    (streams / f"{key}.json").write_text(json.dumps(page, ensure_ascii=False, default=str))
+                    name = file_name(key)
+                    (streams / f"{name}.json").write_text(json.dumps(page, ensure_ascii=False, default=str))
                     # The task's detail names its transcript, as the server's does.
-                    task = EXPORT / "data" / "runs" / r / "tasks" / f"{key}.json"
+                    task = EXPORT / "data" / "runs" / r / "tasks" / f"{name}.json"
                     task.write_text(json.dumps({**json.loads(task.read_text()), "stream": key}, ensure_ascii=False))
         size = 0
         for file in (EXPORT / "data").rglob("*.json"):

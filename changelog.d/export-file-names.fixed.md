@@ -1,0 +1,1 @@
+An export names each task's file as the run directory does, by `file_name(key)`, so an export of a run with Python tasks (`python:<kind>`) can be copied to Windows. `taskFileName` in `@contraagent/api` gives the same name.

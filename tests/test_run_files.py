@@ -188,9 +188,11 @@ def test_appended_lines_are_never_split_by_another_writer(tmp_path):
         ("x/../y", "x____y"),
         (".hidden", "_hidden"),
         ("a@h.1", "a_h.1"),
+        ("é/ü", "é_ü"),
     ],
 )
 def test_a_task_key_has_one_file_name_in_every_folder(key, name):
+    # web/packages/api/src/export.test.ts checks taskFileName against the same pairs.
     assert layout.file_name(key) == name
     assert layout.stream(key) == f"streams/{name}.stream.jsonl"
     assert layout.stream_name(layout.stream(key)) == name

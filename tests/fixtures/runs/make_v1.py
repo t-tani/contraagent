@@ -4,7 +4,8 @@ is; a new format gets a fixture of its own beside it.
 
     uv run python tests/fixtures/runs/make_v1.py
 
-The run's working directory becomes `/work/review` and its host `host-1`.
+The run's working directory becomes `/work/review`, this script's directory (where the
+flow's code is) `/work/flow`, and its host `host-1`.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from contraagent.testing import StubAgent, fails, writes_example
 
 HERE = Path(__file__).resolve().parent
 CWD = "/work/review"
+FLOW = "/work/flow"
 
 
 class Finding(BaseModel):
@@ -70,7 +72,7 @@ def main() -> None:
         shutil.copytree(report.run_dir, out)
         for path in out.rglob("*"):
             if path.is_file():
-                path.write_text(path.read_text().replace(str(work), CWD))
+                path.write_text(path.read_text().replace(str(work), CWD).replace(str(HERE), FLOW))
     info = json.loads((out / "run.json").read_text())
     info.update(host_id="host-1", pid=1, start_ticks=1, argv=["flow.py"])
     (out / "run.json").write_text(json.dumps(info))
