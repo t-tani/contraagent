@@ -385,6 +385,9 @@ class LaunchResult:
     #: after (`agent_task(partial_on=)`: its time limit, a stall) and every output it wrote
     #: passed its checks (`run_until_valid`): `ok` stays False, and the task is partial.
     partial: bool = False
+    #: The correction rounds the launch was allowed after its first (its kind's
+    #: `max_corrections`); None when the launch carried no contract.
+    max_corrections: int | None = None
 
     @property
     def peak_context(self) -> int | None:
@@ -445,6 +448,7 @@ class LaunchResult:
             "rounds": self.rounds,
             "round_errors": [errors[:10] for errors in self.round_errors],
             "round_costs": list(self.round_costs),
+            "max_corrections": self.max_corrections,
             "unwrapped": self.unwrapped,
             "hook_errors": [errors[:10] for errors in self.hook_errors],
             "context_budget": self.context_budget,

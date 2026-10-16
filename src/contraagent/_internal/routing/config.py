@@ -28,7 +28,7 @@ from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent._internal.errors import ContraagentError, did_you_mean
-from contraagent._internal.routing.kind_config import PARTIAL_STOPS, TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, PARTIAL_STOPS, TASK_TABLE_KEYS
 
 #: A tool, or a tool with a pattern of what it is given, as Claude Code writes them: `WebFetch`,
 #: `Bash(git push:*)` (`[tasks.<kind>].disallowed_tools`).
@@ -47,7 +47,7 @@ TABLES = ("defaults", "tasks", "credentials", "pipeline", "_comment")
 ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fallbacks")
 
 #: The keys of `[defaults]` (and `_comment`, anywhere).
-DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
+DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct", "max_corrections")
 
 #: The keys of a task table beside `TASK_TABLE_KEYS` (and `_comment`).
 TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on")
@@ -73,6 +73,14 @@ def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, 
 
 #: What a `context_warn_pct` that is not one says.
 WARN_PCT_RANGE = "is not a whole percent from 1 to 99"
+
+
+CORRECTIONS_RANGE = f"is not a whole number from 0 to {MAX_CORRECTIONS_LIMIT}"
+
+
+def _is_corrections(value: object) -> bool:
+    """A `max_corrections`: an int from 0 to `MAX_CORRECTIONS_LIMIT`."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_CORRECTIONS_LIMIT
 
 
 def _is_warn_pct(value: object) -> bool:
@@ -175,8 +183,9 @@ class PipelineConfig:
     def defaults(self, errors: list[str] | None = None) -> dict[str, Any]:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
         model_failover), `max_passes` (`Pipeline(max_passes=)`), `preflight`
-        (`Pipeline(preflight=)`: `substitute`, `stop` or `off`) and `context_warn_pct` (the warning
-        of every kind with a `context_budget` and none of its own). Its failover chain,
+        (`Pipeline(preflight=)`: `substitute`, `stop` or `off`), `context_warn_pct` (the warning
+        of every kind with a `context_budget` and none of its own) and `max_corrections` (the
+        correction rounds of every kind that gives none). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
@@ -201,6 +210,12 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].context_warn_pct = {value!r} {WARN_PCT_RANGE}")
             else:
                 out["context_warn_pct"] = value
+        if entry.get("max_corrections") is not None:
+            value = entry["max_corrections"]
+            if not _is_corrections(value):
+                _problem(errors, f"{self.source}: [defaults].max_corrections = {value!r} {CORRECTIONS_RANGE}")
+            else:
+                out["max_corrections"] = value
         if entry.get("preflight") is not None:
             from contraagent._internal.routing.preflight import check_policy
 
@@ -278,6 +293,8 @@ class PipelineConfig:
             table[key] = val
         if "context_warn_pct" in table and not _is_warn_pct(table["context_warn_pct"]):
             _problem(errors, f"{self.source}: [tasks.{kind}].context_warn_pct = {table.pop('context_warn_pct')!r} {WARN_PCT_RANGE}")
+        if "max_corrections" in table and not _is_corrections(table["max_corrections"]):
+            _problem(errors, f"{self.source}: [tasks.{kind}].max_corrections = {table.pop('max_corrections')!r} {CORRECTIONS_RANGE}")
         denied = entry.get("disallowed_tools")
         if denied is not None:
             ok = isinstance(denied, list)

@@ -529,6 +529,19 @@
       "title": "Round Costs",
       "type": "array"
     },
+    "max_corrections": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the correction rounds its kind allowed after the first",
+      "title": "Max Corrections"
+    },
     "unwrapped": {
       "title": "Unwrapped",
       "type": "boolean"

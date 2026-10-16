@@ -66,6 +66,7 @@ class Journal:
             reason=result.reason,
             rounds=result.rounds,
             round_errors=[list(errors[:5]) for errors in result.round_errors],
+            max_corrections=getattr(o, "max_corrections", None),
             hook_errors=[list(errors[:5]) for errors in o.hook_errors] if o is not None else [],
             usage=o.usage.totals(o.context_window) if o is not None else None,
             cost_usd=(round(o.cost_usd, 6) if o is not None and o.cost_usd is not None else None),

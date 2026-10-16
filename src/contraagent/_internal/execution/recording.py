@@ -495,15 +495,21 @@ class Replay:
     It is the `ResultEnricher` that tells its agents which task each launch is: give it
     to the runner's enrichers, and its `backends()` as the runner's backends. Bind it to a
     run's output contracts and working directory with `start` before the run.
-    `execute`: the Python task kinds whose functions run instead of being played.
+    `execute`: the Python task kinds whose functions run instead of being played;
+    `execute_all`: every Python task's function runs (not with `execute`).
     `record_missing`: a task with no recording launches on the coding agents given to
     `backends(real=)`, or runs its function, instead of ending `error`; the directory may
     be empty, or not exist yet.
     """
 
-    def __init__(self, directory: str | Path, *, execute: Iterable[str] = (), record_missing: bool = False) -> None:
+    def __init__(
+        self, directory: str | Path, *, execute: Iterable[str] = (), execute_all: bool = False, record_missing: bool = False
+    ) -> None:
         self.directory: Path = Path(directory)
         self.execute: frozenset[str] = frozenset(execute)
+        if execute_all and self.execute:
+            raise TypeError("replay: execute_all runs every Python task's function; drop execute=, or execute_all")
+        self.execute_all: bool = bool(execute_all)
         self.record_missing = record_missing
         if record_missing:
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -621,10 +627,11 @@ class Replay:
     ) -> tuple[TaskResult, bool] | None:
         """A Python task's recorded call for its attempt, its output files written into place
         and its pipeline log rows and documents into `run_dir`'s `pipeline/`, and whether that
-        call raised an exception of its `retry_on`; None for a kind in `execute`, whose function
+        call raised an exception of its `retry_on`; None for a kind in `execute` (any kind with
+        `execute_all`), whose function
         runs, and for a task with no recording with `record_missing`. A task with no recording
         ends `error` otherwise, not retried."""
-        if kind_name(task.kind) in self.execute:
+        if self.execute_all or kind_name(task.kind) in self.execute:
             return None
         started = time.monotonic()
         playing = self._take(task)

@@ -297,8 +297,9 @@ cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)
 $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
                        [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
-                       [--preflight {substitute,stop,off}] [--stub] [--execute KIND]
-                       [--record DIR] [--replay DIR] [--record-max-file-mb N] [--record-missing]
+                       [--preflight {substitute,stop,off}] [--stub]
+                       [--execute KIND | --execute-all] [--record DIR] [--replay DIR]
+                       [--record-max-file-mb N] [--record-missing]
                        flow
 
 positional arguments:
@@ -320,16 +321,19 @@ options:
   --stub                a stub run: the stub agent plays every agent task and every Python task
                         with its output's example (`examples` in the output's JSON Schema; where
                         there is none, the smallest value the schema accepts); no model is called
-                        and no Python task's function runs (run id: <flow>-stub). A task whose
-                        example fails a validator ends invalid_output at once, and the last line
-                        names those validators
+                        and no Python task's function runs, but those of --execute or --execute-
+                        all (run id: <flow>-stub). A task whose example fails a validator ends
+                        invalid_output at once, and the last line names those validators
   --execute KIND        with --stub or --replay: run the function of this Python task kind instead
                         of playing it (repeatable)
+  --execute-all         with --stub or --replay: run the function of every Python task instead of
+                        playing it; only the agent tasks are played. Not with --execute
   --record DIR          write each task attempt's recording to DIR: its outputs, the files its
                         changes= patterns saw change, its transcript and its result
   --replay DIR          a replay: play the recordings in DIR in place of every agent task's launch
-                        and every Python task's function (but the kinds of --execute); nothing is
-                        spent (run id: <flow>-replay). Not with --stub or --record
+                        and every Python task's function (but the kinds of --execute, or every one
+                        with --execute-all); nothing is spent (run id: <flow>-replay). Not with
+                        --stub or --record
   --record-max-file-mb N
                         with --record or --record-missing: keep a recorded file larger than N MB
                         by its SHA-256 and size only (default 4); its task cannot be replayed

@@ -228,6 +228,13 @@
           "minimum": 1,
           "type": "integer",
           "title": "Context Warn Pct"
+        },
+        "max_corrections": {
+          "maximum": 20,
+          "minimum": 0,
+          "type": "integer",
+          "description": "the correction rounds of every kind that gives none",
+          "title": "Max Corrections"
         }
       },
       "title": "DefaultsTable",
@@ -664,6 +671,12 @@
             }
           ],
           "title": "Retry Backoff Base"
+        },
+        "max_corrections": {
+          "maximum": 20,
+          "minimum": 0,
+          "type": "integer",
+          "title": "Max Corrections"
         }
       },
       "title": "TaskTable",

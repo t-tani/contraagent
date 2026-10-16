@@ -18,6 +18,7 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
 # max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
 # context_warn_pct = 80             # context_warn_pct of every kind with a context_budget and none of its own
+# max_corrections = 3               # max_corrections of every kind that gives none (agent_task or [tasks.<kind>])
 # preflight = "stop"                # probe every route first; a kind with no route left: "substitute" or "stop"; "off" (default)
 
 # How many running tasks may hold each claimed name (agent_task(claims=...)) at once, by the
@@ -56,6 +57,7 @@ context_warn_pct = 80               # warn (journal context_warned, a log line) 
 max_denials = 5                     # stop a launch after this many permission denials
 # What a launch stopped for its time wrote is a partial result when it passes its checks.
 partial_on = ["timeout", "stalled"]  # stops after which the output is kept; outranks agent_task(..., partial_on=)
+max_corrections = 2                 # correction rounds after the first, 0 to 20 (default 3): an output that fails its checks goes back to the session with the errors
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
 retries = 2                         # fresh-session attempts after the first, each after one that made no progress

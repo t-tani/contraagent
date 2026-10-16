@@ -32,6 +32,7 @@ from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
+from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan
@@ -104,7 +105,10 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
         graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
         driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, created=graph.take_new, on_flow_call=graph.on_flow_call)
         graph.driver = driver
-        with graph.building():
+        # The check's directory is the flow's current run: `pipeline_table` reads the config the
+        # check is given, as a run's flow reads the one it was started with, and `log` and
+        # `save` write into the directory, which goes with the check.
+        with writing_into(tmp, pipeline.config), graph.building():
             try:
                 value = flow(*args, **kwargs)
             except Exception as exc:

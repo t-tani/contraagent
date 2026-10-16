@@ -84,11 +84,21 @@ that does not.
 - **By the runner, after the turn.** The schema, freshness (a file left by an
   earlier run does not pass), the parts to keep (`preserve`, below) and every validator. A failure resumes the same
   session with the errors as the next turn, until the file passes or the
-  resumes are spent (`invalid_output`).
+  correction rounds are spent (`invalid_output`).
 
 Each launch of the session is a **round**, and each resume a **correction
-round**. The journal records how many rounds a task took
-(`rounds`) and the errors each resume was sent (`round_errors`), and the monitor
+round**. A kind has 3 correction rounds after its first round by default.
+`max_corrections` sets another number, from 0 to 20: `agent_task(max_corrections=1)`,
+`max_corrections` in `[tasks.<kind>]`, or `[defaults].max_corrections` for every
+kind that gives none ([routing](routing.md#precedence) says which one wins). With 0
+the first failed check ends the task `invalid_output`. A short output, such as a
+verdict, rarely needs more than one round to correct its form; an output that is
+still wrong after many rounds is not getting closer, and each round is a full turn
+of a session whose context grows. `contraagent check` reports a value out of range.
+
+The journal records how many rounds a task took
+(`rounds`), how many correction rounds its kind allowed (`max_corrections`) and the
+errors each resume was sent (`round_errors`), and the monitor
 shows each round of its transcript. The run's progress line for the attempt
 names the first round's first error. The attempt's cost is its rounds' cost,
 each round counted once: Claude Code reports a resumed session's cost so far,

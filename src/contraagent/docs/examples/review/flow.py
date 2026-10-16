@@ -25,7 +25,16 @@ class Verdict(BaseModel):
 
 summarize = agent_task("summarize", instructions="Summarize the document at params.path.", output=Summary, max_turns=10, timeout_s=300)
 # A verdict needs no tool: the reviewer's final message is its output (no turn spent on a Write).
-review = agent_task("review", instructions="Review params.summary.", output=Verdict, output_from="message", max_turns=3, timeout_s=300)
+# A verdict is short: one correction round is enough to fix its form (default: 3).
+review = agent_task(
+    "review",
+    instructions="Review params.summary.",
+    output=Verdict,
+    output_from="message",
+    max_corrections=1,
+    max_turns=3,
+    timeout_s=300,
+)
 revise = agent_task(
     "revise", instructions="Revise params.summary as params.verdict.note says.", output=Summary, max_turns=10, timeout_s=300
 )

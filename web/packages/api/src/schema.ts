@@ -1241,6 +1241,8 @@ export type components = {
             rounds?: number | null;
             /** Round Errors */
             round_errors?: string[][];
+            /** Max Corrections */
+            max_corrections?: number | null;
             /** Hook Errors */
             hook_errors?: string[][];
             usage?: components["schemas"]["TokenUsage"] | null;

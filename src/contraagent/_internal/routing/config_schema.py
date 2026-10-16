@@ -14,11 +14,13 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, TypeAdapter, create_model
 
 from contraagent._internal.backends.credentials import AnyCredential
-from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, TASK_TABLE_KEYS
 from contraagent._internal.routing.preflight import PreflightPolicy
 
 #: A `context_warn_pct`: a whole percent from 1 to 99.
 WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
+#: A `max_corrections`: correction rounds after the first launch.
+Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
 
 
 class _Table(BaseModel):
@@ -61,6 +63,7 @@ class DefaultsTable(_Routing):
         None, description="how many running tasks may claim each name, by the name or an fnmatch pattern"
     )
     context_warn_pct: WarnPct | None = None
+    max_corrections: Corrections | None = Field(None, description="the correction rounds of every kind that gives none")
 
 
 def _budget(want: type | tuple[type, ...]) -> Any:
@@ -80,6 +83,7 @@ class _TaskRouting(_Routing):
 
 _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK_TABLE_KEYS.items()}
 _TASK_FIELDS["context_warn_pct"] = (Union[WarnPct, None], None)  # noqa: UP007
+_TASK_FIELDS["max_corrections"] = (Union[Corrections, None], None)  # noqa: UP007
 
 #: `[tasks.<kind>]`, a task table: one kind's routing and budgets.
 TaskTable: type[BaseModel] = create_model(  # pyright: ignore[reportCallIssue]

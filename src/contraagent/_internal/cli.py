@@ -12,11 +12,11 @@ contraagent check tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alp
 contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha"]}' [--run-id ID] [--resume]
                                          [--preflight substitute|stop|off]
                                          # the same flow, run (exit 1 when a task or the flow failed)
-contraagent run tasks.py:docs --stub [--execute KIND]
+contraagent run tasks.py:docs --stub [--execute KIND | --execute-all]
                                          # a stub run: the stub agent plays every task with its output's
                                          # example, and the tasks the flow created are listed
 contraagent run tasks.py:docs --record DIR   # a run that keeps each task attempt's recording in DIR
-contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
+contraagent run tasks.py:docs --replay DIR [--execute KIND | --execute-all] [--record-missing]
                                          # a replay: every task plays its recording, nothing is spent;
                                          # with --record-missing, a task with none runs and is recorded
 contraagent --version                    # the installed version
@@ -195,15 +195,22 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
         action="store_true",
         help="a stub run: the stub agent plays every agent task and every Python task with its output's example "
         "(`examples` in the output's JSON Schema; where there is none, the smallest value the schema accepts); no model "
-        "is called and no Python task's function runs (run id: <flow>-stub). A task whose example fails a validator "
-        "ends invalid_output at once, and the last line names those validators",
+        "is called and no Python task's function runs, but those of --execute or --execute-all (run id: <flow>-stub). "
+        "A task whose example fails a validator ends invalid_output at once, and the last line names those validators",
     )
-    run.add_argument(
+    executes = run.add_mutually_exclusive_group()
+    executes.add_argument(
         "--execute",
         action="append",
         default=[],
         metavar="KIND",
         help="with --stub or --replay: run the function of this Python task kind instead of playing it (repeatable)",
+    )
+    executes.add_argument(
+        "--execute-all",
+        action="store_true",
+        help="with --stub or --replay: run the function of every Python task instead of playing it; only the agent "
+        "tasks are played. Not with --execute",
     )
     run.add_argument(
         "--record",
@@ -217,7 +224,8 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
         default=None,
         metavar="DIR",
         help="a replay: play the recordings in DIR in place of every agent task's launch and every Python task's function "
-        "(but the kinds of --execute); nothing is spent (run id: <flow>-replay). Not with --stub or --record",
+        "(but the kinds of --execute, or every one with --execute-all); nothing is spent (run id: <flow>-replay). "
+        "Not with --stub or --record",
     )
     run.add_argument(
         "--record-max-file-mb",
@@ -299,11 +307,11 @@ def _flow_command(args) -> int:
         elif args.cmd == "run" and args.stub:
             from contraagent._internal.testing import StubAgent, writes_example
 
-            stub = StubAgent(default=writes_example(), execute=args.execute)
+            stub = StubAgent(default=writes_example(), execute=args.execute, execute_all=args.execute_all)
         record = getattr(args, "record", None)
         replay = getattr(args, "replay", None)
-        if args.cmd == "run" and args.execute and not args.stub and replay is None:
-            print("--execute: only with --stub or --replay", file=sys.stderr)
+        if args.cmd == "run" and (args.execute or args.execute_all) and not args.stub and replay is None:
+            print(f"{'--execute-all' if args.execute_all else '--execute'}: only with --stub or --replay", file=sys.stderr)
             return 2
         if args.cmd == "run" and args.record_missing and replay is None:
             print("--record-missing: only with --replay", file=sys.stderr)
@@ -322,6 +330,7 @@ def _flow_command(args) -> int:
             record=record,
             replay=replay,
             execute=args.execute if replay is not None else (),
+            execute_all=bool(getattr(args, "execute_all", False)) and replay is not None,
             record_missing=bool(getattr(args, "record_missing", False)),
             record_max_file_mb=getattr(args, "record_max_file_mb", None),
         )

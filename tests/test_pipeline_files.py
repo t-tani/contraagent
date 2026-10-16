@@ -180,3 +180,50 @@ def test_a_cli_run_reads_the_pipeline_table_of_its_config(tmp_path, monkeypatch)
     assert main(["run", "steps.py:flow", "--config", "pipeline.toml"]) == 0
     assert json.loads((tmp_path / "runs/flow/pipeline/port.json").read_text()) == 8080
     sys.modules.pop("steps", None)
+
+
+def test_a_flow_reads_its_pipeline_table_in_a_check_as_in_a_run(tmp_path):
+    config = tmp_path / "pipeline.toml"
+    config.write_text('[pipeline.tally]\nskip = ["beta"]\n')
+    pipeline = Pipeline(config, runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None)
+
+    check = pipeline.check(tally, TEXTS)
+    assert check.ok and check.kinds == {"count": 1}  # beta skipped while the check builds the flow
+    assert not (tmp_path / "runs").exists()
+
+    pipeline.run(tally, TEXTS)
+    folder = tmp_path / "runs" / "tally" / layout.PIPELINE
+    assert json.loads((folder / "total.json").read_text()) == {"units": 1, "words": 3}  # the same table in the run
+
+    seen: list[dict] = []
+
+    def flow():
+        seen.append(contraagent.pipeline_table("tally"))
+        contraagent.log("seen", {"n": len(seen)})  # into the check's own directory, removed with it
+        return
+        yield
+
+    assert Pipeline(None, runs_dir=tmp_path / "runs2", cwd=tmp_path).check(flow).built
+    assert pipeline.check(flow).built
+    assert seen == [{}, {"skip": ["beta"]}]  # no config file, then the one the check is given
+    assert not (tmp_path / "runs2").exists()
+    with pytest.raises(NoCurrentRun):
+        contraagent.pipeline_table("tally")
+
+
+def test_contraagent_check_reads_the_pipeline_table_of_its_config(tmp_path, monkeypatch, capsys):
+    import sys
+
+    from contraagent._internal.cli import main
+
+    (tmp_path / "pipeline.toml").write_text("[pipeline.steps]\nunits = ['a', 'b', 'c']\n")
+    (tmp_path / "steps.py").write_text(
+        "import contraagent\n"
+        "@contraagent.python_task\ndef step(unit: str) -> int:\n    return len(unit)\n"
+        "def flow():\n    yield [step(u) for u in contraagent.pipeline_table('steps')['units']]\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert main(["check", "steps.py:flow", "--config", "pipeline.toml"]) == 0
+    assert "3 tasks" in capsys.readouterr().out
+    sys.modules.pop("steps", None)
