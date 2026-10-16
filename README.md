@@ -365,7 +365,7 @@ This repository holds four packages, and each has its own documentation.
 | `@contraagent/elements` (npm) | generic web components (`cae-*`), themes and design tokens, with no contraagent data | [web/packages/elements/](web/packages/elements/README.md) |
 | `@contraagent/api` (npm) | the typed client for the monitor's API | [web/packages/api/](web/packages/api/README.md) |
 
-`pnpm docs` in `web/` serves the documentation site, which renders all four. The npm
+`pnpm run docs` in `web/` serves the documentation site, which renders all four. The npm
 packages are not published to the npm registry. `pnpm tarballs` in `web/` packs them
 so that you can install them from this checkout, and `pnpm --dir web screenshots`
 makes the screenshots in this README.

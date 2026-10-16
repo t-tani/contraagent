@@ -348,7 +348,7 @@ pnpm check:dist         # the built packages type-check as an npm consumer sees 
 pnpm tarballs           # builds the three packages into tarballs/*.tgz that npm and pnpm install from this checkout
 pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
-pnpm docs               # the documentation site, live reload
+pnpm run docs           # the documentation site, live reload (pnpm 12 has a `docs` command of its own)
 pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
 pnpm screenshots        # the screenshots of the root README and of the packages' docs (docs/images/): the showcase runs (scripts/showcase.py) in the real monitor, and each elements example alone (scripts/examples-page/); --only readme,ui,elements
 ```

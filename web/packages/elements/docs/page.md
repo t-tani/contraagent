@@ -9,7 +9,7 @@ and `mount(host)` builds the page in any element.
 ![A CI pipeline's page in the light theme: a theme switch, stat tiles, the layered graph of its steps beside a detail panel, and a table of its jobs](images/page.webp)
 
 <!-- not on the site -->
-Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+Live on this topic's page of the documentation site (`pnpm run docs` in `web/`).
 
 ## What the page holds
 

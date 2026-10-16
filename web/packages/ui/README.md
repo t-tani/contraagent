@@ -60,7 +60,7 @@ without a build step.
 Each view over a run of the demo pipeline, in the contraagent Light theme.
 
 <!-- not on the site -->
-On the documentation site (`pnpm docs` in `web/`), each view is live in place of
+On the documentation site (`pnpm run docs` in `web/`), each view is live in place of
 its screenshot, fed with the same run.
 
 `<ca-monitor>`, the whole monitor (`monitor`): the run's header, its tabs, and the overview.
@@ -128,4 +128,4 @@ pnpm add <checkout>/web/tarballs/*.tgz
 Every element's properties, attributes and events are in `custom-elements.json`,
 generated from the sources with the package.
 
-A `::code` line quotes a file of the package; the documentation site (`pnpm docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.
+A `::code` line quotes a file of the package; the documentation site (`pnpm run docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.

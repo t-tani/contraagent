@@ -9,7 +9,7 @@ reader names each cell by its column and its row. Register it with
 ![A data table of three jobs with their minutes and their state: done, failed, running](images/data-table.webp)
 
 <!-- not on the site -->
-Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+Live on this topic's page of the documentation site (`pnpm run docs` in `web/`).
 
 ::code{file="examples/data-table.ts"}
 

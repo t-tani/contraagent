@@ -8,7 +8,7 @@ value), a column per item, the columns under nested groups. Register it with
 ![A mark matrix of nightly checks: a row per service with its failures, a column per check under each night](images/matrix.webp)
 
 <!-- not on the site -->
-Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+Live on this topic's page of the documentation site (`pnpm run docs` in `web/`).
 
 ::code{file="examples/matrix.ts"}
 

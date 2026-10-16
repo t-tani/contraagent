@@ -8,7 +8,7 @@ in `@contraagent/elements/lanes`.
 ![Lanes on a time axis: a build that failed then passed, a test still running, and a line at now](images/lanes.webp)
 
 <!-- not on the site -->
-Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+Live on this topic's page of the documentation site (`pnpm run docs` in `web/`).
 
 ::code{file="examples/lanes.ts"}
 

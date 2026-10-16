@@ -7,7 +7,7 @@ folds a run's feed into one typed state. No UI: `@contraagent/ui` draws it.
 The types are generated from the monitor's pydantic models via OpenAPI, so a
 field the server removes fails your type check, not your page.
 
-A `::code` line quotes a file of the package; the documentation site (`pnpm docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.
+A `::code` line quotes a file of the package; the documentation site (`pnpm run docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.
 
 ## Getting it
 

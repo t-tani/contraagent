@@ -10,7 +10,7 @@ with `@contraagent/elements/transcript/define`; the types are in
 ![A transcript of two sessions: an API request sent again, a web search with 2 results, a log line, and the assistant's answer](images/transcript.webp)
 
 <!-- not on the site -->
-Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+Live on this topic's page of the documentation site (`pnpm run docs` in `web/`).
 
 ::code{file="examples/transcript.ts"}
 
