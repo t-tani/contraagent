@@ -129,9 +129,7 @@ LIVE: dict[str, list[dict]] = {
             caption="solarized-light, a theme of one's own (@contraagent/elements docs/examples/theme.css)",
         ),
     ],
-    "node/elements/index": [
-        example("ci-pipeline", "cae-segmented", "cae-stat-tiles", "cae-data-table", "cae-layered-graph", page=True)
-    ],
+    "node/elements/index": [example("ci-pipeline", "cae-segmented", "cae-stat-tiles", "cae-data-table", "cae-layered-graph", page=True)],
     "node/elements/primitives": [
         example("status", at="images/primitives.webp"),
         example("segmented", "cae-segmented", at="images/primitives.webp"),
