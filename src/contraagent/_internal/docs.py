@@ -38,11 +38,11 @@ code is not needed.
   write or change the code.
 - Check your work in this order, which launches no coding agent and spends nothing.
   First, `contraagent check <file>:<flow> --kwargs '{...}'` until it prints ✓.
-  Second, a stub run, `contraagent run <file>:<flow> --stub --kwargs '{...}'`, which
-  checks the flow's wiring on the smallest outputs that the schemas accept. A validator
-  that needs real content rejects them, and the run's last line names it: that result
-  is expected. Third, tests of the flow on `contraagent.testing.StubAgent` in pytest,
-  with replies that carry real content (`contraagent docs testing`).
+  Second, a stub run, `contraagent run <file>:<flow> --stub --kwargs '{...}'`, in which
+  each task's output is its output model's example. Give each output model an example
+  that passes its validators, and the stub run goes through the whole flow. Third,
+  tests of the flow on `contraagent.testing.StubAgent` in pytest, for correction
+  rounds, failures and failover (`contraagent docs testing`).
 - A run on the coding agents (`contraagent run <file>:<flow> --config pipeline.toml`)
   spends tokens. The person who asked for the pipeline starts it, unless they ask you
   to, and watches it in `contraagent monitor`.

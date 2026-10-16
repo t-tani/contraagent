@@ -229,7 +229,8 @@ uv run contraagent check tasks.py:triage_all --kwargs '{"reports": ["login-timeo
 ```
 
 A **stub run** goes further: it runs the whole flow with a stub agent in place
-of every task. Each output is the smallest value its schema accepts, so no
+of every task. Each output is its model's example, or for a model with none (as
+here) the smallest value its schema accepts (`contraagent docs testing`), so no
 model is called and nothing is spent.
 
 ```

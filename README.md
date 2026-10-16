@@ -105,8 +105,8 @@ The flow around the tasks is plain Python. Each `yield` waits for a checked outp
 so loops, branches and parallel tasks are ordinary code.
 
 `contraagent check` reports every problem in the pipeline and launches nothing. With
-`--stub`, `contraagent run` checks the flow's wiring on a stub agent, which writes
-the smallest outputs that the schemas accept and spends nothing. With `--config pipeline.toml`, it runs on the coding
+`--stub`, `contraagent run` runs the whole flow on a stub agent, which writes each
+output model's example and spends nothing. With `--config pipeline.toml`, it runs on the coding
 agent and model that the config names. `contraagent monitor` then shows the runs in a
 browser.
 

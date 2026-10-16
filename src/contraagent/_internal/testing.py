@@ -23,7 +23,7 @@ from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResul
 from contraagent._internal.backends.streams import resolve_format
 from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
-from contraagent._internal.contracts.contract import smallest
+from contraagent._internal.contracts.contract import example
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
@@ -70,17 +70,20 @@ def writes(
     return Reply(output=value, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
 
 
-#: The output of `writes_smallest()`: built from the output's schema when it is played.
-_SMALLEST: Any = object()
+#: The output of `writes_example()`: built from the output's schema when it is played.
+_EXAMPLE: Any = object()
 
 
-def writes_smallest() -> Reply:
-    """Write the smallest value the output's schema accepts: required fields only, the
-    shortest lists and strings, numbers nearest zero. A text output is `stub`. A schema
-    rule it cannot build (`pattern`) fails the reply and names it. As a task's only reply
-    (not in a list, not from a callable), a value its validators reject ends the task
-    `invalid_output` after one round, with no correction round and no retry."""
-    return Reply(output=_SMALLEST)
+def writes_example() -> Reply:
+    """Write the output's example: at every part of its schema, the first of its
+    `examples` (the model's own, a field's), else the smallest value that part accepts
+    (required fields only, the shortest lists and strings, numbers nearest zero). A text
+    output is the first of the `examples` of its `Annotated[str, Field(examples=[...])]`,
+    else `stub`. A schema rule it cannot build where there is no example (`pattern`)
+    fails the reply and names it. As a task's only reply (not in a list, not from a
+    callable), a value its validators reject ends the task `invalid_output` after one
+    round, with no correction round and no retry."""
+    return Reply(output=_EXAMPLE)
 
 
 def writes_nothing() -> Reply:
@@ -143,7 +146,7 @@ class StubAgent(Backend):
     """A coding agent that reads its call file and plays the reply scripted for the task.
 
     `script`: task key or kind -> reply (the kinds of reply: `contraagent.testing`'s module docstring). `default`: the
-    reply of a task with none scripted (`writes_smallest()` in `contraagent run --stub`).
+    reply of a task with none scripted (`writes_example()` in `contraagent run --stub`).
     `execute`: in a stub run, the Python task kinds whose functions run instead of
     being played. `delay_s`: a pause per launch, for watching a stub run in the monitor.
     """
@@ -174,9 +177,9 @@ class StubAgent(Backend):
         self._counts: dict[tuple[str, str], int] = {}
         #: Each session's cost so far, for a name whose coding agent reports that on a resume.
         self._session_costs: dict[str, float] = {}
-        #: The sessions whose output is the smallest one, written for a reply that is the same on
+        #: The sessions whose output is the example, written for a reply that is the same on
         #: every launch: the stub cannot answer a correction round or a retry with anything else.
-        self._smallest_sessions: set[str] = set()
+        self._example_sessions: set[str] = set()
         self._lock = threading.Lock()
 
     def backends(self, names: Iterable[str] | None = None) -> dict[str, StubAgent]:
@@ -218,10 +221,10 @@ class StubAgent(Backend):
         return launch  # the session id in each result is enough to resume
 
     def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
-        """None after the smallest output of a reply that is the same on every launch: it
+        """None after the example of a reply that is the same on every launch: it
         would write that value again, so the output's checks end the task (`invalid_output`)."""
         with self._lock:
-            if prior.session_id in self._smallest_sessions:
+            if prior.session_id in self._example_sessions:
                 return None
         return super().resumed(launch, prior, prompt)
 
@@ -238,10 +241,10 @@ class StubAgent(Backend):
         record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
         message: list[str] = []  # the final message, for an output taken from it
         reply = self._play(launch, call, record, message)
-        smallest = self._fixed_smallest(record) and reply.stop is Stop.COMPLETED and call.output is not None
+        fixed = self._fixed_example(record) and reply.stop is Stop.COMPLETED and call.output is not None
         objections: list[list[str]] = []
-        # A stop hook's objection to the smallest output would get the same value back.
-        while reply.stop is Stop.COMPLETED and not smallest and self._continues_on_stop_hook():
+        # A stop hook's objection to the example would get the same value back.
+        while reply.stop is Stop.COMPLETED and not fixed and self._continues_on_stop_hook():
             said = self._stop_hooks(launch, active=bool(objections))
             if said is None or len(objections) >= _MAX_HOOK_OBJECTIONS:
                 break
@@ -252,10 +255,10 @@ class StubAgent(Backend):
         result = self._result(launch, started, reply)
         result.hook_errors = objections
         result.result_text = message[-1] if message else ""
-        if smallest:
+        if fixed:
             result.retryable = False  # another attempt writes the same value
             with self._lock:
-                self._smallest_sessions.add(result.session_id)
+                self._example_sessions.add(result.session_id)
         return result
 
     def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_turn: bool) -> StubLaunch:
@@ -287,16 +290,18 @@ class StubAgent(Backend):
             time.sleep(self.delay_s)
         if reply.stop is Stop.COMPLETED and reply.output is not _UNSET:
             if call.output is None:
-                if reply.output is _SMALLEST:
-                    return writes_nothing()  # the smallest output of a task with none
+                if reply.output is _EXAMPLE:
+                    return writes_nothing()  # the example of a task with no output
                 return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
-            if reply.output is _SMALLEST:
+            if reply.output is _EXAMPLE:
                 if record.resumed or record.in_turn:
                     # The same value again cannot pass: the checks that refused it are not the schema's.
-                    return fails(reason=f"stub: the smallest output of {call.key} fails its checks; script a reply for it")
-                value, problems = smallest(call.output.json_schema) if call.output.format == "json" else ("stub", [])
+                    return fails(reason=f"stub: the example of {call.key} fails its checks; script a reply for it")
+                schema = call.output.json_schema
+                text = call.output.format == "text" and not schema.get("examples")
+                value, problems = ("stub", []) if text else example(schema)
                 if problems:
-                    return fails(reason=f"stub: no smallest output for {call.key}: {'; '.join(problems)}")
+                    return fails(reason=f"stub: no example for {call.key}: {'; '.join(problems)}")
                 reply = writes(value, cost_usd=reply.cost_usd)
             text = _text_of(reply.output)
             if call.output.from_ == "message":
@@ -358,12 +363,12 @@ class StubAgent(Backend):
             raise RuntimeError(reply.reason or f"stub: {reply.stop.value}")
         if reply.output is _UNSET:
             return False, None
-        if reply.output is _SMALLEST:
+        if reply.output is _EXAMPLE:
             if json_schema is None:
                 return False, None
-            value, problems = smallest(json_schema)
+            value, problems = example(json_schema)
             if problems:
-                raise RuntimeError(f"stub: no smallest output for {key}: {'; '.join(problems)}")
+                raise RuntimeError(f"stub: no example for {key}: {'; '.join(problems)}")
             return True, value
         return True, reply.output
 
@@ -372,11 +377,11 @@ class StubAgent(Backend):
     def _entry(self, launch: StubLaunch | StubTask) -> Any:
         return self.script.get(launch.key, self.script.get(launch.kind, self.default))
 
-    def _fixed_smallest(self, launch: StubLaunch) -> bool:
-        """Whether `launch`'s reply is `writes_smallest()` on every launch of its task (not a
+    def _fixed_example(self, launch: StubLaunch) -> bool:
+        """Whether `launch`'s reply is `writes_example()` on every launch of its task (not a
         list of replies, not a callable)."""
         entry = self._entry(launch)
-        return isinstance(entry, Reply) and entry.output is _SMALLEST
+        return isinstance(entry, Reply) and entry.output is _EXAMPLE
 
     def _reply(self, launch: StubLaunch | StubTask) -> Reply:
         entry = self._entry(launch)
@@ -476,5 +481,5 @@ __all__ = [
     "rate_limited",
     "writes",
     "writes_nothing",
-    "writes_smallest",
+    "writes_example",
 ]

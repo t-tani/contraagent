@@ -18,7 +18,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from contraagent import Pipeline, PipelineConfig, agent_task, python_task
-from contraagent.testing import StubAgent, fails, writes_smallest
+from contraagent.testing import StubAgent, fails, writes_example
 
 HERE = Path(__file__).resolve().parent
 CWD = "/work/review"
@@ -63,7 +63,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp).resolve()
         script = {"review-gamma": fails(reason="stub: the review stopped")}
-        stub = StubAgent(script, default=writes_smallest(), execute=["fetch", "summary"])
+        stub = StubAgent(script, default=writes_example(), execute=["fetch", "summary"])
         config = PipelineConfig({"defaults": {"agent": "claude", "model": "claude-sonnet-5-5"}})
         report = Pipeline(config, runs_dir=work / "runs", cwd=work, stub=stub).run(flow, run_id="review", units=["alpha", "beta", "gamma"])
         shutil.rmtree(out, ignore_errors=True)

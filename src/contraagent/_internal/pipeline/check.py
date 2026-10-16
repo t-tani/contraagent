@@ -26,6 +26,7 @@ from pydantic_core import to_jsonable_python
 
 from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
+from contraagent._internal.contracts.contract import example
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
 from contraagent._internal.dispatch.task import kind_name
@@ -132,7 +133,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
     report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
-    report.add("contracts", _schema_errors(agent_specs) + _validator_errors(list(specs.values())))
+    report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs))
     _check_routing(pipeline, agent_specs, report)
     return report
@@ -264,6 +265,41 @@ def _schema_errors(specs: dict[str, Any]) -> list[str]:
     if refs:
         errs += [f"{kind}: {msg}" for kind, msg in _import_in_fresh_interpreter(refs).items()]
     return errs
+
+
+def _example_errors(specs: dict[str, Any]) -> list[str]:
+    """Outputs whose example (`examples` in their JSON Schema, the model's own or a field's)
+    does not pass their own schema: the value a stub run writes (`contraagent.testing.writes_example`)."""
+    errs: list[str] = []
+    for kind, spec in specs.items():
+        model = spec.output_schema
+        target = model if model is not None else spec.output if spec.executor == "agent" and spec.output is not str else None
+        if target is None:
+            continue
+        try:
+            adapter = TypeAdapter(target)
+            schema = adapter.json_schema()
+        except Exception:  # no JSON Schema: `_schema_errors` says so
+            continue
+        if not _has_examples(schema):
+            continue
+        value, _ = example(schema)
+        name = model.__name__ if model is not None else "text"
+        try:
+            adapter.validate_json(json.dumps(value))
+        except ValidationError as exc:
+            errs += [
+                f"{kind}: output {name}: its example does not pass its own schema: {'.'.join(map(str, e['loc'])) or '<root>'}: {e['msg']}"
+                for e in exc.errors()[:3]
+            ]
+    return errs
+
+
+def _has_examples(node: Any) -> bool:
+    """Whether a JSON Schema declares `examples` (a list) anywhere."""
+    if isinstance(node, dict):
+        return isinstance(node.get("examples"), list) or any(_has_examples(v) for v in node.values())
+    return isinstance(node, list) and any(_has_examples(v) for v in node)
 
 
 _IMPORT_PROBE = """

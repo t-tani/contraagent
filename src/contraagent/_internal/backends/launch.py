@@ -375,7 +375,7 @@ class LaunchResult:
     #: model as launched (`Backend.context_window`); None when it reports none. Over folded
     #: rounds and hops, the window of the launch whose call is the peak context (`fold_spend`).
     context_window: int | None = None
-    #: False when another attempt cannot end otherwise: the stub agent's smallest output
+    #: False when another attempt cannot end otherwise: the stub agent's example
     #: that failed its checks would be written again (`TaskResult.retryable`).
     retryable: bool = True
 

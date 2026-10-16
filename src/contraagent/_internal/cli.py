@@ -13,8 +13,8 @@ contraagent run tasks.py:docs --config pipeline.toml --kwargs '{"units": ["alpha
                                          [--preflight substitute|stop|off]
                                          # the same flow, run (exit 1 when a task or the flow failed)
 contraagent run tasks.py:docs --stub [--execute KIND]
-                                         # a stub run: the stub agent plays every task with the smallest
-                                         # output, and the tasks the flow created are listed
+                                         # a stub run: the stub agent plays every task with its output's
+                                         # example, and the tasks the flow created are listed
 contraagent run tasks.py:docs --record DIR   # a run that keeps each task attempt's recording in DIR
 contraagent run tasks.py:docs --replay DIR [--execute KIND] [--record-missing]
                                          # a replay: every task plays its recording, nothing is spent;
@@ -134,7 +134,7 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         add_arguments=_run_arguments,
         run=_flow_command,
         epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not "
-        "(in a stub run too: a task whose smallest output fails its validators has failed), or when the run is refused "
+        "(in a stub run too: a task whose example fails its validators has failed), or when the run is refused "
         "before its first task (the config, the routing, a run id that holds a run, the preflight), "
         "2 on a usage error (the flow's name, --kwargs, options that do not go together)",
     )
@@ -187,10 +187,10 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
     run.add_argument(
         "--stub",
         action="store_true",
-        help="a stub run: the stub agent plays every agent task and every Python task with the smallest output its schema "
-        "accepts; no model is called and no Python task's function runs (run id: <flow>-stub). It checks the flow's "
-        "wiring: a task whose smallest output fails a validator ends invalid_output at once, and the last line names "
-        "those validators",
+        help="a stub run: the stub agent plays every agent task and every Python task with its output's example "
+        "(`examples` in the output's JSON Schema; where there is none, the smallest value the schema accepts); no model "
+        "is called and no Python task's function runs (run id: <flow>-stub). A task whose example fails a validator "
+        "ends invalid_output at once, and the last line names those validators",
     )
     run.add_argument(
         "--execute",
@@ -291,9 +291,9 @@ def _flow_command(args) -> int:
 
             backends = StubAgent().backends()
         elif args.cmd == "run" and args.stub:
-            from contraagent._internal.testing import StubAgent, writes_smallest
+            from contraagent._internal.testing import StubAgent, writes_example
 
-            stub = StubAgent(default=writes_smallest(), execute=args.execute)
+            stub = StubAgent(default=writes_example(), execute=args.execute)
         record = getattr(args, "record", None)
         replay = getattr(args, "replay", None)
         if args.cmd == "run" and args.execute and not args.stub and replay is None:
@@ -353,13 +353,13 @@ def _flow_command(args) -> int:
         print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
     for call in result.flow_errors:
         print(f"  flow call {call.id} ({call.function}): {type(call.error).__name__}: {str(call.error)[:300]}")
-    if stub is not None and (note := _smallest_refused(result, stub)):
+    if stub is not None and (note := _examples_refused(result, stub)):
         print(note)
     return 0 if result.ok else 1
 
 
-def _smallest_refused(result, stub) -> str:
-    """In a stub run, the statement on the tasks whose smallest output failed its checks: how
+def _examples_refused(result, stub) -> str:
+    """In a stub run, the statement on the tasks whose example failed its checks: how
     many, the checks of each kind that refused it, and the next step. Empty when there are none."""
     import re
 
@@ -379,9 +379,9 @@ def _smallest_refused(result, stub) -> str:
     refused = "; ".join(f"{kind}: {', '.join(names) or 'its checks'}" for kind, names in checks.items())
     tasks = "1 task" if count == 1 else f"{count} tasks"
     return (
-        f"{tasks} failed checks on the smallest outputs of the stub agent ({refused}), so the tasks that need "
-        f"{'its output' if count == 1 else 'their outputs'} did not run. Test these checks in pytest with StubAgent "
-        "replies that carry real content: `contraagent docs testing`"
+        f"{tasks} failed checks on the examples the stub agent wrote ({refused}), so the tasks that need "
+        f"{'its output' if count == 1 else 'their outputs'} did not run. Give each output model an example that "
+        "passes its validators: `contraagent docs testing`"
     )
 
 

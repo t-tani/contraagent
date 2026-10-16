@@ -38,62 +38,77 @@ stub agent.
 
 Run it after every change to tasks, plugins or the config.
 
-## Stub run: the flow's wiring, nothing called
+## Stub run: the whole flow on examples, nothing called
 
 ```
 contraagent run tasks.py:<flow> --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
 ```
 
 A stub run goes past the first wait. The stub agent plays every task: an agent
-task's output, and a Python task's return value, is the smallest value its schema
-accepts (required fields only, the shortest lists and strings, numbers nearest
-zero, an enum's first value). No model is called, no Python task's function
-runs, and the flow goes on to its end on those outputs, so the run lists every
-task the flow creates on that path (`kind · unit`, how it ended, and the flow
-path that created it). `--execute <kind>` runs that Python task kind's function
-instead (a read-only step whose real output the flow needs). The run id is
-`<flow>-stub`, and the monitor marks the run "stub agent".
+task's output, and a Python task's return value, is its output's **example**. No
+model is called, no Python task's function runs, and the flow goes on to its end on
+those outputs, so the run lists every task the flow creates on that path
+(`kind · unit`, how it ended, and the flow path that created it). `--execute <kind>`
+runs that Python task kind's function instead (a read-only step whose real output
+the flow needs). The run id is `<flow>-stub`, and the monitor marks the run "stub
+agent".
 
-So a stub run checks the flow's wiring: which tasks the flow creates, what each
-one is given, and how the flow goes on from their outputs. It does not check
-content. The outputs are the smallest, so the flow takes the path they lead to:
-a branch on a value it never sees is not taken, and a rule the stub cannot build
-(`pattern`) fails the task and names the rule. A validator that needs real
-content (three points, a heading) rejects the smallest output: its task ends
-`invalid_output` after one round, with no correction round and no retry (the
-stub would write the same value again), and the tasks that need its output do
-not run. This is the expected result for such a validator, not a mistake in the
-flow, and the run's last line says so. The demo's `summarize` needs exactly three
-points:
+The example follows one rule, at every part of the output's JSON Schema: the first
+entry of that part's `examples`, else the smallest value that part accepts (required
+fields only, the shortest lists and strings, numbers nearest zero, an enum's first
+value). So a model's own example is the whole value, a field's example is that
+field's value, and a part with none is the smallest:
+
+::code{file="examples/demo/tasks.py" from="class Summary(BaseModel):" to="class Score(BaseModel):"}
+
+A text output takes its example from `Annotated[str, Field(examples=[...])]` (the
+demo's `Note`); a plain `str` output is `stub`. `contraagent check` reports an
+example that does not pass its own model.
+
+Give each output model an example that passes its validators, and a stub run goes
+through the whole flow. Examples that agree with each other pass the validators
+that compare an output with its params: the demo's summary names the unit of the
+prepared example, and its note names the summary's unit:
 
 ```
 contraagent run "$(contraagent docs --path)/examples/demo/tasks.py:docs" --stub --kwargs '{"units": ["alpha", "beta"]}'
 ```
 
 ```
-5 tasks created:
-  prepare · alpha | completed | docs > review_loop (line 131)
-  summarize · alpha | invalid_output | docs > review_loop (line 131)
-  prepare · beta | completed | docs > review_loop (line 131)
-  summarize · beta | invalid_output | docs > review_loop (line 131)
-  report | completed | docs (line 147)
-✗ 3/5 tasks done in 0.1s; run in runs/docs-stub
-  summarize-alpha: invalid_output out/summarize/alpha.json: [three_points] points: exactly three expected, got 0
-  summarize-beta: invalid_output out/summarize/beta.json: [three_points] points: exactly three expected, got 0
-2 tasks failed checks on the smallest outputs of the stub agent (summarize: three_points), so the tasks that need their outputs did not run. Test these checks in pytest with StubAgent replies that carry real content: `contraagent docs testing`
+11 tasks created:
+  prepare · alpha | completed | docs > review_loop (line 151)
+  summarize · alpha | completed | docs > review_loop (line 151)
+  prepare · beta | completed | docs > review_loop (line 151)
+  summarize · beta | completed | docs > review_loop (line 151)
+  score · alpha | completed | docs > review_loop (line 155)
+  review · alpha | completed | docs > review_loop (line 156)
+  score · beta | completed | docs > review_loop (line 155)
+  review · beta | completed | docs > review_loop (line 156)
+  write_note · beta | completed | docs > review_loop (line 160)
+  write_note · alpha | completed | docs > review_loop (line 160)
+  report | completed | docs (line 167)
+✓ 11/11 tasks done in 0.6s; run in runs/docs-stub
 ```
 
-The run is not ok, so `contraagent run` exits 1, as for any failed task: the
-flow past those tasks was not run, so its wiring there is not checked. A test on
-the stub agent ([below](#test-the-stub-agent)) gives those tasks replies that pass
-their validators, and the flow runs to its end (the demo's
-`test_the_flow_runs_on_the_stub`). Any other failure in a stub run (an exception
-in the flow, a rule the stub cannot build) is a mistake in the flow or its
-declarations.
+The flow takes the path its examples lead to: the demo's review approves, so no
+summary is revised. A branch on a value no example holds is not taken, and a rule
+the stub cannot build where there is no example (`pattern`) fails the task and
+names the rule. A validator that rejects the example ends its task `invalid_output`
+after one round, with no correction round and no retry (the stub would write the
+same value again); the tasks that need its output do not run, `contraagent run`
+exits 1, and its last line names the validators:
+
+```
+  summarize-alpha: invalid_output out/summarize/alpha.json: [three_points] points: exactly three expected, got 0
+2 tasks failed checks on the examples the stub agent wrote (summarize: three_points), so the tasks that need their outputs did not run. Give each output model an example that passes its validators: `contraagent docs testing`
+```
+
+A stub run plays one reply per task, so the correction rounds, failures, retries
+and failover of a flow are tested on the stub agent ([below](#test-the-stub-agent)).
 
 Flow code itself runs as in any run: a side effect in the flow's own body happens
 in a stub run too. Put side effects in Python tasks. In Python,
-`Pipeline(stub=StubAgent(script, default=writes_smallest(), execute=[...]))`
+`Pipeline(stub=StubAgent(script, default=writes_example(), execute=[...]))`
 scripts the replies of both kinds of task, as a test does (the
 `contraagent.testing` module docstring lists the replies).
 
