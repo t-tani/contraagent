@@ -574,9 +574,12 @@ class AgentRunner:
         launch = self.launch(task, route, backend, credential)
         contracts = self.adapter.output_contracts(task)
         # With declared outputs the launch is resumed until every one holds,
-        # or the correction budget is spent (then INVALID_OUTPUT, not ok).
-        partial_on = self.config(task).partial_stops
-        launch_result = run_until_valid(backend, launch, contracts, partial_on=partial_on) if contracts else backend.run(launch)
+        # or the kind's `max_corrections` are spent (then INVALID_OUTPUT, not ok).
+        kc = self.config(task)
+        if contracts:
+            launch_result = run_until_valid(backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops)
+        else:
+            launch_result = backend.run(launch)
         for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
             reading = launch_result.quota[i] = reading.model_copy(
                 update={

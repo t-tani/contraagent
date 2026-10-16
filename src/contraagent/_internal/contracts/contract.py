@@ -54,7 +54,8 @@ from contraagent._internal.runs.files import write_document
 
 _logger = logging.getLogger(__name__)
 
-#: Resumes after the first launch. Each one is a full agent turn, and an
+#: Correction rounds after the first launch, a kind's `max_corrections` when neither its
+#: declaration nor the config gives one. Each one is a full agent turn, and an
 #: LLM that misreads the schema three times in a row is not converging.
 DEFAULT_MAX_RESUMES = 3
 
@@ -544,8 +545,10 @@ def run_until_valid(
     Returns the last round's `LaunchResult` with spend (wall, cost, usage,
     tool use, turns) over all rounds (`fold_spend`: a coding agent that reports a
     resumed session's cost so far is not counted twice), `round_costs` each
-    round's own cost, `rounds` set to the number of launches, and
-    `round_errors` holding each failed round's errors. A
+    round's own cost, `rounds` set to the number of launches,
+    `round_errors` holding each failed round's errors and `max_corrections` set to
+    `max_resumes`. `max_resumes`: the correction rounds after the first launch (a kind's
+    `max_corrections`; 0, none). A
     run that exhausts `max_resumes`, or whose session cannot be resumed,
     ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
     its own stop. Each check compares a file with the file as it was before the
@@ -620,6 +623,7 @@ def _loop(
         found += [errors] if errors else []
         total.rounds = rounds
         total.round_errors = list(found)
+        total.max_corrections = max_resumes
         if not errors:
             if total.hollow and any(c.from_message for c in contracts):
                 # The final message is the output, and it passed its checks: text that reads

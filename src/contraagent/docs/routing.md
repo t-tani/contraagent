@@ -16,7 +16,7 @@ built-in default.
 
 `[defaults]` takes the routing keys (`agent`, `model`, `effort`, `credential`,
 `model_failover`, `fallbacks`) and the run's own settings (`max_passes`, `preflight`,
-`claim_capacity`, `context_warn_pct`), nothing else. A budget (`max_turns`,
+`claim_capacity`, `context_warn_pct`, `max_corrections`), nothing else. A budget (`max_turns`,
 `timeout_s`, `max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or
 `agent_task(...)`, and `[defaults]` refuses it.
 
@@ -61,6 +61,11 @@ reports no window. A kind with
 a `context_warn_pct` but no `context_budget` is refused before anything launches;
 `[defaults].context_warn_pct` applies to every kind with a `context_budget` and
 none of its own.
+
+`max_corrections` (0 to 20, default 3, in a task table, `agent_task(...)` or
+`[defaults]`) caps the correction rounds of a kind: how many times an output that
+fails its checks goes back to the same session ([contracts](contracts.md#checked-twice-by-the-same-rules)).
+A value out of that range is refused before anything launches.
 
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a

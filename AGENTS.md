@@ -59,7 +59,8 @@ by agent name), `[tasks.<kind>]` and `kind`, `Route`/`Router`/hop (the failover 
 a route is one entry, a hop one launch on one route), `ambient` (the host's own
 credential), `effort`/`max_turns`/`max_budget_usd` (the agents' flag names), cursor
 `stage`, `streams/` and `*.stream.jsonl`, `hollow` (see `LaunchResult`), `RoutingPlan`
-(`plan.jsonl` is the queue).
+(`plan.jsonl` is the queue), `run_until_valid(max_resumes=)` (the count a kind's
+`max_corrections` gives it).
 
 ## Public API and layers
 

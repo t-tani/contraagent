@@ -90,6 +90,9 @@ class JournalRow(BaseModel):
     #: The errors of each round that failed its output checks, in order, cut at 5 each:
     #: each was sent back as the next round; after `invalid_output`, the last is what still stood.
     round_errors: list[list[str]] = Field(default_factory=list)
+    #: The correction rounds its kind allowed after the first (`max_corrections`); None
+    #: without an output contract, or in a run format before it was recorded.
+    max_corrections: int | None = None
     #: What the plugin's stop hook sent back within a launch, before the agent ended its turn
     #: (Claude Code), one list per objection, cut at 5 each: none of them took a correction round.
     hook_errors: list[list[str]] = Field(default_factory=list)
@@ -195,6 +198,7 @@ class LaunchRow(BaseModel):
     rounds: int | None
     round_errors: list[list[str]]
     round_costs: list[float | None]
+    max_corrections: int | None = Field(None, description="the correction rounds its kind allowed after the first")
     unwrapped: bool
     hook_errors: list[list[str]]
     context_budget: int | None

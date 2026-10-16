@@ -645,6 +645,18 @@
       "title": "Round Errors",
       "type": "array"
     },
+    "max_corrections": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Corrections"
+    },
     "hook_errors": {
       "items": {
         "items": {

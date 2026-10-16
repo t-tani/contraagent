@@ -157,7 +157,8 @@ class StubAgent(Backend):
     `script`: task key or kind -> reply (the kinds of reply: `contraagent.testing`'s module docstring). `default`: the
     reply of a task with none scripted (`writes_example()` in `contraagent run --stub`).
     `execute`: in a stub run, the Python task kinds whose functions run instead of
-    being played. `delay_s`: a pause per launch, for watching a stub run in the monitor.
+    being played; `execute_all`: every Python task's function runs (not with `execute`),
+    and the stub agent plays the agent tasks only. `delay_s`: a pause per launch, for watching a stub run in the monitor.
     """
 
     name = "stub"
@@ -172,12 +173,21 @@ class StubAgent(Backend):
         return None
 
     def __init__(
-        self, script: Mapping[str, Any] | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0
+        self,
+        script: Mapping[str, Any] | None = None,
+        *,
+        default: Any = _UNSET,
+        execute: Iterable[str] = (),
+        execute_all: bool = False,
+        delay_s: float = 0.0,
     ) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
         self.default = default
         self.execute: frozenset[str] = frozenset(execute)
+        if execute_all and self.execute:
+            raise TypeError("StubAgent: execute_all runs every Python task's function; drop execute=, or execute_all")
+        self.execute_all: bool = bool(execute_all)
         self.delay_s = delay_s
         #: Every launch, in the order they arrived.
         self.launches: list[StubLaunch] = []
@@ -368,7 +378,7 @@ class StubAgent(Backend):
 
     def plays(self, kind: str) -> bool:
         """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
-        return kind not in self.execute
+        return not self.execute_all and kind not in self.execute
 
     def play_python(
         self,

@@ -88,9 +88,11 @@ def record(tmp_path, agent=None, flow_=flow, **kwargs):
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
-def replay(tmp_path, flow_=flow, name="replay", execute=(), **kwargs):
+def replay(tmp_path, flow_=flow, name="replay", execute=(), execute_all=False, **kwargs):
     cwd = tree(tmp_path / name)
-    pipeline = Pipeline(PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec", execute=execute)
+    pipeline = Pipeline(
+        PipelineConfig({}), runs_dir=tmp_path / f"{name}-runs", cwd=cwd, replay=tmp_path / "rec", execute=execute, execute_all=execute_all
+    )
     return pipeline.run(flow_, **({"units": ["alpha", "beta"]} | kwargs))
 
 
@@ -129,6 +131,10 @@ def test_a_python_task_of_a_kind_executed_runs_its_function(tmp_path):
     played = replay(tmp_path, execute=["count"])
     assert played.ok, played.failed
     assert ran == ["count"] and played.value == 2
+    ran.clear()
+    every = replay(tmp_path, name="every", execute_all=True)
+    assert every.ok, every.failed
+    assert ran == ["count"] and every.value == 2  # every Python task's function, the agent tasks played
 
 
 calls: list[int] = []
@@ -233,6 +239,7 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert main([*args, "--replay", "rec", "--stub"]) == 2
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
     assert main([*args, "--replay", "rec", "--execute", "count", "--run-id", "executed"]) == 0
+    assert main([*args, "--replay", "rec", "--execute-all", "--run-id", "every"]) == 0
     assert main([*args, "--execute", "count"]) == 2
     assert main([*args, "--record-missing"]) == 2
     assert main([*args, "--replay", "rec", "--record-missing", "--stub"]) == 2

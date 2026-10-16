@@ -21,6 +21,7 @@ them all):
 |---|---|---|
 | `output`, `params`, `validators` | what it takes and leaves behind (a model, `str`, or `Rows[Row]`), and the checks its output must pass | [Contracts](contracts.md) |
 | `partial_on` | keeping what a launch wrote when the runner stopped it for its time | [Contracts](contracts.md#a-launch-stopped-for-its-time) |
+| `max_corrections` | how many times an output that fails its checks goes back to the session | [Contracts](contracts.md#checked-twice-by-the-same-rules) |
 | `output_from`, `unwrap`, `tools=()` | an output in the final message; a light launch | [Contracts](contracts.md) |
 | `preserve`, `output_of` | filling in another task's file, and the parts to keep | [Contracts](contracts.md) |
 | `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
@@ -573,7 +574,11 @@ In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
 settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was
 started with (`contraagent run --config`, `Pipeline(config)`), as parsed. It is an
 empty table when the file has none, or the run has no config file
-([routing](routing.md)).
+([routing](routing.md)). While `contraagent check` (`Pipeline.check`) builds the
+flow, flow code reads the table of the config the check is given, the same table a
+run reads, so a flow may read its settings in its body. A check writes no run: what
+`log` and `save` write while it builds the flow goes into a temporary directory,
+which the check removes.
 
 ::code{file="examples/panels/records.py" from="@python_task" to="def words("}
 

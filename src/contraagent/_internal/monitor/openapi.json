@@ -2620,6 +2620,17 @@
             "type": "array",
             "title": "Round Errors"
           },
+          "max_corrections": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Corrections"
+          },
           "hook_errors": {
             "items": {
               "items": {

@@ -157,6 +157,7 @@ class Pipeline:
         record: str | Path | None = None,
         replay: str | Path | None = None,
         execute: Sequence[str] = (),
+        execute_all: bool = False,
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
         deadline_s: float | None = None,
@@ -210,7 +211,7 @@ class Pipeline:
         the plugin's. The user's and the project's MCP servers stay out either way.
         `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
-        the kinds it executes (`StubAgent(execute=)`), so no model is called and no
+        the kinds it executes (`StubAgent(execute=)`, `StubAgent(execute_all=True)`), so no model is called and no
         function runs that was not named. The run id defaults to `<flow>-stub`, and
         `run.json` says `stub: true`. Flow code runs as in any run. Not with `backends`.
         `record`: a directory each task attempt's recording is written to
@@ -223,7 +224,8 @@ class Pipeline:
         the directory); its run id defaults to `<flow>-replay`. Not with `record`, `stub`,
         `backends` or `preflight`.
         `execute`: with `replay`, the Python task kinds whose functions run instead of being
-        played (as `StubAgent(execute=)` in a stub run).
+        played (as `StubAgent(execute=)` in a stub run). `execute_all`: with `replay`, every
+        Python task's function runs, and only the agent tasks are played (not with `execute`).
         `record_missing`: with `replay`, a task with no recording launches on the coding agents
         (`backends`, default every registered one) through the config's routing, or runs its
         function, and its recording is written into the `replay` directory (which may be empty);
@@ -289,13 +291,16 @@ class Pipeline:
             if given:
                 fills = " (record_missing records into the replay directory)" if record_missing else ""
                 raise TypeError(f"Pipeline: replay= plays recordings in place of the coding agents; not with {', '.join(given)}={fills}")
-        if execute and replay is None:
-            where = "give it to the stub agent: StubAgent(execute=)" if stub is not None else "it names what a replay does not play"
-            raise TypeError(f"Pipeline: execute= is for a replay ({where})")
+        for name, given_ in (("execute", bool(execute)), ("execute_all", execute_all)):
+            if given_ and replay is None:
+                where = f"give it to the stub agent: StubAgent({name}=)" if stub is not None else "it names what a replay does not play"
+                raise TypeError(f"Pipeline: {name}= is for a replay ({where})")
         self.stub = stub
         self.record: Path | None = Path(record) if record is not None else None
         #: The recordings a replay plays (`execution.recording.Replay`); None when this is no replay.
-        self.replay: Replay | None = Replay(replay, execute=execute, record_missing=record_missing) if replay is not None else None
+        self.replay: Replay | None = (
+            Replay(replay, execute=execute, execute_all=execute_all, record_missing=record_missing) if replay is not None else None
+        )
         if stub is not None:
             backends = stub.backends()
         elif self.replay is not None and record_missing:
@@ -375,7 +380,9 @@ class Pipeline:
           PATH, and each model against the list its coding agent keeps locally
           (`Backend.catalogue`, e.g. `omp models --json`).
 
-        Nothing is launched, no run directory is written and no token is spent. The one
+        While the flow builds, `contraagent.pipeline_table` reads this pipeline's config
+        as a run does; `contraagent.log` and `save` write into a temporary directory the
+        check removes. Nothing is launched, no run directory is written and no token is spent. The one
         check left to a run is the preflight (`Pipeline(preflight="stop")`), which probes
         each route of the same kinds. The `CheckReport` holds every problem found."""
         return check_flow(self, flow, args, kwargs)

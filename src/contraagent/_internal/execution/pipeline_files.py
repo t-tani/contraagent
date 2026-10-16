@@ -10,7 +10,10 @@ and a panel reads them back wherever the monitor reads runs (`RunRecords.log`,
 
 They act on the current run: the one a `Run` opened (`Pipeline.run` opens it around
 the flow), and, in a Python task, the run its `PythonTaskRunner` runs it for, on
-whichever thread the queue runs it. Called outside a run, they raise `NoCurrentRun`.
+whichever thread the queue runs it. A check (`Pipeline.check`, `contraagent check`) makes
+its own temporary directory the current run while it builds the flow, with the config it
+is given: `pipeline_table` reads the table a run would, and what `log` and `save` write
+there is removed with it. Called outside a run, they raise `NoCurrentRun`.
 An agent task cannot call them: its coding agent runs in another process, which has no
 current run.
 
@@ -93,7 +96,8 @@ def _save_document(run_dir: Path, name: str, text: str) -> None:
 
 class NoCurrentRun(ContraagentError):
     """`contraagent.log`, `contraagent.save` or `contraagent.pipeline_table` was called
-    outside a run: not in flow code `Pipeline.run` is running, nor in a Python task of it."""
+    outside a run: not in flow code `Pipeline.run` is running or `Pipeline.check` is checking,
+    nor in a Python task of a run."""
 
 
 @contextlib.contextmanager
@@ -112,7 +116,8 @@ def _current_run(call: str) -> _Current:
     current = _current.get()
     if current is None:
         raise NoCurrentRun(
-            f"contraagent.{call} is called outside a run: call it from the flow given to Pipeline.run, or from a Python task of it"
+            f"contraagent.{call} is called outside a run: call it from the flow given to Pipeline.run "
+            "(or to Pipeline.check), or from a Python task of a run"
         )
     return current
 
@@ -124,7 +129,9 @@ def _run_dir(call: str) -> Path:
 def pipeline_table(name: str) -> dict[str, Any]:
     """`[pipeline.<name>]` of the config the current run was started with: a pipeline
     table, the pipeline's own settings, as parsed (`PipelineConfig.table`). Empty when the
-    file has none, or the run has no config file. NoCurrentRun outside a run."""
+    file has none, or the run has no config file. In flow code a check builds
+    (`Pipeline.check`, `contraagent check`), the table of the config the check is given,
+    as the run would read it. NoCurrentRun outside a run."""
     config = _current_run("pipeline_table").config
     return config.table(name) if config is not None else {}
 

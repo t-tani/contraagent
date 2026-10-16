@@ -254,6 +254,7 @@ class Pipeline
         record: str | Path | None = None,
         replay: str | Path | None = None,
         execute: Sequence[str] = (),
+        execute_all: bool = False,
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
         deadline_s: float | None = None,
@@ -599,6 +600,7 @@ def agent_task(
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out]
 @overload
 def agent_task(
@@ -641,6 +643,7 @@ def agent_task(
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
@@ -682,6 +685,7 @@ def agent_task(
     retry_backoff_base: float | None = None,
     partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
     keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
@@ -797,6 +801,7 @@ class KindConfig
         retry_backoff_base: float = 2.0,
         partial_on: tuple[str, ...] = (),
         keep_failed_changes: bool = False,
+        max_corrections: int = DEFAULT_MAX_RESUMES,
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -812,6 +817,7 @@ class KindConfig
     def limits(self) -> Limits
     max_budget_usd: float | None = None
     max_concurrent: int | None = None
+    max_corrections: int = DEFAULT_MAX_RESUMES
     max_denials: int | None = None
     max_turns: int = 50
     model: str = ''
@@ -1306,6 +1312,7 @@ class LaunchResult
         context_window: int | None = None,
         retryable: bool = True,
         partial: bool = False,
+        max_corrections: int | None = None,
     ) -> None
     agent: str = ''
     api_key_source: str = ''
@@ -1327,6 +1334,7 @@ class LaunchResult
     init_model: str = ''
     init_tools: int = 0
     label: str
+    max_corrections: int | None = None
     model: str = ''
     num_turns: int | None = None
     ok: bool = False
@@ -2781,6 +2789,7 @@ class JournalRow(BaseModel)
     hops: list[Hop] = Field(default_factory=list)
     key: str
     kind: str
+    max_corrections: int | None = None
     model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
@@ -3338,6 +3347,7 @@ class StubAgent(Backend)
         *,
         default: Any = _UNSET,
         execute: Iterable[str] = (),
+        execute_all: bool = False,
         delay_s: float = 0.0,
     ) -> None
     def argv(self, launch: Launch) -> list[str]
@@ -3355,6 +3365,7 @@ class StubAgent(Backend)
     delay_s
     def env(self, launch: Launch) -> dict[str, str]
     execute: frozenset[str]
+    execute_all: bool
     launches: list[StubLaunch]
     def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]
     light_launch = True

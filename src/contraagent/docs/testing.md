@@ -41,7 +41,7 @@ Run it after every change to tasks, plugins or the config.
 ## Stub run: the whole flow on examples, nothing called
 
 ```
-contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
+contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch | --execute-all]
 ```
 
 With `--config`, its `[route]` lines name the routes a real run takes; without it,
@@ -53,7 +53,9 @@ model is called, no Python task's function runs, and the flow goes on to its end
 those outputs, so the run lists every task the flow creates on that path
 (`kind · unit`, how it ended, and the flow path that created it). `--execute <kind>`
 runs that Python task kind's function instead (a read-only step whose real output
-the flow needs). The run id is `<flow>-stub`, and the monitor marks the run "stub
+the flow needs); give it once per kind. `--execute-all` runs the function of every
+Python task, so the stub agent plays the agent tasks only: the pipeline's own code
+runs for real, and no model is called. It is not taken with `--execute`. The run id is `<flow>-stub`, and the monitor marks the run "stub
 agent".
 
 The example follows one rule, at every part of the output's JSON Schema: the first
@@ -119,7 +121,8 @@ Flow code itself runs as in any run: a side effect in the flow's own body happen
 in a stub run too. Put side effects in Python tasks. In Python,
 `Pipeline(stub=StubAgent(script, default=writes_example(), execute=[...]))`
 scripts the replies of both kinds of task, as a test does (the
-`contraagent.testing` module docstring lists the replies).
+`contraagent.testing` module docstring lists the replies);
+`StubAgent(execute_all=True)` is `--execute-all`.
 
 ## Record once, replay in CI
 
@@ -162,7 +165,8 @@ outputs and files into place, deletes the recorded deletions and adds the record
 transcript; its output checks and the journal run as in any run, and it reports no cost
 and no tokens. A Python task that calls a service (a local index server) needs nothing
 running in CI. `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
-Python task kind's function instead, as in a stub run: the pipeline's own code under
+Python task kind's function instead, and `--execute-all` (`Pipeline(replay=DIR,
+execute_all=True)`) every Python task's, as in a stub run: the pipeline's own code under
 test. So a replay in CI follows the flow down the path the real outputs led to, with
 nothing spent.
 
