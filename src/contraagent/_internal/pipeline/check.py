@@ -6,6 +6,7 @@ The `Pipeline.check` docstring lists the checks; `reach.py` finds the reachable 
 from __future__ import annotations
 
 import contextlib
+import fnmatch
 import json
 import logging
 import re
@@ -29,10 +30,13 @@ from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
+from contraagent._internal.dispatch.queue import claim_entry
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
+from contraagent._internal.execution.services import env_clashes
 from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent._internal.pipeline.reach import reachable
+from contraagent._internal.platform import envvars
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan
 
 if TYPE_CHECKING:
@@ -135,8 +139,38 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs))
+    _check_services(pipeline.services, graph, [*specs.values(), *found], report)
     _check_routing(pipeline, agent_specs, report)
     return report
+
+
+def _check_services(services: dict[str, Any], graph: Graph, declarations: list[Any], report: CheckReport) -> None:
+    """A task that claims two services whose names share one environment variable (an
+    error), and a service no task of the run claims: neither a created task's claim nor a
+    reachable kind's claim template (a warning; `{...}` in a template matches any name)."""
+    if not services:
+        return
+    errors: list[str] = []
+    for node in graph.nodes:
+        names = [n for n in dict.fromkeys(node.claims) if claim_entry(services, n) is not None]
+        errors += [
+            f"{node.key}: services {a!r} and {b!r} share the variable {envvars.service(a)}; claim one of them"
+            for a, b in env_clashes(names)
+        ]
+    report.add("tasks", errors)
+    names = {n for node in graph.nodes for n in node.claims}
+    templates = {re.sub(r"\{[^}]*\}", "*", t) for spec in declarations for t in getattr(spec, "claims", ())}
+
+    def claimed(key: str) -> bool:
+        if any(fnmatch.fnmatchcase(n, key) for n in names):
+            return True
+        return any(fnmatch.fnmatchcase(t, key) or fnmatch.fnmatchcase(key, t) for t in templates)
+
+    report.warnings += [
+        f"services: {key!r} is claimed by no task of the run, so it never starts (contraagent docs tasks, Services)"
+        for key in services
+        if not claimed(key)
+    ]
 
 
 def _kind_clashes(declarations: list[Any]) -> list[str]:

@@ -10,8 +10,8 @@ a deferral's cause) are the record types of `dispatch/records.py`.
 * `LaunchRow` — one line of `runs/<run>/launches.jsonl`: one launch, as
   `LaunchResult.as_dict` writes it.
 * `PlanRow`, `FlowCallRow`, `DeferredRow` — one line of `plan.jsonl`,
-  `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` (`dispatch/records.py`) is one
-  line of `rests.jsonl`.
+  `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` and `ServiceEvent`
+  (`dispatch/records.py`) are one line of `rests.jsonl` and of `services.jsonl`.
 * `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its run format.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
   never guesses. `extra="forbid"` throughout, because a renamed field or a

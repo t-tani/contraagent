@@ -37,6 +37,7 @@ from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, Ski
 from contraagent._internal.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
+from contraagent._internal.execution.services import service_environment
 from contraagent._internal.platform import envvars, telemetry
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.kind_config import KindConfig
@@ -227,6 +228,7 @@ class AgentRunner:
             **({envvars.BASH: bash} if bash and bash != "bash" else {}),
             **self.env,
             **self.adapter.env(task),
+            **service_environment(),
             envvars.RUN: self.run_id,
             envvars.TASK: task.key,
             envvars.KIND: kind_name(task.kind),

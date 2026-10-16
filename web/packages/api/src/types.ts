@@ -51,6 +51,7 @@ export type DeferralCause = S['DeferralCause'];
 export type QuotaCap = S['QuotaCap'];
 export type CredentialRest = S['CredentialRest'];
 export type ModelUsage = S['ModelUsage'];
+export type ServiceSpan = S['ServiceSpan'];
 export type PreflightRecord = S['PreflightRecord'];
 export type DroppedRoute = S['DroppedRoute'];
 export type Substitution = S['Substitution'];

@@ -17,7 +17,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from contraagent._internal import docs
-from contraagent._internal.dispatch.records import RestEvent
+from contraagent._internal.dispatch.records import RestEvent, ServiceEvent
 from contraagent._internal.execution.schemas import Cursor, DeferredRow, FlowCallRow, JournalRow, LaunchRow, PlanRow, RunInfo
 from contraagent._internal.routing.config_schema import config_schema
 from contraagent._internal.runs import layout
@@ -36,6 +36,7 @@ RECORDS: dict[str, type[BaseModel]] = {
     layout.FLOW_CALLS: FlowCallRow,
     layout.DEFERRED: DeferredRow,
     layout.RESTS: RestEvent,
+    layout.SERVICES: ServiceEvent,
     layout.CURSOR: Cursor,
 }
 

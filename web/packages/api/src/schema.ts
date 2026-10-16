@@ -1678,6 +1678,11 @@ export type components = {
              * @description each model the run's agent sessions ran on, in order of first use
              */
             models?: components["schemas"]["ModelUsage"][];
+            /**
+             * Services
+             * @description each start of a service of the run (`services.jsonl`), with its stop, in start order
+             */
+            services?: components["schemas"]["ServiceSpan"][];
             /** @description what the run's preflight did (`run.json`); null when its run.json records none */
             preflight?: components["schemas"]["PreflightRecord"] | null;
         };
@@ -2167,6 +2172,63 @@ export type components = {
              * @description the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
              */
             row_extras?: string[];
+        };
+        /**
+         * ServiceSpan
+         * @description One start of the service a claim name stands for (`services.jsonl`), with its stop:
+         *     a service that stopped when idle and started again has a span for each start.
+         */
+        ServiceSpan: {
+            /**
+             * Name
+             * @description the claim name the service stands for
+             */
+            name: string;
+            /**
+             * Started At
+             * @description when its start ended, ISO 8601
+             */
+            started_at: string;
+            /**
+             * Key
+             * @description the task whose claim started it
+             * @default
+             */
+            key?: string;
+            /**
+             * Address
+             * @description what it gave its tasks to reach it; null for none
+             */
+            address?: string | null;
+            /**
+             * Start S
+             * @description how long its start took, in seconds
+             * @default 0
+             */
+            start_s?: number;
+            /**
+             * Start Error
+             * @description the exception of a start that failed (the service did not start); empty when it started
+             * @default
+             */
+            start_error?: string;
+            /**
+             * Stopped At
+             * @description when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded
+             * @default
+             */
+            stopped_at?: string;
+            /**
+             * Stop Cause
+             * @description why it stopped; null while it is up
+             */
+            stop_cause?: ("idle" | "run_end" | "interrupted") | null;
+            /**
+             * Stop Error
+             * @description the exception its stop raised; empty when the stop went well
+             * @default
+             */
+            stop_error?: string;
         };
         /**
          * SkippedHop

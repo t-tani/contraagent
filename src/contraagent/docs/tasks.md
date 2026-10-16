@@ -25,7 +25,7 @@ them all):
 | `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
 | `output_name` | where its output file is | "Flows that depend on results", below |
 | `rerun_on_resume` | a step that a resume runs again | "The flow", below |
-| `claims` | one task at a time on a name | "Claims", below |
+| `claims` | one task at a time on a name, and the service a name stands for | "Claims" and "Services", below |
 | `changes` | the files it changes beside its output | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
 | `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks | [Routing](routing.md) |
@@ -413,6 +413,61 @@ received yet (yield it first), and one that holds an empty list, which would cla
 nothing. Claims are not part of the fingerprint: they change
 when a task runs, not what it does. The plan records each task's claims, and the
 monitor shows them in the task's detail.
+
+## Services: a server that the tasks of a claim share
+
+Some tasks need a long-lived helper while they run: a worker service, a database, a
+local server. A **service** is the helper a claim name stands for. `Pipeline(services=)`
+names it by the claim name, and its value (`Service`) is a function of the name that
+returns a context manager: entering it starts the service and gives its address, a
+string its tasks reach it by (None when there is nothing to reach); exiting it stops
+the service.
+
+::code{file="examples/services/flow.py" from="@contextlib.contextmanager" to="def topics("}
+
+::code{file="examples/services/flow.py" from="def pipeline("}
+
+A task that claims the name holds the service while it runs. The first such task
+starts it, before its first attempt; a task that claims the name while it starts
+waits for that start. Every task that claims the name shares the one service, as many
+at once as the name's claim capacity lets ("Claims", above), and the service runs
+until the run ends. A key may be an `fnmatch` pattern, as in `claim_capacity`: a
+service under `db:*` is started once for each name it matches (`db:alpha`, `db:beta`),
+and is given that name.
+
+A task reaches the service by its address. A Python task calls
+`contraagent.service_address(name)`; an agent task's coding agent finds it in the
+variable `CONTRAAGENT_SERVICE_<NAME>`, the name in capitals with each character but a
+letter or a digit turned into `_` (`db:alpha` gives `CONTRAAGENT_SERVICE_DB_ALPHA`):
+
+::code{file="examples/services/flow.py" from="@python_task(claims=" to="summarize = agent_task("}
+
+::code{file="examples/services/flow.py" from="review = agent_task(" to="class _Lookup("}
+
+The run's end stops every service still running, the last started first: a run that
+returns, a run that raises, and a run stopped by Ctrl-C or SIGTERM. A process killed
+outright (SIGKILL) runs no stop. `service_idle_s=` stops a service once no task has
+held it for that many seconds (0: as soon as the last one ends), and the next task
+that claims the name starts it again; leave it unset for a service that is slow to
+start, so that the waits of a flow between its tasks do not start it again and again.
+
+A start that raises fails the task that started it, and every task that claims the
+name later in the run, with stop `launch_failed` and the start's exception as the
+reason (`service 'index' did not start: OSError: ...`); the other tasks of the run
+still run. The start is not tried again in the run: a service whose start can fail
+for a moment retries inside its own start. A resumed run starts it again for the
+tasks that run again; a task the resume skips starts nothing. A stop that raises is
+recorded with its exception, and the service counts as stopped.
+
+`services.jsonl` records each start (the task that started it, its address, how long
+it took, or the exception) and each stop (why: `idle`, `run_end` or `interrupted`),
+and the monitor shows each start of a service with its stop (`Plan.services`).
+`contraagent check` warns about a service that no task of the run claims, and fails
+a task that claims two services whose names give one variable.
+
+A stub run and a replay start services as any run does, since the Python tasks they
+execute may need them. A scope ("Around each attempt", below) suits a helper of one
+attempt; a service suits one that the tasks of a claim share.
 
 ## Files a task changes
 

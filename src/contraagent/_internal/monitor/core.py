@@ -35,7 +35,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ValidationError
 
 from contraagent._internal.backends.streams import normalize_stream_line, resolve_format
-from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, TimeBoxRecord
+from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, ServiceEvent, TimeBoxRecord
 from contraagent._internal.execution.cursor import parse_cursor
 from contraagent._internal.execution.schemas import JournalRow
 from contraagent._internal.monitor import trends
@@ -598,6 +598,7 @@ class Monitor:
             "flow_calls": self._flow_calls(run, cwd),
             **self._quota(run),
             "models": model_usage(journal),
+            "services": self._services(run),
             **self._preflight(run),
         }
 
@@ -638,6 +639,30 @@ class Monitor:
                 open_.pop(name)["ended"] = event.ts
         rule = info.get("quota_rule")
         return {"quota_caps": quota_caps, "quota_rule": rule if isinstance(rule, str) else "", "rests": rests}
+
+    def _services(self, run: str) -> list[dict[str, Any]]:
+        """Each start of a service (`services.jsonl`), folded with the stop that ended it, in
+        start order. A stop ends the latest open start of its name; a start an earlier
+        process of a resumed run never stopped (it was killed) stays without one."""
+        spans: list[dict[str, Any]] = []
+        up: dict[str, dict[str, Any]] = {}
+        for row in parse_rows(self.source.lines(run, layout.SERVICES)[0]):
+            try:
+                event = ServiceEvent.model_validate(row)
+            except ValidationError:
+                continue
+            if event.event == "start":
+                span = {"name": event.name, "started_at": event.ts, "key": event.key or "", "address": event.address}
+                span["start_s"] = event.wall_s
+                if event.error is not None:
+                    span["start_error"] = event.error
+                else:
+                    up[event.name] = span
+                spans.append(span)
+            elif event.name in up:
+                span = up.pop(event.name)
+                span.update(stopped_at=event.ts, stop_cause=event.cause, stop_error=event.error or "")
+        return spans
 
     def _cwd(self, run: str) -> Path | None:
         """The run's working directory, as `run.json` records it."""
