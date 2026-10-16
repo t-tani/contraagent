@@ -14,7 +14,7 @@ least 14 days ago. Run these in `web/`:
 pnpm install
 pnpm check         # generated types current, translations complete, tsc, eslint, vitest
 pnpm build         # rebuilds src/contraagent/_internal/monitor/static (committed; CI fails if stale) and the site
-pnpm check:dist    # the packages as an npm consumer sees them, the gzip budgets (size-budgets.json), no image in a tarball
+pnpm check:dist    # the packages as an npm consumer sees them, the gzip budgets (size-budgets.json), the registry tarballs (no image, no file: or workspace: dependency)
 pnpm gen           # the TypeScript types from the monitor's openapi.json
 pnpm i18n          # extract msg() strings to packages/ui/xliff, rebuild src/locales
 pnpm e2e           # build, then Playwright against the real monitor over the demo runs
@@ -22,6 +22,7 @@ pnpm dev           # live-reload UI against a monitor on :8787
 pnpm run docs      # the documentation site, live reload (`pnpm docs` is pnpm's own command)
 pnpm screenshots   # the READMEs' and docs' screenshots; --only readme,ui,elements
 pnpm tarballs      # the three packages as tarballs/*.tgz to install from this checkout
+pnpm tarballs:registry  # the same tarballs as the release publishes them to npm
 ```
 
 ## Layers

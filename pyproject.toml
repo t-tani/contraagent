@@ -30,8 +30,11 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/t-tani"
-Source = "https://github.com/t-tani"
+Homepage = "https://github.com/t-tani/contraagent"
+Documentation = "https://t-tani.github.io/contraagent/"
+Source = "https://github.com/t-tani/contraagent"
+Issues = "https://github.com/t-tani/contraagent/issues"
+Changelog = "https://github.com/t-tani/contraagent/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 monitor = ["fastapi>=0.110", "uvicorn>=0.29", "sse-starlette>=3.0"]

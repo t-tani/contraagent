@@ -33,6 +33,13 @@ type outside `contraagent.docs`), `uv run griffe check --search src contraagent 
 <last tag>` (breaking changes since a release; tags are `<version>`),
 `docker build -t contraagent-hub:dev .` (the hub's image).
 
+### Releasing
+
+A pushed tag `X.Y.Z` releases: `.github/workflows/release.yml` checks that the tag,
+pyproject.toml, the three package.json and CHANGELOG.md agree, runs ci.yml, and
+publishes to PyPI and npm. The steps and the one-time setup are in
+[docs/releasing.md](docs/releasing.md).
+
 A test never waits out a retry's backoff (`RetryingRunner.backoff` is 0 in the tests).
 Tests that share something across a module (one hub, the `live-demo` directory, an
 agent's rate limits) carry an `xdist_group`.

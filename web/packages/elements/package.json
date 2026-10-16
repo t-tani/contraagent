@@ -3,6 +3,23 @@
   "version": "0.1.0",
   "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, charts (columns, lines, a heatmap, horizontal bars), a check table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
   "license": "MIT",
+  "keywords": [
+    "web-components",
+    "lit",
+    "custom-elements",
+    "charts",
+    "data-table",
+    "design-tokens"
+  ],
+  "homepage": "https://t-tani.github.io/contraagent/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/t-tani/contraagent.git",
+    "directory": "web/packages/elements"
+  },
+  "bugs": {
+    "url": "https://github.com/t-tani/contraagent/issues"
+  },
   "type": "module",
   "exports": {
     ".": {

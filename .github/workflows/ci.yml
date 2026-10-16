@@ -1,11 +1,14 @@
 # Lint, type-check and test on every supported Python on Linux and on one
 # Python on macOS and Windows, plus one run against the lowest versions of the
-# direct dependencies that pyproject.toml allows.
+# direct dependencies that pyproject.toml allows. release.yml runs it too, on
+# a release's tag, so a push of a tag starts no run of its own here.
 name: CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read

@@ -1,0 +1,254 @@
+# Publish a release: a push of the tag `X.Y.Z` publishes the Python package
+# `contraagent` to PyPI and @contraagent/api, @contraagent/elements and
+# @contraagent/ui to npm, both through Trusted Publishing (OIDC, no tokens), and
+# creates the GitHub release with that version's section of CHANGELOG.md.
+#
+# Run by hand (workflow_dispatch) with `testpypi` on, it is a dry run: the
+# Python package goes to TestPyPI (environment `testpypi`), `npm publish
+# --dry-run` checks each npm tarball, and no GitHub release is made. With `testpypi` off it must run on a
+# tag, and it publishes that tag as a push would.
+#
+# The steps for the person who releases: docs/releasing.md.
+name: Release
+
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      testpypi:
+        description: "Dry run: publish to TestPyPI and run npm publish --dry-run"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# One release at a time for one ref, never cancelled half-way. The group must
+# differ from ci.yml's, which runs here with this workflow's name and ref.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Versions and changelog
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      dry: ${{ steps.versions.outputs.dry }}
+    steps:
+      - uses: actions/checkout@v6
+      # The tag, pyproject.toml and the three package.json name one version, and
+      # the npm packages depend on each other at it (`workspace:*`, which
+      # `pnpm pack` writes as the exact version, or that version itself).
+      - id: versions
+        env:
+          DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.testpypi }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, re, sys, tomllib
+          from pathlib import Path
+
+          dry = os.environ["DRY"] == "true"
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          errors = []
+          if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              errors.append(f"pyproject.toml: version {version} is not X.Y.Z")
+          if os.environ["REF_TYPE"] == "tag":
+              if os.environ["REF_NAME"] != version:
+                  errors.append(f"tag {os.environ['REF_NAME']} differs from pyproject.toml's version {version}")
+          elif not dry:
+              errors.append(f"a release runs on a tag, not on {os.environ['REF_TYPE']} {os.environ['REF_NAME']}")
+          manifests = [json.loads(Path(f"web/packages/{d}/package.json").read_text()) for d in ("api", "elements", "ui")]
+          names = {m["name"] for m in manifests}
+          for m in manifests:
+              if m["version"] != version:
+                  errors.append(f"{m['name']}: version {m['version']}, not {version}")
+              for field in ("dependencies", "peerDependencies", "optionalDependencies"):
+                  for name, spec in m.get(field, {}).items():
+                      if name in names and spec not in ("workspace:*", version):
+                          errors.append(f"{m['name']}: {field}.{name} is {spec}, not workspace:* or {version}")
+
+          # The version's section of CHANGELOG.md, which `towncrier build` writes:
+          # from its `## [X.Y.Z]` heading to the next release's heading.
+          text = Path("CHANGELOG.md").read_text()
+          section = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.M | re.S)
+          if section and section.group(1).strip():
+              Path("notes.md").write_text(section.group(1).strip() + "\n")
+          elif dry:
+              print(f"::warning::CHANGELOG.md has no section for {version}; a release needs one")
+          else:
+              errors.append(f"CHANGELOG.md has no section for {version}: uv run towncrier build --version {version}")
+
+          for e in errors:
+              print(f"::error::{e}")
+          if errors:
+              sys.exit(1)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"version={version}\ndry={'true' if dry else 'false'}\n")
+          print(f"version {version}, {'dry run' if dry else 'release'}")
+          EOF
+      - if: steps.versions.outputs.dry == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: notes
+          path: notes.md
+          if-no-files-found: error
+
+  # Every job of ci.yml: the full test suite on every platform, and the web checks.
+  test:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Python and npm packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - run: uv build
+      - run: uvx twine check --strict dist/*
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        working-directory: web
+      # The tarballs as npm receives them: each dependency on another of the
+      # three names its exact version.
+      - run: pnpm tarballs:registry
+        working-directory: web
+      - run: node scripts/packed.mjs tarballs/*.tgz
+        working-directory: web
+      - uses: actions/upload-artifact@v7
+        with:
+          name: python
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm
+          path: web/tarballs/
+          if-no-files-found: error
+
+  pypi:
+    name: PyPI
+    needs: [check, test, build]
+    if: needs.check.outputs.dry == 'false'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/contraagent
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: python
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
+
+  # The dry run's upload, in its own environment: `pypi` accepts only tags.
+  testpypi:
+    name: TestPyPI
+    needs: [check, test, build]
+    if: needs.check.outputs.dry == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/contraagent
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: python
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # TestPyPI keeps a version once uploaded: a second dry run of it passes.
+          skip-existing: true
+
+  npm:
+    name: npm
+    needs: [check, test, build]
+    if: needs.check.outputs.dry == 'false'
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/org/contraagent
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm
+          path: tarballs/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 brings npm 10.
+      - run: npm install --global npm@11.21.0
+      # In the order they depend on each other: api, elements, ui. A version
+      # already on npm stays as it is: the first one, which the owner publishes
+      # by hand (docs/releasing.md), or one from a run that failed part way.
+      - env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          for name in api elements ui; do
+            if npm view "@contraagent/$name@$VERSION" version >/dev/null 2>&1; then
+              echo "::notice::@contraagent/$name@$VERSION is on npm already"
+              continue
+            fi
+            npm publish "tarballs/contraagent-$name-$VERSION.tgz" --access public --provenance
+          done
+
+  # The dry run's npm side: the same npm and the same tarballs, with nothing
+  # sent, so it needs neither the `npm` environment nor a token.
+  npm-dry-run:
+    name: npm (dry run)
+    needs: [check, test, build]
+    if: needs.check.outputs.dry == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm
+          path: tarballs/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm install --global npm@11.21.0
+      - env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          for name in api elements ui; do
+            npm publish "tarballs/contraagent-$name-$VERSION.tgz" --access public --dry-run
+          done
+
+  release:
+    name: GitHub release
+    needs: [check, pypi, npm]
+    if: needs.check.outputs.dry == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: python
+          path: dist/
+      - uses: actions/download-artifact@v8
+        with:
+          name: notes
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.version }}
+        run: >-
+          gh release create "$TAG" dist/*
+          --repo "$GITHUB_REPOSITORY" --verify-tag
+          --title "$TAG" --notes-file notes.md
