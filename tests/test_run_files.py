@@ -252,5 +252,5 @@ def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is
     # A replace in progress: Windows may show the document as absent until it ends.
     tmp = tmp_path / ".d.json.1.abc.tmp"
     tmp.write_text("{}")
-    threading.Timer(0.1, lambda: (doc.write_text('{"n": 1}'), tmp.unlink())).start()
+    threading.Timer(0.1, lambda: (files.write_document(doc, '{"n": 1}'), tmp.unlink())).start()
     assert json.loads(files.read_document(doc)) == {"n": 1}
