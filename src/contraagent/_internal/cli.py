@@ -126,7 +126,11 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
     val.add_argument("--call", default=None, help="the call file (default: $CONTRAAGENT_CALL)")
 
     recording = add_command(
-        sub, "recording", help="recordings a replay plays (contraagent docs testing, Record once, replay in CI)", add_arguments=_no_arguments, run=_recording
+        sub,
+        "recording",
+        help="recordings a replay plays (contraagent docs testing, Record once, replay in CI)",
+        add_arguments=_no_arguments,
+        run=_recording,
     )
     rsub = recording.add_subparsers(dest="rcmd", required=True)
     imp = rsub.add_parser(

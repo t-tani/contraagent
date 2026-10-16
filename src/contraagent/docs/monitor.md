@@ -178,9 +178,11 @@ status), `columns` (vertical bars, `stacked` or side by side), `lines`, a
 `heatmap` (a number per row and column, in shades of one colour), a
 `status_grid` (a state per row and column, each coloured by its tone and named
 by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
-what a part shows, how to read a number; any markup in it is shown as text), and
-`blocks` of them one under another, each with an optional `title` and folded
-when `collapsed`. A tone is one of `failed`, `attention`, `done`, `running`,
+what a part shows, how to read a number; any markup in it is shown as text),
+`code` (a text highlighted by its `language`, with line numbers; see below), a
+`tree` (nodes the reader folds and opens, such as files and directories), and
+`blocks` of them one under another, each with an optional `title`, folded
+when `collapsed`, and an optional `anchor` that a tree node's link leads to. A tone is one of `failed`, `attention`, `done`, `running`,
 `muted` and `neutral`. The models are in `contraagent.monitor`
 (`PanelBody`); a panel returns one, or a dict with its `type`. Any other dict is
 shown as a JSON tree. A typed body that does not validate (an unknown tone
@@ -232,6 +234,34 @@ output of its `write_note` task, read with `output(key)`:
 From Python, `Monitor(panels=...)`:
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
+
+### Code and files
+
+A `code` body is a text shown as code (`CodeBody`). `language` is one of
+`LANGUAGES` (`python`, `json`, `javascript`, `typescript`, `c`, `cpp`, `java`,
+`go`, `rust`, `shell`, `toml`, `yaml`, `sql`, `xml`, `diff`) or a file extension
+such as `py`; any other is shown as plain text. `start` is the number of the first
+line, `highlight` marks lines in those numbers (`[7, [10, 14]]`: line 7 and lines 10
+to 14), `path` names the file over it, and `wrap` wraps long lines instead of
+scrolling them sideways. The monitor shows the first `CODE_LINES` lines (5,000) and
+at most `CODE_CHARACTERS` characters (500,000), says how many lines it left out,
+and its Copy button copies the whole text.
+
+A `tree` body is a list of nodes (`TreeNode`), each with a `name` and its
+`children`; the reader folds and opens them with the mouse or the arrow keys. A
+node's `icon` is `directory` or `file` (by default: a directory when it has
+children), its `badge` a word beside its name coloured by its `tone`, and its `id`
+the names from the top joined by `/` unless it has one of its own. A node either
+holds `code`, shown beside the tree while the node is selected, or a `link`
+(`TreeLink`) to a run panel (`panel`), a task (`task`, its key), each in `run` when
+it is not the run shown (a trends panel names it), or to a body of the same panel
+by its `anchor`. `selected` names the node selected first; by default it is the
+first node with code. The texts come with the tree, so selecting a file sends no
+request and works in an export too. The live feed sends the whole body again
+each time it changes, so a tree of large files is best kept in a panel of its own.
+A run's output files, one directory per kind:
+
+::code{file="examples/panels/files.py" from="def files(" to="#: What"}
 
 ## Over many runs: trends
 

@@ -1,6 +1,8 @@
 // Registers every cae-* element.
 import './json-tree.js';
 import './markdown.js';
+import './code.js';
+import './tree.js';
 import './count.js';
 import './segmented.js';
 import './data-table.js';

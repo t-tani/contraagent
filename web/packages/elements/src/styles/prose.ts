@@ -56,4 +56,9 @@ export const prose = css`
   .hl-t { color: var(--code-type); }
   .hl-b { color: var(--code-name); }
   .hl-key { color: var(--code-name); }
+  .hl-tag { color: var(--code-keyword); }
+  .hl-attr { color: var(--code-name); }
+  .hl-meta { color: var(--code-comment); font-weight: 600; }
+  .hl-ins { color: var(--status-done); }
+  .hl-del { color: var(--status-failed); }
 `;

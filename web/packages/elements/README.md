@@ -3,7 +3,7 @@
 Generic web components (Lit) and the parts they are built from: the design
 tokens and the built-in themes, status pills, legends, rows of facts, icons, a
 segmented control, keyboard focus for a group of items, a data table, stat
-tiles, time lanes, a check table, a transcript, and elements for a JSON tree, markdown and counters. Nothing here knows contraagent's data: an element
+tiles, time lanes, a check table, a transcript, and elements for a JSON tree, markdown, code, a tree of items and counters. Nothing here knows contraagent's data: an element
 takes plain data and its words, and reports what the reader did as a `cae-*`
 event. `@contraagent/ui` builds the contraagent monitor from them.
 
@@ -22,16 +22,19 @@ import '@contraagent/elements/data-table/define'; // <cae-data-table>
 import '@contraagent/elements/tiles/define'; // <cae-stat-tiles>
 import '@contraagent/elements/graph/define'; // <cae-layered-graph>, <cae-mark-matrix>, <cae-segmented>
 import '@contraagent/elements/charts/define'; // <cae-column-chart>, <cae-line-chart>, <cae-heatmap>, <cae-state-grid>, <cae-bar-chart>
+import '@contraagent/elements/code/define'; // <cae-code>
+import '@contraagent/elements/tree/define'; // <cae-tree>
 import '@contraagent/elements/define'; // every cae-* element
 import { pill, legend, base } from '@contraagent/elements';
 ```
 
 The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
 `matrix`, `tiles`, `lanes`, `charts`, `check-table`, `transcript`, `json-tree`,
-`markdown` and `count`, and a `define` entry for each element
+`markdown`, `code`, `tree` and `count`, and a `define` entry for each element
 (`segmented/define`, `data-table/define`, `graph/define`, `matrix/define`,
 `tiles/define`, `lanes/define`, `charts/define`, `check-table/define`,
-`transcript/define`, `json-tree/define`, `markdown/define`, `count/define`).
+`transcript/define`, `json-tree/define`, `markdown/define`, `code/define`, `tree/define`,
+`count/define`).
 
 Install the package from the npm registry:
 
@@ -70,6 +73,8 @@ pnpm add <checkout>/web/tarballs/contraagent-elements-*.tgz
 - [Lanes](docs/lanes.md): bars on a time axis, a lane per group, running bars growing until now.
 - [Charts](docs/charts.md): columns (stacked or side by side), lines, a heatmap and horizontal bars of plain series, each with a legend, a tooltip and a table of its values.
 - [Check table](docs/check-table.md): named values checked one by one, each with what it must be, what it is and the verdict.
+- [Code](docs/code.md): a text highlighted by its language, its lines numbered and some marked, wrapped or scrolled, copied whole, and cut when long.
+- [Tree](docs/tree.md): items in a tree, folded and opened with the mouse and the keyboard, one of them selected, each with an icon and a badge.
 - [Transcript](docs/transcript.md): a conversation with an agent in sessions: bubbles, reasoning, tool cards and web searches, following the end as it grows.
 - [Building a page](docs/page.md): a CI pipeline's page from several elements: a theme switch, stat tiles, a sortable table, a graph with shards and a retry loop, and a detail panel.
 

@@ -64,6 +64,13 @@ hand-written data of their examples. What an element sends shows under it.
 <Demo tag="ca-contracts" props={{ outputs: 'outputs' }} scroll="640px" describe />
 <ElementLinks tags={['ca-contracts']} />
 
+### `<ca-panel-body>`
+
+A pipeline's own view: the demo run's output files as a tree, each file's code beside it (`examples/panels/files.py` of the Python package).
+
+<Demo tag="ca-panel-body" props={{ body: 'panelBody' }} describe />
+<ElementLinks tags={['ca-panel-body']} links={[{ href: withBase('/python/monitor/'), label: 'Panels in the monitor' }]} />
+
 ## Elements of @contraagent/<wbr />elements
 
 ### A whole page
@@ -113,6 +120,16 @@ tiles, a sortable table and a layered graph with a detail panel.
 
 <Example name="transcript" source="details" />
 <ElementLinks tags={['cae-transcript']} links={[{ href: withBase('/node/elements/transcript/'), label: 'Transcript' }]} />
+
+### `<cae-code>`
+
+<Example name="code" source="details" />
+<ElementLinks tags={['cae-code']} links={[{ href: withBase('/node/elements/code/'), label: 'Code' }]} />
+
+### `<cae-tree>`
+
+<Example name="tree" source="details" />
+<ElementLinks tags={['cae-tree']} links={[{ href: withBase('/node/elements/tree/'), label: 'Tree' }]} />
 
 ### `<cae-segmented>`
 

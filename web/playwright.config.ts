@@ -3,7 +3,7 @@
 // runs shipped from two hosts (e2e/hub.py; hub.spec.ts), and by a monitor served under
 // a base path behind a proxy (base-path.spec.ts); and the documentation
 // site as built, under its base path, for its pages, links and live elements
-// (landing.spec.ts, mobile.spec.ts, fit.spec.ts, docs-links.spec.ts). Run `pnpm build` first
+// (landing.spec.ts, mobile.spec.ts, fit.spec.ts, docs-links.spec.ts, code-tree.spec.ts). Run `pnpm build` first
 // (`pnpm e2e` does both).
 import { defineConfig } from '@playwright/test';
 import { DOCS, DOCS_PORT } from './e2e/docs-site.js';

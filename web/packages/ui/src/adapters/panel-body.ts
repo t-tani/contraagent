@@ -1,8 +1,9 @@
 // A pipeline's own view (`monitor.Panel`) → what the generic elements take: a table
-// body's columns and rows for `<cae-data-table>`, its tiles for `<cae-stat-tiles>`.
-import type { PanelTile, TableBody, TableColumn } from '@contraagent/api';
+// body's columns and rows for `<cae-data-table>`, its tiles for `<cae-stat-tiles>`, a tree body's nodes for `<cae-tree>`.
+import type { PanelTile, TableBody, TableColumn, TreeBody, TreeNode } from '@contraagent/api';
 import type { DataColumn } from '@contraagent/elements/data-table';
 import type { StatTile } from '@contraagent/elements/tiles';
+import type { TreeItem } from '@contraagent/elements/tree';
 import type { Tone } from '@contraagent/elements';
 import { html } from 'lit';
 import { cellText } from '../words/panels.js';
@@ -67,6 +68,43 @@ export function bodyColumns(body: TableBody): DataColumn<BodyRow>[] {
       },
     };
   });
+}
+
+/** A tree body as `<cae-tree>` takes it, and each node by its id. */
+export interface BodyTree {
+  items: TreeItem[];
+  /** Each node, by its id (its own, else the names from the top joined by `/`). */
+  nodes: Map<string, TreeNode>;
+  /** The node selected first: the body's `selected`, else the first node with code; null when none has code. */
+  first: string | null;
+}
+
+/**
+ * A tree body's nodes as tree items: each node's id its own or the names from the top
+ * joined by `/` (as the monitor's model names them), selectable when it has code or a link.
+ */
+export function bodyTree(body: TreeBody): BodyTree {
+  const nodes = new Map<string, TreeNode>();
+  let first: string | null = null;
+  const walk = (list: readonly TreeNode[], parent: string): TreeItem[] =>
+    list.map((n) => {
+      const path = parent ? `${parent}/${n.name}` : n.name;
+      const id = n.id ?? path;
+      nodes.set(id, n);
+      if (first === null && n.code) first = id;
+      return {
+        id,
+        name: n.name,
+        icon: n.icon ?? null,
+        badge: n.badge ?? null,
+        tone: n.tone ?? null,
+        open: n.open ?? true,
+        selectable: !!n.code || !!n.link,
+        children: n.children?.length ? walk(n.children, path) : null,
+      };
+    });
+  const items = walk(body.nodes, '');
+  return { items, nodes, first: body.selected ?? first };
 }
 
 /** A body's tiles as `<cae-stat-tiles>` takes them. */

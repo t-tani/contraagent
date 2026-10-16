@@ -1,5 +1,5 @@
 // Panel bodies: what a pipeline's own view returns (`monitor.Panel`). A typed body
-// (tiles, a table, charts, blocks of them) is drawn with the monitor's elements;
+// (tiles, a table, charts, code, a tree, blocks of them) is drawn with the monitor's elements;
 // any other JSON object is shown as a JSON tree.
 import type { components } from './schema.js';
 import type { JsonObject, PanelInfo } from './types.js';
@@ -18,6 +18,10 @@ export type HBar = S['HBar'];
 export type StatusGridBody = S['StatusGridBody'];
 export type GridCell = S['GridCell'];
 export type NoteBody = S['NoteBody'];
+export type CodeBody = S['CodeBody'];
+export type TreeBody = S['TreeBody'];
+export type TreeNode = S['TreeNode'];
+export type TreeLink = S['TreeLink'];
 export type BlocksBody = S['BlocksBody'];
 export type ChartSeries = S['ChartSeries'];
 /** How a number of a body is written: `pct` is a fraction (0.97 is 97%), `duration` seconds, `datetime` an ISO time. */
@@ -33,12 +37,14 @@ export type TypedPanelBody =
   | HBarsBody
   | StatusGridBody
   | NoteBody
+  | CodeBody
+  | TreeBody
   | BlocksBody;
 /** What a panel returns: a typed body, or any JSON object. */
 export type PanelBody = TypedPanelBody | JsonObject;
 
 /** The `type` of each typed body. */
-export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'blocks'] as const;
+export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'blocks'] as const;
 
 /** `body` as a typed body, or null when it is any other JSON object (a JSON tree). */
 export function typedBody(body: unknown): TypedPanelBody | null {

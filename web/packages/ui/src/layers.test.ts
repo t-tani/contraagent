@@ -19,7 +19,7 @@
 //   define/                 the subpaths' entries; only index.ts imports it
 //
 //   inside @contraagent/elements   a folder imports only from itself and the ranks before it
-//   (ELEMENTS_LAYERS): core, themes, styles, primitives, the components, define
+//   (ELEMENTS_LAYERS): core, themes, styles, primitives, code, the components, define
 //
 //   taskOutcomes, outcomeCounts, taskRows   called only in @contraagent/api (deriveRun)
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -179,7 +179,8 @@ const ELEMENTS_LAYERS: readonly (readonly string[])[] = [
   ['themes'],
   ['styles'],
   ['primitives'],
-  ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count', 'charts'],
+  ['code'],
+  ['table', 'matrix', 'transcript', 'tiles', 'lanes', 'checks', 'json', 'markdown', 'count', 'charts', 'tree'],
   ['graph'],
   ['define'],
 ];

@@ -21,7 +21,8 @@ const ALLOWED: Record<string, string> = {
   'packages/elements/src/graph/views/dag.ts|section.cluster': 'a cluster: its name is a button that selects it',
   'packages/elements/src/graph/views/dag.ts|section.node': 'a node: its name is a button that selects it',
   'packages/elements/src/graph/views/node-table.ts|tr.': 'a row of the table: its name is a button that selects it',
-  'packages/elements/src/table/data-table.ts|tbody.': 'the rows (one listener for all): one tab stop, the arrow keys move between them and Enter opens one',
+  'packages/elements/src/tree/tree.ts|span.twist': 'the toggle of a tree item: Right and Left open and close the focused item',
+  'packages/elements/src/table/data-table.ts|tbody.':'the rows (one listener for all): one tab stop, the arrow keys move between them and Enter opens one',
 };
 
 const INTERACTIVE = new Set(['button', 'a', 'input', 'select', 'textarea', 'summary']);

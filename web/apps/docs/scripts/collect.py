@@ -158,6 +158,8 @@ LIVE: dict[str, list[dict]] = {
     ],
     "node/elements/check-table": [example("check-table", "cae-check-table", at="images/check-table.webp")],
     "node/elements/transcript": [example("transcript", "cae-transcript", at="images/transcript.webp")],
+    "node/elements/code": [example("code", "cae-code")],
+    "node/elements/tree": [example("tree", "cae-tree", "cae-code")],
     "node/elements/page": [example("ci-pipeline", at="images/page.webp", page=True)],
 }
 

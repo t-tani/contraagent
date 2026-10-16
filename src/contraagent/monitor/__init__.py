@@ -14,9 +14,13 @@ when first named; the rest of this module, and the HTTP response models in
 from typing import TYPE_CHECKING, Any
 
 from contraagent._internal.monitor.api import (
+    CODE_CHARACTERS,
+    CODE_LINES,
+    LANGUAGES,
     PANEL_TYPES,
     BlocksBody,
     ChartSeries,
+    CodeBody,
     ColumnsBody,
     GridCell,
     HBar,
@@ -30,6 +34,9 @@ from contraagent._internal.monitor.api import (
     TableBody,
     TableColumn,
     TilesBody,
+    TreeBody,
+    TreeLink,
+    TreeNode,
 )
 from contraagent._internal.monitor.core import Monitor, Panel, PanelFn, PeriodRuns, RunRecords, TaskDetailFn, TrendsPanelFn
 from contraagent._internal.monitor.export import ExportReport, export
@@ -42,9 +49,13 @@ if TYPE_CHECKING:
     from contraagent._internal.monitor.server import create_app, serve
 
 __all__ = [
+    "CODE_CHARACTERS",
+    "CODE_LINES",
+    "LANGUAGES",
     "PANEL_TYPES",
     "BlocksBody",
     "ChartSeries",
+    "CodeBody",
     "ColumnsBody",
     "DirectorySource",
     "ExportReport",
@@ -73,6 +84,9 @@ __all__ = [
     "TableColumn",
     "TaskDetailFn",
     "TilesBody",
+    "TreeBody",
+    "TreeLink",
+    "TreeNode",
     "TrendsPanelFn",
     "create_app",
     "export",
