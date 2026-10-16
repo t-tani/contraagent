@@ -40,7 +40,7 @@ from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.platform import envvars
-from contraagent._internal.routing.plan import RoutingError, RoutingPlan
+from contraagent._internal.routing.plan import RoutingError, RoutingPlan, check_task_tables
 
 if TYPE_CHECKING:
     from contraagent._internal.pipeline.pipeline import Pipeline
@@ -146,6 +146,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_services(pipeline.services, graph, [*specs.values(), *found], report)
+    _check_task_tables(pipeline, specs, report)
     _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential])
     return report
 
@@ -177,6 +178,17 @@ def _check_services(services: dict[str, Any], graph: Graph, declarations: list[A
         for key in services
         if not claimed(key)
     ]
+
+
+def _check_task_tables(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport) -> None:
+    """The task tables against the run's kinds, created and reachable (a warning each, as a
+    run logs them): one naming no kind, and one naming a Python task kind, whose
+    `max_concurrent` would bound nothing."""
+    python = {kind for kind, spec in specs.items() if spec.executor == "python"}
+    agents = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
+    with _warnings_of("contraagent") as warnings:
+        check_task_tables(pipeline.config.task_tables([]), agents, {kind: spec.base_kind for kind, spec in agents.items()}, python=python)
+    report.warnings += ["routing: " + _LOG_TAG.sub("", w) for w in warnings]
 
 
 def _kind_clashes(declarations: list[Any]) -> list[str]:
@@ -435,6 +447,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                 requirements={kind: spec.requires for kind, spec in specs.items()},
                 light=[kind for kind, spec in specs.items() if spec.light],
+                all_kinds=False,  # the task tables: `_check_task_tables`
             )
         except RoutingError as exc:
             report.add("routing", [f"routing: {e}" for e in exc.errors])
