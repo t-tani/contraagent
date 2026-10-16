@@ -59,30 +59,6 @@
 .ca-ref-element { border-top: 1px solid var(--sl-color-hairline); padding-top: 0.5rem; margin-top: 2.5rem; }
 .ca-ref code { overflow-wrap: anywhere; }
 
-/* Reference tables on a narrow screen: one card per row, each cell under its column's name. */
-@media (max-width: 50rem) {
-  .sl-markdown-content table.ca-ref { display: block; overflow: visible; border: 0; }
-  .sl-markdown-content table.ca-ref thead { display: none; }
-  .sl-markdown-content table.ca-ref tbody,
-  .sl-markdown-content table.ca-ref tr,
-  .sl-markdown-content table.ca-ref td { display: block; width: auto; }
-  .sl-markdown-content table.ca-ref tr {
-    border: 1px solid var(--sl-color-gray-5);
-    border-radius: 8px;
-    padding: 0.5rem 0.75rem;
-    margin: 0 0 0.75rem;
-  }
-  .sl-markdown-content table.ca-ref td { border: 0; padding: 0.15rem 0; }
-  .sl-markdown-content table.ca-ref td[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
-  }
-  .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child) { display: flex; gap: 0.5rem; align-items: baseline; }
-  .sl-markdown-content table.ca-tokens td[data-label]:not(:first-child)::before { display: inline; min-width: 9rem; }
-}
-
 /* The landing page's entry points (the hero, the scene, the replay and the steps style themselves). */
 .ca-start {
   display: grid;

@@ -19,6 +19,8 @@ const live = z.object({
   theme: z.string().optional(),
   custom: z.string().optional(),
   caption: z.string().optional(),
+  /** A page that shows the element alone, on the whole screen, linked under it. */
+  full: z.string().optional(),
 });
 
 export const collections = {

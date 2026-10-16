@@ -18,6 +18,7 @@ interface Figure {
   theme?: string;
   custom?: string;
   caption?: string;
+  full?: string;
 }
 interface Props { figure: Figure }
 const { figure: f } = Astro.props;
@@ -26,7 +27,7 @@ const { figure: f } = Astro.props;
 <div class="ca-live not-content">
   {
     f.demo ? (
-      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} />
+      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} full={f.full} />
     ) : (
       <Example name={f.example!} page={f.page} theme={f.theme} custom={f.custom} caption={f.caption} source="none" />
     )

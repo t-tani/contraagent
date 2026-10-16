@@ -8,7 +8,7 @@ const isColour = (v: string) => /^(#|rgba?\()/.test(v);
 const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[theme].tokens as Record<string, string>)[name];
 ---
 
-<table class="ca-ref ca-tokens">
+<table class="ca-ref ca-tokens ca-cards">
   <thead>
     <tr>
       <th>Property</th>
@@ -20,10 +20,10 @@ const valueOf = (name: string, theme: (typeof THEME_NAMES)[number]) => (THEMES[t
     {
       TOKENS.map((t) => (
         <tr>
-          <td data-label="Property"><code>{t.prop}</code></td>
-          <td data-label="Meaning">{TOKEN_MEANINGS[t.name]}</td>
+          <td><code>{t.prop}</code></td>
+          <td>{TOKEN_MEANINGS[t.name]}</td>
           {t.derive ? (
-            <td data-label="Value" colspan={THEME_NAMES.length}>
+            <td colspan={THEME_NAMES.length}>
               Every theme, inside the elements: <code>{t.derive}</code>
             </td>
           ) : (

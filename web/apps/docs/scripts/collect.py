@@ -72,7 +72,7 @@ def demo(tag: str, props: dict[str, str], **more: object) -> dict:
     properties to the fixture's keys (`=<json>`: that value; `@client`: a client of the
     demo export, public/demo/data/); `attrs` are its attributes; `height` is the element's own (one
     that fills the box it is given); `page=True`: a whole page, which fills its frame; `scroll`: the most a long list's frame
-    grows to before it scrolls (Demo.astro)."""
+    grows to before it scrolls; `full`: a page that shows the element alone, linked under it (Demo.astro)."""
     return {"demo": tag, "props": props, "tags": [tag], **more}
 
 
@@ -92,6 +92,7 @@ MONITOR = demo(
     theme="contraagent-light",
     height="720px",
     page=True,
+    full="/demo/monitor/",
 )
 
 #: A page (section/name) and its live elements, in order; `at`: the screenshot each takes the place of.
