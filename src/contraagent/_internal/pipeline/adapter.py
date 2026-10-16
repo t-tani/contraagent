@@ -50,7 +50,7 @@ class SpecAdapter(TaskAdapter):
         if node.output_path is not None:
             schema = spec.output_schema
             output = CallOutput(
-                path=str(node.output_path),
+                path=node.output_path.as_posix(),
                 format=spec.output_format,
                 from_=spec.output_from,
                 json_schema=spec.output_json_schema,
@@ -151,7 +151,7 @@ class SpecAdapter(TaskAdapter):
             else {"plugin": False, "role": spec.role, "plugin_dirs": [], "files": []}
         )
         for shared in spec.skills_from:
-            base["plugin_dirs"] = [*base["plugin_dirs"], str(shared.root)]
+            base["plugin_dirs"] = [*base["plugin_dirs"], shared.root.as_posix()]
             base["files"] += [
                 {"path": f"{shared.name}/{rel}", "part": "skill", "text": text[:40_000]} for rel, text in shared.skill_files()
             ]

@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import os
 import secrets
 import shutil
 from pathlib import Path
@@ -276,7 +275,7 @@ class CodexBackend(ResumeById, Backend):
         for plug in launch.plugin_dirs:
             for found in sorted((Path(plug) / "skills").glob("*/SKILL.md")):
                 link = skills / found.parent.name
-                if not os.path.lexists(link):  # a symbolic link, or a junction on Windows
+                if not link.exists(follow_symlinks=False):  # a symbolic link, or a junction on Windows
                     links.link(found.parent.resolve(), link)
         return home
 

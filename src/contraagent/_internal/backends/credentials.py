@@ -28,7 +28,6 @@ A secret that does not resolve fails the launch; it never falls back.
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -64,7 +63,7 @@ class Secret:
                 raise CredentialError(f"secret env:{ref} is not set")
             return env[ref]
         try:
-            value = Path(os.path.expanduser(ref)).read_text(encoding="utf-8").strip()
+            value = Path(ref).expanduser().read_text(encoding="utf-8").strip()
         except OSError as exc:
             raise CredentialError(f"secret file:{ref}: {exc}") from exc
         if not value:

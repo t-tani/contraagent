@@ -157,7 +157,8 @@ class Plugin:
         for sub, part in (("agents", "agent"), ("skills", "skill")):
             for f in markdown_under(self.root / sub):
                 files.append({"path": f.relative_to(self.root).as_posix(), "part": part, "text": f.read_text(encoding="utf-8")[:limit]})
-        return {"plugin": True, "name": self.name, "root": str(self.root), "role": role, "plugin_dirs": [str(self.root)], "files": files}
+        root = self.root.as_posix()
+        return {"plugin": True, "name": self.name, "root": root, "role": role, "plugin_dirs": [root], "files": files}
 
     def lint(self) -> list[str]:
         """Disagreements between the parts of the plugin. Empty when they agree."""
@@ -173,9 +174,9 @@ def markdown_under(d: Path) -> list[Path]:
     if not d.is_dir():
         return []
     out: list[Path] = []
-    seen: set[str] = set()
+    seen: set[Path] = set()
     for top, dirs, files in os.walk(d, followlinks=True):
-        real = os.path.realpath(top)
+        real = Path(top).resolve()
         if real in seen:  # a link back to a directory already read
             dirs[:] = []
             continue

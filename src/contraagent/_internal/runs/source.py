@@ -255,6 +255,8 @@ class DirectorySource:
         path and its `stat`, None when it is absent. With no symbolic link on the way it is
         checked by `lstat`s, not resolved (a period's trends ask for thousands); a link
         takes `path`'s full check."""
+        # Joined as strings: with pathlib's `/` and `Path.lstat` one call took about three
+        # times as long (3.6 µs against 1.3 µs for a present record, CPython 3.12).
         d = os.path.join(self.root, check_name(run, "run id"))
         p = os.path.join(d, check_name(name, "file name")) if name else d
         try:
@@ -333,13 +335,13 @@ class DirectorySource:
         )
 
     def logs(self, run: str) -> list[str]:
-        own = [log for log in layout.LOGS if os.path.isfile(self.path(run, log))]
+        own = [log for log in layout.LOGS if self.path(run, log).is_file()]
         streams = [f"{layout.STREAMS}/{n}{layout.STREAM_SUFFIX}" for n in self._names(run, layout.STREAMS, layout.STREAM_SUFFIX)]
         mine = [f"{layout.PIPELINE}/{n}.jsonl" for n in self._names(run, layout.PIPELINE, ".jsonl")]
         return own + streams + mine
 
     def documents(self, run: str) -> list[str]:
-        out = [d for d in (layout.RUN_INFO, layout.CURSOR) if os.path.isfile(self.path(run, d))]
+        out = [d for d in (layout.RUN_INFO, layout.CURSOR) if self.path(run, d).is_file()]
         for folder in layout.FOLDERS:
             out += [layout.entry(folder, n) for n in self._names(run, folder, ".json")]
         return out

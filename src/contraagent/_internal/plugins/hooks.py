@@ -522,6 +522,7 @@ def patch_inputs(patch: str, cwd: str) -> list[tuple[str, dict]]:
 
 def _patch_call(op: list, cwd: str) -> list[tuple[str, dict]]:
     kind, path, lines = op
+    # os.path, not pathlib: `abspath` folds `..` without following a link.
     file_path = os.path.abspath(os.path.join(cwd, os.path.expanduser(path)))
     if kind == "Add":
         return [("Write", {"file_path": file_path, "content": "".join(f"{x[1:]}\n" for x in lines if x.startswith("+"))})]
