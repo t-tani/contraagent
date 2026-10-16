@@ -6,5 +6,4 @@ that does not exist, lacks a trait the task `requires`, or that a route's coding
 cannot use is refused before the task launches, and `contraagent check` reports it. A
 resting one defers the task. It is not part of the fingerprint. `plan.jsonl` records it
 (`credential`), as do `Task.credential` and the monitor's plan; `RoutingPlan.call_problems`
-and `Router.on_credential` are new. A params model of an agent task with a field named
-`credential` is refused at declaration.
+and `Router.on_credential` are new.
