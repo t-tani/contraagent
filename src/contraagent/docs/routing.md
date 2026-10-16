@@ -211,6 +211,12 @@ The preflight does not probe a route as a call's credential.
 A call's credential that rests on its quota is passed over like any resting
 credential: every hop is on it, so the task is deferred, not failed.
 
+The `[route]` line of a kind names the kind's credential. `contraagent check` adds the
+tasks whose calls name another one to their kind's line (`credential=company for
+summarize-beta, by their task calls`), and a run's `[start]` line names the call's
+credential (`[start] summarize-beta credential=company`). With an override, neither
+does, since the override's credential is in effect.
+
 A credential is who the work is billed to, not what the work is: it is not part of the
 fingerprint, and a resumed run that names another credential for a call skips the task
 it already finished. `plan.jsonl` records the call's credential (`credential`) when it is

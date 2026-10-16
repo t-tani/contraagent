@@ -459,6 +459,9 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    if not pipeline.overrides.credential:  # an override outranks every call's credential
+        for kind, keys in _call_credentials(calls).items():
+            report.routes[kind] += "".join(f"; credential={c} for {', '.join(ks)}, by their task calls" for c, ks in keys.items())
     refused = [f"routing: {n.key}: credential={n.credential!r}: {p}" for n in calls for p in plan.call_problems(n.spec.kind, n.credential)]
     report.add("routing", refused)
     report.add("contracts", _partial_errors(specs, plan))
@@ -476,6 +479,14 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
         if backend is not None and backend.binary and shutil.which(backend.binary, path=backend.base_path()) is None:
             report.warnings.append(f"routing: {agent}: {backend.binary} is not on PATH; its launches would fail")
     _check_models(pipeline, plan, report)
+
+
+def _call_credentials(calls: list[Node]) -> dict[str, dict[str, list[str]]]:
+    """The task keys of `calls` by kind name and the credential each call names."""
+    out: dict[str, dict[str, list[str]]] = {}
+    for node in calls:
+        out.setdefault(kind_name(node.spec.kind), {}).setdefault(node.credential, []).append(node.key)
+    return out
 
 
 def _partial_errors(specs: dict[str, Any], plan: RoutingPlan) -> list[str]:
