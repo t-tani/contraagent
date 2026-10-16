@@ -6,7 +6,8 @@ Each of the scene's stages owns its share (WEIGHTS) of the scroll through the
 scene's track; the rules here depend on those shares: which panel, step and words
 of the loop show at each point of the scroll, as scroll-driven animations, and as
 the states the fallback reaches by transitions (how-scene.ts sets data-stage and
-data-sub). The rest of the scene's style is how.css. WEIGHTS is HowItWorks.astro's
+data-sub), while the scene is pinned (not .how-flat: how-scene.ts sets it when the
+steps do not fit the screen). The rest of the scene's style is how.css. WEIGHTS is HowItWorks.astro's
 too, and how-scene.ts reads it from the track.
 """
 
@@ -37,10 +38,8 @@ def css() -> str:
     a4, b4 = window(CHECK)
     third = (b4 - a4) / 3
     a6, _ = window(N - 1)
+    # The rules of the pinned scene: on a wide screen with motion, unless the steps do not fit the screen (how-flat).
     out: list[str] = [
-        "/* Written by scripts/how_css.py from the stages' shares of the scroll; change the script, not this file. */",
-        "",
-        "@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {",
         "  @supports (animation-timeline: view()) {",
         "    .how-stage, .how-text, .how-glow, .how-n::after, .how-words, .how-loop-step::before,",
         "    .how-rail-fill, .how-depth, .slip, .term-loop, .run-mark {",
@@ -105,6 +104,14 @@ def css() -> str:
         f"    .how-track[data-sub='1'] .term-loop {{ transform: translate3d(0, {SCROLL[0]}, 0); }}",
         f"    .how-track[data-sub='2'] .term-loop {{ transform: translate3d(0, {SCROLL[1]}, 0); }}",
         "    .how-track[data-sub='2'] .slip-1 { opacity: 0.4; }",
+        "  }",
+    ]
+    out = [
+        "/* Written by scripts/how_css.py from the stages' shares of the scroll; change the script, not this file. */",
+        "",
+        "@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {",
+        "  .how:not(.how-flat) {",
+        *(f"  {part}" for line in out for part in line.split("\n")),
         "  }",
         "}",
         "",

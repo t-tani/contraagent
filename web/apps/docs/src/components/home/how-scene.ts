@@ -4,12 +4,18 @@
 // browser has no scroll-driven animations, data-stage on the track and the rail's
 // progress (--how-p), and data-sub (the state within the stage: the check stage has three),
 // which ./how.css turns into the same states by transitions.
-// Narrow screens and reduced motion: the figures are set when they come into view.
+// The scene is pinned only while its words and steps fit the screen: in a wider font,
+// or on a short screen, they may not, and then the scene is .how-flat (its stages one
+// after another, as with reduced motion). Measured with the scene pinned, on load and
+// when the screen changes size.
+// Narrow screens, reduced motion and a flat scene: the figures are set when they come into view.
 
 const track = document.querySelector<HTMLElement>('[data-how]');
 const counts = [...document.querySelectorAll<HTMLElement & { value: number }>('.how cae-count[data-value]')];
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const wide = matchMedia('(min-width: 64rem)');
+/** The least room (px) above and below the pinned scene's words and steps. */
+const ROOM = 8;
 /** Each stage's share of the scroll through the track, and where each stage ends (0 to 1). */
 const weights = (track?.dataset['weights'] ?? '1').split(',').map(Number);
 const ends = weights.map((_, k) => weights.slice(0, k + 1).reduce((a, b) => a + b, 0) / weights.reduce((a, b) => a + b, 0));
@@ -27,9 +33,21 @@ if (track) {
   else {
     const rail = track.querySelector<HTMLElement>('.how-rail-fill');
     const fallback = !CSS.supports('animation-timeline: view()');
+    const scene = track.closest<HTMLElement>('.how');
+    const pin = track.querySelector<HTMLElement>('.how-pin');
+    const left = track.querySelector<HTMLElement>('.how-left');
+    let flat = false;
+    /** Pinned, unless the words and steps are taller than the pinned scene (a forced layout, nothing painted between). */
+    const fit = (): void => {
+      if (!scene || !pin || !left) return;
+      scene.classList.remove('how-flat');
+      flat = wide.matches && left.offsetHeight + 2 * ROOM > pin.clientHeight;
+      scene.classList.toggle('how-flat', flat);
+    };
     let top = 0;
     let span = 1;
     const measure = (): void => {
+      fit();
       // Offsets, not boxes: nothing this sets moves the track.
       top = 0;
       for (let el: HTMLElement | null = track; el; el = el.offsetParent as HTMLElement | null) top += el.offsetTop;
@@ -39,7 +57,7 @@ if (track) {
     let stage = -1;
     const frame = (): void => {
       queued = false;
-      if (!wide.matches) return;
+      if (!wide.matches || flat) return;
       const p = Math.min(1, Math.max(0, (window.scrollY - top) / span));
       const k = Math.min(stages - 1, ends.findIndex((end) => p < end) < 0 ? stages - 1 : ends.findIndex((end) => p < end));
       if (k >= stages - 1 && p > 0) count();
@@ -62,15 +80,18 @@ if (track) {
     measure();
     frame();
     addEventListener('scroll', queue, { passive: true });
-    addEventListener('resize', () => {
+    const again = (): void => {
       measure();
       queue();
-    });
-    // Narrow screens: the figures count up as they come into view.
+    };
+    addEventListener('resize', again);
+    // A font that comes late changes the words' height.
+    void document.fonts?.ready.then(again);
+    // Narrow screens and a flat scene: the figures count up as they come into view.
     const figs = track.querySelector('.run-figs');
     if (figs)
       new IntersectionObserver(([e]) => {
-        if (e?.isIntersecting && !wide.matches) count();
+        if (e?.isIntersecting && (!wide.matches || flat)) count();
       }).observe(figs);
   }
 }

@@ -10,9 +10,12 @@
  * (longhand properties: the minifier folds a shorthand, which resets the timeline);
  * where they are missing, ./how-scene.ts sets data-stage on the track and the same
  * states are reached by transitions. Transforms and opacity only; nothing leaves
- * the page or the tab order, and the stage panels hold nothing focusable.
- * Narrow screens and reduced motion: the stages follow one another, each with its
- * panel, at rest.
+ * the page or the tab order, and the stage panels hold nothing focusable. The scene
+ * is pinned only while its words and steps fit the screen: where they do not (a
+ * wider font, a short screen), ./how-scene.ts makes it .how-flat, and the rules of
+ * the pinned scene (under .how:not(.how-flat)) do not apply.
+ * Narrow screens, reduced motion and a flat scene: the stages follow one another,
+ * each with its panel, at rest.
  */
 
 .how { margin: 4rem 0 2rem; }
@@ -129,8 +132,10 @@
 .code-n { color: var(--sl-color-gray-3); text-align: right; padding-right: 0.8rem; opacity: 0.75; user-select: none; }
 .term-code { overflow-x: auto; }
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  /* In the window, a panel holds nothing focusable: no scroller either. */
-  .term-code { overflow: hidden; }
+  .how:not(.how-flat) {
+    /* In the window, a panel holds nothing focusable: no scroller either. */
+    .term-code { overflow: hidden; }
+  }
 }
 .term-code .t-keyword { color: hsl(268 85% 75%); }
 .term-code .t-string { color: hsl(150 60% 65%); }
@@ -193,81 +198,90 @@
 
 
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
-  .how-track { position: relative; height: calc(100svh + var(--shares) * 52svh); view-timeline: --how block; }
-  .how-pin {
-    position: sticky;
-    top: var(--sl-nav-height, 3.5rem);
-    height: calc(100svh - var(--sl-nav-height, 3.5rem));
-    display: grid;
-    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
-    column-gap: 3rem;
-    align-items: center;
+  .how:not(.how-flat) {
+    .how-track { position: relative; height: calc(100svh + var(--shares) * 52svh); view-timeline: --how block; }
+    .how-pin {
+      position: sticky;
+      top: var(--sl-nav-height, 3.5rem);
+      height: calc(100svh - var(--sl-nav-height, 3.5rem));
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+      column-gap: 3rem;
+      align-items: center;
+    }
+    .how-left { grid-column: 1; align-self: center; }
+    .how-text { font-size: 0.8rem; line-height: 1.45; }
+    /* The steps: who and what, and a link; a step's words go to the window, over its panel. */
+    .how-step { padding-block: 0.3rem; }
+    .how-steps { row-gap: 0.15rem; margin-top: 1.25rem; }
+    .how-step-title { display: inline; font-size: 0.95rem; }
+    .how-link { display: inline; margin: 0 0 0 0.6rem; font-size: 0.8rem; }
+    .how-who { font-size: 10.5px; }
+    /* The window, the words of the step on screen, and its panel: one box on the right. */
+    .how-pin { --wh: min(38rem, calc(100% - 3rem)); --ww: calc(54% - 1.5rem); }
+    .how-window, .how-stage, .how-text {
+      position: absolute;
+      right: 0;
+      width: var(--ww);
+    }
+    .how-window { top: calc(50% - var(--wh) / 2); height: var(--wh); }
+    .how-text {
+      z-index: 1;
+      top: calc(50% - var(--wh) / 2 + 2.6rem);
+      margin: 0;
+      padding: 0.9rem 1.4rem 0.8rem;
+      height: 5.4rem;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: var(--sl-color-gray-2);
+      border-bottom: 1px dashed var(--sl-color-gray-5);
+    }
+    /* No grid lines: the scene is a grid, and a placed box would take its area as its frame. */
+    .how-stage { grid-area: auto; top: calc(50% - var(--wh) / 2 + 8.4rem); height: calc(var(--wh) - 8.8rem); }
+    .how-window {
+      display: block;
+      border-radius: 16px;
+      border: 1px solid var(--sl-color-gray-5);
+      background:
+        radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 10%, transparent), transparent 60%),
+        color-mix(in srgb, var(--sl-color-black) 92%, var(--sl-color-accent));
+      box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 40%, transparent), 0 24px 60px -30px hsl(228 60% 4% / 0.6);
+    }
+    :root[data-theme='light'] & .how-window { background: radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 8%, transparent), transparent 60%), hsl(228 40% 98%); box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 35%, transparent), 0 20px 50px -30px hsl(228 40% 30% / 0.25); }
+    .how-window-bar { display: flex; align-items: center; gap: 6px; padding: 0.7rem 1rem; border-bottom: 1px solid var(--sl-color-gray-5); font-size: 0.75rem; color: var(--sl-color-gray-3); }
+    .how-window-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--sl-color-gray-5); }
+    .how-window-bar span { margin-left: 0.6rem; }
+    .how-stage {
+      z-index: 1;
+      margin: 0;
+      padding: 0.4rem 1.4rem 1rem;
+      border: 0;
+      background: none;
+      overflow: hidden;
+    }
+    :root[data-theme='light'] & .how-stage { background: none; }
+    .term, .chat { font-size: 12.5px; }
+    /* Depth: a field behind the scene that moves slower than the page. */
+    .how-depth {
+      display: block;
+      position: absolute;
+      inset: -10% calc(50% - 50vw);
+      z-index: -1;
+      pointer-events: none;
+      background-image: radial-gradient(circle at center, color-mix(in srgb, var(--sl-color-gray-3) 22%, transparent) 1px, transparent 1.6px);
+      background-size: 24px 24px;
+      -webkit-mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
+      mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
+    }
+    .how-pin { isolation: isolate; }
+    /* A short screen: the words and steps closer together, so that they fit it in more fonts. */
+    @media (max-height: 52rem) {
+      .how-lede { margin-top: 0.7rem; }
+      .how-loop { margin-top: 0.9rem; }
+      .how-steps { row-gap: 0.05rem; margin-top: 1rem; }
+      .how-step { padding-block: 0.2rem; }
+    }
   }
-  .how-left { grid-column: 1; align-self: center; }
-  .how-text { font-size: 0.8rem; line-height: 1.45; }
-  /* The steps: who and what, and a link; a step's words go to the window, over its panel. */
-  .how-step { padding-block: 0.3rem; }
-  .how-steps { row-gap: 0.15rem; margin-top: 1.25rem; }
-  .how-step-title { display: inline; font-size: 0.95rem; }
-  .how-link { display: inline; margin: 0 0 0 0.6rem; font-size: 0.8rem; }
-  .how-who { font-size: 10.5px; }
-  /* The window, the words of the step on screen, and its panel: one box on the right. */
-  .how-pin { --wh: min(38rem, calc(100% - 3rem)); --ww: calc(54% - 1.5rem); }
-  .how-window, .how-stage, .how-text {
-    position: absolute;
-    right: 0;
-    width: var(--ww);
-  }
-  .how-window { top: calc(50% - var(--wh) / 2); height: var(--wh); }
-  .how-text {
-    z-index: 1;
-    top: calc(50% - var(--wh) / 2 + 2.6rem);
-    margin: 0;
-    padding: 0.9rem 1.4rem 0.8rem;
-    height: 5.4rem;
-    font-size: 0.84rem;
-    line-height: 1.5;
-    color: var(--sl-color-gray-2);
-    border-bottom: 1px dashed var(--sl-color-gray-5);
-  }
-  /* No grid lines: the scene is a grid, and a placed box would take its area as its frame. */
-  .how-stage { grid-area: auto; top: calc(50% - var(--wh) / 2 + 8.4rem); height: calc(var(--wh) - 8.8rem); }
-  .how-window {
-    display: block;
-    border-radius: 16px;
-    border: 1px solid var(--sl-color-gray-5);
-    background:
-      radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 10%, transparent), transparent 60%),
-      color-mix(in srgb, var(--sl-color-black) 92%, var(--sl-color-accent));
-    box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 40%, transparent), 0 24px 60px -30px hsl(228 60% 4% / 0.6);
-  }
-  :root[data-theme='light'] .how-window { background: radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 8%, transparent), transparent 60%), hsl(228 40% 98%); box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 35%, transparent), 0 20px 50px -30px hsl(228 40% 30% / 0.25); }
-  .how-window-bar { display: flex; align-items: center; gap: 6px; padding: 0.7rem 1rem; border-bottom: 1px solid var(--sl-color-gray-5); font-size: 0.75rem; color: var(--sl-color-gray-3); }
-  .how-window-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--sl-color-gray-5); }
-  .how-window-bar span { margin-left: 0.6rem; }
-  .how-stage {
-    z-index: 1;
-    margin: 0;
-    padding: 0.4rem 1.4rem 1rem;
-    border: 0;
-    background: none;
-    overflow: hidden;
-  }
-  :root[data-theme='light'] .how-stage { background: none; }
-  .term, .chat { font-size: 12.5px; }
-  /* Depth: a field behind the scene that moves slower than the page. */
-  .how-depth {
-    display: block;
-    position: absolute;
-    inset: -10% calc(50% - 50vw);
-    z-index: -1;
-    pointer-events: none;
-    background-image: radial-gradient(circle at center, color-mix(in srgb, var(--sl-color-gray-3) 22%, transparent) 1px, transparent 1.6px);
-    background-size: 24px 24px;
-    -webkit-mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
-    mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
-  }
-  .how-pin { isolation: isolate; }
 }
 
 /* The button that shows a cut output in full, and the carousel's controls: a narrow screen's. */
