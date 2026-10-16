@@ -29,7 +29,7 @@ rows left out):
   writer's rows together, not one call's. A replay that needs them runs the kind with
   `--execute`.
 
-What it skips, and says why (`RecordingImport.unfinished`, `RecordingImport.skipped`): a task
+What it does not import, and why (`RecordingImport.unfinished`, `RecordingImport.not_imported`): a task
 whose last attempt did not finish ok (a replay of it, with no recording, ends `error` too,
 or launches with `--record-missing`); a task whose journal row holds no fingerprint; one
 whose output file, or a file its patterns saw change, is missing now; one whose output was
@@ -77,27 +77,27 @@ _MB = 1024 * 1024
 class RecordingImport:
     """What `import_recording` made of a run: the keys it `imported`, in journal order;
     the tasks whose last attempt did not finish ok, with how it ended (`unfinished`); and
-    the tasks that finished but could not be imported, with why (`skipped`)."""
+    the tasks that finished but could not be imported, with why (`not_imported`)."""
 
     run_dir: Path
     directory: Path
     imported: tuple[str, ...] = ()
     unfinished: Mapping[str, str] = field(default_factory=dict)
-    skipped: Mapping[str, str] = field(default_factory=dict)
+    not_imported: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         """Some task was imported, and every task that finished was."""
-        return bool(self.imported) and not self.skipped
+        return bool(self.imported) and not self.not_imported
 
     def __str__(self) -> str:
         n = len(self.imported)
         tasks = f"{n} task{'s' if n != 1 else ''}"
         head = f"{'✓' if self.ok else '✗'} {tasks} imported from {self.run_dir.as_posix()} into {self.directory.as_posix()}"
-        later = [f"{len(self.skipped)} skipped"] if self.skipped else []
+        later = [f"{len(self.not_imported)} not imported"] if self.not_imported else []
         later += [f"{len(self.unfinished)} not finished"] if self.unfinished else []
         lines = [head + (f"; {', '.join(later)}" if later else "")]
-        lines += [f"  skipped {key}: {why}" for key, why in self.skipped.items()]
+        lines += [f"  not imported {key}: {why}" for key, why in self.not_imported.items()]
         lines += [f"  not finished {key}: {why}" for key, why in self.unfinished.items()]
         return "\n".join(lines)
 
@@ -152,10 +152,10 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
     (`Pipeline(record=)`), so a replay of the same flow plays it with nothing launched.
 
     The recording of each key it imports replaces the one `directory` held; the other
-    recordings stay. A file over `max_file_mb` (default 4 MB) skips its task. A task is
+    recordings stay. A task with a file over `max_file_mb` (default 4 MB) is not imported. A task is
     imported as one attempt, its output files and changed files as they are now; a replay
     plays it only for a task of the fingerprint the run recorded. `contraagent docs testing`
-    lists what is imported and what is skipped.
+    lists what is imported and what is not.
 
     `RecordingError` when `run_dir` holds no run (no `run.json` or no journal row) or a run
     of a run format this release does not read.
@@ -206,7 +206,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
 
     imported: list[str] = []
     unfinished: dict[str, str] = {}
-    skipped: dict[str, str] = {}
+    not_imported: dict[str, str] = {}
     for key, (index, row) in last.items():
         stop = str(row.get("stop") or "")
         if not row.get("ok"):
@@ -214,7 +214,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
             continue
         fingerprint = str(row.get("fingerprint") or "")
         if not fingerprint:
-            skipped[key] = "its journal row records no fingerprint, so a replay could not tell a changed task from it"
+            not_imported[key] = "its journal row records no fingerprint, so a replay could not tell a changed task from it"
             continue
         written, deleted = _changes(row)
         files = [(p, f"output-{n}") for n, (p, _) in enumerate(outputs[key])]
@@ -234,7 +234,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
             if why:
                 break
         if why:
-            skipped[key] = why
+            not_imported[key] = why
             continue
         executor = str(row.get("executor") or "agent")
         kind = str(row.get("kind") or "")
@@ -276,7 +276,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
             }
         write_entry(directory, kind, key, executor, "" if unit == key else unit, [attempt], imported=imported_from)
         imported.append(key)
-    return RecordingImport(run_dir=run_dir, directory=directory, imported=tuple(imported), unfinished=unfinished, skipped=skipped)
+    return RecordingImport(run_dir=run_dir, directory=directory, imported=tuple(imported), unfinished=unfinished, not_imported=not_imported)
 
 
 def _launch(

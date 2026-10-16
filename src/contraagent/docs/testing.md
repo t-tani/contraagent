@@ -269,12 +269,12 @@ no `undeclared.json`, since it did not see the working directory change.
 
 The import reports each task it leaves out. A task whose last attempt did not finish ok
 is listed as not finished: a replay of it, with no recording, ends `error` too, or
-launches with `--record-missing`. A task that finished is skipped, with the reason, when
-its journal row holds no fingerprint, when one of its files is missing, when a later task
-of the run wrote the same file again (the file then holds that task's contents), or
-when a file is over the cap (`--record-max-file-mb N`, default 4). A run of a run format
-this release does not read is refused (`RecordingError`). The command exits 1 when it
-skips a task that finished, or imports none.
+launches with `--record-missing`. A task that finished is listed as not imported, with
+the reason, when its journal row holds no fingerprint, when one of its files is missing,
+when a later task of the run wrote the same file again (the file then holds that task's
+contents), or when a file is over the cap (`--record-max-file-mb N`, default 4). A run of a run format
+this release does not read is refused (`RecordingError`). The command exits 1 when a task
+that finished is not imported, or when it imports none.
 
 An imported recording names the run it came from (its entry's `imported`: `run`,
 `run_uid`, `imported_at`) and keeps the fingerprint the journal recorded. A replay plays it

@@ -382,13 +382,13 @@ class RecordingImport
         directory: Path,
         imported: tuple[str, ...] = (),
         unfinished: Mapping[str, str] = dict(),
-        skipped: Mapping[str, str] = dict(),
+        not_imported: Mapping[str, str] = dict(),
     ) -> None
     directory: Path
     imported: tuple[str, ...] = ()
+    not_imported: Mapping[str, str] = field(default_factory=dict)
     @property ok: bool
     run_dir: Path
-    skipped: Mapping[str, str] = field(default_factory=dict)
     unfinished: Mapping[str, str] = field(default_factory=dict)
 
 class ResultEnricher(Protocol)

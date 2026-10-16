@@ -164,9 +164,9 @@ def test_what_did_not_finish_or_cannot_be_imported_is_reported(tmp_path):
     report = import_recording(live.run_dir, tmp_path / "rec")
     assert report.imported == ("tidy-all",), str(report)
     assert report.unfinished == {"summarize-alpha": "error: no summary"}
-    assert set(report.skipped) == {"write-alpha", "write-beta"}
-    assert report.skipped["write-alpha"].endswith("topics/alpha/old.md was written again by tidy-all after it")
-    assert report.skipped["write-beta"].endswith("out/write/beta.json is missing")
+    assert set(report.not_imported) == {"write-alpha", "write-beta"}
+    assert report.not_imported["write-alpha"].endswith("topics/alpha/old.md was written again by tidy-all after it")
+    assert report.not_imported["write-beta"].endswith("out/write/beta.json is missing")
     assert not report.ok
     assert not (tmp_path / "rec" / "write").exists()
 
@@ -196,10 +196,10 @@ def test_a_run_that_cannot_be_read_is_refused(tmp_path):
         import_recording(live.run_dir, tmp_path / "rec")
 
 
-def test_a_file_over_the_cap_skips_its_task(tmp_path):
+def test_a_file_over_the_cap_leaves_its_task_unimported(tmp_path):
     live = stub_run(tmp_path, flow_=lambda units: write(units[0]), agent=stub(write={"title": "x" * 2048}))
     report = import_recording(live.run_dir, tmp_path / "rec", max_file_mb=0.001)
-    assert "is over the 0.001 MB cap" in report.skipped["write-alpha"]
+    assert "is over the 0.001 MB cap" in report.not_imported["write-alpha"]
 
 
 def test_the_cli_imports_a_run(tmp_path, monkeypatch, capsys):
@@ -210,4 +210,4 @@ def test_the_cli_imports_a_run(tmp_path, monkeypatch, capsys):
     assert main(["recording", "import", str(tmp_path / "nothing"), "rec"]) == 1
     (live.run_dir / "out" / "write" / "alpha.json").unlink()
     assert main(["recording", "import", str(live.run_dir), "rec"]) == 1
-    assert "skipped write-alpha:" in capsys.readouterr().out
+    assert "not imported write-alpha:" in capsys.readouterr().out
