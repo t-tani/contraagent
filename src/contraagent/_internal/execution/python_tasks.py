@@ -11,7 +11,7 @@ from the cause. `PythonTaskRunner` checks, around each Python task:
 * after: every output contract (`invalid_output`, not ok), including the
   freshness check, so a stale file from an earlier run does not pass.
 
-A function that returns a `Partial` (a service it needs was unavailable) finishes ok
+A function that returns a `Partial` (a server it needs was unavailable) finishes ok
 with stop `partial`: its output is checked like any other, and a resume runs it again.
 
 There is no resume: a Python task is deterministic, so running it again with

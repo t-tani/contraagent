@@ -122,7 +122,7 @@ in a stub run too. Put side effects in Python tasks. In Python,
 `Pipeline(stub=StubAgent(script, default=writes_example(), execute=[...]))`
 scripts the replies of both kinds of task, as a test does (the
 `contraagent.testing` module docstring lists the replies);
-`StubAgent(execute_all=True)` is `--execute-all`.
+`StubAgent(default=writes_example(), execute_all=True)` is `--execute-all`.
 
 ## Record once, replay in CI
 
@@ -163,8 +163,10 @@ every agent task's launch and every Python task's function: attempt 1 the first
 recording, attempt 2 the second, past the last the last again. Each writes the recorded
 outputs and files into place, deletes the recorded deletions and adds the recorded
 transcript; its output checks and the journal run as in any run, and it reports no cost
-and no tokens. A Python task that calls a service (a local index server) needs nothing
-running in CI. `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
+and no tokens. A Python task that calls a server (a local index server) needs nothing
+running in CI, since its output is replayed. A [service](tasks.md#services-a-server-that-the-tasks-of-a-claim-share)
+of `Pipeline(services=)` is different: a replay starts it for each task that claims
+it, as any run does, played or not. `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
 Python task kind's function instead, and `--execute-all` (`Pipeline(replay=DIR,
 execute_all=True)`) every Python task's, as in a stub run: the pipeline's own code under
 test. So a replay in CI follows the flow down the path the real outputs led to, with
@@ -242,7 +244,14 @@ stops. A
 429 in a test moves the kind's later tasks to the hop too (see `routing`). A reply that
 reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)
 rests a credential past its quota cap or its `quota_rule`, so a test can follow a task to
-its next hop, or to `deferred`. Tests import the flow's module like any other code: one
+its next hop, or to `deferred`. A reply that writes and then stops
+(`writes(value, stop=Stop.TIMEOUT)`, `Stop` from `contraagent.backends`) plays a
+launch the runner stopped for its time, for a kind with
+[`partial_on`](contracts.md#a-launch-stopped-for-its-time). A callable reply is given
+the launch (`StubLaunch`): `launch.launch.cwd` is the working directory, where a reply
+can write the files of a task's `changes`, and `launch.launch.mcp_config` the file of
+its MCP servers (the plugin's `.mcp.json`, or those `Pipeline(mcp_servers=)` built for
+the task, a file that exists while the launch runs). Tests import the flow's module like any other code: one
 outside the project's package needs the project root on `sys.path` (pytest's
 `pythonpath` setting). The `contraagent.testing` module docstring
 (`help(contraagent.testing)`) lists every kind of reply.

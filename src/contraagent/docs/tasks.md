@@ -28,7 +28,7 @@ them all):
 | `output_name` | where its output file is | "Flows that depend on results", below |
 | `rerun_on_resume` | a step that a resume runs again | "The flow", below |
 | `claims` | one task at a time on a name, and the service a name stands for | "Claims" and "Services", below |
-| `changes` | the files it changes beside its output | "Files a task changes", below |
+| `changes`, `keep_failed_changes` | the files it changes beside its output, and whether the files of a failed attempt stay | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
 | `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
 | `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
@@ -54,7 +54,7 @@ in the flow's own body: a stub run plays Python tasks and runs flow code as it i
 
 ### Retries
 
-A Python task that talks to a service may fail for a reason a fresh attempt
+A Python task that talks to a server may fail for a reason a fresh attempt
 cures: a dropped connection, a timeout. `retries` is the number of fresh
 attempts after the first, and `retry_on` the exception classes that earn one;
 any other exception fails the task at once, and so does an off-contract input
@@ -62,8 +62,10 @@ or output. Each attempt is a journal row of its own, with its attempt number
 and its exception, as for an agent task, and waits `RetryingRunner`'s backoff
 first. Declaring one without the other raises at the decorator.
 
-A function that needs a service restores it itself, at its start: a fresh
-attempt then finds the service running again.
+A function that needs a server restores it itself, at its start: a fresh
+attempt then finds the server running again. A server that the tasks of a claim
+share can instead be a service of the run ("Services", below), which the runner
+starts and stops.
 
 ::code{file="examples/retries/flow.py" from="@python_task(retries=2" to="summarize = agent_task("}
 
@@ -73,7 +75,7 @@ again on a resume (as with `claims` and `rerun_on_resume`).
 
 ### Partial results
 
-A Python task whose service stays unavailable may still give the run something to
+A Python task whose server stays unavailable may still give the run something to
 go on with: it returns `Partial(value, reason=...)`. `value` is its output as
 usual, checked against its output schema and written to its output file;
 `reason` says why it is partial, in one line. The task finishes ok with stop
@@ -319,8 +321,9 @@ Loops that converge at different speeds need different bounds. A generator
 function decorated with `@max_passes(n)` gives each `while` loop of its own code
 the bound `n`, in every call of it, in place of the run's value; every other loop
 keeps the run's. The decorator returns the function itself, so the flow is still a
-plain function. `analyse_file`, below, revises a column's reading at most 4 times
-whatever the run's `max_passes` is. Two loops that need different bounds go in two
+plain function, and `max_passes` is imported from `contraagent`. `analyse_file`, in
+the next section, revises a column's reading at most 4 times whatever the run's
+`max_passes` is. Two loops that need different bounds go in two
 functions: one of them may run in the same flow call through `yield from`, since the
 bound belongs to the function's code, not to the flow call. `TooManyPasses` names
 the function whose bound the loop passed. `@max_passes` on a function that is not a
@@ -467,9 +470,13 @@ letter or a digit turned into `_` (`db:alpha` gives `CONTRAAGENT_SERVICE_DB_ALPH
 
 ::code{file="examples/services/flow.py" from="review = agent_task(" to="class _Lookup("}
 
+The call file does not name the variable, so the role or the instructions do. For a
+service under a pattern, whose variable differs from unit to unit, the flow can pass
+the variable's name in the task's params.
+
 The run's end stops every service still running, the last started first: a run that
 returns, a run that raises, and a run stopped by Ctrl-C or SIGTERM. A process killed
-outright (SIGKILL) runs no stop. `service_idle_s=` stops a service once no task has
+outright (SIGKILL) runs no stop. `Pipeline(service_idle_s=)` stops a service once no task has
 held it for that many seconds (0: as soon as the last one ends), and the next task
 that claims the name starts it again; leave it unset for a service that is slow to
 start, so that the waits of a flow between its tasks do not start it again and again.
@@ -485,11 +492,17 @@ recorded with its exception, and the service counts as stopped.
 `services.jsonl` records each start (the task that started it, its address, how long
 it took, or the exception) and each stop (why: `idle`, `run_end` or `interrupted`),
 and the monitor shows each start of a service with its stop (`Plan.services`).
-`contraagent check` warns about a service that no task of the run claims, and fails
+`Pipeline.check` warns about a service that no task of the run claims, and fails
 a task that claims two services whose names give one variable.
 
-A stub run and a replay start services as any run does, since the Python tasks they
-execute may need them. A scope ("Around each attempt", below) suits a helper of one
+A service is a function, so it is not an argument of the command line: a pipeline
+with services is checked and run from a program, `Pipeline(config, services=...)`
+with `.check(...)` and `.run(...)` (the example's `pipeline()`; `examples/runner/run.py`
+is such a program). `contraagent check` and `contraagent run` know no service, and a
+Python task that calls `service_address` in such a run raises `KeyError`.
+
+A stub run and a replay start services as any run does, for each task that claims
+them, played or executed, since the Python tasks they execute may need them. A scope ("Around each attempt", below) suits a helper of one
 attempt; a service suits one that the tasks of a claim share.
 
 ## Files a task changes
@@ -572,7 +585,8 @@ without a suffix. They write into the current run: in flow code, the run
 thread the queue runs it. Anywhere else they raise `NoCurrentRun`. A relay ships them
 to a hub with the rest of the run, and a panel reads them back wherever the monitor
 reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
-plays does not run, so it logs nothing; flow code runs as in any run.
+plays does not run, so it logs nothing (the kinds of `--execute`, or every kind with
+`--execute-all`, run and log); flow code runs as in any run.
 
 In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
 settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was

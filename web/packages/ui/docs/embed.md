@@ -49,7 +49,10 @@ with its own title, text field and single-key shortcuts, and two monitors.
 ## Connection
 
 `base-url` names the monitor server, such as `http://127.0.0.1:8787`; unset,
-it is the page's own origin. Every attribute takes effect whenever it is set,
+it is the page's own origin. A path alone, such as `/monitor`, names the
+monitor under that path of the page's own origin: the page that
+`contraagent monitor --base-path /monitor` serves behind a reverse proxy sets it
+so. Every attribute takes effect whenever it is set,
 as an attribute or a property, before or after the element connects or the
 package loads:
 

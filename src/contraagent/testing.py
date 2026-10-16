@@ -19,7 +19,8 @@ A reply is one of:
 * `writes(value)`: the same, explicitly (a JSON list output needs it); `writes(value,
   quota=QuotaReading(five_hour_pct=80))` also reports a quota reading, as a coding
   agent does, so quota caps and `quota_rule` rest the credential in a test; `writes(rows,
-  stop=Stop.TIMEOUT)` writes and then ends the launch on `stop`, as a launch the runner
+  stop=Stop.TIMEOUT)` (`Stop` from `contraagent.backends`) writes and then ends the
+  launch on `stop`, as a launch the runner
   stopped after it wrote what it had (`agent_task(partial_on=)`); rows (`Rows[Row]`) are
   a list, written one JSON object per line;
 * `writes_example()`: the output's example: at every part of its JSON Schema, the first
@@ -53,10 +54,10 @@ route the stub's `catalogue()` does not list is dropped as it is for a coding ag
 Under a name whose coding agent continues its turn when a stop hook objects
 (Claude Code, Codex, omp: `Backend.stop_hooks_file`), the stub does what that agent
 does: once it has written its output it runs the Stop hooks of the launch's
-plugins (their rendered `hooks/hooks.json` or `codex/hooks.json`, with the agent's
-working directory and environment), and when one exits 2 it is sent the hook's
-message and replies again in the same launch (`StubLaunch.in_turn`). Under omp's
-names it stops, as omp does.
+plugins (their rendered `hooks/hooks.json`, `codex/hooks.json` or `omp/hooks.json`,
+with the agent's working directory and environment), and when one exits 2 it is sent
+the hook's message and replies again in the same launch (`StubLaunch.in_turn`). Under
+the other names (opencode, pi) it stops, as those agents do.
 
 `contraagent docs testing` shows a flow tested on it.
 """

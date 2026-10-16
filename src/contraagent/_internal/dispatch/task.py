@@ -193,7 +193,7 @@ STOP_PARTIAL = "partial"
 
 @dataclass(frozen=True)
 class Partial[Out]:
-    """What a Python task returns when it could do only part of its work (a service it
+    """What a Python task returns when it could do only part of its work (a server it
     needs was unavailable): `value`, its output as usual (checked against its output
     schema, written to its output file, and what the flow receives), and `reason`, why,
     in one line. The task finishes ok with stop `partial`, so the flow and later tasks go

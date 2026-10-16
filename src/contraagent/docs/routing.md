@@ -16,10 +16,11 @@ built-in default. A credential has one more place, the task call (below): it sit
 under the overrides and over the kind's table.
 
 `[defaults]` takes the routing keys (`agent`, `model`, `effort`, `credential`,
-`model_failover`, `fallbacks`) and the run's own settings (`max_passes`, `preflight`,
-`claim_capacity`, `context_warn_pct`, `max_corrections`), nothing else. A budget (`max_turns`,
-`timeout_s`, `max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or
-`agent_task(...)`, and `[defaults]` refuses it.
+`model_failover`, `fallbacks`), the run's own settings (`max_passes`, `preflight`,
+`claim_capacity`) and the defaults of every kind that gives none (`context_warn_pct`,
+`max_corrections`), nothing else. A budget (`max_turns`, `timeout_s`,
+`max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or `agent_task(...)`,
+and `[defaults]` refuses it.
 
 Refused before anything launches: a kind with no turn or time budget anywhere,
 an effort the coding agent's CLI does not accept, an unknown agent in a chain,
@@ -28,7 +29,8 @@ of the flow is reported, not fatal: one config file often serves several flows,
 but it may be a typo.
 
 A pipeline keeps its own settings in the same file, each in a **pipeline table**
-`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config (or of
+the config a check is given) with
 `contraagent.pipeline_table(name)` ([tasks](tasks.md)), other code with
 `PipelineConfig.table(name)`; either is an empty table when the file has none.
 contraagent never checks the keys inside; a `pipeline.<name>` that is not a table is
@@ -68,6 +70,12 @@ none of its own.
 fails its checks goes back to the same session ([contracts](contracts.md#checked-twice-by-the-same-rules)).
 A value out of that range is refused before anything launches.
 
+`keep_failed_changes = true` (in a task table, which outranks `agent_task(...)`) leaves
+the files a failed attempt created under the kind's `changes` patterns in place, for
+the next attempt to start from
+([Files a task changes](tasks.md#files-a-task-changes)). A kind with no `changes`
+patterns cannot keep them, and `contraagent check` reports a table that sets it.
+
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
 tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
@@ -77,8 +85,8 @@ whole tools and a pattern of a command (`Bash(git push:*)`), a path (`Read(secre
 each after the rule the tool had, so the rest of the tool stays allowed; a pattern of
 another tool there is refused; omp, in an extension of contraagent's own that sees
 each call before it runs, whole tools and a pattern of a command, a path read or
-written (`Read`, `Write`, `Edit`), a domain or a skill, so a pattern of another tool
-there is refused; pi whole tools (`--exclude-tools`), so a pattern there is refused;
+written (`Read`, `Write`, `Edit`, `MultiEdit`; an `Edit` pattern also denies omp's
+`ast_edit` whole), a domain or a skill, so a pattern of another tool there is refused; pi whole tools (`--exclude-tools`), so a pattern there is refused;
 Codex has no way to deny a tool. A route that cannot deny what the task names is
 refused before anything launches (`Backend.tool_deny_problem`), failover hops
 included ([Coding agents](agents.md)).

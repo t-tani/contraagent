@@ -50,7 +50,7 @@ unless-stopped`).
 
 ## Connect a host
 
-On each host that runs pipelines, install the package and run the relay as a service:
+On each host that runs pipelines, install the package and run the relay under systemd:
 
 ::code{file="examples/hub/contraagent-relay.service" from="#   install" to="# The relay keeps"}
 
@@ -58,6 +58,11 @@ Set `User=`, `CONTRAAGENT_HUB_URL` and `CONTRAAGENT_RUNS_DIR` in the unit (or in
 `/etc/contraagent/relay.env`). The relay keeps where it is up to in
 `<runs-dir>.relay.json`; it retries an unreachable hub with backoff and catches up from
 the runs directory, so a host never waits for the hub.
+
+A hub behind a reverse proxy, under a path of a site, is started with `--base-path`,
+and each relay names it with that path; [the hub](hub.md#start-a-hub) says what the
+proxy needs for the relays, and [the monitor](monitor.md#behind-a-reverse-proxy) what
+it needs for the page and the live feeds.
 
 A relay checks the certificate of an `https://` hub against the trust store of the
 host's operating system. A hub with a certificate from a private certificate authority

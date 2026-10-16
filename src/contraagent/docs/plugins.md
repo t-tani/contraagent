@@ -174,8 +174,13 @@ written to a file in an owner-only temporary directory, not in the run directory
 since a server's arguments or environment may hold a secret; the file is removed
 when the process ends. A function that raises, or returns something that is not a
 table of servers each with a `command` or a `url`, ends the launch as
-`launch_failed`. `contraagent check` calls it for each task the flow creates before
-its first wait and reports the same.
+`launch_failed`. `Pipeline.check` calls it for each task the flow creates before its
+first wait and reports the same.
+
+A function is not an argument of the command line, so a pipeline with one is checked
+and run from a program, `Pipeline(config, mcp_servers=...).check(...)` and `.run(...)`
+(`examples/runner/run.py` is such a program); `contraagent check` and
+`contraagent run` build no MCP servers of the task's own.
 
 ## Hooks
 

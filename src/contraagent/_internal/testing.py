@@ -130,7 +130,8 @@ class StubLaunch:
     #: The launch's prompt, or for a reply within the turn what the stop hook said.
     prompt: str
     call: CallFile = field(repr=False)
-    #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential.
+    #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential, working
+    #: directory (`cwd`) and MCP servers file (`mcp_config`, there while the launch runs).
     launch: Launch = field(repr=False)
     #: True for a reply within the launch, after a stop hook sent the output back.
     in_turn: bool = False
