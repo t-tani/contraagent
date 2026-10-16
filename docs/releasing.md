@@ -19,11 +19,12 @@ version itself, with no `v` (`0.2.0`).
    uv run towncrier build --version X.Y.Z
    ```
 
-3. Commit the version and `CHANGELOG.md` on `main`, and push it.
-4. Tag that commit and push the tag:
+3. Commit `CHANGELOG.md` on a branch and merge it into `main` through a pull
+   request.
+4. Tag the merge on `main` and push the tag:
 
    ```
-   git tag X.Y.Z && git push origin X.Y.Z
+   git switch main && git pull && git tag -a X.Y.Z -m "contraagent X.Y.Z" && git push origin X.Y.Z
    ```
 
 The workflow checks that the tag, the four versions and the dependencies between
@@ -49,8 +50,9 @@ release.
    `pypi`.
 2. On TestPyPI, add the same pending publisher with the environment `testpypi`.
 3. In the repository settings on GitHub, create the environments `pypi`, `npm`
-   and `testpypi`. `pypi` and `npm` accept only version tags and need the owner's
-   approval; `testpypi` accepts runs from `main`.
+   and `testpypi`. `pypi` and `npm` accept only version tags, and `testpypi` only
+   runs from `main`. On a public repository, also make the owner a required
+   reviewer of `pypi` and `npm`, so that each release waits for an approval.
 4. Publish each npm package once from a local tarball, because npm sets a Trusted
    Publisher only on a package that exists. Log in with `npm login` as a member of
    the `contraagent` organization, then in `web/`:

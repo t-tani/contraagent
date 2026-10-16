@@ -370,3 +370,19 @@ def test_teardown_runs_once_under_concurrent_calls(tmp_path):
         t.join()
     run.teardown()
     assert calls == [1]
+
+
+@pytest.mark.parametrize("ended", [False, True])
+def test_a_launch_with_no_group_left_to_signal_is_still_waited_for(monkeypatch, ended):
+    """On macOS `killpg` refuses a group whose processes have all ended: the child is
+    still waited for (killed first if it runs), never left for the garbage collector."""
+    from contraagent._internal.backends import process
+
+    monkeypatch.setattr(process.groups, "terminate", lambda proc: False)
+    child = subprocess.Popen([sys.executable, "-c", "pass" if ended else "import time; time.sleep(30)"])
+    if ended:
+        while psutil.Process(child.pid).status() != psutil.STATUS_ZOMBIE and sys.platform != "win32":
+            time.sleep(0.01)
+    t0 = time.monotonic()
+    process._terminate(child)
+    assert child.returncode is not None and time.monotonic() - t0 < 5
