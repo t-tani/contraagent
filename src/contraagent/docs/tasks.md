@@ -121,7 +121,14 @@ reference to the task's future output:
 - `priority=` breaks ties in the queue, higher first (see below).
 - `credential=` (an agent task's) names the `[credentials.<name>]` that task runs
   as on every route of its kind, in place of the kind's own; how it ranks, fails
-  over and rests is in [Routing](routing.md#a-task-calls-credential).
+  over and rests is in [Routing](routing.md#a-task-calls-credential). A Python task
+  runs no coding agent, so it has no credential: its call refuses `credential=`
+  unless its function has a parameter of that name.
+- A call that the run could not make raises `TypeError` at the call, and
+  `contraagent check` reports it at the flow's line: a `key` that is not a
+  string, an `after` that is not a list of tasks, a `priority` that is not a
+  number, and for a Python task a keyword its function has no parameter for, or a
+  required parameter left out.
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
