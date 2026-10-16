@@ -107,6 +107,11 @@ def safe_label(label: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in label) or "launch"
 
 
+#: Where a pipeline author reads which tools and patterns each coding agent can deny
+#: (`Backend.tool_deny_problem`).
+DENY_POINTER = "(contraagent docs agents, What each one does)"
+
+
 class ModelChains(Protocol):
     """What `Backend.model_chains` reports: an agent's own model-level failover
     configuration, as far as a preflight needs to describe it."""
@@ -187,7 +192,7 @@ class Backend(abc.ABC):
         (`Limits.disallowed_tools`, Claude Code's names and patterns: `WebFetch`,
         `Bash(rm:*)`), or None when it can. The routing check refuses a route whose
         agent cannot (`[tasks.<kind>].disallowed_tools`). By default it cannot."""
-        return f"{cls.name} has no way to deny a tool" if denied else None
+        return f"{cls.name} has no way to deny a tool {DENY_POINTER}" if denied else None
 
     @abc.abstractmethod
     def argv(self, launch: Launch) -> list[str]:

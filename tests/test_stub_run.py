@@ -227,8 +227,8 @@ def test_the_cli_names_the_checks_the_examples_failed(tmp_path, monkeypatch, cap
     assert "  strict-a: invalid_output out/strict/a.json: [two_items] items: two expected, got 1" in out
     assert out.splitlines()[-1] == (
         "2 tasks failed checks on the examples the stub agent wrote (strict: two_items), so the tasks that "
-        "need their outputs did not run. Give each output model an example that passes its validators: "
-        "`contraagent docs testing`"
+        "need their outputs did not run. Give each output model an example that passes its validators "
+        "(contraagent docs testing, Stub run: the whole flow on examples, nothing called)"
     )
 
 

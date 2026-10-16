@@ -110,7 +110,7 @@ def test_the_pointer_names_the_commands_it_points_to(capsys):
 def test_check_errors_name_topics_that_exist():
     report = CheckReport()
     report.add("routing", ["routing: x"])
-    assert "read: `contraagent docs routing`" in str(report)
+    assert "read: (contraagent docs routing)" in str(report)
     names = {t.name for t in docs.topics()}
     source = (docs.DIR.parent / "_internal" / "pipeline" / "check.py").read_text(encoding="utf-8")
     assert set(re.findall(r'\.add\("(\w+)"', source)) <= names

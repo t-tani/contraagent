@@ -21,7 +21,7 @@ from pathlib import Path
 from types import ModuleType
 
 from contraagent._internal.backends import opencode_key, plugin_files
-from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
+from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
@@ -172,7 +172,7 @@ class PiBackend(OpencodeKeyAccount, Backend):
     def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
         """pi denies whole tools (`--exclude-tools`), not a pattern of what a tool is given."""
         patterned = [rule for rule in denied if "(" in rule]
-        return f"pi denies whole tools only, not {', '.join(patterned)}" if patterned else None
+        return f"pi cannot hold {', '.join(patterned)}: it denies whole tools only {DENY_POINTER}" if patterned else None
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", agent_dirs: Path | None = None):
         super().__init__(binary, base_env)

@@ -59,4 +59,5 @@ def test_check_reports_a_value_out_of_range(tmp_path):
     report = Pipeline(config, backends=StubAgent().backends(), runs_dir=tmp_path, cwd=tmp_path).check(lambda: count()("a"))
     assert not report.ok
     assert any("[tasks.count].max_corrections = 50 is not a whole number from 0 to 20" in e for e in report.errors)
-    assert "routing" in report.topics
+    assert report.topics == ["contracts"]  # where max_corrections is explained
+    assert "read: (contraagent docs contracts, Checked twice, by the same rules)" in str(report)

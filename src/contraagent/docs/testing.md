@@ -15,7 +15,9 @@ directory, and reports every problem at once: an exception in the flow at the
 line that raised it, parameters that do not fit their model, an output model
 the agent's own check cannot import, a validator's program missing from `PATH`,
 what `plugin lint` finds, and what the routing plan refuses. Each problem names
-the documentation topic that explains it. A declaration that is wrong where it
+the documentation topic that explains it: a message that ends with a pointer such as
+`(contraagent docs tasks, Services)` names the topic and its section, and the last
+line, `read:`, lists the pointers of all the errors. A declaration that is wrong where it
 is written (a role the plugin does not define, an unknown budget key in
 `agent_task`) stops the import of the module that declares it, so it is the one
 error reported until it is fixed. `Pipeline.check(flow, ...)`

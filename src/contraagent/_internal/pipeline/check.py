@@ -51,6 +51,9 @@ _NOT_OWN = tuple(
     {_PACKAGE, *(Path(p).resolve() for name in ("stdlib", "platstdlib", "purelib", "platlib") if (p := sysconfig.get_paths().get(name)))}
 )
 _LOG_TAG = re.compile(r"^\[\w+\] ")  # a log line's `[task]`, not part of the warning
+#: The one form of a message's pointer to the topic that explains it, and its section:
+#: `(contraagent docs <topic>, <section>)`, or `(contraagent docs <topic>)` for a whole topic.
+POINTER = re.compile(r"\(contraagent docs ([a-z][a-z-]*)(?:, ([^()]+))?\)")
 
 
 def _count(n: int, noun: str) -> str:
@@ -66,7 +69,8 @@ class CheckReport:
     warnings: list[str] = field(default_factory=list)
     #: Task count by kind, in the order the flow first called each kind.
     kinds: dict[str, int] = field(default_factory=dict)
-    #: The documentation topics that explain the errors (`contraagent docs <topic>`).
+    #: The documentation topics that explain the errors (`contraagent docs <topic>`): the
+    #: topic an error's own pointer names, else the topic of the check that found it.
     topics: list[str] = field(default_factory=list)
     #: False when the flow raised before its tasks could be added.
     built: bool = True
@@ -74,16 +78,25 @@ class CheckReport:
     routes: dict[str, str] = field(default_factory=dict)
     #: A generator flow's reachable kinds that its first step did not create, in the order found.
     later_kinds: list[str] = field(default_factory=list)
+    #: The pointer of each error, once: its own (`POINTER`), else its check's topic.
+    _pointers: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
 
     @property
     def ok(self) -> bool:
         return not self.errors
 
     def add(self, topic: str, errors: list[str]) -> None:
-        """Errors, and the documentation topic that explains them."""
+        """Errors, and the documentation topic that explains them: `topic`, for an error
+        with no pointer of its own (`POINTER`)."""
         self.errors += errors
-        if errors and topic not in self.topics:
-            self.topics.append(topic)
+        for error in errors:
+            own = list(POINTER.finditer(error))
+            pointer = own[-1].group(0) if own else f"(contraagent docs {topic})"
+            named = own[-1].group(1) if own else topic
+            if named not in self.topics:
+                self.topics.append(named)
+            if pointer not in self._pointers:
+                self._pointers.append(pointer)
 
     def __str__(self) -> str:
         tasks = sum(self.kinds.values())
@@ -100,7 +113,7 @@ class CheckReport:
         lines += [f"  {kind}: {route}" for kind, route in self.routes.items()]
         lines += [f"  error: {e}" for e in self.errors]
         lines += [f"  warning: {w}" for w in self.warnings]
-        lines += [f"  read: {', '.join(f'`contraagent docs {t}`' for t in self.topics)}"] if self.topics else []
+        lines += [f"  read: {' '.join(self._pointers)}"] if self._pointers else []
         return "\n".join(lines)
 
 
