@@ -582,6 +582,19 @@
           "description": "tools its launches may not use: \"WebFetch\", \"Bash(git push:*)\"",
           "title": "Disallowed Tools"
         },
+        "partial_on": {
+          "items": {
+            "enum": [
+              "timeout",
+              "stalled"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "description": "the stops after which a launch's output that passes every check is a partial result",
+          "title": "Partial On"
+        },
         "max_turns": {
           "type": "integer",
           "title": "Max Turns"

@@ -27,6 +27,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from contraagent._internal.backends.launch import Launch
 from contraagent._internal.contracts.contract import Check, OutputContract, check_file, correction_prompt
+from contraagent._internal.contracts.rows import row_of, rows_file
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs.files import write_document
@@ -44,11 +45,15 @@ class CallOutput(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", serialize_by_alias=True)
 
     path: str
-    format: Literal["json", "text"] = "json"
+    #: `json`: one JSON document; `text`: any text; `jsonl`: rows, one JSON object per line,
+    #: each meeting `json_schema` (`Rows`).
+    format: Literal["json", "text", "jsonl"] = "json"
     #: `file`: the agent writes the output to `path`. `message`: its final message is the
     #: output, which the runner writes to `path` and checks there (`agent_task(output_from=)`).
     from_: Literal["file", "message"] = Field("file", validation_alias=AliasChoices("from", "from_"), serialization_alias="from")
+    #: The output's JSON Schema; for rows, that of one line.
     json_schema: dict[str, Any] = Field(default_factory=dict)
+    #: The model to import: the output's; for rows, the model of one line.
     schema_ref: SchemaRef | None = None
     #: Command validators (`validators.CommandValidator.to_dict()`); Python validators run in the runner only.
     commands: list[dict[str, Any]] = Field(default_factory=list)
@@ -91,12 +96,14 @@ class CallFile(BaseModel):
 
 
 def schema_ref_of(schema: type[BaseModel]) -> SchemaRef | None:
-    """How to import `schema` again from another process, or None when it cannot be.
+    """How to import `schema` again from another process, or None when it cannot be. A rows
+    file's schema (`RowsFile`) is imported by its row: the call file says the format.
 
     A schema defined in a script (`__main__`) or inside a function has no import
     path; the hook then checks the JSON Schema's shape only through the
     runner, after the turn.
     """
+    schema = row_of(schema)
     module = sys.modules.get(schema.__module__)
     if schema.__module__ == "__main__" or module is None or "<locals>" in schema.__qualname__:
         return None
@@ -137,11 +144,11 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
         "your instructions describe.",
     ]
     if call.output is not None:
-        what = (
-            "one JSON document matching `output.json_schema` exactly (no prose, no code fences)"
-            if call.output.format == "json"
-            else "the document the task asks for"
-        )
+        what = {
+            "json": "one JSON document matching `output.json_schema` exactly (no prose, no code fences)",
+            "jsonl": "JSON Lines: one JSON object per line, each matching `output.json_schema` exactly (no prose, "
+            "no code fences, no [ ] around them)",
+        }.get(call.output.format, "the document the task asks for")
         if call.output.from_ == "message":
             lines += [
                 "",
@@ -155,6 +162,12 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
                 f"Write {what} to `{call.output.path}`. It is checked when you stop; if the "
                 "check fails you will be sent the errors, so fix the file and stop again.",
             ]
+            if call.output.format == "jsonl":
+                lines += [
+                    "",
+                    "Add each row to the end of the file as soon as you have it, one line at a time, "
+                    "instead of writing the whole file at the end.",
+                ]
         if call.output.preserve and call.output.from_ == "file":
             kept = ", ".join(f"`{p}`" for p in call.output.preserve)
             lines += [
@@ -176,12 +189,16 @@ def inline_prompt(call: CallFile, instructions: str = "") -> str:
     params = json.dumps(call.params, ensure_ascii=False, indent=1)
     lines = [f"Task call: `{call.kind}`{unit}.", "", "Your parameters:", "```json", params, "```"]
     out = call.output
-    if out is not None and out.format == "json":
+    if out is not None and out.format in ("json", "jsonl"):
         schema = json.dumps(out.json_schema, ensure_ascii=False, indent=1)
+        what = (
+            "one JSON document matching this JSON Schema exactly"
+            if out.format == "json"
+            else "JSON Lines, one JSON object per line, each matching this JSON Schema exactly"
+        )
         lines += [
             "",
-            "Your final message is the output: one JSON document matching this JSON Schema exactly, as "
-            "your whole message, with no prose and no code fences around it.",
+            f"Your final message is the output: {what}, as your whole message, with no prose and no code fences around it.",
             "```json",
             schema,
             "```",
@@ -220,10 +237,12 @@ def validate_call(call_path: str | Path | None = None, stdin_text: str = "", env
         return 0, ""  # an output in the final message exists only after the turn: the runner checks it
     out = call.output
     schema = None
-    if out.format == "json" and out.schema_ref is not None:
+    if out.format in ("json", "jsonl") and out.schema_ref is not None:
         schema = import_schema(out.schema_ref)
         if schema is None:
             return 0, (f"cannot import {out.schema_ref.module}.{out.schema_ref.qualname} here; the runner checks the output after the turn")
+        if out.format == "jsonl":
+            schema = rows_file(schema)
     commands = tuple(CommandValidator.from_dict(c) for c in out.commands)
     contract = OutputContract(Path(out.path), schema, fresh=False, validators=commands)
     cwd = Path(call.cwd) if call.cwd else None

@@ -28,7 +28,7 @@ from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent._internal.errors import ContraagentError, did_you_mean
-from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import PARTIAL_STOPS, TASK_TABLE_KEYS
 
 #: A tool, or a tool with a pattern of what it is given, as Claude Code writes them: `WebFetch`,
 #: `Bash(git push:*)` (`[tasks.<kind>].disallowed_tools`).
@@ -50,7 +50,7 @@ ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fal
 DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
 
 #: The keys of a task table beside `TASK_TABLE_KEYS` (and `_comment`).
-TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools")
+TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on")
 
 #: Every key of a task table (`[tasks.<kind>]`, but `_comment`); each is an `agent_task`
 #: argument too, the kind's default.
@@ -290,6 +290,17 @@ class PipelineConfig:
                 )
             else:
                 table["disallowed_tools"] = [d.strip() for d in denied]
+        partial = entry.get("partial_on")
+        if partial is not None:
+            bad = [p for p in partial if p not in PARTIAL_STOPS] if isinstance(partial, list) else [partial]
+            if bad or not partial:
+                _problem(
+                    errors,
+                    f"{self.source}: [tasks.{kind}].partial_on must be a list of {' and '.join(repr(p) for p in PARTIAL_STOPS)}, "
+                    f"not {', '.join(repr(b) for b in bad) or '[]'}",
+                )
+            else:
+                table["partial_on"] = list(dict.fromkeys(partial))
         fb = entry.get("fallbacks")
         if fb is not None:
             if not isinstance(fb, list):

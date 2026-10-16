@@ -18,10 +18,14 @@ A reply is one of:
   a task whose output is its final message (`output_from="message"`), the final message;
 * `writes(value)`: the same, explicitly (a JSON list output needs it); `writes(value,
   quota=QuotaReading(five_hour_pct=80))` also reports a quota reading, as a coding
-  agent does, so quota caps and `quota_rule` rest the credential in a test;
+  agent does, so quota caps and `quota_rule` rest the credential in a test; `writes(rows,
+  stop=Stop.TIMEOUT)` writes and then ends the launch on `stop`, as a launch the runner
+  stopped after it wrote what it had (`agent_task(partial_on=)`); rows (`Rows[Row]`) are
+  a list, written one JSON object per line;
 * `writes_example()`: the output's example: at every part of its JSON Schema, the first
   of its `examples` (a model's own, a field's), else the smallest value that part
-  accepts; a text output's from `Annotated[str, Field(examples=[...])]`, else `stub`. A
+  accepts; a text output's from `Annotated[str, Field(examples=[...])]`, else `stub`;
+  rows are one row. A
   schema rule it cannot build where there is no example (`pattern`) fails the launch and
   names the rule. As a task's only reply (not in a list, not from a callable), a value its
   validators reject ends the task `invalid_output` after one round: no correction round

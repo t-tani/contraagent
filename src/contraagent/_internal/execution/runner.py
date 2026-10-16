@@ -34,7 +34,7 @@ from contraagent._internal.backends.process import signal_of
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_until_valid
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
-from contraagent._internal.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult, kind_name
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
 from contraagent._internal.platform import envvars, telemetry
@@ -85,7 +85,8 @@ def _fails_over(result: TaskResult) -> bool:
 
 
 def _hop(label: str, result: TaskResult) -> Hop:
-    """One launch on one route: where it ran and what it spent. Taken before the hops
+    """One launch on one route: where it ran, how it ended (its launch's stop: `timeout` for
+    a partial result too) and what it spent. Taken before the hops
     after it fold their spend into the attempt's, so each hop holds its own (its rounds,
     and pool members tried on it, included)."""
     o = result.launch_result
@@ -97,7 +98,7 @@ def _hop(label: str, result: TaskResult) -> Hop:
         agent=o.agent if o else "",
         model=o.model if o else "",
         credential=o.credential if o else "",
-        stop=result.stop,
+        stop=o.stop.value if o is not None else result.stop,
         wall_s=round(result.wall_s, 1),  # this hop, pool members tried on it included
         cost_usd=o.cost_usd if o else None,
         usage=hop_usage,
@@ -559,13 +560,17 @@ class AgentRunner:
 
     def _run_as(self, task: Task, route: Route | None, credential: Credential) -> TaskResult:
         """One launch on one route as one credential. `ok`/`stop` come straight from the
-        backend's `LaunchResult`; a domain's own progress verdict is a `ResultEnricher`'s job."""
+        backend's `LaunchResult`, but for a launch stopped on one of its kind's `partial_on`
+        whose outputs passed every check (`LaunchResult.partial`): ok, stop `partial`, its
+        reason the launch's stop (`timeout`, `stalled`). A domain's own progress verdict is a
+        `ResultEnricher`'s job."""
         backend = self.backend_for_route(task, route)
         launch = self.launch(task, route, backend, credential)
         contracts = self.adapter.output_contracts(task)
         # With declared outputs the launch is resumed until every one holds,
         # or the correction budget is spent (then INVALID_OUTPUT, not ok).
-        launch_result = run_until_valid(backend, launch, contracts) if contracts else backend.run(launch)
+        partial_on = self.config(task).partial_stops
+        launch_result = run_until_valid(backend, launch, contracts, partial_on=partial_on) if contracts else backend.run(launch)
         for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
             reading = launch_result.quota[i] = reading.model_copy(
                 update={
@@ -587,9 +592,21 @@ class AgentRunner:
         # A signal-terminated process (exit code 128+N) is almost always
         # external (teardown, an interrupted run), not the task's own logic.
         sig = signal_of(launch_result.exit_code)
-        if sig is not None:
+        if sig is not None and not launch_result.partial:
             note = f"terminated by {signal.Signals(sig).name}"
             reason = f"{note}: {reason}" if reason else note
+        if launch_result.partial:
+            # Stopped for its time, and what it wrote passed every check: kept, as a partial result.
+            return TaskResult(
+                task=task,
+                launch_result=launch_result,
+                ok=True,
+                wall_s=launch_result.wall_s,
+                stop=STOP_PARTIAL,
+                reason=launch_result.stop.value,
+                rounds=launch_result.rounds,
+                round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+            )
         return TaskResult(
             task=task,
             launch_result=launch_result,

@@ -1270,6 +1270,23 @@
             "title": "Producer",
             "description": "input: the key of the task whose output it is"
           },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "json",
+                  "text",
+                  "jsonl"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format",
+            "description": "what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)"
+          },
           "schema_name": {
             "type": "string",
             "title": "Schema Name"
@@ -1807,7 +1824,7 @@
           "exists"
         ],
         "title": "FileView",
-        "description": "A contract's file as it is now. `content` is the parsed JSON, else the\ntext (cut at 20 000 characters, `truncated`), else null when unreadable."
+        "description": "A contract's file as it is now. `content` is the parsed JSON (for rows, the list of\nthe lines that parse), else the text (cut at 20 000 characters, `truncated`), else null\nwhen unreadable."
       },
       "FlowCallNode": {
         "properties": {

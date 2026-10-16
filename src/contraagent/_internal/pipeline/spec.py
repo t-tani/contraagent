@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationEr
 from pydantic.errors import PydanticSchemaGenerationError
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
+from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
 from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
 from contraagent._internal.dispatch.task import Partial
@@ -41,8 +42,26 @@ from contraagent._internal.routing.config import TASK_KEYS, ConfigError, Pipelin
 
 Out = TypeVar("Out")
 
-#: Where a task's JSON output file goes, relative to `<run>/out/` (`.md` for a text output).
+#: Where a task's JSON output file goes, relative to `<run>/out/` (`.md` for a text output,
+#: `.jsonl` for rows).
 DEFAULT_OUTPUT_NAME = "{kind}/{unit}.json"
+
+
+def default_output_name(output: Any) -> str:
+    """Where an output declared `output` goes by default: `{kind}/{unit}.json`, `.md` for a
+    text output, `.jsonl` for rows (`Rows[Row]`)."""
+    if is_text(output):
+        return "{kind}/{unit}.md"
+    if rows_model(output) is not None:
+        return "{kind}/{unit}.jsonl"
+    return DEFAULT_OUTPUT_NAME
+
+
+def output_format_of(output: Any) -> str:
+    """`text`, `jsonl` (rows) or `json`: what an output's file holds, as the call file says."""
+    if is_text(output):
+        return "text"
+    return "jsonl" if rows_model(output) is not None else "json"
 
 
 @dataclass(frozen=True, eq=False)
@@ -83,19 +102,28 @@ class AgentTask[Out]:
 
     @property
     def output_schema(self) -> type[BaseModel] | None:
-        """The schema the output file is checked against; None for a text output."""
+        """The schema the output file is checked against: the model; for rows (`Rows[Row]`)
+        the file of them (`RowsFile[Row]`); None for a text output."""
+        row = rows_model(self.output)
+        if row is not None:
+            return rows_file(row)
         return self.output if isinstance(self.output, type) and issubclass(self.output, BaseModel) else None
 
     @property
     def output_format(self) -> str | None:
+        """`json`, `text` or `jsonl` (rows); None for a task with no output."""
         if self.output is None:
             return None
-        return "text" if is_text(self.output) else "json"
+        return output_format_of(self.output)
 
     @property
     def output_json_schema(self) -> dict[str, Any]:
-        """The output's JSON Schema, as the call file carries it: the model's; for a text
-        output `Annotated[str, Field(examples=[...])]`, the string's with its examples; else empty."""
+        """The output's JSON Schema, as the call file carries it: the model's; for rows, the
+        row model's, which each line meets; for a text output `Annotated[str, Field(examples=[...])]`,
+        the string's with its examples; else empty."""
+        row = rows_model(self.output)
+        if row is not None:
+            return row.model_json_schema()
         if self.output_schema is not None:
             return self.output_schema.model_json_schema()
         if self.output is not None and self.output is not str:
@@ -224,6 +252,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
 ) -> AgentTask[Out]: ...
 
 
@@ -266,6 +295,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
 ) -> Mapping[str, AgentTask[Out]]: ...
 
 
@@ -307,6 +337,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
@@ -319,11 +350,14 @@ def agent_task[Out](
     loads it, so a plugin with any of them is refused here.
     `params`: a pydantic model the task's parameters must satisfy (default: any
     JSON values). They reach the agent in its call file, never in the prompt.
-    `output`: a pydantic model (a JSON file checked against it) or `str` (a text
-    document); `Annotated[str, Field(examples=[...])]` is a text document with an example
+    `output`: a pydantic model (a JSON file checked against it), `str` (a text
+    document) or `Rows[Row]` (rows: a JSON Lines file, each line one `Row`, which the agent
+    may write one row at a time; the flow receives a `Rows`, a list of `Row`);
+    `Annotated[str, Field(examples=[...])]` is a text document with an example
     (the model's own example: `model_config = ConfigDict(json_schema_extra={"examples": [...]})`),
     which a stub run writes (`contraagent.testing.writes_example`). `validators` add checks the file must pass beyond its schema
-    (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`).
+    (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`); a
+    Python validator of rows is given the `Rows`.
     `requires`: traits the credential it runs under must carry (`["zdr"]` for a
     task whose data may only go to a zero-data-retention organization). Which
     credential that is, is the config's to say; a route that does not satisfy
@@ -347,7 +381,7 @@ def agent_task[Out](
     `output_name`: the output file's path relative to `<run>/out/`, a template:
     `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
     `{key}` and `{kind}`. Default `{kind}/{unit}.json` (`{kind}/{unit}.md` for a text
-    output); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
+    output, `{kind}/{unit}.jsonl` for rows); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
     `..`, `.` or empty segment, or another field raises here. Two kinds whose templates name
     one file, or two tasks given one file, raise when the flow reaches the second
     (`Pipeline.check` reports it before a run).
@@ -416,6 +450,13 @@ def agent_task[Out](
     `max_concurrent`: tasks of this kind running at once (`Pipeline(max_concurrent=)` caps the run).
     `retries`: fresh-session attempts after the first, each after one that made no progress;
     `retry_backoff_base`: the seconds before the first of them, doubled per attempt.
+    `partial_on`: stops of a launch (`"timeout"`, `"stalled"`: the runner ended it for its
+    `timeout_s` or its `stall_s`) after which the output the agent wrote is kept: when it
+    exists, was written by this attempt and passes every check, the task finishes ok with
+    stop `partial` and the stop as its reason, as a Python task that returns `Partial` does;
+    its output is what the flow receives, and a resume runs it again. Rows keep the rows
+    written so far (an unfinished last line is removed). Without it such a launch fails as
+    any other. It takes an output the agent writes to a file.
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
     given = locals()
@@ -455,8 +496,12 @@ def agent_task[Out](
         )
     if plugin is None and instructions is None:
         raise TypeError(f"agent_task({kind!r}): give plugin= (its implementation) or, for a task without one, instructions=")
-    if output is not None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
-        raise TypeError(f"agent_task({kind!r}): output must be a pydantic model or str, not {output!r}")
+    try:
+        rows = rows_model(output)
+    except TypeError as exc:
+        raise TypeError(f"agent_task({kind!r}): output {exc}") from None
+    if output is not None and rows is None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
+        raise TypeError(f"agent_task({kind!r}): output must be a pydantic model, str or Rows[Model], not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
     if params is not None and (taken := sorted(RESERVED_PARAMS & set(params.model_fields))):
@@ -468,9 +513,14 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
-    if unwrap and (output_from != "message" or is_text(output)):
+    if unwrap and (output_from != "message" or is_text(output) or rows is not None):
         raise TypeError(
             f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
+        )
+    if partial_on is not None and (output is None or output_from != "file"):
+        raise TypeError(
+            f"agent_task({kind!r}): partial_on keeps the output file a stopped launch wrote; "
+            'give an output the agent writes (output_from="file")'
         )
     checked_preserve = _checked_preserve(kind, preserve, output, output_from)
     _check_output_of(kind, output_of, output, output_name)
@@ -513,7 +563,7 @@ def agent_task[Out](
         claims=checked_claims,
         skills_from=shared,
         changes=changes,
-        output_name=output_name or ("{kind}/{unit}.md" if is_text(output) else DEFAULT_OUTPUT_NAME),
+        output_name=output_name or default_output_name(output),
         output_from=output_from,
         unwrap=bool(unwrap),
         tools=checked_tools,
@@ -604,7 +654,7 @@ def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None
         raise TypeError(f"agent_task({kind!r}): output_of names this kind itself")
     if other.output_format is None or (other.executor == "python" and other.output_schema is None):
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes no output file")
-    mine = "text" if is_text(output) else "json"
+    mine = output_format_of(output)
     if other.output_format != mine:
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes a {other.output_format} file, and this output is {mine}")
 
@@ -617,7 +667,7 @@ def _checked_preserve(kind: str, preserve: Sequence[str], output: Any, output_fr
     if not pointers:
         return ()
     if not (isinstance(output, type) and issubclass(output, BaseModel)):
-        raise TypeError(f"agent_task({kind!r}): preserve keeps parts of a JSON output: give output= a pydantic model")
+        raise TypeError(f"agent_task({kind!r}): preserve keeps parts of a JSON document: give output= a pydantic model (not str or Rows)")
     if output_from != "file":
         raise TypeError(f'agent_task({kind!r}): preserve keeps parts of a file the agent writes, not of output_from="message"')
     json_schema = output.model_json_schema()
@@ -665,10 +715,13 @@ class PythonTask[Out]:
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
+    #: What its output file holds: `json`, or `jsonl` for a task that returns `Rows`.
     output_format = "json"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_param_types", _ParamTypes(self.fn))  # once, at declaration
+        if is_rows(self.output_schema):
+            object.__setattr__(self, "output_format", "jsonl")
 
     @property
     def kind(self) -> str:
@@ -910,16 +963,17 @@ def python_task(
                 f"{owner}: the function has a parameter named {', '.join(taken)}; "
                 f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the parameter"
             )
+        schema = _output_schema_of(f)
         return PythonTask(
             fn=f,
             name=kind,
-            output_schema=_output_schema_of(f),
+            output_schema=schema,
             validators=tuple(validators),
             claims=checked,
             rerun_on_resume=bool(rerun_on_resume),
             retries=tries,
             retry_on=on,
-            output_name=output_name or DEFAULT_OUTPUT_NAME,
+            output_name=output_name or ("{kind}/{unit}.jsonl" if is_rows(schema) else DEFAULT_OUTPUT_NAME),
         )
 
     return wrap(fn) if fn is not None else wrap
@@ -941,6 +995,9 @@ def _output_schema_of(fn: Callable[..., Any]) -> type[BaseModel] | None:
     ann = _without_partial(ann)
     if ann is None or ann is type(None):
         return None
+    row = rows_model(ann)
+    if row is not None:
+        return rows_file(row)
     if isinstance(ann, type) and issubclass(ann, BaseModel):
         return ann
     return RootModel[ann]
