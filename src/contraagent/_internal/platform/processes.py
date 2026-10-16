@@ -70,9 +70,18 @@ start_ticks: Starts = LinuxStarts() if sys.platform == "linux" else PsutilStarts
 
 def alive(pid: int) -> bool:
     """True when the process exists and has not ended. A zombie has ended: its entry
-    stays only until its parent collects its exit status."""
+    stays only until its parent collects its exit status. On Windows an ended process
+    stays while a handle to it is open (a `Popen` holds one), so a wait of no time
+    decides there."""
     try:
-        return psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+        proc = psutil.Process(pid)
+        if sys.platform == "win32":
+            try:
+                proc.wait(timeout=0)
+            except psutil.TimeoutExpired:
+                return True
+            return False
+        return proc.status() != psutil.STATUS_ZOMBIE
     except (psutil.Error, OSError, ValueError):
         return False
 
