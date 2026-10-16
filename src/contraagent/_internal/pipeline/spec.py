@@ -509,8 +509,8 @@ def agent_task[Out](
     `keep_failed_changes`: leave the files a failed attempt created under `changes` in place,
     as the evidence of why it failed, instead of removing them; its journal row lists them
     as `changes.kept`. The next attempt, and a resume, start from the tree with them in it.
-    `max_corrections`: the correction rounds after the first launch, 0 to 20 (default 3,
-    or `[defaults].max_corrections`): how many times an output that fails its checks goes
+    `max_corrections`: the correction rounds after the first launch, 0 to 20 (default 3):
+    how many times an output that fails its checks goes
     back to the same session with the errors before the task ends `invalid_output`; 0
     sends none back.
     """

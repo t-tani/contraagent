@@ -47,7 +47,7 @@ TABLES = ("defaults", "tasks", "credentials", "pipeline", "_comment")
 ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fallbacks")
 
 #: The keys of `[defaults]` (and `_comment`, anywhere).
-DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct", "max_corrections")
+DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
 
 #: The keys of a task table beside `TASK_TABLE_KEYS` and `TASK_ATTEMPT_KEYS` (and `_comment`).
 TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on")
@@ -189,8 +189,7 @@ class PipelineConfig:
         """`[defaults]`: the run-wide routing default (agent, model, effort, credential,
         model_failover), `max_passes` (`Pipeline(max_passes=)`), `preflight`
         (`Pipeline(preflight=)`: `substitute`, `stop` or `off`), `context_warn_pct` (the warning
-        of every kind with a `context_budget` and none of its own) and `max_corrections` (the
-        correction rounds of every kind that gives none). Its failover chain,
+        of every kind with a `context_budget` and none of its own). Its failover chain,
         `[[defaults.fallbacks]]`, is read by `fallbacks()`.
         An unknown key raises; with `errors`, it is appended there and the rest still read."""
         entry = _section(self.raw, "defaults")
@@ -215,12 +214,6 @@ class PipelineConfig:
                 _problem(errors, f"{self.source}: [defaults].context_warn_pct = {value!r} {WARN_PCT_RANGE}")
             else:
                 out["context_warn_pct"] = value
-        if entry.get("max_corrections") is not None:
-            value = entry["max_corrections"]
-            if not _is_corrections(value):
-                _problem(errors, f"{self.source}: [defaults].max_corrections = {value!r} {CORRECTIONS_RANGE}")
-            else:
-                out["max_corrections"] = value
         if entry.get("preflight") is not None:
             from contraagent._internal.routing.preflight import check_policy
 

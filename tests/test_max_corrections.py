@@ -1,5 +1,5 @@
-"""A kind's correction rounds (`max_corrections`): declared, set in `[tasks.<kind>]` or
-`[defaults]`, checked, and recorded beside the rounds a task took."""
+"""A kind's correction rounds (`max_corrections`): declared or set in `[tasks.<kind>]`,
+checked, and recorded beside the rounds a task took."""
 
 import json
 
@@ -39,9 +39,9 @@ def test_the_declaration_sets_them_and_the_task_table_outranks_it(tmp_path):
     assert run(tmp_path / "b", count(max_corrections=1), {"tasks": {"count": {"max_corrections": 0}}}) == (1, 0)
 
 
-def test_defaults_give_them_to_a_kind_that_gives_none(tmp_path):
-    assert run(tmp_path / "a", count(), {"defaults": {"max_corrections": 2}}) == (3, 2)
-    assert run(tmp_path / "b", count(max_corrections=1), {"defaults": {"max_corrections": 2}}) == (2, 1)
+def test_defaults_refuse_them(tmp_path):
+    with pytest.raises(ConfigError, match=r"unknown key.*max_corrections"):
+        PipelineConfig({"defaults": {"max_corrections": 2}}).defaults()
 
 
 @pytest.mark.parametrize("value", [-1, 21, True, 1.5])
@@ -50,8 +50,7 @@ def test_a_value_out_of_range_is_refused(value):
         count(max_corrections=value)
     errors: list[str] = []
     PipelineConfig({"tasks": {"count": {"max_corrections": value}}}).task_tables(errors)
-    PipelineConfig({"defaults": {"max_corrections": value}}).defaults(errors)
-    assert len(errors) == 2 and all("max_corrections" in e for e in errors)
+    assert len(errors) == 1 and "max_corrections" in errors[0]
 
 
 def test_check_reports_a_value_out_of_range(tmp_path):

@@ -18,7 +18,6 @@ credential = "personal"             # without it: "ambient", the host's own setu
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
 # max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=)); a function's @max_passes(n) outranks it
 # context_warn_pct = 80             # context_warn_pct of every kind with a context_budget and none of its own
-# max_corrections = 3               # max_corrections of every kind that gives none (agent_task or [tasks.<kind>])
 # preflight = "stop"                # probe every route first; a kind with no route left: "substitute" or "stop"; "off" (default)
 
 # How many running tasks may hold each claimed name (agent_task(claims=...)) at once, by the

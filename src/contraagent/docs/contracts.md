@@ -92,8 +92,8 @@ that does not.
 Each launch of the session is a **round**, and each resume a **correction
 round**. A kind has 3 correction rounds after its first round by default.
 `max_corrections` sets another number, from 0 to 20: `agent_task(max_corrections=1)`,
-`max_corrections` in `[tasks.<kind>]`, or `[defaults].max_corrections` for every
-kind that gives none ([routing](routing.md#precedence) says which one wins). With 0
+or `max_corrections` in `[tasks.<kind>]`, which outranks the declaration
+([routing](routing.md#precedence)). With 0
 the first failed check ends the task `invalid_output`. A short output, such as a
 verdict, rarely needs more than one round to correct its form; an output that is
 still wrong after many rounds is not getting closer, and each round is a full turn

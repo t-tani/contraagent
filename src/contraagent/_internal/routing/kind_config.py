@@ -163,14 +163,6 @@ def with_context_warn(configs: dict[str, Any], default_pct: int | None) -> dict[
     return {k: c.with_(context_warn_pct=default_pct) if c.context_budget and c.context_warn_pct is None else c for k, c in configs.items()}
 
 
-def with_max_corrections(configs: dict[str, Any], tables: dict[str, dict[str, Any]], default: int | None) -> dict[str, Any]:
-    """Give `[defaults].max_corrections` to each kind whose task table (its declaration's
-    and the config file's, `tables`) gives none."""
-    if default is None:
-        return configs
-    return {k: c if "max_corrections" in tables.get(kind_name(k), {}) else c.with_(max_corrections=default) for k, c in configs.items()}
-
-
 def context_warn_problems(configs: dict[str, Any]) -> list[str]:
     """One message per kind with a `context_warn_pct` but no `context_budget` to be a percent of."""
     return sorted(

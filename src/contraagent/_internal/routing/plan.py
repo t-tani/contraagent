@@ -33,7 +33,6 @@ from contraagent._internal.routing.kind_config import (
     context_warn_problems,
     missing_budgets,
     with_context_warn,
-    with_max_corrections,
 )
 from contraagent._internal.routing.router import Route, Router, on_credential, parse_chain
 
@@ -420,7 +419,6 @@ class RoutingPlan:
             check_task_tables(file_tables, kinds, bases)
         tables = resolved_task_tables(file_tables, kinds, declared or {}, bases or {})
         configs = with_context_warn(configs_from_tables(kinds, tables), defaults.get("context_warn_pct"))
-        configs = with_max_corrections(configs, tables, defaults.get("max_corrections"))
         errors += context_warn_problems(configs)
         if budgets_required:
             errors += missing_budgets(configs, tables)

@@ -63,7 +63,6 @@ class DefaultsTable(_Routing):
         None, description="how many running tasks may claim each name, by the name or an fnmatch pattern"
     )
     context_warn_pct: WarnPct | None = None
-    max_corrections: Corrections | None = Field(None, description="the correction rounds of every kind that gives none")
 
 
 def _budget(want: type | tuple[type, ...]) -> Any:
