@@ -1,6 +1,7 @@
 ---
 // The monitor over the demo export (public/demo/data/) on the whole screen: the page the
 // monitor's live demos link to, for a phone, where a frame in a page is too small for it.
+import { withBase } from '../../lib/base';
 ---
 
 <!doctype html>
@@ -10,15 +11,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>Monitor demo | contraagent</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml" />
+    <link rel="icon" href={withBase('/favicon-32.png')} type="image/png" sizes="32x32" />
     <style>
       html, body { margin: 0; height: 100%; }
       ca-monitor { display: block; height: 100dvh; }
     </style>
   </head>
   <body>
-    <ca-monitor export="/demo/data/" history="url"></ca-monitor>
+    <ca-monitor export={withBase('/demo/data/')} history="url"></ca-monitor>
     <script>
       import '@contraagent/ui';
     </script>

@@ -323,6 +323,26 @@ def test_the_site_shows_each_element_live_in_place_of_its_screenshot(tmp_path, m
         collect.main()
 
 
+def test_the_site_links_its_pages_relative_to_each_other(tmp_path, monkeypatch):
+    """The site is served under a base path (web/apps/docs/site.ts), so a link from one
+    collected page to another is relative to the linking page, and a link from the
+    server's root stops the collector."""
+    collect = _collector()
+    monkeypatch.setattr(collect, "CONTENT", tmp_path / "content")
+    monkeypatch.setattr(collect, "SCHEMAS", tmp_path / "schemas")
+    collect.main()
+    links = [m for p in (tmp_path / "content").rglob("*.md*") for m in collect.LINK.findall(p.read_text(encoding="utf-8"))]
+    assert any(link.startswith("../") for link in links)
+    assert [link for link in links if link.startswith("/")] == []
+
+    source = docs.DIR / "tutorial.md"
+    pages = {(docs.DIR / "guide.md").resolve(): {"url": "/python/guide/"}}
+    assert collect.link(source, {"url": "/python/tutorial/"}, "guide.md#steps", pages) == "../guide/#steps"
+    assert collect.link(docs.DIR / "README.md", {"url": "/python/"}, "guide.md", pages) == "guide/"
+    with pytest.raises(SystemExit, match="is not relative to the page"):
+        collect.link(source, {"url": "/python/tutorial/"}, "/python/guide/", pages)
+
+
 def test_the_root_readme_code_is_the_example_it_quotes():
     """GitHub does not expand `::code`, so the root README writes the code out: each
     fenced block that follows `<!-- ::code{...} -->` lines is those quotes, two blank lines

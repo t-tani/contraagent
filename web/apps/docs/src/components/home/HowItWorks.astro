@@ -12,6 +12,7 @@ import '@contraagent/elements/count/define';
 import { how, KWARGS } from './how';
 import './how.css';
 import './how-stages.css';
+import { withBase } from '../../lib/base';
 
 const h = how();
 /** Each stage's share of the scroll through the scene (scripts/how_css.py has the same; a test checks). */
@@ -25,7 +26,7 @@ const out = (text: string) => text.split('\n').map((l) => ({ l, t: tone(l) }));
 
 interface Step { who: 'You' | 'The agent'; title: string; text: string; link?: { href: string; text: string } }
 const steps: Step[] = [
-  { who: 'You', title: 'Install contraagent', text: 'Linux, Python 3.12 or later, and one or more coding agents on PATH.', link: { href: '/python/#install', text: 'Install' } },
+  { who: 'You', title: 'Install contraagent', text: 'Linux, Python 3.12 or later, and one or more coding agents on PATH.', link: { href: withBase('/python/#install'), text: 'Install' } },
   {
     who: 'You',
     title: 'Point your coding agent at the docs',
@@ -36,13 +37,13 @@ const steps: Step[] = [
     who: 'The agent',
     title: 'Reads the docs and writes the pipeline',
     text: 'The topics of contraagent docs, then tasks.py: the models, the agent tasks and the flow, and a plugin with a role for each kind.',
-    link: { href: '/python/tasks/', text: 'Tasks and flows' },
+    link: { href: withBase('/python/tasks/'), text: 'Tasks and flows' },
   },
   {
     who: 'The agent',
     title: 'Checks it and fixes what check names',
     text: 'contraagent check launches nothing and reports every problem at once, each with the topic that explains it.',
-    link: { href: '/python/testing/', text: 'Checking and testing' },
+    link: { href: withBase('/python/testing/'), text: 'Checking and testing' },
   },
   { who: 'The agent', title: 'Tests the flow on a stub agent', text: 'The stub agent plays the coding agent: the checks, corrections and failover are the real ones, and nothing is spent.' },
   {

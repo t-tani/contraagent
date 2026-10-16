@@ -104,6 +104,13 @@ files only. No page runs a command when it renders: the landing page reads
 `src/fixtures/landing-outputs.json` and the live examples `src/fixtures/demo-run.json`
 and `public/demo/data/` (how to rewrite them: the root `AGENTS.md`).
 
+The site is served at https://t-tani.github.io/contraagent/, under the base path that
+`apps/docs/site.ts` names (`.github/workflows/pages.yml` deploys it from `main`). A
+component or a page of `src/` writes each link and file reference as a path from the
+site's root passed through `withBase()` (`src/lib/base.ts`); the collected pages link
+to each other with relative URLs. The end-to-end tests serve the built site under the
+base only, and `e2e/docs-links.spec.ts` fails on a link or a request that misses it.
+
 Screenshots are for readers of the repository: a package's `docs/images/` stays out
 of its tarball (`"!docs/images"`). The root README's screenshots in
 `docs/assets/readme/` come from the showcase runs (`scripts/showcase.py`); each is one

@@ -11,6 +11,7 @@ hero:
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { withBase } from '../../lib/base';
 import RunReplay from '../../components/home/RunReplay.astro';
 import Reveal from '../../components/home/Reveal.astro';
 import HowItWorks from '../../components/home/HowItWorks.astro';
@@ -51,26 +52,26 @@ import HowItWorks from '../../components/home/HowItWorks.astro';
   <section aria-labelledby="start-python">
     <h3 id="start-python">Python package</h3>
     <p>Build and run pipelines.</p>
-    <LinkCard title="Tutorial: your first pipeline" href="/python/tutorial/" description="From an empty directory: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test." />
-    <LinkCard title="Guide" href="/python/guide/" description="Building a pipeline: the steps, the decisions, the pitfalls." />
-    <LinkCard title="Concepts" href="/python/concepts/" description="The words contraagent uses, each with one meaning." />
-    <LinkCard title="The monitor" href="/python/monitor/" description="The runs, live, in a browser." />
+    <LinkCard title="Tutorial: your first pipeline" href={withBase('/python/tutorial/')} description="From an empty directory: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test." />
+    <LinkCard title="Guide" href={withBase('/python/guide/')} description="Building a pipeline: the steps, the decisions, the pitfalls." />
+    <LinkCard title="Concepts" href={withBase('/python/concepts/')} description="The words contraagent uses, each with one meaning." />
+    <LinkCard title="The monitor" href={withBase('/python/monitor/')} description="The runs, live, in a browser." />
   </section>
   <section aria-labelledby="start-web">
     <h3 id="start-web">Web packages</h3>
     <p>The monitor in a page of your own.</p>
-    <LinkCard title="@contraagent/ui" href="/node/ui/" description="The monitor and each of its views as web components." />
-    <LinkCard title="@contraagent/elements" href="/node/elements/" description="Generic web components: tables, graphs, tiles, charts, transcripts, and the themes." />
-    <LinkCard title="@contraagent/api" href="/node/api/" description="A typed client for the monitor's HTTP API, its live feeds and a store." />
-    <LinkCard title="Element gallery" href="/elements/" description="Every element of the web packages, live." />
+    <LinkCard title="@contraagent/ui" href={withBase('/node/ui/')} description="The monitor and each of its views as web components." />
+    <LinkCard title="@contraagent/elements" href={withBase('/node/elements/')} description="Generic web components: tables, graphs, tiles, charts, transcripts, and the themes." />
+    <LinkCard title="@contraagent/api" href={withBase('/node/api/')} description="A typed client for the monitor's HTTP API, its live feeds and a store." />
+    <LinkCard title="Element gallery" href={withBase('/elements/')} description="Every element of the web packages, live." />
   </section>
   <section aria-labelledby="start-reference">
     <h3 id="start-reference">Reference</h3>
     <p>Generated from the code.</p>
-    <LinkCard title="Monitor HTTP API" href="/reference/http-api/" description="The monitor's endpoints and live feeds." />
-    <LinkCard title="Elements of @contraagent/ui" href="/reference/ui/" description="Each view's properties, attributes and events." />
-    <LinkCard title="Elements of @contraagent/elements" href="/reference/elements/" description="Each generic element's properties, attributes, events and parts." />
-    <LinkCard title="Theme properties" href="/reference/theme/" description="Every --ca-* custom property and its value in each built-in theme." />
+    <LinkCard title="Monitor HTTP API" href={withBase('/reference/http-api/')} description="The monitor's endpoints and live feeds." />
+    <LinkCard title="Elements of @contraagent/ui" href={withBase('/reference/ui/')} description="Each view's properties, attributes and events." />
+    <LinkCard title="Elements of @contraagent/elements" href={withBase('/reference/elements/')} description="Each generic element's properties, attributes, events and parts." />
+    <LinkCard title="Theme properties" href={withBase('/reference/theme/')} description="Every --ca-* custom property and its value in each built-in theme." />
   </section>
 </div>
 

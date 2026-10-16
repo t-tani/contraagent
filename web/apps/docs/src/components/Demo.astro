@@ -9,7 +9,7 @@
 // an element that is a whole page with its own background (the frame gives it no room around it);
 // `scroll` the most a long list's frame grows to, then it scrolls (`data-scroll="y"`); on a phone both are
 // held to the screen's height (src/styles/pages.css). `full` is a page that shows the element alone,
-// on the whole screen, linked under it.
+// on the whole screen, linked under it; it and an attribute that names a file are URLs (src/lib/base.ts).
 import { describe as describeTag } from '../lib/elements';
 import { inlineMd } from '../lib/repo';
 
@@ -56,9 +56,10 @@ const description = describe ? describeTag(Tag) : undefined;
   import { adoptThemes } from '@contraagent/elements/themes';
   import { createExportClient, taskFileName, type MonitorClient, type StreamPage } from '@contraagent/api';
   import fixture from '../fixtures/demo-run.json';
+  import { withBase } from '../lib/base';
 
   // The demo export (scripts/fixture.py), and each task's transcript written beside it.
-  const exported = createExportClient(new URL('/demo/data/', location.href).href);
+  const exported = createExportClient(new URL(withBase('/demo/data/'), location.href).href);
   const streamFile = (run: string, key: string) => `runs/${encodeURIComponent(run)}/streams/${encodeURIComponent(taskFileName(key))}.json`;
 
   // The site has no monitor server: a transcript's feed (`/events/stream`, which

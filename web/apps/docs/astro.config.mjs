@@ -4,10 +4,14 @@ import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
 import { satteri } from '@astrojs/markdown-satteri';
 import { tableCards } from './src/lib/table-cards.mjs';
+import { BASE, SITE } from './site.ts';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
 export default defineConfig({
+  // The repository's GitHub Pages (site.ts); a page links through src/lib/base.ts.
+  site: SITE,
+  base: BASE,
   // No raster images to optimise: skip sharp and its install script.
   image: { service: passthroughImageService() },
   // A Markdown table of three columns or more: one card per row on a phone (src/styles/pages.css).
@@ -29,10 +33,11 @@ export default defineConfig({
         replacesTitle: true,
       },
       // favicon.svg follows the reader's colour scheme; the PNGs are for browsers and home screens without SVG icons.
+      // Starlight adds the base to `favicon`, not to the links in `head`.
       favicon: '/favicon.svg',
       head: [
-        { tag: 'link', attrs: { rel: 'icon', href: '/favicon-32.png', type: 'image/png', sizes: '32x32' } },
-        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' } },
+        { tag: 'link', attrs: { rel: 'icon', href: `${BASE}/favicon-32.png`, type: 'image/png', sizes: '32x32' } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: `${BASE}/apple-touch-icon.png`, sizes: '180x180' } },
       ],
       // A live demo can show @contraagent/elements' example of a theme of one's own.
       // The landing page's first screen (the only page with a `hero`).
