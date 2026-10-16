@@ -5,14 +5,20 @@ implementation is a role of the `plugins/docs` plugin. A flow is a plain
 function: passing one task's result to another is the dependency. `docs` is a
 generator: it waits for results and decides on them (a review loop per unit).
 `docs_one_review` creates the same kinds of tasks without waiting for any.
+
+Each output declares an example that passes its validators (`examples` in its JSON
+Schema), so a stub run (`contraagent run tasks.py:docs --stub`) writes it and goes
+through the whole flow. The examples agree with each other: the summary's unit is the
+prepared unit, and the note names it.
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from contraagent import CommandValidator, Partial, TaskFailed, agent_task, python_task
 
@@ -20,24 +26,38 @@ INPUT_DIR = Path("inputs")
 
 
 class Prepared(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"unit": "alpha", "path": "inputs/alpha.md", "words": 12}]})
+
     unit: str
     path: str = Field(description="the document to summarize, relative to the working directory")
     words: int
 
 
 class Summary(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"unit": "alpha", "points": ["parses a config file", "validates it", "reports errors"]}]}
+    )
+
     unit: str = Field(description="the unit this summary is for, copied from the call file")
     points: list[str] = Field(description="the main points, one short sentence each")
 
 
 class Score(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"points": 3, "words": 8}]})
+
     points: int
     words: int
 
 
 class Verdict(BaseModel):
+    model_config = ConfigDict(json_schema_extra={"examples": [{"approved": True, "note": "Accurate."}]})
+
     approved: bool
     note: str = Field(description="one sentence: what to change, when not approved")
+
+
+#: A text output with an example: the note starts with a heading and names its unit.
+Note = Annotated[str, Field(examples=["# alpha\n\nThe alpha component parses a config file.\n"])]
 
 
 def three_points(path: Path, summary: Summary):
@@ -85,7 +105,7 @@ review = agent_task(
 )
 revise = agent_task("revise", plugin="plugins/docs", role="reviser", output=Summary, validators=[three_points], max_turns=10, timeout_s=300)
 write_note = agent_task(
-    "write_note", plugin="plugins/docs", role="writer", output=str, validators=[has_heading, names_its_unit], max_turns=10, timeout_s=300
+    "write_note", plugin="plugins/docs", role="writer", output=Note, validators=[has_heading, names_its_unit], max_turns=10, timeout_s=300
 )
 
 

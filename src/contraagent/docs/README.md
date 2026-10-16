@@ -97,14 +97,12 @@ these steps, which launch no coding agent and spend nothing:
 
 1. `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`, until
    it prints ✓. Each problem names the topic that explains it.
-2. `contraagent run tasks.py:<flow> --stub --kwargs '{...}'`, a stub run, which
-   checks the flow's wiring on the smallest outputs that the schemas accept. It lists
-   the tasks that the flow created. A validator that needs real content rejects the
-   smallest output, and the run's last line names it: that result is expected, and
-   step 3 tests it.
+2. `contraagent run tasks.py:<flow> --stub --kwargs '{...}'`, a stub run of the whole
+   flow, in which each task's output is its output model's example. It lists the
+   tasks that the flow created. Give each output model an example that passes its
+   validators; the run's last line names a validator that rejects one.
 3. Tests of the flow on `contraagent.testing.StubAgent` in pytest, which run the
-   real checks, correction rounds and failover with scripted replies that carry real
-   content.
+   real checks, correction rounds, failures and failover with scripted replies.
 
 A run on the coding agents (`contraagent run tasks.py:<flow> --config pipeline.toml
 --kwargs '{...}'`) spends tokens. The person who asked for the pipeline starts it,
@@ -129,7 +127,7 @@ and the documentation site print the quoted lines in place.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
 - [Coding agents](agents.md): what each of the five coding agents does and does not do, and how to add another.
-- [Checking and testing](testing.md): `contraagent check`, a stub run of the flow's wiring, and flows tested on a stub agent.
+- [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow on the outputs' examples, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs, and an export of it that needs no server.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.

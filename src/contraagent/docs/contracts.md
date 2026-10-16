@@ -9,7 +9,9 @@ validators=[...])`; a Python task's from its return annotation.
 Outputs are pydantic models. Define them at the top level of an importable
 module, not in the script you run and not inside a function: the check inside
 the agent's session imports them (`contraagent check` says when it cannot).
-Their field descriptions reach the agent in the call file's JSON Schema.
+Their field descriptions reach the agent in the call file's JSON Schema. Each
+model's `examples` (its **example**) is what a stub run writes in place of the
+agent; give it one that passes the validators ([Checking and testing](testing.md)).
 
 ::code{file="examples/demo/tasks.py" from="class Prepared(BaseModel):" to="def three_points"}
 

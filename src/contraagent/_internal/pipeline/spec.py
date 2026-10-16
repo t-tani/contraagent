@@ -89,7 +89,17 @@ class AgentTask[Out]:
     def output_format(self) -> str | None:
         if self.output is None:
             return None
-        return "text" if self.output is str else "json"
+        return "text" if is_text(self.output) else "json"
+
+    @property
+    def output_json_schema(self) -> dict[str, Any]:
+        """The output's JSON Schema, as the call file carries it: the model's; for a text
+        output `Annotated[str, Field(examples=[...])]`, the string's with its examples; else empty."""
+        if self.output_schema is not None:
+            return self.output_schema.model_json_schema()
+        if self.output is not None and self.output is not str:
+            return TypeAdapter(self.output).json_schema()
+        return {}
 
     @property
     def light(self) -> bool:
@@ -178,7 +188,7 @@ class AgentTask[Out]:
 def agent_task[Out](
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,  # Any: `Annotated[str, Field(examples=[...])]` has no type
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -220,7 +230,7 @@ def agent_task[Out](
 def agent_task[Out](
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,  # Any: `Annotated[str, Field(examples=[...])]` has no type
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -261,7 +271,7 @@ def agent_task[Out](
 def agent_task[Out](
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,  # Any: `Annotated[str, Field(examples=[...])]` has no type
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -309,7 +319,9 @@ def agent_task[Out](
     `params`: a pydantic model the task's parameters must satisfy (default: any
     JSON values). They reach the agent in its call file, never in the prompt.
     `output`: a pydantic model (a JSON file checked against it) or `str` (a text
-    document). `validators` add checks the file must pass beyond its schema
+    document); `Annotated[str, Field(examples=[...])]` is a text document with an example
+    (the model's own example: `model_config = ConfigDict(json_schema_extra={"examples": [...]})`),
+    which a stub run writes (`contraagent.testing.writes_example`). `validators` add checks the file must pass beyond its schema
     (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`).
     `requires`: traits the credential it runs under must carry (`["zdr"]` for a
     task whose data may only go to a zero-data-retention organization). Which
@@ -442,7 +454,7 @@ def agent_task[Out](
         )
     if plugin is None and instructions is None:
         raise TypeError(f"agent_task({kind!r}): give plugin= (its implementation) or, for a task without one, instructions=")
-    if output is not None and output is not str and not (isinstance(output, type) and issubclass(output, BaseModel)):
+    if output is not None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model or str, not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
@@ -455,7 +467,7 @@ def agent_task[Out](
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
-    if unwrap and (output_from != "message" or output is str):
+    if unwrap and (output_from != "message" or is_text(output)):
         raise TypeError(
             f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
         )
@@ -500,7 +512,7 @@ def agent_task[Out](
         claims=checked_claims,
         skills_from=shared,
         changes=changes,
-        output_name=output_name or ("{kind}/{unit}.md" if output is str else DEFAULT_OUTPUT_NAME),
+        output_name=output_name or ("{kind}/{unit}.md" if is_text(output) else DEFAULT_OUTPUT_NAME),
         output_from=output_from,
         unwrap=bool(unwrap),
         tools=checked_tools,
@@ -571,6 +583,12 @@ class Implementations[Out](Mapping[str, AgentTask[Out]]):
         return f"Implementations({self.kind!r}, {', '.join(self.kinds)})"
 
 
+def is_text(output: Any) -> bool:
+    """Whether `output` declares a text output: `str`, or `Annotated[str, ...]` (its
+    `Field(examples=[...])` the example a stub run writes)."""
+    return output is str or (typing.get_origin(output) is typing.Annotated and typing.get_args(output)[0] is str)
+
+
 def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None) -> None:
     """`output_of`: a task declaration that writes an output file of the same format as `output`."""
     if other is None:
@@ -585,7 +603,7 @@ def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None
         raise TypeError(f"agent_task({kind!r}): output_of names this kind itself")
     if other.output_format is None or (other.executor == "python" and other.output_schema is None):
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes no output file")
-    mine = "text" if output is str else "json"
+    mine = "text" if is_text(output) else "json"
     if other.output_format != mine:
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes a {other.output_format} file, and this output is {mine}")
 

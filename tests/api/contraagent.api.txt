@@ -49,6 +49,7 @@ class AgentTask[Out]
     output: type | None
     @property output_format: str | None
     output_from: str = 'file'
+    @property output_json_schema: dict[str, Any]
     output_name: str
     output_of: AgentTask[Any] | PythonTask[Any] | None = None
     @property output_schema: type[BaseModel] | None
@@ -540,7 +541,7 @@ class Validator(Protocol)
 def agent_task(
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -580,7 +581,7 @@ def agent_task(
 def agent_task(
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -619,7 +620,7 @@ def agent_task(
 def agent_task(
     kind: str,
     *,
-    output: type[Out] | None = None,
+    output: type[Out] | Any | None = None,
     params: type[BaseModel] | None = None,
     plugin: str | Path | None = None,
     skills_from: Sequence[str | Path] = (),
@@ -3374,6 +3375,6 @@ def writes(
     context_window: int | None = None,
 ) -> Reply
 
-def writes_nothing() -> Reply
+def writes_example() -> Reply
 
-def writes_smallest() -> Reply
+def writes_nothing() -> Reply

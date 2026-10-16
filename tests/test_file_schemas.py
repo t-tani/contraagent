@@ -18,7 +18,7 @@ from contraagent._internal.routing import config as config_module
 from contraagent._internal.routing.config_schema import DefaultsTable, PipelineFile, TaskTable
 from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
 from contraagent._internal.runs import layout
-from contraagent.testing import StubAgent, fails, writes_smallest
+from contraagent.testing import StubAgent, fails, writes_example
 
 FIXTURE = Path(__file__).parent / "fixtures" / "runs" / "v1" / "review"
 REGENERATE = "uv run python -m contraagent._internal.execution.file_schemas"
@@ -95,7 +95,7 @@ def _flow(units: list[str]):
 
 
 def test_what_a_run_writes_holds_to_the_schemas(tmp_path):
-    stub = StubAgent({"check-b": fails()}, default=writes_smallest())
+    stub = StubAgent({"check-b": fails()}, default=writes_example())
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(_flow, units=["a", "b"])
     assert (report.run_dir / layout.LAUNCHES).read_text()
     _check_run(report.run_dir)

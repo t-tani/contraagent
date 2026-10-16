@@ -24,6 +24,7 @@ are, with the contract errors attached, for the caller's own handling
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
@@ -606,17 +607,22 @@ def _parses(text: str) -> bool:
     return True
 
 
-def smallest(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:
-    """The smallest value `json_schema` accepts, and the rules it could not build.
+def example(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:
+    """The example of `json_schema`, and the rules it could not build: what a stub run
+    plays as each task's output (`contraagent.testing.writes_example`).
 
-    Only what the schema requires: an object's required fields, a list's
-    `minItems` elements, a string's `minLength` characters, a number's `minimum`
-    (or just past an `exclusiveMinimum`), a field's `default`, an enum's or a
-    `const`'s first value, the first branch of `anyOf`/`oneOf`, `allOf` merged,
-    `$ref` into the schema's own `$defs`. A rule it does not build (`pattern`,
-    `format`, `multipleOf`, `not`) is named in the second item by its location, and
-    the value is built without it. What a stub run plays as each task's output
-    (`contraagent.testing.writes_smallest`).
+    One rule, at every node of the schema: the first entry of the node's `examples`,
+    when it has one, else the smallest value the node accepts. So a model's own example
+    (`model_config = ConfigDict(json_schema_extra={"examples": [...]})`) is the whole value,
+    a field's (`Field(examples=[...])`) is that field's value, and a part with no example
+    is the smallest. The smallest value is only what the schema requires: an object's
+    required fields, a list's `minItems` elements, a string's `minLength` characters, a
+    number's `minimum` (or just past an `exclusiveMinimum`), a field's `default`, an
+    enum's or a `const`'s first value, the first branch of `anyOf`/`oneOf`, `allOf`
+    merged, `$ref` into the schema's own `$defs`. A rule it does not build (`pattern`,
+    `format`, `multipleOf`, `not`) is named in the second item by its location, and the
+    value is built without it. An example is not checked here: `contraagent check`
+    checks it against its model.
     """
     problems: list[str] = []
     root = dict(json_schema)
@@ -635,6 +641,8 @@ def smallest(json_schema: Mapping[str, Any]) -> tuple[Any, list[str]]:
 
     def build(node: Mapping[str, Any], where: str, seen: frozenset[str]) -> Any:
         node, seen = resolve(node, seen)
+        if isinstance(node.get("examples"), list) and node["examples"]:
+            return copy.deepcopy(node["examples"][0])
         if "const" in node:
             return node["const"]
         if node.get("enum"):

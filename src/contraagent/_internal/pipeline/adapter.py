@@ -53,7 +53,7 @@ class SpecAdapter(TaskAdapter):
                 path=str(node.output_path),
                 format=spec.output_format,
                 from_=spec.output_from,
-                json_schema=schema.model_json_schema() if schema is not None else {},
+                json_schema=spec.output_json_schema,
                 schema_ref=schema_ref_of(schema) if schema is not None else None,
                 commands=[v.to_dict() for v in spec.validators if isinstance(v, CommandValidator)],
                 preserve=list(spec.preserve),

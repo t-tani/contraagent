@@ -235,7 +235,7 @@ class TaskResult:
     `skipped_hops`: the hops passed over without a launch, in order, each with why its credential rests.
     `cause`: a `deferred` result's cause as data (`Deferral.cause`); None for any other result.
     `retryable`: False when another attempt cannot end otherwise (a replay with no recording, the stub agent's
-    smallest output that failed its checks).
+    example that failed its checks).
     `replayed`: True when the attempt was played from a recording, not launched or called.
     `payload`: domain data a `ResultEnricher` attached; never read by this module.
     """
