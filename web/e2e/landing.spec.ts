@@ -19,7 +19,7 @@
 // the run until the reader picks one, and its moments open from their disclosure; the
 // steps are a carousel that scrolls a card at a time, by a swipe and by its buttons,
 // whose long outputs open in full; and its controls are at least 44 px high.
-import { expect, firefox, test, type Browser, type Page } from '@playwright/test';
+import { expect, firefox, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { clips, overflows, settle } from './fit.js';
 
 const DOCS = `http://127.0.0.1:${Number(process.env['E2E_DOCS_PORT'] ?? 18795)}`;
@@ -190,6 +190,24 @@ async function smallTargets(page: Page): Promise<string[]> {
 }
 
 /** The step the carousel shows: the card whose middle is the list's, within 2 px, as its index; -1 when none is. */
+/** Resolves once `list` has kept one scroll position for five frames: a smooth scroll is over. */
+async function settled(list: Locator): Promise<void> {
+  await list.evaluate(
+    (e) =>
+      new Promise<void>((done) => {
+        let last = e.scrollLeft;
+        let still = 0;
+        const frame = () => {
+          still = e.scrollLeft === last ? still + 1 : 0;
+          last = e.scrollLeft;
+          if (still >= 5) done();
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }),
+  );
+}
+
 async function centredStep(page: Page): Promise<number> {
   return page.locator('.how-steps').evaluate((list) => {
     const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
@@ -293,8 +311,9 @@ for (const size of PHONES)
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      // The button's scroll is over (the card in the middle) before the swipe.
+      // The button's scroll is over (the card in the middle, the list still) before the swipe.
       await expect.poll(() => centredStep(page)).toBe(5);
+      await settled(list);
       // A swipe of part of a card back: the list snaps to the card before, not between two.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
