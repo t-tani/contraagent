@@ -99,8 +99,10 @@ def read_document(path: str | os.PathLike[str]) -> str:
 
 def append_lines(path: str | os.PathLike[str], lines: Iterable[str]) -> None:
     """Append `lines` to the log `path` (created when absent), each ended by a newline
-    (one is added where a line has none), in one write: from any thread or process, the
-    lines of one call are never split by another's."""
+    (one is added where a line has none), in one write: from any thread, the lines of one
+    call are never split by another's. Across processes that holds where the OS appends
+    atomically (POSIX), not on Windows; a run's logs have one writer process, the one
+    that holds the run lock."""
     data = "".join(line if line.endswith("\n") else line + "\n" for line in lines).encode()
     if not data:
         return
