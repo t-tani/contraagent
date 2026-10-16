@@ -1,5 +1,6 @@
 """The changelog: fragments in changelog.d/ that towncrier writes into CHANGELOG.md at a release."""
 
+import os
 import re
 import subprocess
 import sys
@@ -14,7 +15,7 @@ NAME = re.compile(rf"\+?[a-z0-9][a-z0-9_-]*\.({'|'.join(TYPES)})\.md")
 
 
 def test_the_fragment_types_are_keep_a_changelogs_sections_in_order():
-    config = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["towncrier"]
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["towncrier"]
     assert [(t["directory"], t["name"]) for t in config["type"]] == [(t, t.capitalize()) for t in TYPES]
 
 
@@ -26,7 +27,7 @@ def test_every_file_in_changelog_d_is_named_as_a_fragment():
 
 
 def test_the_changelog_keeps_its_header_and_the_marker():
-    text = (ROOT / "CHANGELOG.md").read_text()
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "https://keepachangelog.com/" in text and "https://semver.org/" in text
     assert text.count("<!-- towncrier release notes start -->") == 1
     assert "## [Unreleased]" not in text
@@ -36,9 +37,11 @@ def test_towncrier_renders_the_next_release():
     done = subprocess.run(
         [sys.executable, "-m", "towncrier", "build", "--draft", "--version", "9.9.9"],
         cwd=ROOT,
+        env={**os.environ, "PYTHONUTF8": "1"},  # towncrier prints in the locale's encoding
         capture_output=True,
         text=True,
         check=False,
+        encoding="utf-8",
     )
     assert done.returncode == 0, done.stderr + done.stdout
     out = done.stdout
@@ -47,7 +50,7 @@ def test_towncrier_renders_the_next_release():
     for p in fragments:
         kind = p.name.split(".")[-2]
         assert f"### {kind.capitalize()}" in out
-        first = p.read_text().strip().splitlines()[0]
+        first = p.read_text(encoding="utf-8").strip().splitlines()[0]
         assert f"- {first}" in out, p.name
     # Sections in Keep a Changelog's order, and no issue reference after a bullet.
     headings = re.findall(r"^### (\w+)$", out, re.M)

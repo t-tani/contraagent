@@ -273,7 +273,7 @@ def _shown(file: str, cwd: Path | None) -> str:
     directory when under it, else as recorded."""
     path = Path(file)
     if cwd is not None and path.is_absolute() and path.is_relative_to(cwd):
-        return str(path.relative_to(cwd))
+        return path.relative_to(cwd).as_posix()
     return file
 
 

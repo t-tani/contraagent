@@ -56,4 +56,4 @@ def render() -> str:
 
 
 if __name__ == "__main__":
-    SNAPSHOT.write_text(render())
+    SNAPSHOT.write_text(render(), encoding="utf-8", newline="\n")

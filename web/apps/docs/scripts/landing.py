@@ -64,7 +64,7 @@ def published(what: str, text: str) -> str:
 def run(args: list[str], cwd: Path = DEMO) -> str:
     """A Python module's command in `cwd`, and what it printed (whatever its exit status), its paths in the project."""
     env = {**os.environ, "NO_COLOR": "1", "PYTHONDONTWRITEBYTECODE": "1"}
-    r = subprocess.run([sys.executable, "-m", *args], cwd=cwd, capture_output=True, text=True, env=env, check=False)
+    r = subprocess.run([sys.executable, "-m", *args], cwd=cwd, capture_output=True, text=True, env=env, check=False, encoding="utf-8")
     return in_project(f"{r.stdout}{r.stderr}".rstrip(), cwd)
 
 
@@ -78,10 +78,10 @@ def broken_check() -> str:
         project = Path(tmp) / "project"
         shutil.copytree(DEMO, project, ignore=shutil.ignore_patterns("__pycache__"))
         toml = project / "pipeline.toml"
-        text = toml.read_text()
+        text = toml.read_text(encoding="utf-8")
         if SLIP["from"] not in text:
             raise SystemExit(f"demo pipeline.toml has no {SLIP['from']}")
-        toml.write_text(text.replace(SLIP["from"], SLIP["to"]))
+        toml.write_text(text.replace(SLIP["from"], SLIP["to"]), encoding="utf-8", newline="\n")
         out = cli("check", "tasks.py:docs", "--config", "pipeline.toml", "--stub", "--kwargs", SLIP["kwargs"], cwd=project)
     # Its shape, not its wording: more than one problem reported, and the first line says the check failed (✓ is a pass).
     problems = [line for line in out.splitlines() if re.match(r"^\s+(error|warning)\b", line, re.IGNORECASE)]
@@ -136,7 +136,7 @@ def text(data: dict[str, object]) -> str:
 
 
 def main() -> None:
-    OUT.write_text(text(outputs()))
+    OUT.write_text(text(outputs()), encoding="utf-8", newline="\n")
     sys.stdout.write(f"wrote {OUT}\n")
 
 

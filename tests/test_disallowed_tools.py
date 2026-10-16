@@ -1,6 +1,7 @@
 """`disallowed_tools`: tools a kind's launches may not use, set in its task table or its declaration."""
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -78,10 +79,13 @@ def test_opencode_denies_a_pattern_after_the_rule_the_tool_had(tmp_path):
     (repo / ".git").mkdir(parents=True)
     (repo / "app").mkdir()
     denied = ("Read(secrets/**)", "Edit(//etc/hosts)", "Bash(git push:*)", "WebFetch(domain:x.com)")
+    hosts = Path(os.path.abspath("/etc/hosts"))
+    # On another drive (Windows), no relative path reaches it: it stays absolute.
+    edit = Path(os.path.relpath(hosts, repo)).as_posix() if hosts.drive == repo.drive else hosts.as_posix()
     # No role: every tool is allowed but for the patterns; a path is matched from the worktree.
     assert permission_rules(denied, {}, repo / "app") == {
         "read": {"*": "allow", "app/secrets/**": "deny"},
-        "edit": {"*": "allow", os.path.relpath("/etc/hosts", repo): "deny"},
+        "edit": {"*": "allow", edit: "deny"},
         "bash": {"*": "allow", "git push*": "deny"},
         "webfetch": {"*": "allow", "https://x.com": "deny", "https://x.com/*": "deny", "http://x.com": "deny", "http://x.com/*": "deny"},
     }
@@ -89,6 +93,9 @@ def test_opencode_denies_a_pattern_after_the_rule_the_tool_had(tmp_path):
     role = {"*": "deny", "read": "allow"}
     assert permission_rules(("Read(secrets/**)", "Bash(git push:*)"), role, tmp_path) == {
         "*": "deny",
-        "read": {"*": "allow", f"{tmp_path.relative_to('/').as_posix()}/secrets/**": "deny"},  # outside git: from /
+        "read": {
+            "*": "allow",
+            f"{tmp_path.relative_to(tmp_path.anchor).as_posix()}/secrets/**": "deny",
+        },  # outside git: from the drive's root
     }
     assert permission_rules(("Bash",), {"bash": {"*": "allow", "rm*": "deny"}}, tmp_path) == {"bash": "deny"}

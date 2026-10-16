@@ -76,12 +76,12 @@ PATTERNED = ("bash", "read", "edit", "webfetch", "skill")
 
 def worktree(cwd: Path) -> Path:
     """The directory opencode matches a `read` or `edit` pattern from: the git worktree
-    `cwd` is in, or `/` outside one."""
+    `cwd` is in, or the root of its drive (`/` on POSIX) outside one."""
     here = cwd.resolve()
     for d in (here, *here.parents):
         if (d / ".git").exists():
             return d
-    return Path("/")
+    return Path(here.anchor)
 
 
 def _patterns(key: str, pattern: str, cwd: Path) -> list[str]:
@@ -98,7 +98,10 @@ def _patterns(key: str, pattern: str, cwd: Path) -> list[str]:
             path = Path(pattern).expanduser()
         else:
             path = cwd.resolve() / pattern.lstrip("/").removeprefix("./")
-        return [Path(os.path.relpath(path, worktree(cwd))).as_posix()]
+        try:
+            return [Path(os.path.relpath(path, worktree(cwd))).as_posix()]
+        except ValueError:  # on another drive (Windows): no relative path reaches it
+            return [Path(os.path.abspath(path)).as_posix()]
     if key == "webfetch" and pattern.startswith("domain:"):
         host = pattern.removeprefix("domain:")
         return [f"{scheme}://{host}{tail}" for scheme in ("https", "http") for tail in ("", "/*")]

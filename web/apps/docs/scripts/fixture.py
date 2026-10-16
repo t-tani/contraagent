@@ -75,7 +75,7 @@ def main() -> None:
             "outputs": mon.outputs(run),
             "transcript": mon.stream(run, TRANSCRIPT, 0)[0]["events"],
         }
-        OUT.write_text(clean(json.dumps(data, indent=1, ensure_ascii=False, default=str)) + "\n")
+        OUT.write_text(clean(json.dumps(data, indent=1, ensure_ascii=False, default=str)) + "\n", encoding="utf-8", newline="\n")
 
         shutil.rmtree(EXPORT, ignore_errors=True)
         shutil.copytree(Path(tmp) / "export" / "data", EXPORT / "data")
@@ -86,13 +86,17 @@ def main() -> None:
                 page = mon.stream(r, key, 0)[0]
                 if page["events"]:
                     name = file_name(key)
-                    (streams / f"{name}.json").write_text(json.dumps(page, ensure_ascii=False, default=str))
+                    (streams / f"{name}.json").write_text(json.dumps(page, ensure_ascii=False, default=str), encoding="utf-8", newline="\n")
                     # The task's detail names its transcript, as the server's does.
                     task = EXPORT / "data" / "runs" / r / "tasks" / f"{name}.json"
-                    task.write_text(json.dumps({**json.loads(task.read_text()), "stream": key}, ensure_ascii=False))
+                    task.write_text(
+                        json.dumps({**json.loads(task.read_text(encoding="utf-8")), "stream": key}, ensure_ascii=False),
+                        encoding="utf-8",
+                        newline="\n",
+                    )
         size = 0
         for file in (EXPORT / "data").rglob("*.json"):
-            file.write_text(clean(file.read_text()))
+            file.write_text(clean(file.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
             size += file.stat().st_size
     sys.stdout.write(f"wrote {OUT} ({OUT.stat().st_size // 1024} KiB) and {EXPORT / 'data'} ({size // 1024} KiB)\n")
 

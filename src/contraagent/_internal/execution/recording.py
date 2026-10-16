@@ -415,7 +415,7 @@ class Recorder:
                 return path.resolve().relative_to(root.resolve()).as_posix()
             except ValueError:
                 continue
-        return str(path)
+        return path.as_posix()
 
     def summary(self) -> str:
         """What this run recorded, in one line: files and size, the files kept by hash only,

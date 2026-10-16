@@ -30,7 +30,7 @@ MODEL = os.environ.get("CONTRAAGENT_OPENCODE_MODEL", "opencode/muse-spark-1.3-co
 
 def record(cwd: Path) -> list[dict]:
     """The events of one launch, as opencode printed them."""
-    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n")
+    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n", encoding="utf-8", newline="\n")
     launch = Launch(prompt=PROMPT, label="rec", model=MODEL, cwd=cwd, limits=Limits(timeout_s=180, max_turns=8))
     backend = OpencodeBackend()
     out = subprocess.run(backend.argv(launch), cwd=cwd, env=backend.env(launch), capture_output=True, timeout=200).stdout
@@ -50,13 +50,15 @@ def slim(value, cwd: str):
 
 
 def main() -> int:
-    version = subprocess.run(["opencode", "--version"], capture_output=True, text=True).stdout.strip()
+    version = subprocess.run(["opencode", "--version"], capture_output=True, text=True, encoding="utf-8").stdout.strip()
     target = Path(__file__).parent / version
     target.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         cwd = str(Path(tmp).resolve())
         events = record(Path(cwd))
-        (target / "json.jsonl").write_text("".join(json.dumps(slim(e, cwd), ensure_ascii=False) + "\n" for e in events))
+        (target / "json.jsonl").write_text(
+            "".join(json.dumps(slim(e, cwd), ensure_ascii=False) + "\n" for e in events), encoding="utf-8", newline="\n"
+        )
     print(f"recorded opencode {version} into {target}")
     return 0
 

@@ -29,7 +29,7 @@ def test_the_index_lists_every_topic_and_nothing_else():
 
 def test_every_relative_link_resolves():
     for page in docs.DIR.glob("*.md"):
-        for target in re.findall(r"\]\(([^)#:]+)(?:#[^)]*)?\)", page.read_text()):
+        for target in re.findall(r"\]\(([^)#:]+)(?:#[^)]*)?\)", page.read_text(encoding="utf-8")):
             assert (page.parent / target).exists(), f"{page.name}: {target}"
 
 
@@ -57,7 +57,7 @@ def test_the_topics_name_public_paths_only():
     import importlib
 
     for page in docs.DIR.glob("*.md"):
-        text = page.read_text()
+        text = page.read_text(encoding="utf-8")
         if page.name != "compatibility.md":
             assert "_internal" not in text, f"{page.name} names _internal"
         for code in re.findall(r"`([^`\n]+)`", text):
@@ -77,7 +77,7 @@ def test_the_examples_import_public_modules_only():
     import ast
 
     for file in EXAMPLES.rglob("*.py"):
-        for node in ast.walk(ast.parse(file.read_text())):
+        for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))):
             names = (
                 [a.name for a in node.names]
                 if isinstance(node, ast.Import)
@@ -112,7 +112,7 @@ def test_check_errors_name_topics_that_exist():
     report.add("routing", ["routing: x"])
     assert "read: `contraagent docs routing`" in str(report)
     names = {t.name for t in docs.topics()}
-    source = (docs.DIR.parent / "_internal" / "pipeline" / "check.py").read_text()
+    source = (docs.DIR.parent / "_internal" / "pipeline" / "check.py").read_text(encoding="utf-8")
     assert set(re.findall(r'\.add\("(\w+)"', source)) <= names
 
 
@@ -166,7 +166,7 @@ def test_a_refusal_moves_only_that_task_along_the_security_chain(tmp_path):
     )
     pipeline = Pipeline(EXAMPLES / "security" / "pipeline.toml", runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
     report = pipeline.run(flow.audit_all, modules=["auth", "upload", "exploit"])
-    rows = {r["key"]: r for r in map(json.loads, (report.run_dir / "journal.jsonl").read_text().splitlines())}
+    rows = {r["key"]: r for r in map(json.loads, (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines())}
     assert len(rows) == 3  # one attempt each: a refusal is not retried
     hops = {key: [(h["agent"], h["model"], h["stop"]) for h in row["hops"]] for key, row in rows.items()}
     assert hops["audit-auth"] == [("claude", "claude-opus-5-5", "completed")]
@@ -197,7 +197,7 @@ def test_the_demo_runs_end_to_end_as_its_docstring_says(tmp_path, monkeypatch):
     assert stops["summarize-zeta"] == "invalid_input"  # zeta's review loop ends there
     assert all(r.ok for k, r in report.results.items() if "zeta" not in k) and report.flow_errors == []
     assert report.value == "\n".join(f"{u}: 3 points" for u in ("alpha", "beta", "gamma", "delta", "epsilon"))
-    rows = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    rows = [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     by = {(r["key"], r["attempt"]): r for r in rows}
     assert by[("summarize-beta", 0)]["route"].startswith("hop 2/2")  # failed over on a 429
     assert by[("summarize-delta", 0)]["rounds"] == 2  # sent back by a Python validator
@@ -221,6 +221,7 @@ def test_the_demo_tests_pass_on_the_stub_agent():
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(EXAMPLES / "demo" / "test_demo.py")],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert proc.returncode == 0, proc.stdout[-2000:]
 
@@ -234,6 +235,7 @@ def test_the_tutorial_tests_pass_on_the_stub_agent():
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(EXAMPLES / "tutorial" / "test_tutorial.py")],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     assert proc.returncode == 0, proc.stdout[-2000:]
 
@@ -247,7 +249,11 @@ def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):
     for args in (["check", "tasks.py:triage_all"], ["run", "tasks.py:triage_all", "--stub"]):
         assert f"contraagent {' '.join(args)} --kwargs '{reports}'" in page
         proc = subprocess.run(
-            [sys.executable, "-m", "contraagent", *args, "--kwargs", reports], cwd=tmp_path, capture_output=True, text=True
+            [sys.executable, "-m", "contraagent", *args, "--kwargs", reports],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
         assert proc.returncode == 0, proc.stdout + proc.stderr
         shown = [line for line in proc.stdout.splitlines() if line.startswith(("✓ 4 tasks", "  triage", "  write_table"))]
@@ -303,8 +309,8 @@ def test_the_site_shows_each_element_live_in_place_of_its_screenshot(tmp_path, m
     shots = 0
     for index in (collect.ROOT / "web/packages/ui/README.md", collect.ROOT / "web/packages/elements/README.md"):
         for page in [index, *(e.path for e in docs.entries(index))]:
-            shots += len(re.findall(r"!\[[^\]]*\]\((?:docs/)?images/", page.read_text()))
-    pages = [p.read_text() for p in (tmp_path / "content" / "node").rglob("*.md*")]
+            shots += len(re.findall(r"!\[[^\]]*\]\((?:docs/)?images/", page.read_text(encoding="utf-8")))
+    pages = [p.read_text(encoding="utf-8") for p in (tmp_path / "content" / "node").rglob("*.md*")]
     assert shots and sum(p.count("<LiveFigure ") for p in pages) >= shots
     assert not any(re.search(r"!\[[^\]]*\]\((?:docs/)?images/", p) for p in pages)
 
@@ -323,7 +329,7 @@ def test_the_root_readme_code_is_the_example_it_quotes():
     between them (as `ruff format` writes it), and stays identical to the example files."""
     root = docs.DIR.parents[2]
     readme = root / "README.md"
-    lines = readme.read_text().splitlines()
+    lines = readme.read_text(encoding="utf-8").splitlines()
     checked = 0
     for i, line in enumerate(lines):
         if not line.startswith("<!-- ::code{") or lines[i - 1].startswith("<!-- ::code{"):
@@ -343,8 +349,8 @@ def test_the_root_readme_code_is_the_example_it_quotes():
 
 def test_a_quote_that_does_not_resolve_says_where(tmp_path):
     page = tmp_path / "p.md"
-    page.write_text('# P\n\n::code{file="x.py" from="nowhere"}\n')
-    (tmp_path / "x.py").write_text("a = 1\n")
+    page.write_text('# P\n\n::code{file="x.py" from="nowhere"}\n', encoding="utf-8", newline="\n")
+    (tmp_path / "x.py").write_text("a = 1\n", encoding="utf-8", newline="\n")
     with pytest.raises(docs.DocsError, match="p.md: ::code{file='x.py'}: no line contains 'nowhere'"):
         docs.expand(page, tmp_path)
 
@@ -380,13 +386,13 @@ def test_the_reference_config_writes_every_key_of_the_schema():
     `_comment`, which every table takes, at least once."""
     import tomllib
 
-    schema = json.loads((docs.DIR / "schemas" / "pipeline.schema.json").read_text())
+    schema = json.loads((docs.DIR / "schemas" / "pipeline.schema.json").read_text(encoding="utf-8"))
     defs = schema["$defs"]
     types = {
         t: ref.rsplit("/", 1)[-1]
         for t, ref in schema["properties"]["credentials"]["additionalProperties"]["discriminator"]["mapping"].items()
     }
-    text = (EXAMPLES / "reference" / "pipeline.toml").read_text()
+    text = (EXAMPLES / "reference" / "pipeline.toml").read_text(encoding="utf-8")
     config = tomllib.loads(text)
 
     def table_of(parts: list[str]) -> str | None:
@@ -432,7 +438,7 @@ def test_the_runner_adds_a_journal_column_and_resumes(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     agent = StubAgent({"review": lambda launch: {"severity": "high" if launch.unit == "alpha" else "low", "summary": "s"}})
     assert runner.main(["alpha", "beta"], backends=agent.backends()).ok
-    rows = [json.loads(line) for line in (tmp_path / "runs" / "reviews" / "journal.jsonl").read_text().splitlines()]
+    rows = [json.loads(line) for line in (tmp_path / "runs" / "reviews" / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {r["unit"]: r["severity"] for r in rows} == {"alpha": "high", "beta": "low"}
     assert runner.main(["alpha", "beta", "gamma", "--resume"], backends=agent.backends()).ok
     assert sorted(launch.unit for launch in agent.launches) == ["alpha", "beta", "gamma"]  # the resume reviews gamma only
@@ -467,7 +473,7 @@ AGENTS = ("claude", "omp", "opencode", "pi", "codex")
 
 def _agent_table() -> dict[str, dict[str, str]]:
     """agents.md's table of what each coding agent does: {row label: {agent: cell}}."""
-    text = (docs.DIR / "agents.md").read_text()
+    text = (docs.DIR / "agents.md").read_text(encoding="utf-8")
     block = text[text.index("| | claude |") :].split("\n\n", 1)[0].splitlines()
     agents = [c.strip() for c in block[0].strip("|").split("|")][1:]
     table = {}
@@ -528,8 +534,8 @@ def test_the_landing_scenes_stage_css_is_current():
     assert spec and spec.loader
     how = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(how)
-    assert (root / "src/components/home/how-stages.css").read_text() == how.css(), "run web/apps/docs/scripts/how_css.py"
-    astro = (root / "src/components/home/HowItWorks.astro").read_text()
+    assert (root / "src/components/home/how-stages.css").read_text(encoding="utf-8") == how.css(), "run web/apps/docs/scripts/how_css.py"
+    astro = (root / "src/components/home/HowItWorks.astro").read_text(encoding="utf-8")
     weights = re.search(r"const WEIGHTS = \[([\d, ]+)\]", astro)
     assert weights and [int(w) for w in weights.group(1).split(",")] == how.WEIGHTS
 
@@ -550,8 +556,8 @@ def test_the_landing_pages_cli_outputs_are_current():
     """landing-outputs.json is what scripts/landing.py writes now: the commands run again here,
     and the file holds no timing, so only a change to what they print makes a difference."""
     landing = _landing()
-    assert landing.OUT.read_text() == landing.text(landing.outputs()), "run uv run python web/apps/docs/scripts/landing.py"
-    how = (landing.HERE / "src/components/home/how.ts").read_text()
+    assert landing.OUT.read_text(encoding="utf-8") == landing.text(landing.outputs()), "run uv run python web/apps/docs/scripts/landing.py"
+    how = (landing.HERE / "src/components/home/how.ts").read_text(encoding="utf-8")
     assert f"export const KWARGS = '{landing.KWARGS}';" in how
 
 
@@ -562,6 +568,7 @@ def test_the_docs_site_runs_no_command_when_it_renders():
     running = [
         str(f.relative_to(src))
         for f in src.rglob("*")
-        if f.suffix in {".ts", ".js", ".mjs", ".astro", ".tsx", ".jsx"} and re.search(r"child_process|\bexeca\b", f.read_text())
+        if f.suffix in {".ts", ".js", ".mjs", ".astro", ".tsx", ".jsx"}
+        and re.search(r"child_process|\bexeca\b", f.read_text(encoding="utf-8"))
     ]
     assert running == []

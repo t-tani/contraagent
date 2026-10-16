@@ -31,7 +31,7 @@ def run(tmp_path, agent, flow, **options):
 
 
 def journal(report) -> list[dict]:
-    return [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text().splitlines()]
+    return [json.loads(line) for line in (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
 def edits(*files: str, fail: bool = False):
@@ -41,7 +41,7 @@ def edits(*files: str, fail: bool = False):
         for f in files:
             path = Path(launch.call.cwd) / f
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(f"{launch.n}\n")
+            path.write_text(f"{launch.n}\n", encoding="utf-8", newline="\n")
         return fails(Stop.TIMEOUT, "killed") if fail else {"title": launch.unit}
 
     return reply
@@ -49,18 +49,18 @@ def edits(*files: str, fail: bool = False):
 
 def test_each_attempt_records_what_it_created_modified_and_deleted(tmp_path, plugin_dir):
     (tmp_path / "topics" / "alpha").mkdir(parents=True)
-    (tmp_path / "topics" / "alpha" / "old.md").write_text("old")
-    (tmp_path / "topics" / "alpha" / "gone.md").write_text("gone")
-    (tmp_path / "topics" / "beta.md").write_text("not under the pattern")
+    (tmp_path / "topics" / "alpha" / "old.md").write_text("old", encoding="utf-8", newline="\n")
+    (tmp_path / "topics" / "alpha" / "gone.md").write_text("gone", encoding="utf-8", newline="\n")
+    (tmp_path / "topics" / "beta.md").write_text("not under the pattern", encoding="utf-8", newline="\n")
     write = agent_task("write", plugin=plugin_dir, output=Note, changes=["topics/{unit}/**"], max_turns=5, timeout_s=60)
 
     def reply(launch):
         root = Path(launch.call.cwd) / "topics" / launch.unit
-        (root / "old.md").write_text("old, longer")
+        (root / "old.md").write_text("old, longer", encoding="utf-8", newline="\n")
         (root / "gone.md").unlink()
         (root / "new" / "a.md").parent.mkdir()
-        (root / "new" / "a.md").write_text("a")
-        (Path(launch.call.cwd) / "topics" / "beta.md").write_text("changed outside")
+        (root / "new" / "a.md").write_text("a", encoding="utf-8", newline="\n")
+        (Path(launch.call.cwd) / "topics" / "beta.md").write_text("changed outside", encoding="utf-8", newline="\n")
         return {"title": launch.unit}
 
     report = run(tmp_path, StubAgent({"write": reply}), lambda: write("alpha"))
@@ -77,7 +77,7 @@ def test_each_attempt_records_what_it_created_modified_and_deleted(tmp_path, plu
 
 def test_a_failed_attempt_has_the_files_it_created_removed(tmp_path, plugin_dir):
     (tmp_path / "topics").mkdir()
-    (tmp_path / "topics" / "kept.md").write_text("kept")
+    (tmp_path / "topics" / "kept.md").write_text("kept", encoding="utf-8", newline="\n")
     write = agent_task("write", plugin=plugin_dir, output=Note, changes=["topics/{unit}/**"], max_turns=5, timeout_s=60, retries=0)
     report = run(tmp_path, StubAgent({"write": edits("topics/alpha/draft/x.md", "topics/alpha/y.md", fail=True)}), lambda: write("alpha"))
     assert not report.ok
@@ -103,7 +103,7 @@ def test_the_patterns_are_part_of_the_task_definition(tmp_path, plugin_dir):
     assert a.differences(b) == ["changes"]
 
 
-@pytest.mark.parametrize("pattern", ["/etc/**", "../x/**", "topics/{run}/**", ""])
+@pytest.mark.parametrize("pattern", ["/etc/**", "C:/x/**", "\\x/**", "..\\x/**", "../x/**", "topics/{run}/**", ""])
 def test_a_pattern_outside_the_working_directory_or_naming_an_unknown_field_is_refused(plugin_dir, pattern):
     with pytest.raises((ValueError, TypeError)):
         agent_task("write", plugin=plugin_dir, output=Note, changes=[pattern], max_turns=5, timeout_s=60)
@@ -111,8 +111,8 @@ def test_a_pattern_outside_the_working_directory_or_naming_an_unknown_field_is_r
 
 def test_scan_covers_everything_under_a_matched_directory(tmp_path):
     (tmp_path / "a" / "b").mkdir(parents=True)
-    (tmp_path / "a" / "b" / "x.md").write_text("x")
-    (tmp_path / "a" / "y.txt").write_text("y")
+    (tmp_path / "a" / "b" / "x.md").write_text("x", encoding="utf-8", newline="\n")
+    (tmp_path / "a" / "y.txt").write_text("y", encoding="utf-8", newline="\n")
     files, dirs = scan(tmp_path, ["a/**"])
     assert sorted(files) == ["a/b/x.md", "a/y.txt"]
     assert dirs == {"a", "a/b"}
@@ -156,12 +156,12 @@ def test_the_example_names_each_attempts_effect_from_its_changes(tmp_path):
     from contraagent.docs.examples.changes import flow as example
 
     (tmp_path / "topics" / "beta").mkdir(parents=True)
-    (tmp_path / "topics" / "beta" / "index.md").write_text("old")
+    (tmp_path / "topics" / "beta" / "index.md").write_text("old", encoding="utf-8", newline="\n")
 
     def reply(launch):
         path = Path(launch.call.cwd) / "topics" / launch.unit / "index.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(launch.params["subject"])
+        path.write_text(launch.params["subject"], encoding="utf-8", newline="\n")
         return {"topic": f"topics/{launch.unit}/index.md"}
 
     stub = StubAgent({"write": reply})

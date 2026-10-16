@@ -164,7 +164,7 @@ def _attribute(name: str, attr: griffe.Attribute, indent: str) -> str:
 
 
 def main() -> None:
-    SNAPSHOT.write_text(render())
+    SNAPSHOT.write_text(render(), encoding="utf-8", newline="\n")
     sys.stdout.write(f"wrote {SNAPSHOT.relative_to(ROOT)}\n")
 
 

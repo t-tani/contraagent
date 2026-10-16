@@ -159,5 +159,5 @@ def css() -> str:
 
 
 if __name__ == "__main__":
-    OUT.write_text(css())
+    OUT.write_text(css(), encoding="utf-8", newline="\n")
     sys.stdout.write(f"wrote {OUT}\n")

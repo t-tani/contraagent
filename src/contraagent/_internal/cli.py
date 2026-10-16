@@ -338,7 +338,7 @@ def _flow_command(args) -> int:
         result = pipeline.run(flow, run_id=args.run_id or None, resume=args.resume, **kwargs)
     except RunExists as exc:  # in the command line's words, not the Python API's
         print(
-            f"✗ {args.flow}\n  error: {exc.run_dir} already holds a run ({exc.rows} journal rows): "
+            f"✗ {args.flow}\n  error: {Path(exc.run_dir).as_posix()} already holds a run ({exc.rows} journal rows): "
             "continue it with --resume, or start a new one with another --run-id"
         )
         return 1
@@ -350,10 +350,11 @@ def _flow_command(args) -> int:
     if stub is not None:
         _print_created(result)
     later = f", {len(result.deferred)} deferred" if result.deferred else ""
-    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {spent}; run in {result.run_dir}")
+    run_dir = Path(result.run_dir)
+    print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {spent}; run in {run_dir.as_posix()}")
     for failed in result.failed:
         # A path in the run's directory as the run names it (`out/<kind>/<unit>.json`), as the log does.
-        reason = failed.reason.replace(str(Path(result.run_dir).resolve()) + "/", "").replace(str(result.run_dir) + "/", "")
+        reason = failed.reason.replace(run_dir.resolve().as_posix() + "/", "").replace(run_dir.as_posix() + "/", "")
         print(f"  {failed.task.key}: {failed.stop} {reason[:300]}")
     for deferred in result.deferred:
         print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
@@ -467,10 +468,10 @@ def _plugin(args) -> int:
     return 0
 
 
-def _shown(path: Path) -> Path:
-    """`path` relative to the working directory when it is under it."""
+def _shown(path: Path) -> str:
+    """`path` relative to the working directory when it is under it, with `/` on every OS."""
     path = Path(path).resolve()
-    return path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path
+    return (path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path).as_posix()
 
 
 if __name__ == "__main__":

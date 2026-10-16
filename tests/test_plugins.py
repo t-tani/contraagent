@@ -26,20 +26,22 @@ def plugin(tmp_path):
 
 
 def add_hooks(plugin, text):
-    (plugin / "hooks.toml").write_text((plugin / "hooks.toml").read_text() + text)
+    (plugin / "hooks.toml").write_text((plugin / "hooks.toml").read_text(encoding="utf-8") + text, encoding="utf-8", newline="\n")
 
 
 def test_the_template_is_a_clean_plugin(plugin):
     p = Plugin.load(plugin)
     assert p.lint() == [] and p.roles == ("worker",) and p.resolve_role(None) == "worker"
     assert [h["on"] for h in p.hooks] == ["stop"]
-    assert "call validate" in (plugin / "hooks" / "hooks.json").read_text()  # rendered for Claude Code
+    assert "call validate" in (plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")  # rendered for Claude Code
 
 
 def test_lint_catches_disagreement(plugin):
-    (plugin / "agents" / "worker.md").write_text("---\nname: other\n---\nx\n")
-    (plugin / "settings.json").write_text("{not json")
-    (plugin / "hooks.toml").write_text('[[hooks]]\non = "post_tool"\ntool = "bash"\n\n[[hooks]]\non = "sideways"\n')
+    (plugin / "agents" / "worker.md").write_text("---\nname: other\n---\nx\n", encoding="utf-8", newline="\n")
+    (plugin / "settings.json").write_text("{not json", encoding="utf-8", newline="\n")
+    (plugin / "hooks.toml").write_text(
+        '[[hooks]]\non = "post_tool"\ntool = "bash"\n\n[[hooks]]\non = "sideways"\n', encoding="utf-8", newline="\n"
+    )
     errs = "\n".join(Plugin.load(plugin).lint())
     for needle in (
         "frontmatter name is 'other'",
@@ -55,15 +57,15 @@ def test_lint_catches_disagreement(plugin):
 def test_roles_are_checked_where_the_task_is_declared(plugin):
     with pytest.raises(PluginError, match="no role 'nobody'"):
         agent_task("x", plugin=plugin, role="nobody")
-    (plugin / "agents" / "second.md").write_text("---\nname: second\ndescription: d\n---\n")
+    (plugin / "agents" / "second.md").write_text("---\nname: second\ndescription: d\n---\n", encoding="utf-8", newline="\n")
     with pytest.raises(PluginError, match="name one"):
         agent_task("x", plugin=plugin)
     assert agent_task("x", plugin=plugin, role="second").role == "second"
 
 
 def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
-    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
-    (plugin / "hooks" / "post.sh").write_text("#!/usr/bin/env bash\ncat >/dev/null\n")
+    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8", newline="\n")
+    (plugin / "hooks" / "post.sh").write_text("#!/usr/bin/env bash\ncat >/dev/null\n", encoding="utf-8", newline="\n")
     add_hooks(
         plugin,
         '\n[[hooks]]\non = "pre_tool"\ntool = "bash"\nscript = "hooks/pre.sh"\n'
@@ -73,24 +75,24 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert any("out of date" in e for e in p.lint())  # declaration changed, renders did not
     written, notes = hooks.write(p)
     assert p.lint() == [] and hooks.stale(p) == []
-    claude = json.loads((plugin / "hooks" / "hooks.json").read_text())["hooks"]
+    claude = json.loads((plugin / "hooks" / "hooks.json").read_text(encoding="utf-8"))["hooks"]
     assert claude["PreToolUse"][0]["matcher"] == "Bash"
     assert claude["PreToolUse"][0]["hooks"][0]["command"] == "${CLAUDE_PLUGIN_ROOT}/hooks/pre.sh"
     assert "Stop" in claude
-    omp = (plugin / "omp" / "index.ts").read_text()
+    omp = (plugin / "omp" / "index.ts").read_text(encoding="utf-8")
     assert 'pi.on("tool_call"' in omp and 'pi.on("tool_result"' in omp and '"match": "update-finding"' in omp
-    pi = (plugin / "pi" / "index.ts").read_text()
+    pi = (plugin / "pi" / "index.ts").read_text(encoding="utf-8")
     assert 'pi.on("tool_call"' in pi and "ExtensionAPI" in pi and "@oh-my-pi" not in pi and '"find": "Glob"' in pi
     # one package.json declares both extensions
-    pkg = json.loads((plugin / "package.json").read_text())
+    pkg = json.loads((plugin / "package.json").read_text(encoding="utf-8"))
     assert pkg["omp"] == {"extensions": ["./omp/index.ts"]} and pkg["pi"] == {"extensions": ["./pi/index.ts"]}
     assert any("stop hook cannot continue" in n for n in notes)  # the difference is stated, not hidden
     assert plugin_extension_args([str(plugin)]) == ["-e", str(plugin.resolve() / "omp" / "index.ts")]
-    opencode = (plugin / "opencode" / "index.js").read_text()
+    opencode = (plugin / "opencode" / "index.js").read_text(encoding="utf-8")
     assert '"tool.execute.before"' in opencode and '"tool.execute.after"' in opencode and '"match": "update-finding"' in opencode
     assert any(n.startswith("opencode: a stop hook") for n in notes)
     launch = Launch(prompt="x", plugin_dirs=(str(plugin),))
-    assert OpencodeBackend(base_env={}).config(launch)["plugin"] == [f"file://{plugin.resolve()}/opencode/index.js"]
+    assert OpencodeBackend(base_env={}).config(launch)["plugin"] == [(plugin.resolve() / "opencode" / "index.js").as_uri()]
     assert pi_plugin_args([str(plugin)])[-2:] == ["-e", str(plugin / "pi" / "index.ts")]
 
 
@@ -101,22 +103,22 @@ def test_the_template_names_every_agent_and_file_it_renders_for(plugin):
     p = Plugin.load(plugin)
     for agent, (files, _) in hooks.RENDERED_FILES.items():  # what each renderer says it writes
         assert set(hooks.render(p, [agent])[0]) <= {*files, "settings.json"}
-    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8", newline="\n")
     add_hooks(plugin, '\n[[hooks]]\non = "pre_tool"\ntool = "bash"\nscript = "hooks/pre.sh"\n')
     p = Plugin.load(plugin)
     for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
         assert set(hooks.render(p, [agent])[0]) == {*files, *tool_files}
-    toml = (plugin / "hooks.toml").read_text()
+    toml = (plugin / "hooks.toml").read_text(encoding="utf-8")
     assert toml.startswith(rendered_comment() + "\n")
     for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
         assert f"#   {agent} " in toml and all(f in toml for f in (*files, *tool_files))
-    readme = (plugin / "README.md").read_text()
+    readme = (plugin / "README.md").read_text(encoding="utf-8")
     for agent in known_agents():
         assert f"`{backend_class(agent).binary}`" in readme
     examples = Path(__file__).parents[1] / "src/contraagent/docs/examples"
     for copy in (examples / "demo/plugins/docs", examples / "tutorial/plugins/triage"):  # the template's copies
-        assert (copy / "hooks.toml").read_text().startswith(rendered_comment() + "\n")
-        assert readme.splitlines()[2] in (copy / "README.md").read_text()
+        assert (copy / "hooks.toml").read_text(encoding="utf-8").startswith(rendered_comment() + "\n")
+        assert readme.splitlines()[2] in (copy / "README.md").read_text(encoding="utf-8")
 
 
 def test_a_new_agent_registers_its_own_renderer(plugin):
@@ -147,7 +149,7 @@ def test_a_coding_agent_without_a_named_agent_flag_gets_the_role_attached(plugin
 
 def test_cli(plugin, tmp_path):
     def run(*a):
-        return subprocess.run([sys.executable, "-m", "contraagent", *a], capture_output=True, text=True, cwd=tmp_path)
+        return subprocess.run([sys.executable, "-m", "contraagent", *a], capture_output=True, text=True, cwd=tmp_path, encoding="utf-8")
 
     ok = run("plugin", "lint", str(plugin.parent))
     assert ok.returncode == 0 and "✓" in ok.stdout
@@ -160,9 +162,11 @@ def test_cli(plugin, tmp_path):
 
 def skill_plugin(root, name="common", skill="house-style"):
     (root / ".claude-plugin").mkdir(parents=True)
-    (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": name}))
+    (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"name": name}), encoding="utf-8", newline="\n")
     (root / "skills" / skill).mkdir(parents=True)
-    (root / "skills" / skill / "SKILL.md").write_text(f"---\nname: {skill}\ndescription: d\n---\nShort sentences.\n")
+    (root / "skills" / skill / "SKILL.md").write_text(
+        f"---\nname: {skill}\ndescription: d\n---\nShort sentences.\n", encoding="utf-8", newline="\n"
+    )
     return root
 
 
@@ -187,7 +191,7 @@ def test_a_skill_plugin_is_loaded_after_the_tasks_own(plugin, tmp_path):
 def test_a_skill_plugin_holds_skills_only(plugin, tmp_path):
     common = skill_plugin(tmp_path / "common")
     assert Plugin.load(common).skills_only and Plugin.load(common).lint() == []  # no role, no stop hook: not asked for
-    (common / "settings.json").write_text("{}")
+    (common / "settings.json").write_text("{}", encoding="utf-8", newline="\n")
     (common / "agents").mkdir()
     with pytest.raises(PluginError, match=r"holds agents, settings.json; a plugin it names holds skills only"):
         agent_task("summarize", plugin=plugin, skills_from=[common])
@@ -199,14 +203,18 @@ def test_skills_from_is_relative_to_the_declaring_file_and_part_of_the_fingerpri
     common = skill_plugin(tmp_path / "plugins" / "common")
     declaring = tmp_path / "tasks.py"
     declaring.write_text(
-        "from contraagent import agent_task\nspec = agent_task('summarize', plugin='plugins/summarize', skills_from=['plugins/common'])\n"
+        "from contraagent import agent_task\nspec = agent_task('summarize', plugin='plugins/summarize', skills_from=['plugins/common'])\n",
+        encoding="utf-8",
+        newline="\n",
     )
     declared = runpy.run_path(str(declaring))["spec"]
     assert [p.root for p in declared.plugins] == [plugin.resolve(), common.resolve()]
     a = agent_task("summarize", plugin=plugin, skills_from=[common])
     assert a.differences(agent_task("summarize", plugin=plugin)) == ["skills", "skills_from"]
     digest = a.digest()
-    (common / "skills" / "house-style" / "SKILL.md").write_text("---\nname: house-style\ndescription: d\n---\nLong sentences.\n")
+    (common / "skills" / "house-style" / "SKILL.md").write_text(
+        "---\nname: house-style\ndescription: d\n---\nLong sentences.\n", encoding="utf-8", newline="\n"
+    )
     assert a.digest() != digest  # an edited skill runs the task again on resume
 
 
@@ -216,7 +224,7 @@ def test_check_lints_every_plugin_a_task_loads(plugin, tmp_path):
 
     common = skill_plugin(tmp_path / "common")
     spec = agent_task("summarize", plugin=plugin, skills_from=[common], max_turns=1, timeout_s=10)
-    (common / "skills" / "house-style" / "SKILL.md").write_text("no frontmatter\n")
+    (common / "skills" / "house-style" / "SKILL.md").write_text("no frontmatter\n", encoding="utf-8", newline="\n")
     report = Pipeline(backends=StubAgent().backends()).check(lambda: spec("a"))
     assert any(str(common.resolve()) in e and "frontmatter has no name" in e for e in report.errors)
 
@@ -239,8 +247,8 @@ def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
     the digest and the definition, and a link back up the tree is read once."""
     elsewhere = tmp_path / "shared" / "s1"
     (elsewhere / "refs").mkdir(parents=True)
-    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nShort sentences.\n")
-    (elsewhere / "refs" / "terms.md").write_text("terms\n")
+    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nShort sentences.\n", encoding="utf-8", newline="\n")
+    (elsewhere / "refs" / "terms.md").write_text("terms\n", encoding="utf-8", newline="\n")
     (plugin / "skills" / "s1").symlink_to(elsewhere, target_is_directory=True)
     (elsewhere / "loop").symlink_to(plugin / "skills", target_is_directory=True)  # a cycle
     p = Plugin.load(plugin)
@@ -250,7 +258,7 @@ def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
     assert "skills/s1/SKILL.md" in [f["path"] for f in p.definition("worker")["files"]]
     a = agent_task("summarize", plugin=plugin)
     digest = a.digest()
-    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nLong sentences.\n")
+    (elsewhere / "SKILL.md").write_text("---\nname: s1\ndescription: d\n---\nLong sentences.\n", encoding="utf-8", newline="\n")
     assert a.digest() != digest  # editing the linked skill runs the task again on resume
 
 
@@ -263,9 +271,9 @@ def test_render_leaves_a_skill_plugin_alone_and_lint_names_what_it_left(tmp_path
     assert sorted(p.name for p in common.iterdir()) == [".claude-plugin", "skills"]
     assert Plugin.load(common).lint() == []
     # what an older render left behind
-    (common / "package.json").write_text('{"name": "common", "version": "0.1.0"}\n')
+    (common / "package.json").write_text('{"name": "common", "version": "0.1.0"}\n', encoding="utf-8", newline="\n")
     (common / "hooks").mkdir()
-    (common / "hooks" / "hooks.json").write_text('{"hooks": {}}\n')
+    (common / "hooks" / "hooks.json").write_text('{"hooks": {}}\n', encoding="utf-8", newline="\n")
     errs = Plugin.load(common).lint()
     assert errs == ["hooks, package.json: written by `contraagent plugin render`, which a skill plugin does not need; remove them"]
     with pytest.raises(PluginError, match="written by `contraagent plugin render`; remove them"):
@@ -301,20 +309,24 @@ def test_each_agent_s_hooks_read_claude_code_s_input_and_return_a_post_tool_obje
     them, and its exit 2 reaches the result the agent sees."""
     (plugin / "hooks" / "object.sh").write_text(
         '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n'
-        'echo "add a title line" >&2\nexit 2\n'
+        'echo "add a title line" >&2\nexit 2\n',
+        encoding="utf-8",
+        newline="\n",
     )
     (plugin / "hooks" / "object.sh").chmod(0o755)
     add_hooks(plugin, '\n[[hooks]]\non = "post_tool"\ntool = "edit"\nscript = "hooks/object.sh"\n')
     hooks.write(Plugin.load(plugin))
-    (tmp_path / "drive.mjs").write_text(DRIVE)
-    proc = subprocess.run(["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve())], capture_output=True, text=True, timeout=60)
+    (tmp_path / "drive.mjs").write_text(DRIVE, encoding="utf-8", newline="\n")
+    proc = subprocess.run(
+        ["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve())], capture_output=True, text=True, timeout=60, encoding="utf-8"
+    )
     assert proc.returncode == 0, proc.stderr
     out = json.loads(proc.stdout)
     said = hooks.FEEDBACK.replace("\\n", "\n") + "add a title line"  # the JS template literal reads `\\n` as a line break
     assert out["opencode"] == f"Edited.\n\n{said}"
     assert out["omp"] == out["pi"] == f"Edited. | {said}"
     assert out["omp_unnamed"] is None and out["pi_unnamed"] is None  # a tool the hook does not name: unchanged
-    seen = [json.loads(line) for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    seen = [json.loads(line) for line in (plugin / "seen.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     assert [s["tool_name"] for s in seen] == ["Edit"] * 3
     for s in seen:
         assert s["tool_input"]["file_path"].endswith("/n.md")
@@ -346,16 +358,24 @@ def test_each_agent_s_hooks_read_an_absolute_file_path_as_claude_code_passes_it(
     directory; Claude Code always passes an absolute one, so a script matching `*/notes/*` or
     reading the file from another directory works on every agent."""
     (plugin / "hooks" / "seen.sh").write_text(
-        '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n'
+        '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n',
+        encoding="utf-8",
+        newline="\n",
     )
     (plugin / "hooks" / "seen.sh").chmod(0o755)
     add_hooks(plugin, "".join(f'\n[[hooks]]\non = "{on}"\ntool = "write"\nscript = "hooks/seen.sh"\n' for on in ("pre_tool", "post_tool")))
     hooks.write(Plugin.load(plugin))
     cwd = tmp_path / "work"
     cwd.mkdir()
-    (tmp_path / "drive.mjs").write_text(DRIVE_PATHS)
-    proc = subprocess.run(["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve()), str(cwd)], capture_output=True, text=True, timeout=60)
+    (tmp_path / "drive.mjs").write_text(DRIVE_PATHS, encoding="utf-8", newline="\n")
+    proc = subprocess.run(
+        ["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve()), str(cwd)], capture_output=True, text=True, timeout=60, encoding="utf-8"
+    )
     assert proc.returncode == 0, proc.stderr
-    seen = [json.loads(line)["tool_input"]["file_path"] for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    seen = [
+        json.loads(line)["tool_input"]["file_path"]
+        for line in (plugin / "seen.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     want = [str(cwd / "notes" / "n.md"), str(cwd / "notes" / "m.md"), str(Path.home() / "x.md"), str(cwd / "abs.md")]
     assert seen == [p for p in want for _ in ("pre", "post")] * 3  # opencode, omp, pi

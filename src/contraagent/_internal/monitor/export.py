@@ -74,7 +74,7 @@ LEFT_OUT = ("transcripts", "processes")
 #: roots were made relative. A system path (`/etc/hosts`) says nothing about the machine.
 _ABSOLUTE = re.compile(
     r"(?<![\w.:/~-])/(?:home|Users|root|tmp|private|var/folders)/[^\s\"'`<>|,;)\]]*"
-    r"|(?<![\w.:\\/~-])[A-Za-z]:\\(?:Users|Windows\\Temp)\\[^\s\"'`<>|,;)\]]*"  # Windows: C:\Users\...
+    r"|(?<![\w.:\\/~-])[A-Za-z]:[\\/](?:Users|Windows[\\/]Temp)[\\/][^\s\"'`<>|,;)\]]*"  # Windows: C:\Users\..., C:/Users/...
 )
 
 #: What parts a path on this OS: `/`, and on Windows `\` as well.
@@ -116,8 +116,8 @@ class Redactor:
         # The longest root first, so a run directory wins over the runs directory around it.
         roots_ = sorted({str(r).rstrip("/" + os.sep) for r in roots if str(r) not in ("", "/", os.sep)}, key=len, reverse=True)
         # A root only where a path name ends: `/runs/x` is not the start of `/runs/xy`.
-        self.roots = [re.compile(re.escape(r) + rf"({_SEP}|(?![\w.-]))") for r in roots_]
-        self.home = re.compile(re.escape(home) + rf"({_SEP})") if home not in ("", "/", os.sep) else None
+        self.roots = [re.compile(_pattern(r) + rf"({_SEP}|(?![\w.-]))") for r in roots_]
+        self.home = re.compile(_pattern(home) + rf"({_SEP})") if home not in ("", "/", os.sep) else None
 
     def __call__(self, value: Any, content: bool = False) -> Any:
         if isinstance(value, dict):
@@ -145,6 +145,12 @@ class Redactor:
         if self.home:
             text = self.home.sub(lambda m: "~" + m.group(1), text)
         return text if content else _ABSOLUTE.sub("<path>", text)
+
+
+def _pattern(path: str) -> str:
+    """A regular expression for `path` written with any of this OS's separators: a message
+    names a path with `/` on every OS, a record may hold it as the OS writes it."""
+    return _SEP.join(re.escape(part) for part in re.split(_SEP, path))
 
 
 def _run_roots(monitor: Monitor, run: str) -> list[Path]:

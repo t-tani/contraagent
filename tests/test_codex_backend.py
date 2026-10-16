@@ -93,7 +93,7 @@ def fake(tmp_path):
         launch = launch.__class__(**{**launch.__dict__, "env": {"FAKE_DUMP": str(dump), "FAKE_MODE": mode, **launch.env}})
         backend = CodexBackend(base_env=base)
         result = backend.run(launch)
-        return backend, result, json.loads(dump.read_text())
+        return backend, result, json.loads(dump.read_text(encoding="utf-8"))
 
     return run
 
@@ -123,7 +123,7 @@ def test_codex_sees_only_its_plugins_skills_and_its_commands_the_real_home(fake,
     for plug, names in ((task, ("write-output", "notes")), (shared, ("notes", "house-style"))):
         for name in names:
             (plug / "skills" / name).mkdir(parents=True)
-            (plug / "skills" / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n{plug.name}\n")
+            (plug / "skills" / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n{plug.name}\n", encoding="utf-8", newline="\n")
     (tmp_path / "home" / ".agents" / "skills" / "mine").mkdir(parents=True)  # the user's own skill
     _, r, seen = fake(plugin_dirs=(str(task), str(shared)))
     assert r.ok
@@ -146,7 +146,7 @@ def test_the_projects_own_skills_are_turned_off_by_path(fake, tmp_path):
         (plugin / "skills", "write-output"),
     ):
         (d / name).mkdir(parents=True)
-        (d / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+        (d / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n", encoding="utf-8", newline="\n")
     _, r, seen = fake(plugin_dirs=(str(plugin),))
     assert r.ok
     table = next(a for a in seen["argv"] if a.startswith("skills.config="))
@@ -184,7 +184,7 @@ def test_a_gateway_is_a_model_provider_of_its_own(fake):
 
 def test_a_long_prompt_and_its_attached_files_go_over_stdin(fake, tmp_path):
     role = tmp_path / "role.md"
-    role.write_text("You review code.")
+    role.write_text("You review code.", encoding="utf-8", newline="\n")
     long = "x" * 70_000
     _, r, seen = fake(prompt=long, preamble="PRE", context_files=(str(role),))
     assert r.ok and seen["argv"][-1] == "-"
@@ -195,7 +195,7 @@ def test_a_structured_answer_is_parsed(fake):
     schema = {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"], "additionalProperties": False}
     _, r, seen = fake(json_schema=schema, env={"FAKE_TEXT": '{"n": 5}'})
     assert r.structured_output == {"n": 5}
-    assert json.loads(Path(seen["argv"][seen["argv"].index("--output-schema") + 1]).read_text()) == schema
+    assert json.loads(Path(seen["argv"][seen["argv"].index("--output-schema") + 1]).read_text(encoding="utf-8")) == schema
 
 
 def test_a_refused_credential_ends_the_launch_on_its_second_retry(fake):
@@ -243,7 +243,7 @@ def test_credentials_codex_cannot_use_are_refused():
     backend = CodexBackend(base_env={})
     with pytest.raises(CredentialError):
         backend.bind_credential(ApiKey(name="a", key="env:K"))  # an Anthropic key
-    assert backend.bind_credential(Subscription(name="s", provider="openai", config_dir="/x")).env == {"CODEX_HOME": "/x"}
+    assert backend.bind_credential(Subscription(name="s", provider="openai", config_dir="/x")).env == {"CODEX_HOME": str(Path("/x"))}
 
 
 def test_a_missing_binary_is_a_launch_failure(tmp_path):
@@ -290,7 +290,9 @@ def test_an_unknown_event_is_counted():
 def test_a_rollout_without_windows_has_no_reading(tmp_path):
     f = tmp_path / "r.jsonl"
     f.write_text(
-        json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": None, "rate_limits": {"primary": None}}}) + "\n"
+        json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": None, "rate_limits": {"primary": None}}}) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     assert read_rollout(f).quota == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
 

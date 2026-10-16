@@ -192,7 +192,7 @@ def main() -> None:
         if page["key"] in LIVE:
             page["out"] = page["out"].with_suffix(".mdx")
         page["out"].parent.mkdir(parents=True, exist_ok=True)
-        page["out"].write_text(render(source, page, pages))
+        page["out"].write_text(render(source, page, pages), encoding="utf-8", newline="\n")
     shutil.rmtree(SCHEMAS, ignore_errors=True)
     shutil.copytree(docs.DIR / "schemas", SCHEMAS)
     sys.stdout.write(f"collected {len(pages)} pages and {len(list(SCHEMAS.glob('*.json')))} schemas\n")
@@ -354,7 +354,7 @@ def check_live(keys: set[str]) -> None:
         d["tagName"]
         for manifest in MANIFESTS
         if manifest.is_file()
-        for module in json.loads(manifest.read_text())["modules"]
+        for module in json.loads(manifest.read_text(encoding="utf-8"))["modules"]
         for d in module.get("declarations", [])
         if d.get("tagName")
     }

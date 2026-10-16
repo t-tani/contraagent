@@ -108,7 +108,7 @@ def test_a_stub_run_plays_every_task_and_runs_no_function(tmp_path):
     assert calls == []
     assert sorted(t.key for t in stub.played) == ["python:fetch-a", "python:fetch-b", "python:publish"]
     assert sorted(launch.key for launch in stub.launches) == ["find-a", "find-b"]
-    assert json.loads((report.run_dir / "run.json").read_text())["stub"] is True
+    assert json.loads((report.run_dir / "run.json").read_text(encoding="utf-8"))["stub"] is True
 
 
 def test_a_stub_run_executes_the_kinds_named_and_scripts_both_executors(tmp_path):
@@ -172,7 +172,7 @@ def test_an_example_its_validators_refuse_fails_its_checks_at_once(tmp_path):
     assert failed.reason.endswith("[two_items] items: two expected, got 1")
     # The same value again cannot pass: no correction round, and no retry for all of `retries=2`.
     assert [launch.resumed for launch in stub.launches] == [False]
-    assert len((report.run_dir / "journal.jsonl").read_text().splitlines()) == 1
+    assert len((report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines()) == 1
 
 
 def test_a_list_of_replies_corrects_an_example(tmp_path):
@@ -214,7 +214,7 @@ def test_the_demo_stub_run_goes_through_the_whole_flow_on_its_examples(tmp_path,
     assert "11 tasks created:" in out and "✓ 11/11 tasks done" in out
     for kind in ("prepare", "summarize", "score", "review", "write_note"):
         assert f"  {kind} · beta | completed | docs > review_loop (line " in out
-    assert (tmp_path / "docs-stub" / "out" / "write_note" / "beta.md").read_text().startswith("# alpha")
+    assert (tmp_path / "docs-stub" / "out" / "write_note" / "beta.md").read_text(encoding="utf-8").startswith("# alpha")
 
 
 def test_the_cli_says_nothing_of_checks_when_every_task_passes(tmp_path, monkeypatch, capsys):
@@ -253,7 +253,7 @@ def test_a_text_output_writes_its_example(tmp_path):
     stub = StubAgent(default=writes_example())
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(lambda: noted("a"), run_id="n")
     assert report.ok, report.failed
-    assert (report.run_dir / "out" / "noted" / "a.md").read_text() == "# a note\n"
+    assert (report.run_dir / "out" / "noted" / "a.md").read_text(encoding="utf-8") == "# a note\n"
 
 
 class ModuleReview(BaseModel):
@@ -291,8 +291,8 @@ def test_an_example_names_each_task_call_s_unit_and_params(tmp_path):
     stub = StubAgent(default=writes_example())
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(flow, modules=["bank", "retry"])
     assert report.ok, report.failed  # one example passes the validator of every unit
-    out = json.loads((report.run_dir / "out" / "reviewed" / "retry.json").read_text())
+    out = json.loads((report.run_dir / "out" / "reviewed" / "retry.json").read_text(encoding="utf-8"))
     # A field the call does not give, and other text in braces, stay as written.
     assert out == {"module": "retry", "lines": ["retry: src/retry.py"], "note": "{params.missing} {x}"}
-    played = json.loads((report.run_dir / "out" / "tally" / "bank.json").read_text())
+    played = json.loads((report.run_dir / "out" / "tally" / "bank.json").read_text(encoding="utf-8"))
     assert played["module"] == "bank"

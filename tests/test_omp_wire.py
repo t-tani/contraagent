@@ -21,7 +21,7 @@ LAUNCH = Launch(prompt="x", label="t", model="anthropic/claude-haiku-5-5")
 
 
 def events(version: str, wire: str) -> list[dict]:
-    return [json.loads(line) for line in (FIXTURES / version / f"{wire}.jsonl").read_text().splitlines() if line.strip()]
+    return [json.loads(line) for line in (FIXTURES / version / f"{wire}.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def via_json(version: str):

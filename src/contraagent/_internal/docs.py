@@ -130,4 +130,4 @@ def quote(page: Path, attrs: dict[str, str], root: Path) -> list[str]:
         lines.pop()
     fence = "`" * max(3, 1 + max((len(run) for line in lines for run in re.findall(r"`+", line)), default=0))
     lang = attrs.get("lang") or source.suffix.lstrip(".")
-    return [f'{fence}{lang} title="{source.relative_to(root.resolve())}"', *lines, fence]
+    return [f'{fence}{lang} title="{source.relative_to(root.resolve()).as_posix()}"', *lines, fence]

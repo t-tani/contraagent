@@ -111,7 +111,7 @@ def run_validators(
             found = list(v(path, value, **{c: context[c] for c in wanted}) or ())
         except Exception as exc:  # a validator's crash is its verdict
             found = [f"validator raised {type(exc).__name__}: {exc}"]
-        errors += [f"{path}: [{name}] {e}" for e in found]
+        errors += [f"{Path(path).as_posix()}: [{name}] {e}" for e in found]
     return errors
 
 

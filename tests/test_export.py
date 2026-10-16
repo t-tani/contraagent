@@ -49,14 +49,23 @@ def runs(tmp_path: Path, ids=("first", "second")) -> Path:
 def later(journal: Path, seconds: int) -> None:
     """Move a run's journal rows `seconds` on: runs made within one second would tie on their
     last activity (kept to the second), and the export orders runs by it."""
-    rows = [json.loads(line) for line in journal.read_text().splitlines()]
+    rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
     for row in rows:
         row["ts"] = (datetime.fromisoformat(row["ts"]) + timedelta(seconds=seconds)).isoformat(timespec="seconds")
-    journal.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    journal.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8", newline="\n")
+
+
+def written(path: Path) -> tuple[str, str]:
+    """How a JSON file can hold `path`: as the OS writes it (escaped), and with `/`."""
+    return json.dumps(str(path))[1:-1], path.as_posix()
 
 
 def files(out: Path) -> dict[str, str]:
-    return {str(p.relative_to(out)): p.read_text() for p in sorted(out.rglob("*")) if p.is_file() and p.suffix in (".json", ".html")}
+    return {
+        p.relative_to(out).as_posix(): p.read_text(encoding="utf-8")
+        for p in sorted(out.rglob("*"))
+        if p.is_file() and p.suffix in (".json", ".html")
+    }
 
 
 def panel(run: RunRecords) -> dict:
@@ -93,13 +102,13 @@ def test_an_export_holds_each_route_of_the_runs_as_a_file(tmp_path):
 def test_this_machine_s_paths_and_name_are_taken_out(tmp_path):
     export(Monitor(runs(tmp_path), panels={"p": panel}), tmp_path / "site", now=NOW)
     text = "\n".join(files(tmp_path / "site" / "data").values())
-    assert str(tmp_path) not in text and str(Path.home()) not in text
+    assert not any(form in text for path in (tmp_path, Path.home()) for form in written(path))
     assert socket.gethostname() not in text
-    journal = json.loads((tmp_path / "site/data/runs/second/journal.json").read_text())
+    journal = json.loads((tmp_path / "site/data/runs/second/journal.json").read_text(encoding="utf-8"))
     reasons = " ".join(e["reason"] for e in journal["entries"])
     assert "out/note/b.json" in reasons  # made relative to the run directory, not dropped
-    assert json.loads((tmp_path / "site/data/runs/second/panels/p.json").read_text())["where"] == "~/secret"
-    outputs = (tmp_path / "site/data/runs/second/outputs.json").read_text()
+    assert json.loads((tmp_path / "site/data/runs/second/panels/p.json").read_text(encoding="utf-8"))["where"] == str(Path("~", "secret"))
+    outputs = (tmp_path / "site/data/runs/second/outputs.json").read_text(encoding="utf-8")
     # An output's contents keep what is not this machine's: a system path stays, the run's working directory goes.
     assert "/etc/hosts was read; see work/notes.md" in outputs
 
@@ -115,11 +124,11 @@ def test_a_person_s_windows_path_is_taken_out_on_any_os():
 def test_keep_puts_the_paths_back_and_exclude_takes_a_key_out(tmp_path):
     rd = runs(tmp_path, ids=("only",))
     export(Monitor(rd), tmp_path / "kept", keep=["paths"], now=NOW)
-    assert str(tmp_path) in "\n".join(files(tmp_path / "kept").values())
+    assert written(tmp_path)[0] in "\n".join(files(tmp_path / "kept").values())
     export(Monitor(rd), tmp_path / "lean", exclude=["params"], now=NOW)
     text = "\n".join(files(tmp_path / "lean").values())
     assert '"params":' not in text
-    assert json.loads((tmp_path / "lean/data/info.json").read_text())["export"]["redacted"] == ["host", "params", "paths"]
+    assert json.loads((tmp_path / "lean/data/info.json").read_text(encoding="utf-8"))["export"]["redacted"] == ["host", "params", "paths"]
 
 
 def test_an_export_written_again_holds_only_the_runs_chosen_now(tmp_path):
@@ -138,7 +147,7 @@ def test_the_cli_writes_the_export_and_says_how_large_it_is(tmp_path, capsys):
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "site"), "--title", "notes", "--exclude", "params"]) == 0
     said = capsys.readouterr().out
     assert "only:" in said and "wrote 1 runs" in said
-    assert '"params":' not in (tmp_path / "site/data/runs/only/tasks/note-a.json").read_text()
+    assert '"params":' not in (tmp_path / "site/data/runs/only/tasks/note-a.json").read_text(encoding="utf-8")
 
 
 def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path):
@@ -153,11 +162,14 @@ def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path)
     monitor = Monitor(rd, panels={"days": Panel(days, scope="trends"), "p": Panel(panel)})
     export(monitor, tmp_path / "site", now=NOW, period=Period.parse(today, today, "Asia/Tokyo"))
     data = tmp_path / "site/data"
-    trends = api.Trends.model_validate_json((data / "trends.json").read_text())
+    trends = api.Trends.model_validate_json((data / "trends.json").read_text(encoding="utf-8"))
     assert trends.period.tz == "Asia/Tokyo" and trends.totals.runs == 1 and [r.run for r in trends.runs] == ["only"]
     assert seen["args"] == (["only"], "Asia/Tokyo")
-    # Redacted as any view: a temporary directory outside the runs is no root of the export.
-    assert json.loads((data / "trends/panels/days.json").read_text()) == {"panel": "days", "where": "<path>"}
+    # Redacted as any view: a temporary directory outside the runs is no root of the export;
+    # under the home directory (Windows' temporary directory is), it starts with `~` instead.
+    home = str(Path.home())
+    where = "~" + str(tmp_path)[len(home) :] if tmp_path.is_relative_to(home) else "<path>"
+    assert json.loads((data / "trends/panels/days.json").read_text(encoding="utf-8")) == {"panel": "days", "where": where}
     assert not (data / "runs/only/panels/days.json").exists()
     assert (data / "runs/only/panels/p.json").exists()
 
@@ -165,9 +177,9 @@ def test_an_export_holds_the_trends_of_its_period_and_the_trend_panels(tmp_path)
 def test_the_cli_takes_the_trends_period(tmp_path):
     rd = runs(tmp_path, ids=("only",))
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "a"), "--from", "2026-09-01", "--to", "2026-09-30", "--tz", "UTC"]) == 0
-    assert json.loads((tmp_path / "a/data/trends.json").read_text())["period"]["from"] == "2026-09-01"
+    assert json.loads((tmp_path / "a/data/trends.json").read_text(encoding="utf-8"))["period"]["from"] == "2026-09-01"
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "b"), "--days", "7", "--to", "2026-10-14"]) == 0
-    assert json.loads((tmp_path / "b/data/trends.json").read_text())["period"]["from"] == "2026-10-08"
+    assert json.loads((tmp_path / "b/data/trends.json").read_text(encoding="utf-8"))["period"]["from"] == "2026-10-08"
     assert main(["--runs-dir", str(rd), "--out", str(tmp_path / "c"), "--tz", "Mars/Olympus"]) == 2
 
 
@@ -180,28 +192,30 @@ def test_the_cli_takes_panels_groups_and_task_detail_as_the_monitor_does(tmp_pat
         "    return {'type': 'tiles', 'tiles': [{'id': 'n', 'label': 'Rows', 'value': sum(len(runs.journal(r)) for r in runs)}]}\n"
         "PANELS = {'kinds': Panel(kinds, scope='trends')}\n"
         "GROUPS = [{'id': 'writing', 'label': 'Writing', 'kinds': ['note']}]\n"
-        "def detail(run, key, rows):\n    return {'attempts_seen': len(rows)}\n"
+        "def detail(run, key, rows):\n    return {'attempts_seen': len(rows)}\n",
+        encoding="utf-8",
+        newline="\n",
     )
     out = tmp_path / "site"
     argv = ["--runs-dir", str(rd), "--out", str(out), "--panels", f"{views}:PANELS", "--groups", f"{views}:GROUPS"]
     assert main([*argv, "--task-detail", f"{views}:detail", "--days", "366"]) == 0
-    trends = json.loads((out / "data/trends.json").read_text())
+    trends = json.loads((out / "data/trends.json").read_text(encoding="utf-8"))
     assert {k["kind"]: k["group"] for k in trends["kinds"]} == {"note": "Writing"}  # grouped as the live monitor groups it
-    value = json.loads((out / "data/trends/panels/kinds.json").read_text())["tiles"][0]["value"]
+    value = json.loads((out / "data/trends/panels/kinds.json").read_text(encoding="utf-8"))["tiles"][0]["value"]
     assert isinstance(value, int) and value >= 2  # an int stays one
-    assert json.loads((out / "data/runs/only/tasks/note-a.json").read_text())["attempts_seen"] >= 1
+    assert json.loads((out / "data/runs/only/tasks/note-a.json").read_text(encoding="utf-8"))["attempts_seen"] >= 1
     assert main(["--runs-dir", str(rd), "--out", str(out), "--groups", "nowhere.py:GROUPS"]) == 2
 
 
 def test_an_export_writes_the_monitor_s_own_page(tmp_path):
     static = tmp_path / "ui"
     static.mkdir()
-    (static / "index.html").write_text("<title>x</title><ca-monitor></ca-monitor>")
+    (static / "index.html").write_text("<title>x</title><ca-monitor></ca-monitor>", encoding="utf-8", newline="\n")
     for name in ("app.js", "ja.js"):
-        (static / name).write_text(f"// own {name}")
+        (static / name).write_text(f"// own {name}", encoding="utf-8", newline="\n")
     export(Monitor(runs(tmp_path, ids=("only",)), static_dir=static), tmp_path / "site", now=NOW)
-    assert (tmp_path / "site/app.js").read_text() == "// own app.js"
-    assert '<ca-monitor export="data/">' in (tmp_path / "site/index.html").read_text()
+    assert (tmp_path / "site/app.js").read_text(encoding="utf-8") == "// own app.js"
+    assert '<ca-monitor export="data/">' in (tmp_path / "site/index.html").read_text(encoding="utf-8")
     assert not (tmp_path / "site/favicon.svg").exists()  # a UI without icons: none copied
 
 
@@ -217,7 +231,7 @@ def test_a_run_still_running_is_left_out_unless_asked_for(tmp_path):
     listed = monitor.runs()
     monitor.runs = lambda: [{**s, "running": s["run"] == "second"} for s in listed]  # the run writing the export
     assert export(monitor, tmp_path / "a", now=NOW).runs == ["first"]
-    assert [r["run"] for r in json.loads((tmp_path / "a/data/runs.json").read_text())] == ["first"]
+    assert [r["run"] for r in json.loads((tmp_path / "a/data/runs.json").read_text(encoding="utf-8"))] == ["first"]
     assert export(monitor, tmp_path / "b", now=NOW, live=True).runs == ["second", "first"]
 
 
@@ -225,5 +239,5 @@ def test_a_trends_panel_is_checked_before_it_is_written(tmp_path):
     rd = runs(tmp_path, ids=("only",))
     bad = Panel(lambda runs, period: {"type": "hbars", "bars": [{"label": "x"}]}, scope="trends")
     export(Monitor(rd, panels={"bad": bad}), tmp_path / "site", now=NOW, period=Period.parse("2026-01-01", "2026-12-31"))
-    written = json.loads((tmp_path / "site/data/trends/panels/bad.json").read_text())
+    written = json.loads((tmp_path / "site/data/trends/panels/bad.json").read_text(encoding="utf-8"))
     assert written.keys() == {"error"} and "ValidationError" in written["error"]
