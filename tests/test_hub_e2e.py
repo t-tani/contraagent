@@ -28,7 +28,7 @@ import pytest
 pytest.importorskip("psycopg")
 pytest.importorskip("boto3")
 pytest.importorskip("zstandard")
-httpx = pytest.importorskip("httpx")
+httpx2 = pytest.importorskip("httpx2")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -129,7 +129,7 @@ class Env:
         self.runs = {h: _demo(tmp / h) for h in HOSTS}
         self.hub: Proc | None = None
         self.relays: dict[str, Proc] = {}
-        self.http = httpx.Client(base_url=self.url, headers={"Authorization": f"Bearer {READ_TOKEN}"}, timeout=30)
+        self.http = httpx2.Client(base_url=self.url, headers={"Authorization": f"Bearer {READ_TOKEN}"}, timeout=30)
 
     # --- processes ---
 
@@ -146,7 +146,7 @@ class Env:
             assert hub.alive(), f"the hub exited:\n{hub.tail()}"
             try:
                 return self.http.get("/api/info").status_code == 200
-            except httpx.TransportError:
+            except httpx2.TransportError:
                 return False
 
         _until(up, "the hub answers", 30)
@@ -265,7 +265,7 @@ def test_every_host_s_runs_have_the_views_of_their_directory(env):
 
 
 def test_the_read_token_opens_the_monitor_by_header_or_login(env):
-    bare = httpx.Client(base_url=env.url, timeout=10)
+    bare = httpx2.Client(base_url=env.url, timeout=10)
     try:
         assert bare.get("/api/runs").status_code == 401
         assert bare.get("/login", params={"token": "wrong"}).status_code == 401
@@ -274,7 +274,7 @@ def test_the_read_token_opens_the_monitor_by_header_or_login(env):
         assert bare.get("/api/runs").status_code == 200  # the cookie /login set
     finally:
         bare.close()
-    other = httpx.post(
+    other = httpx2.post(
         f"{env.url}/ingest/heartbeat",
         json={"host_id": "h2", "sent_at": "x", "interval_s": 1},
         headers={"Authorization": f"Bearer {INGEST['h1']}"},
@@ -289,7 +289,7 @@ class Feed:
     """An SSE connection, read by a thread into a queue of (id, event, data)."""
 
     def __init__(self, url: str, headers: dict[str, str]) -> None:
-        self.client = httpx.Client(timeout=httpx.Timeout(10, read=None))
+        self.client = httpx2.Client(timeout=httpx2.Timeout(10, read=None))
         self.messages: queue.Queue[tuple[str, str, str]] = queue.Queue()
         self.response = self.client.send(self.client.build_request("GET", url, headers=headers), stream=True)
         assert self.response.status_code == 200, self.response.read()

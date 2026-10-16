@@ -1,0 +1,1 @@
+The `hub` extra installs httpx2 2.3 or later in place of httpx: httpx2 is the maintained continuation of httpx, and starlette's test client prefers it. A relay now checks an `https://` hub's certificate against the operating system's trust store instead of the certifi bundle.

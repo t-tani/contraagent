@@ -59,6 +59,10 @@ Set `User=`, `CONTRAAGENT_HUB_URL` and `CONTRAAGENT_RUNS_DIR` in the unit (or in
 `<runs-dir>.relay.json`; it retries an unreachable hub with backoff and catches up from
 the runs directory, so a host never waits for the hub.
 
+A relay checks the certificate of an `https://` hub against the trust store of the
+host's operating system. A hub with a certificate from a private certificate authority
+needs that authority in the host's trust store.
+
 ## Tokens
 
 | To | Do |

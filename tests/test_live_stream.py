@@ -21,9 +21,9 @@ import pytest
 
 pytest.importorskip("fastapi")
 pytest.importorskip("sse_starlette")
-pytest.importorskip("httpx")
+pytest.importorskip("httpx2")
 
-import httpx
+import httpx2
 
 from contraagent._internal.hub import server as hub_server
 from contraagent._internal.hub.client import DirectClient, HttpClient
@@ -287,7 +287,7 @@ def sse(response) -> Iterator[dict]:
 def test_the_sse_endpoint_resumes_with_last_event_id_with_no_gap_or_duplicate():
     hub = new_hub(10)
     seen: list[str] = []
-    with serving(hub) as base, httpx.Client(base_url=base, timeout=10) as c:
+    with serving(hub) as base, httpx2.Client(base_url=base, timeout=10) as c:
         url = f"/events/stream?run={RUN.name}&key={KEY}"
         with c.stream("GET", url) as r:
             messages = sse(r)
@@ -387,7 +387,7 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
         ready = threading.Event()
 
         def view() -> None:
-            with httpx.Client(base_url=base, timeout=30) as c, c.stream("GET", f"/events/stream?run=r1@h1&key={KEY}") as r:
+            with httpx2.Client(base_url=base, timeout=30) as c, c.stream("GET", f"/events/stream?run=r1@h1&key={KEY}") as r:
                 for msg in sse(r):
                     now = time.monotonic()
                     ready.set()

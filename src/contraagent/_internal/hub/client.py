@@ -13,7 +13,7 @@ from contraagent._internal.hub.core import Hub
 from contraagent._internal.hub.protocol import INGEST_BLOB, INGEST_HEARTBEAT, INGEST_RECORDS, Accepted, Heartbeat, HeartbeatAck, RecordBatch
 
 if TYPE_CHECKING:
-    import httpx
+    import httpx2
 
 
 class HubUnavailable(ContraagentError):
@@ -61,31 +61,31 @@ class DirectClient:
 
 
 class HttpClient:
-    """A `HubClient` over HTTP (httpx, from the `hub` extra).
+    """A `HubClient` over HTTP (httpx2, from the `hub` extra).
 
     `base_url` is the hub's address (`http://hub:8790`); `token`, when not empty, goes in
     every request as `Authorization: Bearer <token>`; `timeout` is in seconds per request.
-    `transport` replaces httpx's own (tests: `httpx.MockTransport`). Every failure, a
+    `transport` replaces httpx2's own (tests: `httpx2.MockTransport`). Every failure, a
     connection error, a timeout, an answer other than 2xx or a body that is not the
     protocol's, raises `HubUnavailable`; HTTP 401 and 403 raise `HubRefused`. The bodies of
     records and heartbeats are sent gzipped (`Content-Encoding: gzip`), blobs as they are."""
 
-    def __init__(self, base_url: str, token: str = "", timeout: float = 30.0, *, transport: httpx.BaseTransport | None = None) -> None:
-        import httpx
+    def __init__(self, base_url: str, token: str = "", timeout: float = 30.0, *, transport: httpx2.BaseTransport | None = None) -> None:
+        import httpx2
 
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         self.base_url = base_url.rstrip("/")
-        self._http = httpx.Client(base_url=self.base_url, headers=headers, timeout=timeout, transport=transport)
+        self._http = httpx2.Client(base_url=self.base_url, headers=headers, timeout=timeout, transport=transport)
 
     def close(self) -> None:
         self._http.close()
 
-    def _request(self, method: str, path: str, ok: tuple[int, ...] = (), **kwargs) -> httpx.Response:
-        import httpx
+    def _request(self, method: str, path: str, ok: tuple[int, ...] = (), **kwargs) -> httpx2.Response:
+        import httpx2
 
         try:
             response = self._http.request(method, path, **kwargs)
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise HubUnavailable(f"{method} {self.base_url}{path}: {exc or type(exc).__name__}") from exc
         status = response.status_code
         if not (200 <= status < 300 or status in ok):
