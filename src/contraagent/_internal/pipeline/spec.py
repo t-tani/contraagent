@@ -787,15 +787,15 @@ class PythonTask[Out]:
             signature = inspect.signature(self.fn)
         except (TypeError, ValueError):  # a callable with no signature to read
             return
-        if "credential" in kwargs and "credential" not in signature.parameters and not _takes_any_keyword(signature):
-            raise TypeError(
-                f"{self.kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
-                "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
-            )
         given = {**kwargs, "unit": unit} if unit and "unit" not in kwargs and "unit" in signature.parameters else kwargs
         try:
             signature.bind(**given)
         except TypeError as exc:
+            if "'credential'" in str(exc):
+                raise TypeError(
+                    f"{self.kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
+                    "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
+                ) from None
             raise TypeError(f"{self.kind}(...): the function cannot take this call: {exc} (contraagent docs tasks, Python tasks)") from None
 
     def digest(self) -> str:
@@ -1124,10 +1124,6 @@ def _checked_after(kind: str, after: Any) -> tuple[Pending[Any] | str, ...]:
     if odd:
         raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {odd[0]!r} in it")
     return items
-
-
-def _takes_any_keyword(signature: inspect.Signature) -> bool:
-    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in signature.parameters.values())
 
 
 def _checked_priority(kind: str, priority: Any) -> float:
