@@ -342,8 +342,10 @@ const TABS = [
    * header and a margin. The code and the transcript side by side, each scrolling in
    * its own pane; under them a band: the graph, its drawing fitted in it, and the
    * numbers, two columns of tiles (each its label and its value). The window is a
-   * container: the band's height is a share of the window's; a window narrower than
-   * 72rem has the graph across it and the tiles in two rows under it.
+   * container: the band's height is a share of the window's, and more where the
+   * tiles' labels wrap in a wider font (the graph fits whatever height the band has);
+   * a window narrower than 72rem has the graph across it and the tiles in two rows
+   * under it.
    */
   @media (min-width: 50rem) {
     .rr-window {
@@ -360,7 +362,7 @@ const TABS = [
       flex: 1;
       min-height: 0;
       grid-template-columns: minmax(0, 37.5rem) minmax(0, 1fr) 18.5rem;
-      grid-template-rows: minmax(0, 1fr) clamp(22rem, 48cqh, 30rem);
+      grid-template-rows: minmax(0, 1fr) minmax(clamp(22rem, 48cqh, 30rem), auto);
       grid-template-areas: 'code transcript transcript' 'graph graph kpis';
     }
     .rr-code { grid-area: code; }
@@ -380,7 +382,7 @@ const TABS = [
     .rr-transcript .rr-body, .rr-graph .rr-body { min-height: 0; }
     .rr-graph ca-pipeline-graph { flex: 1; min-height: 0; }
     /* The graph's name on the line of its outline, at the right: the drawing has that line's height. */
-    .rr-graph { position: relative; }
+    .rr-graph { position: relative; contain: size; }
     .rr-graph .rr-head { position: absolute; top: 0; right: 0; z-index: 1; padding-top: 12px; }
     .rr-graph .rr-head-tag { margin-left: 0; }
 

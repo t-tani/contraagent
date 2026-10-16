@@ -2,7 +2,6 @@ import { html, nothing, svg, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
 import type { LegendItem } from '../primitives/legend.js';
 import { ChartElement } from './base.js';
-import { textWidth } from './column-chart.js';
 import { LABEL_GAP, labelStride } from './scale.js';
 
 /** One hue, light to dark: a value's share of the colour, by its step of five. */
@@ -69,12 +68,12 @@ export class CaeHeatmap extends ChartElement {
     const nx = this.x.length;
     const ny = this.y.length;
     const [low, high] = this.range;
-    const left = Math.max(...this.y.map(textWidth)) + 2;
+    const left = Math.max(...this.y.map((s) => this.labelWidth(s))) + 2;
     const w = this.plotWidth;
     const pw = w - left - M.right;
     const cw = pw / nx;
     const h = M.top + ny * CELL_H + M.bottom;
-    const stride = labelStride(nx, pw, Math.max(...this.x.map(textWidth)) + LABEL_GAP);
+    const stride = labelStride(nx, pw, Math.max(...this.x.map((s) => this.labelWidth(s))) + LABEL_GAP);
     const a = this.active;
     const cells: TemplateResult[] = [];
     for (let r = 0; r < ny; r++)

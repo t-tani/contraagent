@@ -2,7 +2,6 @@ import { html, nothing, svg, type TemplateResult } from 'lit';
 import { property } from 'lit/decorators.js';
 import type { LegendItem } from '../primitives/legend.js';
 import { ChartElement } from './base.js';
-import { textWidth } from './column-chart.js';
 import { LABEL_GAP, labelStride, niceAxis, seriesColour } from './scale.js';
 import type { ChartSeries } from './types.js';
 
@@ -57,7 +56,7 @@ export class CaeLineChart extends ChartElement {
     const n = this.x.length;
     const values = this.series.flatMap((s) => s.values.filter((v): v is number => v !== null && v !== undefined));
     const axis = niceAxis(Math.min(0, ...values), Math.max(0, ...values));
-    const left = Math.max(...axis.ticks.map((t) => textWidth(this.format(t)))) + 4;
+    const left = Math.max(...axis.ticks.map((t) => this.labelWidth(this.format(t)))) + 4;
     const w = this.plotWidth;
     const h = this.height;
     const pw = w - left - M.right;
@@ -65,7 +64,7 @@ export class CaeLineChart extends ChartElement {
     const step = n > 1 ? pw / (n - 1) : 0;
     const px = (j: number) => (n > 1 ? left + j * step : left + pw / 2);
     const py = (v: number) => M.top + ph - ((v - axis.min) / (axis.max - axis.min)) * ph;
-    const stride = labelStride(n, pw, Math.max(...this.x.map(textWidth)) + LABEL_GAP);
+    const stride = labelStride(n, pw, Math.max(...this.x.map((s) => this.labelWidth(s))) + LABEL_GAP);
     const a = this.active;
     const hitW = n > 1 ? step : pw;
     return html`<svg width=${w} height=${h} role="img" aria-label=${this.label || nothing}>
