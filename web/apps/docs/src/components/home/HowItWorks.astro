@@ -4,8 +4,10 @@
 // it, fixes what `contraagent check` names, tests it on a stub agent; you run it and
 // watch it. Each stage shows the real thing (./how.ts: the CLI's output, captured by
 // scripts/landing.py). On a wide screen with motion, the scene stays in place while the reader
-// scrolls through its stages (./how.css, ./how-stages.css); elsewhere the stages follow
-// one another.
+// scrolls through its stages (./how.css, ./how-stages.css); on a narrow screen they are
+// cards side by side, one on screen at a time, each output cut to its first lines
+// (./how-carousel.ts); in between, and on a wide screen with reduced motion, the stages
+// follow one another.
 import '@contraagent/elements/count/define';
 import { how, KWARGS } from './how';
 import './how.css';
@@ -73,7 +75,7 @@ const LOOP = [
         <ol class="how-loop" aria-label="The agent's loop">
           {LOOP.map((s) => <li class="how-loop-step" data-from={s.from}>{s.word}</li>)}
         </ol>
-        <ol class="how-steps" style={`--n:${STAGES}`}>
+        <ol class="how-steps" id="how-steps" data-scroll="x" style={`--n:${STAGES}`}>
           {/* The rail behind the numbers: grid items under the steps (the numbers are opaque). */}
           <li class="how-rail how-rail-track" aria-hidden="true" />
           <li class="how-rail how-rail-fill" aria-hidden="true" />
@@ -88,7 +90,7 @@ const LOOP = [
                   <p class="how-text">{s.text}</p>
                   {s.link && <a class="how-link" href={s.link.href}>{s.link.text}</a>}
                 </div>
-                <div class="how-stage" data-k={k}>
+                <div class="how-stage" id={`how-out-${k}`} data-k={k}>
                   {k === 0 && (
                     <div class="term">
                       <p class="term-cmd"><span class="term-p">$</span> uv add 'contraagent[monitor]'</p>
@@ -159,10 +161,22 @@ const LOOP = [
                     </div>
                   )}
                 </div>
+                <button type="button" class="how-more" aria-expanded="false" aria-controls={`how-out-${k}`} hidden>Show full output</button>
               </li>
             ))
           }
         </ol>
+        {/* A narrow screen: the steps one at a time (./how-carousel.ts shows these). */}
+        <div class="how-nav" role="group" aria-label="Steps" hidden>
+          <button type="button" class="how-go" data-go="-1" aria-controls="how-steps" aria-label="Previous step">
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="18" height="18"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <div class="how-dots" aria-hidden="true">{steps.map((_, k) => <span class="how-dot" data-k={k} />)}</div>
+          <button type="button" class="how-go" data-go="1" aria-controls="how-steps" aria-label="Next step">
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="18" height="18"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <p class="how-at" aria-live="polite"></p>
+        </div>
       </div>
       <div class="how-window" aria-hidden="true">
         <div class="how-window-bar"><i></i><i></i><i></i><span>Your terminal and your coding agent</span></div>
@@ -173,4 +187,5 @@ const LOOP = [
 
 <script>
   import './how-scene';
+  import './how-carousel';
 </script>

@@ -52,7 +52,7 @@ const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`]
 
       <figure class="ca-agents-card">
         <figcaption class="ca-card-title">The same tasks, plugin and config on five coding agents</figcaption>
-        <pre class="ca-card-cmd"><span class="ca-sr">{`${RUN.join(' ')} --agent followed by one of ${AGENTS.map((a) => a.name).join(', ')}`}</span><span aria-hidden="true"><span class="ca-prompt">$</span> {RUN[0]} \
+        <pre class="ca-card-cmd" data-scroll="x"><span class="ca-sr">{`${RUN.join(' ')} --agent followed by one of ${AGENTS.map((a) => a.name).join(', ')}`}</span><span aria-hidden="true"><span class="ca-prompt">$</span> {RUN[0]} \
     {RUN[1]} \
     --agent <span class="ca-agent-name" data-agent-name>{AGENTS[0]!.name}</span></span></pre>
         <ul class="ca-agent-list">

@@ -8,6 +8,13 @@ const { t0, t1, plan, moments } = data;
 const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 const done = plan.nodes.filter((n) => n.state === 'done').length;
 const file = TASKS.split('/').slice(-3).join('/');
+const last = moments.at(-1);
+/** The panels a narrow screen shows one at a time; the numbers stay under them. */
+const TABS = [
+  { id: 'code', name: 'Code' },
+  { id: 'graph', name: 'Graph' },
+  { id: 'transcript', name: 'Transcript' },
+];
 ---
 
 <section class="rr not-content" data-run-replay data-ca-theme="contraagent-dark" aria-labelledby="rr-title">
@@ -19,14 +26,19 @@ const file = TASKS.split('/').slice(-3).join('/');
 
   <div class="rr-window">
     <div class="rr-bar">
-      <span class="rr-status" aria-hidden="true">Run {data.run} | finished | {done} of {plan.nodes.length} done | {clock(t1 - t0)}</span>
-      <span class="rr-said" aria-hidden="true">{moments.at(-1)?.text}</span>
+      <span class="rr-status" aria-hidden="true"><span class="rr-status-run">Run {data.run} | </span><span class="rr-status-now">finished | {done} of {plan.nodes.length} done | {clock(t1 - t0)}</span></span>
+      <span class="rr-said" aria-hidden="true">{last?.text}</span>
       <button class="rr-toggle" type="button" data-state="playing">Pause</button>
       <div class="rr-progress" aria-hidden="true"><div class="rr-progress-bar"></div></div>
     </div>
 
+    {/* A narrow screen: one panel at a time (./replay.ts makes these tabs and follows the run with them). */}
+    <div class="rr-tabs" role="tablist" aria-label="Panels of the replay">
+      {TABS.map((t, i) => <button type="button" role="tab" id={`rr-tab-${t.id}`} aria-controls={`rr-panel-${t.id}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? 0 : -1} data-panel={t.id}>{t.name}</button>)}
+    </div>
+
     <div class="rr-grid">
-      <div class="rr-pane rr-code">
+      <div class="rr-pane rr-code" id="rr-panel-code" data-panel="code">
         <div class="rr-head"><span class="rr-head-title">{file}</span><span class="rr-head-note">quoted from the tested example</span></div>
         <div class="rr-pre" role="region" tabindex="0" data-scroll="x" aria-label={`Lines of ${file}`}>{
           lines.map((l) =>
@@ -39,24 +51,29 @@ const file = TASKS.split('/').slice(-3).join('/');
         }</div>
       </div>
 
-      <div class="rr-pane rr-graph">
+      <div class="rr-pane rr-graph" id="rr-panel-graph" data-panel="graph">
         <div class="rr-head"><span class="rr-head-title">Pipeline graph</span><code class="rr-head-tag">&lt;ca-pipeline-graph&gt;</code></div>
         <div class="rr-body"><ca-pipeline-graph></ca-pipeline-graph></div>
       </div>
 
       <div class="rr-pane rr-kpis">
         <div class="rr-head"><span class="rr-head-title">The run in numbers</span><code class="rr-head-tag">&lt;ca-kpis&gt;</code></div>
-        <div class="rr-body"><ca-kpis></ca-kpis></div>
+        <div class="rr-body" data-scroll="x"><ca-kpis></ca-kpis></div>
       </div>
 
-      <div class="rr-pane rr-transcript">
+      <div class="rr-pane rr-transcript" id="rr-panel-transcript" data-panel="transcript">
         <div class="rr-head"><span class="rr-head-title">Transcript <span class="rr-spot-name">{data.spots[0]?.name}</span></span><code class="rr-head-tag">&lt;ca-transcript&gt;</code></div>
         <div class="rr-body"><ca-transcript></ca-transcript></div>
       </div>
     </div>
+
+    {/* A narrow screen: the latest moment of the run, in the window. */}
+    <p class="rr-ticker" aria-hidden="true"><span class="rr-ticker-at">{clock(last?.at ?? 0)}</span><span class="rr-ticker-text">{last?.text}</span></p>
   </div>
 
-  <ol class="rr-moments" aria-label="What happened in the run">
+  <details class="rr-more" open>
+    <summary class="rr-more-sum">What happened in the run <span class="rr-more-n">{moments.length} moments</span></summary>
+    <ol class="rr-moments" aria-label="What happened in the run">
     {
       moments.map((m) => (
         <li class="rr-moment" data-at={m.at.toFixed(2)}>
@@ -65,7 +82,12 @@ const file = TASKS.split('/').slice(-3).join('/');
         </li>
       ))
     }
-  </ol>
+    </ol>
+  </details>
+  <script is:inline>
+    // Before the first paint: on a narrow screen the moments are folded (the ticker in the window has the latest).
+    if (matchMedia('(max-width: 49.99rem)').matches) document.currentScript.previousElementSibling.open = false;
+  </script>
 
   <p class="rr-lede">
     The flow is the demo pipeline of the package's examples. Its run on the demo agent plays again from its records in
@@ -417,6 +439,155 @@ const file = TASKS.split('/').slice(-3).join('/');
     .rr-transcript .rr-body { height: 18rem; }
     .rr-graph .rr-body { min-height: 20rem; }
   }
+  /* The moments' disclosure: open on a wide screen, where its summary is not shown. */
+  .rr-more > summary { display: none; }
+  .rr-tabs, .rr-ticker { display: none; }
+
+  /*
+   * A narrow screen, once ./replay.ts has made the tabs (.rr-tabbed): the window is
+   * one stage, most of the screen high. Under its bar, the tabs (code, graph,
+   * transcript) and the panel they select, which follows the run until the reader
+   * picks one; under the panel, the numbers in one row that scrolls sideways, and
+   * the latest moment. The moments in full are folded under the window.
+   */
+  @media (max-width: 49.99rem) {
+    .rr { margin-bottom: 2.5rem; }
+    .rr-title { font-size: var(--sl-text-xl); margin-bottom: 0.75rem; }
+    .rr-lede { margin-top: 1rem; font-size: var(--sl-text-sm); }
+
+    .rr-tabbed .rr-window {
+      height: clamp(28rem, 76svh, 42rem);
+      display: flex;
+      flex-direction: column;
+    }
+    .rr-tabbed .rr-bar { flex: none; padding: 4px 4px 4px 12px; gap: 8px; }
+    .rr-tabbed .rr-status { white-space: nowrap; font-size: 11px; }
+    /* The run's name is the section's title: the status keeps its state, its count and its clock. */
+    .rr-tabbed .rr-status-run { display: none; }
+    .rr-tabbed .rr-toggle { min-height: 44px; min-width: 44px; padding: 0 14px 0 30px; }
+
+    .rr-tabbed .rr-tabs {
+      flex: none;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2px;
+      margin: 8px 10px 0;
+      padding: 3px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--ca-card) 80%, transparent);
+      border: 1px solid var(--ca-line);
+    }
+    .rr-tabs [role='tab'] {
+      min-height: 44px;
+      border: 0;
+      border-radius: 9px;
+      background: none;
+      color: var(--ca-text-2);
+      font: 600 13px/1 var(--sl-font, var(--sl-font-system));
+      cursor: pointer;
+      transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .rr-tabs [role='tab'][aria-selected='true'] {
+      color: var(--ca-text);
+      background: var(--ca-raise);
+      box-shadow: 0 1px 0 color-mix(in srgb, var(--ca-text) 8%, transparent) inset, 0 2px 8px -3px var(--ca-shadow);
+    }
+    .rr-tabs [role='tab']:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: 1px; }
+
+    .rr-tabbed .rr-grid { flex: 1; min-height: 0; display: flex; flex-direction: column; background: none; gap: 0; }
+    .rr-tabbed .rr-pane { background: none; }
+    .rr-tabbed .rr-pane:not(.rr-kpis):not(.rr-shown) { display: none; }
+    .rr-tabbed .rr-shown { flex: 1; min-height: 0; animation: rr-panel-in 0.28s ease-out; }
+    .rr-tabbed .rr-head { padding: 8px 14px 0; }
+    /* The graph's tab names it: its drawing has the height its name took. */
+    .rr-tabbed .rr-graph .rr-head { display: none; }
+    .rr-tabbed .rr-body { min-height: 0; height: auto; flex: 1; }
+    .rr-tabbed .rr-pre {
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding: 6px 0 10px;
+      -webkit-mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+      mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+    }
+    .rr-tabbed .rr-graph .rr-body { overflow-y: auto; overscroll-behavior: contain; }
+    .rr-tabbed .rr-graph ca-pipeline-graph { flex: 1; min-height: 0; }
+    .rr-tabbed .rr-transcript .rr-body { overflow: hidden; }
+
+    /* The numbers: one row of tiles, under the panel. */
+    .rr-tabbed .rr-kpis { flex: none; order: 1; border-top: 1px solid var(--ca-line); }
+    .rr-tabbed .rr-kpis .rr-head { display: none; }
+    .rr-tabbed .rr-kpis .rr-body {
+      padding: 8px 12px;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+      mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    }
+    .rr-tabbed .rr-kpis .rr-body:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: -2px; }
+    .rr-tabbed .rr-kpis ca-kpis { width: max-content; }
+    .rr-tabbed .rr-kpis ca-kpis::part(tiles) { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 6.75rem; gap: 6px; }
+    .rr-tabbed .rr-kpis ca-kpis::part(tile) { padding: 5px 9px 6px; border-radius: 9px; }
+    .rr-tabbed .rr-kpis ca-kpis::part(label) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rr-tabbed .rr-kpis ca-kpis::part(value) { font-size: 18px; margin-top: 1px; }
+    .rr-tabbed .rr-kpis ca-kpis::part(sub), .rr-tabbed .rr-kpis ca-kpis::part(action) { display: none; }
+
+    /* The latest moment: two lines at most, at the foot of the window. */
+    .rr-tabbed .rr-ticker {
+      flex: none;
+      order: 2;
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      margin: 0;
+      padding: 8px 14px 10px;
+      min-height: calc(2 * 1.4em + 18px);
+      box-sizing: border-box;
+      border-top: 1px solid var(--ca-line);
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--ca-text-2);
+      background: color-mix(in srgb, var(--ca-card) 60%, transparent);
+    }
+    .rr-ticker-at { flex: none; font: 600 11px var(--rr-mono); color: var(--ca-accent); font-variant-numeric: tabular-nums; }
+    .rr-ticker-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; text-overflow: ellipsis; }
+    .rr-ticker.rr-tick .rr-ticker-text { animation: rr-tick 0.4s ease-out; }
+    .rr-ticker-at:empty { display: none; }
+
+    /* The moments in full, folded. */
+    .rr-more { margin-top: 0.75rem; border: 1px solid var(--sl-color-gray-5); border-radius: 12px; }
+    .rr-more > summary {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-height: 44px;
+      padding: 0 1rem;
+      font-weight: 600;
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-white);
+      cursor: pointer;
+      list-style: none;
+    }
+    .rr-more > summary::-webkit-details-marker { display: none; }
+    .rr-more > summary::before {
+      content: '';
+      flex: none;
+      width: 0.4rem;
+      height: 0.4rem;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(-45deg);
+      transition: transform 0.2s ease;
+    }
+    .rr-more[open] > summary::before { transform: rotate(45deg); }
+    .rr-more-n { margin-left: auto; font-weight: 400; color: var(--sl-color-gray-3); }
+    .rr-more > summary:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 2px; border-radius: 10px; }
+    .rr-moments { margin: 0; padding: 0.25rem 1rem 0.9rem; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+  }
+  @keyframes rr-panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes rr-tick { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
   @media (prefers-reduced-motion: reduce) {
     .rr *, .rr *::before { transition: none !important; animation: none !important; }
   }
