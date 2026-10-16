@@ -238,7 +238,10 @@ def render(source: Path, page: dict, pages: dict[Path, dict]) -> str:
     meta.append("---")
     if not live:
         return "\n".join([*meta, *out]) + "\n"
-    component = Path(os.path.relpath(COMPONENTS / "LiveFigure.astro", page["out"].parent)).as_posix()
+    try:
+        component = Path(os.path.relpath(COMPONENTS / "LiveFigure.astro", page["out"].parent)).as_posix()
+    except ValueError:  # the pages written to another drive (Windows): no relative path reaches it
+        component = (COMPONENTS / "LiveFigure.astro").as_posix()
     top = [f"\0{i}" for i, f in enumerate(live) if not f.get("at")]
     text = mdx_escape("\n".join([*top, *([""] if top else []), *out]))
     text = re.sub(r"\0(\d+)", lambda m: f"<LiveFigure figure={{{json.dumps(live[int(m[1])])}}} />", text)
