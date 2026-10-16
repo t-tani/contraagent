@@ -34,6 +34,9 @@ def _wait(url: str, proc: subprocess.Popen, timeout: float = 30.0) -> None:
         try:
             with urllib.request.urlopen(url, timeout=2):
                 return
+        except urllib.error.HTTPError as e:  # nginx answers 502 until the monitor listens
+            e.close()
+            time.sleep(0.1)
         except (urllib.error.URLError, ConnectionError):
             time.sleep(0.1)
     raise AssertionError(f"no answer from {url}")
@@ -44,7 +47,8 @@ def _get(url: str) -> tuple[int, str, str]:
         with urllib.request.urlopen(url, timeout=10) as r:
             return r.status, r.headers.get("Content-Type", ""), r.read().decode()
     except urllib.error.HTTPError as e:
-        return e.code, e.headers.get("Content-Type", ""), ""
+        with e:  # an error answer holds its body open, in a temporary file on Python 3.14
+            return e.code, e.headers.get("Content-Type", ""), ""
 
 
 @pytest.mark.skipif(NGINX is None, reason="no nginx on this host")
