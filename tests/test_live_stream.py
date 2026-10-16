@@ -85,7 +85,7 @@ def test_a_waiter_wakes_promptly_on_an_append_from_another_thread():
 
 def test_a_wait_returns_after_its_timeout_when_nothing_grows(tmp_path):
     (tmp_path / "r1" / "streams").mkdir(parents=True)
-    (tmp_path / "r1" / LOG).write_text("a\n")
+    (tmp_path / "r1" / LOG).write_text("a\n", newline="\n")
     source = DirectorySource(tmp_path)
 
     async def wait() -> tuple[int, float]:
@@ -103,7 +103,7 @@ def test_a_directory_wait_wakes_on_a_write(tmp_path):
     source = DirectorySource(tmp_path)
 
     def write() -> None:
-        with open(path, "a") as f:
+        with open(path, "a", newline="\n") as f:
             f.write("a\n")
 
     async def wait() -> tuple[int, float]:
@@ -211,11 +211,11 @@ def test_the_local_monitors_transcript_feed_follows_a_file(tmp_path):
     (run / "streams").mkdir(parents=True)
     (run / "run.json").write_text(json.dumps({"run_id": "r1"}))
     path = run / LOG
-    path.write_text("line 0\nline 1\n")
+    path.write_text("line 0\nline 1\n", newline="\n")
     mon = Monitor(tmp_path)
 
     def writer() -> None:
-        with open(path, "a") as f:
+        with open(path, "a", newline="\n") as f:
             f.write("line 2\n")
             f.flush()
             time.sleep(0.2)
@@ -314,7 +314,7 @@ def runs_dir(tmp_path: Path, *runs: str) -> Path:
     for run in runs:
         (root / run / "streams").mkdir(parents=True)
         (root / run / "run.json").write_text(json.dumps({"run_id": run, "run_uid": f"uid-{run}"}))
-        (root / run / LOG).write_text("line 0\n")
+        (root / run / LOG).write_text("line 0\n", newline="\n")
     return root
 
 
@@ -350,10 +350,10 @@ def test_the_relay_ships_an_active_transcript_fast_and_an_idle_run_at_its_interv
         # The idle run's transcript grows with an old modification time (written aside, then
         # renamed), so no fast look sees it written recently.
         aside = root / "idle" / "streams" / "aside"
-        aside.write_text("line 0\nline 1\n")
+        aside.write_text("line 0\nline 1\n", newline="\n")
         os.utime(aside, (old, old))
         aside.replace(root / "idle" / LOG)
-        with open(root / "busy" / LOG, "a") as f:
+        with open(root / "busy" / LOG, "a", newline="\n") as f:
             f.write("line 1\n")
         assert until(lambda: held(hub, "busy") == 2, 2) < 0.5
         time.sleep(1.0)
@@ -400,7 +400,7 @@ def test_latency_from_append_to_sse_delivery(tmp_path):
         viewer.start()
         ready.wait(5)
         try:
-            with open(path, "a") as f:
+            with open(path, "a", newline="\n") as f:
                 for i in range(count):
                     written[i] = time.monotonic()
                     f.write(f"at {i}\n")

@@ -151,9 +151,9 @@ def test_each_pass_sends_only_complete_lines_that_are_new(runs):
     run = first(runs)
     stream = a_stream(run)
     log = f"{layout.STREAMS}/{stream.name}"
-    with open(run / layout.JOURNAL, "a") as f:
+    with open(run / layout.JOURNAL, "a", newline="\n") as f:
         f.write('{"new": 1}\n{"partial": ')
-    with open(stream, "a") as f:
+    with open(stream, "a", newline="\n") as f:
         f.write('{"type": "x"}\n')
     assert r.pass_once()
     assert sorted(rec.lines()) == sorted([(layout.JOURNAL, '{"new": 1}'), (log, '{"type": "x"}')])
@@ -161,7 +161,7 @@ def test_each_pass_sends_only_complete_lines_that_are_new(runs):
 
     rec.clear()
     assert r.pass_once() and rec.lines() == []  # the partial line waits
-    with open(run / layout.JOURNAL, "a") as f:
+    with open(run / layout.JOURNAL, "a", newline="\n") as f:
         f.write("2}\n")
     assert r.pass_once() and rec.lines() == [(layout.JOURNAL, '{"partial": 2}')]
     held, count = hub.store.lines("analyse@h1", layout.JOURNAL)

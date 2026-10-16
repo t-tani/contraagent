@@ -1,8 +1,8 @@
 """Throwaway Postgres and RustFS containers for the hub's tests.
 
 `postgres_dsn()` and `s3_url()` start their container on first use (once per session) and
-give each caller a fresh database or a fresh prefix; they skip the test when docker is not
-available. `hub_services` is the session fixture that stops the containers at the end; a
+give each caller a fresh database or a fresh prefix; they skip the test when docker cannot
+run Linux containers (`linux_containers` says why). `hub_services` is the session fixture that stops the containers at the end; a
 module that uses them imports it and marks its tests `usefixtures("hub_services")`.
 
 Under pytest-xdist the workers share one container of each: the first to need it starts it
@@ -61,14 +61,28 @@ def _require_docker() -> None:
             _unavailable.append("docker is not installed")
         else:
             try:
-                if not _docker("version", "--format", "{{.Server.Version}}", timeout=20):
+                server_os = _docker("version", "--format", "{{.Server.Os}}", timeout=20)
+                if not server_os:
                     raise RuntimeError("no docker server")
-                _unavailable.append("")
-                _reap_orphans()
+                if server_os != "linux":
+                    _unavailable.append(f"docker runs {server_os} containers here, and these images are Linux ones")
+                else:
+                    _unavailable.append("")
+                    _reap_orphans()
             except (RuntimeError, subprocess.TimeoutExpired) as e:
                 _unavailable.append(f"docker is not available: {e}")
     if _unavailable[0]:
         pytest.skip(_unavailable[0])
+
+
+def linux_containers() -> str:
+    """Why docker cannot run the Linux images these tests use (no docker, no server, or a
+    server of Windows containers, as on a Windows runner); "" when it can."""
+    try:
+        _require_docker()
+    except pytest.skip.Exception as e:
+        return str(e.msg)
+    return ""
 
 
 def _owner() -> int:

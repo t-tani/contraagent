@@ -29,6 +29,7 @@ import pytest
 
 from contraagent._internal import docs
 from contraagent._internal.hub.server import read_ingest_tokens, read_read_token
+from hub_services import linux_containers
 
 HUB = docs.DIR / "examples" / "hub"
 COMPOSE = HUB / "compose.yaml"
@@ -52,6 +53,12 @@ def _docker() -> bool:
 
 def _make_tokens(where: Path, *hosts: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["sh", str(HUB / "make-tokens"), "-d", str(where), *hosts], capture_output=True, text=True)
+
+
+def _private(path: Path) -> bool:
+    """Whether only the owner may read `path`. `make-tokens` sets POSIX modes; on Windows
+    a file takes its directory's access list, which a POSIX mode does not describe."""
+    return os.name != "posix" or path.stat().st_mode & 0o077 == 0
 
 
 def _env_file(path: Path) -> dict[str, str]:
@@ -150,9 +157,9 @@ def test_make_tokens_writes_tokens_the_hub_reads_and_keeps_them(tmp_path):
     for host in ("build-01", "build-02"):
         relay = _env_file(secrets / f"relay-{host}.env")
         assert relay["CONTRAAGENT_HOST_ID"] == host and tokens[relay["CONTRAAGENT_HUB_TOKEN"]] == host
-        assert (secrets / f"relay-{host}.env").stat().st_mode & 0o077 == 0
+        assert _private(secrets / f"relay-{host}.env")
     assert re.fullmatch(r"[0-9a-f]{64}", read_read_token(secrets / "read-token"))
-    assert secrets.stat().st_mode & 0o077 == 0
+    assert _private(secrets)
     env = _env_file(tmp_path / ".env")
     assert set(env) == set(_env_file(HUB / ".env.example")) and "change-me" not in env.values()
     assert env["POSTGRES_PASSWORD"] != env["RUSTFS_SECRET_KEY"]
@@ -204,7 +211,7 @@ def test_compose_config_validates(tmp_path):
     assert hub["image"] == f"contraagent-hub:{VERSION}"
     assert not any("PASSWORD" in arg or "secret" in arg.lower() for arg in hub["command"] if "secrets/" not in arg)
     assert "--retain-days=30" in hub["command"]
-    assert config["secrets"]["read-token"]["file"] == str(tmp_path / "secrets" / "read-token")
+    assert Path(config["secrets"]["read-token"]["file"]) == tmp_path / "secrets" / "read-token"
 
 
 # --- end to end ----------------------------------------------------------------------------
@@ -268,6 +275,8 @@ def _build(built_from: str, tmp_path: Path, image: str) -> tuple[Path, Path, dic
 @pytest.mark.skipif(not _docker(), reason="docker is not available")
 @pytest.mark.parametrize("built_from", ["package", "repository"])
 def test_deploy_the_compose_hub_and_ship_the_demo_runs_to_it(tmp_path, demo_runs, built_from):
+    if why := linux_containers():
+        pytest.skip(why)
     began = time.monotonic()
     tag = uuid.uuid4().hex[:10]
     project, image, port = f"contraagent-e2e-{tag}", f"contraagent-hub:e2e-{tag}", _free_port()

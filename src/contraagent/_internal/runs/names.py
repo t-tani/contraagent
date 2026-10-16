@@ -30,6 +30,47 @@ def is_plain(name: object) -> bool:
     return isinstance(name, str) and bool(name) and _NOT_PLAIN.search(name) is None
 
 
+#: What Windows refuses in a file name that `is_plain` lets through: one of `<>:"|?*`, a
+#: trailing `.` or space, a device name (`CON`, `nul.txt`, `COM1`) whatever its case and suffix.
+_NOT_PORTABLE = re.compile(r'[<>:"|?*]|[. ]$|^(CON|PRN|AUX|NUL|COM[0-9\u00b9\u00b2\u00b3]|LPT[0-9\u00b9\u00b2\u00b3])(\.|$)', re.IGNORECASE)
+
+
+def is_portable(name: object) -> bool:
+    """Whether `name` is a plain name (`is_plain`) that is also a file name on every
+    operating system: no `<`, `>`, `:`, `"`, `|`, `?` or `*`, no trailing `.` or space,
+    and not a Windows device name such as `CON`, `NUL` or `COM1` (with any suffix, in
+    any case). A run id must be one, so that a pipeline written on one system runs on
+    the others."""
+    return isinstance(name, str) and is_plain(name) and _NOT_PORTABLE.search(name) is None
+
+
+def check_portable(name: str, what: str = "name") -> str:
+    """`name` itself when it is portable (`is_portable`), else ValueError naming the fault."""
+    if not is_portable(name):
+        raise ValueError(
+            f"{what} {name!r} is not a file name on every operating system: use letters, digits, '-', '_' and '.', "
+            "with no leading '.', no '..', no trailing '.' or space, and no Windows device name (CON, NUL, COM1)"
+        )
+    return name
+
+
+def safe_chars(name: str) -> str:
+    """`name` with every character but a letter, a digit, `-`, `_` and `.` turned into
+    `_`, as are a leading `.` and each `..`; `_` for an empty name. A plain name."""
+    name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in name)
+    name = re.sub(r"\.\.+", lambda m: "_" * len(m.group()), name)
+    return "_" + name[1:] if name.startswith(".") else name or "_"
+
+
+def portable(name: str) -> str:
+    """`name` made portable (`is_portable`): `safe_chars`, then a trailing `.` turned into
+    `_` and `_` put before a device name (`<lambda>` → `_lambda_`, `con` → `_con`)."""
+    name = safe_chars(name)
+    if name.endswith("."):
+        name = name[:-1] + "_"
+    return "_" + name if _NOT_PORTABLE.search(name) else name
+
+
 def check_name(name: str, what: str = "name") -> str:
     """`name` itself when it is a plain name (`is_plain`), else `BadName`."""
     if not is_plain(name):

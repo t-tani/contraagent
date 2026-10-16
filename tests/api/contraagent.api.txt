@@ -2043,7 +2043,7 @@ class Run
     ) -> None
     def rows(self) -> list[dict[str, Any]]
     run_group: str
-    run_id
+    run_id: str
     def run_python_steps(self, steps: list[tuple[str, Callable[[], None]]]) -> None
     runs_dir: Path
     def stop_on_signals(self) -> None
