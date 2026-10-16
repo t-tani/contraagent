@@ -2,9 +2,11 @@
 // elements. The flow's code appears line by line; then the run's plan, journal and
 // transcripts are given to <ca-pipeline-graph>, <ca-kpis> and <ca-transcript> as
 // they stood at each moment of the run, and the code lights the lines the running
-// tasks were created on. One clock drives it all (requestAnimationFrame); it starts
-// when the replay reaches the upper half of the screen (as the scene of
-// ./scene.css settles it), stops while it is off screen, and rests on the last frame.
+// tasks were created on; the code's pane follows the line typed last, then the lines
+// lit. One clock drives it all (requestAnimationFrame); it starts when the window is
+// on screen as a whole, settled (./scene.css), or on a narrow screen when the replay
+// reaches the upper half of the screen; it stops while it is off screen, and rests on
+// the last frame.
 import type { FlowCallNode, JournalRow, Plan, PlanNode, TaskState } from '@contraagent/api';
 import { adoptThemes } from '@contraagent/elements/themes';
 import '@contraagent/ui/kpis';
@@ -22,6 +24,8 @@ const GRAPH_MS = 900;
 const FRAME_MS = 90;
 /** The least time between two updates of the transcript (ms): a few new lines a second, as a log reads. */
 const TRANSCRIPT_MS = 250;
+/** After the reader scrolls the code's pane, it stays where they left it this long (ms). */
+const READER_MS = 4000;
 /** No journal rows: the same array each time, so the transcript is not drawn again for it. */
 const NO_ROWS: JournalRow[] = [];
 
@@ -39,6 +43,7 @@ class Replay {
   private readonly root: HTMLElement;
   private readonly data: Timeline;
   private readonly lines: HTMLElement[];
+  private readonly pre: HTMLElement;
   private readonly badges = new Map<number, HTMLElement>();
   private readonly graph: Graph;
   private readonly kpis: Kpis;
@@ -48,6 +53,7 @@ class Replay {
   private readonly progress: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly moments: HTMLElement[];
+  private readonly said: HTMLElement;
   private readonly spans = new Map<string, Span[]>();
   private readonly codeMs: number;
   private readonly runMs: number;
@@ -65,12 +71,18 @@ class Replay {
   private tPushedAt = -Infinity;
   private tSpot = '';
   private switching = false;
+  /** The lines the code's pane last followed, and when the reader last scrolled it. */
+  private followed = '';
+  private readerAt = -Infinity;
 
   constructor(root: HTMLElement, data: Timeline) {
     this.root = root;
     this.data = data;
     const q = <T extends HTMLElement>(s: string): T => root.querySelector<T>(s)!;
     this.lines = [...root.querySelectorAll<HTMLElement>('.rr-line')];
+    this.pre = q('.rr-pre');
+    const reader = (): void => void (this.readerAt = performance.now());
+    for (const type of ['wheel', 'pointerdown', 'keydown', 'touchstart'] as const) this.pre.addEventListener(type, reader, { passive: true });
     for (const l of this.lines) {
       const b = l.querySelector<HTMLElement>('.rr-badge');
       if (b) this.badges.set(Number(l.dataset['n']), b);
@@ -83,6 +95,7 @@ class Replay {
     this.progress = q('.rr-progress-bar');
     this.button = q('.rr-toggle');
     this.moments = [...root.querySelectorAll<HTMLElement>('.rr-moment')];
+    this.said = q('.rr-said');
     const created = new Map(data.plan.nodes.map((n) => [n.key, epoch(n.ts)]));
     for (const r of data.journal) {
       const end = epoch(r.ts);
@@ -136,6 +149,7 @@ class Replay {
       this.t = 0;
       this.pushed = '';
       this.tPushed = '';
+      this.followed = '';
       this.root.classList.remove('rr-ended');
       this.paused = false;
     } else this.paused = !this.paused;
@@ -228,6 +242,7 @@ class Replay {
       const b = this.badges.get(n);
       if (b) b.textContent = c ? `${c} running` : '';
     }
+    this.follow(shown, counts);
 
     const into = s - this.data.t0;
     const phase = t < this.codeMs + GRAPH_MS ? 'not started' : ended ? 'finished' : 'running';
@@ -240,6 +255,8 @@ class Replay {
     }
     const past = this.moments.filter((m) => m.classList.contains('rr-past'));
     for (const m of this.moments) m.classList.toggle('rr-now', m === past.at(-1));
+    const latest = past.at(-1)?.querySelector('.rr-text')?.textContent ?? '';
+    if (this.said.textContent !== latest) this.said.textContent = latest;
 
     // The transcript of the latest corrected task to start.
     const spot = [...this.data.spots].reverse().find((x) => x.from <= s) ?? this.data.spots[0];
@@ -260,6 +277,32 @@ class Replay {
     this.graph.journal = journal;
     this.kpis.plan = plan;
     this.kpis.journal = journal;
+  }
+
+  /**
+   * The code's pane, where it scrolls (a short window): while the code appears, the
+   * line typed last stays in view; while the run plays, the lines lit, centred when
+   * they are out of view. Smoothly, unless the reader asks for reduced motion; not
+   * while the reader scrolls it.
+   */
+  private follow(shown: number, counts: Map<number, number>): void {
+    const lit = shown < this.lines.length ? [this.lines[shown - 1]] : this.lines.filter((l) => counts.has(Number(l.dataset['n'])));
+    const key = lit.map((l) => l.dataset['n']).join(',');
+    if (!lit.length || key === this.followed) return;
+    this.followed = key;
+    const pre = this.pre;
+    if (pre.scrollHeight <= pre.clientHeight + 1 || performance.now() - this.readerAt < READER_MS) return;
+    const first = lit[0];
+    const last = lit.at(-1)!;
+    const top = first.offsetTop;
+    const bottom = last.offsetTop + last.offsetHeight;
+    const pad = first.offsetHeight * 1.5;
+    const view = pre.clientHeight;
+    if (top >= pre.scrollTop + pad && bottom <= pre.scrollTop + view - pad) return;
+    // Typing: the new line near the foot of the pane; the run: the lit lines in its middle.
+    const to = shown < this.lines.length ? bottom - view + pad : bottom - top > view - 2 * pad ? top - pad : (top + bottom - view) / 2;
+    const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    pre.scrollTo({ top: Math.max(0, Math.round(to)), behavior });
   }
 
   /**
@@ -313,17 +356,31 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-run-replay]')) 
     let started = false;
     let inView = false;
     const show = (): void => replay.setVisible(inView && !document.hidden);
+    const begin = (): void => {
+      if (started) return;
+      started = true;
+      replay.start();
+    };
+    // A wide screen (./scene.css): the window fits the screen, and the replay starts once it is all on it.
+    const wide = matchMedia('(min-width: 50rem)');
     new IntersectionObserver(
       ([e]) => {
         if (!e) return;
         inView = e.isIntersecting;
-        if (inView && !started) {
-          started = true;
-          replay.start();
-        } else if (started) show();
+        if (inView && !started && !wide.matches) begin();
+        else if (started) show();
       },
       { rootMargin: '0px 0px -45% 0px' },
     ).observe(root);
+    new IntersectionObserver(
+      ([e]) => {
+        if (!e?.isIntersecting || !wide.matches) return;
+        const whole = Math.min(e.boundingClientRect.height, e.rootBounds?.height ?? innerHeight);
+        // On screen as a whole, or scrolled past its top.
+        if (e.intersectionRect.height >= whole * 0.97 || e.boundingClientRect.top < 0) begin();
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.97, 0.99, 1] },
+    ).observe(root.querySelector('.rr-window')!);
     document.addEventListener('visibilitychange', () => started && show());
   }
 }

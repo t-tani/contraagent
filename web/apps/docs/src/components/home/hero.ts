@@ -55,8 +55,10 @@ if (!CSS.supports('animation-timeline: scroll()') && !reduced.matches) {
   const stage = document.querySelector<HTMLElement>('.rr-window');
   let top = 0;
   let pin = 0;
+  let tall = 0;
   const measure = (): void => {
     pin = window.innerHeight * 0.7;
+    tall = stage?.offsetHeight ?? 0;
     // Offsets, not the box: the box moves with the transform this sets.
     top = 0;
     for (let el: HTMLElement | null = stage; el; el = el.offsetParent as HTMLElement | null) top += el.offsetTop;
@@ -68,8 +70,8 @@ if (!CSS.supports('animation-timeline: scroll()') && !reduced.matches) {
     const vh = window.innerHeight;
     const clamp = (v: number): number => Math.min(1, Math.max(0, v));
     heroEl?.style.setProperty('--hero-p', clamp(y / pin).toFixed(4));
-    // The window's top from the bottom of the screen (0) to a quarter of the way down (1).
-    stage?.style.setProperty('--stage-p', clamp((vh - (top - y)) / (vh * 0.75)).toFixed(4));
+    // The window's top from the bottom of the screen (0) to where all of it is on screen (1), as `entry 0% entry 100%`.
+    stage?.style.setProperty('--stage-p', clamp((vh - (top - y)) / Math.max(1, Math.min(tall, vh))).toFixed(4));
   };
   const queue = (): void => {
     if (!queued) {

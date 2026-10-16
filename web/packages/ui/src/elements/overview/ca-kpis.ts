@@ -9,10 +9,17 @@ import { emit } from '../../core/events.js';
 /**
  * The run in numbers, as `<cae-stat-tiles>`: tasks and how they ended (with
  * `plan`; from the journal alone otherwise), attempts, failed attempts, agent
- * time, retries, corrections and model switches (`kpiTiles`).
+ * time, retries, corrections and model switches (`kpiTiles`). The parts of
+ * `<cae-stat-tiles>` are its own: a page styles them as `ca-kpis::part(tile)`.
  *
  * @fires ca-navigate - `{tab: 'journal', stop}`: the history filtered to what a tile counts (`bad`, `invalid_input`, `retried`, `fixup`)
  * @fires ca-open-task - `{key}`: the one task a tile counts
+ * @csspart tiles - the grid of tiles
+ * @csspart tile - each tile (`data-id` is its id, `data-tone` its tone)
+ * @csspart label - a tile's label
+ * @csspart value - a tile's value
+ * @csspart sub - each line under the value
+ * @csspart action - a tile's link
  */
 @customElement('ca-kpis')
 @localized()
@@ -33,7 +40,7 @@ export class CaKpis extends LitElement {
   };
 
   override render() {
-    return html`<cae-stat-tiles .tiles=${kpiTiles(this.journal, deriveRun(this.journal, this.plan))} @cae-action=${this.onAction}></cae-stat-tiles>`;
+    return html`<cae-stat-tiles exportparts="tiles, tile, label, value, sub, action" .tiles=${kpiTiles(this.journal, deriveRun(this.journal, this.plan))} @cae-action=${this.onAction}></cae-stat-tiles>`;
   }
 }
 

@@ -20,6 +20,7 @@ const file = TASKS.split('/').slice(-3).join('/');
   <div class="rr-window">
     <div class="rr-bar">
       <span class="rr-status" aria-hidden="true">Run {data.run} | finished | {done} of {plan.nodes.length} done | {clock(t1 - t0)}</span>
+      <span class="rr-said" aria-hidden="true">{moments.at(-1)?.text}</span>
       <button class="rr-toggle" type="button" data-state="playing">Pause</button>
       <div class="rr-progress" aria-hidden="true"><div class="rr-progress-bar"></div></div>
     </div>
@@ -27,7 +28,7 @@ const file = TASKS.split('/').slice(-3).join('/');
     <div class="rr-grid">
       <div class="rr-pane rr-code">
         <div class="rr-head"><span class="rr-head-title">{file}</span><span class="rr-head-note">quoted from the tested example</span></div>
-        <div class="rr-pre" role="region" tabindex="0" aria-label={`Lines of ${file}`}>{
+        <div class="rr-pre" role="region" tabindex="0" data-scroll="x" aria-label={`Lines of ${file}`}>{
           lines.map((l) =>
             l.n ? (
               <div class="rr-line" data-n={l.n}><span class="rr-n" aria-hidden="true">{l.n}</span><code set:html={l.html || ' '} /><span class="rr-badge" aria-hidden="true" /></div>
@@ -147,6 +148,24 @@ const file = TASKS.split('/').slice(-3).join('/');
     0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ca-status-running) 60%, transparent); }
     100% { box-shadow: 0 0 0 8px transparent; }
   }
+  /* The latest moment of the run (the list under the window has them all): on a wide screen only. */
+  .rr-said {
+    display: none;
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--ca-text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: opacity 0.3s ease;
+  }
+  .rr-said:empty { opacity: 0; }
+  @media (min-width: 50rem) {
+    .rr-status { flex: none; max-width: 50%; }
+    .rr-said { display: block; }
+    .rr-said:not(:empty)::before { content: ''; display: inline-block; width: 1px; height: 0.9em; margin-right: 12px; vertical-align: -0.1em; background: var(--ca-line2); }
+  }
   .rr-toggle {
     flex: none;
     font: 600 12px/1 var(--sl-font, var(--sl-font-system));
@@ -199,17 +218,6 @@ const file = TASKS.split('/').slice(-3).join('/');
     gap: 1px;
     background: var(--ca-line);
   }
-  @media (min-width: 72rem) {
-    .rr-grid {
-      grid-template-columns: minmax(0, 37.5rem) minmax(0, 1fr);
-      grid-template-rows: auto 1fr auto;
-      grid-template-areas: 'code graph' 'transcript graph' 'kpis kpis';
-    }
-    .rr-code { grid-area: code; }
-    .rr-graph { grid-area: graph; }
-    .rr-kpis { grid-area: kpis; }
-    .rr-transcript { grid-area: transcript; }
-  }
   .rr-pane {
     display: flex;
     flex-direction: column;
@@ -232,6 +240,7 @@ const file = TASKS.split('/').slice(-3).join('/');
 
   /* The code: a line per row, its number in the gutter, a bar while it has tasks running. */
   .rr-pre {
+    position: relative;
     margin: 0;
     padding: 10px 0 16px;
     overflow-x: auto;
@@ -296,13 +305,83 @@ const file = TASKS.split('/').slice(-3).join('/');
   .rr-graph .rr-body, .rr-transcript .rr-body { transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
   .rr-js:not(.rr-graph-on) .rr-graph .rr-body,
   .rr-js:not(.rr-graph-on) .rr-transcript .rr-body { opacity: 0; transform: translateY(10px) scale(0.985); }
-  .rr-graph .rr-body { min-height: 30rem; }
-  .rr-transcript .rr-body { height: 21rem; overflow: hidden; }
-  @media (min-width: 72rem) {
-    /* A fixed height: the panel does not change size while the graph beside it grows. */
-    .rr-transcript .rr-body { flex: none; height: 19.5rem; }
-  }
+  .rr-transcript .rr-body { overflow: hidden; }
   .rr-kpis .rr-body { justify-content: flex-start; }
+
+  /* A narrow screen: the panes one under another, each as tall as it needs; the transcript a fixed height. */
+  @media (max-width: 49.99rem) {
+    .rr-graph .rr-body { min-height: 30rem; }
+    .rr-transcript .rr-body { height: 21rem; }
+  }
+
+  /*
+   * A wide screen: the whole window in one screen, under the site's header. It is
+   * wider than the page's column (up to 90rem), and as tall as the screen less the
+   * header and a margin. The code and the transcript side by side, each scrolling in
+   * its own pane; under them a band: the graph, its drawing fitted in it, and the
+   * numbers, two columns of tiles (each its label and its value). The window is a
+   * container: the band's height is a share of the window's; a window narrower than
+   * 72rem has the graph across it and the tiles in two rows under it.
+   */
+  @media (min-width: 50rem) {
+    .rr-window {
+      --rr-w: min(100vw - 3rem, 90rem);
+      width: var(--rr-w);
+      margin-inline: calc((100% - var(--rr-w)) / 2);
+      height: clamp(30rem, 100svh - var(--sl-nav-height, 3.5rem) - 1.5rem, 62rem);
+      display: flex;
+      flex-direction: column;
+      container: rr-window / size;
+    }
+    .rr-bar { flex: none; }
+    .rr-grid {
+      flex: 1;
+      min-height: 0;
+      grid-template-columns: minmax(0, 37.5rem) minmax(0, 1fr) 18.5rem;
+      grid-template-rows: minmax(0, 1fr) clamp(22rem, 48cqh, 30rem);
+      grid-template-areas: 'code transcript transcript' 'graph graph kpis';
+    }
+    .rr-code { grid-area: code; }
+    .rr-graph { grid-area: graph; }
+    .rr-kpis { grid-area: kpis; }
+    .rr-transcript { grid-area: transcript; }
+    .rr-pane { min-height: 0; }
+    /* The code's pane scrolls; its lines fade in and out at its edges. */
+    .rr-pre {
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      padding-bottom: 10px;
+      -webkit-mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+      mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+    }
+    .rr-transcript .rr-body, .rr-graph .rr-body { min-height: 0; }
+    .rr-graph ca-pipeline-graph { flex: 1; min-height: 0; }
+    /* The graph's name on the line of its outline, at the right: the drawing has that line's height. */
+    .rr-graph { position: relative; }
+    .rr-graph .rr-head { position: absolute; top: 0; right: 0; z-index: 1; padding-top: 12px; }
+    .rr-graph .rr-head-tag { margin-left: 0; }
+
+    .rr-kpis .rr-body { padding: 6px 14px 10px; }
+    .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .rr-kpis ca-kpis::part(tile) { padding: 6px 10px 7px; border-radius: 9px; }
+    .rr-kpis ca-kpis::part(value) { font-size: 20px; margin-top: 2px; }
+    .rr-kpis ca-kpis::part(sub), .rr-kpis ca-kpis::part(action) { display: none; }
+
+    @container rr-window (max-width: 72rem) {
+      .rr-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) clamp(13rem, 44cqh, 24rem) auto;
+        grid-template-areas: 'code transcript' 'graph graph' 'kpis kpis';
+      }
+      /* The numbers: the pane's name beside two rows of tiles. */
+      .rr-kpis { flex-direction: row; align-items: center; }
+      .rr-kpis .rr-head { flex: none; flex-direction: column; align-items: flex-start; gap: 2px; width: 6.5rem; padding: 0 0 0 14px; }
+      .rr-kpis .rr-head-tag { margin-left: 0; }
+      .rr-kpis .rr-body { flex: 1; min-width: 0; padding: 8px 14px 8px 4px; }
+      .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+  }
 
   /* The moments of the run, in the order they happened; with the replay, each lights as it happens. */
   .rr-moments {

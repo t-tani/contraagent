@@ -103,6 +103,8 @@ const EMPTY_LAYER: LayerGraph = {
  * below the top (a loop named by its file and line), and Escape go back up. On a
  * narrow screen the graph runs top to bottom. "Graph | Table" changes the view; in a
  * loop's passes, "Graph" opens the layer the loop is in, with its box selected.
+ * A height set on the element (or given it by a flex or grid container) is the
+ * graph's, less the outline's line above it: the drawing fits in it.
  *
  * @fires ca-open-task - `{key, view?}`: a mark's task detail was opened (a task that did not start opens on its input, a Python task on its output)
  * @fires ca-navigate - `{sel}`: a mark, a node, a table row or a loop box was selected, or the selection cleared; `{tab: 'tasks', kind}`: a kind node's tasks (`kind` '' for a node of several kinds); `{layer, unit?}`: a function's layer, a loop's passes, a flow call's function or the breadcrumb, or Escape; `{layer, unit, sel}`: "Graph" in a loop's passes, its box selected; `{layer, unit, sel, replace: true}`: the view route's layer set right
