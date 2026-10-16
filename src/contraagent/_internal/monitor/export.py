@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -69,7 +70,13 @@ LEFT_OUT = ("transcripts", "processes")
 
 #: Absolute paths of a person's or a temporary directory left in a string after the known
 #: roots were made relative. A system path (`/etc/hosts`) says nothing about the machine.
-_ABSOLUTE = re.compile(r"(?<![\w.:/~-])/(?:home|Users|root|tmp|private|var/folders)/[^\s\"'`<>|,;)\]]*")
+_ABSOLUTE = re.compile(
+    r"(?<![\w.:/~-])/(?:home|Users|root|tmp|private|var/folders)/[^\s\"'`<>|,;)\]]*"
+    r"|(?<![\w.:\\/~-])[A-Za-z]:\\(?:Users|Windows\\Temp)\\[^\s\"'`<>|,;)\]]*"  # Windows: C:\Users\...
+)
+
+#: What parts a path on this OS: `/`, and on Windows `\` as well.
+_SEP = r"[\\/]" if os.sep == "\\" else "/"
 
 #: Keys whose value is a document's contents (a file shown as it is): this machine's paths in
 #: it are made relative, and nothing else in it is changed.
@@ -105,10 +112,10 @@ class Redactor:
         self.exclude = set(exclude)
         home = str(Path.home())
         # The longest root first, so a run directory wins over the runs directory around it.
-        roots_ = sorted({str(r).rstrip("/") for r in roots if str(r) not in ("", "/")}, key=len, reverse=True)
+        roots_ = sorted({str(r).rstrip("/" + os.sep) for r in roots if str(r) not in ("", "/", os.sep)}, key=len, reverse=True)
         # A root only where a path name ends: `/runs/x` is not the start of `/runs/xy`.
-        self.roots = [re.compile(re.escape(r) + r"(/|(?![\w.-]))") for r in roots_]
-        self.home = home if home not in ("", "/") else ""
+        self.roots = [re.compile(re.escape(r) + rf"({_SEP}|(?![\w.-]))") for r in roots_]
+        self.home = re.compile(re.escape(home) + rf"({_SEP})") if home not in ("", "/", os.sep) else None
 
     def __call__(self, value: Any, content: bool = False) -> Any:
         if isinstance(value, dict):
@@ -129,12 +136,12 @@ class Redactor:
     def path(self, text: str, content: bool = False) -> str:
         """`text` with this machine's paths made relative; outside a document's contents,
         with any other path of a person's or a temporary directory as `<path>`."""
-        if "/" not in text:
+        if "/" not in text and "\\" not in text:
             return text
         for root in self.roots:
-            text = root.sub(lambda m: "" if m.group(1) == "/" else ".", text)
+            text = root.sub(lambda m: "" if m.group(1) else ".", text)
         if self.home:
-            text = text.replace(self.home + "/", "~/")
+            text = self.home.sub(lambda m: "~" + m.group(1), text)
         return text if content else _ABSOLUTE.sub("<path>", text)
 
 
@@ -150,13 +157,13 @@ def _run_roots(monitor: Monitor, run: str) -> list[Path]:
 def _write(path: Path, body: Any) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(body, ensure_ascii=False, separators=(",", ":"))
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8", newline="\n")
     return len(text.encode())
 
 
 def _page(static: Path, title: str, data: str) -> str:
     """The monitor's page, reading the export from `data` instead of a server."""
-    html = (static / "index.html").read_text()
+    html = (static / "index.html").read_text(encoding="utf-8")
     html = html.replace("<ca-monitor></ca-monitor>", f'<ca-monitor export="{data}"></ca-monitor>', 1)
     return re.sub(r"<title>.*?</title>", f"<title>{_escape(title)}</title>", html, count=1)
 
@@ -258,7 +265,7 @@ def export(
     for name in ICON_FILES:
         if (static / name).is_file():
             shutil.copyfile(static / name, out / name)
-    (out / "index.html").write_text(_page(static, monitor.title, "data/"))
+    (out / "index.html").write_text(_page(static, monitor.title, "data/"), encoding="utf-8", newline="\n")
     return ExportReport(out=out, runs=chosen, bytes_by_run=sizes, total_bytes=total + sum(sizes.values()))
 
 

@@ -2,8 +2,6 @@
 
 import json
 import os
-import stat
-import sys
 import tempfile
 from pathlib import Path
 
@@ -15,6 +13,7 @@ from contraagent._internal.backends.pi.backend import MCP_EXTENSION
 from contraagent._internal.backends.pi.catalogue import parse_models
 from contraagent.backends import Launch, PiBackend, Stop
 from contraagent.config import AMBIENT, ApiKey, Gateway, Limits, Subscription
+from fake_cli import write_fake_cli
 
 PI = r"""
 import json, os, sys
@@ -47,10 +46,7 @@ def home(tmp_path):
 
 def backend(tmp_path, home: Path, **env) -> PiBackend:
     bindir = tmp_path / "bin"
-    bindir.mkdir(exist_ok=True)
-    script = bindir / "pi"
-    script.write_text(f"#!{sys.executable}\n{PI}")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    write_fake_cli(bindir, "pi", PI)
     base = {"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin", "PI_CODING_AGENT_DIR": str(home), **env}
     return PiBackend(base_env=base, agent_dirs=tmp_path / "dirs")
 

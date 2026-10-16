@@ -106,7 +106,7 @@ def test_a_plugin_reaches_opencode_as_config(tmp_path):
     cfg = OpencodeBackend(base_env={}).config(launch)
     assert cfg["instructions"] == [str(plug / "agents" / "worker.md")]  # added to opencode's own prompt
     assert cfg["skills"] == {"paths": [str(plug / "skills")]}
-    assert cfg["plugin"] == [f"file://{plug.resolve()}/opencode/index.js"]
+    assert cfg["plugin"] == [(plug.resolve() / "opencode" / "index.js").as_uri()]
     assert cfg["mcp"] == {"db": {"type": "local", "command": ["db-mcp", "--ro"]}, "web": {"type": "remote", "url": "https://m"}}
     # opencode takes the last rule that matches: bash stays allowed but for the pattern.
     assert cfg["permission"] == {"*": "deny", "read": "allow", "bash": {"*": "allow", "git push*": "deny"}, "skill": "allow"}

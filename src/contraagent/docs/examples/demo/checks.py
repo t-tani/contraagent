@@ -14,7 +14,7 @@ from pathlib import Path
 
 def main(argv: list[str] | None = None) -> int:
     note, call = argv if argv is not None else sys.argv[1:]
-    unit = json.loads(Path(call).read_text())["params"]["summary"]["unit"]
+    unit = json.loads(Path(call).read_text(encoding="utf-8"))["params"]["summary"]["unit"]
     if unit not in Path(note).read_text(encoding="utf-8"):
         print(f"the note never names its unit {unit!r} (the call file's params.summary.unit)")
         return 1

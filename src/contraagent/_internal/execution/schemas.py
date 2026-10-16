@@ -294,7 +294,11 @@ class RunInfo(BaseModel):
     host_id: str = Field(description="the host that drives the run (`CONTRAAGENT_HOST_ID`, else the host name)")
     run_group: str
     pid: int
-    start_ticks: int | None = Field(description="the start time of `pid` in clock ticks after boot (`/proc/<pid>/stat`)")
+    start_ticks: int | None = Field(
+        description="the start of `pid` as the host's OS records it: on Linux clock ticks after boot "
+        "(`/proc/<pid>/stat`), on macOS and Windows microseconds after the epoch; compared only "
+        "for equality on this host, so a recycled pid is not taken for the run's process"
+    )
     argv: list[str]
     cwd: str = Field(description="the run's working directory, absolute")
     started_at: str = Field(description="when the latest run start began")
@@ -335,6 +339,7 @@ class Inflight(BaseModel):
     item_ids: list[str] = Field(default_factory=list)
     since: datetime
     pid: int | None = None
+    #: The start of `pid` as the OS records it (`RunInfo.start_ticks`).
     start_ticks: int | None = None
 
 

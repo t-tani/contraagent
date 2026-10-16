@@ -113,7 +113,7 @@ class AgentTask[Out]:
         if not self.light:
             return None
         if self.plugin is not None and self.role is not None:
-            return body(self.plugin.role_file(self.role).read_text()).strip()
+            return body(self.plugin.role_file(self.role).read_text(encoding="utf-8")).strip()
         return (instructions if instructions is not None else self.instructions or "").strip()
 
     @property
@@ -151,7 +151,7 @@ class AgentTask[Out]:
         role = ""
         if self.plugin is not None and self.role is not None:
             try:
-                role = self.plugin.role_file(self.role).read_text()
+                role = self.plugin.role_file(self.role).read_text(encoding="utf-8")
             except OSError:
                 pass
         return {

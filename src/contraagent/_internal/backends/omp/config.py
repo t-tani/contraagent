@@ -101,7 +101,7 @@ def load_model_chains(env: dict, launch_cwd: Path) -> OmpModelChains:
     candidates = [launch_cwd / ".omp" / "config.yml", agent_dir / "config.yml", Path.home() / ".omp" / "agent" / "config.yml"]
     for cand in candidates:
         try:
-            data = yaml.safe_load(cand.read_text()) or {}
+            data = yaml.safe_load(cand.read_text(encoding="utf-8")) or {}
         except (OSError, ValueError, yaml.YAMLError):
             continue
         if not isinstance(data, dict):
@@ -120,7 +120,13 @@ def _omp_agent_dir(env: dict) -> Path:
     if shutil.which("omp", path=env.get("PATH")):
         try:
             proc = subprocess.run(
-                ["omp", "config", "path"], capture_output=True, text=True, timeout=CONFIG_PATH_TIMEOUT_S, env={**env, "NO_COLOR": "1"}
+                ["omp", "config", "path"],
+                capture_output=True,
+                text=True,
+                timeout=CONFIG_PATH_TIMEOUT_S,
+                env={**env, "NO_COLOR": "1"},
+                encoding="utf-8",
+                errors="replace",
             )
             out = (proc.stdout or "").strip().splitlines()
             if proc.returncode == 0 and out:

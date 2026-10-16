@@ -142,7 +142,7 @@ class PipelineConfig:
         """Parse `path`. A missing file reads as empty; an unparsable one raises."""
         p = Path(path)
         try:
-            raw = tomllib.loads(p.read_text())
+            raw = tomllib.loads(p.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return cls({}, p)
         except (OSError, tomllib.TOMLDecodeError) as exc:

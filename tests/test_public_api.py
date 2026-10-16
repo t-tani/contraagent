@@ -459,14 +459,15 @@ print("ok")
 
 
 def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path):
-    """A fresh virtual environment holding only pydantic, the one dependency, and the source:
+    """A fresh virtual environment holding only the dependencies (pydantic, psutil) and the source:
     the extras' packages are absent there, not only left unimported."""
     uv = shutil.which("uv")
     assert uv is not None, "uv makes the environment"
     venv = tmp_path / "venv"
     subprocess.run([uv, "venv", "--quiet", "--python", sys.executable, str(venv)], check=True, capture_output=True)
-    python = venv / "bin" / "python"
-    install = [uv, "pip", "install", "--quiet", "--python", str(python), f"pydantic=={importlib.metadata.version('pydantic')}"]
+    python = venv / ("Scripts" if sys.platform == "win32" else "bin") / "python"
+    pins = [f"{name}=={importlib.metadata.version(name)}" for name in ("pydantic", "psutil")]
+    install = [uv, "pip", "install", "--quiet", "--python", str(python), *pins]
     if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:
         subprocess.run(install, check=True, capture_output=True)
     src = Path(__file__).parents[1] / "src"

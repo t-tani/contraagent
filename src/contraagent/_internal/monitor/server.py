@@ -111,6 +111,9 @@ MISSING_EXTRA = (
 )
 _EXTRA_MODULES = ("fastapi", "uvicorn", "sse_starlette")
 
+#: The media type of each kind of file the page loads.
+_MEDIA_TYPES = {"js": "text/javascript", "css": "text/css", "svg": "image/svg+xml", "png": "image/png"}
+
 
 def require_extra() -> None:
     """Raise `MissingExtra` (a `ModuleNotFoundError` that says `MISSING_EXTRA`) when a module
@@ -451,7 +454,9 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
         path = static / f"{name}.{ext}"
         if not path.is_file():
             raise HTTPException(404)
-        return FileResponse(path)
+        # Named here, not guessed: on Windows the guess comes from the registry, which may
+        # call a script text/plain, and a browser then refuses to run the page's module.
+        return FileResponse(path, media_type=_MEDIA_TYPES[ext])
 
     def openapi() -> dict:
         if app.openapi_schema is None:

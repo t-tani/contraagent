@@ -80,7 +80,7 @@ class CallFile(BaseModel):
 
     @classmethod
     def read(cls, path: Path) -> CallFile:
-        return cls.model_validate_json(Path(path).read_text())
+        return cls.model_validate_json(Path(path).read_text(encoding="utf-8"))
 
     @staticmethod
     def path_of(launch: Launch) -> Path | None:

@@ -12,6 +12,9 @@ contraagent's own instead, made from these parts only:
     models-store.json    a link to the source's model catalogue
     bin/                 a link to the source's `fd` and `rg`
 
+A link is a symbolic link; on Windows, where a user may not make one, a junction or a
+hard link (`links`).
+
 The directory is named by what it holds, so launches made alike share one: pi locks
 `auth.json.lock` beside the link while it refreshes an OAuth login, and launches that
 share the directory refresh one login once. A pi the user runs on the source
@@ -27,6 +30,7 @@ import tempfile
 from pathlib import Path
 
 from contraagent._internal.backends.wire import positive_int
+from contraagent._internal.platform.links import links as os_links
 from contraagent._internal.runs.files import write_document
 
 #: What every launch's `settings.json` holds: a project's `.pi/` files are never trusted
@@ -59,7 +63,7 @@ def windows(source: Path) -> dict[str, int]:
     out: dict[str, int] = {}
     for name in ("models-store.json", "models.json"):
         try:
-            doc = json.loads((source / name).read_text())
+            doc = json.loads((source / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         providers = doc.get("providers") if name == "models.json" and isinstance(doc, dict) else doc
@@ -92,7 +96,7 @@ def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_mo
     for name, doc in plan.items():
         text = json.dumps(doc, indent=2) + "\n"
         f = target / name
-        if not f.is_file() or f.read_text() != text:
+        if not f.is_file() or f.read_text(encoding="utf-8") != text:
             write_document(f, text)
     for name, src in links.items():
         f = target / name
@@ -100,7 +104,7 @@ def make(root: Path, source: Path, *, logins: bool, models: dict | None, link_mo
             continue
         if f.is_dir() and not f.is_symlink():
             continue  # one pi made itself before the source had it: kept
-        _replace(target, name, lambda tmp, src=src: os.symlink(src, tmp))
+        _replace(target, name, lambda tmp, src=src: os_links.link(src, tmp))
     return target
 
 

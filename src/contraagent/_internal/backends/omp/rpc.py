@@ -33,6 +33,8 @@ from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import LaunchError
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
+from contraagent._internal.platform.commands import commands
+from contraagent._internal.platform.groups import groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
@@ -175,7 +177,7 @@ class OmpRpcBackend(OmpBackend):
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
-                argv,
+                commands.resolve(argv, env.get("PATH")),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -183,7 +185,9 @@ class OmpRpcBackend(OmpBackend):
                 bufsize=1,
                 cwd=str(launch.cwd),
                 env=env,
-                start_new_session=True,
+                **groups.popen_options(),
+                encoding="utf-8",
+                errors="replace",
             )
         except OSError as exc:
             raise LaunchError(str(exc)) from exc
@@ -201,7 +205,7 @@ class OmpRpcBackend(OmpBackend):
             try:
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                groups.kill(proc)
                 proc.wait()
             live_processes.unregister(proc)
             # The process is gone; its readers are at EOF or take a closed pipe as one.
@@ -230,7 +234,7 @@ class OmpRpcBackend(OmpBackend):
                     # the stream file itself.
                     if launch.stream_path is not None:
                         try:
-                            with open(launch.stream_path, "a") as f:
+                            with open(launch.stream_path, "a", encoding="utf-8", newline="\n") as f:
                                 f.write(line)
                         except OSError:
                             pass
@@ -319,7 +323,7 @@ class OmpRpcBackend(OmpBackend):
             parts.append(launch.preamble)
         for f in launch.context_files:
             try:
-                parts.append(Path(f).read_text()[:60_000])
+                parts.append(Path(f).read_text(encoding="utf-8")[:60_000])
             except (OSError, ValueError):
                 continue
         parts.append(launch.prompt)

@@ -42,6 +42,7 @@ def test_segments_need_a_streams_dir():
         open_streams(None, "s3://bucket/prefix", "memory")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="a graceful stop is SIGTERM, which Windows does not send")
 def test_sigterm_stops_the_hub_gracefully_with_its_open_segments_shut_down(tmp_path):
     """uvicorn raises SIGTERM again after its graceful stop; the hub's own handler turns it
     into a normal exit, so the `finally` that shuts the open segments down runs."""

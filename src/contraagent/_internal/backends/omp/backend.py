@@ -58,7 +58,7 @@ procedure with these substitutions:
 def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> QuotaReading | None:
     """`omp usage --json`'s one report for `provider`, as a `QuotaReading`."""
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=30)
+        proc = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=30, encoding="utf-8", errors="replace")
         reports = [r for r in json.loads(proc.stdout).get("reports", []) if r.get("provider") == provider]
     except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
         return None

@@ -9,9 +9,9 @@
 * `source`: `RunSource`, where runs' records are read from: `DirectorySource` (one
   host's `runs/`), `MemorySource`; a page of lines.
 * `liveness`, `procs`: which runs are live and their processes: `Liveness`,
-  `StaticLiveness`, `ProcLiveness` (`/proc`).
+  `StaticLiveness`, `ProcLiveness` (the OS's processes).
 
 Writers (`execution`, `contracts`, the call files) and readers (`monitor`, `hub`)
-import this; it imports only the standard library and the leaf modules `procfs`,
-`envvars` and `telemetry`.
+import this; it imports only the standard library and the leaf modules `processes`
+(over `psutil`), `envvars` and `telemetry`.
 """

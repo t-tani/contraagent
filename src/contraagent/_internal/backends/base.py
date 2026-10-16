@@ -21,6 +21,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -34,6 +35,7 @@ from contraagent._internal.backends.process import LaunchError, Sink, run_proces
 from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.runs.times import now_iso
 
 #: Variables that tie a process to a Claude Code session that started contraagent
@@ -65,7 +67,7 @@ def temp_root() -> Path:
     symlink, not a directory, or another user's; one of ours that others can reach is made
     owner-only again. A refusal is a `PermissionError` naming the path."""
     tmp = Path(tempfile.gettempdir())
-    if not hasattr(os, "getuid"):  # no uids to keep users apart (Windows)
+    if sys.platform == "win32":  # no uids; the temp dir is the user's own (%TEMP%)
         root = tmp / "contraagent"
         root.mkdir(exist_ok=True)
         return root
@@ -75,6 +77,7 @@ def temp_root() -> Path:
 
 def _own_dir(path: Path, uid: int) -> Path:
     """Make or check this user's directory (0700): never through a symlink, never another user's."""
+    assert sys.platform != "win32"
     try:
         os.mkdir(path, 0o700)
     except FileExistsError:
@@ -322,7 +325,7 @@ class Backend(abc.ABC):
         with tempfile.TemporaryFile() as out:
             try:
                 proc = subprocess.run(
-                    [self.binary, *args],
+                    commands.resolve([self.binary, *args], self.base_path()),
                     stdout=out,
                     stderr=subprocess.DEVNULL,
                     timeout=self.catalogue_timeout_s,
@@ -515,7 +518,16 @@ def cli_version(binary: str, env: dict[str, str]) -> str:
     if not exe:
         return ""
     try:
-        p = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30, env=env, stdin=subprocess.DEVNULL)
+        p = subprocess.run(
+            [exe, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+        )
     except (OSError, subprocess.SubprocessError):
         return ""
     m = _VERSION_RE.search(p.stdout or "")

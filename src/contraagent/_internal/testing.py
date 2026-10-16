@@ -26,6 +26,7 @@ from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.dispatch.templates import fill_example
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
 
@@ -313,7 +314,7 @@ class StubAgent(Backend):
                 return reply
             path = Path(call.output.path)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
+            path.write_text(text, encoding="utf-8", newline="\n")
             self._tool(launch, f"{call.key}-{record.n}-write", "Write", call.output.path, "ok")
         return reply
 
@@ -334,13 +335,21 @@ class StubAgent(Backend):
         for plugin_dir in launch.plugin_dirs:
             rendered = Path(plugin_dir) / (self._stop_hooks_file() or "")
             try:
-                declared = json.loads(rendered.read_text()).get("hooks", {}).get("Stop", [])
+                declared = json.loads(rendered.read_text(encoding="utf-8")).get("hooks", {}).get("Stop", [])
             except (OSError, ValueError):
                 continue
             env = {**os.environ, **launch.env, "CLAUDE_PLUGIN_ROOT": str(plugin_dir)}
             for command in (h.get("command", "") for group in declared for h in group.get("hooks", [])):
                 proc = subprocess.run(
-                    ["bash", "-c", command], input=payload, capture_output=True, text=True, cwd=launch.cwd, env=env, timeout=120
+                    [commands.bash(env) or "bash", "-c", command],
+                    input=payload,
+                    capture_output=True,
+                    text=True,
+                    cwd=launch.cwd,
+                    env=env,
+                    timeout=120,
+                    encoding="utf-8",
+                    errors="replace",
                 )
                 if proc.returncode == 2:
                     return proc.stderr.strip() or "the stop hook objected"
@@ -426,7 +435,7 @@ class StubAgent(Backend):
     def _emit(self, launch: Launch, event: dict[str, Any]) -> None:
         if launch.stream_path is None:
             return
-        with open(launch.stream_path, "a", encoding="utf-8") as f:
+        with open(launch.stream_path, "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def _result(self, launch: Launch, started: float, reply: Reply) -> LaunchResult:

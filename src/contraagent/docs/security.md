@@ -105,17 +105,21 @@ The coding agents' CLIs do not enforce the same things. The table in
 
 ## Processes and files
 
-- Each launch runs in a process group of its own. contraagent ends the group when
-  the pipeline ends or is interrupted (SIGTERM, Ctrl-C).
+- Each launch runs in a process group of its own (on Windows, also in a Job Object).
+  contraagent ends the group when the pipeline ends or is interrupted (SIGTERM,
+  Ctrl-C).
 - When the pipeline's process is killed outright (SIGKILL, the out-of-memory
-  killer), a watchdog process stops the agent groups that are still running.
-- Codex runs in its `workspace-write` sandbox, with the network on, and with a
+  killer), a watchdog process stops the agent groups that are still running; on
+  Windows the OS ends each launch's job.
+- Codex runs in its `workspace-write` sandbox (the OS's own: bubblewrap on Linux,
+  Seatbelt on macOS, Codex's Windows sandbox), with the network on, and with a
   temporary directory of its own for each launch. Claude Code takes its permissions
   from the plugin's `settings.json`, and opencode from the role's `tools:`. omp
   (`--approval-mode yolo`) and pi run with no permission checks.
 - Scratch directories are under `<temp dir>/contraagent-<uid>/` (`<temp dir>` is
   `$TMPDIR`, else `/tmp`), and only their owner can use them. contraagent refuses a
-  symbolic link or another user's directory there.
+  symbolic link or another user's directory there. On Windows they are under
+  `%TEMP%\contraagent\`, in the user's own temporary directory.
 - pi's agent directory and Codex's `CODEX_HOME` are under `~/.cache/contraagent/`
   ([Directories outside the run](agents.md#directories-outside-the-run)).
 
@@ -125,7 +129,7 @@ The coding agents' CLIs do not enforce the same things. The table in
 |---|---|
 | Tools a kind may not use | `disallowed_tools` in the config. A route whose coding agent cannot deny the tools is refused before anything launches. |
 | Limits of a launch | `timeout_s` and `max_turns` for every kind; `max_budget_usd`, `stall_s` and `context_budget` when they are set. |
-| The processes of a launch | A process group of its own, and the watchdog after a SIGKILL. |
+| The processes of a launch | A process group of its own, and the watchdog after a SIGKILL; on Windows a Job Object the OS ends with the pipeline. |
 | Codex's sandbox | `workspace-write`, with the network on. |
 | Scratch directories | `<temp dir>/contraagent-<uid>/`, owner-only. |
 | Each attempt | `journal.jsonl`: the coding agent, model, credential name, hops, tokens, cost, web searches, and the changed files among those the task declares with `changes=`. |
@@ -133,7 +137,7 @@ The coding agents' CLIs do not enforce the same things. The table in
 | What each agent was given, and what it did | The run directory: the call file of each task (`calls/`) and the transcript of each task (`streams/`). |
 
 The journal and the transcripts hold what each coding agent reports in its own
-output. The monitor adds a live process tree from `/proc`. Neither is a kernel-level
+output. The monitor adds a live process tree from the OS. Neither is a kernel-level
 capture of every file or network access.
 [Compatibility](compatibility.md) lists every file of a run directory.
 

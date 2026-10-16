@@ -1,1 +1,3 @@
-"""The host: its processes (`procfs`) and the variables and line that identify a live agent process (`envvars`, `telemetry`)."""
+"""The host, on Linux, macOS and Windows alike: its processes (`processes`), a child in a group
+of its own (`groups`), a file lock (`locks`), and the variables and line that identify a live
+agent process (`envvars`, `telemetry`). What differs between the OSes is here and nowhere else."""

@@ -14,7 +14,7 @@ def login_account(config_dir: str | None) -> str:
     with no login."""
     path = Path(config_dir) / ".claude.json" if config_dir else Path.home() / ".claude.json"
     try:
-        found = json.loads(path.read_text()).get("oauthAccount") or {}
+        found = json.loads(path.read_text(encoding="utf-8")).get("oauthAccount") or {}
     except (OSError, ValueError, AttributeError):
         return ""
     return account_digest(ACCOUNT_UUID, str(found.get("accountUuid") or "")) if isinstance(found, dict) else ""

@@ -115,7 +115,7 @@ def prepare(unit: str) -> Prepared:
     path = INPUT_DIR / f"{unit}.md"
     if unit == "zeta":
         raise ValueError("zeta's input is malformed")  # its downstream tasks are refused, not launched
-    return Prepared(unit=unit, path=str(path), words=len(path.read_text().split()))
+    return Prepared(unit=unit, path=str(path), words=len(path.read_text(encoding="utf-8").split()))
 
 
 @python_task

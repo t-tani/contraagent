@@ -113,7 +113,10 @@ def bind(host: str, port: int) -> socket.socket:
     """A TCP socket bound to `host`:`port` (`OSError` when it cannot be), for `serve_on`:
     a server announces its address only once it holds it."""
     sock = socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":  # SO_REUSEADDR there lets a second server take the port too
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         sock.bind((host, port))
     except OSError:
@@ -159,10 +162,11 @@ def add_openapi(parser: argparse.ArgumentParser, document: str) -> None:
 def write_openapi(document: str, dest: str) -> None:
     """`document` written to the file `dest`, or to stdout for `-` (piped into `head`, it ends quietly)."""
     if dest == "-":
-        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+        if sys.platform != "win32":  # Windows has no SIGPIPE
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
         sys.stdout.write(document)
     else:
-        Path(dest).write_text(document)
+        Path(dest).write_text(document, encoding="utf-8", newline="\n")
 
 
 def setup_logging(format: str = "%(message)s", datefmt: str | None = None) -> None:

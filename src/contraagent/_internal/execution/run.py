@@ -10,7 +10,6 @@ is ok and carries the task's `fingerprint`.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import logging
 import os
@@ -51,7 +50,8 @@ from contraagent._internal.execution.pipeline_files import writing_into
 from contraagent._internal.execution.python_tasks import PythonTaskRunner
 from contraagent._internal.execution.runner import AgentRunner
 from contraagent._internal.execution.schemas import DeferredRow, FlowCallRow, PlanRow
-from contraagent._internal.platform import procfs
+from contraagent._internal.platform import processes
+from contraagent._internal.platform.locks import locks
 from contraagent._internal.routing.capacity import sized
 from contraagent._internal.routing.config import PerTask, PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
@@ -229,7 +229,7 @@ class Run:
                     "host_id": layout.host_id(),
                     "run_group": self.run_group,
                     "pid": os.getpid(),
-                    "start_ticks": procfs.pid_start_ticks(os.getpid()),
+                    "start_ticks": processes.start_ticks(os.getpid()),
                     "argv": list(sys.argv),
                     "cwd": str(Path(cwd or os.getcwd()).resolve()),
                     "started_at": now_iso(),
@@ -265,13 +265,11 @@ class Run:
     # --- lock and lifecycle ------------------------------------------------
 
     def _acquire(self) -> None:
-        """Hold an flock until `close()` or process exit. Process exit, normal or
-        killed, always releases it, which is what makes this safe under SIGKILL."""
+        """Hold the run's lock (`locks`) until `close()` or process exit. Process exit, normal
+        or killed, always releases it, which is what makes this safe under SIGKILL."""
         path = self.runs_dir / f"{self.run_id}.lock"
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+        if not locks.try_lock(fd):
             os.close(fd)
             raise RunLocked(
                 f"another process already holds run id {self.run_id!r} ({path}); wait for it or pick a different run id"
@@ -324,7 +322,7 @@ class Run:
     def _info(self) -> dict[str, Any] | None:
         """`run.json` as this run directory holds it; None before the first write."""
         try:
-            return parse_info((self.dir / layout.RUN_INFO).read_text())
+            return parse_info((self.dir / layout.RUN_INFO).read_text(encoding="utf-8"))
         except OSError:
             return None
 

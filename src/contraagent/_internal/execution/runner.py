@@ -38,6 +38,7 @@ from contraagent._internal.dispatch.task import STOP_DEFERRED, Deferral, Task, T
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
 from contraagent._internal.platform import envvars, telemetry
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.pool import CredentialPool, pools_of
 from contraagent._internal.routing.quota import QuotaRests
@@ -220,8 +221,10 @@ class AgentRunner:
         settings = rc.settings if rc.settings and Path(rc.settings).exists() else None
         if tools == ():  # a light launch loads no settings: they could only add hooks to a launch with no tools
             settings = None
+        bash = commands.bash()
         env = {
             envvars.PYTHON: sys.executable,
+            **({envvars.BASH: bash} if bash and bash != "bash" else {}),
             **self.env,
             **self.adapter.env(task),
             envvars.RUN: self.run_id,

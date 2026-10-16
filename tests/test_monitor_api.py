@@ -3,7 +3,6 @@
 import asyncio
 import importlib.util
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -294,12 +293,6 @@ def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
     assert err.startswith("contraagent monitor: ") and "contraagent[monitor]" in err and "uvicorn" in err
     with pytest.raises(ModuleNotFoundError, match=r"contraagent\[monitor\]"):
         server.create_app(Monitor("nowhere"))
-
-
-def test_process_ages_use_the_kernel_clock_rate():
-    from contraagent._internal.runs import procs
-
-    assert procs._CLK == os.sysconf("SC_CLK_TCK")
 
 
 def test_the_page_makes_no_third_party_requests():

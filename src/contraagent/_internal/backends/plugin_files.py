@@ -24,7 +24,7 @@ def extensions(plugin_dir: str | Path, agent: str) -> list[Path]:
     `contraagent plugin render` writes for omp and pi), those that exist."""
     root = Path(plugin_dir)
     try:
-        pkg = json.loads((root / "package.json").read_text())
+        pkg = json.loads((root / "package.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     own = pkg.get(agent) if isinstance(pkg, dict) else None

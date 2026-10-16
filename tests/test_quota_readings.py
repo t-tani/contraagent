@@ -17,6 +17,7 @@ from contraagent._internal.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID, 
 from contraagent.backends import Backend, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
 from contraagent.config import AMBIENT, Bedrock, KindConfig, Limits, OAuthToken, QuotaReading, QuotaWindow, Route, Secret, Subscription
 from contraagent.engine import AgentRunner, QuotaRests, Router, TaskAdapter
+from fake_cli import write_fake_cli
 
 FIXTURES = Path(__file__).parent / "fixtures" / "claude"
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
@@ -78,10 +79,7 @@ print(json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "t
 
 def fake_cli(tmp_path: Path, name: str, body: str) -> Path:
     bindir = tmp_path / "bin"
-    bindir.mkdir(exist_ok=True)
-    exe = bindir / name
-    exe.write_text(f"#!/usr/bin/env python3\n{body}")
-    exe.chmod(0o755)
+    write_fake_cli(bindir, name, body)
     return bindir
 
 

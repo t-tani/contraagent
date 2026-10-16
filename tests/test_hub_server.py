@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from datetime import UTC, datetime
@@ -368,7 +369,7 @@ def test_healthz_answers_ok_over_segmented_transcripts(tmp_path):
             r = c.get(HEALTHZ)
         finally:
             (tmp_path / "hot").chmod(0o700)
-        if os.geteuid() != 0:  # root writes anywhere
+        if sys.platform != "win32" and os.geteuid() != 0:  # root writes anywhere; Windows has no mode bits
             assert r.status_code == 503 and r.json()["failed"] == {"transcripts": "PermissionError"}
     finally:
         streams.shutdown()

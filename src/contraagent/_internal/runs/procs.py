@@ -1,11 +1,12 @@
-"""The live processes of a run on this host, read from `/proc` (`procfs`; no `ps`).
+"""The live processes of a run on this host, read from the OS (`processes`; no `ps`).
 
 A run is live when the pid recorded in its `run.json` is still the same
 process (pid *and* start time, so a recycled pid is not mistaken for it).
 Its agent launches are the descendants that carry the `CONTRAAGENT_*`
 environment `AgentRunner.launch` sets — a fact about the process, not a guess
-parsed from its command line — and the topmost process of each task is
-reported as one launch. Work running inside the run's own process (a Python
+parsed from its command line; where the OS shows no other process's environment
+(macOS), the telemetry line of its command line — and the topmost process of each
+task is reported as one launch. Work running inside the run's own process (a Python
 task, an agent behind a library-call backend) is known from the in-flight
 markers `Run` writes (`layout.INFLIGHT`).
 
@@ -20,21 +21,19 @@ import re
 import time
 from pathlib import Path
 
-from contraagent._internal.platform import envvars, procfs, telemetry
+from contraagent._internal.platform import envvars, processes, telemetry
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.liveness import empty_snapshot
 from contraagent._internal.runs.names import BadName
 from contraagent._internal.runs.source import DirectorySource
 from contraagent._internal.runs.times import parse_iso
 
-_CLK = procfs.clock_ticks()
-
 
 def is_alive(info: dict | None) -> bool:
     """True when the recorded pid is still the process that started the run."""
     if not info or not info.get("pid") or info.get("finished_at"):
         return False
-    return procfs.pid_identity_ok(int(info["pid"]), info.get("start_ticks"))
+    return processes.identity_ok(int(info["pid"]), info.get("start_ticks"))
 
 
 def live_runs(source: DirectorySource) -> set[str]:
@@ -51,17 +50,8 @@ def live_runs(source: DirectorySource) -> set[str]:
 
 
 def _scan() -> dict[int, dict]:
-    btime, now = procfs.boot_time(), time.time()
-    procs: dict[int, dict] = {}
-    for pid in procfs.pids():
-        st = procfs.read_proc_stat(pid)
-        if st is None or st["state"] == "Z":
-            continue
-        cmd = procfs.read_cmdline(pid)
-        if not cmd:
-            continue
-        procs[pid] = {"pid": pid, "ppid": st["ppid"], "cmd": cmd, "age_s": round(now - (btime + st["starttime"] / _CLK))}
-    return procs
+    now = time.time()
+    return {p.pid: {"pid": p.pid, "ppid": p.ppid, "cmd": p.cmd, "age_s": round(now - p.started)} for p in processes.scan().values()}
 
 
 def _short(cmd: str, limit: int = 100) -> str:
@@ -71,6 +61,17 @@ def _short(cmd: str, limit: int = 100) -> str:
 def _flag(cmd: str, name: str) -> str:
     m = re.search(rf"{re.escape(name)}[ =](\S+)", cmd)
     return m.group(1) if m else ""
+
+
+def _env_of_telemetry(cmd: str) -> dict[str, str]:
+    """The task variables a telemetry line in `cmd` names, for a process whose environment
+    is not readable (on macOS, any process's but one's own); empty when it has none (its
+    prompt came over stdin)."""
+    tele = telemetry.parse(cmd)
+    if tele is None:
+        return {}
+    values = {envvars.RUN: tele.run, envvars.KIND: tele.kind, envvars.UNIT: tele.unit, envvars.TASK: tele.key}
+    return {k: "" if v == "-" else v for k, v in values.items()}
 
 
 def snapshot(source: DirectorySource, run: str) -> dict:
@@ -86,7 +87,7 @@ def snapshot(source: DirectorySource, run: str) -> dict:
         by_ppid.setdefault(p["ppid"], []).append(p)
 
     def node(p: dict, depth: int, parent_key: str) -> dict:
-        env = procfs.read_environ(p["pid"], prefix=envvars.PREFIX)
+        env = processes.environ(p["pid"], prefix=envvars.PREFIX) or _env_of_telemetry(p["cmd"])
         key = env.get(envvars.TASK, "")
         n = {"pid": p["pid"], "age_s": p["age_s"], "cmd": _short(p["cmd"]), "full_cmd": p["cmd"]}
         if key and key != parent_key and env.get(envvars.RUN, run) == run:
@@ -142,7 +143,7 @@ def _inflight(source: DirectorySource, run: str) -> list[dict]:
         if not isinstance(m, dict):
             continue
         pid = int(m.get("pid") or 0)
-        if not pid or procfs.read_proc_stat(pid) is None:
+        if not pid or not processes.alive(pid):
             continue
         started = parse_iso(m.get("started_at"))
         out.append(
@@ -159,7 +160,7 @@ def _inflight(source: DirectorySource, run: str) -> list[dict]:
 
 
 class ProcLiveness:
-    """Live runs of one `runs/` directory on this host: the pid in `run.json`, checked in `/proc`."""
+    """Live runs of one `runs/` directory on this host: the pid in `run.json`, checked against the OS."""
 
     def __init__(self, root: str | Path) -> None:
         self.source = DirectorySource(root)

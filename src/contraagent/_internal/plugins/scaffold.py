@@ -137,7 +137,7 @@ def new_plugin(directory: str | Path, name: str = "") -> list[Path]:
         path.parent.mkdir(parents=True, exist_ok=True)
         for key, value in fill.items():
             text = text.replace(key, value)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8", newline="\n")
         written.append(path)
     rendered, _ = hooks.write(Plugin.load(root))  # the hooks, for every coding agent
     return written + [p for p in rendered if p not in written]

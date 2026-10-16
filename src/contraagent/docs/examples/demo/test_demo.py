@@ -49,7 +49,7 @@ def inputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "inputs").mkdir()
     for u in UNITS:
-        (tmp_path / "inputs" / f"{u}.md").write_text(f"# {u}\nThe {u} component parses a config file.\n")
+        (tmp_path / "inputs" / f"{u}.md").write_text(f"# {u}\nThe {u} component parses a config file.\n", encoding="utf-8", newline="\n")
     return tmp_path
 
 

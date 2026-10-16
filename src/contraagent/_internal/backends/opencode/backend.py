@@ -130,7 +130,7 @@ def permission_rules(denied: tuple[str, ...], permission: dict[str, Any], cwd: P
 def role_tools(role_file: Path) -> list[str] | None:
     """The tools a role's frontmatter allows (`tools: Read, Grep`), or None when it names none."""
     try:
-        m = _FRONTMATTER_RE.match(role_file.read_text())
+        m = _FRONTMATTER_RE.match(role_file.read_text(encoding="utf-8"))
     except OSError:
         return None
     if not m:
@@ -262,7 +262,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         skills = [str(Path(p) / "skills") for p in launch.plugin_dirs if (Path(p) / "skills").is_dir()]
         if skills:
             cfg["skills"] = {"paths": skills}
-        hooks = [f"file://{Path(p).resolve() / HOOKS_FILE}" for p in launch.plugin_dirs if (Path(p) / HOOKS_FILE).is_file()]
+        hooks = [(Path(p).resolve() / HOOKS_FILE).as_uri() for p in launch.plugin_dirs if (Path(p) / HOOKS_FILE).is_file()]
         if hooks:
             cfg["plugin"] = hooks
         if launch.mcp_config:
@@ -306,7 +306,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
 
     def _text_file(self, label: str, name: str, text: str) -> str:
         f = self.scratch(label, "instructions") / name
-        f.write_text(text)
+        f.write_text(text, encoding="utf-8", newline="\n")
         return str(f)
 
     # --- credentials ----------------------------------------------------------

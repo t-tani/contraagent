@@ -237,6 +237,7 @@ def test_a_blob_within_its_grace_is_kept(populated, capsys):
 # --- the server ----------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="a graceful stop is SIGTERM, which Windows does not send")
 def test_the_server_prunes_in_the_background_and_stops_on_sigterm(tmp_path):
     (tmp_path / "tokens").write_text("t\n")
     with socket.socket() as s:

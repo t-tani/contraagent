@@ -6,7 +6,7 @@ agent that a person asked for one, or a person who wants to understand each part
 When you finish, you can design a pipeline of your own: you know which part goes
 where, how to check it without spending tokens, and how to read what a run did.
 
-You need Linux, Python 3.12 or later and [uv](https://docs.astral.sh/uv/). Steps
+You need Linux, macOS or Windows, Python 3.12 or later and [uv](https://docs.astral.sh/uv/). Steps
 1 to 7 call no model and cost nothing. Step 8 runs a coding agent: any of the five
 contraagent runs (Claude Code, omp, opencode, pi, Codex), on your `PATH` and logged
 in. Step 8's config uses Claude Code: install it as its

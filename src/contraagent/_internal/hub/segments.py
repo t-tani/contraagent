@@ -63,6 +63,7 @@ from urllib.parse import quote, unquote
 from contraagent._internal.hub import segment_format as fmt
 from contraagent._internal.hub.segment_objects import SegmentObjects, open_objects
 from contraagent._internal.hub.streams import Held, Waiters
+from contraagent._internal.runs.files import BINARY
 from contraagent._internal.runs.source import Pager
 
 if TYPE_CHECKING:
@@ -444,7 +445,7 @@ class _Hot:
     def create(cls, path: Path, first_line: int, block_bytes: int, now: float) -> _Hot:
         path.parent.mkdir(parents=True, exist_ok=True)
         hot = cls(path, first_line, block_bytes, now)
-        hot.fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND, 0o644)
+        hot.fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_APPEND | BINARY, 0o644)
         return hot
 
     @classmethod
@@ -465,7 +466,7 @@ class _Hot:
         return hot
 
     def reopen(self) -> None:
-        self.fd = os.open(self.path, os.O_WRONLY | os.O_APPEND)
+        self.fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | BINARY)
 
     def append(self, raw: Sequence[bytes], segment_bytes: int) -> int:
         """Write lines until the segment holds `segment_bytes` (at least one line); how many."""
@@ -1004,7 +1005,8 @@ class SegmentedStreamLogs:
         sizes = [offsets[i + 1] - offsets[i] for i in range(h.nblocks)]
         b0, b1 = _span(firsts, sizes, pos, lines, nbytes)
         with open(h.path, "rb") as f:
-            raw = os.pread(f.fileno(), offsets[b1 + 1] - offsets[b0], offsets[b0])
+            f.seek(offsets[b0])
+            raw = f.read(offsets[b1 + 1] - offsets[b0])
         got = raw.decode().split("\n")[:-1]
         end = min(len(got), h.first_line + h.line_count - firsts[b0])
         return got[pos - firsts[b0] : end]
