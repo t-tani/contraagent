@@ -9,7 +9,7 @@ can check a file with no contraagent installed.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, TypeAdapter, create_model
 
@@ -71,6 +71,11 @@ def _budget(want: type | tuple[type, ...]) -> Any:
 
 class _TaskRouting(_Routing):
     disallowed_tools: list[str] | None = Field(None, description='tools its launches may not use: "WebFetch", "Bash(git push:*)"')
+    partial_on: list[Literal["timeout", "stalled"]] | None = Field(
+        None,
+        min_length=1,
+        description="the stops after which a launch's output that passes every check is a partial result",
+    )
 
 
 _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK_TABLE_KEYS.items()}

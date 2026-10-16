@@ -231,6 +231,16 @@ class TaskDetailFn(Protocol):
     def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None: ...
 
 
+def _json_line(line: str) -> Any:
+    """One line of a JSON Lines file, parsed; None for a blank line or one that does not parse."""
+    if not line.strip():
+        return None
+    try:
+        return json.loads(line)
+    except ValueError:
+        return None
+
+
 def _running_keys(snap: dict[str, Any]) -> set:
     """Keys of every task running now: agent launches and Python tasks."""
     return {lc.get("key") for lc in snap.get("launches", [])} | {pt.get("key") for pt in snap.get("python_tasks", [])}
@@ -817,7 +827,7 @@ class Monitor:
         for rec in parse_rows(self.source.folder(run, layout.CONTRACTS)):
             row = last.get(rec.get("key", ""))
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
-                spec["file"] = self._file_view(run, spec["path"])
+                spec["file"] = self._file_view(run, spec["path"], rows=spec.get("format") == "jsonl")
                 props = (spec.get("schema") or {}).get("properties", {})
                 req = set((spec.get("schema") or {}).get("required", []))
                 spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
@@ -838,7 +848,9 @@ class Monitor:
             return f"list[{Monitor._type_of(prop.get('items', {}))}]"
         return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
 
-    def _file_view(self, run: str, path: str, limit: int = 20_000) -> dict[str, Any]:
+    def _file_view(self, run: str, path: str, limit: int = 20_000, *, rows: bool = False) -> dict[str, Any]:
+        """A file as `FileView` shows it; with `rows`, a JSON Lines file whose content is the
+        list of its lines that parse."""
         got = self.source.file(run, path)
         if got is None:
             return {"exists": False}
@@ -848,6 +860,9 @@ class Monitor:
             out["content"] = None
             return out
         out["truncated"] = len(text) > limit
+        if rows:
+            out["content"] = [row for line in text[:limit].splitlines() if (row := _json_line(line)) is not None]
+            return out
         try:
             out["content"] = json.loads(text) if len(text) <= limit else text[:limit]
         except ValueError:  # a text output, or JSON that does not parse: the text itself

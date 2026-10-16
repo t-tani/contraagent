@@ -557,6 +557,11 @@ export type components = {
              * @description input: the key of the task whose output it is
              */
             producer?: string | null;
+            /**
+             * Format
+             * @description what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)
+             */
+            format?: ("json" | "text" | "jsonl") | null;
             /** Schema Name */
             schema_name: string;
             /**
@@ -813,8 +818,9 @@ export type components = {
         };
         /**
          * FileView
-         * @description A contract's file as it is now. `content` is the parsed JSON, else the
-         *     text (cut at 20 000 characters, `truncated`), else null when unreadable.
+         * @description A contract's file as it is now. `content` is the parsed JSON (for rows, the list of
+         *     the lines that parse), else the text (cut at 20 000 characters, `truncated`), else null
+         *     when unreadable.
          */
         FileView: {
             /** Exists */

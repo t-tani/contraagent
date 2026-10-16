@@ -58,6 +58,7 @@ from pydantic import BaseModel, RootModel
 from pydantic_core import to_jsonable_python
 
 from contraagent._internal.contracts.contract import InputContract, OutputContract, check_file
+from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.python_task import PythonTaskPayload
 from contraagent._internal.dispatch.records import DeferralCause, Frame
@@ -158,8 +159,8 @@ class Pending[Out]:
 
     @property
     def output(self) -> Out:
-        """The checked output: the schema instance, the text (a `TextOutput`), or the
-        Python task's return value."""
+        """The checked output: the schema instance, the text (a `TextOutput`), the rows (a
+        `Rows`, a list), or the Python task's return value."""
         if self._value is _UNSET:
             node = self._node
             if node.output_path is None:
@@ -616,8 +617,9 @@ class Graph:
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = node.resolved_params()
                 node.spec.arguments(node.unit, params)  # a stub run refuses what a run refuses
-                json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
-                has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
+                rows = is_rows(schema)
+                json_schema = row_of(schema).model_json_schema() if node.output_path is not None and schema is not None else None
+                has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema, rows=rows)
                 if not has_output:
                     return None
             else:
@@ -629,7 +631,8 @@ class Graph:
                 return partial
             doc = value if isinstance(value, schema) else schema.model_validate(value)
             node.output_path.parent.mkdir(parents=True, exist_ok=True)
-            node.output_path.write_text(doc.model_dump_json(indent=2), encoding="utf-8", newline="\n")
+            text = rows_text(doc.root) if is_rows(schema) else doc.model_dump_json(indent=2)  # pyright: ignore[reportAttributeAccessIssue]
+            node.output_path.write_text(text, encoding="utf-8", newline="\n")
             return partial
 
         return dataclasses.replace(

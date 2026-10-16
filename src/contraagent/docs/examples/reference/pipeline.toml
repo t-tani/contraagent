@@ -54,6 +54,8 @@ stall_s = 300                       # stop a launch whose transcript is silent t
 context_budget = 150000             # stop a launch once one call's input passes this many tokens
 context_warn_pct = 80               # warn (journal context_warned, a log line) once a launch's peak context passes 80% of context_budget; it still runs
 max_denials = 5                     # stop a launch after this many permission denials
+# What a launch stopped for its time wrote is a partial result when it passes its checks.
+partial_on = ["timeout", "stalled"]  # stops after which the output is kept; outranks agent_task(..., partial_on=)
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
 retries = 2                         # fresh-session attempts after the first, each after one that made no progress

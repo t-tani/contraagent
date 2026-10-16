@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from typing import Any
 
-from contraagent._internal.backends.launch import Limits
+from contraagent._internal.backends.launch import Limits, Stop
 from contraagent._internal.dispatch.task import kind_name
 
 
@@ -56,6 +56,14 @@ class KindConfig:
     # exponential backoff.
     retries: int = 2
     retry_backoff_base: float = 2.0
+    #: The stops after which a launch's output, when it passes every check, is kept as a
+    #: partial result (`agent_task(partial_on=)`): some of `PARTIAL_STOPS`.
+    partial_on: tuple[str, ...] = ()
+
+    @property
+    def partial_stops(self) -> frozenset[Stop]:
+        """`partial_on` as stops (`run_until_valid(partial_on=)`)."""
+        return frozenset(Stop(s) for s in self.partial_on)
 
     @classmethod
     def build(cls, defaults: dict[str, Any], overrides: dict[str, Any] | None) -> KindConfig:
@@ -64,6 +72,7 @@ class KindConfig:
         d.update({k: v for k, v in (overrides or {}).items() if k in cls.__dataclass_fields__})
         d["disallowed_tools"] = tuple(d.get("disallowed_tools") or ())
         d["requires"] = tuple(d.get("requires") or ())
+        d["partial_on"] = tuple(d.get("partial_on") or ())
         return cls(**d)
 
     def limits(self) -> Limits:
@@ -80,6 +89,11 @@ class KindConfig:
 
     def with_(self, **changes: Any) -> KindConfig:
         return replace(self, **changes)
+
+
+#: The stops a kind may keep a partial result after (`partial_on`): those the runner itself
+#: ends a launch on for time, with no word from the agent that it is done or why not.
+PARTIAL_STOPS: tuple[str, ...] = (Stop.TIMEOUT.value, Stop.STALLED.value)
 
 
 #: The numeric keys of a task table (`[tasks.<kind>]`), with the type each

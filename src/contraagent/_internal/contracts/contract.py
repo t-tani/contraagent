@@ -19,7 +19,12 @@ Only a launch that ran to the end is sent back. A timeout, a 429 or an
 auth failure is not a formatting problem, and resuming into it would
 spend a launch to learn the same thing; those results return as they
 are, with the contract errors attached, for the caller's own handling
-(the Router's failover, for one).
+(the Router's failover, for one). A launch stopped on one of the stops a caller
+names (`partial_on`: its time limit, a stall) whose outputs pass every check
+returns with `LaunchResult.partial` set: what it wrote is kept.
+
+A rows output (`rows.RowsFile`) is a JSON Lines file checked line by line
+(`parse_rows`): each error names its line, and the rows are a `Rows`, a list.
 """
 
 from __future__ import annotations
@@ -30,7 +35,7 @@ import logging
 import os
 import re
 import shutil
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -40,6 +45,7 @@ from pydantic import BaseModel, ValidationError
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts import pointers
+from contraagent._internal.contracts.rows import Rows, drop_unfinished, is_rows, row_of
 from contraagent._internal.contracts.validators import CommandValidator, Validator, run_validators, validator_name, wanted_context
 from contraagent._internal.dispatch.records import OtherModel
 from contraagent._internal.dispatch.task import kind_name
@@ -166,7 +172,7 @@ class Before:
         if self.text is None or schema is None:
             return self.text
         try:
-            return schema.model_validate_json(self.text)
+            return parse_value(schema, self.text)
         except ValueError:
             return None
 
@@ -211,7 +217,7 @@ def check_input(contract: InputContract, cwd: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
         if contract.schema is not None:
-            contract.schema.model_validate_json(text)
+            parse_value(contract.schema, text)
     except (OSError, UnicodeDecodeError) as exc:
         return [f"{path.as_posix()}: unreadable: {exc}"]
     except ValueError as exc:
@@ -219,9 +225,52 @@ def check_input(contract: InputContract, cwd: Path) -> list[str]:
     return []
 
 
+def parse_value(schema: type[BaseModel], text: str) -> Any:
+    """`text` read as a check reads a file of `schema`: the model instance; for a rows file
+    (`RowsFile`), the `Rows`. `ValueError` when it does not meet the schema, one error per line."""
+    if is_rows(schema):
+        rows, errors = parse_rows(text, row_of(schema))
+        if errors:
+            raise ValueError("\n".join(errors))
+        return rows
+    return schema.model_validate_json(text)
+
+
+def parse_rows(text: str, row: type[BaseModel]) -> tuple[Rows[Any], list[str]]:
+    """The rows of a JSON Lines `text`, and one error per thing wrong with it, each naming
+    its line (`line 3: severity: Input should be ...`). A blank line is no row. A file that
+    is one JSON array is named as such: the likeliest mistake."""
+    rows: Rows[Any] = Rows()
+    stripped = text.strip()
+    if stripped.startswith("[") and isinstance(_loads(stripped), list):
+        return rows, ["the file is one JSON array; write one JSON object per line instead, with no [ ] around them"]
+    errors: list[str] = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            json.loads(line)
+        except ValueError as exc:
+            errors.append(f"line {n}: not valid JSON: {exc}")
+            continue
+        try:
+            rows.append(row.model_validate_json(line))
+        except ValidationError as exc:
+            errors += [f"line {n}: {e}" for e in _describe(exc)]
+    return rows, errors
+
+
+def _loads(text: str) -> Any:
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
 @dataclass
 class Check:
-    """One contract's verdict. `value` is the parsed schema instance (or the text) when `ok`.
+    """One contract's verdict. `value` is the parsed schema instance (the text of a text file,
+    the `Rows` of a rows file) when `ok`.
     `schema_ok`: the file was read and met its schema; only validators can have failed."""
 
     path: Path
@@ -253,8 +302,9 @@ def check_file(
     preserved: Mapping[str, Any] | None = None,
     before_value: Callable[[], Any] | None = None,
 ) -> Check:
-    """Validate the file at `path`: its JSON against `schema` (None: any text),
-    then every validator on the parsed value.
+    """Validate the file at `path`: its JSON against `schema` (None: any text; a rows file,
+    `RowsFile`: each line against its row, `parse_rows`), then every validator on the parsed
+    value (a rows file's: the `Rows`).
 
     `before` is the file's stamp from ahead of the launch; with `fresh`, a
     file whose stamp has not moved counts as unwritten. `preserved`: values the
@@ -275,6 +325,14 @@ def check_file(
         return Check(path, False, [f"{path.as_posix()}: unreadable: {exc}"])
     if schema is None:
         return _validated(path, text, validators, params, call, cwd, before=before_value)
+    if is_rows(schema):
+        rows, problems = parse_rows(text, row_of(schema))
+        if problems:
+            errors = [f"{path.as_posix()}: {e}" for e in problems]
+            commands = [v for v in validators if isinstance(v, CommandValidator)]
+            errors += run_validators(commands, path, None, params=params, call=call, cwd=cwd)
+            return Check(path, False, errors)
+        return _validated(path, rows, validators, params, call, cwd, before=before_value)
     try:
         document = json.loads(text)
     except ValueError as exc:
@@ -332,8 +390,10 @@ def check_all(contracts: Sequence[OutputContract], cwd: Path, before: Mapping[Pa
 def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Check]) -> str:
     """The next turn: what is wrong, and the schema of each file that does not meet it.
     An output taken from the final message (`from_message`) is asked for again as the reply."""
-    failing_json = any(c.schema is not None and not chk.schema_ok for c, chk in zip(contracts, checks, strict=True) if not chk.ok)
-    only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing_json else ""
+    failing = [c for c, chk in zip(contracts, checks, strict=True) if not chk.ok and c.schema is not None and not chk.schema_ok]
+    only_json = " A JSON output must contain only the JSON document, with no prose or code fences around it." if failing else ""
+    if any(is_rows(c.schema) for c in failing):
+        only_json += " A JSON Lines output holds one JSON object per line and nothing else."
     if any(c.from_message for c, chk in zip(contracts, checks, strict=True) if not chk.ok):
         parts = [
             "Your final message is the output, and it does not pass its checks. Reply again "
@@ -358,10 +418,11 @@ def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Chec
         if c.schema is None or chk.schema_ok:
             parts.append("")
             continue
-        json_schema = json.dumps(c.schema.model_json_schema(), ensure_ascii=False, indent=1)
+        json_schema = json.dumps(row_of(c.schema).model_json_schema(), ensure_ascii=False, indent=1)
         if len(json_schema) > _MAX_SCHEMA_CHARS:
             json_schema = json_schema[:_MAX_SCHEMA_CHARS] + "\n…(truncated)"
-        parts.append(f"Required JSON Schema:\n```json\n{json_schema}\n```\n")
+        what = "Required JSON Schema of each line" if is_rows(c.schema) else "Required JSON Schema"
+        parts.append(f"{what}:\n```json\n{json_schema}\n```\n")
     return "\n".join(parts)
 
 
@@ -382,16 +443,21 @@ def record_contracts(
 
     def spec(c, role: str) -> dict:
         if c.schema is None:
-            name, ref, json_schema = "text", "", {}
+            name, ref, json_schema, form = "text", "", {}, "text"
         else:
-            name, ref = c.schema.__name__, f"{c.schema.__module__}.{c.schema.__qualname__}"
+            # A rows file is named and drawn by its row: the schema each line meets.
+            model = row_of(c.schema)
+            form = "jsonl" if is_rows(c.schema) else "json"
+            name = f"Rows[{model.__name__}]" if form == "jsonl" else model.__name__
+            ref = f"{model.__module__}.{model.__qualname__}"
             try:
-                json_schema = c.schema.model_json_schema()
+                json_schema = model.model_json_schema()
             except Exception:
                 json_schema = {}
         return {
             "io": role,
             "path": c.resolve(cwd).as_posix(),
+            "format": form,
             "schema_name": name,
             "schema_ref": ref,
             "schema": json_schema,
@@ -466,7 +532,12 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
 
 
 def run_until_valid(
-    backend: Backend, launch: Launch, contracts: Sequence[OutputContract], max_resumes: int = DEFAULT_MAX_RESUMES
+    backend: Backend,
+    launch: Launch,
+    contracts: Sequence[OutputContract],
+    max_resumes: int = DEFAULT_MAX_RESUMES,
+    *,
+    partial_on: Collection[Stop] = (),
 ) -> LaunchResult:
     """Run `launch`, then resume its session until every contract holds.
 
@@ -480,6 +551,12 @@ def run_until_valid(
     its own stop. Each check compares a file with the file as it was before the
     first round (`OutputContract.before`); a result that is not ok puts back a file
     that held parts to keep (`preserve`), so the next attempt starts from them.
+
+    `partial_on`: stops after which what the launch wrote is kept (`agent_task(partial_on=)`).
+    A round that ends on one of them is checked as any other, after the unfinished last
+    line of a rows file is cut off (`rows.drop_unfinished`); when every output
+    passes, the result is returned with its stop and `partial` set, and its files stay as
+    they are. It is not resumed either way.
     """
     if not contracts:
         return backend.run(launch)
@@ -491,8 +568,8 @@ def run_until_valid(
     result: LaunchResult | None = None
     before = {c.resolve(launch.cwd): c.before(launch.cwd) for c in contracts}
     try:
-        result = _loop(backend, resumable, contracts, max_resumes, before)
-        if not result.ok:
+        result = _loop(backend, resumable, contracts, max_resumes, before, frozenset(partial_on))
+        if not (result.ok or result.partial):
             for path, was in before.items():
                 was.restore(path)
         return result
@@ -505,7 +582,12 @@ def run_until_valid(
 
 
 def _loop(
-    backend: Backend, launch: Launch, contracts: Sequence[OutputContract], max_resumes: int, before: Mapping[Path, Before]
+    backend: Backend,
+    launch: Launch,
+    contracts: Sequence[OutputContract],
+    max_resumes: int,
+    before: Mapping[Path, Before],
+    partial_on: frozenset[Stop] = frozenset(),
 ) -> LaunchResult:
     total: LaunchResult | None = None
     rounds = 0
@@ -524,6 +606,11 @@ def _loop(
         total.round_costs = list(costs)
         if total.stop is Stop.COMPLETED:
             total.unwrapped = _write_messages(contracts, launch.cwd, total.result_text)
+        stopped = total.stop in partial_on
+        if stopped:
+            for c in contracts:
+                if _drop_unfinished(c, launch.cwd, before.get(c.resolve(launch.cwd))):
+                    _logger.info(f"[partial] {launch.label}: cut off the unfinished last line of {c.resolve(launch.cwd).as_posix()}")
         checks = check_all(contracts, launch.cwd, before)
         if total.stop is Stop.COMPLETED and not total.result_text.strip():
             for c, chk in zip(contracts, checks, strict=True):
@@ -539,6 +626,7 @@ def _loop(
                 # like a tool call is part of the answer, not a sign of a hollow launch.
                 total.hollow = False
                 total.ok = total.stop is Stop.COMPLETED
+            total.partial = stopped
             return total
         if total.stop is not Stop.COMPLETED:
             return total
@@ -551,6 +639,20 @@ def _loop(
             total.ok = False
             return total
         launch = nxt
+
+
+def _drop_unfinished(contract: OutputContract, cwd: Path, before: Before | None) -> bool:
+    """Cut off the unfinished last line of a rows file the launch wrote (`RowsFile`): one
+    with no newline after it that is not valid JSON, the row being written when the launch
+    was stopped (`rows.drop_unfinished`). A file the launch did not write is left as it is.
+    True when a line was cut off."""
+    if not is_rows(contract.schema) or contract.from_message:
+        return False
+    path = contract.resolve(cwd)
+    stamp = file_stamp(path)
+    if stamp is None or (before is not None and stamp == before.stamp):
+        return False
+    return drop_unfinished(path)
 
 
 def _write_messages(contracts: Sequence[OutputContract], cwd: Path, message: str) -> bool:

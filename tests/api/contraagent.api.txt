@@ -360,6 +360,8 @@ class RoutingError(ContraagentError, ValueError)
     def __init__(self, *errors: str) -> None
     errors: list[str]
 
+class Rows[Row: BaseModel](list[Row])
+
 class RunExists(ContraagentError)
     def __init__(self, run_dir: Path, rows: int)
     rows: int
@@ -576,6 +578,7 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
 ) -> AgentTask[Out]
 @overload
 def agent_task(
@@ -616,6 +619,7 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
 ) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
@@ -655,6 +659,7 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
@@ -764,6 +769,7 @@ class KindConfig
         light: bool = False,
         retries: int = 2,
         retry_backoff_base: float = 2.0,
+        partial_on: tuple[str, ...] = (),
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -782,6 +788,8 @@ class KindConfig
     max_turns: int = 50
     model: str = ''
     model_failover: bool = False
+    partial_on: tuple[str, ...] = ()
+    @property partial_stops: frozenset[Stop]
     requires: tuple[str, ...] = ()
     retries: int = 2
     retry_backoff_base: float = 2.0
@@ -976,7 +984,7 @@ class CallFile(BaseModel)
 
 class CallOutput(BaseModel)
     commands: list[dict[str, Any]] = Field(default_factory=list)
-    format: Literal['json', 'text'] = 'json'
+    format: Literal['json', 'text', 'jsonl'] = 'json'
     from_: Literal['file', 'message'] = Field('file', validation_alias=AliasChoices('from', 'from_'), serialization_alias='from')
     json_schema: dict[str, Any] = Field(default_factory=dict)
     model_config: ConfigDict = ConfigDict(extra='forbid', serialize_by_alias=True)
@@ -1269,6 +1277,7 @@ class LaunchResult
         context_warned: bool = False,
         context_window: int | None = None,
         retryable: bool = True,
+        partial: bool = False,
     ) -> None
     agent: str = ''
     api_key_source: str = ''
@@ -1294,6 +1303,7 @@ class LaunchResult
     num_turns: int | None = None
     ok: bool = False
     other_models: dict[str, OtherModel] = field(default_factory=dict)
+    partial: bool = False
     @property peak_context: int | None
     permission_denials: list[dict[str, Any]] = field(default_factory=list)
     quota: list[QuotaReading] = field(default_factory=list)
@@ -2139,6 +2149,8 @@ def run_until_valid(
     launch: Launch,
     contracts: Sequence[OutputContract],
     max_resumes: int = DEFAULT_MAX_RESUMES,
+    *,
+    partial_on: Collection[Stop] = (),
 ) -> LaunchResult
 
 ## contraagent.plugins
@@ -2602,6 +2614,7 @@ class ContractSpec(Open)
     errors: list[str] = Field(default_factory=list)
     fields: list[ContractField]
     file: FileView
+    format: Literal['json', 'text', 'jsonl'] | None = Field(None, description='what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)')
     fresh: bool | None = None
     io: Literal['output', 'input']
     model_config: ConfigDict = ConfigDict(extra='allow')
@@ -3313,6 +3326,8 @@ class StubAgent(Backend)
         unit: str,
         params: dict[str, Any],
         json_schema: dict[str, Any] | None,
+        *,
+        rows: bool = False,
     ) -> tuple[bool, Any]
     played: list[StubTask]
     def plays(self, kind: str) -> bool
@@ -3372,6 +3387,7 @@ def rate_limited(retry_after_s: float | None = None) -> Reply
 def writes(
     value: Any,
     *,
+    stop: Stop = Stop.COMPLETED,
     cost_usd: float | None = None,
     quota: QuotaReading | None = None,
     peak_context: int | None = None,

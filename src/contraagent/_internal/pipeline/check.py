@@ -27,6 +27,7 @@ from pydantic_core import to_jsonable_python
 from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.contract import example
+from contraagent._internal.contracts.rows import is_rows, row_of
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
 from contraagent._internal.dispatch.task import kind_name
@@ -256,8 +257,9 @@ def _schema_errors(specs: dict[str, Any]) -> list[str]:
             continue
         ref = schema_ref_of(schema)
         if ref is None:
+            model = row_of(schema)  # a rows output is imported by its row
             errs.append(
-                f"{kind}: output {schema.__qualname__} is defined in {schema.__module__}, where the in-session "
+                f"{kind}: output {model.__qualname__} is defined in {model.__module__}, where the in-session "
                 "hook cannot import it; define it at the top level of an importable module"
             )
         else:
@@ -269,13 +271,16 @@ def _schema_errors(specs: dict[str, Any]) -> list[str]:
 
 def _example_errors(specs: dict[str, Any]) -> list[str]:
     """Outputs whose example (`examples` in their JSON Schema, the model's own or a field's)
-    does not pass their own schema: the value a stub run writes (`contraagent.testing.writes_example`)."""
+    does not pass their own schema: the value a stub run writes (`contraagent.testing.writes_example`).
+    The example of rows is one row, its model's."""
     errs: list[str] = []
     for kind, spec in specs.items():
         model = spec.output_schema
         target = model if model is not None else spec.output if spec.executor == "agent" and spec.output is not str else None
         if target is None:
             continue
+        if model is not None and is_rows(model):
+            target = model = row_of(model)
         try:
             adapter = TypeAdapter(target)
             schema = adapter.json_schema()
@@ -382,12 +387,30 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    report.add("contracts", _partial_errors(specs, plan))
     agents = {rc.agent for rc in plan.configs.values()} | {r.agent for router in plan.routers.values() for r in router.routes}
     for agent in sorted(agents):
         backend = pipeline.backends.get(agent)
         if backend is not None and backend.binary and shutil.which(backend.binary, path=backend.base_path()) is None:
             report.warnings.append(f"routing: {agent}: {backend.binary} is not on PATH; its launches would fail")
     _check_models(pipeline, plan, report)
+
+
+def _partial_errors(specs: dict[str, Any], plan: RoutingPlan) -> list[str]:
+    """Kinds whose `partial_on` (given in code or in `[tasks.<kind>]`) can keep nothing: no
+    output, or an output in the final message, which a stopped launch never gives."""
+    errs: list[str] = []
+    for kind, spec in specs.items():
+        rc = plan.configs.get(kind)
+        if rc is None or not rc.partial_on:
+            continue
+        if spec.output is None or spec.output_from != "file":
+            what = "has no output" if spec.output is None else 'gives its output in its final message (output_from="message")'
+            errs.append(
+                f"{kind}: partial_on = {list(rc.partial_on)} keeps the output file a stopped launch wrote, and the task {what}; "
+                f"drop partial_on from agent_task({kind!r}) or [tasks.{kind}]"
+            )
+    return errs
 
 
 def _check_models(pipeline: Pipeline, plan: RoutingPlan, report: CheckReport) -> None:

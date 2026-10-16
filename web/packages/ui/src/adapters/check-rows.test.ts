@@ -1,6 +1,6 @@
 import type { ContractSpec } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { checkRowsFromContract, typeOk } from './check-rows.js';
+import { checkRowsFromContract, rootOf, rowOf, typeOk } from './check-rows.js';
 
 const spec = (content: unknown, extra: Partial<ContractSpec> = {}): ContractSpec =>
   ({
@@ -64,5 +64,13 @@ describe('checkRowsFromContract', () => {
   it('is null for a text result', () => {
     expect(checkRowsFromContract(spec('hi', { schema_name: 'text', fields: [] }))).toBeNull();
     expect(checkRowsFromContract(spec('hi', { schema_name: 'RootModel[str]', fields: [] }))).toBeNull();
+  });
+});
+
+describe('rowOf', () => {
+  it('names the model of one line of a rows schema, and nothing for another schema', () => {
+    expect(rowOf('Rows[Finding]')).toBe('Finding');
+    expect(rowOf('Finding')).toBeNull();
+    expect(rootOf('Rows[Finding]')).toBeNull();
   });
 });

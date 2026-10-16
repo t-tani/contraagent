@@ -11,7 +11,7 @@ written are in `web/AGENTS.md`.
 
 | Code term | UI (English) | UI (Japanese) |
 |---|---|---|
-| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:` (an agent task's, the stop its launch ended on, in words: `Partly done: timed out`); trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
@@ -28,6 +28,7 @@ written are in `web/AGENTS.md`.
 | round after contract errors | correction; tooltip: Another round in the same agent session after failed checks (rounds) | 修正依頼 |
 | hop, failover | model switch; tooltip: A new agent session on the next model after a failed one (Router hops) | モデル切り替え |
 | contract, off-contract, valid | checked file, failed checks, passed (a checked file only; attempts and tasks are done) | 検証対象のファイル, 検証エラー, OK |
+| rows (`ContractSpec.format` `jsonl`: a JSON Lines output, `schema_name` `Rows[Row]`) | JSON Lines, one object of schema `Row` per line; N rows (the lines that parse) | JSON Lines（1 行ごとに JSON オブジェクト、スキーマ `Row`）; N 行 |
 | wall, wall_s | time | 所要時間 |
 | launch | agent session | エージェントのセッション |
 | worker, max_concurrent | running at once | 同時実行 |

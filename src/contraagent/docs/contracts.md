@@ -15,6 +15,64 @@ agent; give it one that passes the validators ([Checking and testing](testing.md
 
 ::code{file="examples/demo/tasks.py" from="class Prepared(BaseModel):" to="def three_points"}
 
+## Rows
+
+An output may be a list that grows as the agent works: the findings of a review,
+the items of a long analysis. `output=Rows[Finding]` declares a JSON Lines file
+whose every line is one `Finding`, a **row**. The prompt asks the agent to add
+each row to the file as soon as it has it, one line at a time, and the call file
+says the format (`output.format` is `jsonl`, and `output.json_schema` is the
+schema of one row). The file is `{kind}/{unit}.jsonl` by default.
+
+::code{file="examples/rows/flow.py" from="class Finding(" to="@python_task"}
+
+Each line is checked against the row's model. A line that does not parse, or does
+not meet the model, fails the whole output, and its errors name the line:
+`line 3: line: Input should be greater than or equal to 1 (got: 0)`. The
+correction round sends those errors back, so the agent corrects the lines named
+and keeps the rest. A file that is one JSON array is named as such. A blank line
+is no row, and a file with no row is an empty list.
+
+As a value, rows are a `Rows`, a `list` of the models in the file's order. A
+validator is given that list, the flow receives it, and a task it is passed to
+gets it: a Python task as a list of models (`list[Finding]`), an agent task as a
+list of JSON objects in its call file. The example a stub run writes is one row,
+the example of the row's model. A Python task may return rows too
+(`-> Rows[Finding]`, returning `Rows([...])`). `preserve` and `unwrap` take a JSON
+document, not rows.
+
+## A launch stopped for its time
+
+The runner stops a launch past its `timeout_s` (`timeout`) or silent for its
+`stall_s` (`stalled`), and the task fails, whatever the agent had written. A long
+task often has written something useful by then. `partial_on` names the stops
+after which it is kept: `agent_task(partial_on=["timeout", "stalled"])`, or
+`partial_on` in `[tasks.<kind>]`.
+
+After such a stop, the output is checked as after any round: it must exist, be
+written by this attempt (a file from an earlier run does not count), and pass its
+schema and every validator. When it passes, the task's result is **partial**, as
+when a Python task returns `Partial`: ok, stop `partial`, its reason the launch's
+stop (`timeout`, `stalled`), and the flow receives the output. The hop keeps the
+launch's own stop. A resume runs the task again, with the tasks that wait for it.
+When the output fails, the task fails on the stop as before; a stopped launch is
+never sent a correction round.
+
+With rows, the rows written so far are the output. A last line with no newline
+after it that is not valid JSON was being written when the launch was stopped:
+the runner removes that line before the check.
+
+::code{file="examples/rows/flow.py" from="review = agent_task(" to="def reviews("}
+
+Only these two stops are kept. Both are the runner's own: it ended the launch for
+time, and the agent said nothing about its work. A turn cap (`max_turns`), a cost
+cap (`budget`) or a context cap (`context_budget`) is a limit a pipeline sets to
+bound a launch's spend, and a refusal, an API error or a refused credential says
+the work went wrong; those fail the task as before. An output in the final message
+does not exist after a stopped launch, so `partial_on` takes an output the agent
+writes to a file; `contraagent check` reports a kind whose config sets it for one
+that does not.
+
 ## Checked twice, by the same rules
 
 - **Inside the session**, on Claude Code and Codex. The plugin's stop hook runs

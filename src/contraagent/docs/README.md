@@ -143,5 +143,5 @@ are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/runner/run.py` runs a flow from a program, with what `contraagent run` cannot pass;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
 other directories of `examples/` (`before/`, `claims/`, `hub/`, `light/`, `panels/`,
-`partial/`, `preserve/`, `retries/`, `scopes/`, `security/`, `skills/`, `time_box/`) are each quoted
+`partial/`, `preserve/`, `retries/`, `rows/`, `scopes/`, `security/`, `skills/`, `time_box/`) are each quoted
 by the topic that explains them. The test suite runs them all.

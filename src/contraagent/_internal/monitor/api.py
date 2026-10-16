@@ -469,8 +469,9 @@ class Plan(Closed):
 
 
 class FileView(Closed):
-    """A contract's file as it is now. `content` is the parsed JSON, else the
-    text (cut at 20 000 characters, `truncated`), else null when unreadable."""
+    """A contract's file as it is now. `content` is the parsed JSON (for rows, the list of
+    the lines that parse), else the text (cut at 20 000 characters, `truncated`), else null
+    when unreadable."""
 
     exists: bool
     size: int = 0
@@ -498,6 +499,9 @@ class ContractSpec(Open):
     io: Literal["output", "input"]
     path: str
     producer: str | None = Field(None, description="input: the key of the task whose output it is")
+    format: Literal["json", "text", "jsonl"] | None = Field(
+        None, description="what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)"
+    )
     schema_name: str
     schema_ref: str = ""
     fresh: bool | None = None

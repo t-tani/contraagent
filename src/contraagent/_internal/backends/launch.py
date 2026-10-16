@@ -32,8 +32,9 @@ STDIN_THRESHOLD = 16_000 if sys.platform == "win32" else 60_000
 
 class Stop(str, enum.Enum):
     """Why one launch ended: exactly one per launch. A task's result (`TaskResult.stop`)
-    holds one of these too, or one of a task's own: `partial` (a Python task's
-    placeholder output, ok), `skipped` (a resume skipped it), `deferred` (not launched)
+    holds one of these too, or one of a task's own: `partial` (ok: a Python task's
+    placeholder output, or what an agent task wrote before its launch was stopped,
+    `LaunchResult.partial`), `skipped` (a resume skipped it), `deferred` (not launched)
     or `duplicate_key` (not queued: a task with the same key was in flight).
 
     `completed`: ran to the end (`ok` still decides success). `timeout`: past `Limits.timeout_s`,
@@ -380,6 +381,10 @@ class LaunchResult:
     #: False when another attempt cannot end otherwise: the stub agent's example
     #: that failed its checks would be written again (`TaskResult.retryable`).
     retryable: bool = True
+    #: True when the launch was stopped on one of the stops its task keeps a partial result
+    #: after (`agent_task(partial_on=)`: its time limit, a stall) and every output it wrote
+    #: passed its checks (`run_until_valid`): `ok` stays False, and the task is partial.
+    partial: bool = False
 
     @property
     def peak_context(self) -> int | None:

@@ -19,7 +19,8 @@ them all):
 
 | Options | For | Topic |
 |---|---|---|
-| `output`, `params`, `validators` | what it takes and leaves behind, and the checks its output must pass | [Contracts](contracts.md) |
+| `output`, `params`, `validators` | what it takes and leaves behind (a model, `str`, or `Rows[Row]`), and the checks its output must pass | [Contracts](contracts.md) |
+| `partial_on` | keeping what a launch wrote when the runner stopped it for its time | [Contracts](contracts.md#a-launch-stopped-for-its-time) |
 | `output_from`, `unwrap`, `tools=()` | an output in the final message; a light launch | [Contracts](contracts.md) |
 | `preserve`, `output_of` | filling in another task's file, and the parts to keep | [Contracts](contracts.md) |
 | `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
@@ -89,6 +90,10 @@ the placeholder. Every other task a resume skips as usual. Annotate the function
 A partial result is not a retry: for a failure a fresh attempt cures, use
 `retries`; when the attempts run out, the exception fails the task. To end with a
 placeholder instead, catch the exception and return `Partial`.
+
+An agent task is partial when the runner stopped its launch for its time and what
+it wrote passes its checks: `agent_task(partial_on=["timeout", "stalled"])`, in
+[Contracts](contracts.md#a-launch-stopped-for-its-time).
 
 ## The flow
 
@@ -484,8 +489,9 @@ empty table when the file has none, or the run has no config file
 
 ## How a task ends
 
-A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
-output, ok; a resume runs it again), `invalid_output` (still off-contract
+A result's `stop` says why: `completed`, `partial` (ok, part of the work: a Python
+task's placeholder output, or what an agent task wrote before its launch was
+stopped, its reason the launch's stop; a resume runs it again), `invalid_output` (still off-contract
 after every correction round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.backends.Stop`, each with its meaning in its docstring.

@@ -10,7 +10,7 @@ import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel,
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
-import { type Tone } from '../../lib/tone.js';
+import { isStop, type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
 import { tagChips, type TranscriptTag } from '@contraagent/elements/transcript';
@@ -48,7 +48,8 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
     }
     case 'partial': {
-      const why = runRelative(last?.reason, c.run);
+      // An agent task's partial reason is the stop its launch ended on (`partial_on`): said in words.
+      const why = last?.reason && isStop(last.reason) ? stopLabel(last.reason) : runRelative(last?.reason, c.run);
       return [why ? msg(str`Partly done: ${why}`) : msg('Partly done'), 'attention'];
     }
     case 'failed': {
