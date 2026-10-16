@@ -1,37 +1,9 @@
 """contraagent: run coding-agent CLIs as typed, supervised, observable tasks.
 
-Think pydantic-ai for coding agents (`claude -p`, `omp -p`, `opencode run`): the agent is
-a subprocess, its contract with you is a set of files it must leave
-behind, and everything around it — scheduling, failover, resume, live
-monitoring — is the framework's job.
+A pipeline declares its tasks (parameters, output, budget), implements each agent task as
+a plugin, and writes the flow as a plain function:
 
-Layers, bottom up (each imports only the ones above it in this list):
-
-* `errors`      `ContraagentError`, the base of every error raised on purpose
-* `docs/`       the documentation, installed with the package: Markdown topics and the
-                examples they quote; `contraagent docs`
-* `dispatch/`   the domain-free `Task`/`TaskResult` envelope and the schedulers:
-                `WorkQueue` (claims, caps, retry, throttle, deadline, bottom level, priority)
-                and `FlowDriver` (generator flows over it); `make_python_task`
-* `backends/`   one coding-agent CLI behind `Backend`: one `Launch` in, one `LaunchResult` out
-* `contracts`   `OutputContract`/`InputContract`: files checked by pydantic and
-                `validators`; `run_until_valid` resumes the session until they hold;
-                `calls`: the call file an agent task is handed; `pointers`: the parts of a
-                JSON output a task keeps (`agent_task(preserve=)`)
-* `routing/`    `PipelineConfig` (one TOML file) -> `RoutingPlan`: per-kind
-                `KindConfig` and failover `Router`, with a preflight
-* `execution/`  `AgentRunner` (one task, with failover), `RetryingRunner`, `PythonTaskRunner`,
-                `TaskAdapter`, `Run` (journal, lock, plan, resume), `CursorStore`
-* `plugins/`    an agent task's implementation, as the coding agent loads it;
-                hooks declared once and rendered into each agent's own hook system
-* `pipeline/`   `agent_task`, `@python_task`, `Pipeline`: the API a pipeline is written in
-* `monitor/`    a read-only live view of a run, as a library and a web UI
-* `hub/`        the runs of many hosts in one monitor: `contraagent relay` ships a host's runs,
-                `contraagent hub` stores them and serves their monitor
-* `testing`     `StubAgent`: a coding agent that plays scripted replies, for tests
-
-A pipeline declares its tasks (parameters, output, budget), implements each
-agent task as a plugin, and writes the flow as a plain function:
+    from contraagent import Pipeline, agent_task
 
     summarize = agent_task("summarize", plugin="plugins/summarize", params=Doc, output=Summary)
 
@@ -40,179 +12,88 @@ agent task as a plugin, and writes the flow as a plain function:
             summarize(u, path=f"in/{u}.md")
 
     Pipeline("pipeline.toml").run(docs, units=["alpha", "beta"])
+
+The public modules: `contraagent` (this one: tasks, flows, the pipeline, validators, the
+values callbacks are given, the errors), `contraagent.config` (credentials, routes,
+budgets, quota readings), `contraagent.backends` (the coding agents), `contraagent.engine`
+(the runners and schedulers underneath a pipeline), `contraagent.plugins`,
+`contraagent.monitor` (with `contraagent.monitor.api`, its HTTP responses) and
+`contraagent.testing`. `contraagent docs` prints the documentation.
 """
 
-from contraagent.backends import (
-    AMBIENT,
-    OMP_PREAMBLE,
-    STDIN_THRESHOLD,
-    ApiKey,
-    Backend,
-    Bedrock,
-    ClaudeBackend,
-    CodexBackend,
-    Credential,
-    CredentialError,
-    Gateway,
-    Launch,
-    LaunchError,
-    LaunchResult,
-    Limits,
-    OAuthToken,
-    OmpBackend,
-    OmpRpcBackend,
-    OpencodeBackend,
-    PiBackend,
-    Pool,
-    RateLimit,
-    Secret,
-    Stop,
-    Subscription,
-    Vertex,
-    WorkloadIdentity,
-    create_backend,
-    register_backend,
-)
-from contraagent.backends.streams import normalize_stream_line, read_stream, register_normalizer
-from contraagent.calls import CallFile
-from contraagent.contracts import InputContract, OutputContract, check_input, run_until_valid
-from contraagent.dispatch import (
-    FlowDriver,
-    Partial,
-    ResultEnricher,
-    Task,
-    TaskDeferred,
-    TaskFailed,
-    TaskResult,
-    TaskScope,
-    TimeBox,
-    WorkQueue,
-    kind_name,
-    make_python_task,
-    time_box,
-)
-from contraagent.errors import ContraagentError
-from contraagent.execution import (
-    AgentRunner,
-    CursorStore,
-    NoCurrentRun,
-    PythonTaskRunner,
-    RetryingRunner,
-    Run,
-    RunExists,
-    RunLocked,
-    TaskAdapter,
-    log,
-    pipeline_table,
-    save,
-)
-from contraagent.pipeline import CheckReport, Implementations, Pending, Pipeline, RunReport, TooManyPasses, agent_task, python_task
-from contraagent.plugins import Plugin, PluginError
-from contraagent.routing import (
-    ConfigError,
-    KindConfig,
-    Overrides,
-    PerTask,
-    PipelineConfig,
-    PreflightPolicy,
-    PreflightRecord,
-    PreflightStopped,
-    Route,
-    Router,
-    RoutingError,
-    RoutingPlan,
-    configs_from_tables,
-    require_budgets,
-)
-from contraagent.validators import CommandValidator
+from contraagent._internal.backends.credentials import CredentialError
+from contraagent._internal.backends.process import LaunchError
+from contraagent._internal.contracts.validators import CommandValidator, Validator
+from contraagent._internal.dispatch.flow import TaskDeferred, TaskFailed, time_box
+from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
+from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SkippedHop, TokenUsage
+from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResult, TimeBox
+from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
+from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
+from contraagent._internal.execution.recording import RecordingError
+from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
+from contraagent._internal.pipeline.check import CheckReport
+from contraagent._internal.pipeline.graph import Pending, TextOutput, TooManyPasses
+from contraagent._internal.pipeline.pipeline import Pipeline, RunReport
+from contraagent._internal.pipeline.spec import AgentTask, PythonTask, agent_task, python_task
+from contraagent._internal.plugins.plugin import PluginError
+from contraagent._internal.public import publish
+from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
+from contraagent._internal.routing.plan import Overrides, RoutingError
+from contraagent._internal.routing.preflight import PreflightStopped
+from contraagent._internal.routing.quota import QuotaRule
 
 __all__ = [
-    "AMBIENT",
-    "OMP_PREAMBLE",
-    "STDIN_THRESHOLD",
-    "AgentRunner",
-    "ApiKey",
-    "Backend",
-    "Bedrock",
-    "CallFile",
+    "AgentTask",
+    "Changes",
     "CheckReport",
-    "ClaudeBackend",
-    "CodexBackend",
     "CommandValidator",
     "ConfigError",
+    "ContraagentDeprecationWarning",
     "ContraagentError",
-    "Credential",
     "CredentialError",
-    "CursorStore",
-    "FlowDriver",
-    "Gateway",
-    "Implementations",
-    "InputContract",
-    "KindConfig",
-    "Launch",
+    "DeferralCause",
+    "Frame",
+    "Hop",
     "LaunchError",
-    "LaunchResult",
-    "Limits",
+    "Loop",
     "NoCurrentRun",
-    "OAuthToken",
-    "OmpBackend",
-    "OmpRpcBackend",
-    "OpencodeBackend",
-    "OutputContract",
+    "Origin",
+    "OtherModel",
     "Overrides",
     "Partial",
     "Pending",
     "PerTask",
-    "PiBackend",
     "Pipeline",
     "PipelineConfig",
-    "Plugin",
-    "PreflightPolicy",
-    "PreflightRecord",
-    "PreflightStopped",
     "PluginError",
-    "Pool",
-    "PythonTaskRunner",
-    "RateLimit",
+    "PreflightStopped",
+    "PythonTask",
+    "QuotaRule",
+    "RecordingError",
     "ResultEnricher",
-    "RetryingRunner",
-    "Route",
-    "Router",
     "RoutingError",
-    "RoutingPlan",
-    "Run",
     "RunExists",
+    "RunFormatError",
     "RunLocked",
     "RunReport",
-    "Secret",
-    "Stop",
-    "Subscription",
+    "SkippedHop",
     "Task",
-    "TaskAdapter",
     "TaskDeferred",
     "TaskFailed",
     "TaskResult",
     "TaskScope",
+    "TextOutput",
     "TimeBox",
+    "TokenUsage",
     "TooManyPasses",
-    "Vertex",
-    "WorkQueue",
-    "WorkloadIdentity",
+    "Validator",
     "agent_task",
-    "check_input",
-    "configs_from_tables",
-    "create_backend",
-    "kind_name",
     "log",
-    "make_python_task",
-    "normalize_stream_line",
     "pipeline_table",
     "python_task",
-    "read_stream",
-    "register_backend",
-    "register_normalizer",
-    "require_budgets",
-    "run_until_valid",
     "save",
     "time_box",
 ]
+
+publish(__name__, __all__)

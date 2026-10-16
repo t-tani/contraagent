@@ -22,7 +22,7 @@ export class CaHosts extends LitElement {
   static override styles = [
     base,
     css`
-      :host { display: block; }
+      :host { display: block; container-type: inline-size; }
       .g12 { align-content: start; }
       table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
       th, td { text-align: start; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: baseline; }
@@ -31,7 +31,7 @@ export class CaHosts extends LitElement {
       .num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
       td.runs { color: var(--text-2); }
       /* Narrow: one block per host, each value under its column's name. */
-      @media (max-width: 640px) {
+      @container (max-width: 640px) {
         thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
         tr { display: block; padding: 8px 0; border-top: 1px solid var(--line); }
         tbody tr:first-child { border-top: 0; }
@@ -77,7 +77,7 @@ export class CaHosts extends LitElement {
       </section>
       ${quota.length
         ? html`<section class="panel c12 enter">
-            <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
+            <h3 title=${msg('Account-wide | read at each agent session start')}>
               ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
             <ca-quota .accounts=${quota} .rests=${quota.flatMap((a) => a.rests ?? [])} live></ca-quota>
           </section>`

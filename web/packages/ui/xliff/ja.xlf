@@ -34,18 +34,6 @@
   <source><x id="0" equiv-text="${keys.length}"/> items: <x id="1" equiv-text="${names}"/></source>
   <target>要素 <x id="0" equiv-text="${keys.length}"/> 個: <x id="1" equiv-text="${names}"/></target>
 </trans-unit>
-<trans-unit id="s7081cf6429d6e736">
-  <source>loop pass <x id="0" equiv-text="${x.loop_pass}"/></source>
-  <target>ループ <x id="0" equiv-text="${x.loop_pass}"/> 周目</target>
-</trans-unit>
-<trans-unit id="s83a117a0e5a969a7">
-  <source>1 step completed</source>
-  <target>1 ステップ完了</target>
-</trans-unit>
-<trans-unit id="s42c16f17debe21c7">
-  <source><x id="0" equiv-text="${x.completed.length}"/> steps completed</source>
-  <target><x id="0" equiv-text="${x.completed.length}"/> ステップ完了</target>
-</trans-unit>
 <trans-unit id="sd7338946b42394f4">
   <source>failed</source>
   <target>失敗</target>
@@ -170,10 +158,6 @@
   <source>context limit reached</source>
   <target>コンテキストの上限</target>
 </trans-unit>
-<trans-unit id="s7cfd548e0b7e3ad7">
-  <source>stalled (no output)</source>
-  <target>出力が止まった</target>
-</trans-unit>
 <trans-unit id="s90f3ce6dfe4ed0ce">
   <source>authentication failed</source>
   <target>認証エラー</target>
@@ -201,10 +185,6 @@
 <trans-unit id="s9d60d7651126c205">
   <source>ended without a result</source>
   <target>最終応答なしで終了</target>
-</trans-unit>
-<trans-unit id="sffb00562b267f0a5">
-  <source>could not start the agent</source>
-  <target>エージェントの起動に失敗</target>
 </trans-unit>
 <trans-unit id="s6d739294ba8eba32">
   <source><x id="0" equiv-text="${c.doneTotal}"/> of <x id="1" equiv-text="${c.total}"/> tasks done</source>
@@ -362,10 +342,6 @@
   <source>Inputs</source>
   <target>入力</target>
 </trans-unit>
-<trans-unit id="sce26f796a9b94ef1">
-  <source>Files each task reads, checked when the task starts</source>
-  <target>各タスクが読み込むファイル（タスクの開始時に検証）</target>
-</trans-unit>
 <trans-unit id="s6647f4305129ff48">
   <source>No file</source>
   <target>ファイルなし</target>
@@ -414,10 +390,6 @@
   <source>attempts with corrections</source>
   <target>修正依頼のあった試行</target>
 </trans-unit>
-<trans-unit id="s4156c144093d2565">
-  <source>Attempts with at least one correction</source>
-  <target>修正依頼が 1 回以上あった試行</target>
-</trans-unit>
 <trans-unit id="s8b14867a2824dc66">
   <source>tasks retried</source>
   <target>リトライしたタスク</target>
@@ -438,17 +410,9 @@
   <source>Agent, model, identity</source>
   <target>エージェント・モデル・認証情報</target>
 </trans-unit>
-<trans-unit id="s3afd657caafb54ce">
-  <source>Input / output tokens, then cache read / cache write</source>
-  <target>上段は入力 / 出力トークン、下段はキャッシュ読み込み / キャッシュ書き込み</target>
-</trans-unit>
 <trans-unit id="saa29a2ac03cd9d19">
   <source>Reason</source>
   <target>理由</target>
-</trans-unit>
-<trans-unit id="s1b5c88ed6d70d50e">
-  <source>The task was done on attempt <x id="0" equiv-text="${n}"/></source>
-  <target>タスクは <x id="0" equiv-text="${n}"/> 回目で完了</target>
 </trans-unit>
 <trans-unit id="s9ff6bfdb36b47dd6">
   <source>Model switch</source>
@@ -457,10 +421,6 @@
 <trans-unit id="s1c4244f27dc0a0ad">
   <source>Usage at session start (account-wide): <x id="0" equiv-text="${accountReading(start)}"/></source>
   <target>セッション開始時の利用率（アカウント全体）: <x id="0" equiv-text="${accountReading(start)}"/></target>
-</trans-unit>
-<trans-unit id="s8eec5711640b68b9">
-  <source>Event types from the coding agent that this contraagent version does not recognize: <x id="0" equiv-text="${unread}"/></source>
-  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの: <x id="0" equiv-text="${unread}"/></target>
 </trans-unit>
 <trans-unit id="s47c42ef44972974f">
   <source>Unrecognized events</source>
@@ -481,10 +441,6 @@
 <trans-unit id="sca4ca1724004c913">
   <source>No processes</source>
   <target>プロセスなし</target>
-</trans-unit>
-<trans-unit id="s9709015aaaed72e8">
-  <source>run not running</source>
-  <target>実行中ではありません</target>
 </trans-unit>
 <trans-unit id="sed0a4ed4fcf1c063">
   <source>One per task (Backend.run)</source>
@@ -542,17 +498,9 @@
   <source>Attempts that ran</source>
   <target>実行した試行の回数</target>
 </trans-unit>
-<trans-unit id="sbed050affb1455dd">
-  <source>Sum over all attempts</source>
-  <target>全試行の合計</target>
-</trans-unit>
 <trans-unit id="s48e186fb300e5464">
   <source>Time</source>
   <target>所要時間</target>
-</trans-unit>
-<trans-unit id="s6338c9c6cf8d4720">
-  <source>Input and output tokens, all attempts</source>
-  <target>入力・出力トークン（全試行）</target>
 </trans-unit>
 <trans-unit id="scb967cb2ce8bd344">
   <source>Last attempt ended</source>
@@ -578,10 +526,6 @@
   <source>Failed attempts</source>
   <target>失敗した試行</target>
 </trans-unit>
-<trans-unit id="sff6ef2732281bb26">
-  <source>All attempts passed</source>
-  <target>すべての試行が成功</target>
-</trans-unit>
 <trans-unit id="sbe299a9270c76655">
   <source>Failed attempts in history</source>
   <target>実行履歴の失敗した試行</target>
@@ -594,17 +538,9 @@
   <source>All tasks started</source>
   <target>すべてのタスクが開始済み</target>
 </trans-unit>
-<trans-unit id="s630a7291de06d7e3">
-  <source>Not-started tasks in history</source>
-  <target>実行履歴の未実行のタスク</target>
-</trans-unit>
 <trans-unit id="sb9c8c7e97598bc93">
   <source>Python tasks: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></source>
   <target>Python タスク: <x id="0" equiv-text="${fmtDur(k.pythonWall)}"/></target>
-</trans-unit>
-<trans-unit id="s6f6ef83186f41f9c">
-  <source>Sum over all agent sessions, including ones running at once</source>
-  <target>すべてのエージェントのセッションの合計（同時実行の分も含む）</target>
 </trans-unit>
 <trans-unit id="s84fb675fb17d4455">
   <source>Retries</source>
@@ -613,10 +549,6 @@
 <trans-unit id="sdf452c95fdeb4be0">
   <source>No retries</source>
   <target>リトライなし</target>
-</trans-unit>
-<trans-unit id="sbce72abc083f229d">
-  <source>Attempts after a failed attempt, each in a new agent session (RetryingRunner)</source>
-  <target>失敗した試行の後の試行（毎回新しいエージェントのセッション、RetryingRunner）</target>
 </trans-unit>
 <trans-unit id="sae675aed0baadfc5">
   <source>Retried tasks in history</source>
@@ -630,10 +562,6 @@
   <source>No corrections</source>
   <target>修正依頼なし</target>
 </trans-unit>
-<trans-unit id="sd794d5178cc31502">
-  <source>More rounds in the same agent session after the output failed checks (rounds)</source>
-  <target>出力が検証エラーになった後の、同じエージェントのセッションでの追加のラウンド（rounds）</target>
-</trans-unit>
 <trans-unit id="sb067d7b999cdf867">
   <source>Attempts with corrections in history</source>
   <target>実行履歴の修正依頼のあった試行</target>
@@ -645,10 +573,6 @@
 <trans-unit id="s8162d2730a5efc31">
   <source>No model switches</source>
   <target>モデル切り替えなし</target>
-</trans-unit>
-<trans-unit id="s02044ab83f193b3b">
-  <source>To the next model after a failure such as a rate limit, an error or a timeout (Router hops)</source>
-  <target>レート制限、エラー、タイムアウトなどで失敗した後の、次のモデルへの切り替え（Router のホップ）</target>
 </trans-unit>
 <trans-unit id="s367d079d1aed1358">
   <source>Cost</source>
@@ -690,10 +614,6 @@
   <source>Loading…</source>
   <target>読み込み中…</target>
 </trans-unit>
-<trans-unit id="s500fd71a4232050e">
-  <source>Empty</source>
-  <target>空</target>
-</trans-unit>
 <trans-unit id="s9fbbc819fe7e66aa">
   <source>Run</source>
   <target>実行</target>
@@ -729,10 +649,6 @@
 <trans-unit id="s5b91c14a6a040e1e">
   <source>Tokens and cost by kind</source>
   <target>種別ごとのトークンと料金</target>
-</trans-unit>
-<trans-unit id="s06bab80ab006c3bc">
-  <source>Reported at each agent session start. Account-wide: every task that runs at once shares it.</source>
-  <target>エージェントのセッション開始時に報告された値です。アカウント全体の値で、同時に実行中のタスクすべてに共通です。</target>
 </trans-unit>
 <trans-unit id="sb0c5ebf2450daf53">
   <source>Subscription usage</source>
@@ -826,10 +742,6 @@
   <source>No stage</source>
   <target>ステージなし</target>
 </trans-unit>
-<trans-unit id="s7c08c2107990421e">
-  <source>Show <x id="0" equiv-text="${p.title || p.name}"/></source>
-  <target><x id="0" equiv-text="${p.title || p.name}"/> を表示</target>
-</trans-unit>
 <trans-unit id="s2f3c9db4daa3e192">
   <source>No problems</source>
   <target>問題なし</target>
@@ -841,14 +753,6 @@
 <trans-unit id="s605757aea05668c5">
   <source><x id="0" equiv-text="${stopped.length}"/> later tasks not started</source>
   <target>未実行の後続タスク <x id="0" equiv-text="${stopped.length}"/> 件</target>
-</trans-unit>
-<trans-unit id="s7ccddac9af610a9c">
-  <source>Done on attempt <x id="0" equiv-text="${n}"/> after 1 failed attempt</source>
-  <target><x id="0" equiv-text="${n}"/> 回目で完了（失敗 1 回）</target>
-</trans-unit>
-<trans-unit id="sa65ede9447b8f6f0">
-  <source>Done on attempt <x id="0" equiv-text="${n}"/> after <x id="1" equiv-text="${fails}"/> failed attempts</source>
-  <target><x id="0" equiv-text="${n}"/> 回目で完了（失敗 <x id="1" equiv-text="${fails}"/> 回）</target>
 </trans-unit>
 <trans-unit id="sff660af26c203189">
   <source>No tasks scheduled yet</source>
@@ -873,10 +777,6 @@
 <trans-unit id="s9b1a610c6b10af9d">
   <source>Not running</source>
   <target>実行中ではありません</target>
-</trans-unit>
-<trans-unit id="s46f1d86ffec6223c">
-  <source>Finished with errors</source>
-  <target>エラーで終了</target>
 </trans-unit>
 <trans-unit id="sbb99d4ec27fbb263">
   <source>Finished</source>
@@ -954,10 +854,6 @@
   <source>Idle</source>
   <target>空き</target>
 </trans-unit>
-<trans-unit id="s6c80deca380c99b3">
-  <source>No task</source>
-  <target>タスクなし</target>
-</trans-unit>
 <trans-unit id="s2f54740b39931f87">
   <source>No definition</source>
   <target>定義なし</target>
@@ -1018,29 +914,9 @@
   <source>Show source</source>
   <target>ソースを表示</target>
 </trans-unit>
-<trans-unit id="s448ad430047b3ff5">
-  <source>The file passed its checks</source>
-  <target>ファイルの検証: OK</target>
-</trans-unit>
-<trans-unit id="sd5a8fb496330927a">
-  <source>The file failed its checks</source>
-  <target>ファイルに検証エラー</target>
-</trans-unit>
 <trans-unit id="sba8659178319945b">
   <source>The task failed before it wrote a file that passes its checks</source>
   <target>検証を通るファイルを書き込む前に、タスクが失敗</target>
-</trans-unit>
-<trans-unit id="s2ec303c39937657c">
-  <source>The task is running</source>
-  <target>タスクは実行中</target>
-</trans-unit>
-<trans-unit id="s7ae683e966f797d8">
-  <source>The task is waiting</source>
-  <target>タスクは待機中</target>
-</trans-unit>
-<trans-unit id="s2cf203a7f1d1b7cb">
-  <source>Correction: another round in the same agent session after the output failed checks</source>
-  <target>修正依頼: 出力が検証エラーになった後の、同じエージェントのセッションでの次のラウンド</target>
 </trans-unit>
 <trans-unit id="s87cfcf0fecad5ace">
   <source>after 1 correction</source>
@@ -1218,10 +1094,6 @@
   <source>Search runs</source>
   <target>実行を検索</target>
 </trans-unit>
-<trans-unit id="scf1f6260b486064d">
-  <source>No runs match</source>
-  <target>一致する実行なし</target>
-</trans-unit>
 <trans-unit id="sdc40078597054827">
   <source>Run group <x id="0" equiv-text="${r.run_group}"/></source>
   <target>実行グループ <x id="0" equiv-text="${r.run_group}"/></target>
@@ -1246,10 +1118,6 @@
   <source>No transcript</source>
   <target>トランスクリプトなし</target>
 </trans-unit>
-<trans-unit id="sf6e66e6e9a5d83ff">
-  <source>Transcript not saved (keep_transcripts = false)</source>
-  <target>トランスクリプトは保存されていません（keep_transcripts = false）</target>
-</trans-unit>
 <trans-unit id="s123b7254b44dd148">
   <source>Waiting</source>
   <target>待機中</target>
@@ -1266,14 +1134,6 @@
   <source>Failed: <x id="0" equiv-text="${why}"/></source>
   <target>失敗: <x id="0" equiv-text="${why}"/></target>
 </trans-unit>
-<trans-unit id="s423b98420bc4f51a">
-  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> after 1 failed attempt. First failure: <x id="1" equiv-text="${why}"/></source>
-  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了（失敗 1 回）。最初の失敗: <x id="1" equiv-text="${why}"/></target>
-</trans-unit>
-<trans-unit id="s3f6e4868742b58de">
-  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> after <x id="1" equiv-text="${fails.length}"/> failed attempts. First failure: <x id="2" equiv-text="${why}"/></source>
-  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了（失敗 <x id="1" equiv-text="${fails.length}"/> 回）。最初の失敗: <x id="2" equiv-text="${why}"/></target>
-</trans-unit>
 <trans-unit id="sfadf0e9dfc4b3030">
   <source>Done after 1 correction</source>
   <target>修正依頼 1 回で完了</target>
@@ -1281,14 +1141,6 @@
 <trans-unit id="s97c3c9984ad4bbbc">
   <source>Done after <x id="0" equiv-text="${corrections}"/> corrections</source>
   <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了</target>
-</trans-unit>
-<trans-unit id="s22d4df747c023383">
-  <source>Done after 1 correction. First failed check: <x id="0" equiv-text="${first}"/></source>
-  <target>修正依頼 1 回で完了。最初の検証エラー: <x id="0" equiv-text="${first}"/></target>
-</trans-unit>
-<trans-unit id="s229e98b8f3010c9f">
-  <source>Done after <x id="0" equiv-text="${corrections}"/> corrections. First failed check: <x id="1" equiv-text="${first}"/></source>
-  <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了。最初の検証エラー: <x id="1" equiv-text="${first}"/></target>
 </trans-unit>
 <trans-unit id="s87b0c0d87ec9c3a1">
   <source>Done after a model switch: <x id="0" equiv-text="${sw}"/></source>
@@ -1314,10 +1166,6 @@
   <source><x id="0" equiv-text="${launches.length}"/> agent sessions running</source>
   <target>実行中のエージェントのセッション <x id="0" equiv-text="${launches.length}"/> 件</target>
 </trans-unit>
-<trans-unit id="sdd0fb64c2928422f">
-  <source>Event types from the coding agent that this contraagent version does not recognize</source>
-  <target>コーディングエージェントのイベント種別のうち、このバージョンの contraagent が対応していないもの</target>
-</trans-unit>
 <trans-unit id="s79a4abd140c07a19">
   <source>Unrecognized events: <x id="0" equiv-text="${unreadEvents(tries)}"/></source>
   <target>未対応のイベント: <x id="0" equiv-text="${unreadEvents(tries)}"/></target>
@@ -1329,10 +1177,6 @@
 <trans-unit id="sfe9c9abcded61e50">
   <source>Process <x id="0" equiv-text="${lc.pid ?? '—'}"/></source>
   <target>プロセス <x id="0" equiv-text="${lc.pid ?? '—'}"/></target>
-</trans-unit>
-<trans-unit id="sa12ff035c78855af">
-  <source>What the coding agent authenticated as: an account or an API key (credential)</source>
-  <target>コーディングエージェントが認証に使ったアカウントまたは API キー（credential）</target>
 </trans-unit>
 <trans-unit id="s3700ce266079b566">
   <source>1 web search</source>
@@ -1373,10 +1217,6 @@
 <trans-unit id="s7b16665b242b03f9">
   <source>No input files</source>
   <target>入力ファイルなし</target>
-</trans-unit>
-<trans-unit id="sd68011705bf4b72f">
-  <source>Prompt not saved (keep_transcripts = false)</source>
-  <target>プロンプトは保存されていません（keep_transcripts = false）</target>
 </trans-unit>
 <trans-unit id="s09bb59cd137c1af4">
   <source>No prompt</source>
@@ -1530,14 +1370,6 @@
   <source>first agent session</source>
   <target>最初のエージェントのセッション</target>
 </trans-unit>
-<trans-unit id="s769a35c122b0add4">
-  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>; switched to <x id="2" equiv-text="${r.switchedTo}"/></source>
-  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>、<x id="2" equiv-text="${r.switchedTo}"/> に切り替え</target>
-</trans-unit>
-<trans-unit id="s2ac18b95949a85cb">
-  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>; switched to the next model</source>
-  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/>、次のモデルに切り替え</target>
-</trans-unit>
 <trans-unit id="s09323b2ac0a8afed">
   <source>Output passed checks</source>
   <target>出力の検証: OK</target>
@@ -1549,10 +1381,6 @@
 <trans-unit id="se2788d18bd1f9873">
   <source>The CLI that ran the task (claude, omp)</source>
   <target>タスクを実行した CLI（claude、omp）</target>
-</trans-unit>
-<trans-unit id="s7ff1975047cd672c">
-  <source>The language model the coding agent used</source>
-  <target>コーディングエージェントが使ったモデル</target>
 </trans-unit>
 <trans-unit id="sec749d36a5ebf2a6">
   <source>The agent definition the coding agent ran as (agents/&lt;role&gt;.md)</source>
@@ -1746,14 +1574,6 @@
   <source><x id="0" equiv-text="${x.label}"/> in the loop</source>
   <target>ループ内の <x id="0" equiv-text="${x.label}"/></target>
 </trans-unit>
-<trans-unit id="s95f6abd3bc028e9c">
-  <source>Waits for <x id="0" equiv-text="${listText(waits)}"/></source>
-  <target>依存先: <x id="0" equiv-text="${waits.join(', ')}"/></target>
-</trans-unit>
-<trans-unit id="s947887a004e02e33">
-  <source>Created after <x id="0" equiv-text="${listText(after)}"/></source>
-  <target>作成元: <x id="0" equiv-text="${after.join(', ')}"/></target>
-</trans-unit>
 <trans-unit id="sa0a6e71350fd953b">
   <source>waits for output</source>
   <target>出力を待つ</target>
@@ -1902,17 +1722,9 @@
   <source><x id="0" equiv-text="${k.retriedTasks}"/> tasks retried</source>
   <target>リトライしたタスク <x id="0" equiv-text="${k.retriedTasks}"/> 件</target>
 </trans-unit>
-<trans-unit id="s5b2aca393ddc3642">
-  <source>1 task with corrections</source>
-  <target>修正依頼のあったタスク 1 件</target>
-</trans-unit>
 <trans-unit id="s7239ff29fb5724bc">
   <source><x id="0" equiv-text="${k.fixupTasks}"/> tasks with corrections</source>
   <target>修正依頼のあったタスク <x id="0" equiv-text="${k.fixupTasks}"/> 件</target>
-</trans-unit>
-<trans-unit id="s1198336b172c6e1a">
-  <source>1 task with model switches</source>
-  <target>モデル切り替えのあったタスク 1 件</target>
 </trans-unit>
 <trans-unit id="s0cf77430f4bd7c5c">
   <source><x id="0" equiv-text="${k.switchTasks}"/> tasks with model switches</source>
@@ -1950,14 +1762,6 @@
   <source>not written yet (task waiting)</source>
   <target>書き込み待ち（タスクが待機中）</target>
 </trans-unit>
-<trans-unit id="s81816ae715e0080c">
-  <source>The task did not start because an input was missing or failed checks</source>
-  <target>入力ファイルの不足または検証エラーで、タスクは未実行</target>
-</trans-unit>
-<trans-unit id="s2b82c03a0f482d56">
-  <source>An input was missing or failed checks</source>
-  <target>入力ファイルの不足または検証エラー</target>
-</trans-unit>
 <trans-unit id="sb6bb16aa7550533d">
   <source>Must be written during the task</source>
   <target>タスク実行中の書き込みが必須</target>
@@ -1974,22 +1778,6 @@
   <source>Check time</source>
   <target>検証のタイミング</target>
 </trans-unit>
-<trans-unit id="sfddde3643e5505f4">
-  <source>Attempt: a new agent session</source>
-  <target>試行: 新しいエージェントのセッション</target>
-</trans-unit>
-<trans-unit id="s2073c04640f9ffe1">
-  <source>Correction: the same agent session after failed checks</source>
-  <target>修正依頼: 検証エラー後の、同じエージェントのセッション</target>
-</trans-unit>
-<trans-unit id="s81784b8f13a711a6">
-  <source>Model switch: a new agent session on the next model</source>
-  <target>モデル切り替え: 次のモデルでの新しいエージェントのセッション</target>
-</trans-unit>
-<trans-unit id="s34970ae2312009f5">
-  <source>The errors are in the correction prompt</source>
-  <target>エラーの内容は修正依頼のプロンプトに記載</target>
-</trans-unit>
 <trans-unit id="sfd313341ca75a38d">
   <source><x id="0" equiv-text="${n}"/> done after retrying</source>
   <target>リトライ後に完了 <x id="0" equiv-text="${n}"/> 件</target>
@@ -2005,10 +1793,6 @@
 <trans-unit id="s9e8afbe69b10d822">
   <source>not started (input failed checks)</source>
   <target>未実行（入力ファイルに検証エラー）</target>
-</trans-unit>
-<trans-unit id="s0dbd76eb398aa733">
-  <source>not started (input missing or failed checks)</source>
-  <target>未実行（入力ファイルの不足または検証エラー）</target>
 </trans-unit>
 <trans-unit id="s6c86e2a18e78587f">
   <source>earlier task <x id="0" equiv-text="${kindUnit(c)}"/> failed</source>
@@ -2057,10 +1841,6 @@
 <trans-unit id="s52c75c50315f2111">
   <source>next pass</source>
   <target>次の周</target>
-</trans-unit>
-<trans-unit id="s9cb681a778c29f1b">
-  <source>has an inner view</source>
-  <target>内部の表示あり</target>
 </trans-unit>
 <trans-unit id="s05548eaadd7b3e53">
   <source>Selected item</source>
@@ -2169,10 +1949,6 @@
 <trans-unit id="s454c0dcbb0dffc2f">
   <source>Passes of the loop at <x id="0" equiv-text="${where(b.loop, b.file)}"/></source>
   <target><x id="0" equiv-text="${where}"/> のループの各周</target>
-</trans-unit>
-<trans-unit id="sda7d6c86fb627ba9">
-  <source>Tasks retried after a failed attempt</source>
-  <target>失敗した回のあとにリトライしたタスク</target>
 </trans-unit>
 <trans-unit id="hca6c01d40814d5b0">
   <source>Running <x id="0" equiv-text="${acts.slice(0, 3).map((a) =&gt; taskChip(host, kindUnit(a), { key: a.key }))}${acts.length &gt; 3 ? html ` &lt;span&gt;+${acts.length - 3}&lt;/span&gt;` : nothing}"/></source>
@@ -2416,10 +2192,6 @@
   <source>Files under the task's declared patterns that its attempts created, modified or deleted (changes)</source>
   <target>タスクが宣言したパターンの下で、試行が作成・変更・削除したファイル（changes）</target>
 </trans-unit>
-<trans-unit id="s223237cc8c577db8">
-  <source>A run whose tasks the stub agent played with scripted replies, not a model (stub)</source>
-  <target>モデルを使わず、スタブエージェントが台本の応答で各タスクを処理した実行（stub）</target>
-</trans-unit>
 <trans-unit id="s70348dd289d771d5">
   <source>paused until <x id="0" equiv-text="${localTime(now.until, true)}"/></source>
   <target><x id="0" equiv-text="${localTime(now.until, true)}"/> まで休止</target>
@@ -2597,10 +2369,6 @@
   <source>Other models</source>
   <target>その他のモデル</target>
 </trans-unit>
-<trans-unit id="s7a6b70474c79f877">
-  <source>The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.</source>
-  <target>エージェントのセッションを、動いたモデルごとに集計したもの。モデル切り替えがあれば、切り替えの前後をそれぞれのモデルで数える。Python タスクはモデルを使わない。</target>
-</trans-unit>
 <trans-unit id="s59159edc6e9654d1">
   <source>5-hour</source>
   <target>5 時間枠</target>
@@ -2717,10 +2485,6 @@
   <source>Trends</source>
   <target>推移</target>
 </trans-unit>
-<trans-unit id="s05c8009460057241">
-  <source>Cost, tasks and models over the runs of a period</source>
-  <target>期間内の実行の料金・タスク・モデル</target>
-</trans-unit>
 <trans-unit id="sc9757b387904aaba">
   <source>Time zone</source>
   <target>タイムゾーン</target>
@@ -2728,10 +2492,6 @@
 <trans-unit id="sf7e6e6be222007c3">
   <source>All run groups</source>
   <target>すべての実行グループ</target>
-</trans-unit>
-<trans-unit id="sf39e32f2714673d9">
-  <source>Passed</source>
-  <target>成功</target>
 </trans-unit>
 <trans-unit id="s38e6a13eab00995b">
   <source>Cost by day</source>
@@ -2753,10 +2513,6 @@
   <source>Tasks</source>
   <target>タスク</target>
 </trans-unit>
-<trans-unit id="sda51677b3165358b">
-  <source>Tasks passed</source>
-  <target>成功したタスク</target>
-</trans-unit>
 <trans-unit id="sf03233d91a50e834">
   <source>Median time</source>
   <target>所要時間の中央値</target>
@@ -2768,14 +2524,6 @@
 <trans-unit id="sfd77270c3f54f664">
   <source>Output</source>
   <target>出力</target>
-</trans-unit>
-<trans-unit id="sdd25e8feb052173f">
-  <source>Attempts that did not complete</source>
-  <target>完了しなかった試行</target>
-</trans-unit>
-<trans-unit id="s23abb58d8b90bb52">
-  <source>Refused tool calls</source>
-  <target>拒否されたツール呼び出し</target>
 </trans-unit>
 <trans-unit id="s5a71f1fb3a12c6a7">
   <source>Tool</source>
@@ -2808,10 +2556,6 @@
 <trans-unit id="s28add9c74fb1b7ef">
   <source>By weekday and hour, in the period's time zone</source>
   <target>曜日と時刻ごと（期間のタイムゾーン）</target>
-</trans-unit>
-<trans-unit id="s1f8825d28510387f">
-  <source>Passed <x id="0" equiv-text="${pctText}"/></source>
-  <target>成功 <x id="0" equiv-text="${pctText}"/></target>
 </trans-unit>
 <trans-unit id="sc3e8e7f06031088e">
   <source>No runs in this period</source>
@@ -2936,10 +2680,6 @@
   <source>near the context limit</source>
   <target>コンテキストの上限に接近</target>
 </trans-unit>
-<trans-unit id="se7e80ddfa3d91161">
-  <source>Peak context past the warning threshold of the context limit (context_warned)</source>
-  <target>最大コンテキストがコンテキストの上限の警告しきい値を超えた（context_warned）</target>
-</trans-unit>
 <trans-unit id="s2cd5d653677e6881">
   <source>Model availability</source>
   <target>モデルの利用可否</target>
@@ -2996,25 +2736,13 @@
   <source>Agent sessions played from the recordings in <x id="0" equiv-text="${dir}"/> (replay)</source>
   <target><x id="0" equiv-text="${dir}"/> の記録から再生したエージェントのセッション（replay）</target>
 </trans-unit>
-<trans-unit id="s11336c749ccd6f69">
-  <source>Attempts after the first (retries)</source>
-  <target>初回の後の試行（retries）</target>
-</trans-unit>
 <trans-unit id="sc077f054c21331e6">
   <source>Retried exceptions</source>
   <target>リトライ対象の例外</target>
 </trans-unit>
-<trans-unit id="s6fc5b5c330b47565">
-  <source>Exception classes after which an attempt is retried (retry_on)</source>
-  <target>発生すると次の試行に移る例外クラス（retry_on）</target>
-</trans-unit>
 <trans-unit id="s64f4ede4c120d468">
   <source>Must stay unchanged</source>
   <target>変更禁止の箇所</target>
-</trans-unit>
-<trans-unit id="s2a835f6d5f9c9bbe">
-  <source>JSON pointers to the parts of the output file that must be equal before and after the task (preserve)</source>
-  <target>出力ファイルのうち、タスクの前後で同じ値でなければならない箇所を指す JSON ポインター（preserve）</target>
 </trans-unit>
 <trans-unit id="s159092615f5a1338">
   <source>The kind whose output file this task writes (output_of)</source>
@@ -3072,10 +2800,6 @@
   <source>Implementation of <x id="0" equiv-text="${kind}"/></source>
   <target><x id="0" equiv-text="${kind}"/> の実装</target>
 </trans-unit>
-<trans-unit id="s0b3691d630f51b62">
-  <source>Kind with several implementations, each a kind of its own (base_kind)</source>
-  <target>複数の実装を持つ種別。実装ごとに別の種別になる（base_kind）</target>
-</trans-unit>
 <trans-unit id="trends-partial">
   <source>Partly done</source>
   <target>一部のみ完了</target>
@@ -3105,6 +2829,255 @@
   <source>partly done</source>
   <target>一部のみ完了</target>
   <note from="lit-localize">The status of a task whose output is a placeholder: a service it needed was unavailable (partial)</note>
+</trans-unit>
+<trans-unit id="s20f936012bd51f12">
+  <source>An earlier task was not run</source>
+  <target>依存先タスクが実行されなかった</target>
+</trans-unit>
+<trans-unit id="s08f830c89607bf9e">
+  <source>Waits for: <x id="0" equiv-text="${listText(waits)}"/></source>
+  <target>依存先: <x id="0" equiv-text="${listText(waits)}"/></target>
+</trans-unit>
+<trans-unit id="s0b05cbe8c9314a2b">
+  <source>Created after: <x id="0" equiv-text="${listText(after)}"/></source>
+  <target>作成元: <x id="0" equiv-text="${listText(after)}"/></target>
+</trans-unit>
+<trans-unit id="sf067ec3ce4af8ebe">
+  <source>Task done on attempt <x id="0" equiv-text="${n}"/></source>
+  <target>タスクは <x id="0" equiv-text="${n}"/> 回目で完了</target>
+</trans-unit>
+<trans-unit id="sd173bb96eb4d2577">
+  <source>Input / output | cache read / cache write</source>
+  <target>入力 / 出力 | キャッシュ読み込み / キャッシュ書き込み</target>
+</trans-unit>
+<trans-unit id="sbb0f058643587149">
+  <source>Event types this contraagent version does not know (unread_events): <x id="0" equiv-text="${unread}"/></source>
+  <target>このバージョンの contraagent が対応していないイベント種別（unread_events）: <x id="0" equiv-text="${unread}"/></target>
+</trans-unit>
+<trans-unit id="sf2c0a590370f775e">
+  <source>All attempts done</source>
+  <target>すべての試行が完了</target>
+</trans-unit>
+<trans-unit id="s0007e74d64dabdbc">
+  <source>Tasks not started in history</source>
+  <target>実行履歴の未実行のタスク</target>
+</trans-unit>
+<trans-unit id="sf083efa5793bc94c">
+  <source>Summed over agent sessions, including sessions that ran at once</source>
+  <target>すべてのエージェントのセッションの合計（同時に実行した分も含む）</target>
+</trans-unit>
+<trans-unit id="se4ba2b7d91bd3060">
+  <source>1 task with a correction</source>
+  <target>修正依頼のあったタスク 1 件</target>
+</trans-unit>
+<trans-unit id="s46694c626352a2a7">
+  <source>1 task with a model switch</source>
+  <target>モデル切り替えのあったタスク 1 件</target>
+</trans-unit>
+<trans-unit id="s8807d2925482479b">
+  <source>Summed over all attempts</source>
+  <target>全試行の合計</target>
+</trans-unit>
+<trans-unit id="s8f4cd5e73f1629fd">
+  <source>Input and output, summed over all attempts</source>
+  <target>入力と出力（全試行の合計）</target>
+</trans-unit>
+<trans-unit id="s38e65cca012f316f">
+  <source>Sent in the correction prompt</source>
+  <target>修正依頼のプロンプトに含めて送信</target>
+</trans-unit>
+<trans-unit id="s826d5aa7edf4f1db">
+  <source>The model the agent session ran on</source>
+  <target>エージェントのセッションが使ったモデル</target>
+</trans-unit>
+<trans-unit id="sa3f961297cb9207f">
+  <source>Files each task reads</source>
+  <target>各タスクが読み込むファイル</target>
+</trans-unit>
+<trans-unit id="s06b0f7bc0e6f72bd">
+  <source>not running</source>
+  <target>実行中ではありません</target>
+</trans-unit>
+<trans-unit id="s1a4311a6ff81c6ec">
+  <source>What the agent sessions spent on each model, each model of a model switch counted separately (Plan.models)</source>
+  <target>モデルごとの、エージェントのセッションの使用量。モデル切り替えの前後は別々に集計（Plan.models）</target>
+</trans-unit>
+<trans-unit id="sa3ed6953c910cb53">
+  <source>Account-wide | read at each agent session start</source>
+  <target>アカウント全体の値 | エージェントのセッション開始時に取得</target>
+</trans-unit>
+<trans-unit id="s0bfe13de97b5bd62">
+  <source>pass <x id="0" equiv-text="${x.loop_pass}"/></source>
+  <target><x id="0" equiv-text="${x.loop_pass}"/> 周目</target>
+</trans-unit>
+<trans-unit id="s6a029e9be6ab313a">
+  <source>1 step done</source>
+  <target>1 ステップ完了</target>
+</trans-unit>
+<trans-unit id="s874b5a66d73410da">
+  <source><x id="0" equiv-text="${x.completed.length}"/> steps done</source>
+  <target><x id="0" equiv-text="${x.completed.length}"/> ステップ完了</target>
+</trans-unit>
+<trans-unit id="sddf65e6dc438188d">
+  <source>Show view</source>
+  <target>ビューを表示</target>
+</trans-unit>
+<trans-unit id="s165ee7508f443a3e">
+  <source>Done on attempt <x id="0" equiv-text="${n}"/> | 1 failed attempt</source>
+  <target><x id="0" equiv-text="${n}"/> 回目で完了 | 失敗 1 回</target>
+</trans-unit>
+<trans-unit id="s5d4b0dd369b6083e">
+  <source>Done on attempt <x id="0" equiv-text="${n}"/> | <x id="1" equiv-text="${fails}"/> failed attempts</source>
+  <target><x id="0" equiv-text="${n}"/> 回目で完了 | 失敗 <x id="1" equiv-text="${fails}"/> 回</target>
+</trans-unit>
+<trans-unit id="sd58f7e67529b30b0">
+  <source>Finished with 1 task failed</source>
+  <target>終了（失敗したタスク 1 件）</target>
+</trans-unit>
+<trans-unit id="se99f79da6128e386">
+  <source>Finished with <x id="0" equiv-text="${r.failed}"/> tasks failed</source>
+  <target>終了（失敗したタスク <x id="0" equiv-text="${r.failed}"/> 件）</target>
+</trans-unit>
+<trans-unit id="s31377c5b29515e8b">
+  <source>Finished with 1 task not started</source>
+  <target>終了（未実行のタスク 1 件）</target>
+</trans-unit>
+<trans-unit id="s7df2ff1b6d561ce9">
+  <source>Finished with <x id="0" equiv-text="${r.notStarted}"/> tasks not started</source>
+  <target>終了（未実行のタスク <x id="0" equiv-text="${r.notStarted}"/> 件）</target>
+</trans-unit>
+<trans-unit id="se6de387a56331077">
+  <source>has a level below</source>
+  <target>下の階層あり</target>
+</trans-unit>
+<trans-unit id="s7b33e5bf54c5ae56">
+  <source>No runs match the search</source>
+  <target>検索に一致する実行なし</target>
+</trans-unit>
+<trans-unit id="s2c8189544e3ea679">
+  <source>Retry</source>
+  <target>リトライ</target>
+</trans-unit>
+<trans-unit id="s685f61cef2e55d31">
+  <source>Correction</source>
+  <target>修正依頼</target>
+</trans-unit>
+<trans-unit id="sdf14d39488c16f16">
+  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> | 1 failed attempt | first failure: <x id="1" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了 | 失敗 1 回 | 最初の失敗: <x id="1" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s9bd11c2c49c08916">
+  <source>Done on attempt <x id="0" equiv-text="${tries.length}"/> | <x id="1" equiv-text="${fails.length}"/> failed attempts | first failure: <x id="2" equiv-text="${why}"/></source>
+  <target><x id="0" equiv-text="${tries.length}"/> 回目で完了 | 失敗 <x id="1" equiv-text="${fails.length}"/> 回 | 最初の失敗: <x id="2" equiv-text="${why}"/></target>
+</trans-unit>
+<trans-unit id="s8fcb513335511341">
+  <source>Done after 1 correction | first failed check: <x id="0" equiv-text="${first}"/></source>
+  <target>修正依頼 1 回で完了 | 最初の検証エラー: <x id="0" equiv-text="${first}"/></target>
+</trans-unit>
+<trans-unit id="s4e7c49654e9033f5">
+  <source>Done after <x id="0" equiv-text="${corrections}"/> corrections | first failed check: <x id="1" equiv-text="${first}"/></source>
+  <target>修正依頼 <x id="0" equiv-text="${corrections}"/> 回で完了 | 最初の検証エラー: <x id="1" equiv-text="${first}"/></target>
+</trans-unit>
+<trans-unit id="s52bd9d64b4c399df">
+  <source>Event types this contraagent version does not know (unread_events)</source>
+  <target>このバージョンの contraagent が対応していないイベント種別（unread_events）</target>
+</trans-unit>
+<trans-unit id="s8d3d06c785c3c433">
+  <source>Account or API key the coding agent used (credential)</source>
+  <target>コーディングエージェントが使ったアカウントまたは API キー（credential）</target>
+</trans-unit>
+<trans-unit id="sbeac1701fc311c23">
+  <source>not saved (keep_transcripts = false)</source>
+  <target>保存対象外（keep_transcripts = false）</target>
+</trans-unit>
+<trans-unit id="scf71c5ab4e0c5c0f">
+  <source>An attempt after a failed attempt (retries)</source>
+  <target>失敗した試行の後の試行（retries）</target>
+</trans-unit>
+<trans-unit id="sda8d80786c18388c">
+  <source>Peak context above the warning threshold (context_warned)</source>
+  <target>最大コンテキストが警告のしきい値を超えた（context_warned）</target>
+</trans-unit>
+<trans-unit id="s3786b7768c22d7fd">
+  <source>Another round in the same agent session after failed checks (rounds)</source>
+  <target>検証エラーの後に、同じエージェントのセッションで続けるラウンド（rounds）</target>
+</trans-unit>
+<trans-unit id="s525b03a82e5421df">
+  <source>A new agent session on the next model after a failed one (Router hops)</source>
+  <target>失敗の後の、次のモデルでの新しいエージェントのセッション（Router のホップ）</target>
+</trans-unit>
+<trans-unit id="s50182c197f93c873">
+  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/> → <x id="2" equiv-text="${r.switchedTo}"/></source>
+  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/> → <x id="2" equiv-text="${r.switchedTo}"/></target>
+</trans-unit>
+<trans-unit id="scd27d0ff0f4f8757">
+  <source><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/> → next model</source>
+  <target><x id="0" equiv-text="${from}"/>: <x id="1" equiv-text="${stopLabel(r.switchedStop)}"/> → 次のモデル</target>
+</trans-unit>
+<trans-unit id="sbf9903741d6d4e5c">
+  <source>Tasks played by the stub agent with scripted replies (stub)</source>
+  <target>スタブエージェントが台本どおりの応答で処理したタスク（stub）</target>
+</trans-unit>
+<trans-unit id="s8fae95c744409229">
+  <source>not started (input missing and input failed checks)</source>
+  <target>未実行（入力ファイルなし、入力ファイルに検証エラー）</target>
+</trans-unit>
+<trans-unit id="sdb4bf4d106c14457">
+  <source>stalled (no events)</source>
+  <target>イベントが途絶えた</target>
+</trans-unit>
+<trans-unit id="sf9bbecb9ed98e966">
+  <source>agent session did not start</source>
+  <target>エージェントのセッションが始まらなかった</target>
+</trans-unit>
+<trans-unit id="s21a428aff8aff390">
+  <source>Exceptions that give another attempt (retry_on)</source>
+  <target>発生したらリトライする例外（retry_on）</target>
+</trans-unit>
+<trans-unit id="sfd85e335461d8548">
+  <source>Parts of the output file kept as before the task (preserve)</source>
+  <target>タスクの前から変わらない出力ファイルの箇所（preserve）</target>
+</trans-unit>
+<trans-unit id="s90e8d2050eab6478">
+  <source>A kind that other kinds implement (base_kind)</source>
+  <target>ほかの種別が実装する種別（base_kind）</target>
+</trans-unit>
+<trans-unit id="sacaf895f9cac7377">
+  <source>Totals of the runs in a period</source>
+  <target>期間内の実行の合計</target>
+</trans-unit>
+<trans-unit id="s901876eb6c6dfc03">
+  <source>Tasks done</source>
+  <target>完了したタスク</target>
+</trans-unit>
+<trans-unit id="seee3885e38ae0126">
+  <source>Attempts not done</source>
+  <target>完了しなかった試行</target>
+</trans-unit>
+<trans-unit id="sa57b5e86ecb7d735">
+  <source>Denied tool calls</source>
+  <target>権限エラーになったツール呼び出し</target>
+</trans-unit>
+<trans-unit id="s2413de2aeb2cad27">
+  <source>Done <x id="0" equiv-text="${pctText}"/></source>
+  <target>完了 <x id="0" equiv-text="${pctText}"/></target>
+</trans-unit>
+<trans-unit id="stop-invalid-input">
+  <source>not started</source>
+  <note from="lit-localize">How an attempt ended: invalid_input, with no input named</note>
+  <target>未実行</target>
+</trans-unit>
+<trans-unit id="s7718ef97e5fb3426">
+  <source>input <x id="0" equiv-text="${path}"/> is the output of failed task <x id="1" equiv-text="${from.name}"/></source>
+  <target>入力 <x id="0" equiv-text="${path}"/> は失敗したタスク <x id="1" equiv-text="${from.name}"/> の出力</target>
+</trans-unit>
+<trans-unit id="scf43861e8bf0182b">
+  <source>input <x id="0" equiv-text="${path}"/> is the output of a failed task</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> は失敗したタスクの出力</target>
+</trans-unit>
+<trans-unit id="s567f1fa5829fb0c2">
+  <source>not started (earlier task failed)</source>
+  <target>未実行（依存先タスクが失敗）</target>
 </trans-unit>
 </body>
 </file>

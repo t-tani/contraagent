@@ -3,7 +3,8 @@
 import { css } from 'lit';
 
 export const graphStyles = css`
-  :host { display: block; }
+  /* A container: the row under the frame follows the host's width. */
+  :host { display: block; container-type: inline-size; }
   /* A column: the crumbs, the frame, the row under it. A height set on the host is the frame's to fill or give up. */
   .col, .main { display: flex; flex-direction: column; }
   .col { height: 100%; }
@@ -64,9 +65,12 @@ export const graphStyles = css`
   .node.accent { --ex: inset 3px 0 0 -1px color-mix(in srgb, var(--agent) 60%, transparent); }
   .node .nm { display: flex; align-items: center; min-width: 0; gap: 0; }
   .node .right { display: flex; align-items: center; gap: 8px; }
+  /* the toggle at a node's end: its hit area stays inside the node's line */
+  .node .right > .tog { margin-inline-end: 0; }
   /* The mark of an inner view: at the top right of a node and of a cluster alike. */
   .cue { display: block; line-height: 0; }
-  .cluster > .cue { position: absolute; top: 9px; right: 10px; }
+  /* a cluster's toggle: its hit area reaches 2px past its glyph, inside the cue's own box */
+  .cluster > .cue { position: absolute; top: 9px; right: 10px; padding: 2px; margin: -2px; }
   /* The open and close control: the inner view's mark, turned into a button. */
   .tog { all: unset; cursor: pointer; display: inline-flex; line-height: 0; padding: 2px; margin: -2px; border-radius: 4px; color: var(--text-2); }
   .tog:hover { color: var(--text); background: var(--raise); }
@@ -159,6 +163,12 @@ export const graphStyles = css`
   .keys { grid-column: 1 / -1; font-size: 11px; color: var(--text-muted); visibility: hidden; }
   .keys span { white-space: nowrap; }
   :host(:focus-within) .keys { visibility: visible; }
+  /* Narrow: the tools on a line of their own above the legend, and a key hint may break. */
+  @container (max-width: 560px) {
+    .foot { grid-template-columns: minmax(0, 1fr); }
+    .tools { grid-row: 1; justify-self: start; flex-wrap: wrap; }
+    .keys span { white-space: normal; }
+  }
   /* Touch alone: no keys, no line. */
   @media not (any-pointer: fine) { .keys { display: none; } }
 
@@ -169,8 +179,8 @@ export const graphStyles = css`
       linear-gradient(transparent, var(--well) 70%) center bottom / 100% 28px no-repeat local,
       radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--text-muted) 30%, transparent), transparent) center bottom / 100% 12px no-repeat scroll,
       var(--well); }
-  /* On a narrow screen it keeps room for its relations and scrolls across. */
-  table.list { width: 100%; min-width: 64rem; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* As wide as the frame; on a narrow screen it keeps room for its relations and scrolls across inside the frame. */
+  table.list { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
   .list th, .list td { text-align: left; vertical-align: middle; padding: 6px 10px; border-bottom: 1px solid var(--line); }
   .list .fit { width: 1%; white-space: nowrap; }
   /* A header is as wide as its words, and stays at the top of the frame. */
@@ -178,6 +188,8 @@ export const graphStyles = css`
     white-space: nowrap; padding-top: 10px; }
   .list tbody th { font-weight: 600; }
   .list td { color: var(--text-2); }
+  /* A relation wraps between its names, and keeps room for a name or two (a table cell's own min-width does not hold). */
+  .list .rel > span { display: block; min-width: 14ch; }
   .list tbody tr { cursor: pointer; }
   .list tbody tr:hover > * { background-color: color-mix(in srgb, var(--text-muted) 8%, transparent); }
   .list tbody tr.sel > * { background-color: var(--accent-bg); }

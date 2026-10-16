@@ -7,14 +7,18 @@ export interface InputProblem {
   path: string;
   /** The key of the task that writes it, when the reason names one. */
   producer: string;
-  /** `missing`: the file is not there; `checks`: it is there and failed its checks. */
-  problem: 'missing' | 'checks';
+  /**
+   * `missing`: the file is not there; `checks`: it is there and failed its checks;
+   * `failed`: it is there, written by a task that did not succeed (`producer`).
+   */
+  problem: 'missing' | 'checks' | 'failed';
 }
 
 /**
  * The inputs a refused task's reason names (`invalid input: input from <key> is
- * missing: <path>`, `invalid input: <path>: required input is missing`,
- * `invalid input: <path>: <check error>`), in order; [] for any other reason.
+ * missing: <path>`, `invalid input: input from <key> ended <stop>: <path>`,
+ * `invalid input: <path>: required input is missing`, `invalid input: <path>:
+ * <check error>`), in order; [] for any other reason.
  */
 export function inputProblems(reason: string | null | undefined): InputProblem[] {
   const m = /^invalid input:\s*(.*)$/s.exec(reason || '');
@@ -24,6 +28,11 @@ export function inputProblems(reason: string | null | undefined): InputProblem[]
     let x = /^input from (\S+) is missing: (\S+)/.exec(part);
     if (x) {
       out.push({ path: x[2] ?? '', producer: x[1] ?? '', problem: 'missing' });
+      continue;
+    }
+    x = /^input from (\S+) ended \S+: (\S+)/.exec(part);
+    if (x) {
+      out.push({ path: x[2] ?? '', producer: x[1] ?? '', problem: 'failed' });
       continue;
     }
     x = /^(\S+?): required input is missing/.exec(part);

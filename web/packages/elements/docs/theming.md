@@ -13,6 +13,8 @@ break it and its CSS cannot leak into your page. What reaches it are the
 
 With neither, an element shows contraagent Dark.
 
+![The CI pipeline's page in the contraagent Dark theme](images/theming-dark.webp)
+
 ## The built-in themes
 
 | `data-ca-theme` | Name | Source |
@@ -84,7 +86,7 @@ A colour means one thing, on every screen and in every theme:
   its size and weight, not by a colour of its own.
 - **A status colour marks a status, and only where it applies.** A count of a
   problem (failed attempts, tasks not started) takes its status colour above 0;
-  at 0 it is neutral, with its words ("All attempts passed"). A total is never
+  at 0 it is neutral, with its words ("All attempts done"). A total is never
   coloured by its worst part.
 - **A status also has a shape and a word**, so it reads without colour: ✓ done,
   ✕ failed, ◌ not started, a round mark for done and a square one for failed.
@@ -114,6 +116,7 @@ A colour means one thing, on every screen and in every theme:
 | `--ca-agent`, `--ca-agent-bg` | identity: an agent task |
 | `--ca-meter` | a bar that measures, not judges: time, usage, progress |
 | `--ca-tok-input`, `--ca-tok-cache-read`, `--ca-tok-cache-write`, `--ca-tok-output` | the kinds of tokens in a bar |
+| `--ca-series-1` to `--ca-series-6` | the series of a chart, in a fixed order; never a status, and each series also named in words |
 | `--ca-code-*` | syntax colours in code, prompts and JSON |
 | `--ca-color-scheme` | `light` or `dark`: native controls and scrollbars |
 | `--ca-sans`, `--ca-mono` | the fonts |

@@ -2,79 +2,7 @@
  "run": "docs",
  "journal": [
   {
-   "ts": "2026-10-15T07:11:42+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:prepare-beta",
-   "attempt": 0,
-   "kind": "prepare",
-   "executor": "python",
-   "unit": "beta",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "997f57c74e2b56891a19ec19695929e5a40bcf54e86f0a2e0b9e72083f18364b",
-   "flow_call": "0.2",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:42+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:prepare-alpha",
-   "attempt": 0,
-   "kind": "prepare",
-   "executor": "python",
-   "unit": "alpha",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "8afd4707ef69240ea4325a8471ea84fb40f3b3897db45b86f605c08caccab342",
-   "flow_call": "0.1",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:50+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-gamma",
@@ -105,12 +33,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "1f6c98bb1e60402f2c89e0809bf9054ee99ef91b2eb1a56baac5c10fe2c9dbe1",
+   "fingerprint": "d81774611c68a2f10eb64f09329b1fd5fe8aca72dc1a213ab943cb8b30f1bbe3",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:50+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:prepare-delta",
@@ -141,55 +69,19 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "edaafb8a77b72fcad4733f0071816f5ba959f8624f784df08d489b0f73ad34a5",
+   "fingerprint": "c9453c231bb5e698b3659dc160a631423eee4f5f484fa8c69dac9e07e93cfce3",
    "flow_call": "0.4",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:50+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "python:prepare-zeta",
+   "key": "python:prepare-beta",
    "attempt": 0,
    "kind": "prepare",
    "executor": "python",
-   "unit": "zeta",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "error",
-   "ok": false,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "ValueError: zeta's input is malformed",
-   "rounds": null,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "fbbe8734b185cf4a12e615d4295ce7d89d898eea212c65baeddd3edf9261df0e",
-   "flow_call": "0.6",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:42+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:prepare-epsilon",
-   "attempt": 0,
-   "kind": "prepare",
-   "executor": "python",
-   "unit": "epsilon",
+   "unit": "beta",
    "agent": "",
    "model": "",
    "credential": "",
@@ -213,12 +105,192 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "859536ff542125826370089f783020db3c1f51a566af14692507da1edcfcb359",
+   "fingerprint": "91d78dbddb071dbbfd49aa193041b81458da160ec241b0aaab462f06549ae1a8",
+   "flow_call": "0.2",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:50+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-alpha",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "alpha",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "8ca5c6fb9f36de73f89ae1d2d6c0fb1bc0fd6adf6c6e413341bc4bb7c927df43",
+   "flow_call": "0.1",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:50+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-eta",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "eta",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "a70ef7798fd0e76ce780b21597d48a94eaa193d8341b25926fe7a1982906d0df",
    "flow_call": "0.5",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:50+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-theta",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "theta",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "8a8c1c6717c3fe9efb18679a6e8680d347dd8b70bb285bb8fad60fc8c05e4e44",
+   "flow_call": "0.6",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:50+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-iota",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "iota",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "47ed4a92fad2926510e5be8ab09d6f135b01ec8de16e2834b65c106d4018ca1c",
+   "flow_call": "0.7",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:50+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:prepare-kappa",
+   "attempt": 0,
+   "kind": "prepare",
+   "executor": "python",
+   "unit": "kappa",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "dd959bc2ba8679e1a025f6a80bd3fba817d8f95c34ed6d981761281ae4df6e92",
+   "flow_call": "0.8",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:53+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-alpha",
@@ -237,16 +309,16 @@
      "model": "primary-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.030892,
+     "wall_s": 2.3,
+     "cost_usd": 0.026115,
      "usage": {
-      "input": 3566,
-      "output": 274,
-      "cache_read": 19688,
-      "cache_creation": 2714,
+      "input": 2909,
+      "output": 207,
+      "cache_read": 15199,
+      "cache_creation": 2593,
       "calls": 1,
       "resident": null,
-      "peak_context": 25968,
+      "peak_context": 20701,
       "context_window": null
      },
      "other_models": {}
@@ -255,7 +327,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.3,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -263,24 +335,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3566,
-    "output": 274,
-    "cache_read": 19688,
-    "cache_creation": 2714,
+    "input": 2909,
+    "output": 207,
+    "cache_read": 15199,
+    "cache_creation": 2593,
     "calls": 1,
-    "resident": 25968,
-    "peak_context": 25968,
+    "resident": 20701,
+    "peak_context": 20701,
     "context_window": null
    },
-   "cost_usd": 0.030892,
+   "cost_usd": 0.026115,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:50+00:00",
      "credential": "ambient",
-     "five_hour_pct": 12.0,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.2,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 13.5,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.3,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -297,12 +369,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "e675bae24458bcf47df1082d6923d23af05cbc62c27628ea2fd0382654001fb8",
+   "fingerprint": "9cadf7ef67a301b505fd654194cd5dbb50fd4638adefa81474de85b75caf117c",
    "flow_call": "0.1",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:53+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-alpha",
@@ -333,12 +405,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "1a3adb5c8981506d1ade41100ccba5b585cc3482b16f99d773e2896dcfbf0845",
+   "fingerprint": "4d928c137ccd42fa5b0890bbbe93ff118a37fb0f9cc53a617d5c214eef9ba1f4",
    "flow_call": "0.1",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:53+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-gamma",
@@ -357,16 +429,16 @@
      "model": "primary-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.036499,
+     "wall_s": 2.7,
+     "cost_usd": 0.029098,
      "usage": {
-      "input": 2896,
-      "output": 841,
-      "cache_read": 18840,
-      "cache_creation": 2545,
+      "input": 2773,
+      "output": 519,
+      "cache_read": 9413,
+      "cache_creation": 2712,
       "calls": 1,
       "resident": null,
-      "peak_context": 24281,
+      "peak_context": 14898,
       "context_window": null
      },
      "other_models": {}
@@ -375,7 +447,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.7,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -383,24 +455,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2896,
-    "output": 841,
-    "cache_read": 18840,
-    "cache_creation": 2545,
+    "input": 2773,
+    "output": 519,
+    "cache_read": 9413,
+    "cache_creation": 2712,
     "calls": 1,
-    "resident": 24281,
-    "peak_context": 24281,
+    "resident": 14898,
+    "peak_context": 14898,
     "context_window": null
    },
-   "cost_usd": 0.036499,
+   "cost_usd": 0.029098,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:50+00:00",
      "credential": "ambient",
-     "five_hour_pct": 15.2,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
+     "five_hour_pct": 15.0,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
      "seven_day_pct": 41.5,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -417,12 +489,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "5d9e522c0efcb4b68e3ee4bc152b5c4f4134f9540a3c7813da1395b01f3646be",
+   "fingerprint": "c4c34fba4e9dfcbbc996efea1c1528eb4a04903dca761bb4c91a653ce67879e0",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:53+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-gamma",
@@ -453,100 +525,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "b5696b64db1099dc62b7dee2943c46b3a62052727e4f4621285220d2ade267d4",
+   "fingerprint": "cb47166b8a72c1ee446644d2f7814551a226a427a7ab9fafa847818280b2152a",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:42+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "review-gamma",
-   "attempt": 0,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "gamma",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "error",
-     "wall_s": 0.0,
-     "cost_usd": 0.03205,
-     "usage": {
-      "input": 3959,
-      "output": 551,
-      "cache_read": 11855,
-      "cache_creation": 2227,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 18041,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "error",
-   "ok": false,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "tool crashed",
-   "rounds": 1,
-   "round_errors": [
-    [
-     "/work/demo-runs/docs/out/review/gamma.json: file was not written"
-    ]
-   ],
-   "hook_errors": [],
-   "usage": {
-    "input": 3959,
-    "output": 551,
-    "cache_read": 11855,
-    "cache_creation": 2227,
-    "calls": 1,
-    "resident": 18041,
-    "peak_context": 18041,
-    "context_window": null
-   },
-   "cost_usd": 0.03205,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:42+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 16.7,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.7,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "fa5696f0258eeb2385c5efd5ae7ae46f297edd8a2bceba71f1f10fc6a068649c",
-   "flow_call": "0.3",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:42+00:00",
+   "ts": "2026-10-16T01:56:55+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-delta",
@@ -565,16 +549,16 @@
      "model": "primary-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.2,
-     "cost_usd": 0.04843,
+     "wall_s": 4.4,
+     "cost_usd": 0.05459699999999999,
      "usage": {
-      "input": 5408,
-      "output": 1122,
-      "cache_read": 28465,
-      "cache_creation": 1823,
+      "input": 5344,
+      "output": 1395,
+      "cache_read": 29064,
+      "cache_creation": 2379,
       "calls": 2,
       "resident": null,
-      "peak_context": 23324,
+      "peak_context": 21824,
       "context_window": null
      },
      "other_models": {}
@@ -583,7 +567,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.2,
+   "wall_s": 4.4,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -595,24 +579,24 @@
    ],
    "hook_errors": [],
    "usage": {
-    "input": 5408,
-    "output": 1122,
-    "cache_read": 28465,
-    "cache_creation": 1823,
+    "input": 5344,
+    "output": 1395,
+    "cache_read": 29064,
+    "cache_creation": 2379,
     "calls": 2,
-    "resident": 23324,
-    "peak_context": 23324,
+    "resident": 21824,
+    "peak_context": 21824,
     "context_window": null
    },
-   "cost_usd": 0.04843,
+   "cost_usd": 0.054597,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:50+00:00",
      "credential": "ambient",
-     "five_hour_pct": 14.0,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.4,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 12.0,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.2,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -624,12 +608,12 @@
      "extra": {}
     },
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:52+00:00",
      "credential": "ambient",
-     "five_hour_pct": 18.0,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.8,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 16.2,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.6,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -646,12 +630,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "9d9f613b6f34aff9043c25498bdfbe60acd043ff31063ce00eae05363650208c",
+   "fingerprint": "aba182d86ab8bedda9487f81261a51c09dc9556f621616313d6a1b4e53056ef2",
    "flow_call": "0.4",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:55+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-delta",
@@ -682,12 +666,96 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "5c8ba46bad515c1ac549398be3fd6aef3fb815238074df42ac000a44aeedb26f",
+   "fingerprint": "d746670015d36a1d189a7d0b3a15837638e028be5d6d956cdf38001d01bdfa62",
    "flow_call": "0.4",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:55+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-alpha",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "alpha",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.2,
+     "cost_usd": 0.023396,
+     "usage": {
+      "input": 1792,
+      "output": 296,
+      "cache_read": 10667,
+      "cache_creation": 2768,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 15227,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.2,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 1792,
+    "output": 296,
+    "cache_read": 10667,
+    "cache_creation": 2768,
+    "calls": 1,
+    "resident": 15227,
+    "peak_context": 15227,
+    "context_window": null
+   },
+   "cost_usd": 0.023396,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:56:53+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 16.9,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.7,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "759eea50e295be3ab532587125fa7465ae622931ae331cca6a3949ccccad9f3a",
+   "flow_call": "0.1",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:55+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "summarize-beta",
@@ -706,16 +774,16 @@
      "model": "primary-model",
      "credential": "ambient",
      "stop": "rate_limited",
-     "wall_s": 0.1,
-     "cost_usd": 0.019881,
+     "wall_s": 2.3,
+     "cost_usd": 0.012389,
      "usage": {
-      "input": 3417,
+      "input": 2061,
       "output": 0,
-      "cache_read": 19263,
-      "cache_creation": 1027,
+      "cache_read": 19136,
+      "cache_creation": 124,
       "calls": 1,
       "resident": null,
-      "peak_context": 23707,
+      "peak_context": 21321,
       "context_window": null
      },
      "other_models": {}
@@ -726,16 +794,16 @@
      "model": "fallback-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.03474,
+     "wall_s": 2.8,
+     "cost_usd": 0.022377,
      "usage": {
-      "input": 3575,
-      "output": 633,
-      "cache_read": 13739,
-      "cache_creation": 2773,
+      "input": 1827,
+      "output": 213,
+      "cache_read": 14846,
+      "cache_creation": 2466,
       "calls": 1,
       "resident": null,
-      "peak_context": 20087,
+      "peak_context": 19139,
       "context_window": null
      },
      "other_models": {}
@@ -744,7 +812,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.2,
+   "wall_s": 5.1,
    "exit_code": null,
    "signal": null,
    "reason": "rate limited on hop 1/2 stub/primary-model; failing over to hop 2/2 stub/fallback-model; ran on hop 2/2 stub/fallback-model",
@@ -752,24 +820,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 6992,
-    "output": 633,
-    "cache_read": 33002,
-    "cache_creation": 3800,
+    "input": 3888,
+    "output": 213,
+    "cache_read": 33982,
+    "cache_creation": 2590,
     "calls": 2,
-    "resident": 23707,
-    "peak_context": 23707,
+    "resident": 21321,
+    "peak_context": 21321,
     "context_window": null
    },
-   "cost_usd": 0.054621,
+   "cost_usd": 0.034766,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:50+00:00",
      "credential": "ambient",
-     "five_hour_pct": 13.2,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.3,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 14.5,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.5,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -781,12 +849,12 @@
      "extra": {}
     },
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:53+00:00",
      "credential": "ambient",
-     "five_hour_pct": 18.7,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 41.9,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 17.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.8,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -803,12 +871,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "b37f67412d83be90f2d0311f9a9e8bf9c0fe3f8ab5ccfcd5ce718e87d2e80356",
+   "fingerprint": "a3d7e912d13785538bb6ab1ddc2e2f05115a5553d5a78a1419e58d1cbd0faf06",
    "flow_call": "0.2",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:55+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-beta",
@@ -839,19 +907,19 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "b7b5a17f0e12110daf6a27b109bf3a6874c3563fb8dc4565faa5189f2be87ccf",
+   "fingerprint": "937917451eef2b5db0fa0b629ae027b1a310aba770730d0d4ce358954abaa7ae",
    "flow_call": "0.2",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:56+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "review-alpha",
+   "key": "review-gamma",
    "attempt": 0,
    "kind": "review",
    "executor": "agent",
-   "unit": "alpha",
+   "unit": "gamma",
    "agent": "stub",
    "model": "",
    "credential": "ambient",
@@ -863,16 +931,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.035357,
+     "wall_s": 2.9,
+     "cost_usd": 0.029779,
      "usage": {
-      "input": 3388,
-      "output": 709,
-      "cache_read": 19489,
-      "cache_creation": 2323,
+      "input": 2907,
+      "output": 811,
+      "cache_read": 8593,
+      "cache_creation": 1684,
       "calls": 1,
       "resident": null,
-      "peak_context": 25200,
+      "peak_context": 13184,
       "context_window": null
      },
      "other_models": {}
@@ -881,7 +949,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.9,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -889,24 +957,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3388,
-    "output": 709,
-    "cache_read": 19489,
-    "cache_creation": 2323,
+    "input": 2907,
+    "output": 811,
+    "cache_read": 8593,
+    "cache_creation": 1684,
     "calls": 1,
-    "resident": 25200,
-    "peak_context": 25200,
+    "resident": 13184,
+    "peak_context": 13184,
     "context_window": null
    },
-   "cost_usd": 0.035357,
+   "cost_usd": 0.029779,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:42+00:00",
+     "observed_at": "2026-10-16T01:56:53+00:00",
      "credential": "ambient",
-     "five_hour_pct": 20.1,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.0,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 18.7,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 41.9,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -923,12 +991,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "973bc3d8e4ab0853f8b98ae63527b652df921cc46bd9840b13758d95a5dc7552",
-   "flow_call": "0.1",
+   "fingerprint": "f3439dbea1826e32241ef9c3dc07150991adabcc278c1facd4651ddca029b7f8",
+   "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:57+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "review-delta",
@@ -947,16 +1015,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.026371,
+     "wall_s": 2.2,
+     "cost_usd": 0.020187,
      "usage": {
-      "input": 2857,
-      "output": 787,
-      "cache_read": 16957,
-      "cache_creation": 242,
+      "input": 3463,
+      "output": 308,
+      "cache_read": 15648,
+      "cache_creation": 129,
       "calls": 1,
       "resident": null,
-      "peak_context": 20056,
+      "peak_context": 19240,
       "context_window": null
      },
      "other_models": {}
@@ -965,7 +1033,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.2,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -973,24 +1041,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2857,
-    "output": 787,
-    "cache_read": 16957,
-    "cache_creation": 242,
+    "input": 3463,
+    "output": 308,
+    "cache_read": 15648,
+    "cache_creation": 129,
     "calls": 1,
-    "resident": 20056,
-    "peak_context": 20056,
+    "resident": 19240,
+    "peak_context": 19240,
     "context_window": null
    },
-   "cost_usd": 0.026371,
+   "cost_usd": 0.020187,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:55+00:00",
      "credential": "ambient",
-     "five_hour_pct": 21.5,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.2,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 19.9,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.0,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1007,359 +1075,19 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "a0d85be64c518636ad8edae4da3f68551c239ecdac3fee7fed459084ecddbacb",
+   "fingerprint": "1586b0b29efb5dc334efbd6e1b1d3f9d65d2856aa30f9e45b6ac9b4d63936e26",
    "flow_call": "0.4",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:58+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "review-beta",
-   "attempt": 0,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "beta",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.025703,
-     "usage": {
-      "input": 3145,
-      "output": 634,
-      "cache_read": 16990,
-      "cache_creation": 443,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 20578,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 3145,
-    "output": 634,
-    "cache_read": 16990,
-    "cache_creation": 443,
-    "calls": 1,
-    "resident": 20578,
-    "peak_context": 20578,
-    "context_window": null
-   },
-   "cost_usd": 0.025703,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 23.9,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.4,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "6ceefe7cb23eec83cca021f664e5b6c177110bbfac07bce4cfc5076215572995",
-   "flow_call": "0.2",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "review-gamma",
-   "attempt": 1,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "gamma",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "error",
-     "wall_s": 0.0,
-     "cost_usd": 0.028881,
-     "usage": {
-      "input": 2683,
-      "output": 859,
-      "cache_read": 15853,
-      "cache_creation": 851,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 19387,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "error",
-   "ok": false,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "tool crashed",
-   "rounds": 1,
-   "round_errors": [
-    [
-     "/work/demo-runs/docs/out/review/gamma.json: file was not written"
-    ]
-   ],
-   "hook_errors": [],
-   "usage": {
-    "input": 2683,
-    "output": 859,
-    "cache_read": 15853,
-    "cache_creation": 851,
-    "calls": 1,
-    "resident": 19387,
-    "peak_context": 19387,
-    "context_window": null
-   },
-   "cost_usd": 0.028881,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 27.0,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.7,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "fa5696f0258eeb2385c5efd5ae7ae46f297edd8a2bceba71f1f10fc6a068649c",
-   "flow_call": "0.3",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "write_note-beta",
-   "attempt": 0,
-   "kind": "write_note",
-   "executor": "agent",
-   "unit": "beta",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.030194,
-     "usage": {
-      "input": 3611,
-      "output": 496,
-      "cache_read": 17098,
-      "cache_creation": 1811,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 22520,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 3611,
-    "output": 496,
-    "cache_read": 17098,
-    "cache_creation": 1811,
-    "calls": 1,
-    "resident": 22520,
-    "peak_context": 22520,
-    "context_window": null
-   },
-   "cost_usd": 0.030194,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 25.8,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.6,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "c23885cb259dd245bbafbd0a20ed34953b750fd1bf519b0fd31c78d8ac1f767c",
-   "flow_call": "0.2",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "review-gamma",
-   "attempt": 2,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "gamma",
-   "agent": "stub",
-   "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.02779,
-     "usage": {
-      "input": 2307,
-      "output": 680,
-      "cache_read": 12577,
-      "cache_creation": 1839,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 16723,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
-   "skipped_hops": [],
-   "stop": "completed",
-   "ok": true,
-   "wall_s": 0.1,
-   "exit_code": null,
-   "signal": null,
-   "reason": "",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": {
-    "input": 2307,
-    "output": 680,
-    "cache_read": 12577,
-    "cache_creation": 1839,
-    "calls": 1,
-    "resident": 16723,
-    "peak_context": 16723,
-    "context_window": null
-   },
-   "cost_usd": 0.02779,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 29.2,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.9,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "fa5696f0258eeb2385c5efd5ae7ae46f297edd8a2bceba71f1f10fc6a068649c",
-   "flow_call": "0.3",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "summarize-epsilon",
+   "key": "summarize-eta",
    "attempt": 0,
    "kind": "summarize",
    "executor": "agent",
-   "unit": "epsilon",
+   "unit": "eta",
    "agent": "stub",
    "model": "fallback-model",
    "credential": "ambient",
@@ -1371,16 +1099,16 @@
      "model": "fallback-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.030537,
+     "wall_s": 2.2,
+     "cost_usd": 0.032327,
      "usage": {
-      "input": 3278,
-      "output": 692,
-      "cache_read": 9485,
-      "cache_creation": 1994,
+      "input": 2261,
+      "output": 700,
+      "cache_read": 16795,
+      "cache_creation": 2668,
       "calls": 1,
       "resident": null,
-      "peak_context": 14757,
+      "peak_context": 21724,
       "context_window": null
      },
      "other_models": {}
@@ -1389,7 +1117,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.2,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -1397,24 +1125,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3278,
-    "output": 692,
-    "cache_read": 9485,
-    "cache_creation": 1994,
+    "input": 2261,
+    "output": 700,
+    "cache_read": 16795,
+    "cache_creation": 2668,
     "calls": 1,
-    "resident": 14757,
-    "peak_context": 14757,
+    "resident": 21724,
+    "peak_context": 21724,
     "context_window": null
    },
-   "cost_usd": 0.030537,
+   "cost_usd": 0.032327,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:55+00:00",
      "credential": "ambient",
-     "five_hour_pct": 30.3,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.0,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 20.7,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.1,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1431,12 +1159,48 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "688d7d00f0196e7e6c64231825976cb3b7cbbd743bd16ead793962c724d7bf81",
+   "fingerprint": "d59170c85f6250efd1422176e8a2108d43630e3a51543140619dc3d725ae043f",
    "flow_call": "0.5",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:58+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:score-eta",
+   "attempt": 0,
+   "kind": "score",
+   "executor": "python",
+   "unit": "eta",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "df65f2d421ae8764bac566280fe5e93c159bfdf01a6f0122eca78323912711f2",
+   "flow_call": "0.5",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:56:58+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "revise-gamma",
@@ -1455,16 +1219,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.018444,
+     "wall_s": 2.5,
+     "cost_usd": 0.025471,
      "usage": {
-      "input": 3502,
-      "output": 198,
-      "cache_read": 9759,
-      "cache_creation": 544,
+      "input": 3165,
+      "output": 699,
+      "cache_read": 15928,
+      "cache_creation": 190,
       "calls": 1,
       "resident": null,
-      "peak_context": 13805,
+      "peak_context": 19283,
       "context_window": null
      },
      "other_models": {}
@@ -1473,7 +1237,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.5,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -1481,24 +1245,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3502,
-    "output": 198,
-    "cache_read": 9759,
-    "cache_creation": 544,
+    "input": 3165,
+    "output": 699,
+    "cache_read": 15928,
+    "cache_creation": 190,
     "calls": 1,
-    "resident": 13805,
-    "peak_context": 13805,
+    "resident": 19283,
+    "peak_context": 19283,
     "context_window": null
    },
-   "cost_usd": 0.018444,
+   "cost_usd": 0.025471,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:56+00:00",
      "credential": "ambient",
-     "five_hour_pct": 31.6,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.2,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 22.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.3,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1515,48 +1279,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "3354aa6a61383959b294ea92bee9da05c46e6985ce2ca9cdb2cbf73cd983b052",
+   "fingerprint": "f18a7ff7dd64e94d15810987b9f318afea5d87c00fe625cd245603e3e48b3a03",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
-   "run_id": "docs",
-   "run_group": "docs",
-   "key": "python:score-epsilon",
-   "attempt": 0,
-   "kind": "score",
-   "executor": "python",
-   "unit": "epsilon",
-   "agent": "",
-   "model": "",
-   "credential": "",
-   "route": "",
-   "hops": [],
-   "skipped_hops": [],
-   "stop": "partial",
-   "ok": true,
-   "wall_s": 0.0,
-   "exit_code": null,
-   "signal": null,
-   "reason": "the word counter is unavailable: words left at 0",
-   "rounds": 1,
-   "round_errors": [],
-   "hook_errors": [],
-   "usage": null,
-   "cost_usd": null,
-   "quota": [],
-   "web_queries": [],
-   "unread_events": {},
-   "changes": null,
-   "context_budget": null,
-   "context_warned": false,
-   "fingerprint": "7dc7cf2ba04a351affbf9704ec760144ddabc66b5eefe1ccda749f8afc2e1ce9",
-   "flow_call": "0.5",
-   "replayed": false
-  },
-  {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:56:58+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:score-gamma~2",
@@ -1587,32 +1315,116 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "67921379ba877e692234cb1f31caa20ff040338df0100427165030c8947dc173",
+   "fingerprint": "e1f6e2f6c78b05d98ebffc6ea2e60d61e4d52d2dc0f31338e8e6afd859fb3f7b",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:57:00+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "summarize-zeta",
+   "key": "summarize-theta",
    "attempt": 0,
    "kind": "summarize",
    "executor": "agent",
-   "unit": "zeta",
+   "unit": "theta",
    "agent": "stub",
-   "model": "primary-model",
+   "model": "fallback-model",
    "credential": "ambient",
+   "route": "hop 2/2 stub/fallback-model",
+   "hops": [
+    {
+     "route": "hop 2/2 stub/fallback-model",
+     "agent": "stub",
+     "model": "fallback-model",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.2,
+     "cost_usd": 0.025421,
+     "usage": {
+      "input": 2686,
+      "output": 661,
+      "cache_read": 13840,
+      "cache_creation": 879,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 17405,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.2,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2686,
+    "output": 661,
+    "cache_read": 13840,
+    "cache_creation": 879,
+    "calls": 1,
+    "resident": 17405,
+    "peak_context": 17405,
+    "context_window": null
+   },
+   "cost_usd": 0.025421,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:56:58+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 24.9,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.5,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "e73db5adc8e0cdecf13f2a460b0dda6eba07b047b777f474b1b9f66b7037d7c9",
+   "flow_call": "0.6",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:00+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:score-theta",
+   "attempt": 0,
+   "kind": "score",
+   "executor": "python",
+   "unit": "theta",
+   "agent": "",
+   "model": "",
+   "credential": "",
    "route": "",
    "hops": [],
    "skipped_hops": [],
-   "stop": "invalid_input",
-   "ok": false,
+   "stop": "completed",
+   "ok": true,
    "wall_s": 0.0,
    "exit_code": null,
    "signal": null,
-   "reason": "invalid input: input from python:prepare-zeta is missing: /work/demo-runs/docs/out/prepare/zeta.json",
-   "rounds": null,
+   "reason": "",
+   "rounds": 1,
    "round_errors": [],
    "hook_errors": [],
    "usage": null,
@@ -1623,12 +1435,12 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "b944c8f155f5d02f92abd15acc338c831d9121d232ac0a1d72b168de2ab7ddcf",
+   "fingerprint": "9e2d17725c1dc66aa7e6b262a29cdfba6e57dae4b170cdbd96196171671fc615",
    "flow_call": "0.6",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:57:00+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-delta",
@@ -1647,16 +1459,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.023847,
+     "wall_s": 2.7,
+     "cost_usd": 0.028415,
      "usage": {
-      "input": 1631,
-      "output": 786,
-      "cache_read": 16179,
-      "cache_creation": 616,
+      "input": 3083,
+      "output": 899,
+      "cache_read": 16463,
+      "cache_creation": 198,
       "calls": 1,
       "resident": null,
-      "peak_context": 18426,
+      "peak_context": 19744,
       "context_window": null
      },
      "other_models": {}
@@ -1665,7 +1477,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.7,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -1673,24 +1485,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 1631,
-    "output": 786,
-    "cache_read": 16179,
-    "cache_creation": 616,
+    "input": 3083,
+    "output": 899,
+    "cache_read": 16463,
+    "cache_creation": 198,
     "calls": 1,
-    "resident": 18426,
-    "peak_context": 18426,
+    "resident": 19744,
+    "peak_context": 19744,
     "context_window": null
    },
-   "cost_usd": 0.023847,
+   "cost_usd": 0.028415,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:57+00:00",
      "credential": "ambient",
-     "five_hour_pct": 24.9,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.5,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 23.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.4,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1707,40 +1519,40 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "89d4d87050c70853ba7830483b3a0c2ccc93b29eaf69483b2149825f98821d9f",
+   "fingerprint": "cc3b5b159ea51615cfad5aad54ed88372e80683becbd516f848c5d32765c32ce",
    "flow_call": "0.4",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:57:01+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "review-epsilon",
+   "key": "summarize-iota",
    "attempt": 0,
-   "kind": "review",
+   "kind": "summarize",
    "executor": "agent",
-   "unit": "epsilon",
+   "unit": "iota",
    "agent": "stub",
-   "model": "",
+   "model": "fallback-model",
    "credential": "ambient",
-   "route": "hop 1/1 stub",
+   "route": "hop 2/2 stub/fallback-model",
    "hops": [
     {
-     "route": "hop 1/1 stub",
+     "route": "hop 2/2 stub/fallback-model",
      "agent": "stub",
-     "model": "",
+     "model": "fallback-model",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.031525,
+     "wall_s": 2.5,
+     "cost_usd": 0.028701,
      "usage": {
-      "input": 2692,
-      "output": 776,
-      "cache_read": 18276,
-      "cache_creation": 1687,
+      "input": 3659,
+      "output": 321,
+      "cache_read": 9769,
+      "cache_creation": 2661,
       "calls": 1,
       "resident": null,
-      "peak_context": 22655,
+      "peak_context": 16089,
       "context_window": null
      },
      "other_models": {}
@@ -1749,7 +1561,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.5,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -1757,24 +1569,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2692,
-    "output": 776,
-    "cache_read": 18276,
-    "cache_creation": 1687,
+    "input": 3659,
+    "output": 321,
+    "cache_read": 9769,
+    "cache_creation": 2661,
     "calls": 1,
-    "resident": 22655,
-    "peak_context": 22655,
+    "resident": 16089,
+    "peak_context": 16089,
     "context_window": null
    },
-   "cost_usd": 0.031525,
+   "cost_usd": 0.028701,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:58+00:00",
      "credential": "ambient",
-     "five_hour_pct": 32.3,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.2,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 26.0,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.6,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1791,96 +1603,48 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "9bee6b138b7785a47e9c94e7e07248e20ca1f44f02bffceb29ed5214f767c015",
-   "flow_call": "0.5",
+   "fingerprint": "50443edd518d53710e207e89f4f84dfcdc0d91a25a7ee040350f850037e870e4",
+   "flow_call": "0.7",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:57:01+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "review-gamma~2",
+   "key": "python:score-iota",
    "attempt": 0,
-   "kind": "review",
-   "executor": "agent",
-   "unit": "gamma",
-   "agent": "stub",
+   "kind": "score",
+   "executor": "python",
+   "unit": "iota",
+   "agent": "",
    "model": "",
-   "credential": "ambient",
-   "route": "hop 1/1 stub",
-   "hops": [
-    {
-     "route": "hop 1/1 stub",
-     "agent": "stub",
-     "model": "",
-     "credential": "ambient",
-     "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.028232,
-     "usage": {
-      "input": 1877,
-      "output": 889,
-      "cache_read": 9275,
-      "cache_creation": 1729,
-      "calls": 1,
-      "resident": null,
-      "peak_context": 12881,
-      "context_window": null
-     },
-     "other_models": {}
-    }
-   ],
+   "credential": "",
+   "route": "",
+   "hops": [],
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 0.0,
    "exit_code": null,
    "signal": null,
    "reason": "",
    "rounds": 1,
    "round_errors": [],
    "hook_errors": [],
-   "usage": {
-    "input": 1877,
-    "output": 889,
-    "cache_read": 9275,
-    "cache_creation": 1729,
-    "calls": 1,
-    "resident": 12881,
-    "peak_context": 12881,
-    "context_window": null
-   },
-   "cost_usd": 0.028232,
-   "quota": [
-    {
-     "observed_at": "2026-10-15T07:11:43+00:00",
-     "credential": "ambient",
-     "five_hour_pct": 33.6,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.4,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
-     "status": "allowed",
-     "account": "",
-     "status_window": "",
-     "threshold_pct": null,
-     "overage_status": "",
-     "overage_disabled_reason": "",
-     "using_overage": null,
-     "windows": {},
-     "extra": {}
-    }
-   ],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
    "web_queries": [],
    "unread_events": {},
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "703caa082acd8e0adb182fdfbe9d11db76459028a156eca1474be3ef1a0cd3b3",
-   "flow_call": "0.3",
+   "fingerprint": "ec9335073dd058900ab8f8787653dd3ced5c3bf8330b8faee9c6aacdf823bcce",
+   "flow_call": "0.7",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:43+00:00",
+   "ts": "2026-10-16T01:57:02+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-alpha",
@@ -1899,16 +1663,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.2,
-     "cost_usd": 0.057974,
+     "wall_s": 5.8,
+     "cost_usd": 0.032604999999999995,
      "usage": {
-      "input": 6904,
-      "output": 1034,
-      "cache_read": 30917,
-      "cache_creation": 3327,
+      "input": 4079,
+      "output": 596,
+      "cache_read": 23044,
+      "cache_creation": 1204,
       "calls": 2,
       "resident": null,
-      "peak_context": 20717,
+      "peak_context": 15884,
       "context_window": null
      },
      "other_models": {}
@@ -1917,7 +1681,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.2,
+   "wall_s": 5.8,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -1930,24 +1694,24 @@
    ],
    "hook_errors": [],
    "usage": {
-    "input": 6904,
-    "output": 1034,
-    "cache_read": 30917,
-    "cache_creation": 3327,
+    "input": 4079,
+    "output": 596,
+    "cache_read": 23044,
+    "cache_creation": 1204,
     "calls": 2,
-    "resident": 20717,
-    "peak_context": 20717,
+    "resident": 15884,
+    "peak_context": 15884,
     "context_window": null
    },
-   "cost_usd": 0.057974,
+   "cost_usd": 0.032605,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:55+00:00",
      "credential": "ambient",
-     "five_hour_pct": 22.6,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.3,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 22.0,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.2,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1959,12 +1723,12 @@
      "extra": {}
     },
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:56:59+00:00",
      "credential": "ambient",
-     "five_hour_pct": 28.2,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 42.8,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 27.1,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.7,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -1981,19 +1745,139 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "41106ea1321b968dc3f887b61ead7609f5b828c27d22f546f229b7933783aea7",
+   "fingerprint": "97a7df60abb29847d77953cae1c753a27a6a21281c392f7c92ebe0bdd689f226",
    "flow_call": "0.1",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:44+00:00",
+   "ts": "2026-10-16T01:57:03+00:00",
    "run_id": "docs",
    "run_group": "docs",
-   "key": "write_note-epsilon",
+   "key": "summarize-kappa",
    "attempt": 0,
-   "kind": "write_note",
+   "kind": "summarize",
    "executor": "agent",
-   "unit": "epsilon",
+   "unit": "kappa",
+   "agent": "stub",
+   "model": "fallback-model",
+   "credential": "ambient",
+   "route": "hop 2/2 stub/fallback-model",
+   "hops": [
+    {
+     "route": "hop 2/2 stub/fallback-model",
+     "agent": "stub",
+     "model": "fallback-model",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.8,
+     "cost_usd": 0.022009,
+     "usage": {
+      "input": 3461,
+      "output": 199,
+      "cache_read": 18503,
+      "cache_creation": 824,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 22788,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.8,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3461,
+    "output": 199,
+    "cache_read": 18503,
+    "cache_creation": 824,
+    "calls": 1,
+    "resident": 22788,
+    "peak_context": 22788,
+    "context_window": null
+   },
+   "cost_usd": 0.022009,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:00+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 27.6,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.8,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "4bd28de67a737dd05aa4b0b0fb80b4974b96419099ec6f27de1413810cec41d8",
+   "flow_call": "0.8",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:03+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "python:score-kappa",
+   "attempt": 0,
+   "kind": "score",
+   "executor": "python",
+   "unit": "kappa",
+   "agent": "",
+   "model": "",
+   "credential": "",
+   "route": "",
+   "hops": [],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 0.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": null,
+   "cost_usd": null,
+   "quota": [],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "e476d030f833ae480a3abed44830a6f41bf04df9eef057e6cdfc555047dcdf6e",
+   "flow_call": "0.8",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:03+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-beta",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "beta",
    "agent": "stub",
    "model": "",
    "credential": "ambient",
@@ -2005,16 +1889,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.023809,
+     "wall_s": 2.7,
+     "cost_usd": 0.021152,
      "usage": {
-      "input": 2922,
-      "output": 499,
-      "cache_read": 14156,
-      "cache_creation": 883,
+      "input": 3336,
+      "output": 188,
+      "cache_read": 8722,
+      "cache_creation": 1522,
       "calls": 1,
       "resident": null,
-      "peak_context": 17961,
+      "peak_context": 13580,
       "context_window": null
      },
      "other_models": {}
@@ -2023,7 +1907,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.7,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -2031,24 +1915,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 2922,
-    "output": 499,
-    "cache_read": 14156,
-    "cache_creation": 883,
+    "input": 3336,
+    "output": 188,
+    "cache_read": 8722,
+    "cache_creation": 1522,
     "calls": 1,
-    "resident": 17961,
-    "peak_context": 17961,
+    "resident": 13580,
+    "peak_context": 13580,
     "context_window": null
    },
-   "cost_usd": 0.023809,
+   "cost_usd": 0.021152,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:57:00+00:00",
      "credential": "ambient",
-     "five_hour_pct": 34.7,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.5,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 28.5,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.9,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -2065,12 +1949,768 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "fb2b68b08eacc85ab89a1a6122bfaff1e634bdbeb4ad95b429ad4dcdbf1e73d4",
+   "fingerprint": "7309bda43ebde2c97cdc8de120318fe5a10b9f329ee1c924ea3cc95f04c1bcbf",
+   "flow_call": "0.2",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:03+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-iota",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "iota",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.5,
+     "cost_usd": 0.027812,
+     "usage": {
+      "input": 3077,
+      "output": 585,
+      "cache_read": 11862,
+      "cache_creation": 1666,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 16605,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.5,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3077,
+    "output": 585,
+    "cache_read": 11862,
+    "cache_creation": 1666,
+    "calls": 1,
+    "resident": 16605,
+    "peak_context": 16605,
+    "context_window": null
+   },
+   "cost_usd": 0.027812,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:01+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 29.4,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 42.9,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "7ce11fd83d7c29d514bf6708574d71beca2bb58c7cd8cbdaf3336a81b301eea5",
+   "flow_call": "0.7",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:05+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-eta",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "eta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.7,
+     "cost_usd": 0.016145,
+     "usage": {
+      "input": 1944,
+      "output": 275,
+      "cache_read": 18440,
+      "cache_creation": 175,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 20559,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.7,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 1944,
+    "output": 275,
+    "cache_read": 18440,
+    "cache_creation": 175,
+    "calls": 1,
+    "resident": 20559,
+    "peak_context": 20559,
+    "context_window": null
+   },
+   "cost_usd": 0.016145,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:02+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 30.5,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.0,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "13c69e8e656034a02fcfc7f4a1b4e8d15595b9b88c2c8b72887b9e4c18f9b130",
    "flow_call": "0.5",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:44+00:00",
+   "ts": "2026-10-16T01:57:05+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-kappa",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "kappa",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.3,
+     "cost_usd": 0.02941,
+     "usage": {
+      "input": 2291,
+      "output": 717,
+      "cache_read": 10075,
+      "cache_creation": 2336,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 14702,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.3,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2291,
+    "output": 717,
+    "cache_read": 10075,
+    "cache_creation": 2336,
+    "calls": 1,
+    "resident": 14702,
+    "peak_context": 14702,
+    "context_window": null
+   },
+   "cost_usd": 0.02941,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:03+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 31.1,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.1,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "09fdeb58e6600fc3eb6bde659af5391c9cb76d7a7af229cf0e231f52585993a0",
+   "flow_call": "0.8",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:06+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-beta",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "beta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.4,
+     "cost_usd": 0.027221,
+     "usage": {
+      "input": 3072,
+      "output": 230,
+      "cache_read": 17729,
+      "cache_creation": 2463,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 23264,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.4,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3072,
+    "output": 230,
+    "cache_read": 17729,
+    "cache_creation": 2463,
+    "calls": 1,
+    "resident": 23264,
+    "peak_context": 23264,
+    "context_window": null
+   },
+   "cost_usd": 0.027221,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:03+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 32.3,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.2,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "65ac3053bef1a7c0a51c3212c4112703d38b38a8ed4dafcf07fd1c87d747972e",
+   "flow_call": "0.2",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:06+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-iota",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "iota",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.6,
+     "cost_usd": 0.024605,
+     "usage": {
+      "input": 2756,
+      "output": 303,
+      "cache_read": 15056,
+      "cache_creation": 1940,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 19752,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.6,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2756,
+    "output": 303,
+    "cache_read": 15056,
+    "cache_creation": 1940,
+    "calls": 1,
+    "resident": 19752,
+    "peak_context": 19752,
+    "context_window": null
+   },
+   "cost_usd": 0.024605,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:03+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 33.4,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.3,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "42814c75864ed586d87015d4f7eeaf46edc1588b9986da83d3a28e72684c19a9",
+   "flow_call": "0.7",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:08+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-kappa",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "kappa",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.3,
+     "cost_usd": 0.028461,
+     "usage": {
+      "input": 2066,
+      "output": 750,
+      "cache_read": 16246,
+      "cache_creation": 1637,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 19949,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.3,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2066,
+    "output": 750,
+    "cache_read": 16246,
+    "cache_creation": 1637,
+    "calls": 1,
+    "resident": 19949,
+    "peak_context": 19949,
+    "context_window": null
+   },
+   "cost_usd": 0.028461,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:05+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 34.4,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.4,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "397527c3f80476a09a064a9932e0e8ab84a24223ec7a3cb1df987918b45f6f4c",
+   "flow_call": "0.8",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:08+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-eta",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "eta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.8,
+     "cost_usd": 0.029781,
+     "usage": {
+      "input": 3700,
+      "output": 609,
+      "cache_read": 17384,
+      "cache_creation": 1155,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 22239,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.8,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3700,
+    "output": 609,
+    "cache_read": 17384,
+    "cache_creation": 1155,
+    "calls": 1,
+    "resident": 22239,
+    "peak_context": 22239,
+    "context_window": null
+   },
+   "cost_usd": 0.029781,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:05+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 35.5,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.6,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "60d2bcb12c50bf1d2f2736a713b9d6dcdaef3c61b7a3dd64577e5f0905fc5b99",
+   "flow_call": "0.5",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:08+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-gamma~2",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "gamma",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.7,
+     "cost_usd": 0.028179,
+     "usage": {
+      "input": 3773,
+      "output": 683,
+      "cache_read": 16974,
+      "cache_creation": 406,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 21153,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.7,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3773,
+    "output": 683,
+    "cache_read": 16974,
+    "cache_creation": 406,
+    "calls": 1,
+    "resident": 21153,
+    "peak_context": 21153,
+    "context_window": null
+   },
+   "cost_usd": 0.028179,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:06+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 36.7,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.7,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "74ba621867fa7fe96cd27ddee7371098db52214e471e1c615c6e1a39d3cc29f0",
+   "flow_call": "0.3",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:09+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "review-theta",
+   "attempt": 0,
+   "kind": "review",
+   "executor": "agent",
+   "unit": "theta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 3.0,
+     "cost_usd": 0.023956,
+     "usage": {
+      "input": 2969,
+      "output": 320,
+      "cache_read": 13140,
+      "cache_creation": 1682,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 17791,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 3.0,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 2969,
+    "output": 320,
+    "cache_read": 13140,
+    "cache_creation": 1682,
+    "calls": 1,
+    "resident": 17791,
+    "peak_context": 17791,
+    "context_window": null
+   },
+   "cost_usd": 0.023956,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:06+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 37.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.8,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "ab5ed55e42f2fffe2bf00d596309295eba7316fe9dd821b1d2d2d9bee1984d03",
+   "flow_call": "0.6",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:11+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "write_note-gamma",
@@ -2089,16 +2729,16 @@
      "model": "",
      "credential": "ambient",
      "stop": "completed",
-     "wall_s": 0.1,
-     "cost_usd": 0.037177,
+     "wall_s": 2.5,
+     "cost_usd": 0.025846,
      "usage": {
-      "input": 3485,
-      "output": 879,
-      "cache_read": 18724,
-      "cache_creation": 2112,
+      "input": 2113,
+      "output": 421,
+      "cache_read": 15397,
+      "cache_creation": 2286,
       "calls": 1,
       "resident": null,
-      "peak_context": 24321,
+      "peak_context": 19796,
       "context_window": null
      },
      "other_models": {}
@@ -2107,7 +2747,7 @@
    "skipped_hops": [],
    "stop": "completed",
    "ok": true,
-   "wall_s": 0.1,
+   "wall_s": 2.5,
    "exit_code": null,
    "signal": null,
    "reason": "",
@@ -2115,24 +2755,24 @@
    "round_errors": [],
    "hook_errors": [],
    "usage": {
-    "input": 3485,
-    "output": 879,
-    "cache_read": 18724,
-    "cache_creation": 2112,
+    "input": 2113,
+    "output": 421,
+    "cache_read": 15397,
+    "cache_creation": 2286,
     "calls": 1,
-    "resident": 24321,
-    "peak_context": 24321,
+    "resident": 19796,
+    "peak_context": 19796,
     "context_window": null
    },
-   "cost_usd": 0.037177,
+   "cost_usd": 0.025846,
    "quota": [
     {
-     "observed_at": "2026-10-15T07:11:43+00:00",
+     "observed_at": "2026-10-16T01:57:08+00:00",
      "credential": "ambient",
-     "five_hour_pct": 35.6,
-     "five_hour_resets_at": "2026-10-15T10:11:41+00:00",
-     "seven_day_pct": 43.6,
-     "seven_day_resets_at": "2026-10-20T09:11:41+00:00",
+     "five_hour_pct": 38.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 43.9,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
      "status": "allowed",
      "account": "",
      "status_window": "",
@@ -2149,12 +2789,96 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "c7bb4935a13ba0a8bf1ad0f4e488adcd712bd7bcc75a7ca3dd1d11c6c00cada5",
+   "fingerprint": "372a265e5fe0ad6d3d8012d0da931dc5d48a345be0f95c0bd118711d98b2cea1",
    "flow_call": "0.3",
    "replayed": false
   },
   {
-   "ts": "2026-10-15T07:11:44+00:00",
+   "ts": "2026-10-16T01:57:13+00:00",
+   "run_id": "docs",
+   "run_group": "docs",
+   "key": "write_note-theta",
+   "attempt": 0,
+   "kind": "write_note",
+   "executor": "agent",
+   "unit": "theta",
+   "agent": "stub",
+   "model": "",
+   "credential": "ambient",
+   "route": "hop 1/1 stub",
+   "hops": [
+    {
+     "route": "hop 1/1 stub",
+     "agent": "stub",
+     "model": "",
+     "credential": "ambient",
+     "stop": "completed",
+     "wall_s": 2.7,
+     "cost_usd": 0.0256,
+     "usage": {
+      "input": 3838,
+      "output": 324,
+      "cache_read": 13092,
+      "cache_creation": 1413,
+      "calls": 1,
+      "resident": null,
+      "peak_context": 18343,
+      "context_window": null
+     },
+     "other_models": {}
+    }
+   ],
+   "skipped_hops": [],
+   "stop": "completed",
+   "ok": true,
+   "wall_s": 2.7,
+   "exit_code": null,
+   "signal": null,
+   "reason": "",
+   "rounds": 1,
+   "round_errors": [],
+   "hook_errors": [],
+   "usage": {
+    "input": 3838,
+    "output": 324,
+    "cache_read": 13092,
+    "cache_creation": 1413,
+    "calls": 1,
+    "resident": 18343,
+    "peak_context": 18343,
+    "context_window": null
+   },
+   "cost_usd": 0.0256,
+   "quota": [
+    {
+     "observed_at": "2026-10-16T01:57:09+00:00",
+     "credential": "ambient",
+     "five_hour_pct": 39.8,
+     "five_hour_resets_at": "2026-10-16T04:56:50+00:00",
+     "seven_day_pct": 44.0,
+     "seven_day_resets_at": "2026-10-21T03:56:50+00:00",
+     "status": "allowed",
+     "account": "",
+     "status_window": "",
+     "threshold_pct": null,
+     "overage_status": "",
+     "overage_disabled_reason": "",
+     "using_overage": null,
+     "windows": {},
+     "extra": {}
+    }
+   ],
+   "web_queries": [],
+   "unread_events": {},
+   "changes": null,
+   "context_budget": null,
+   "context_warned": false,
+   "fingerprint": "a6feb00ec052f15bfe37694a06205cb7ef2b47e0e347c3904cfc669c1499b155",
+   "flow_call": "0.6",
+   "replayed": false
+  },
+  {
+   "ts": "2026-10-16T01:57:13+00:00",
    "run_id": "docs",
    "run_group": "docs",
    "key": "python:report",
@@ -2185,7 +2909,7 @@
    "changes": null,
    "context_budget": null,
    "context_warned": false,
-   "fingerprint": "3313c3852d21d76c807823106aff23a4563075e7fe07938e88dec54aaccddb4f",
+   "fingerprint": "88cb81ee9172e85d13d95bd939ac99ce9dedc20766f1f775e3bea4261fb13dd2",
    "flow_call": "0",
    "replayed": false
   }
@@ -2193,7 +2917,7 @@
  "plan": {
   "nodes": [
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "python:prepare-alpha",
     "kind": "prepare",
     "unit": "alpha",
@@ -2205,13 +2929,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
@@ -2226,7 +2950,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "summarize-alpha",
     "kind": "summarize",
     "unit": "alpha",
@@ -2240,20 +2964,20 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.1",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.3,
     "stop": "completed",
     "route": "hop 1/2 stub/primary-model",
     "attempts": 1,
@@ -2261,7 +2985,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "python:prepare-beta",
     "kind": "prepare",
     "unit": "beta",
@@ -2273,13 +2997,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
@@ -2294,7 +3018,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "summarize-beta",
     "kind": "summarize",
     "unit": "beta",
@@ -2308,20 +3032,20 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.2",
     "state": "done",
-    "wall_s": 0.2,
+    "wall_s": 5.1,
     "stop": "completed",
     "route": "hop 2/2 stub/fallback-model",
     "attempts": 1,
@@ -2329,7 +3053,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "python:prepare-gamma",
     "kind": "prepare",
     "unit": "gamma",
@@ -2341,13 +3065,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
@@ -2362,7 +3086,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "summarize-gamma",
     "kind": "summarize",
     "unit": "gamma",
@@ -2376,20 +3100,20 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.3",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.7,
     "stop": "completed",
     "route": "hop 1/2 stub/primary-model",
     "attempts": 1,
@@ -2397,7 +3121,7 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "python:prepare-delta",
     "kind": "prepare",
     "unit": "delta",
@@ -2409,13 +3133,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
@@ -2430,7 +3154,7 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
     "key": "summarize-delta",
     "kind": "summarize",
     "unit": "delta",
@@ -2444,20 +3168,20 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.4",
     "state": "done",
-    "wall_s": 0.2,
+    "wall_s": 4.4,
     "stop": "completed",
     "route": "hop 1/2 stub/primary-model",
     "attempts": 1,
@@ -2465,10 +3189,10 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
-    "key": "python:prepare-epsilon",
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "python:prepare-eta",
     "kind": "prepare",
-    "unit": "epsilon",
+    "unit": "eta",
     "claims": [],
     "after": [],
     "priority": 0.0,
@@ -2477,13 +3201,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
@@ -2498,13 +3222,13 @@
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
-    "key": "summarize-epsilon",
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "summarize-eta",
     "kind": "summarize",
-    "unit": "epsilon",
+    "unit": "eta",
     "claims": [],
     "after": [
-     "python:prepare-epsilon"
+     "python:prepare-eta"
     ],
     "priority": 0.0,
     "executor": "agent",
@@ -2512,20 +3236,20 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.5",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.2,
     "stop": "completed",
     "route": "hop 2/2 stub/fallback-model",
     "attempts": 1,
@@ -2533,10 +3257,10 @@
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
-    "key": "python:prepare-zeta",
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "python:prepare-theta",
     "kind": "prepare",
-    "unit": "zeta",
+    "unit": "theta",
     "claims": [],
     "after": [],
     "priority": 0.0,
@@ -2545,34 +3269,34 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.6",
-    "state": "failed",
+    "state": "done",
     "wall_s": 0.0,
-    "stop": "error",
+    "stop": "completed",
     "route": "",
     "attempts": 1,
     "level": 0,
     "group": "prepare"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
-    "key": "summarize-zeta",
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "summarize-theta",
     "kind": "summarize",
-    "unit": "zeta",
+    "unit": "theta",
     "claims": [],
     "after": [
-     "python:prepare-zeta"
+     "python:prepare-theta"
     ],
     "priority": 0.0,
     "executor": "agent",
@@ -2580,28 +3304,164 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 131,
+      "line": 151,
       "loops": []
      }
     ],
     "created_from": [],
     "flow_call": "0.6",
-    "state": "blocked",
-    "wall_s": 0.0,
-    "stop": "invalid_input",
-    "route": "",
+    "state": "done",
+    "wall_s": 2.2,
+    "stop": "completed",
+    "route": "hop 2/2 stub/fallback-model",
     "attempts": 1,
     "level": 1,
     "group": "summarize"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "python:prepare-iota",
+    "kind": "prepare",
+    "unit": "iota",
+    "claims": [],
+    "after": [],
+    "priority": 0.0,
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 151,
+      "loops": []
+     }
+    ],
+    "created_from": [],
+    "flow_call": "0.7",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 0,
+    "group": "prepare"
+   },
+   {
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "summarize-iota",
+    "kind": "summarize",
+    "unit": "iota",
+    "claims": [],
+    "after": [
+     "python:prepare-iota"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 151,
+      "loops": []
+     }
+    ],
+    "created_from": [],
+    "flow_call": "0.7",
+    "state": "done",
+    "wall_s": 2.5,
+    "stop": "completed",
+    "route": "hop 2/2 stub/fallback-model",
+    "attempts": 1,
+    "level": 1,
+    "group": "summarize"
+   },
+   {
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "python:prepare-kappa",
+    "kind": "prepare",
+    "unit": "kappa",
+    "claims": [],
+    "after": [],
+    "priority": 0.0,
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 151,
+      "loops": []
+     }
+    ],
+    "created_from": [],
+    "flow_call": "0.8",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 0,
+    "group": "prepare"
+   },
+   {
+    "ts": "2026-10-16T01:56:50+00:00",
+    "key": "summarize-kappa",
+    "kind": "summarize",
+    "unit": "kappa",
+    "claims": [],
+    "after": [
+     "python:prepare-kappa"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 151,
+      "loops": []
+     }
+    ],
+    "created_from": [],
+    "flow_call": "0.8",
+    "state": "done",
+    "wall_s": 2.8,
+    "stop": "completed",
+    "route": "hop 2/2 stub/fallback-model",
+    "attempts": 1,
+    "level": 1,
+    "group": "summarize"
+   },
+   {
+    "ts": "2026-10-16T01:56:53+00:00",
     "key": "python:score-alpha",
     "kind": "score",
     "unit": "alpha",
@@ -2615,16 +3475,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2643,7 +3503,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:53+00:00",
     "key": "review-alpha",
     "kind": "review",
     "unit": "alpha",
@@ -2658,16 +3518,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
+      "line": 156,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2678,7 +3538,7 @@
     ],
     "flow_call": "0.1",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.2,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -2686,7 +3546,7 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:53+00:00",
     "key": "python:score-gamma",
     "kind": "score",
     "unit": "gamma",
@@ -2700,16 +3560,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2728,7 +3588,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:53+00:00",
     "key": "review-gamma",
     "kind": "review",
     "unit": "gamma",
@@ -2743,16 +3603,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
+      "line": 156,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2763,15 +3623,15 @@
     ],
     "flow_call": "0.3",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.9,
     "stop": "completed",
     "route": "hop 1/1 stub",
-    "attempts": 3,
+    "attempts": 1,
     "level": 3,
     "group": "review"
    },
    {
-    "ts": "2026-10-15T07:11:42+00:00",
+    "ts": "2026-10-16T01:56:55+00:00",
     "key": "python:score-delta",
     "kind": "score",
     "unit": "delta",
@@ -2785,16 +3645,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2813,7 +3673,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:55+00:00",
     "key": "review-delta",
     "kind": "review",
     "unit": "delta",
@@ -2828,16 +3688,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
+      "line": 156,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2848,7 +3708,7 @@
     ],
     "flow_call": "0.4",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.2,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -2856,7 +3716,44 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:55+00:00",
+    "key": "write_note-alpha",
+    "kind": "write_note",
+    "unit": "alpha",
+    "claims": [],
+    "after": [
+     "summarize-alpha"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-alpha"
+    ],
+    "flow_call": "0.1",
+    "state": "done",
+    "wall_s": 5.8,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:56:55+00:00",
     "key": "python:score-beta",
     "kind": "score",
     "unit": "beta",
@@ -2870,16 +3767,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2898,7 +3795,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:55+00:00",
     "key": "review-beta",
     "kind": "review",
     "unit": "beta",
@@ -2913,16 +3810,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
+      "line": 156,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -2933,7 +3830,7 @@
     ],
     "flow_call": "0.2",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.7,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -2941,118 +3838,7 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "write_note-alpha",
-    "kind": "write_note",
-    "unit": "alpha",
-    "claims": [],
-    "after": [
-     "summarize-alpha"
-    ],
-    "priority": 0.0,
-    "executor": "agent",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 140,
-      "loops": []
-     }
-    ],
-    "created_from": [
-     "review-alpha"
-    ],
-    "flow_call": "0.1",
-    "state": "done",
-    "wall_s": 0.2,
-    "stop": "completed",
-    "route": "hop 1/1 stub",
-    "attempts": 1,
-    "level": 2,
-    "group": "write_note"
-   },
-   {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "write_note-delta",
-    "kind": "write_note",
-    "unit": "delta",
-    "claims": [],
-    "after": [
-     "summarize-delta"
-    ],
-    "priority": 0.0,
-    "executor": "agent",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 140,
-      "loops": []
-     }
-    ],
-    "created_from": [
-     "review-delta"
-    ],
-    "flow_call": "0.4",
-    "state": "done",
-    "wall_s": 0.1,
-    "stop": "completed",
-    "route": "hop 1/1 stub",
-    "attempts": 1,
-    "level": 2,
-    "group": "write_note"
-   },
-   {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "write_note-beta",
-    "kind": "write_note",
-    "unit": "beta",
-    "claims": [],
-    "after": [
-     "summarize-beta"
-    ],
-    "priority": 0.0,
-    "executor": "agent",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 140,
-      "loops": []
-     }
-    ],
-    "created_from": [
-     "review-beta"
-    ],
-    "flow_call": "0.2",
-    "state": "done",
-    "wall_s": 0.1,
-    "stop": "completed",
-    "route": "hop 1/1 stub",
-    "attempts": 1,
-    "level": 2,
-    "group": "write_note"
-   },
-   {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:56+00:00",
     "key": "revise-gamma",
     "kind": "revise",
     "unit": "gamma",
@@ -3067,16 +3853,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 139,
+      "line": 159,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
@@ -3087,7 +3873,7 @@
     ],
     "flow_call": "0.3",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.5,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -3095,13 +3881,50 @@
     "group": "revise"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "python:score-epsilon",
-    "kind": "score",
-    "unit": "epsilon",
+    "ts": "2026-10-16T01:56:57+00:00",
+    "key": "write_note-delta",
+    "kind": "write_note",
+    "unit": "delta",
     "claims": [],
     "after": [
-     "summarize-epsilon"
+     "summarize-delta"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-delta"
+    ],
+    "flow_call": "0.4",
+    "state": "done",
+    "wall_s": 2.7,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:56:58+00:00",
+    "key": "python:score-eta",
+    "kind": "score",
+    "unit": "eta",
+    "claims": [],
+    "after": [
+     "summarize-eta"
     ],
     "priority": 0.0,
     "executor": "python",
@@ -3109,35 +3932,78 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 1
        }
       ]
      }
     ],
     "created_from": [
-     "summarize-epsilon"
+     "summarize-eta"
     ],
     "flow_call": "0.5",
-    "state": "partial",
+    "state": "done",
     "wall_s": 0.0,
-    "stop": "partial",
+    "stop": "completed",
     "route": "",
     "attempts": 1,
     "level": 2,
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:58+00:00",
+    "key": "review-eta",
+    "kind": "review",
+    "unit": "eta",
+    "claims": [],
+    "after": [
+     "summarize-eta",
+     "python:score-eta"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 156,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "python:score-eta"
+    ],
+    "flow_call": "0.5",
+    "state": "done",
+    "wall_s": 2.7,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 3,
+    "group": "review"
+   },
+   {
+    "ts": "2026-10-16T01:56:58+00:00",
     "key": "python:score-gamma~2",
     "kind": "score",
     "unit": "gamma",
@@ -3151,16 +4017,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 135,
+      "line": 155,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 2
        }
       ]
@@ -3179,50 +4045,7 @@
     "group": "score"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "review-epsilon",
-    "kind": "review",
-    "unit": "epsilon",
-    "claims": [],
-    "after": [
-     "summarize-epsilon",
-     "python:score-epsilon"
-    ],
-    "priority": 0.0,
-    "executor": "agent",
-    "flow": [
-     {
-      "function": "contraagent.docs.examples.demo.tasks.docs",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
-      "loops": []
-     },
-     {
-      "function": "contraagent.docs.examples.demo.tasks.review_loop",
-      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
-      "loops": [
-       {
-        "line": 134,
-        "pass": 1
-       }
-      ]
-     }
-    ],
-    "created_from": [
-     "python:score-epsilon"
-    ],
-    "flow_call": "0.5",
-    "state": "done",
-    "wall_s": 0.1,
-    "stop": "completed",
-    "route": "hop 1/1 stub",
-    "attempts": 1,
-    "level": 3,
-    "group": "review"
-   },
-   {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:56:58+00:00",
     "key": "review-gamma~2",
     "kind": "review",
     "unit": "gamma",
@@ -3237,16 +4060,16 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 136,
+      "line": 156,
       "loops": [
        {
-        "line": 134,
+        "line": 154,
         "pass": 2
        }
       ]
@@ -3257,7 +4080,7 @@
     ],
     "flow_call": "0.3",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.7,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -3265,13 +4088,56 @@
     "group": "review"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
-    "key": "write_note-epsilon",
-    "kind": "write_note",
-    "unit": "epsilon",
+    "ts": "2026-10-16T01:57:00+00:00",
+    "key": "python:score-theta",
+    "kind": "score",
+    "unit": "theta",
     "claims": [],
     "after": [
-     "summarize-epsilon"
+     "summarize-theta"
+    ],
+    "priority": 0.0,
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 155,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "summarize-theta"
+    ],
+    "flow_call": "0.6",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 2,
+    "group": "score"
+   },
+   {
+    "ts": "2026-10-16T01:57:00+00:00",
+    "key": "review-theta",
+    "kind": "review",
+    "unit": "theta",
+    "claims": [],
+    "after": [
+     "summarize-theta",
+     "python:score-theta"
     ],
     "priority": 0.0,
     "executor": "agent",
@@ -3279,22 +4145,234 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 140,
+      "line": 156,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "python:score-theta"
+    ],
+    "flow_call": "0.6",
+    "state": "done",
+    "wall_s": 3.0,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 3,
+    "group": "review"
+   },
+   {
+    "ts": "2026-10-16T01:57:01+00:00",
+    "key": "python:score-iota",
+    "kind": "score",
+    "unit": "iota",
+    "claims": [],
+    "after": [
+     "summarize-iota"
+    ],
+    "priority": 0.0,
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 155,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "summarize-iota"
+    ],
+    "flow_call": "0.7",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 2,
+    "group": "score"
+   },
+   {
+    "ts": "2026-10-16T01:57:01+00:00",
+    "key": "review-iota",
+    "kind": "review",
+    "unit": "iota",
+    "claims": [],
+    "after": [
+     "summarize-iota",
+     "python:score-iota"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 156,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "python:score-iota"
+    ],
+    "flow_call": "0.7",
+    "state": "done",
+    "wall_s": 2.5,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 3,
+    "group": "review"
+   },
+   {
+    "ts": "2026-10-16T01:57:03+00:00",
+    "key": "python:score-kappa",
+    "kind": "score",
+    "unit": "kappa",
+    "claims": [],
+    "after": [
+     "summarize-kappa"
+    ],
+    "priority": 0.0,
+    "executor": "python",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 155,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "summarize-kappa"
+    ],
+    "flow_call": "0.8",
+    "state": "done",
+    "wall_s": 0.0,
+    "stop": "completed",
+    "route": "",
+    "attempts": 1,
+    "level": 2,
+    "group": "score"
+   },
+   {
+    "ts": "2026-10-16T01:57:03+00:00",
+    "key": "review-kappa",
+    "kind": "review",
+    "unit": "kappa",
+    "claims": [],
+    "after": [
+     "summarize-kappa",
+     "python:score-kappa"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 156,
+      "loops": [
+       {
+        "line": 154,
+        "pass": 1
+       }
+      ]
+     }
+    ],
+    "created_from": [
+     "python:score-kappa"
+    ],
+    "flow_call": "0.8",
+    "state": "done",
+    "wall_s": 2.3,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 3,
+    "group": "review"
+   },
+   {
+    "ts": "2026-10-16T01:57:03+00:00",
+    "key": "write_note-beta",
+    "kind": "write_note",
+    "unit": "beta",
+    "claims": [],
+    "after": [
+     "summarize-beta"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
       "loops": []
      }
     ],
     "created_from": [
-     "review-epsilon"
+     "review-beta"
     ],
-    "flow_call": "0.5",
+    "flow_call": "0.2",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.4,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -3302,7 +4380,118 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-15T07:11:43+00:00",
+    "ts": "2026-10-16T01:57:03+00:00",
+    "key": "write_note-iota",
+    "kind": "write_note",
+    "unit": "iota",
+    "claims": [],
+    "after": [
+     "summarize-iota"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-iota"
+    ],
+    "flow_call": "0.7",
+    "state": "done",
+    "wall_s": 2.6,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:57:05+00:00",
+    "key": "write_note-eta",
+    "kind": "write_note",
+    "unit": "eta",
+    "claims": [],
+    "after": [
+     "summarize-eta"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-eta"
+    ],
+    "flow_call": "0.5",
+    "state": "done",
+    "wall_s": 2.8,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:57:05+00:00",
+    "key": "write_note-kappa",
+    "kind": "write_note",
+    "unit": "kappa",
+    "claims": [],
+    "after": [
+     "summarize-kappa"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-kappa"
+    ],
+    "flow_call": "0.8",
+    "state": "done",
+    "wall_s": 2.3,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:57:08+00:00",
     "key": "write_note-gamma",
     "kind": "write_note",
     "unit": "gamma",
@@ -3316,13 +4505,13 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      },
      {
       "function": "contraagent.docs.examples.demo.tasks.review_loop",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 140,
+      "line": 160,
       "loops": []
      }
     ],
@@ -3331,7 +4520,7 @@
     ],
     "flow_call": "0.3",
     "state": "done",
-    "wall_s": 0.1,
+    "wall_s": 2.5,
     "stop": "completed",
     "route": "hop 1/1 stub",
     "attempts": 1,
@@ -3339,7 +4528,44 @@
     "group": "write_note"
    },
    {
-    "ts": "2026-10-15T07:11:44+00:00",
+    "ts": "2026-10-16T01:57:09+00:00",
+    "key": "write_note-theta",
+    "kind": "write_note",
+    "unit": "theta",
+    "claims": [],
+    "after": [
+     "summarize-theta"
+    ],
+    "priority": 0.0,
+    "executor": "agent",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     },
+     {
+      "function": "contraagent.docs.examples.demo.tasks.review_loop",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 160,
+      "loops": []
+     }
+    ],
+    "created_from": [
+     "review-theta"
+    ],
+    "flow_call": "0.6",
+    "state": "done",
+    "wall_s": 2.7,
+    "stop": "completed",
+    "route": "hop 1/1 stub",
+    "attempts": 1,
+    "level": 2,
+    "group": "write_note"
+   },
+   {
+    "ts": "2026-10-16T01:57:13+00:00",
     "key": "python:report",
     "kind": "report",
     "unit": "",
@@ -3349,7 +4575,10 @@
      "summarize-beta",
      "revise-gamma",
      "summarize-delta",
-     "summarize-epsilon"
+     "summarize-eta",
+     "summarize-theta",
+     "summarize-iota",
+     "summarize-kappa"
     ],
     "priority": 0.0,
     "executor": "python",
@@ -3357,7 +4586,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 147,
+      "line": 167,
       "loops": []
      }
     ],
@@ -3366,8 +4595,10 @@
      "write_note-beta",
      "write_note-gamma",
      "write_note-delta",
-     "write_note-epsilon",
-     "summarize-zeta"
+     "write_note-eta",
+     "write_note-theta",
+     "write_note-iota",
+     "write_note-kappa"
     ],
     "flow_call": "0",
     "state": "done",
@@ -3383,10 +4614,10 @@
    {
     "id": "prepare",
     "label": "prepare",
-    "total": 6,
-    "done": 5,
+    "total": 8,
+    "done": 8,
     "partial": 0,
-    "failed": 1,
+    "failed": 0,
     "running": 0,
     "pending": 0,
     "skipped": 0,
@@ -3395,21 +4626,21 @@
    {
     "id": "summarize",
     "label": "summarize",
-    "total": 6,
-    "done": 5,
+    "total": 8,
+    "done": 8,
     "partial": 0,
     "failed": 0,
     "running": 0,
     "pending": 0,
     "skipped": 0,
-    "blocked": 1
+    "blocked": 0
    },
    {
     "id": "score",
     "label": "score",
-    "total": 6,
-    "done": 5,
-    "partial": 1,
+    "total": 9,
+    "done": 9,
+    "partial": 0,
     "failed": 0,
     "running": 0,
     "pending": 0,
@@ -3419,8 +4650,8 @@
    {
     "id": "write_note",
     "label": "write_note",
-    "total": 5,
-    "done": 5,
+    "total": 8,
+    "done": 8,
     "partial": 0,
     "failed": 0,
     "running": 0,
@@ -3431,8 +4662,8 @@
    {
     "id": "review",
     "label": "review",
-    "total": 6,
-    "done": 6,
+    "total": 9,
+    "done": 9,
     "partial": 0,
     "failed": 0,
     "running": 0,
@@ -3483,7 +4714,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      }
     ],
@@ -3499,7 +4730,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      }
     ],
@@ -3515,7 +4746,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      }
     ],
@@ -3531,7 +4762,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      }
     ],
@@ -3547,7 +4778,7 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
       "loops": []
      }
     ],
@@ -3563,7 +4794,39 @@
      {
       "function": "contraagent.docs.examples.demo.tasks.docs",
       "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
-      "line": 146,
+      "line": 166,
+      "loops": []
+     }
+    ],
+    "state": "returned",
+    "error": null,
+    "time_box": null
+   },
+   {
+    "id": "0.7",
+    "parent": "0",
+    "function": "contraagent.docs.examples.demo.tasks.review_loop",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
+      "loops": []
+     }
+    ],
+    "state": "returned",
+    "error": null,
+    "time_box": null
+   },
+   {
+    "id": "0.8",
+    "parent": "0",
+    "function": "contraagent.docs.examples.demo.tasks.review_loop",
+    "flow": [
+     {
+      "function": "contraagent.docs.examples.demo.tasks.docs",
+      "file": "/site-packages/contraagent/docs/examples/demo/tasks.py",
+      "line": 166,
       "loops": []
      }
     ],
@@ -3580,28 +4843,28 @@
     "agent": "stub",
     "model": "primary-model",
     "sessions": 4,
-    "input": 15287,
-    "output": 2237,
-    "cache_read": 86256,
-    "cache_creation": 8109,
+    "input": 13087,
+    "output": 2121,
+    "cache_read": 72812,
+    "cache_creation": 7808,
     "calls": 5,
-    "cost_usd": 0.135702,
-    "wall_s": 0.5,
-    "peak_context": 25968,
+    "cost_usd": 0.122199,
+    "wall_s": 11.7,
+    "peak_context": 21824,
     "context_window": null
    },
    {
     "agent": "stub",
     "model": "fallback-model",
-    "sessions": 2,
-    "input": 6853,
-    "output": 1325,
-    "cache_read": 23224,
-    "cache_creation": 4767,
-    "calls": 2,
-    "cost_usd": 0.065277,
-    "wall_s": 0.2,
-    "peak_context": 20087,
+    "sessions": 5,
+    "input": 13894,
+    "output": 2094,
+    "cache_read": 73753,
+    "cache_creation": 9498,
+    "calls": 5,
+    "cost_usd": 0.130835,
+    "wall_s": 12.5,
+    "peak_context": 22788,
     "context_window": null
    }
   ],
@@ -3634,7 +4897,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -3685,7 +4948,7 @@
       "file": {
        "exists": true,
        "size": 63,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -3736,7 +4999,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -3769,15 +5032,15 @@
     "inputs": []
    },
    {
-    "key": "python:prepare-epsilon",
+    "key": "python:prepare-eta",
     "kind": "prepare",
-    "unit": "epsilon",
+    "unit": "eta",
     "executor": "python",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/prepare/epsilon.json",
+      "path": "/work/demo-runs/docs/out/prepare/eta.json",
       "schema_name": "Prepared",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
       "fresh": true,
@@ -3786,12 +5049,12 @@
       "preserve": [],
       "file": {
        "exists": true,
-       "size": 69,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "size": 61,
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
-        "path": "inputs/epsilon.md",
+        "unit": "eta",
+        "path": "inputs/eta.md",
         "words": 14
        }
       },
@@ -3838,7 +5101,7 @@
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -3871,15 +5134,15 @@
     "inputs": []
    },
    {
-    "key": "python:prepare-zeta",
+    "key": "python:prepare-iota",
     "kind": "prepare",
-    "unit": "zeta",
+    "unit": "iota",
     "executor": "python",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/prepare/zeta.json",
+      "path": "/work/demo-runs/docs/out/prepare/iota.json",
       "schema_name": "Prepared",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
       "fresh": true,
@@ -3887,7 +5150,15 @@
       "validators": [],
       "preserve": [],
       "file": {
-       "exists": false
+       "exists": true,
+       "size": 63,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "path": "inputs/iota.md",
+        "words": 14
+       }
       },
       "fields": [
        {
@@ -3906,8 +5177,110 @@
         "required": true
        }
       ],
-      "status": "failed",
-      "rounds": null,
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": []
+   },
+   {
+    "key": "python:prepare-kappa",
+    "kind": "prepare",
+    "unit": "kappa",
+    "executor": "python",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/prepare/kappa.json",
+      "schema_name": "Prepared",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 65,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "path": "inputs/kappa.md",
+        "words": 14
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "path",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": []
+   },
+   {
+    "key": "python:prepare-theta",
+    "kind": "prepare",
+    "unit": "theta",
+    "executor": "python",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/prepare/theta.json",
+      "schema_name": "Prepared",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 65,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "path": "inputs/theta.md",
+        "words": 14
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "path",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
       "errors": []
      }
     ],
@@ -3931,10 +5304,10 @@
       "preserve": [],
       "file": {
        "exists": true,
-       "size": 86,
-       "mtime": "2026-10-15T07:11:44+00:00",
+       "size": 132,
+       "mtime": "2026-10-16T01:57:13+00:00",
        "truncated": false,
-       "content": "alpha: 3 points\nbeta: 3 points\ngamma: 3 points\ndelta: 3 points\nepsilon: 3 points"
+       "content": "alpha: 3 points\nbeta: 3 points\ngamma: 3 points\ndelta: 3 points\neta: 3 points\ntheta: 3 points\niota: 3 points\nkappa: 3 points"
       },
       "fields": [],
       "status": "valid",
@@ -3952,10 +5325,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-alpha",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:51+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -3988,10 +5362,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-beta",
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4024,10 +5399,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "revise-gamma",
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:57+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4060,10 +5436,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-delta",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -4089,20 +5466,132 @@
      },
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/summarize/epsilon.json",
+      "path": "/work/demo-runs/docs/out/summarize/eta.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-eta",
       "file": {
        "exists": true,
-       "size": 89,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 85,
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
+        "unit": "eta",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/theta.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-theta",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:56:59+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/iota.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-iota",
+      "file": {
+       "exists": true,
+       "size": 86,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/kappa.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-kappa",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
         "points": [
          "parses a config file",
          "validates it",
@@ -4144,7 +5633,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:53+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4178,10 +5667,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-alpha",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:51+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -4226,7 +5716,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:55+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4260,10 +5750,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-beta",
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4308,7 +5799,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:55+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4342,10 +5833,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-delta",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -4372,15 +5864,15 @@
     ]
    },
    {
-    "key": "python:score-epsilon",
+    "key": "python:score-eta",
     "kind": "score",
-    "unit": "epsilon",
+    "unit": "eta",
     "executor": "python",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/score/epsilon.json",
+      "path": "/work/demo-runs/docs/out/score/eta.json",
       "schema_name": "Score",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
       "fresh": true,
@@ -4390,11 +5882,11 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:58+00:00",
        "truncated": false,
        "content": {
         "points": 3,
-        "words": 0
+        "words": 8
        }
       },
       "fields": [
@@ -4417,20 +5909,21 @@
     "inputs": [
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/summarize/epsilon.json",
+      "path": "/work/demo-runs/docs/out/summarize/eta.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-eta",
       "file": {
        "exists": true,
-       "size": 89,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 85,
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
+        "unit": "eta",
         "points": [
          "parses a config file",
          "validates it",
@@ -4472,7 +5965,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:53+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4506,10 +5999,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-gamma",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:52+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -4554,7 +6048,7 @@
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:58+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4588,15 +6082,265 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "revise-gamma",
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:57+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
         "points": [
          "parses a config file (TOML)",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "python:score-iota",
+    "kind": "score",
+    "unit": "iota",
+    "executor": "python",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/score/iota.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/iota.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-iota",
+      "file": {
+       "exists": true,
+       "size": 86,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "python:score-kappa",
+    "kind": "score",
+    "unit": "kappa",
+    "executor": "python",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/score/kappa.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:03+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/kappa.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-kappa",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "python:score-theta",
+    "kind": "score",
+    "unit": "theta",
+    "executor": "python",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/score/theta.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/theta.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-theta",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:56:59+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "points": [
+         "parses a config file",
          "validates it",
          "reports errors"
         ]
@@ -4636,7 +6380,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4670,10 +6414,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-alpha",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:51+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -4706,10 +6451,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-alpha",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:53+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4750,7 +6496,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:01+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4784,10 +6530,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-beta",
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -4820,10 +6567,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-beta",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:55+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4864,7 +6612,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -4898,10 +6646,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-delta",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -4934,10 +6683,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-delta",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:55+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -4960,15 +6710,15 @@
     ]
    },
    {
-    "key": "review-epsilon",
+    "key": "review-eta",
     "kind": "review",
-    "unit": "epsilon",
+    "unit": "eta",
     "executor": "agent",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/review/epsilon.json",
+      "path": "/work/demo-runs/docs/out/review/eta.json",
       "schema_name": "Verdict",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Verdict",
       "fresh": true,
@@ -4978,7 +6728,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:03+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -5005,20 +6755,21 @@
     "inputs": [
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/summarize/epsilon.json",
+      "path": "/work/demo-runs/docs/out/summarize/eta.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-eta",
       "file": {
        "exists": true,
-       "size": 89,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 85,
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
+        "unit": "eta",
         "points": [
          "parses a config file",
          "validates it",
@@ -5041,21 +6792,22 @@
      },
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/score/epsilon.json",
+      "path": "/work/demo-runs/docs/out/score/eta.json",
       "schema_name": "Score",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-eta",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:58+00:00",
        "truncated": false,
        "content": {
         "points": 3,
-        "words": 0
+        "words": 8
        }
       },
       "fields": [
@@ -5092,7 +6844,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "approved": false,
@@ -5126,10 +6878,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-gamma",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:52+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5162,10 +6915,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-gamma",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:53+00:00",
        "truncated": false,
        "content": {
         "points": 3,
@@ -5206,7 +6960,7 @@
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:07+00:00",
        "truncated": false,
        "content": {
         "approved": true,
@@ -5240,10 +6994,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "revise-gamma",
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:57+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5276,14 +7031,363 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:score-gamma~2",
       "file": {
        "exists": true,
        "size": 31,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:58+00:00",
        "truncated": false,
        "content": {
         "points": 3,
         "words": 9
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "review-iota",
+    "kind": "review",
+    "unit": "iota",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/review/iota.json",
+      "schema_name": "Verdict",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Verdict",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 52,
+       "mtime": "2026-10-16T01:57:02+00:00",
+       "truncated": false,
+       "content": {
+        "approved": true,
+        "note": "Accurate and complete."
+       }
+      },
+      "fields": [
+       {
+        "name": "approved",
+        "type": "boolean",
+        "required": true
+       },
+       {
+        "name": "note",
+        "type": "string",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/iota.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-iota",
+      "file": {
+       "exists": true,
+       "size": 86,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/score/iota.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "python:score-iota",
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "review-kappa",
+    "kind": "review",
+    "unit": "kappa",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/review/kappa.json",
+      "schema_name": "Verdict",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Verdict",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 52,
+       "mtime": "2026-10-16T01:57:04+00:00",
+       "truncated": false,
+       "content": {
+        "approved": true,
+        "note": "Accurate and complete."
+       }
+      },
+      "fields": [
+       {
+        "name": "approved",
+        "type": "boolean",
+        "required": true
+       },
+       {
+        "name": "note",
+        "type": "string",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/kappa.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-kappa",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/score/kappa.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "python:score-kappa",
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:03+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
+       }
+      },
+      "fields": [
+       {
+        "name": "points",
+        "type": "integer",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "review-theta",
+    "kind": "review",
+    "unit": "theta",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/review/theta.json",
+      "schema_name": "Verdict",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Verdict",
+      "fresh": true,
+      "required": null,
+      "validators": [],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 52,
+       "mtime": "2026-10-16T01:57:08+00:00",
+       "truncated": false,
+       "content": {
+        "approved": true,
+        "note": "Accurate and complete."
+       }
+      },
+      "fields": [
+       {
+        "name": "approved",
+        "type": "boolean",
+        "required": true
+       },
+       {
+        "name": "note",
+        "type": "string",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/theta.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-theta",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:56:59+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     },
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/score/theta.json",
+      "schema_name": "Score",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Score",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "python:score-theta",
+      "file": {
+       "exists": true,
+       "size": 31,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "points": 3,
+        "words": 8
        }
       },
       "fields": [
@@ -5322,7 +7426,7 @@
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:57+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5360,10 +7464,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-gamma",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:52+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5396,10 +7501,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "review-gamma",
       "file": {
        "exists": true,
        "size": 52,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "approved": false,
@@ -5443,7 +7549,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:51+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -5481,10 +7587,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-alpha",
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -5534,7 +7641,7 @@
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -5572,10 +7679,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-beta",
       "file": {
        "exists": true,
        "size": 63,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -5625,7 +7733,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -5663,10 +7771,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-delta",
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -5695,15 +7804,15 @@
     ]
    },
    {
-    "key": "summarize-epsilon",
+    "key": "summarize-eta",
     "kind": "summarize",
-    "unit": "epsilon",
+    "unit": "eta",
     "executor": "agent",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/summarize/epsilon.json",
+      "path": "/work/demo-runs/docs/out/summarize/eta.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": true,
@@ -5715,11 +7824,11 @@
       "preserve": [],
       "file": {
        "exists": true,
-       "size": 89,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 85,
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
+        "unit": "eta",
         "points": [
          "parses a config file",
          "validates it",
@@ -5747,21 +7856,22 @@
     "inputs": [
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/prepare/epsilon.json",
+      "path": "/work/demo-runs/docs/out/prepare/eta.json",
       "schema_name": "Prepared",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-eta",
       "file": {
        "exists": true,
-       "size": 69,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "size": 61,
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
-        "path": "inputs/epsilon.md",
+        "unit": "eta",
+        "path": "inputs/eta.md",
         "words": 14
        }
       },
@@ -5807,7 +7917,7 @@
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:52+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5845,10 +7955,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-gamma",
       "file": {
        "exists": true,
        "size": 65,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:50+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -5877,15 +7988,15 @@
     ]
    },
    {
-    "key": "summarize-zeta",
+    "key": "summarize-iota",
     "kind": "summarize",
-    "unit": "zeta",
+    "unit": "iota",
     "executor": "agent",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/summarize/zeta.json",
+      "path": "/work/demo-runs/docs/out/summarize/iota.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": true,
@@ -5896,7 +8007,18 @@
       ],
       "preserve": [],
       "file": {
-       "exists": false
+       "exists": true,
+       "size": 86,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
       },
       "fields": [
        {
@@ -5910,25 +8032,216 @@
         "required": true
        }
       ],
-      "status": "refused",
-      "rounds": null,
-      "errors": [
-       "invalid input: input from python:prepare-zeta is missing: /work/demo-runs/docs/out/prepare/zeta.json"
-      ]
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
      }
     ],
     "inputs": [
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/prepare/zeta.json",
+      "path": "/work/demo-runs/docs/out/prepare/iota.json",
       "schema_name": "Prepared",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "python:prepare-iota",
       "file": {
-       "exists": false
+       "exists": true,
+       "size": 63,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "path": "inputs/iota.md",
+        "words": 14
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "path",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "summarize-kappa",
+    "kind": "summarize",
+    "unit": "kappa",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/summarize/kappa.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": true,
+      "required": null,
+      "validators": [
+       "three_points",
+       "its_own_unit"
+      ],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/prepare/kappa.json",
+      "schema_name": "Prepared",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "python:prepare-kappa",
+      "file": {
+       "exists": true,
+       "size": 65,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "path": "inputs/kappa.md",
+        "words": 14
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "path",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "words",
+        "type": "integer",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "summarize-theta",
+    "kind": "summarize",
+    "unit": "theta",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/summarize/theta.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": true,
+      "required": null,
+      "validators": [
+       "three_points",
+       "its_own_unit"
+      ],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:56:59+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/prepare/theta.json",
+      "schema_name": "Prepared",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Prepared",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "python:prepare-theta",
+      "file": {
+       "exists": true,
+       "size": 65,
+       "mtime": "2026-10-16T01:56:50+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "path": "inputs/theta.md",
+        "words": 14
+       }
       },
       "fields": [
        {
@@ -5972,7 +8285,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:00+00:00",
        "truncated": false,
        "content": "# alpha\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -5992,10 +8305,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-alpha",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:51+00:00",
        "truncated": false,
        "content": {
         "unit": "alpha",
@@ -6043,7 +8357,7 @@
       "file": {
        "exists": true,
        "size": 68,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:04+00:00",
        "truncated": false,
        "content": "# beta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -6063,10 +8377,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-beta",
       "file": {
        "exists": true,
        "size": 86,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "beta",
@@ -6114,7 +8429,7 @@
       "file": {
        "exists": true,
        "size": 69,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:58+00:00",
        "truncated": false,
        "content": "# delta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -6134,10 +8449,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-delta",
       "file": {
        "exists": true,
        "size": 87,
-       "mtime": "2026-10-15T07:11:42+00:00",
+       "mtime": "2026-10-16T01:56:54+00:00",
        "truncated": false,
        "content": {
         "unit": "delta",
@@ -6164,15 +8480,15 @@
     ]
    },
    {
-    "key": "write_note-epsilon",
+    "key": "write_note-eta",
     "kind": "write_note",
-    "unit": "epsilon",
+    "unit": "eta",
     "executor": "agent",
     "params": {},
     "outputs": [
      {
       "io": "output",
-      "path": "/work/demo-runs/docs/out/write_note/epsilon.md",
+      "path": "/work/demo-runs/docs/out/write_note/eta.md",
       "schema_name": "text",
       "schema_ref": "",
       "fresh": true,
@@ -6184,10 +8500,10 @@
       "preserve": [],
       "file": {
        "exists": true,
-       "size": 71,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 67,
+       "mtime": "2026-10-16T01:57:06+00:00",
        "truncated": false,
-       "content": "# epsilon\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
+       "content": "# eta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
       },
       "fields": [],
       "status": "valid",
@@ -6198,20 +8514,21 @@
     "inputs": [
      {
       "io": "input",
-      "path": "/work/demo-runs/docs/out/summarize/epsilon.json",
+      "path": "/work/demo-runs/docs/out/summarize/eta.json",
       "schema_name": "Summary",
       "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
       "fresh": null,
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "summarize-eta",
       "file": {
        "exists": true,
-       "size": 89,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "size": 85,
+       "mtime": "2026-10-16T01:56:56+00:00",
        "truncated": false,
        "content": {
-        "unit": "epsilon",
+        "unit": "eta",
         "points": [
          "parses a config file",
          "validates it",
@@ -6256,7 +8573,7 @@
       "file": {
        "exists": true,
        "size": 76,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:57:10+00:00",
        "truncated": false,
        "content": "# gamma\n\nparses a config file (TOML)。\n\nvalidates it。\n\nreports errors。\n"
       },
@@ -6276,10 +8593,11 @@
       "required": true,
       "validators": [],
       "preserve": [],
+      "producer": "revise-gamma",
       "file": {
        "exists": true,
        "size": 94,
-       "mtime": "2026-10-15T07:11:43+00:00",
+       "mtime": "2026-10-16T01:56:57+00:00",
        "truncated": false,
        "content": {
         "unit": "gamma",
@@ -6304,21 +8622,237 @@
       ]
      }
     ]
+   },
+   {
+    "key": "write_note-iota",
+    "kind": "write_note",
+    "unit": "iota",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/write_note/iota.md",
+      "schema_name": "text",
+      "schema_ref": "",
+      "fresh": true,
+      "required": null,
+      "validators": [
+       "heading",
+       "names-its-unit"
+      ],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 68,
+       "mtime": "2026-10-16T01:57:05+00:00",
+       "truncated": false,
+       "content": "# iota\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
+      },
+      "fields": [],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/iota.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-iota",
+      "file": {
+       "exists": true,
+       "size": 86,
+       "mtime": "2026-10-16T01:57:00+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "iota",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "write_note-kappa",
+    "kind": "write_note",
+    "unit": "kappa",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/write_note/kappa.md",
+      "schema_name": "text",
+      "schema_ref": "",
+      "fresh": true,
+      "required": null,
+      "validators": [
+       "heading",
+       "names-its-unit"
+      ],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 69,
+       "mtime": "2026-10-16T01:57:06+00:00",
+       "truncated": false,
+       "content": "# kappa\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
+      },
+      "fields": [],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/kappa.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-kappa",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:57:01+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "kappa",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "key": "write_note-theta",
+    "kind": "write_note",
+    "unit": "theta",
+    "executor": "agent",
+    "params": {},
+    "outputs": [
+     {
+      "io": "output",
+      "path": "/work/demo-runs/docs/out/write_note/theta.md",
+      "schema_name": "text",
+      "schema_ref": "",
+      "fresh": true,
+      "required": null,
+      "validators": [
+       "heading",
+       "names-its-unit"
+      ],
+      "preserve": [],
+      "file": {
+       "exists": true,
+       "size": 69,
+       "mtime": "2026-10-16T01:57:11+00:00",
+       "truncated": false,
+       "content": "# theta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n"
+      },
+      "fields": [],
+      "status": "valid",
+      "rounds": 1,
+      "errors": []
+     }
+    ],
+    "inputs": [
+     {
+      "io": "input",
+      "path": "/work/demo-runs/docs/out/summarize/theta.json",
+      "schema_name": "Summary",
+      "schema_ref": "contraagent.docs.examples.demo.tasks.Summary",
+      "fresh": null,
+      "required": true,
+      "validators": [],
+      "preserve": [],
+      "producer": "summarize-theta",
+      "file": {
+       "exists": true,
+       "size": 87,
+       "mtime": "2026-10-16T01:56:59+00:00",
+       "truncated": false,
+       "content": {
+        "unit": "theta",
+        "points": [
+         "parses a config file",
+         "validates it",
+         "reports errors"
+        ]
+       }
+      },
+      "fields": [
+       {
+        "name": "unit",
+        "type": "string",
+        "required": true
+       },
+       {
+        "name": "points",
+        "type": "list[string]",
+        "required": true
+       }
+      ]
+     }
+    ]
    }
   ],
   "tally": {
-   "valid": 29,
+   "valid": 44,
    "invalid": 0,
-   "refused": 1,
+   "refused": 0,
    "pending": 0,
-   "failed": 1,
+   "failed": 0,
    "running": 0
   }
  },
  "transcript": [
   {
    "type": "launch",
-   "ts": 1792048302.8319972,
+   "ts": 1792115810.6999652,
    "argv": [
     "stub",
     "-p",
@@ -6340,28 +8874,28 @@
    "tool": "read",
    "cmd": "/work/demo-runs/docs/calls/summarize-delta.json",
    "intent": "",
-   "call": "summarize-delta-725731"
+   "call": "summarize-delta-320792"
   },
   {
    "type": "tool_execution_end",
    "tool": "read",
    "out": "{\"prepared\": {\"unit\": \"delta\", \"path\": \"inputs/delta.md\", \"words\": 14}}",
    "err": false,
-   "call": "summarize-delta-725731"
+   "call": "summarize-delta-320792"
   },
   {
    "type": "tool_execution_start",
    "tool": "write",
    "cmd": "/work/demo-runs/docs/out/summarize/delta.json",
    "intent": "",
-   "call": "summarize-delta-629212"
+   "call": "summarize-delta-368480"
   },
   {
    "type": "tool_execution_end",
    "tool": "write",
    "out": "ok",
    "err": false,
-   "call": "summarize-delta-629212"
+   "call": "summarize-delta-368480"
   },
   {
    "type": "message_update",
@@ -6370,7 +8904,7 @@
   },
   {
    "type": "launch",
-   "ts": 1792048302.9161096,
+   "ts": 1792115812.9750888,
    "argv": [
     "stub",
     "-p",
@@ -6392,28 +8926,28 @@
    "tool": "read",
    "cmd": "/work/demo-runs/docs/calls/summarize-delta.json",
    "intent": "",
-   "call": "summarize-delta-86943"
+   "call": "summarize-delta-384899"
   },
   {
    "type": "tool_execution_end",
    "tool": "read",
    "out": "{\"prepared\": {\"unit\": \"delta\", \"path\": \"inputs/delta.md\", \"words\": 14}}",
    "err": false,
-   "call": "summarize-delta-86943"
+   "call": "summarize-delta-384899"
   },
   {
    "type": "tool_execution_start",
    "tool": "write",
    "cmd": "/work/demo-runs/docs/out/summarize/delta.json",
    "intent": "",
-   "call": "summarize-delta-534879"
+   "call": "summarize-delta-851648"
   },
   {
    "type": "tool_execution_end",
    "tool": "write",
    "out": "ok",
    "err": false,
-   "call": "summarize-delta-534879"
+   "call": "summarize-delta-851648"
   },
   {
    "type": "message_update",

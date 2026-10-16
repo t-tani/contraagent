@@ -1,24 +1,41 @@
 ---
 // A generic element live: the module packages/elements/docs/examples/<name>.ts
-// mounts it with its own hand-written data (`mount(host)`), and its source is
-// shown below it, read from the file. `theme` is a built-in theme
-// (`data-ca-theme`); what an element sends shows under it.
+// mounts it with its own hand-written data (`mount(host)`); `page`: the module builds a whole page with
+// its own background (the frame gives it no room around it). `theme` is a
+// built-in theme (`data-ca-theme`), `custom` a class of the package's
+// docs/examples/theme.css (a theme of one's own) on top of it; what an element
+// sends shows under it. `source`: the module's text under it, open, folded
+// (`details`), or not at all (`none`: the page quotes it itself).
 import { Code } from '@astrojs/starlight/components';
 import { repoFile } from '../lib/repo';
 
 interface Props {
   name: string;
-  height?: string;
+  page?: boolean;
   theme?: string;
+  custom?: string;
+  caption?: string;
+  source?: 'open' | 'details' | 'none';
 }
-const { name, height, theme = 'contraagent-dark' } = Astro.props;
+const { name, page = false, theme = 'contraagent-dark', custom, caption, source = 'open' } = Astro.props;
 const file = `web/packages/elements/docs/examples/${name}.ts`;
 ---
 
-<figure class="ca-demo" data-ca-theme={theme} style={height ? `--h:${height}` : undefined}>
-  <div class="ca-demo-frame" data-cae-example={name}></div>
+<figure class:list={['ca-demo', custom]} data-ca-theme={theme}>
+  <div class="ca-demo-frame" data-cae-example={name} data-page={page ? '' : undefined}></div>
+  {caption && <figcaption>{caption}</figcaption>}
 </figure>
-<Code code={repoFile(file)} lang="ts" title={file} />
+{source === 'open' && <Code code={repoFile(file)} lang="ts" title={file} />}
+{
+  source === 'details' && (
+    <details class="ca-source">
+      <summary>
+        Source: <code>{file}</code>
+      </summary>
+      <Code code={repoFile(file)} lang="ts" title={file} />
+    </details>
+  )
+}
 
 <script>
   import { adoptThemes } from '@contraagent/elements/themes';

@@ -10,7 +10,7 @@ generic parts they are built from (design tokens, themes, primitives, `cae-*`
 elements) are [`@contraagent/elements`](../elements/README.md), a package of
 its own for pages that need no contraagent data.
 
-The words used here (run, task, attempt, round, element, route, ...) are
+The words used here (run, task, attempt, round, element, view route, ...) are
 contraagent's, each with one meaning: `contraagent docs concepts` in the Python
 package.
 
@@ -55,6 +55,50 @@ hold functions and register nothing. `@contraagent/ui/bundle` is one
 self-contained, minified module (Lit and the translations included) for pages
 without a build step.
 
+## The views
+
+Each view over a run of the demo pipeline, in the contraagent Light theme.
+
+<!-- not on the site -->
+On the documentation site (`pnpm docs` in `web/`), each view is live in place of
+its screenshot, fed with the same run.
+
+`<ca-monitor>`, the whole monitor (`monitor`): the run's header, its tabs, and the overview.
+
+![The monitor's overview of a finished run: 44 of 44 tasks done, no problems, all outputs passed, and the pipeline graph of a review loop](docs/images/monitor.webp)
+
+`<ca-pipeline-graph>` (`pipeline-graph`): the flow by function and loop, a mark per task.
+
+![The pipeline graph of a review loop: prepare, summarize, a loop of score, review and revise, then write_note, every task done](docs/images/pipeline-graph.webp)
+
+`<ca-task-view>` (`task-view`): one task's agent sessions, transcript, input, output and definition.
+
+![The task view of write_note · alpha, done after 1 correction: the first agent session's transcript and the two checks its output failed](docs/images/task-view.webp)
+
+`<ca-journal-table>` (`journal-table`): every attempt with its outcome, coding agent, model, tokens, cost and time.
+
+![The history of the summarize tasks: 8 attempts, all done, one with 1 correction and one after a model switch](docs/images/journal-table.webp)
+
+`<ca-task-table>` (`task-table`): every task with its status.
+
+![The tasks of kind summarize: 8 tasks, all done](docs/images/task-table.webp)
+
+`<ca-contracts>` (`contracts`): every checked file and its result.
+
+![The outputs of a run: 44 checked files, all passed](docs/images/contracts.webp)
+
+`<ca-definitions>` (`definitions`): each kind's interface and its plugin's files.
+
+![The task definitions of a run: each kind with its role or Python, its tasks and attempts; for review, its plugin directory, output and role file](docs/images/definitions.webp)
+
+`<ca-kpis>` (`kpis`): the run's totals.
+
+![The totals of a run: tasks, attempts, cost, tokens, failed attempts, not started, agent session time, retries, corrections and model switches](docs/images/kpis.webp)
+
+`<ca-timeline>` (`timeline`): each attempt as a bar on a time axis, a lane per kind.
+
+![The timeline of a run: the attempts of each kind as bars over 23 seconds](docs/images/timeline.webp)
+
 ## Use it from a checkout
 
 In the repository's `web/` (Node 22, pnpm through `corepack enable`):
@@ -77,7 +121,7 @@ pnpm add <checkout>/web/tarballs/*.tgz
 
 - [Embed the monitor](docs/embed.md): the whole monitor inside a page or an application of your own.
 - [Live data](docs/live-data.md): elements fed by the client, the live feeds and the store.
-- [Events and routing](docs/events.md): what elements ask for, and how the monitor keeps the reader's place.
+- [Events and the view route](docs/events.md): what elements ask for, and how the monitor keeps the reader's place.
 - [Theming](docs/theming.md): colours and fonts as `--ca-*` custom properties.
 - [Languages](docs/languages.md): English and Japanese, and how to add a language.
 

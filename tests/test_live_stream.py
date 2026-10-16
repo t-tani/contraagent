@@ -25,19 +25,20 @@ pytest.importorskip("httpx")
 
 import httpx
 
-from contraagent import rundir
-from contraagent.hub import server as hub_server
-from contraagent.hub.client import DirectClient, HttpClient
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import DocumentPut, LogChunk, RecordBatch, RunRef
-from contraagent.hub.relay import Relay
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor
-from contraagent.monitor.server import stream_feed
-from contraagent.monitor.source import DirectorySource, StaticLiveness
+from contraagent._internal.hub import server as hub_server
+from contraagent._internal.hub.client import DirectClient, HttpClient
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import DocumentPut, LogChunk, RecordBatch, RunRef
+from contraagent._internal.hub.relay import Relay
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.monitor.server import stream_feed
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent.monitor import DirectorySource, Monitor
 
 KEY = "t1"
-LOG = rundir.stream(KEY)
+LOG = layout.stream(KEY)
 RUN = RunRef(host_id="h1", run_id="r1", run_uid="u1")
 TOKEN = "ingest"
 
@@ -54,7 +55,7 @@ def texts(page: dict) -> list[str]:
 def new_hub(lines: int = 0) -> Hub:
     hub = Hub(MemoryHubStore(), MemoryBlobs())
     info = json.dumps({"run_id": RUN.run_id, "run_uid": RUN.run_uid})
-    hub.records(RecordBatch(run=RUN, documents=[DocumentPut(name=rundir.RUN_INFO, text=info)]))
+    hub.records(RecordBatch(run=RUN, documents=[DocumentPut(name=layout.RUN_INFO, text=info)]))
     append(hub, 0, lines)
     return hub
 
@@ -120,7 +121,7 @@ def test_a_directory_wait_wakes_on_a_write(tmp_path):
 
 def test_the_tail_page_then_live_lines_carry_each_line_once():
     hub = new_hub(3000)
-    mon = hub.monitor()
+    mon = hub_monitor(hub)
 
     async def watch() -> list[dict]:
         got: list[dict] = []
@@ -153,7 +154,7 @@ def test_the_tail_page_then_live_lines_carry_each_line_once():
 
 def test_a_feed_resumes_at_its_start_line_with_no_tail_page():
     hub = new_hub(50)
-    mon = hub.monitor()
+    mon = hub_monitor(hub)
 
     async def first(start: int | None) -> dict:
         feed = stream_feed(mon, RUN.name, KEY, start, connected)
@@ -179,7 +180,7 @@ def test_a_slow_viewer_does_not_grow_memory():
 
     def grown(viewers: int) -> tuple[int, list]:
         hub = new_hub(10)
-        mon = hub.monitor()
+        mon = hub_monitor(hub)
         loop = asyncio.new_event_loop()
         feeds = [stream_feed(mon, RUN.name, KEY, None, connected) for _ in range(viewers)]
         for feed in feeds:

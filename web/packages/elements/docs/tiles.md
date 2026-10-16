@@ -5,6 +5,11 @@ lines of facts under it, and a link. Register it with
 `@contraagent/elements/tiles/define`, which also registers the `<cae-count>` a
 tile's number counts up in; the types are in `@contraagent/elements/tiles`.
 
+![Four stat tiles: jobs, failed jobs with a link, build time, and queued](images/tiles.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/tiles.ts"}
 
 ## Tiles
@@ -29,7 +34,7 @@ the host decides what it opens.
 
 ## Look
 
-`columns` sets the tiles per row on a wide screen (5); a narrow screen has 4
-below 1150px and 2 below 700px. `--cae-stat-tiles-gap` sets the space between
+`columns` sets the tiles per row in a wide element (5); a narrower one has 4
+below 1100px of its width, 2 below 660px and 1 below 240px. `--cae-stat-tiles-gap` sets the space between
 the tiles. The parts are `tiles`, `tile` (with `data-id` and `data-tone`),
 `label`, `value`, `sub` and `action`.

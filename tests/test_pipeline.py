@@ -8,25 +8,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    Backend,
-    CursorStore,
-    Launch,
-    LaunchResult,
-    PipelineConfig,
-    RateLimit,
-    RetryingRunner,
-    Route,
-    Router,
-    RoutingPlan,
-    Run,
-    RunLocked,
-    Stop,
-    Task,
-    TaskAdapter,
-    register_normalizer,
-)
-from contraagent.backends.omp import trace as omp_trace
+from contraagent import PipelineConfig, RunLocked, Task
+from contraagent._internal.backends.omp import wire as omp_trace
+from contraagent.backends import Backend, Launch, LaunchResult, QuotaRefusal, Stop, register_normalizer
+from contraagent.config import Route
+from contraagent.engine import CursorStore, RetryingRunner, Router, RoutingPlan, Run, TaskAdapter
 from contraagent.monitor import Monitor
 
 register_normalizer("stub", omp_trace.normalize_event, omp_trace.normalize_text_line)
@@ -74,9 +60,9 @@ class StubBackend(Backend):
         if launch.stream_path:
             Path(launch.stream_path).parent.mkdir(parents=True, exist_ok=True)
             Path(launch.stream_path).write_text("hello from the agent\n")
-        rl = RateLimit(retry_after_s=60) if stop == Stop.RATE_LIMITED else None
+        rl = QuotaRefusal(retry_after_s=60) if stop == Stop.RATE_LIMITED else None
         return LaunchResult(
-            label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, wall_s=0.1, rate_limit=rl
+            label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, wall_s=0.1, quota_refusal=rl
         )
 
 
@@ -104,7 +90,7 @@ def test_config_routing_and_budgets(tmp_path, caplog):
     assert plan.configs["write"].model == "m-write" and plan.configs["write"].effort == "high"
     with pytest.raises(ValueError, match="has no budget"):  # a kind with no [tasks.other] table
         RoutingPlan.build(load_config(tmp_path), ["write", "read", "other"], {"stub": backend})
-    with caplog.at_level(logging.WARNING, logger="contraagent.routing"):
+    with caplog.at_level(logging.WARNING, logger="contraagent._internal.routing"):
         RoutingPlan.build(load_config(tmp_path), ["write"], {"stub": backend})  # a table no kind reads:
     assert "[tasks.read] is not a kind of this run" in caplog.text  # said, not fatal
 
@@ -160,7 +146,7 @@ def test_rate_limit_fails_over_to_next_route(tmp_path):
     runner.configs["write"] = runner.configs["write"].with_(model="primary")
     res = RetryingRunner(runner).run(Task("write", key="w", unit="u"))
     assert res.ok and res.route.endswith("stub/backup")
-    assert [h["stop"] for h in res.hops] == ["rate_limited", "completed"]
+    assert [h.stop for h in res.hops] == ["rate_limited", "completed"]
 
 
 def test_retry_then_exhausted(tmp_path):
@@ -222,7 +208,7 @@ def test_http_endpoints(tmp_path):
     pytest.importorskip("sse_starlette")
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor.server import create_app
+    from contraagent.monitor import create_app
 
     backend = StubBackend()
     run, runner, _ = build(tmp_path, backend)
@@ -239,13 +225,13 @@ def test_http_endpoints(tmp_path):
     assert client.get("/api/runs/r1/stream/write-u").json()["events"]
     assert client.get("/api/runs/r1/panels/facts").json() == {"ok": 1}
     assert client.get("/api/runs/r1/panels/nope").status_code == 404
-    for path in ("/", "/app.js"):  # the built UI: styles live in its elements
+    for path in ("/", "/app.js", "/favicon.svg", "/apple-touch-icon.png"):  # the built UI: styles live in its elements
         assert client.get(path).status_code == 200
     assert client.get("/etc.passwd").status_code == 404
 
 
 def test_plan_graph_stages_and_finish(tmp_path):
-    from contraagent import make_python_task
+    from contraagent._internal.dispatch import make_python_task
 
     backend = StubBackend()
     run, runner, _ = build(tmp_path, backend)
@@ -273,7 +259,8 @@ class Doc(BaseModel):
 
 
 def test_python_tasks_are_checked_by_contracts(tmp_path):
-    from contraagent import InputContract, OutputContract, make_python_task
+    from contraagent._internal.dispatch import make_python_task
+    from contraagent.engine import InputContract, OutputContract
 
     run = Run("rc", tmp_path / "runs", log=lambda line: None)
     out, src = tmp_path / "out.json", tmp_path / "src.json"
@@ -319,7 +306,7 @@ def test_python_tasks_are_checked_by_contracts(tmp_path):
 
 
 def test_an_off_contract_input_is_refused_once_and_shown_as_not_run(tmp_path):
-    from contraagent import InputContract, OutputContract
+    from contraagent.engine import InputContract, OutputContract
 
     class Needs(TaskAdapter):
         def input_contracts(self, task):
@@ -344,7 +331,7 @@ def test_an_off_contract_input_is_refused_once_and_shown_as_not_run(tmp_path):
 def test_a_retry_waits_up_to_its_base_doubled_per_attempt(monkeypatch):
     """`retry_backoff_base` is seconds, doubled per attempt (full jitter: a draw up to it);
     a base of 0 waits nothing, the first attempt included."""
-    from contraagent.execution import runner
+    from contraagent._internal.execution import runner
 
     monkeypatch.setattr(runner.random, "uniform", lambda low, high: high)  # the longest wait
     assert [runner.backoff_s(2.0, a) for a in range(3)] == [2.0, 4.0, 8.0]

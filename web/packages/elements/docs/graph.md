@@ -7,6 +7,11 @@ the graph. Register it with `@contraagent/elements/graph/define` (it registers
 `<cae-mark-matrix>` and `<cae-segmented>` too); the types, `arrange` and
 `layoutGraph` are in `@contraagent/elements/graph`.
 
+![A layered graph: commit, then build, then a retry loop of test and deploy, a mark per series in each node, and the legend](images/graph.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/graph.ts"}
 
 ## The model
@@ -46,7 +51,7 @@ same graph changes (a run in progress), so the reader's zoom and pan stay.
 ## Order and drawing
 
 `arrange` gives each item its layer by the longest path to it, orders each layer to
-reduce crossings, and routes each edge through a point on every layer it crosses.
+reduce crossings, and gives each edge its edge path: a point on every layer it crosses.
 The order depends on the structure only. Give the element the `order` of an earlier
 drawing of the same graph to keep its items in place: an item that appears later is
 added at the end of its layer. `layoutGraph` places everything from the measured

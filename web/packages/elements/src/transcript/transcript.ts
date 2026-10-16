@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { emit } from '../core/events.js';
@@ -18,6 +19,8 @@ import {
   type TranscriptSection,
   type TranscriptStrings,
 } from './types.js';
+
+const reducedMotion = (): boolean => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
  * A conversation with an agent, in sections (one session each): chat bubbles,
@@ -150,7 +153,8 @@ export class CaeTranscript extends LitElement {
       this.total = total;
       if (n > 0)
         void this.updateComplete.then(() => {
-          if (this.follow.stick && this.onLatest()) this.follow.toBottom();
+          // New content glides into view, as a log does; at once with reduced motion.
+          if (this.follow.stick && this.onLatest()) this.follow.toBottom(!reducedMotion());
           else this.unseen += n;
         });
     }
@@ -175,7 +179,11 @@ export class CaeTranscript extends LitElement {
     if (shown !== this.lastShown) {
       const before = this.lastShown;
       this.lastShown = shown;
-      if (before !== -1 && this.follow.restored) this.follow.toBottom();
+      if (before !== -1 && this.follow.restored) {
+        this.follow.toBottom();
+        // Another section in place of the one shown: it fades in once, the list as a whole.
+        if (!reducedMotion()) this.scroller?.animate?.([{ opacity: 0.25 }, { opacity: 1 }], { duration: 240, easing: 'ease-out' });
+      }
       emit(this, 'cae-section-shown', { index: shown });
     }
     const prevMode = changed.get('mode');
@@ -235,7 +243,7 @@ export class CaeTranscript extends LitElement {
           ? html`<div class="meta"><button type="button" class="back" @click=${() => this.loadEarlier()}>
               ${s.loadEarlier(this.earlier)}</button></div>`
           : nothing}
-        ${section ? this.renderSection(section, shown === sections.length - 1, s, cards) : nothing}
+        ${section ? keyed(section.id, this.renderSection(section, shown === sections.length - 1, s, cards)) : nothing}
         ${!section && this.live ? this.typing(s) : nothing}
       </div>
       ${this.unseen

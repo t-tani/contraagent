@@ -1,7 +1,7 @@
 # Tasks and flows
 
-Every argument is in the docstrings of `agent_task`, `python_task`
-(`contraagent/pipeline/spec.py`) and `Pipeline` (`contraagent/pipeline/pipeline.py`).
+Every argument is in the docstrings of `agent_task`, `python_task` and `Pipeline`
+(`help(contraagent.agent_task)`, `help(contraagent.python_task)`, `help(contraagent.Pipeline)`).
 
 ## Agent tasks
 
@@ -14,11 +14,35 @@ it is.
 
 ::code{file="examples/demo/tasks.py" from="summarize = agent_task(" to="@python_task"}
 
+`agent_task`'s options, and the topic that explains each (the docstring states
+them all):
+
+| Options | For | Topic |
+|---|---|---|
+| `output`, `params`, `validators` | what it takes and leaves behind, and the checks its output must pass | [Contracts](contracts.md) |
+| `output_from`, `unwrap`, `tools=()` | an output in the final message; a light launch | [Contracts](contracts.md) |
+| `preserve`, `output_of` | filling in another task's file, and the parts to keep | [Contracts](contracts.md) |
+| `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
+| `output_name` | where its output file is | "Flows that depend on results", below |
+| `rerun_on_resume` | a step that a resume runs again | "The flow", below |
+| `claims` | one task at a time on a name | "Claims", below |
+| `changes` | the files it changes beside its output | "Files a task changes", below |
+| `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks | [Routing](routing.md) |
+| `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
+
 ## Python tasks
 
 A function becomes a task with the same contract machinery: its return
 annotation is its output contract, a function with a `unit` parameter is given
-the unit, and a raised exception fails the task. It runs in this process and
+the unit, and a raised exception fails the task. Its parameters' annotations are
+its input types: each argument is checked and converted before the call (pydantic,
+lax mode), so a dict given to a model parameter arrives as the model, a list of
+dicts given to `list[Model]` as a list of models, and an output of another task as
+its value. An argument that does not match refuses the task (`invalid_input`, the
+parameter named in its reason) and the function is not called; an unannotated
+parameter takes its argument as it is. It runs in this process, in its current
+directory (a relative path it opens resolves there, not against `Pipeline(cwd=)`), and
 has no budget: budgets cap coding-agent launches. A step with a side effect (a
 fetch, a write outside the run directory, a push) belongs in a Python task, not
 in the flow's own body: a stub run plays Python tasks and runs flow code as it is
@@ -92,19 +116,27 @@ reference to the task's future output:
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
 the command line, with the arguments `contraagent check` takes, and exits 1 when
 a task or the flow failed. A program calls `Pipeline.run`, which returns a
-`RunReport`: `ok`, `failed`, the results by task key, `flow_errors`, and `value`,
-whatever the flow returned (a `Pending` in it reads its task's output).
+`RunReport`: `ok`, `failed`, `deferred`, the results by task key, `flow_errors`,
+and `value`, whatever the flow returned (a `Pending` in it reads its task's output);
+its docstring lists every field.
+A deferred task (not launched: past a deadline, or on a resting credential) is in
+`deferred`, with its cause, and is no failure: `ok` holds when no task failed and
+the flow returned. A `TaskDeferred` the flow does not catch ends the flow without
+its value, so it is a flow error and `ok` is False.
 
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
 journal row is ok with the same fingerprint is skipped, its output read from the
-run directory. Another run id starts a new run. A task's fingerprint is a digest
+run directory. Another run id starts a new run. A run directory a newer
+contraagent wrote, of a run format this one does not read (`run.json` `format`), is
+not resumed (`RunFormatError`; [Compatibility](compatibility.md#run-formats-and-schemas)). A task's fingerprint is a digest
 of:
 
 - its kind, unit, key and params;
 - its definition: for an agent task, its instructions, its role file's content,
-  its output schema, its validators and its params schema; for a Python task, its
-  function's source, its output schema and its validators;
+  the skills of its plugin and of each plugin of its `skills_from`, its output
+  schema, its validators and its params schema; for a Python task, its function's
+  source, its output schema and its validators;
 - each task it waits for: the content of that task's output file when the flow
   received the output and passed it on (a generator flow), else that task's
   fingerprint (a task call passed before it finished, as in a flow that does not
@@ -123,7 +155,17 @@ Its fingerprint does not change when they run again, so a resume would skip it.
 resume run it again whatever an earlier attempt did. A task that takes the output
 of a task that ran again needs no flag: its fingerprint already changes.
 
-::code{file="examples/demo/run.py" from="    if args.real:" to="    if not args.no_serve:"}
+A program gives the run id and the resume to `Pipeline.run`, as
+`examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
+
+::code{file="examples/runner/run.py" from="    runs_dir = Path(args.runs_dir)" to="    for key, result"}
+
+`contraagent run` takes the flow's arguments, the config, an agent or model override,
+the run id, the resume, the preflight and the stub, record and replay options. A
+`Pipeline` argument that is a function or an object (`row_extras`, `quota_rule`,
+`scopes`, `enrichers`, `backends`, `log`), and `env`, `max_concurrent`, `cwd`, a
+credential override and the queue's options, need a program like this one; its
+docstring lists them.
 
 ## Flows that depend on results
 
@@ -195,7 +237,7 @@ outputs: a random choice or the clock belongs in a Python task too.
 
 The queue starts first the ready tasks with the longest work after them. In a
 generator flow that work is not queued yet, so it is estimated (a task's tail,
-`JournalEstimates` in `contraagent/execution/estimates.py`): the median, over
+`contraagent.engine.JournalEstimates`): the median, over
 tasks of the same kind created by the same functions in the same passes of
 their loops (pass 3 and later counted as one), of the longest chain of wall
 times that followed them. The samples come from the 10 most recent runs in the
@@ -220,8 +262,8 @@ where the task is declared: the task call takes these words itself.
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
 its parent where the parent yielded it (`flow`), and its end
-(`flow_calls.jsonl`); the docstring of `contraagent/execution/run.py` lists the
-files and `Origin` (`contraagent/dispatch/task.py`) the fields. A flow that does
+(`flow_calls.jsonl`); the docstring of `contraagent.engine.Run` lists the
+files and `contraagent.Origin` the fields. A flow that does
 not yield is flow call `0`, and its tasks have no `created_from`.
 `contraagent check` runs a generator flow to its first wait and checks the kinds
 its code reaches (see [Checking and testing](testing.md)).
@@ -255,7 +297,7 @@ pass; for a child flow call the parent receives it at the `yield`. A `for` loop
 has no limit: it ends with its iterable. A comprehension has none either.
 
 Passes are counted from the loops' back edges as the flow runs
-(`sys.monitoring`, `contraagent/pipeline/loops.py`), about 1 µs each time flow
+(`sys.monitoring`), about 1 µs each time flow
 code goes back to the start of a loop. When the two monitoring tool ids it can
 use (3 and 4) are both taken, `pass` is null and no loop is bounded.
 
@@ -294,7 +336,9 @@ first, and one whose known remaining work cannot finish in time is deferred at
 once; past the deadline only its `finishing_kinds` launch, for `grace_s`; every
 other task it creates is deferred, and the flow receives `TaskDeferred` at its
 `yield`. A box whose flow does not catch it raises it to the flow call that
-yielded the box, which may catch it and go on.
+yielded the box, which may catch it and go on. The deferred tasks are in
+`RunReport.deferred`, not `failed`: a flow that caught the deferral and returned
+leaves the run ok, and `contraagent run` exits 0.
 
 A task is held to every time box it is in: the run's and each enclosing box. So
 the earliest deadline stops it, and a finishing kind launches past a deadline only
@@ -376,19 +420,30 @@ A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
 in the pattern, or keep them from running at once (a claim).
 
+## Around each attempt: scopes, enrichers, journal columns
+
 `Pipeline(scopes=, enrichers=, row_extras=)` hooks each attempt of a task, agent or
-Python. A scope (`TaskScope`) is a context manager around it: around every hop of an
-agent task, around the input check, the call and the output check of a Python task.
+Python. A scope (`TaskScope`) is a function of the task that returns a context manager,
+entered around each attempt: around every hop of an agent task, around the input check,
+the call and the output check of a Python task.
 A scope that raises fails the task. A Python task's exception is the attempt's result,
 so the scope exits without one. An enricher (`ResultEnricher`) sees the task before
-and the result after (an agent task's after its changes are recorded), and may add a
-`payload` or change `ok` and `stop`; `row_extras(result)` adds columns to the journal
-row. The monitor shows each such
+and the result after (an agent task's after its changes are recorded), and may return
+the result with a `payload` added or `ok` and `stop` changed
+(`dataclasses.replace(result, ...)`: a task and a result are frozen);
+`row_extras(result)` adds columns to the journal row. The monitor shows each such
 column under its own name, in the history and in the task's attempts (the API names
 them: `RunSummary.row_extras`). Here an enricher names what each attempt did to its
-topic:
+topic (the files of `changes`, above):
 
 ::code{file="examples/changes/flow.py" from="write = agent_task(" to="def topics("}
+
+`row_extras(result)` returns a dict of columns, `{}` for none; it is called once per
+attempt. A result carries no output, so a column made from a task's output reads the
+task's file, under the run's `out/` at the path its kind's `output_name` gives. Here a
+`severity` column comes from each review (`examples/runner/run.py`):
+
+::code{file="examples/runner/run.py" from="def severity_column(" to="def rest_past_80("}
 
 Scopes and enrichers see every task. One for some tasks only tests `task.kind`, or
 `task.executor` (`"agent"` or `"python"`), and leaves the others as they are. Here a
@@ -423,9 +478,9 @@ empty table when the file has none, or the run has no config file
 
 A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
 output, ok; a resume runs it again), `invalid_output` (still off-contract
-after every fix-up round), `invalid_input` (nothing launched), a budget
+after every correction round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
-rest of `contraagent.Stop`, each with its meaning in `contraagent/backends/launch.py`.
+rest of `contraagent.backends.Stop`, each with its meaning in its docstring.
 
 A run that is stopped stops its agents. Each agent runs in a session of its own, so
 a terminal's Ctrl-C does not reach it: `Pipeline.run` (on the main thread) stops the
@@ -435,7 +490,8 @@ first agent, stops the agents still running once that process is gone.
 
 ## The engine underneath
 
-The parts under `Pipeline` work on their own; their docstrings describe them.
+The parts under `Pipeline` work on their own (`contraagent.engine`); their docstrings
+describe them.
 With its default callbacks, `FlowDriver` drives generators that yield `Task`s
 and receive `TaskResult`s.
 
@@ -448,5 +504,5 @@ and receive `TaskResult`s.
 | `WorkQueue` | claims and their capacities, caps, retry, throttle; a greedy schedule by bottom level, then priority, overdue tasks first with the starvation guard (`overdue_s`), and past `deadline_s - slack_s` the shortest remaining work first, deferring what cannot finish; every queued task finishes once through `follow_up` (run, skipped, refused or deferred) |
 | `FlowDriver` | generator flows over a `WorkQueue`, for flows that depend on results: each `yield` waits for tasks or child flow calls, and a failure raises `TaskFailed` there |
 | `RoutingPlan`, `Router`, `QuotaRests` | per-kind routing and budgets, the failover chain, and the credentials that rest on their quota |
-| `OutputContract` / `InputContract`, `run_until_valid` | files checked by schema and validators; resume until they pass |
+| `run_until_valid`, `OutputContract`, `InputContract` | files checked by schema and validators; resume until they pass |
 | `CursorStore` | resume cursor: stage, per-unit step, in-flight work, markers |

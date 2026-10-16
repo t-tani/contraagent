@@ -3,7 +3,7 @@ import { localized, msg } from '@lit/localize';
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/events.js';
-import { TASK_VIEWS, type TaskView } from '../../core/route.js';
+import { TASK_VIEWS, type TaskView } from '../../core/view-route.js';
 import { TaskDetailController } from '../../controllers/task-detail.js';
 import { base } from '@contraagent/elements/styles';
 import { executorIconStyles } from '../../words/executor.js';

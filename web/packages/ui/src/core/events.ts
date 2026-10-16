@@ -1,9 +1,9 @@
 // The events the elements send up. Each crosses shadow roots (`composed`) and
 // all but `ca-rounds` bubble, so a host listens on any ancestor. An element
 // states what the reader asked for; whoever hosts it decides what happens (the
-// monitor changes its route; another page may open its own view).
+// monitor changes its view route; another page may open its own view).
 import type { LaunchEvent } from '@contraagent/api';
-import type { RoutePatch, TaskView } from './route.js';
+import type { ViewRoutePatch, TaskView } from './view-route.js';
 import type { ThemeChoice } from '@contraagent/elements/themes';
 
 export interface OpenTaskDetail {
@@ -25,7 +25,7 @@ export interface FilterDetail {
 }
 
 /** Where to go; `replace`: in place of where the reader is (a link that named nothing, set right), not a step back can return to. */
-export type NavigateDetail = RoutePatch & { replace?: boolean };
+export type NavigateDetail = ViewRoutePatch & { replace?: boolean };
 
 export interface ChooseThemeDetail {
   /** The reader's choice: a theme, or `system`. */

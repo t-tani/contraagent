@@ -11,17 +11,23 @@ from pathlib import Path
 import httpx
 import pytest
 
-from contraagent import rundir
-from contraagent.hub.client import DirectClient, HttpClient, HubRefused, HubUnavailable
-from contraagent.hub.core import Hub
-from contraagent.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, HeartbeatAck, LogChunk, RecordBatch, RunRef
-from contraagent.hub.relay import Relay, default_progress_path, main, read_lines, seek_line
-from contraagent.hub.source import HeartbeatLiveness
-from contraagent.hub.store import MemoryBlobs, MemoryHubStore
-from contraagent.monitor import Monitor
-from contraagent.monitor.source import DirectorySource, StaticLiveness
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.hub.client import DirectClient, HttpClient, HubRefused, HubUnavailable
+from contraagent._internal.hub.core import Hub
+from contraagent._internal.hub.protocol import Accepted, DocumentPut, FileRef, Heartbeat, HeartbeatAck, LogChunk, RecordBatch, RunRef
+from contraagent._internal.hub.relay import Relay, default_progress_path
+from contraagent._internal.hub.server import hub_monitor
+from contraagent._internal.hub.source import HeartbeatLiveness
+from contraagent._internal.hub.store import MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.liveness import StaticLiveness
+from contraagent.monitor import DirectorySource, Monitor
 
 T0 = 1_791_849_600.0  # 2026-10-13T00:00:00Z
+
+
+def main(argv: list[str]) -> int:
+    return cli_main(["relay", *argv])
 
 
 class Recording:
@@ -101,7 +107,7 @@ def views(mon: Monitor, run: str) -> dict:
 
 
 def assert_same_views(hub: Hub, runs: Path) -> None:
-    local, remote = Monitor(runs), hub.monitor()
+    local, remote = Monitor(runs), hub_monitor(hub)
     names = [r["run"] for r in local.runs()]
     assert names and sorted(r["run"] for r in remote.runs()) == sorted(f"{n}@h1" for n in names)
     for name in names:
@@ -131,7 +137,7 @@ def first(runs: Path) -> Path:
 
 
 def a_stream(run: Path) -> Path:
-    return sorted((run / rundir.STREAMS).iterdir())[0]
+    return sorted((run / layout.STREAMS).iterdir())[0]
 
 
 def test_each_pass_sends_only_complete_lines_that_are_new(runs):
@@ -144,29 +150,29 @@ def test_each_pass_sends_only_complete_lines_that_are_new(runs):
 
     run = first(runs)
     stream = a_stream(run)
-    log = f"{rundir.STREAMS}/{stream.name}"
-    with open(run / rundir.JOURNAL, "a") as f:
+    log = f"{layout.STREAMS}/{stream.name}"
+    with open(run / layout.JOURNAL, "a") as f:
         f.write('{"new": 1}\n{"partial": ')
     with open(stream, "a") as f:
         f.write('{"type": "x"}\n')
     assert r.pass_once()
-    assert sorted(rec.lines()) == sorted([(rundir.JOURNAL, '{"new": 1}'), (log, '{"type": "x"}')])
+    assert sorted(rec.lines()) == sorted([(layout.JOURNAL, '{"new": 1}'), (log, '{"type": "x"}')])
     assert rec.documents() == [] and rec.files() == []
 
     rec.clear()
     assert r.pass_once() and rec.lines() == []  # the partial line waits
-    with open(run / rundir.JOURNAL, "a") as f:
+    with open(run / layout.JOURNAL, "a") as f:
         f.write("2}\n")
-    assert r.pass_once() and rec.lines() == [(rundir.JOURNAL, '{"partial": 2}')]
-    held, count = hub.store.lines("analyse@h1", rundir.JOURNAL)
-    assert held == (run / rundir.JOURNAL).read_text().splitlines() and held[-2:] == ['{"new": 1}', '{"partial": 2}']
+    assert r.pass_once() and rec.lines() == [(layout.JOURNAL, '{"partial": 2}')]
+    held, count = hub.store.lines("analyse@h1", layout.JOURNAL)
+    assert held == (run / layout.JOURNAL).read_text().splitlines() and held[-2:] == ['{"new": 1}', '{"partial": 2}']
 
 
 def test_a_removed_in_flight_marker_is_removed_on_the_hub(runs):
     hub = new_hub()
     rec = Recording(DirectClient(hub))
     r = relay(rec, runs)
-    marker = first(runs) / rundir.entry(rundir.INFLIGHT, "classify-east-0")
+    marker = first(runs) / layout.entry(layout.INFLIGHT, "classify-east-0")
     marker.write_text('{"key": "classify-east-0"}')
     assert r.pass_once()
     assert hub.store.document("analyse@h1", "inflight/classify-east-0.json") == '{"key": "classify-east-0"}'
@@ -180,13 +186,13 @@ def test_a_removed_in_flight_marker_is_removed_on_the_hub(runs):
 def test_a_half_written_document_waits_for_the_next_pass(runs):
     hub = new_hub()
     r = relay(DirectClient(hub), runs)
-    cursor = first(runs) / rundir.CURSOR
+    cursor = first(runs) / layout.CURSOR
     cursor.write_text('{"stage": "do')
     assert r.pass_once()
-    assert hub.store.document("analyse@h1", rundir.CURSOR) is None
+    assert hub.store.document("analyse@h1", layout.CURSOR) is None
     cursor.write_text('{"stage": "done"}')
     assert r.pass_once()
-    assert hub.store.document("analyse@h1", rundir.CURSOR) == '{"stage": "done"}'
+    assert hub.store.document("analyse@h1", layout.CURSOR) == '{"stage": "done"}'
 
 
 def test_a_changed_output_file_is_hashed_again_and_served(runs):
@@ -197,18 +203,19 @@ def test_a_changed_output_file_is_hashed_again_and_served(runs):
     contract = json.loads((first(runs) / "contracts" / "classify-east-0.json").read_text())
     path = contract["outputs"][0]["path"]
     # the copy's contracts name the demo's files; the hub serves them as the host sees them
-    assert hub.monitor().source.file("analyse@h1", path)[0] == Path(path).read_text()
+    assert hub_monitor(hub).source.file("analyse@h1", path).text == Path(path).read_text()
     rec.clear()
     assert r.pass_once() and rec.files() == [] and rec.blobs == []
 
-    src = hub.monitor().source
+    src = hub_monitor(hub).source
     original = Path(path).read_text()
     try:
         Path(path).write_text('{"changed": true}')
         assert r.pass_once()
         [ref] = rec.files()
         assert ref.path == path and ref.sha256 == hashlib.sha256(b'{"changed": true}').hexdigest()
-        assert src.file("analyse@h1", path)[:2] == ('{"changed": true}', 17)
+        got = src.file("analyse@h1", path)
+        assert got is not None and (got.text, got.size) == ('{"changed": true}', 17)
         Path(path).unlink()
         rec.clear()
         assert r.pass_once()
@@ -255,7 +262,7 @@ def test_a_hub_that_lost_everything_is_sent_every_run_again(runs):
 def test_an_unavailable_hub_does_not_stop_the_relay(runs, caplog):
     hub = new_hub()
     r = relay(Down(), runs, interval_s=3)
-    caplog.set_level(logging.WARNING, logger="contraagent.hub.relay")
+    caplog.set_level(logging.WARNING, logger="contraagent._internal.hub.relay")
     assert not r.pass_once() and not r.pass_once() and not r.heartbeat_once()
     assert [m for m in caplog.messages if "hub unavailable" in m].__len__() == 1  # once per outage
     assert r.delay() == 12  # 3s doubled for each of two failed passes
@@ -272,7 +279,7 @@ def test_the_heartbeat_carries_the_live_runs(runs):
     r = relay(rec, runs, liveness=live, interval_s=3)
     assert r.heartbeat_once()
     [beat] = rec.heartbeats
-    uid = json.loads((first(runs) / rundir.RUN_INFO).read_text())["run_uid"]
+    uid = json.loads((first(runs) / layout.RUN_INFO).read_text())["run_uid"]
     assert beat.host_id == "h1" and beat.interval_s == 3 and beat.sent_at.startswith("2026-10-13T00:00:00")
     assert [(b.run, b.alive, b.snapshot) for b in beat.runs] == [(RunRef(host_id="h1", run_id="analyse", run_uid=uid), True, snap)]
     assert HeartbeatLiveness(hub.store).live() == {"analyse@h1"}
@@ -293,7 +300,7 @@ def test_a_new_run_uid_sends_the_run_again(runs):
     hub = new_hub()
     r = relay(DirectClient(hub), runs)
     assert r.pass_once()
-    info_path = first(runs) / rundir.RUN_INFO
+    info_path = first(runs) / layout.RUN_INFO
     info_path.write_text(json.dumps({**json.loads(info_path.read_text()), "run_uid": "other"}))
     assert r.pass_once()
     assert [e.run_uid for e in hub.store.runs()] == ["other"]
@@ -302,18 +309,6 @@ def test_a_new_run_uid_sends_the_run_again(runs):
 
 def test_the_progress_file_is_next_to_the_runs_directory(tmp_path):
     assert default_progress_path(tmp_path / "runs") == tmp_path / "runs.relay.json"
-
-
-def test_lines_are_read_by_byte_offset(tmp_path):
-    path = tmp_path / "log.jsonl"
-    path.write_bytes("a\nbé\n".encode() + b"c" * 100 + b"\nd")
-    assert read_lines(path, 0) == (["a", "bé"] + ["c" * 100], 107)
-    assert read_lines(path, 0, max_lines=1) == (["a"], 2)
-    assert read_lines(path, 0, max_bytes=4) == (["a"], 2)
-    assert read_lines(path, 2, max_bytes=4) == (["bé"], 6)
-    assert read_lines(path, 6, max_bytes=4) == (["c" * 100], 107)  # a longer line goes alone
-    assert read_lines(path, 107) == ([], 107)  # "d" has no newline yet
-    assert seek_line(path, 0) == (0, 0) and seek_line(path, 2) == (2, 6) and seek_line(path, 9) == (3, 107)
 
 
 # --- HttpClient ------------------------------------------------------------------------
@@ -347,9 +342,9 @@ def test_http_client_speaks_the_protocol():
     client = HttpClient("http://hub:8790/", "s3cret", 5, transport=httpx.MockTransport(handle))
     ref = RunRef(host_id="h", run_id="r", run_uid="u")
     batch = RecordBatch(
-        run=ref, logs=[LogChunk(log=rundir.JOURNAL, offset=2, lines=["x"])], documents=[DocumentPut(name="run.json", text="{}")]
+        run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=2, lines=["x"])], documents=[DocumentPut(name="run.json", text="{}")]
     )
-    assert client.send_records(batch) == Accepted(logs={rundir.JOURNAL: 3})
+    assert client.send_records(batch) == Accepted(logs={layout.JOURNAL: 3})
     assert client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3)).ttl_s == 15
     sha = hashlib.sha256(b"data").hexdigest()
     assert not client.has_blob(sha)
@@ -414,7 +409,7 @@ def test_a_refused_token_is_an_error_retried_slowly(runs, caplog, status):
     with pytest.raises(HubRefused):
         client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3))
     r = relay(client, runs, interval_s=3)
-    caplog.set_level(logging.WARNING, logger="contraagent.hub.relay")
+    caplog.set_level(logging.WARNING, logger="contraagent._internal.hub.relay")
     assert not r.pass_once() and not r.heartbeat_once() and not r.pass_once()
     errors = [rec for rec in caplog.records if rec.levelno == logging.ERROR]
     assert len(errors) == 1 and "hub refused the relay" in errors[0].getMessage() and f"HTTP {status}" in errors[0].getMessage()

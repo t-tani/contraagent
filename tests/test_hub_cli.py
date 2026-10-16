@@ -12,9 +12,9 @@ import pytest
 
 pytest.importorskip("zstandard")
 
-from contraagent.hub.segments import SegmentedStreamLogs
-from contraagent.hub.server import open_streams
-from contraagent.hub.streams import MemoryStreamLogs
+from contraagent._internal.hub.segments import SegmentedStreamLogs
+from contraagent._internal.hub.server import open_streams
+from contraagent._internal.hub.streams import MemoryStreamLogs
 
 
 def test_without_a_streams_dir_transcripts_are_kept_in_memory():

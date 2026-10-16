@@ -158,7 +158,7 @@ export const DEFAULT_TRANSCRIPT_STRINGS: Readonly<TranscriptStrings> = {
   failed: 'failed',
   running: 'running',
   interrupted: 'interrupted',
-  interruptedTip: 'No result before the end',
+  interruptedTip: 'Ended with no result',
   query: 'query',
   page: 'page',
   fullText: 'Full text',

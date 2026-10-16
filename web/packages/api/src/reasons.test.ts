@@ -18,6 +18,9 @@ describe('reasons', () => {
       { path: '/r/docs/in.json', producer: '', problem: 'missing' },
       { path: '/r/docs/b.json', producer: '', problem: 'checks' },
     ]);
+    expect(inputProblems('invalid input: input from review-zeta ended invalid_output: /r/docs/out/review/zeta.json')).toEqual([
+      { path: '/r/docs/out/review/zeta.json', producer: 'review-zeta', problem: 'failed' },
+    ]);
     expect(inputProblems('ValueError: boom')).toEqual([]);
   });
 });

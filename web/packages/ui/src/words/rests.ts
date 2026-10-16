@@ -1,8 +1,8 @@
 // A credential's quota rest (the reader's "paused identity") and why the queue
-// deferred a task, in words. The data says it (`QuotaRest`, `DeferralCause`);
+// deferred a task, in words. The data says it (`Rest`, `DeferralCause`);
 // the recorded English sentence (`PlanNode.deferred`) is only the fallback for a
 // cause these words do not know.
-import type { CredentialRest, DeferralCause, QuotaCap, QuotaRest, SkippedHop } from '@contraagent/api';
+import type { CredentialRest, DeferralCause, QuotaCap, Rest, SkippedHop } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { credentialLabel } from './credential.js';
 import { facts, fmtDur, localTime } from './format.js';
@@ -23,16 +23,16 @@ export const capLabel = (cap: number | null | undefined): string => msg(str`limi
  * Why an identity is paused, its facts after its name:
  * `5-hour usage 93% | limit 90% | until 10/14 14:30`, or `Usage rule: over the pace`.
  */
-export function restFacts(r: QuotaRest): string {
+export function restFacts(r: Rest): string {
   if (r.rule) return msg(str`Usage rule: ${r.rule}`);
   return facts(usage(r.window ?? '', r.pct), capLabel(r.cap), r.until ? msg(str`until ${localTime(r.until, true)}`) : '');
 }
 
 /** A paused identity in one line: `Identity personal paused | 5-hour usage 93% | limit 90% | until 10/14 14:30`. */
-export const restLine = (r: QuotaRest): string => facts(msg(str`Identity ${credentialLabel(r.credential)} paused`), restFacts(r));
+export const restLine = (r: Rest): string => facts(msg(str`Identity ${credentialLabel(r.credential)} paused`), restFacts(r));
 
 /** The rests of a cause, one per identity (a pool's members, the hops of one identity). */
-function byIdentity<T extends QuotaRest>(rests: readonly T[]): T[] {
+function byIdentity<T extends Rest>(rests: readonly T[]): T[] {
   const seen = new Set<string>();
   return rests.filter((r) => !seen.has(r.credential) && seen.add(r.credential));
 }
@@ -58,6 +58,8 @@ export function deferredText(cause: DeferralCause | null | undefined, recorded =
       );
     case 'dependency_not_queued':
       return msg('An earlier task was never scheduled');
+    case 'dependency_deferred':
+      return msg('An earlier task was not run');
     case 'rest': {
       const rests = byIdentity(cause.rests ?? []);
       if (!rests.length) return recorded;

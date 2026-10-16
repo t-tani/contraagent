@@ -4,7 +4,8 @@ import json
 
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, RateLimit, TaskDeferred, agent_task
+from contraagent import Pipeline, PipelineConfig, TaskDeferred, agent_task
+from contraagent.config import QuotaReading
 from contraagent.testing import StubAgent, writes
 
 CONFIG = {
@@ -23,7 +24,7 @@ class Note(BaseModel):
 def test_a_stub_run_rests_a_credential_past_its_cap_and_falls_over(tmp_path):
     q = agent_task("q", instructions="x", output=Note, max_turns=1, timeout_s=10, agent="claude", model="m")
     q_nohop = agent_task("q_nohop", instructions="x", output=Note, max_turns=1, timeout_s=10, agent="claude", model="m")
-    stub = StubAgent({"q": writes({"note": "n"}, rate_limit=RateLimit(five_hour_pct=80.0)), "q_nohop": {"note": "n"}})
+    stub = StubAgent({"q": writes({"note": "n"}, quota=QuotaReading(five_hour_pct=80.0)), "q_nohop": {"note": "n"}})
     deferred: list[str] = []
 
     def flow():

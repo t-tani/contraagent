@@ -1,0 +1,40 @@
+#:schema ../../schemas/pipeline.schema.json
+# A failover chain across coding agents for a security review. A task whose launch
+# ends refused (a model's safeguards declined the work) moves to the next hop: another
+# coding agent and another model. The other tasks stay on the first hop.
+
+[tasks.audit]
+agent = "claude"
+model = "claude-opus-5-5"
+credential = "anthropic-key"
+max_turns = 40
+timeout_s = 1800
+
+# Block order is hop order: this block is hop 2, the next one hop 3.
+[[tasks.audit.fallbacks]]
+agent = "codex"
+model = "gpt-6.1-sol"
+credential = "openai-key"
+
+[[tasks.audit.fallbacks]]
+agent = "opencode"
+model = "opencode-go/deepseek-v4.1-flash"
+credential = "opencode-go"
+
+# Secrets are references (env:NAME or file:/path), read in the launching process.
+# A launch on one of these starts without the host's other credential variables.
+
+[credentials.anthropic-key]
+type = "api_key"
+provider = "anthropic"
+key = "env:ANTHROPIC_API_KEY"
+
+[credentials.openai-key]
+type = "api_key"
+provider = "openai"
+key = "env:OPENAI_API_KEY"
+
+[credentials.opencode-go]
+type = "api_key"
+provider = "opencode-go"
+key = "file:/run/secrets/opencode-go-key"

@@ -1,16 +1,19 @@
 import pytest
 
 import contraagent
-from contraagent.backends import known_agents
-from contraagent.routing import Route, Router, load_fallbacks
+from contraagent._internal.backends import known_agents
+from contraagent._internal.routing import load_fallbacks
+from contraagent.backends import create_backend
+from contraagent.config import Route
+from contraagent.engine import Router
 
 
 def test_create_backend():
-    assert type(contraagent.create_backend("claude")).__name__ == "ClaudeBackend"
+    assert type(create_backend("claude")).__name__ == "ClaudeBackend"
     assert known_agents() == ("claude", "omp", "omp-rpc", "opencode", "pi", "codex")
-    assert type(contraagent.create_backend("opencode")).__name__ == "OpencodeBackend"
+    assert type(create_backend("opencode")).__name__ == "OpencodeBackend"
     with pytest.raises(KeyError):
-        contraagent.create_backend("nope")
+        create_backend("nope")
 
 
 def test_fallbacks_from_toml(tmp_path):
@@ -40,16 +43,6 @@ def test_every_deliberate_error_shares_one_base():
         contraagent.PluginError,
     ):
         assert issubclass(cls, contraagent.ContraagentError), cls
-
-
-def test_read_stream_tails_by_offset(tmp_path):
-    f = tmp_path / "s.log"
-    f.write_text("plain text line\npartial")
-    first = list(contraagent.read_stream("omp", f))
-    assert len(first) == 1  # partial trailing line is held back
-    f.write_text("plain text line\npartial done\n")
-    rest = list(contraagent.read_stream("omp", f, first[-1][0]))
-    assert len(rest) == 1
 
 
 def test_a_table_the_config_does_not_define_is_refused_not_ignored(tmp_path):

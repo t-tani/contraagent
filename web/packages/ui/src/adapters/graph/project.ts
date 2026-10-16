@@ -15,7 +15,7 @@
 //
 // The drawing's order is `arrange` (@contraagent/elements): a loop box is a
 // cluster, an edge back to a loop's next pass does not set the layers.
-import { isPython, type FlowCallNode, type Plan, type PlanNode, type TaskState, type TimeBoxInfo } from '@contraagent/api';
+import { isPython, type FlowCallNode, type Plan, type PlanNode, type TaskState, type TimeBoxRecord } from '@contraagent/api';
 import type { Arrangement, EdgeStyle, GraphShape } from '@contraagent/elements/graph';
 import { boxChain, cmpPasses, indexOf, instanceOf, loopsAt, passesAt, placeOf, push, shortName, startsWith, type FlowIndex, type FlowTask } from './flow-index.js';
 import { worstOf, worstState } from './states.js';
@@ -45,7 +45,7 @@ export interface Marks {
   calls?: number;
   errors?: number;
   /** A function node's first own flow call with a deadline of its own (`time_box`), else null. */
-  timeBox?: TimeBoxInfo | null;
+  timeBox?: TimeBoxRecord | null;
 }
 
 /** A kind node's marks: one per unit, and one per task without a unit. */
@@ -117,7 +117,7 @@ export function flowMarks(ts: readonly FlowTask[], d: number, name: string, call
 }
 
 /** When a flow call's own deadline falls: its start plus `deadline_s` (UTC ISO 8601); '' when its start is not known. */
-export function deadlineOf(box: TimeBoxInfo): string {
+export function deadlineOf(box: TimeBoxRecord): string {
   const t = Date.parse(box.started_at);
   return Number.isNaN(t) ? '' : new Date(t + box.deadline_s * 1000).toISOString();
 }

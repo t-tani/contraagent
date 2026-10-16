@@ -29,7 +29,7 @@ export default defineConfig({
   },
   build: {
     // The Python package serves this directory; the build output is committed.
-    outDir: fileURLToPath(new URL('../../../src/contraagent/monitor/static', import.meta.url)),
+    outDir: fileURLToPath(new URL('../../../src/contraagent/_internal/monitor/static', import.meta.url)),
     emptyOutDir: true,
     target: 'es2022',
     // Flat, stable names: the server answers only `/<name>.<js|css>`. Two modules: app.js, and

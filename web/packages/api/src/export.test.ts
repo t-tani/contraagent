@@ -51,7 +51,7 @@ function exportClient() {
 }
 
 describe('createExportClient', () => {
-  it('reads each route from its file, once', async () => {
+  it('reads each endpoint from its file, once', async () => {
     const { client, requests } = exportClient();
     expect((await client.info()).export?.runs).toEqual(['r1']);
     expect(await client.runs()).toEqual([{ run: 'r1' }]);

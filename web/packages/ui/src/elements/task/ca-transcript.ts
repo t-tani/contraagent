@@ -13,14 +13,17 @@ import { emit, type RoundInfo, type RoundsChangedDetail } from '../../core/event
 import { getLocale } from '../../core/i18n.js';
 import { RememberedSet, SessionSet, memoryOf, pageMemory } from '../../core/memory.js';
 import { promptText } from '../shared/prompt-text.js';
+import { retryTip } from '../../words/attempts.js';
+import { correctionTip } from '../../words/contract.js';
+import { modelSwitchTip } from '../../words/hops.js';
 
 /** The transcript's words, in the reader's language (call at render time). */
 const strings = (): TranscriptStrings => ({
   sections: msg('Agent sessions'),
   sectionsTip: [
-    msg('Attempt: a new agent session'),
-    msg('Correction: the same agent session after failed checks'),
-    msg('Model switch: a new agent session on the next model'),
+    `${msg('Retry')}: ${retryTip()}`,
+    `${msg('Correction')}: ${correctionTip()}`,
+    `${msg('Model switch')}: ${modelSwitchTip()}`,
   ].join('\n'),
   loadEarlier: (n) => (n === 1 ? msg('Show 1 earlier line') : msg(str`Show ${n} earlier lines`)),
   newBelow: (n) => (n === 1 ? msg('Show 1 new event') : msg(str`Show ${n} new events`)),
@@ -55,7 +58,9 @@ const strings = (): TranscriptStrings => ({
  * `<cae-transcript>`.
  *
  * Give it `.events` to show a saved transcript, or `run` + `stream` (and
- * `base-url`) to tail one from the monitor. Sends `ca-navigate` with `round`
+ * `base-url`) to tail one from the monitor. A new `.events` that starts with
+ * the same event objects as the last one is that transcript grown: its new
+ * events are added below and what is drawn stays. Sends `ca-navigate` with `round`
  * when the reader picks a round, and a non-bubbling `ca-rounds`
  * (`RoundsChangedDetail`) whenever its rounds or the shown round change.
  *
@@ -96,6 +101,8 @@ export class CaTranscript extends LitElement {
   private memory: TranscriptMemory | null = null;
   private drawn: { key: unknown[]; rounds: RoundInfo[]; sections: TranscriptSection[] } | null = null;
   private lastSent = '';
+  /** The saved transcript last given (`events`): a longer one that starts with it is the same transcript, grown. */
+  private fed: readonly TranscriptEvent[] | null = null;
 
   private get source(): string {
     return this.events ? 'static' : this.run && this.stream ? `${this.run}\n${this.stream}` : '';
@@ -109,6 +116,14 @@ export class CaTranscript extends LitElement {
   protected override willUpdate(changed: PropertyValues<this>): void {
     const source = this.source;
     if (!changed.has('events') && source === this.feed.loaded) return;
+    // The same saved transcript, grown: its new events are appended, and what is drawn stays.
+    const fed = this.fed;
+    const events = this.events;
+    this.fed = events;
+    if (events && fed && source === this.feed.loaded && extends_(events, fed)) {
+      this.feed.append(events.slice(fed.length));
+      return;
+    }
     const { run, stream } = this;
     const id = `transcript:${run}/${stream ?? ''}`;
     // The page's monitor keeps the open cards for the browser tab and the position in the history entry;
@@ -183,6 +198,13 @@ export class CaTranscript extends LitElement {
     if (i < 0) return undefined;
     return { round: i === this.feed.model.rounds.length - 1 ? null : i + 1 };
   }
+}
+
+/** `next` holds every event of `prev`, the same objects in the same order, and then more or none. */
+function extends_(next: readonly TranscriptEvent[], prev: readonly TranscriptEvent[]): boolean {
+  if (next === prev || next.length < prev.length) return next === prev;
+  for (let i = prev.length - 1; i >= 0; i--) if (next[i] !== prev[i]) return false;
+  return true;
 }
 
 declare global {

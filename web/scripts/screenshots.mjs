@@ -1,0 +1,379 @@
+// The documentation's screenshots, taken from the real elements:
+//
+// - `readme`: the root README's (docs/assets/readme/*.png), from the monitor;
+// - `ui`: one per view of @contraagent/ui (web/packages/ui/docs/images/*.webp), from the monitor;
+// - `elements`: one per topic of @contraagent/elements (web/packages/elements/docs/images/*.webp),
+//   each example of docs/examples/ mounted alone on a page (scripts/examples-page/, served by Vite).
+//
+// The monitor shows the showcase runs (showcase.py: the demo pipelines on the demo agent, every
+// task done, no coding agent, nothing spent), written into a temporary directory and served by
+// `contraagent monitor` on a free port. Each screenshot is the region that matters (or a few
+// regions, one under the other), at device scale 2, in full colour, never scaled: the PNGs are
+// optimized losslessly (oxipng), the WebP files are lossless (Pillow); both through
+// `uv run --with`.
+//
+//   pnpm --dir web screenshots                       # all of them
+//   pnpm --dir web screenshots --only ui,elements    # some sets
+//   pnpm --dir web screenshots --runs DIR            # over showcase runs already written (DIR/demo-runs)
+//
+// Needs uv, and Playwright's Chromium (`pnpm --dir web exec playwright install chromium`).
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { chromium } from '@playwright/test';
+
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const WEB = join(ROOT, 'web');
+const { values: args } = parseArgs({
+  options: {
+    only: { type: 'string', default: 'readme,ui,elements' },
+    runs: { type: 'string' },
+  },
+});
+const sets = new Set(args.only.split(','));
+
+/** Where each set goes, and the format its files are in. */
+const SETS = {
+  readme: { dir: join(ROOT, 'docs', 'assets', 'readme'), format: 'png' },
+  ui: { dir: join(WEB, 'packages', 'ui', 'docs', 'images'), format: 'webp' },
+  elements: { dir: join(WEB, 'packages', 'elements', 'docs', 'images'), format: 'webp' },
+};
+
+const LIGHT = 'contraagent-light';
+/**
+ * The fonts, named (`--ca-sans`, `--ca-mono`, the themes' own properties) in place of
+ * `system-ui` and `ui-monospace`, which name another font on each machine.
+ */
+const FONTS = `:root { --ca-sans: 'Segoe UI', Arial, sans-serif; --ca-mono: Consolas, 'Liberation Mono', monospace; }
+body { font-family: var(--ca-sans); }`;
+const DOCS_LOOP = 'contraagent.docs.examples.demo.tasks.review_loop';
+
+/**
+ * Each screenshot: its set and file, the monitor's page (`url`) or an example of
+ * @contraagent/elements (`example`), the theme, the viewport, and the region it keeps
+ * (`clip(page)`, in CSS pixels; a list of regions is stacked into one image, top to bottom).
+ * Every image is at most 900 CSS px wide (the README's at most 880, GitHub's column), so a
+ * page shows its text at its own size; the README gives each `<img>` its width in CSS px.
+ */
+const SHOTS = [
+  // The root README.
+  {
+    // The hero, wide: the monitor's header with the run's line; the pipeline graph of the review
+    // loop's layer from summarize to write_note, drawn by the monitor at the zoom that fits the
+    // layer into the frame of a 1108 px page (about 88%, rendered at that size, never scaled
+    // after), with 24 px of the frame on either side; and the first row of the totals. The whole
+    // layer, prepare included, fits 880 px only at about 75%, too small to read.
+    set: 'readme',
+    name: 'overview',
+    url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`,
+    ready: 'ca-pipeline-graph .dag',
+    gap: 0, // three bands: the header, the graph's frame, the row of tiles
+    parts: [
+      {
+        width: 1300, // the header in one row, the run's line whole
+        height: 1000,
+        clip: async (page) => box(0, 0, 880, (await boxOf(page, 'header')).height),
+      },
+      {
+        width: 1108,
+        height: 1000,
+        clip: async (page) => {
+          const frame = await boxOf(page, 'ca-pipeline-graph .gframe');
+          const from = await boxOf(page, 'ca-pipeline-graph .node:has-text("summarize")');
+          const to = await boxOf(page, 'ca-pipeline-graph .node:has-text("write_note")');
+          const left = (from.x + to.x + to.width) / 2 - 440;
+          if (from.x - left < 16) throw new Error('summarize to write_note does not fit the hero with its margins');
+          // Both margins are the frame's own colour: on the left it covers prepare and its edge
+          // into summarize, on the right the frame's end and the card past it.
+          const colour = await page.locator('ca-pipeline-graph .gframe').first().evaluate((el) => getComputedStyle(el).backgroundColor);
+          const cover = ([x, y, w, h, c]) =>
+            document.body.append(
+              Object.assign(document.createElement('div'), {
+                style: `position:fixed;left:${x}px;top:${y}px;width:${w}px;height:${h}px;background:${c};z-index:9999`,
+              }),
+            );
+          const end = to.x + to.width;
+          await page.evaluate(cover, [left, frame.y, from.x - left, frame.height, colour]);
+          await page.evaluate(cover, [end, frame.y, left + 880 - end, frame.height, colour]);
+          return box(left, frame.y, 880, frame.height);
+        },
+      },
+      {
+        // At 916 px the totals' card is 880 px wide, four tiles to a row.
+        width: 916,
+        height: 1000,
+        clip: async (page) => {
+          const first = await boxOf(page, 'ca-kpis .tile >> nth=0');
+          return box(18, first.y - 14, 880, first.height + 24); // short of the next row
+        },
+      },
+    ],
+  },
+  {
+    // An output checked, sent back with its failed checks, and corrected in the same session.
+    set: 'readme',
+    name: 'task-detail',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?run=docs&tab=stream&key=write_note-alpha&round=1',
+    height: 1100,
+    ready: 'ca-task-view',
+    clip: async (page) => [
+      await card(page, 'ca-task-view .taskmeta'),
+      await between(page, 'ca-task-view', /^Agent sessions$/, /^Output failed checks$/, 1),
+    ],
+  },
+  {
+    // A few rows of the summaries' history: the model switch, and the correction.
+    set: 'readme',
+    name: 'history',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?run=docs&tab=journal&kind=summarize',
+    height: 900,
+    ready: 'ca-journal-table',
+    gap: 0,
+    clip: async (page) => {
+      // The header and two rows, in the table's order, up to the reason (which a 900 px table
+      // cuts short); stacked with no gap, they read as one table.
+      const head = await boxOf(page, 'ca-journal-table thead tr');
+      const reason = await page.locator('ca-journal-table thead th', { hasText: 'Reason' }).boundingBox();
+      const width = reason.x - head.x + 8;
+      const rows = [];
+      for (const unit of ['beta', 'delta']) rows.push(await page.locator('ca-journal-table tbody tr', { hasText: `summarize · ${unit}` }).boundingBox());
+      rows.sort((a, b) => a.y - b.y);
+      return [box(head.x - 8, head.y - 8, width, head.height + 8), ...rows.map((r) => box(r.x - 8, r.y, width, r.height + 1))];
+    },
+  },
+  {
+    // The model switch in the task's detail, in the dark theme (the monitor's default).
+    set: 'readme',
+    name: 'model-switch-dark',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?run=docs&tab=stream&key=summarize-beta',
+    theme: 'contraagent-dark',
+    height: 1100,
+    ready: 'ca-task-view',
+    clip: async (page) => [
+      await card(page, 'ca-task-view .taskmeta'),
+      await between(page, 'ca-task-view', /^Agent sessions$/, /^Agent sessions$/),
+    ],
+  },
+  {
+    // The runs of a period added up: the totals, and the cost by day and kind.
+    set: 'readme',
+    name: 'trends',
+    width: 896, // a card of the page then fills 880 px: GitHub's column
+    url: '/?page=trends&days=7',
+    height: 1100,
+    ready: 'ca-trends',
+    clip: async (page) => {
+      const tiles = await card(page, 'ca-trends section >> nth=0');
+      const chart = await card(page, 'ca-trends section >> nth=1');
+      return box(tiles.x, tiles.y, tiles.width, bottom(chart) - tiles.y);
+    },
+  },
+
+  // @contraagent/ui: one per view.
+  { set: 'ui', name: 'monitor', url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`, height: 900, ready: 'ca-pipeline-graph .dag', clip: async (page) => rows(page, 0, 712) },
+  { set: 'ui', name: 'pipeline-graph', url: `/?run=docs&tab=overview&layer=${DOCS_LOOP}`, ready: 'ca-pipeline-graph .dag', clip: (page) => element(page, 'ca-pipeline-graph') },
+  { set: 'ui', name: 'task-view', url: '/?run=docs&tab=stream&key=write_note-alpha&round=1', height: 1200, ready: 'ca-task-view', clip: async (page) => {
+      const v = await boxOf(page, 'ca-task-view');
+      return box(v.x, v.y, v.width, bottom(await boxOf(page, 'ca-task-view', 'Output failed checks')) + 16 - v.y);
+    } },
+  { set: 'ui', name: 'journal-table', url: '/?run=docs&tab=journal&kind=summarize', ready: 'ca-journal-table', clip: (page) => element(page, 'ca-journal-table') },
+  { set: 'ui', name: 'task-table', url: '/?run=docs&tab=tasks&kind=summarize', ready: 'ca-task-table', clip: (page) => element(page, 'ca-task-table') },
+  { set: 'ui', name: 'contracts', url: '/?run=docs&tab=outputs', height: 1200, ready: 'ca-contracts', clip: (page) => element(page, 'ca-contracts', 760) },
+  { set: 'ui', name: 'definitions', url: '/?run=docs&tab=definitions', height: 1200, ready: 'ca-definitions', clip: (page) => element(page, 'ca-definitions', 760) },
+  { set: 'ui', name: 'kpis', url: '/?run=docs&tab=overview', height: 1400, ready: 'ca-kpis', clip: (page) => element(page, 'ca-kpis') },
+  { set: 'ui', name: 'timeline', url: '/?run=docs&tab=overview', height: 2400, ready: 'ca-timeline', clip: (page) => element(page, 'ca-timeline') },
+
+  // @contraagent/elements: one per topic, from its example.
+  ...['charts', 'check-table', 'data-table', 'graph', 'lanes', 'matrix', 'tiles', 'transcript'].map((example) => ({ set: 'elements', name: example, example })),
+  // The page's own theme switch starts on Dark: Light is chosen for the light one.
+  { set: 'elements', name: 'page', example: 'ci-pipeline', height: 1400, prepare: (page) => page.getByText('Light', { exact: true }).click() },
+  { set: 'elements', name: 'primitives', example: 'status' },
+  { set: 'elements', name: 'theming-dark', example: 'ci-pipeline', theme: 'contraagent-dark', height: 1400 },
+];
+
+const bottom = (b) => b.y + b.height;
+const pad = (b, m) => box(b.x - m, b.y - m, b.width + 2 * m, b.height + 2 * m);
+/** A card (a `section`) with a margin, so that its border and its shadow show. */
+const card = async (page, selector) => pad(await boxOf(page, selector), 10);
+/**
+ * The width of `selector`, from the element inside it whose text matches `from` down to the
+ * one that matches `to` (with `block`, the block that holds it), with a margin.
+ */
+async function between(page, selector, from, to, block = 0) {
+  const outer = await boxOf(page, selector);
+  const start = await page.locator(selector).getByText(from).first().boundingBox();
+  const found = page.locator(selector).getByText(to).first();
+  const end = await (block ? found.locator('xpath=..') : found).boundingBox();
+  if (!start || !end) throw new Error(`${selector}: ${from} or ${to} is not on the page`);
+  return box(outer.x, start.y - 12, outer.width, bottom(end) - start.y + 24);
+}
+const box = (x, y, width, height) => ({ x: Math.max(0, x), y: Math.max(0, y), width, height });
+/** The page's full width between `top` and `end`. */
+const rows = (page, top, end) => box(0, top, page.viewportSize().width, end - Math.max(0, top));
+/** The first element matching `selector`, with a margin, at most `most` tall. */
+async function element(page, selector, most = Infinity) {
+  const b = await boxOf(page, selector);
+  return box(b.x - 8, b.y - 8, b.width + 16, Math.min(b.height, most) + 16);
+}
+
+/**
+ * The box of the first element matching `selector` (through shadow roots); with `text`, the
+ * box of the block that holds the element inside it with that text (`nth`: which one, -1 the
+ * last).
+ */
+async function boxOf(page, selector, text, nth = 0) {
+  let target = page.locator(selector).first();
+  if (text) {
+    const found = target.getByText(text, { exact: true });
+    target = (nth < 0 ? found.last() : found.nth(nth)).locator('xpath=..');
+  }
+  const b = await target.boundingBox();
+  if (!b) throw new Error(`${selector}${text ? ` "${text}"` : ''} is not on the page`);
+  return b;
+}
+
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const s = createServer();
+    s.once('error', reject);
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
+}
+
+function run(cmd, argv, opts) {
+  const r = spawnSync(cmd, argv, { stdio: 'inherit', ...opts });
+  if (r.status !== 0) throw new Error(`${cmd} ${argv.join(' ')} exited with ${r.status}`);
+}
+
+async function waitFor(url, ms) {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`${url} did not answer within ${ms} ms`);
+}
+
+const shots = SHOTS.filter((s) => sets.has(s.set));
+const stops = [];
+let workdir = args.runs;
+let made = false;
+const files = [];
+/** The images made of several regions: `--stack <image> <gap in CSS px> <part> ...` each. */
+const stacks = [];
+try {
+  let monitorBase;
+  if (shots.some((s) => s.url)) {
+    if (!workdir) {
+      // At the demo agent's own pace (about a minute), so times and the timeline look real.
+      workdir = mkdtempSync(join(tmpdir(), 'ca-showcase-'));
+      made = true;
+      run('uv', ['run', '--project', ROOT, 'python', join(WEB, 'scripts', 'showcase.py')], { cwd: workdir });
+    }
+    const port = await freePort();
+    const monitor = spawn(
+      'uv',
+      ['run', '--project', ROOT, 'contraagent', 'monitor', '--runs-dir', join(workdir, 'demo-runs'), '--port', String(port), '--title', 'contraagent demo'],
+      { stdio: 'ignore', cwd: ROOT },
+    );
+    stops.push(() => monitor.kill());
+    monitorBase = `http://127.0.0.1:${port}`;
+    await waitFor(`${monitorBase}/api/info`, 60_000);
+  }
+  let examplesBase;
+  if (shots.some((s) => s.example)) {
+    // Vite from the monitor app's dependencies; the workspace packages from their sources.
+    const { createServer: vite } = await import(join(WEB, 'apps', 'monitor', 'node_modules', 'vite', 'dist', 'node', 'index.js'));
+    const server = await vite({
+      root: join(WEB, 'scripts', 'examples-page'),
+      configFile: false,
+      logLevel: 'error',
+      resolve: { conditions: ['source'] },
+      server: { port: await freePort(), strictPort: true, fs: { allow: [WEB] } },
+    });
+    await server.listen();
+    stops.push(() => server.close());
+    examplesBase = server.resolvedUrls.local[0];
+  }
+
+  const browser = await chromium.launch();
+  stops.push(() => browser.close());
+  /** The shot's page, open in a context of `view`'s viewport (the shot's, or one of its `parts`'). */
+  const open = async (shot, view) => {
+    const ctx = await browser.newContext({
+      viewport: { width: view.width ?? 900, height: view.height ?? 900 },
+      deviceScaleFactor: 2,
+      reducedMotion: 'reduce',
+      locale: 'en-US',
+      timezoneId: 'UTC',
+    });
+    const theme = shot.theme ?? LIGHT;
+    await ctx.addInitScript(
+      ([t, css]) => {
+        localStorage.setItem('contraagent:theme', t);
+        localStorage.setItem('contraagent:locale', 'en');
+        document.addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: css })));
+      },
+      [theme, FONTS],
+    );
+    const page = await ctx.newPage();
+    if (shot.url) {
+      await page.goto(monitorBase + shot.url);
+      await page.locator(shot.ready).first().waitFor();
+    } else {
+      await page.goto(`${examplesBase}?example=${shot.example}&theme=${theme}`);
+      await page.locator('body[data-ready]').waitFor();
+    }
+    if (shot.prepare) await shot.prepare(page);
+    await page.waitForTimeout(1500); // the live feeds settle and the graphs lay out
+    return { ctx, page };
+  };
+  for (const shot of shots) {
+    const { dir } = SETS[shot.set];
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `${shot.name}.png`);
+    // Regions of one viewport (`clip` returns a list), or of several (`parts`, each its own).
+    const parts = [];
+    for (const view of shot.parts ?? [shot]) {
+      const { ctx, page } = await open(shot, view);
+      const clip = view.clip ? await view.clip(page) : await hostBox(page);
+      for (const region of Array.isArray(clip) ? clip : [clip]) {
+        parts.push(join(dir, `${shot.name}.part${parts.length}.png`));
+        await page.screenshot({ path: parts.at(-1), clip: region });
+      }
+      await ctx.close();
+    }
+    if (parts.length === 1) renameSync(parts[0], path);
+    else stacks.push(['--stack', path, String(shot.gap ?? 12), ...parts]);
+    files.push(path);
+  }
+} finally {
+  for (const stop of stops.reverse()) await stop();
+  if (made) rmSync(workdir, { recursive: true, force: true });
+}
+
+/** An example's region: the page's host element, which holds what it mounted. */
+async function hostBox(page) {
+  const b = await page.evaluate(() => {
+    const r = document.getElementById('host').getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  });
+  return box(b.x, b.y, b.width, b.height);
+}
+
+const asWebp = files.filter((f) => SETS[Object.keys(SETS).find((k) => f.startsWith(SETS[k].dir))].format === 'webp');
+run('uv', ['run', '--project', ROOT, '--with', 'pyoxipng', '--with', 'pillow', 'python', join(WEB, 'scripts', 'optimize_images.py'), ...stacks.flat(), '--webp', ...asWebp, '--png', ...files.filter((f) => !asWebp.includes(f))]);

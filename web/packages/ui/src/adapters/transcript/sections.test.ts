@@ -46,7 +46,7 @@ describe('transcriptSections', () => {
       tone: 'attention',
       title: 'Output failed checks',
       list: ['out/a.json: [three_points] points: exactly 3'],
-      note: 'The errors are in the correction prompt',
+      note: 'Sent in the correction prompt',
     });
     expect(sections[1]?.footer).toEqual({ tone: 'failed', title: 'Attempt 1 failed: tool crashed' });
   });

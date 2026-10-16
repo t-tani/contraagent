@@ -59,7 +59,7 @@ describe('trendSections', () => {
     expect(cols(body('kinds'))).toContain('partial');
     expect(body('kinds').rows.map((r) => [r['kind'], r['partial']])).toEqual([['writer', 0], ['triage', 1]]);
     expect(body('runs').rows.map((r) => r['partial'])).toEqual([1, 0]);
-    expect((s[0]?.body as TilesBody).tiles.find((x) => x.id === 'attempts')?.sub).toEqual([['Passed 90%', '1 partly done']]);
+    expect((s[0]?.body as TilesBody).tiles.find((x) => x.id === 'attempts')?.sub).toEqual([['Done 90%', '1 partly done']]);
   });
 
   it('stacks the cost of each day by kind, the costliest kind first, a day without it empty', () => {
@@ -81,7 +81,7 @@ describe('trendSections', () => {
       ['Tokens', '1.2k'],
       ['Time', '10m 00s'],
     ]);
-    expect(tiles[1]!.sub).toEqual([['Passed 90%']]);
+    expect(tiles[1]!.sub).toEqual([['Done 90%']]);
     expect(tiles[2]!.sub).toEqual([['$0.750 a day']]);
   });
 
@@ -107,7 +107,7 @@ describe('trendSections', () => {
       { credential: 'sub', account: 'bbbbbb222222', window: 'seven_day_opus', daily_peak: [10, 20], hourly_peak: [] },
       { credential: 'other', account: 'cccccc333333', window: 'five_hour', daily_peak: [5, 5], hourly_peak: [] },
     ];
-    const rests = [{ ts: '2026-10-14T02:00:00+00:00', credential: 'sub', account: 'bbbbbb222222', event: 'start', run: 'r2' }];
+    const rests: Trends['rests'] = [{ ts: '2026-10-14T02:00:00+00:00', credential: 'sub', account: 'bbbbbb222222', event: 'start', run: 'r2' }];
     const s = trendSections({ ...TRENDS, quota, rests }, 'en');
     const names = (s.find((x) => x.id === 'usage')!.body as LinesBody).series.map((x) => x.name);
     expect(names).toEqual(['sub | account aaaaaa | weekly', 'sub | account bbbbbb | weekly (opus)', 'other | 5-hour']);

@@ -7,19 +7,11 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, Field
 
-from contraagent import (
-    CallFile,
-    CommandValidator,
-    ConfigError,
-    Overrides,
-    Pipeline,
-    PipelineConfig,
-    Stop,
-    agent_task,
-    envvars,
-    python_task,
-)
-from contraagent.calls import validate_call
+from contraagent import CommandValidator, ConfigError, Overrides, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.cli import _spent
+from contraagent._internal.contracts.calls import validate_call
+from contraagent._internal.platform import envvars
+from contraagent.backends import CallFile, Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails, writes_nothing
 
@@ -123,7 +115,7 @@ def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
             ]
         }
     )
-    # omp: no stop hook continues its turn, so every check comes back as a fix-up round
+    # omp: no stop hook continues its turn, so every check comes back as a correction round
     rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(lambda: summarize("u", path="x"), run_id="v")
     [res] = rep.results.values()
     assert res.ok and res.launch_result.rounds == 3
@@ -131,7 +123,8 @@ def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
     assert "[has_two_points] points: give at least two" in prompts[1]
     assert "[no-todo] found TODO" in prompts[2]
     assert "Required JSON Schema" not in prompts[1]  # the file met its schema; only validators failed
-    assert rep.summary["fixups"] == 2 and rep.summary["attempts"] == 1
+    assert rep.summary["corrections"] == 2 and rep.summary["attempts"] == 1
+    assert _spent(rep.summary).endswith(", 2 correction rounds")  # the CLI's closing line
     # the command validator travels in the call file, so the in-session hook runs it too
     assert agent.launches[0].call.output.commands[0]["name"] == "no-todo"
 
@@ -160,6 +153,48 @@ def test_a_failed_upstream_refuses_its_consumers_before_launch(tmp_path, plugin_
     stops = {k: r.stop for k, r in rep.results.items()}
     assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input"}
     assert all(launch.kind == "summarize" for launch in agent.launches)  # review never launched
+
+
+def test_the_value_of_a_flow_that_does_not_yield_is_what_it_returned(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    rep = pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"))
+    assert rep.value.key == "summarize-u"  # the Pending itself
+    assert rep.value.output == Summary(unit="u", summary="s", points=["a", "b"])
+
+
+def _one_point(path, s: Summary):
+    return None if len(s.points) > 1 else "points: give at least two"
+
+
+@pytest.mark.parametrize("yields", [False, True])
+def test_an_output_its_validators_rejected_refuses_every_task_that_reads_it(tmp_path, plugin_dir, yields):
+    # The file the rounds left behind meets its schema; only a validator rejected it.
+    summarize, review = declare(plugin_dir, retries=0, validators=[_one_point])
+    ran = []
+
+    @python_task
+    def count(summaries: dict[str, Summary]) -> int:
+        ran.append(summaries)
+        return len(summaries)
+
+    agent = StubAgent({"summarize": {"unit": "u", "summary": "s", "points": ["a"]}, "review": good_answer})
+
+    def flow():
+        s = summarize("u", path="x")
+        if yields:
+            try:
+                yield s
+            except Exception:
+                pass
+        review("u", summary=s)
+        count(summaries={"u": s})
+
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(flow)
+    stops = {k: r.stop for k, r in rep.results.items()}
+    assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input", "python:count": "invalid_input"}
+    assert ran == [] and all(launch.kind == "summarize" for launch in agent.launches)
+    assert rep.results["review-u"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
+    assert rep.results["python:count"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
 
 
 def test_resume_skips_finished_work_and_still_reads_its_output(tmp_path, plugin_dir):
@@ -226,8 +261,10 @@ def test_declarations_fail_early(tmp_path, plugin_dir):
         pipeline(tmp_path, stub()).run(lambda: summarize("u"))
     with pytest.raises(TypeError, match="plugin="):
         agent_task("x", output=Summary)
-    with pytest.raises(ConfigError, match="max_turnz"):
+    with pytest.raises(TypeError, match="max_turnz"):
         agent_task("x", plugin=plugin_dir, max_turnz=3)
+    with pytest.raises(ConfigError, match=r"agent_task: \[x\]\.max_turns = '3' is not a number"):
+        agent_task("x", plugin=plugin_dir, max_turns="3")
     with pytest.raises(RuntimeError, match="inside a flow"):
         summarize("u", path="x")
 
@@ -303,9 +340,59 @@ def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_di
 
     summarize, _ = declare(plugin_dir)
     pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
-    with pytest.raises(RunExists, match="continue it with resume=True"):
+    with pytest.raises(RunExists, match="continue it with resume=True, or start a new one with another run_id"):
         pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r")
     assert pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="r", resume=True).ok
+
+
+def _files(root: Path) -> dict[str, tuple[bytes, int]]:
+    return {str(p.relative_to(root)): (p.read_bytes(), p.stat().st_mtime_ns) for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def test_a_refused_run_writes_nothing(tmp_path, plugin_dir):
+    from contraagent import RunExists
+
+    summarize, _ = declare(plugin_dir)
+    pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="rj")
+    runs = tmp_path / "runs"
+    before = _files(runs)
+    assert "rj.lock" in before and "rj/run.json" in before
+    with pytest.raises(RunExists) as refused:
+        pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="rj")
+    assert refused.value.rows == 1 and refused.value.run_dir == runs / "rj"
+    assert _files(runs) == before  # run.json (argv, pid, started_at) and the lock file as they were
+
+
+def test_the_cli_refusal_names_its_flags(tmp_path, monkeypatch, capsys):
+    from contraagent._internal.cli import main
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    flow = tmp_path / "flow.py"
+    flow.write_text(
+        "from contraagent import python_task\n\n@python_task\ndef one() -> str:\n    return 'x'\n\ndef flow():\n    return one()\n"
+    )
+    args = ["run", f"{flow}:flow", "--stub", "--run-id", "rj", "--runs-dir", str(tmp_path / "runs")]
+    assert main(args) == 0, capsys.readouterr().out
+    capsys.readouterr()
+    assert main(args) == 1
+    out = capsys.readouterr().out
+    assert "already holds a run (1 journal rows): continue it with --resume, or start a new one with another --run-id" in out
+    assert "resume=True" not in out and "run_id" not in out
+
+
+def test_the_result_carries_the_rounds_of_a_correction(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    agent = StubAgent({"summarize": lambda launch: {"unit": "u", "summary": "s", "points": []} if launch.resumed else "{"})
+    rep = pipeline(tmp_path, agent).run(lambda: summarize("u", path="x"))
+    result = rep.results["summarize-u"]
+    assert rep.ok and result.rounds == 2 and result.rounds == result.launch_result.rounds
+    [errors] = result.round_errors
+    assert isinstance(errors, tuple) and "not valid JSON" in errors[0]
+    row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
+    assert row["rounds"] == 2 and row["round_errors"] == [list(errors)]
+    plain = pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id="plain").results["summarize-u"]
+    assert plain.rounds == 1 and plain.round_errors == ()
 
 
 def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
@@ -330,18 +417,21 @@ def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
     assert "[start] summarize-u" in lines
     assert any(line.startswith("[switch] summarize-u: rate limited on hop 1/2 claude/m1") for line in lines)
     assert any(
-        line.startswith("[fix-up] summarize-u: round 1 failed its checks, sent back:") and "not valid JSON" in line for line in lines
+        line.startswith("[correction] summarize-u: round 1 failed its checks, sent back:") and "not valid JSON" in line for line in lines
     )
     assert any(line.startswith("[end] summarize-u: completed") and "2 rounds" in line for line in lines)
 
 
-def test_claude_s_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir):
+@pytest.mark.parametrize("coding_agent", ["claude", "codex"])
+def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir, coding_agent):
+    """Claude Code and Codex continue the session when a Stop hook objects: each runs its own
+    rendered hooks file (`hooks/hooks.json`, `codex/hooks.json`)."""
     lint = CommandValidator(
         [sys.executable, "-c", "import sys; sys.exit('no heading' if not open(sys.argv[1]).read().startswith('#') else 0)"], name="heading"
     )
     write_doc = agent_task("write_doc", plugin=plugin_dir, output=str, validators=[lint], max_turns=5, timeout_s=60)
     agent = StubAgent({"write_doc": ["plain", "# Doc\n"]})
-    rep = pipeline(tmp_path, agent).run(lambda: write_doc("u"))
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent=coding_agent)).run(lambda: write_doc("u"))
     assert rep.ok and rep.results["write_doc-u"].launch_result.rounds == 1  # fixed before the turn ended
     first, second = agent.launches
     assert not first.in_turn and second.in_turn and not second.resumed

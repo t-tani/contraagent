@@ -1,11 +1,12 @@
-"""`contraagent.testing.StubAgent`: scripted replies, played through the real runner."""
+"""`contraagent._internal.testing.StubAgent`: scripted replies, played through the real runner."""
 
 import json
 
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, PipelineConfig, Stop, agent_task
+from contraagent import Pipeline, PipelineConfig, agent_task
+from contraagent.backends import Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails, writes, writes_nothing
 

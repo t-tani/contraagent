@@ -4,13 +4,17 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
-from contraagent import AMBIENT, ApiKey, CredentialError, Gateway, Launch, Limits, PiBackend, Stop, Subscription
-from contraagent.backends.pi import agent_dir
-from contraagent.backends.pi.backend import MCP_EXTENSION, parse_models
+from contraagent import CredentialError
+from contraagent._internal.backends.pi import agent_dir
+from contraagent._internal.backends.pi.backend import MCP_EXTENSION
+from contraagent._internal.backends.pi.catalogue import parse_models
+from contraagent.backends import Launch, PiBackend, Stop
+from contraagent.config import AMBIENT, ApiKey, Gateway, Limits, Subscription
 
 PI = r"""
 import json, os, sys
@@ -62,7 +66,7 @@ def run(be: PiBackend, tmp_path, **launch):
 def test_a_launch_runs_end_to_end_and_sees_none_of_the_users_pi_setup(tmp_path, home):
     result, argv, env = run(backend(tmp_path, home), tmp_path, model="openai/gpt-5.6-luna", effort="low")
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done" and result.session_id == "s-1"
-    assert result.cost_usd == 0.003 and result.usage.n_calls == 2
+    assert result.cost_usd == 0.003 and len(result.usage.calls) == 2
     for flag in ("--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve"):
         assert flag in argv
     assert argv[argv.index("--thinking") + 1] == "low" and argv[argv.index("--model") + 1] == "openai/gpt-5.6-luna"
@@ -174,7 +178,8 @@ def test_a_light_launch_has_no_tools_and_its_own_system_prompt(tmp_path, home):
     assert "builtin:mcp" not in argv and "CONTRAAGENT_PI_MCP_CONFIG" not in env
 
 
-def test_a_resumed_launch_opens_its_session_by_id(tmp_path, home):
+def test_a_resumed_launch_opens_its_session_by_id(tmp_path, home, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the session directory: under tmp_path
     be = backend(tmp_path, home)
     first = be.resumable(Launch(prompt="hello", label="t", model="openai/m", cwd=tmp_path))
     result, argv, _ = run(be, tmp_path, model="openai/m", session_dir=first.session_dir)
@@ -195,7 +200,7 @@ def test_the_catalogue_is_read_from_the_model_list():
 anthropic  claude-haiku-5-5           1M       128K     yes       yes
 openai     gpt-5.6-luna               272K     128K     yes       yes
 """
-    assert parse_models(table) == {"anthropic/claude-haiku-5-5", "openai/gpt-5.6-luna"}
+    assert parse_models(table) == {"anthropic/claude-haiku-5-5": None, "openai/gpt-5.6-luna": None}
 
 
 def test_a_launch_s_window_is_the_one_pi_s_model_catalogue_lists(tmp_path, home):

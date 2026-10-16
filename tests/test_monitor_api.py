@@ -14,9 +14,11 @@ pytest.importorskip("sse_starlette")
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from contraagent.backends.streams import normalize_stream_line
-from contraagent.monitor import Monitor, Panel, api, procs, server
-from contraagent.monitor.paths import BadName, check_name
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.monitor import api, server
+from contraagent._internal.runs.names import BadName, check_name
+from contraagent.backends import normalize_stream_line
+from contraagent.monitor import Monitor, Panel
 
 
 def client_for(monitor: Monitor, **kwargs) -> TestClient:
@@ -156,7 +158,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
 def test_the_committed_openapi_document_is_current():
     committed = server.OPENAPI_FILE.read_text()
     assert committed == server.openapi_document(), (
-        "src/contraagent/monitor/openapi.json is stale: run `python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`"
+        "openapi.json is stale: run `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`"
     )
 
 
@@ -184,7 +186,7 @@ def test_the_contract_is_served_and_describes_the_live_feeds(tmp_path):
 
 def test_openapi_flag_writes_the_document(tmp_path):
     out = tmp_path / "openapi.json"
-    assert server.main(["--openapi", str(out)]) == 0
+    assert cli_main(["monitor", "--openapi", str(out)]) == 0
     assert out.read_text() == server.openapi_document()
 
 
@@ -287,23 +289,24 @@ def test_task_keys_keep_their_legitimate_characters():
 def test_a_missing_extra_is_named_not_a_traceback(monkeypatch, capsys):
     real = importlib.util.find_spec
     monkeypatch.setattr(importlib.util, "find_spec", lambda name, *a: None if name == "uvicorn" else real(name, *a))
-    assert server.main(["--runs-dir", "nowhere"]) == 2
-    err = capsys.readouterr().err
-    assert "contraagent[monitor]" in err and "uvicorn" in err
-    from contraagent.cli import main as cli_main
-
     assert cli_main(["monitor", "--runs-dir", "nowhere"]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("contraagent monitor: ") and "contraagent[monitor]" in err and "uvicorn" in err
     with pytest.raises(ModuleNotFoundError, match=r"contraagent\[monitor\]"):
         server.create_app(Monitor("nowhere"))
 
 
 def test_process_ages_use_the_kernel_clock_rate():
+    from contraagent._internal.runs import procs
+
     assert procs._CLK == os.sysconf("SC_CLK_TCK")
 
 
 def test_the_page_makes_no_third_party_requests():
     static = Path(server.STATIC)
     for f in static.iterdir():
+        if f.suffix == ".png":  # an image requests nothing
+            continue
         text = f.read_text()
         assert "googleapis" not in text and "gstatic" not in text, f.name
 
@@ -364,7 +367,7 @@ def test_the_run_list_says_how_the_subscription_went(demo_runs):
 
 def test_utilization_is_kept_per_account():
     """Two subscriptions (a pool): each account's readings stay apart; the one closest to its weekly limit first."""
-    from contraagent.monitor.core import _first_last
+    from contraagent._internal.monitor.core import _first_last
 
     def r(cred, at, week):
         return {"credential": cred, "observed_at": f"2026-10-11T00:00:0{at}+00:00", "seven_day_pct": week, "five_hour_pct": 10.0}
@@ -387,6 +390,16 @@ def test_a_unitless_python_task_has_the_same_unit_everywhere(demo_runs):
     record = next(r for r in mon.outputs("docs")["contracts"] if r["key"] == "python:report")
     row = next(r for r in mon.journal("docs")[0] if r["key"] == "python:report")
     assert record["unit"] == row["unit"] == ""
+
+
+def test_a_python_task_s_outputs_from_earlier_tasks_are_its_inputs_by_producer(demo_runs):
+    record = next(r for r in Monitor(demo_runs).outputs("docs")["contracts"] if r["key"] == "python:report")
+    # Given only outputs of earlier tasks: no param of its own, each output an input named by its producer.
+    assert record["params"] == {}
+    producers = {i["producer"] for i in record["inputs"]}
+    assert {"summarize-alpha", "revise-gamma"} <= producers, producers  # a revision writes its summary's file
+    alpha = next(i for i in record["inputs"] if i["producer"] == "summarize-alpha")
+    assert alpha["path"].endswith("out/summarize/alpha.json")
 
 
 # --- flow calls and origins ----------------------------------------------------

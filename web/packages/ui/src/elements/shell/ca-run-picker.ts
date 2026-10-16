@@ -3,7 +3,7 @@ import { localized, msg, str } from '@lit/localize';
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { emit } from '../../core/events.js';
-import type { Page } from '../../core/route.js';
+import type { Page } from '../../core/view-route.js';
 import { trendsTitle, trendsTip } from '../../words/trends.js';
 import { facts, fmtDur, localTime, relAgo, usd } from '../../words/format.js';
 import { runMark, stateCount } from '../../words/index.js';
@@ -46,10 +46,10 @@ export class CaRunPicker extends LitElement {
   static override styles = [
     base,
     css`
-      :host { position: absolute; top: 50px; width: min(580px, calc(100vw - 24px)); max-height: min(72vh, 660px);
+      :host { position: absolute; top: 50px; width: min(580px, calc(100cqi - 24px)); max-height: min(72vh, 660px);
         display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px;
         box-shadow: 0 24px 70px color-mix(in srgb, var(--shadow) 70%, transparent); opacity: 0; transform: translateY(-6px) scale(0.985);
-        pointer-events: none; z-index: 40; visibility: hidden;
+        pointer-events: none; z-index: 40; visibility: hidden; container-type: inline-size;
         transition: opacity 0.16s var(--ease), transform 0.16s var(--ease), visibility 0s linear 0.16s; }
       /* Visible (and focusable) at once when it opens; hidden only after it has faded out. */
       :host([open]) { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 0s; }
@@ -67,6 +67,10 @@ export class CaRunPicker extends LitElement {
       .item.cur { box-shadow: inset 2px 0 0 var(--accent); background: var(--accent-bg); }
       .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .when { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+      /* A narrow picker (the host is a container): what a page shows goes under its name. */
+      @container (max-width: 480px) {
+        .when.page { grid-column: 2 / 4; white-space: normal; }
+      }
       .sub { grid-column: 2 / 4; display: flex; gap: 7px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); }
       /* a hub: the host filter beside the search field, a header per host, the hosts page as the first option */
       .row { display: flex; gap: 8px; }
@@ -206,7 +210,7 @@ export class CaRunPicker extends LitElement {
                 </div>`,
               )}
             </div>`
-          : html`<div class="blank"><span>${msg('No runs match')}</span></div>`}
+          : html`<div class="blank"><span>${msg('No runs match the search')}</span></div>`}
       </div>`;
   }
 
@@ -264,8 +268,8 @@ export class CaRunPicker extends LitElement {
               ${r.run_group && r.run_group !== runIdOf(r) ? html`<span>${msg(str`Run group ${r.run_group}`)}</span>` : nothing}              <span title=${accountsTip(r.quota ?? [])}>${this.counts(r)}</span>
             </span>`
         : page === 'hosts'
-          ? html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when">${hostsLine(this.hosts)}</span>`
-          : html`<span aria-hidden="true">▥</span><span class="nm">${trendsTitle()}</span><span class="when">${trendsTip()}</span>`}
+          ? html`<span aria-hidden="true">⊞</span><span class="nm">${msg('Hosts')}</span><span class="when page">${hostsLine(this.hosts)}</span>`
+          : html`<span aria-hidden="true">▥</span><span class="nm">${trendsTitle()}</span><span class="when page">${trendsTip()}</span>`}
     </div>`;
   }
 }

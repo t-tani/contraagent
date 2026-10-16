@@ -6,12 +6,13 @@ import re
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Implementations, Pipeline, PipelineConfig, agent_task, python_task
-from contraagent.monitor import Monitor
-from contraagent.monitor.trends import Period
-from contraagent.pipeline.reach import reachable
+from contraagent import Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.pipeline.reach import reachable
+from contraagent._internal.pipeline.spec import Implementations
+from contraagent._internal.routing.plan import check_task_tables
+from contraagent.engine import RoutingPlan
+from contraagent.monitor import Monitor, Period
 from contraagent.plugins import new_plugin
-from contraagent.routing.plan import RoutingPlan, check_task_tables
 from contraagent.testing import StubAgent
 
 

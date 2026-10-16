@@ -21,6 +21,10 @@ describe('input causes', () => {
       'input out/a.json is missing because review · zeta did not finish',
     );
     expect(inputCause('out/a.json', 'checks', { name: 'prepare · zeta' })).toBe('input out/a.json from prepare · zeta failed checks');
+    expect(inputCause('out/a.json', 'failed', { name: 'review · zeta', outcome: 'failed' })).toBe(
+      'input out/a.json is the output of failed task review · zeta',
+    );
+    expect(inputCause('out/a.json', 'failed')).toBe('input out/a.json is the output of a failed task');
   });
 
   it('follows a refused task to the earlier task, and a blocked one to the failed task upstream', () => {

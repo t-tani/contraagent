@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, Stop
-from contraagent.backends.omp.rpc import _Accumulator
-from contraagent.backends.omp.trace import TraceReader, normalize_event, parse_trace
+from contraagent._internal.backends.omp.rpc import RpcReader
+from contraagent._internal.backends.omp.wire import TraceReader, normalize_event
+from contraagent.backends import Launch, Stop
 
 FIXTURES = Path(__file__).parent / "fixtures" / "omp"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))
@@ -25,15 +25,16 @@ def events(version: str, wire: str) -> list[dict]:
 
 
 def via_json(version: str):
-    return parse_trace(LAUNCH, "omp", (FIXTURES / version / "json.jsonl").read_bytes(), 0, None)
+    return TraceReader().read((FIXTURES / version / "json.jsonl").read_bytes()).result(LAUNCH, "omp", exit_code=0, killed=None)
 
 
 def via_rpc(version: str):
-    acc = _Accumulator()
+    rpc = RpcReader("t")
     for frame in events(version, "rpc"):
-        if acc.feed(frame, "t"):
+        rpc.feed(frame)
+        if rpc.done:
             break
-    return acc.launch_result(LAUNCH, "omp-rpc", [], None)
+    return rpc.result(LAUNCH, "omp-rpc", exit_code=None, killed=None)
 
 
 @pytest.mark.parametrize("version", VERSIONS)
@@ -43,7 +44,7 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version, read):
     assert result.stop == Stop.COMPLETED and result.ok and result.result_text == "done"
     assert result.tool_uses == {"read": 1, "bash": 1, "web_search": 1}
     assert result.web_queries == ["oh-my-pi coding agent"]
-    assert result.usage.n_calls >= 2 and result.usage.output > 0 and result.cost_usd and result.cost_usd > 0
+    assert len(result.usage.calls) >= 2 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd and result.cost_usd > 0
     assert result.unread_events == {}, "omp sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
 
@@ -51,7 +52,8 @@ def test_a_recorded_launch_reads_whole_and_counts_each_call_once(version, read):
 @pytest.mark.parametrize("version", VERSIONS)
 def test_both_wires_read_the_same_launch_alike(version):
     a, b = via_json(version), via_rpc(version)
-    assert (a.tool_uses, a.web_queries, a.result_text, a.usage.n_calls) == (b.tool_uses, b.web_queries, b.result_text, b.usage.n_calls)
+    assert (a.tool_uses, a.web_queries, a.result_text) == (b.tool_uses, b.web_queries, b.result_text)
+    assert len(a.usage.calls) == len(b.usage.calls)
     assert a.session_id  # `--mode json` names its session; the RPC launch ran with --no-session
 
 
@@ -96,9 +98,10 @@ def test_a_provider_error_is_the_launchs_reason():
 
 
 def test_unread_events_reach_the_journal_summed_over_rounds(tmp_path):
-    from contraagent import LaunchResult, Task, TaskResult
-    from contraagent.contracts import fold_spend
-    from contraagent.execution.journal import Journal
+    from contraagent import Task, TaskResult
+    from contraagent._internal.contracts.contract import fold_spend
+    from contraagent._internal.execution.journal import Journal
+    from contraagent.backends import LaunchResult
 
     first = LaunchResult(label="t", unread_events={"session_settled": 1})
     last = fold_spend(first, LaunchResult(label="t", unread_events={"session_settled": 1, "new_thing": 2}))
@@ -109,8 +112,9 @@ def test_unread_events_reach_the_journal_summed_over_rounds(tmp_path):
 
 def test_a_launch_that_names_no_model_leaves_the_journals_model_empty(tmp_path):
     """The route (`hop 1/1 stub`) is not a model name."""
-    from contraagent import LaunchResult, Task, TaskResult
-    from contraagent.execution.journal import Journal
+    from contraagent import Task, TaskResult
+    from contraagent._internal.execution.journal import Journal
+    from contraagent.backends import LaunchResult
 
     journal = Journal(tmp_path / "j.jsonl", tmp_path / "l.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
     result = TaskResult(task=Task("k", key="t"), ok=True, stop="completed", launch_result=LaunchResult(label="t"), route="hop 1/1 stub")

@@ -8,10 +8,9 @@ import threading
 import pytest
 import zstandard
 
-from contraagent import rundir
-from contraagent.hub import segment_format as fmt
-from contraagent.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
-from contraagent.hub.segments import (
+from contraagent._internal.hub import segment_format as fmt
+from contraagent._internal.hub.segment_objects import DirectorySegmentObjects, MemorySegmentObjects, S3SegmentObjects
+from contraagent._internal.hub.segments import (
     BlockCache,
     MemorySegmentIndex,
     PostgresSegmentIndex,
@@ -22,7 +21,8 @@ from contraagent.hub.segments import (
     parse_object_key,
     rebuild_index,
 )
-from contraagent.monitor.source import page
+from contraagent._internal.runs import layout
+from contraagent._internal.runs.source import page
 from hub_services import (
     hub_services,  # noqa: F401  # the fixture that stops the containers
     postgres_dsn,
@@ -31,7 +31,7 @@ from hub_services import (
 
 pytestmark = pytest.mark.usefixtures("hub_services")
 
-LOG = rundir.stream("summarize-a")
+LOG = layout.stream("summarize-a")
 NAME, UID = "r@h", "u1"
 
 
@@ -200,7 +200,7 @@ def test_a_segment_seals_after_its_idle_time_and_after_its_age(tmp_path):
     logs.tick()
     assert logs.held(NAME, UID, LOG) == (1, 1)
     # appends every 5 minutes keep it from idling; its age seals it
-    other = rundir.stream("summarize-b")
+    other = layout.stream("summarize-b")
     for i in range(13):
         logs.append(NAME, UID, other, i, [str(i)], "t")
         clock.now += 300
@@ -256,7 +256,7 @@ def test_appends_reads_and_background_seals_from_many_threads(tmp_path):
         tmp_path / "hot", MemorySegmentObjects(), MemorySegmentIndex(), block_bytes=500, segment_bytes=5000, cache_bytes=20_000
     )
     every = lines_of(1000)
-    names = [rundir.stream(f"t{i}") for i in range(4)]
+    names = [layout.stream(f"t{i}") for i in range(4)]
     errors: list[BaseException] = []
     done = threading.Event()
 
@@ -415,12 +415,12 @@ def test_activity_survives_a_restart(tmp_path):
 def test_the_index_rebuilds_from_the_objects_alone(tmp_path):
     objects = DirectorySegmentObjects(tmp_path / "objects")
     logs = make(tmp_path, objects, block_bytes=1000, segment_bytes=8000)
-    for log in (LOG, rundir.stream("summarize-b")):
+    for log in (LOG, layout.stream("summarize-b")):
         logs.append(NAME, UID, log, 0, lines_of(150), "t")
         logs.close(NAME, UID, log)
     rebuilt = MemorySegmentIndex()
     assert rebuild_index(objects, rebuilt) == len(objects.keys()) > 2
-    for log in (LOG, rundir.stream("summarize-b")):
+    for log in (LOG, layout.stream("summarize-b")):
         assert rebuilt.segments(NAME, UID, log) == logs.index.segments(NAME, UID, log)
     # from_spec rebuilds a memory index on start, and keeps every object
     again = from_spec(tmp_path / "hot", str(tmp_path / "objects"), None, background=False)

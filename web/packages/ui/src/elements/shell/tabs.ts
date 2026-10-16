@@ -1,11 +1,12 @@
 // The monitor's tab list: the built-in views, then the custom views; each tab
 // with its count, and the line under the selected one. The selected tab is
-// bold and underlined, not only coloured.
+// bold and underlined, not only coloured. A list wider than the monitor
+// scrolls sideways, with a shade at each edge that has more tabs past it.
 import { isRunPanel, type Info } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { toneAttr } from '@contraagent/elements';
-import type { Tab } from '../../core/route.js';
+import type { Tab } from '../../core/view-route.js';
 import type { Tone } from '../../lib/tone.js';
 
 export interface TabInfo {
@@ -60,7 +61,7 @@ export function tabBar(
   /** Show the hint for the single-key shortcuts. */
   keys = true,
 ): TemplateResult {
-  return html`<nav>
+  return html`<nav data-scroll="x">
     <div class="tabs" role="tablist" aria-label=${msg('Views', { desc: 'The label of the list of tabs: Overview, Tasks, History, ...' })}>
       ${tabs.map((t, i) => {
         const b = badge(t.id);
@@ -82,7 +83,10 @@ export function tabBar(
   </nav>`;
 }
 
-/** Move the line under the selected tab to it (after a render, a resize). */
+/**
+ * Move the line under the selected tab to it (after a render, a resize); when
+ * the selection changed, scroll the tab list so the selected tab is in view.
+ */
 export function moveTabIndicator(root: ParentNode): void {
   const sel = root.querySelector<HTMLElement>('.tab.sel');
   const ind = root.querySelector<HTMLElement>('.tab-ind');
@@ -90,10 +94,26 @@ export function moveTabIndicator(root: ParentNode): void {
   ind.style.left = `${sel.offsetLeft + 10}px`;
   ind.style.width = `${Math.max(12, sel.offsetWidth - 20)}px`;
   if (ind.classList.contains('init')) requestAnimationFrame(() => ind.classList.remove('init'));
+  const nav = ind.parentElement;
+  if (nav && ind.dataset['tab'] !== sel.id) {
+    ind.dataset['tab'] = sel.id;
+    const edge = 24;
+    if (sel.offsetLeft - edge < nav.scrollLeft) nav.scrollLeft = Math.max(0, sel.offsetLeft - edge);
+    else if (sel.offsetLeft + sel.offsetWidth + edge > nav.scrollLeft + nav.clientWidth)
+      nav.scrollLeft = sel.offsetLeft + sel.offsetWidth + edge - nav.clientWidth;
+  }
 }
 
 export const tabStyles = css`
-  nav { flex: none; display: flex; gap: 2px; padding: 6px 18px 0; position: relative; overflow-x: auto; scrollbar-width: none; align-items: center; }
+  /* Scroll shades: a cover at each end of the tabs (moves with them) over a shade at each edge of the list (stays):
+     the shade shows at an edge while more tabs lie past it. */
+  nav { flex: none; display: flex; gap: 2px; padding: 6px 18px 0; position: relative; overflow-x: auto; scrollbar-width: none; align-items: center;
+    --shade: color-mix(in srgb, var(--text) 22%, transparent);
+    background:
+      linear-gradient(to right, var(--backdrop) 40%, transparent) left / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--backdrop) 40%, transparent) right / 32px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--shade), transparent) left / 12px 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--shade), transparent) right / 12px 100% no-repeat scroll; }
   nav::-webkit-scrollbar { display: none; }
   .tabs { flex: none; display: flex; gap: 2px; align-items: center; }
   .tab { position: relative; background: none; border: none; padding: 8px 14px 11px; color: var(--text-muted); cursor: pointer;
@@ -112,4 +132,12 @@ export const tabStyles = css`
     background: var(--accent); transition: left 0.3s var(--ease), width 0.3s var(--ease); }
   .tab-ind.init { transition: none; }
   .tabhint { margin-left: auto; padding-left: 12px; white-space: nowrap; }
+  /* In a narrow monitor the tabs keep the line: no key hints. */
+  @container ca-monitor (max-width: 900px) {
+    .tabhint { display: none; }
+  }
+  @container ca-monitor (max-width: 760px) {
+    nav { padding: 4px 8px 0; }
+    .tab { padding: 8px 10px 11px; }
+  }
 `;

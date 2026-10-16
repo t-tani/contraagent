@@ -2,7 +2,7 @@
 
     contraagent monitor --runs-dir runs --panels path/to/views.py:PANELS
 
-Each panel returns a typed body (`contraagent.monitor.api`): tiles, a table and
+Each panel returns a typed body (`contraagent.monitor`): tiles, a table and
 charts, which the monitor draws with its own elements; any other dict would be shown
 as a JSON tree. A run panel reads its run through the `RunRecords` it is given, a
 trends panel the runs of its period through the `PeriodRuns` it is given, wherever the
@@ -13,14 +13,17 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from contraagent.monitor import Panel, Period, PeriodRuns, RunRecords
-from contraagent.monitor.api import (
+from contraagent.monitor import (
     BlocksBody,
     ChartSeries,
     ColumnsBody,
     HBar,
     HBarsBody,
+    Panel,
     PanelTile,
+    Period,
+    PeriodRuns,
+    RunRecords,
     TableBody,
     TableColumn,
     TilesBody,

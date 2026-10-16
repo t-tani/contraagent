@@ -3,7 +3,7 @@
     pytest "$(contraagent docs --path)/examples/demo/test_demo.py"
 
 `Pipeline.check` finds what is wrong before anything launches. `StubAgent`
-replaces only the coding agent: the output checks, fix-up rounds, failover,
+replaces only the coding agent: the output checks, correction rounds, failover,
 retries and the journal are the real ones, so these tests pin down the
 flow's wiring. Whether the plugin's roles make a real LLM write good outputs
 is for a live run.
@@ -25,7 +25,7 @@ UNITS = ["alpha", "beta", "delta", "epsilon", "zeta"]
 
 
 def summary(launch):
-    """A reply decided per launch: delta's first summary has two points, its fix-up three."""
+    """A reply decided per launch: delta's first summary has two points, its correction round three."""
     points = ["parses a config file", "validates it", "reports errors"]
     return {"unit": launch.unit, "points": points[:2] if launch.unit == "delta" and not launch.resumed else points}
 

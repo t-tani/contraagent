@@ -1,12 +1,15 @@
-// End-to-end: the built page (src/contraagent/monitor/static), served by the
+// End-to-end: the built page (src/contraagent/_internal/monitor/static), served by the
 // real Python monitor over the demo pipeline's runs, and by a hub over the same
-// runs shipped from two hosts (e2e/hub.py; hub.spec.ts). Run `pnpm build` first
+// runs shipped from two hosts (e2e/hub.py; hub.spec.ts); and the documentation
+// site as built, for its live elements (fit.spec.ts). Run `pnpm build` first
 // (`pnpm e2e` does both).
 import { defineConfig } from '@playwright/test';
 
 const PORT = Number(process.env["E2E_PORT"] ?? 18793);
 /** The hub's port; hub.spec.ts reads it from `E2E_HUB_PORT` too. */
 const HUB_PORT = Number(process.env["E2E_HUB_PORT"] ?? 18794);
+/** The documentation site's port; fit.spec.ts reads it from `E2E_DOCS_PORT` too. */
+const DOCS_PORT = Number(process.env["E2E_DOCS_PORT"] ?? 18795);
 
 export default defineConfig({
   testDir: 'e2e',
@@ -31,6 +34,15 @@ export default defineConfig({
       url: `http://127.0.0.1:${HUB_PORT}/api/info`,
       reuseExistingServer: false,
       timeout: 120_000,
+    },
+    {
+      // The documentation site as built (apps/docs/dist), for its live elements (fit.spec.ts).
+      command: `uv run python -m http.server ${DOCS_PORT} --bind 127.0.0.1 --directory web/apps/docs/dist`,
+      cwd: '..',
+      url: `http://127.0.0.1:${DOCS_PORT}/elements/`,
+      reuseExistingServer: false,
+      // http.server logs each request on stderr.
+      stderr: 'ignore',
     },
   ],
 });

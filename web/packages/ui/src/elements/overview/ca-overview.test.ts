@@ -67,6 +67,13 @@ describe('ca-overview', () => {
     expect(root.querySelector('.problems .fl-name')?.textContent).toContain('k · a');
   });
 
+  it('lists a task done after retrying apart from the problems: no problem, then the task under its own heading', async () => {
+    const root = await overview({ journal: [row('a', false), { ...row('a', true), attempt: 1 }] });
+    expect(root.querySelector('.problems .ok')?.textContent?.trim()).toBe('✓No problems');
+    expect(root.querySelector('.problems h4.sub')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Done after retrying 1');
+    expect(root.querySelector('.problems .fl-name')?.textContent).toContain('k · a');
+  });
+
   it('shows no running tasks for a run that is over: its state says so', async () => {
     const root = await overview({ journal: [row('a', true)] });
     expect(headings(root)).not.toContain('Running tasks');

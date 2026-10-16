@@ -1,5 +1,5 @@
 // An export (`contraagent monitor export`): the monitor's views of some runs,
-// written as files and read with no server. The client maps each route to its
+// written as files and read with no server. The client maps each endpoint to its
 // file; the feed replays a run's files once and ends with `ready`.
 import { ApiError, type MonitorClient } from './client.js';
 import type { FeedHandlers, Unsubscribe } from './feed.js';
@@ -19,7 +19,7 @@ import type {
 
 /** A client of an export: the monitor's client, and the files the server sends over its feed instead. */
 export interface ExportClient extends MonitorClient {
-  /** A file of the export, `data/<path>` (cached): the routes' answers, and `plan`, `outputs`, `cursor`. */
+  /** A file of the export, `data/<path>` (cached): the endpoints' answers, and `plan`, `outputs`, `cursor`. */
   file<T>(path: string): Promise<T>;
 }
 
@@ -31,13 +31,13 @@ const seg = encodeURIComponent;
 
 /**
  * A `MonitorClient` over an export at `baseUrl` (its `data/`, relative to the page or
- * absolute). A route is a file: `info.json`, `runs.json`, `runs/<run>/journal.json`,
+ * absolute). An endpoint is a file: `info.json`, `runs.json`, `runs/<run>/journal.json`,
  * `runs/<run>/tasks/<key>.json` ... A task's file leaves out its rows and its
  * definition, which the run's journal and definitions hold: the client puts them back.
  * A view the export does not hold (a transcript, the hosts) answers `ApiError` 404.
- * A route of no run is a file under `data/` (`trends.json`, `trends/panels/<name>.json`):
- * a new route is one method here, `file<T>('<its file>')`, beside its entry in the
- * Python `ROUTES` or `SITE_ROUTES` (`contraagent/monitor/export.py`).
+ * An endpoint of no run is a file under `data/` (`trends.json`, `trends/panels/<name>.json`):
+ * a new endpoint is one method here, `file<T>('<its file>')`, beside its entry in the
+ * Python `VIEWS` (`contraagent/monitor/views.py`) or `SITE_FILES` (`contraagent/monitor/export.py`).
  */
 export function createExportClient(baseUrl: string, options: ExportClientOptions = {}): ExportClient {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;

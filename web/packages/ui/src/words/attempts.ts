@@ -3,6 +3,9 @@ import { runStarts } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { facts, localTime } from './format.js';
 
+/** What a retry is, for tooltips and the transcript's legend. */
+export const retryTip = (): string => msg('An attempt after a failed attempt (retries)');
+
 /** The attempt as the reader counts it: "Attempt 1", "Attempt 2" ... (`JournalRow.attempt` is 0-based). */
 export const attemptLabel = (attempt: number | null | undefined): string => msg(str`Attempt ${(attempt ?? 0) + 1}`);
 

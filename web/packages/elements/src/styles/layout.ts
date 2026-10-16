@@ -1,13 +1,14 @@
 // Layout: the 12-column grid, a panel, a section heading, an empty state, a
-// short clickable row.
+// short clickable row. The grid is a container: its columns follow its own
+// width, not the window's.
 import { css } from 'lit';
 
 export const layoutStyles = css`
-  .g12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+  .g12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; container-type: inline-size; }
   .c12 { grid-column: span 12; }
   .c7 { grid-column: span 7; }
   .c5 { grid-column: span 5; }
-  @media (max-width: 1150px) {
+  @container (max-width: 1100px) {
     .c7, .c5 { grid-column: span 12; }
   }
   .panel { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);

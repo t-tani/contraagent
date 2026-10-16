@@ -8,13 +8,14 @@ import sys
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, PreflightRecord, agent_task, python_task
-from contraagent.cli import main
-from contraagent.dispatch.task import kind_name
+from contraagent import CommandValidator, ConfigError, Pipeline, PipelineConfig, agent_task, python_task
+from contraagent._internal.cli import main
+from contraagent._internal.dispatch.task import kind_name
+from contraagent._internal.pipeline.reach import reachable
 from contraagent.docs.examples.review import flow as example
-from contraagent.pipeline.reach import reachable
+from contraagent.engine import RoutingPlan
+from contraagent.monitor.api import PreflightRecord
 from contraagent.plugins import new_plugin
-from contraagent.routing.plan import RoutingPlan
 from contraagent.testing import StubAgent
 
 
@@ -142,7 +143,7 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
     assert main(["check", "tasks.py:flow", "--stub", "--kwargs", json.dumps({"units": ["a", "b"]})]) == 0
-    assert capsys.readouterr().out.startswith("✓ 2 tasks, 1 kinds: summarize 2")
+    assert capsys.readouterr().out.startswith("✓ 2 tasks, 1 kind: summarize 2")
     sys.modules.pop("tasks", None)
 
     (tmp_path / "tasks.py").write_text(
@@ -257,7 +258,7 @@ def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, m
     assert main(["run", *args]) == 0
     assert re.search(r"✓ 1/1 tasks done in \d+\.\ds; run in runs/flow", capsys.readouterr().out)
     assert main(["run", *args]) == 1  # the run id holds a run
-    assert "`contraagent run --resume`" in capsys.readouterr().out
+    assert "continue it with --resume, or start a new one with another --run-id" in capsys.readouterr().out
     assert main(["run", *args, "--resume"]) == 0
     assert main(["run", "steps.py:failing"]) == 1
     assert "python:fail: error" in capsys.readouterr().out
@@ -291,7 +292,7 @@ def test_a_generator_flow_is_checked_to_its_first_wait_with_its_reachable_kinds(
     assert report.kinds == {"summarize": 2}  # the first step of each unit's flow call
     assert sorted(report.later_kinds) == ["report", "review", "revise"]  # created as it runs
     assert sorted(report.routes) == ["review", "revise", "summarize"]
-    assert str(report).startswith("✓ 2 tasks, 1 kinds: summarize 2; later kinds: ")
+    assert str(report).startswith("✓ 2 tasks, 1 kind: summarize 2; later kinds: ")
 
 
 def summarize_via_module(unit):
@@ -384,7 +385,7 @@ def test_the_preflight_probes_every_reachable_kind(tmp_path, monkeypatch):
 
     def preflight(self, policy):
         probed.append(sorted(map(kind_name, self.configs)))
-        return PreflightRecord(policy)
+        return PreflightRecord(policy=policy)
 
     monkeypatch.setattr(RoutingPlan, "preflight", preflight)
     agent = StubAgent({"summarize": {"unit": "a", "points": ["p"]}, "review": {"approved": True, "note": ""}})

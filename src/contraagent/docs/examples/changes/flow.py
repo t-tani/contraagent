@@ -8,6 +8,7 @@ changes, and `row_extras` puts that in the journal row beside them.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -35,11 +36,11 @@ class Effect:
     def snapshot(self, task: Task) -> Any:
         return None
 
-    def enrich(self, task: Task, before: Any, result: TaskResult) -> None:
+    def enrich(self, task: Task, before: Any, result: TaskResult) -> TaskResult | None:
         c = result.changes
         if not result.ok or c is None:
-            return
-        result.payload = {"effect": "new" if c.created else "updated" if c.modified else "unchanged"}
+            return None
+        return replace(result, payload={"effect": "new" if c.created else "updated" if c.modified else "unchanged"})
 
 
 def topics(subjects: dict[str, str]):

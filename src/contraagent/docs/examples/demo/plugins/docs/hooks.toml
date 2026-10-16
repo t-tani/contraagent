@@ -1,7 +1,10 @@
 # Hooks, declared once for every coding agent. `contraagent plugin render` writes
-# from this file hooks/hooks.json (Claude Code) and package.json (omp), and for a
-# pre_tool or post_tool hook omp/index.ts and opencode/index.js, which run it in omp
-# and opencode.
+# from this file, for each coding agent:
+#   claude    hooks/hooks.json
+#   codex     codex/hooks.json
+#   omp       package.json; for a pre_tool or post_tool hook, omp/index.ts
+#   opencode  for a pre_tool or post_tool hook, opencode/index.js
+#   pi        package.json; for a pre_tool or post_tool hook, pi/index.ts
 
 # The output check, inside the session: the agent fixes its file before it stops.
 [[hooks]]

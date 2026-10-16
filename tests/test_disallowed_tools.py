@@ -4,13 +4,10 @@ import os
 
 import pytest
 
-from contraagent import ClaudeBackend, OmpBackend, PipelineConfig, agent_task
-from contraagent.backends.codex import CodexBackend
-from contraagent.backends.launch import Launch, Limits
-from contraagent.backends.opencode import OpencodeBackend
-from contraagent.backends.pi import PiBackend
-from contraagent.routing.config import ConfigError
-from contraagent.routing.plan import RoutingError, RoutingPlan
+from contraagent import ConfigError, PipelineConfig, RoutingError, agent_task
+from contraagent.backends import ClaudeBackend, CodexBackend, Launch, OmpBackend, OpencodeBackend, PiBackend
+from contraagent.config import Limits
+from contraagent.engine import RoutingPlan
 
 DENIED = ("Bash(rm:*)", "WebFetch")
 BUDGET = {"max_turns": 1, "timeout_s": 1}
@@ -75,7 +72,7 @@ def test_pi_denies_whole_tools_and_codex_none():
 
 
 def test_opencode_denies_a_pattern_after_the_rule_the_tool_had(tmp_path):
-    from contraagent.backends.opencode.backend import permission_rules
+    from contraagent._internal.backends.opencode.backend import permission_rules
 
     repo = tmp_path / "repo"
     (repo / ".git").mkdir(parents=True)

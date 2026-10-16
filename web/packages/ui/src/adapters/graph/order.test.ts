@@ -1,6 +1,6 @@
 // The graph's order and drawing, frozen: for every layer of the demo run and of
 // the plans in `plans.fixture.ts`, left to right and top to bottom, the slots,
-// routes and order `layerGraph` gives (the generic `arrange` on the layer's
+// edge paths and order `layerGraph` gives (the generic `arrange` on the layer's
 // projection), where `layoutGraph` puts everything, and every loop's passes. A
 // change here changes how a run's graph is drawn. The snapshot names an edge's
 // style by its type (solid: `after`, dashed: `created`), the order's clusters
@@ -44,7 +44,7 @@ function frozen(plan: Plan, path: readonly string[], down: boolean, prev?: Graph
     stubs: g.stubs.map((s) => `${s.id} > ${s.to} ${s.type} ${s.tasks}`),
     units: g.units,
     slots: Object.fromEntries(Object.entries(g.slots).map(([c, rows]) => [c, rows.map((row) => row.map(typed))])),
-    routes: g.routes.map((r) => `${typeOf(r.style)}: ${r.steps.map((s) => `${typed(s.id)}@${s.in}`).join(' | ')}`),
+    edgePaths: g.edgePaths.map((r) => `${typeOf(r.style)}: ${r.steps.map((s) => `${typed(s.id)}@${s.in}`).join(' | ')}`),
     order: { layers: g.order.layers, boxes: g.order.clusters },
     size: `${l.w}x${l.h}`,
     at: Object.entries(l.at).map(([id, r]) => `${id} ${rect(r)}`),

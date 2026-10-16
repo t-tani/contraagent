@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Launch, Limits, OmpBackend, OpencodeBackend, PiBackend, Pipeline, PipelineConfig, Stop, agent_task
-from contraagent.backends.base import Backend, OneShotBackend, window_of
-from contraagent.backends.launch import CallUsage, LaunchResult, Usage
-from contraagent.backends.omp.config import parse_models as omp_models
-from contraagent.backends.opencode.backend import parse_models as opencode_models
-from contraagent.backends.pi import agent_dir
-from contraagent.contracts import fold_spend
-from contraagent.routing.config import ConfigError
+from contraagent import ConfigError, Pipeline, PipelineConfig, agent_task
+from contraagent._internal.backends.base import window_of
+from contraagent._internal.backends.omp.catalogue import parse_models as omp_models
+from contraagent._internal.backends.opencode.catalogue import parse_models as opencode_models
+from contraagent._internal.backends.pi import agent_dir
+from contraagent._internal.contracts.contract import fold_spend
+from contraagent.backends import Backend, CallUsage, EventFold, Launch, LaunchResult, OmpBackend, OpencodeBackend, PiBackend, Stop, Usage
+from contraagent.config import Limits
 from contraagent.testing import StubAgent, writes
 
 
@@ -172,7 +172,18 @@ def test_a_model_is_found_as_it_was_launched():
     assert window_of(windows, "openai/other") is None
 
 
-class Listed(OneShotBackend):
+class Reported(EventFold):
+    """A wire that reported one API call of `context` tokens and, maybe, its window."""
+
+    def __init__(self, context: int, window: int | None):
+        super().__init__()
+        self.context, self.window = context, window
+
+    def result(self, launch: Launch, agent: str, *, exit_code: int | None, killed: Stop | None) -> LaunchResult:
+        return launch_on(launch.model, self.context, self.window)
+
+
+class Listed(Backend):
     """A coding agent whose stream reports `stream_window` and whose catalogue is `listed`."""
 
     name = "listed"
@@ -191,8 +202,8 @@ class Listed(OneShotBackend):
         self.reads += 1
         return self.listed
 
-    def parse(self, launch: Launch, stdout: bytes, exit_code: int | None, killed: Stop | None) -> LaunchResult:
-        return launch_on(launch.model, 50_000, self.stream_window)
+    def fold(self, launch: Launch) -> EventFold:
+        return Reported(50_000, self.stream_window)
 
 
 def launch_of(backend: Backend, tmp_path, model: str = "p/big") -> LaunchResult:

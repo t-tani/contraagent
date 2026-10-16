@@ -7,14 +7,15 @@ import json
 import os
 import stat
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
-from contraagent import ApiKey, CodexBackend, Gateway, Launch, Limits, Stop, Subscription
-from contraagent.backends import CredentialError
-from contraagent.backends.codex.wire import EventReader, classify, normalize_event, read_rollout
-from contraagent.backends.streams import normalize_stream_line
+from contraagent import CredentialError
+from contraagent._internal.backends.codex.wire import EventReader, normalize_event, read_rollout
+from contraagent.backends import CodexBackend, Launch, Stop, normalize_stream_line
+from contraagent.config import ApiKey, Gateway, Limits, Subscription
 
 THREAD = "01a13afd-d786-78c2-9439-7b6c086efc20"
 
@@ -22,7 +23,11 @@ CODEX = r"""
 import json, os, pathlib, sys
 if "--version" in sys.argv:
     print("codex-cli 0.162.1"); sys.exit(0)
-json.dump({"argv": sys.argv, "env": dict(os.environ), "stdin": sys.stdin.read() if "-" == sys.argv[-1] else None},
+tmp = os.environ.get("TMPDIR", "")
+if os.path.isdir(tmp):
+    pathlib.Path(tmp, "left.txt").write_text("x")
+json.dump({"argv": sys.argv, "env": dict(os.environ), "stdin": sys.stdin.read() if "-" == sys.argv[-1] else None,
+           "tmp_mode": os.stat(tmp).st_mode & 0o777 if os.path.isdir(tmp) else None},
           open(os.environ["FAKE_DUMP"], "w"))
 mode = os.environ.get("FAKE_MODE", "ok")
 thread = "01a13afd-d786-78c2-9439-7b6c086efc20"
@@ -107,7 +112,7 @@ def test_a_launch_reads_its_events_and_its_rollout(fake):
     assert r.usage.resident == 8511 and r.usage.output_total == 197 and r.init_model == "gpt-5.6-luna"
     assert r.peak_context == 2 + 8509 + 218  # the second call's whole input
     assert (r.context_window, r.context_pct) == (258400, round(100 * (2 + 8509 + 218) / 258400, 1))  # as the rollout reports it
-    assert r.rate_limit is not None and r.rate_limit.five_hour_pct == 42.0 and r.rate_limit.seven_day_pct == 7.5
+    assert [(q.five_hour_pct, q.seven_day_pct) for q in r.quota[-1:]] == [(42.0, 7.5)]
     env = seen["env"]
     assert env["CODEX_API_KEY"] == "sk-test" and "OPENAI_API_KEY" not in env and "CLAUDECODE" not in env
     assert "contraagent" in env["CODEX_HOME"] and "contraagent" in env["CODEX_SQLITE_HOME"]  # no stored login, no shared index
@@ -135,6 +140,25 @@ def test_codex_sees_only_its_plugins_skills_and_its_commands_the_real_home(fake,
     assert (task / "skills" / "notes" / "SKILL.md").exists()  # a later launch's cleanup removes links only
 
 
+def test_the_projects_own_skills_are_turned_off_by_path(fake, tmp_path):
+    work = tmp_path / "work"
+    (tmp_path / ".git").mkdir()  # the repository's root: codex looks from cwd up to here
+    plugin = work / ".agents"  # a plugin whose skills are where codex looks for the project's
+    for d, name in (
+        (work / ".codex" / "skills", "mine"),
+        (tmp_path / ".agents" / "skills", "above"),
+        (plugin / "skills", "write-output"),
+    ):
+        (d / name).mkdir(parents=True)
+        (d / name / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+    _, r, seen = fake(plugin_dirs=(str(plugin),))
+    assert r.ok
+    table = next(a for a in seen["argv"] if a.startswith("skills.config="))
+    assert str(work / ".codex" / "skills" / "mine" / "SKILL.md") in table
+    assert str(tmp_path / ".agents" / "skills" / "above" / "SKILL.md") in table
+    assert "write-output" not in table and table.count('"enabled"=false') == 2
+
+
 def test_the_rollout_of_a_session_nobody_keeps_is_removed(fake, tmp_path):
     backend, r, seen = fake(credential=ApiKey(name="k", provider="openai", key="env:MY_KEY"))
     assert not list((tmp_path / "cache").rglob("rollout-*.jsonl"))
@@ -149,7 +173,7 @@ def test_a_resumed_launch_counts_only_its_own_calls(fake, tmp_path):
     assert nxt is not None and nxt.resume == THREAD
     _, second, seen = fake(credential=cred, persist_session=True, resume=THREAD, prompt="again")
     assert seen["argv"][1:4] == ["exec", "resume", THREAD] and seen["argv"][-1] == "again"
-    assert second.usage.n_calls == 2  # the rollout holds four calls by now
+    assert len(second.usage.calls) == 2  # the rollout holds four calls by now
 
 
 def test_a_gateway_is_a_model_provider_of_its_own(fake):
@@ -191,6 +215,32 @@ def test_a_usage_limit_is_a_rate_limit(fake):
 def test_a_tool_call_past_max_turns_ends_the_launch(fake):
     _, r, _ = fake(limits=Limits(timeout_s=30, max_turns=1))
     assert r.stop is Stop.MAX_TURNS and not r.ok
+
+
+def test_a_launch_writes_temporary_files_in_its_own_directory_not_in_tmp(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "systmp"))
+    (tmp_path / "systmp").mkdir()
+    _, r, seen = fake()
+    assert r.ok, r.stderr_tail
+    tmp = Path(seen["env"]["TMPDIR"])
+    assert tmp.parent == tmp_path / "systmp" / f"contraagent-{os.getuid()}" and tmp.name.startswith("codex-t-")
+    assert seen["env"]["TMP"] == seen["env"]["TEMP"] == str(tmp) and seen["tmp_mode"] == 0o700
+    argv = seen["argv"]
+    assert {
+        "sandbox_workspace_write.exclude_slash_tmp=true",
+        "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+        f'sandbox_workspace_write.writable_roots=["{tmp}"]',
+        *(f'shell_environment_policy.set.{var}="{tmp}"' for var in ("TMPDIR", "TMP", "TEMP")),
+    } <= set(argv)
+    assert not tmp.exists()  # removed with what the launch wrote in it
+    assert os.listdir(tmp_path / "systmp") == [f"contraagent-{os.getuid()}"]
+
+
+def test_a_killed_launch_removes_its_temporary_directory(fake, tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    _, r, seen = fake(limits=Limits(timeout_s=30, max_turns=1))
+    assert r.stop is Stop.MAX_TURNS and seen["tmp_mode"] == 0o700
+    assert not Path(seen["env"]["TMPDIR"]).exists() and os.listdir(tmp_path / f"contraagent-{os.getuid()}") == []
 
 
 def test_credentials_codex_cannot_use_are_refused():
@@ -235,9 +285,9 @@ def test_the_monitor_renders_codex_events():
 
 def test_an_unknown_event_is_counted():
     reader = EventReader()
-    reader.feed('{"type": "thread.started", "thread_id": "x"}')
-    reader.feed('{"type": "item.delta"}')
-    assert reader.unread == {"item.delta": 1} and classify(reader, 0) is Stop.NO_OUTPUT
+    reader.feed({"type": "thread.started", "thread_id": "x"})
+    reader.feed({"type": "item.delta"})
+    assert reader.unread == {"item.delta": 1} and reader.stop(exit_code=0, killed=None) is Stop.NO_OUTPUT
     assert normalize_event({"type": "item.delta"}) == {"type": "skip"}
 
 
@@ -246,7 +296,7 @@ def test_a_rollout_without_windows_has_no_reading(tmp_path):
     f.write_text(
         json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": None, "rate_limits": {"primary": None}}}) + "\n"
     )
-    assert read_rollout(f).rate_limits == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
+    assert read_rollout(f).quota == [] and read_rollout(f).calls == [] and read_rollout(f).context_window is None
 
 
 def test_a_web_search_names_its_query_and_pages_when_it_ends():
@@ -267,6 +317,6 @@ def test_a_web_search_names_its_query_and_pages_when_it_ends():
     opened = {**done, "action": {"type": "open_page", "url": "https://a.example/"}}
     assert normalize_event({"type": "item.completed", "item": opened})[0]["web_fetch"] == "https://a.example/"
     reader = EventReader()
-    reader.feed(json.dumps({"type": "item.completed", "item": done}))
-    reader.feed(json.dumps({"type": "item.completed", "item": opened}))
+    reader.feed({"type": "item.completed", "item": done})
+    reader.feed({"type": "item.completed", "item": opened})
     assert reader.web_queries == ["latest python"] and reader.tool_uses == {"web_search": 2}

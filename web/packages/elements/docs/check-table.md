@@ -5,6 +5,11 @@ with what it must be, what it is and the verdict. Register it with
 `@contraagent/elements/check-table/define`; the types, `verdict` and
 `verdictStyles` are in `@contraagent/elements/check-table`.
 
+![A check table of five fields: what each must be, what the file holds, and the verdict (passed, wrong type, absent, extra field)](images/check-table.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/check-table.ts"}
 
 ## Rows

@@ -29,6 +29,7 @@ import json
 import os
 import shutil
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -42,11 +43,13 @@ pytestmark = [
 
 from pydantic import BaseModel  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, Pipeline, TaskDeferred, agent_task, time_box  # noqa: E402
+from contraagent import Pipeline, TaskDeferred, agent_task, time_box  # noqa: E402
+from contraagent.backends import ClaudeBackend, OmpBackend  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
 ROUTES = {"claude": ("claude", "claude-haiku-5-5"), "omp": ("omp", "anthropic/claude-haiku-5-5")}
-AGENTS = list(ROUTES)
+#: The coding agents this live run launches: CONTRAAGENT_LIVE_AGENTS (comma-separated), else both.
+AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(ROUTES)).split(",") if a in ROUTES]
 
 #: Where the runs are kept, so the monitor can be pointed at them. Wiped at the start.
 LIVE_DIR = Path(os.environ.get("CONTRAAGENT_LIVE_DIR") or Path(__file__).resolve().parents[2] / "live-demo") / "features"
@@ -162,7 +165,7 @@ class Effect:
     def enrich(self, task, before, result):
         c = result.changes
         if result.ok and c is not None:
-            result.payload = {"effect": "new" if c.created else "updated" if c.modified else "unchanged"}
+            return replace(result, payload={"effect": "new" if c.created else "updated" if c.modified else "unchanged"})
 
 
 STALL_ROLE = """---
@@ -415,7 +418,8 @@ def test_a_fix_up_round_is_charged_once(ws, agent):
     print(f"  cost {row['cost_usd']} rounds {row['rounds']} round costs {launch['round_costs']}")
     assert report.ok, report.failed
     assert row["rounds"] == 2 and len(launch["round_costs"]) == 2
-    assert row["cost_usd"] == pytest.approx(sum(launch["round_costs"]), abs=1e-6)
+    # each round's cost and the row's are rounded to 6 places apiece: their sum may differ by 1e-6
+    assert row["cost_usd"] == pytest.approx(sum(launch["round_costs"]), abs=2e-6)
     assert row["hops"][0]["cost_usd"] == pytest.approx(row["cost_usd"], abs=1e-6)
     if agent == "claude":
         reported = result_costs(report, f"note_{agent}-tea")
@@ -669,7 +673,7 @@ def test_a_time_box_cuts_its_own_work_and_the_flow_goes_on_after_it(ws, agent):
 def test_each_reading_names_its_account_alike_across_launches(ws, agent):
     """Two launches as `ambient`: each reading names the account, the same both times and the
     one the coding agent's `account` names before any launch."""
-    from contraagent.backends import AMBIENT
+    from contraagent.config import AMBIENT
 
     say = agent_task(
         f"acct_{agent}",

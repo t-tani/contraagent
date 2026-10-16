@@ -8,7 +8,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { emit } from '../../core/events.js';
 import { getLocale } from '../../core/i18n.js';
-import { TREND_DAYS } from '../../core/route.js';
+import { TREND_DAYS } from '../../core/view-route.js';
 import { trendSections } from '../../adapters/trends.js';
 import { daysBefore, trendsTabs } from '../../lib/trends.js';
 import {
@@ -31,7 +31,7 @@ import '../lists/ca-panel-body.js';
 /**
  * The trends: what the runs of a period add up to (`/api/trends`), section by section:
  * the totals, the cost of each day, each kind and each model, the subscription usage,
- * the attempts that did not complete, what was refused or not run, when runs start, and
+ * the attempts not done, the tool calls denied, the tasks not run, when runs start, and
  * the runs; then the pipeline's own trend panels. Above them, the period (the last 7,
  * 14 or 30 days, or two dates), its time zone and a run group; an export's period is
  * fixed and named instead. When a trend panel names a `tab`, the page has tabs: the

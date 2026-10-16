@@ -1,0 +1,1 @@
+- The demo's `--real` takes, and its help lists, every registered coding agent.

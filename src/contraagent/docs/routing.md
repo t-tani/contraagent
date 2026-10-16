@@ -2,7 +2,9 @@
 
 The code declares what a task is and its default budget. The TOML file decides
 where it runs: coding agent, model, effort, credential, failover chain, and
-budgets that outrank the declared ones. The demo's:
+budgets that outrank the declared ones. The demo's, whose agent `stub` is the demo's
+own `Backend` that `examples/demo/run.py` registers (`contraagent check ... --stub`
+checks a config that names it):
 
 ::code{file="examples/demo/pipeline.toml"}
 
@@ -11,6 +13,12 @@ budgets that outrank the declared ones. The demo's:
 Highest first: overrides (`Pipeline(overrides=...)`, e.g. from command-line
 flags), the kind's `[tasks.<kind>]` table, `agent_task(...)`, `[defaults]`, the
 built-in default.
+
+`[defaults]` takes the routing keys (`agent`, `model`, `effort`, `credential`,
+`model_failover`, `fallbacks`) and the run's own settings (`max_passes`, `preflight`,
+`claim_capacity`, `context_warn_pct`), nothing else. A budget (`max_turns`,
+`timeout_s`, `max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or
+`agent_task(...)`, and `[defaults]` refuses it.
 
 Refused before anything launches: a kind with no turn or time budget anywhere,
 an effort the coding agent's CLI does not accept, an unknown agent in a chain,
@@ -30,10 +38,11 @@ anything launches.
 
 `max_turns` and `timeout_s` are required for every kind. `max_budget_usd` caps
 a launch's cost as the coding agent reports it: Claude Code enforces it itself;
-on omp and opencode contraagent sums the cost the agent reports for each API
+on omp, opencode and pi contraagent sums the cost the agent reports for each API
 call and ends the launch (`budget`) once it passes the cap; Codex reports no
-cost, so the cap does not hold there. On Codex `max_turns` counts tool calls.
-Every key: the reference at the end.
+cost, so the cap does not hold there. On Codex `max_turns` counts tool calls, and
+omp and pi do not enforce it. [Coding agents](agents.md) has each agent's budgets
+in one table. Every key: the reference at the end.
 
 `context_budget` caps a launch's peak context: the whole input (fresh input,
 cache read and cache write) of its largest API call. Claude Code and opencode
@@ -63,7 +72,7 @@ each after the rule the tool had, so the rest of the tool stays allowed; a patte
 another tool there is refused; pi whole tools
 (`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
 deny a tool, and a route on them is refused before anything launches
-(`Backend.tool_deny_problem`), failover hops included.
+(`Backend.tool_deny_problem`), failover hops included ([Coding agents](agents.md)).
 
 ## Failover
 
@@ -74,7 +83,7 @@ kind starts on the hop, not only the one that was rate limited (the log says so:
 `[route] <key>: starting on hop 2/2 ...`).
 
 Any other failure of a launch (an error, a refusal, a timeout, an output still
-off-contract after its fix-ups, ...) moves only that task to the next hop; the
+off-contract after its correction rounds, ...) moves only that task to the next hop; the
 next task still starts on the primary. Two failures do not move it: an input
 that is off-contract (nothing was launched) and a launch that ran as another
 identity than its credential (`credential_mismatch`). A launch ended by a signal
@@ -90,8 +99,7 @@ The preflight probes every distinct route of the run's reachable kinds once,
 before the first task: a model its coding agent does not list is dropped
 without a launch, and every other route gets one minimal launch (`max_turns=1`);
 a route whose probe does not complete (a 429, an error, a timeout) is dropped.
-Past the first 8 routes (`DEFAULT_CAP` in `routing/preflight.py`) the rest are
-kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
+Past the first 8 routes the rest are kept unprobed. Each failover chain is rebuilt on the routes left. The preflight policy says what
 happens to a kind with no route left:
 
 | Policy | A kind with no route left |
@@ -159,7 +167,7 @@ so its caps are the credential's: `max_five_hour_pct` and `max_seven_day_pct`
 in its `[credentials.<name>]` table (on a pool, the cap of each member that
 sets none). `Pipeline(quota_rule=fn)` adds a test of your own: `fn(credential,
 reading)` returns why the credential rests now, or None, from its latest reading
-(`RateLimit`); or the reason and when the rest ends, `(reason, datetime)` (a time
+(`QuotaReading`); or the reason and when the rest ends, `(reason, datetime)` (a time
 with no zone is UTC).
 
 A credential past a cap or the rule **rests** until the window its reading
@@ -168,7 +176,8 @@ and a task skips the hop without launching it and takes the next hop of its
 failover chain (a gateway, an API key), the reason in its journal row
 (`personal rests: 5-hour usage 93%, max 90%; ran on hop 2/2 ...`) and the hop
 it passed over in `skipped_hops`. A task with no hop left is deferred at once:
-it spent nothing and did not fail, and `deferred.jsonl` says why, as does the
+it spent nothing and did not fail (`RunReport.deferred`, not `failed`), a task
+that reads its output is deferred with it, and `deferred.jsonl` says why, as does the
 monitor ("not run" and the cause). A task of `finishing_kinds` still launches
 on a resting credential for `grace_s` after the rest began, as it does past a
 deadline.
@@ -194,7 +203,7 @@ window, the identity paused until when, and its rests over the run.
 The readings are those the coding agents report: Claude Code when a session
 starts or resumes, omp at each launch, Codex with each API call of a ChatGPT
 login. opencode and pi report none, so for an `opencode-go` model contraagent reads
-the OpenCode Go subscription's usage itself at each launch, from the route OpenCode's
+the OpenCode Go subscription's usage itself at each launch, from the endpoint OpenCode's
 console serves (`<base>/v1/usage` with the key; omp reads the same): the 5-hour and
 weekly windows, and the monthly one by name in `windows`. The run starts
 from the newest of recent runs' journals and takes each launch's as it ends, so
@@ -208,7 +217,7 @@ are kept apart: `ambient` is each coding agent's own login (two accounts when
 Claude Code and omp are logged in as different users), and a credential's token
 can be replaced between runs. A hop is judged by the readings of the account a
 launch on it bills (`Backend.account`): an earlier token's 98% does not rest the
-new one. The account is a digest (`account_digest`: SHA-256 over a fixed prefix,
+new one. The account is a digest (SHA-256 over a fixed prefix,
 the source and the value, cut to 12 hex digits), never the value: Claude Code's
 is its login's `oauthAccount.accountUuid` (in the config directory's
 `.claude.json`; for an ambient launch, a key or token in its environment first)
@@ -258,5 +267,9 @@ What is guaranteed:
 The journal records each launch's credential *name*, never a secret.
 
 ## Every table and key
+
+The JSON Schema of the file is `schemas/pipeline.schema.json` beside this page
+([Compatibility](compatibility.md)); the reference file's first line gives it to an
+editor that reads `#:schema`.
 
 ::code{file="examples/reference/pipeline.toml"}

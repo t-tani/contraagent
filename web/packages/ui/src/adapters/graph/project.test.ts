@@ -153,7 +153,7 @@ describe('layerGraph: a generator flow', () => {
     expect(second.boxes[0]).toMatchObject({ passes: 2, spread: [[2, 1]] });
     // check (the next pass's) -> fix goes back to the next pass: drawn by the box, not laid out.
     expect(second.edges.find((e) => e.from === `kind:check@${AT}` && e.to === `kind:fix@${AT}`)?.back).toBe(true);
-    expect(second.routes.some((r) => r.from === `kind:check@${AT}` && r.to === `kind:fix@${AT}`)).toBe(false);
+    expect(second.edgePaths.some((r) => r.from === `kind:check@${AT}` && r.to === `kind:fix@${AT}`)).toBe(false);
   });
 
   it("counts each box's passes, how many units ran each number, and each mark's passes", () => {

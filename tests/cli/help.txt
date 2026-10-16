@@ -1,0 +1,355 @@
+# Every command's --help (Python 3.12, COLUMNS=100); `uv run python tests/cli/help.py` writes it.
+
+$ contraagent --help
+usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,check,run,docs} ...
+
+positional arguments:
+  {monitor,relay,hub,plugin,call,check,run,docs}
+    monitor             live web monitor for runs (see `contraagent monitor --help`)
+    relay               ship this host's runs to a hub (see `contraagent relay --help`)
+    hub                 receive every host's runs and serve their monitor (see `contraagent hub
+                        --help`)
+    plugin              agent-task plugins: the implementation of an agent task
+    call                agent-task call files
+    check               check a flow, its plugins and its routing without launching anything
+    run                 run a flow, as `check` names it, and report its tasks (for more control,
+                        call Pipeline.run from Python)
+    docs                the documentation installed with this version: the index, or one topic
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+
+exit status: 0 on success, 1 when the command found a problem or a task failed, 2 on a usage
+error; `contraagent <command> --help` says what each command's means
+
+$ contraagent monitor --help
+usage: contraagent monitor [-h] [--runs-dir RUNS_DIR] [--host HOST] [--port PORT]
+                           [--allow-host NAME] [--cors-origin ORIGIN] [--title TITLE]
+                           [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
+                           [--groups MODULE:ATTR] [--task-detail MODULE:ATTR] [--docs]
+                           [--openapi [PATH]]
+                           {export} ...
+
+Live monitor for contraagent pipeline runs
+
+options:
+  -h, --help            show this help message and exit
+  --runs-dir RUNS_DIR   directory holding runs/<run-id>/ (default: ./runs)
+  --host HOST
+  --port PORT
+  --allow-host NAME     also answer monitor requests addressed to this host name (default:
+                        localhost, 127.0.0.1, [::1] and the --host address)
+  --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
+                        http://localhost:5173 for a UI dev server
+  --title TITLE
+  --stream-format AGENT=FORMAT
+                        render a custom coding agent's transcript as a built-in format (claude,
+                        omp, omp-rpc, opencode, pi, codex), e.g. --stream-format myagent=claude
+  --panels MODULE:ATTR  the pipeline's own views: a dict of name -> Panel (or a callable), as
+                        path/to/views.py:PANELS or package.module:PANELS
+  --groups MODULE:ATTR  the plan's columns and the trends' groups: a list of {"id", "label",
+                        "kinds"}, as path/to/views.py:GROUPS or package.module:GROUPS
+  --task-detail MODULE:ATTR
+                        fn(run, key, rows) -> dict merged into each task's detail, as
+                        path/to/views.py:detail or package.module:detail
+  --docs                serve interactive API docs at /api/docs
+  --openapi [PATH]      write the OpenAPI document to PATH (default: stdout) and exit
+
+commands:
+  {export}
+    export              write the monitor's views of some runs as files a static server serves
+
+$ contraagent monitor export --help
+usage: contraagent monitor export [-h] [--runs-dir RUNS_DIR] --out OUT [--runs RUNS]
+                                  [--since ISO_TIME] [--panels MODULE:ATTR] [--groups MODULE:ATTR]
+                                  [--task-detail MODULE:ATTR] [--include-live] [--title TITLE]
+                                  [--days DAYS] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--tz TZ]
+                                  [--keep {paths,host}] [--exclude KEY]
+
+Write the monitor's views of some runs as files a static server serves: no transcripts, no
+processes.
+
+options:
+  -h, --help            show this help message and exit
+  --runs-dir RUNS_DIR   directory holding runs/<run-id>/ (default: ./runs)
+  --out OUT             the directory to write: index.html, app.js, ja.js and data/
+  --runs RUNS           how many runs, newest activity first (default: 10; 0: every run)
+  --since ISO_TIME      only runs active since this time, e.g. 2026-10-01
+  --panels MODULE:ATTR  the pipeline's own views: a dict of name -> Panel (or a callable), as
+                        path/to/views.py:PANELS or package.module:PANELS
+  --groups MODULE:ATTR  the plan's columns and the trends' groups: a list of {"id", "label",
+                        "kinds"}, as path/to/views.py:GROUPS or package.module:GROUPS
+  --task-detail MODULE:ATTR
+                        fn(run, key, rows) -> dict merged into each task's detail, as
+                        path/to/views.py:detail or package.module:detail
+  --include-live        write runs that are still running too (default: left out)
+  --title TITLE
+  --days DAYS           the trends' period: the last N days, today included (default: 14)
+  --from YYYY-MM-DD     the trends' first day, instead of --days
+  --to YYYY-MM-DD       the trends' last day (default: today)
+  --tz TZ               the time zone the trends' days are counted in (default: UTC)
+  --keep {paths,host}   keep what is taken out by default: paths, host
+  --exclude KEY         take out this key wherever it appears (e.g. params)
+
+$ contraagent relay --help
+usage: contraagent relay [-h] [--runs-dir RUNS_DIR] --hub HUB [--token-file TOKEN_FILE]
+                         [--host-id HOST_ID] [--interval INTERVAL] [--since DAYS] [--once]
+                         [--progress-file PROGRESS_FILE] [--timeout TIMEOUT]
+
+Ship every run under a runs directory to a contraagent hub, incrementally, and send a heartbeat
+with the live runs. The ingest token comes from --token-file, else the environment variable
+CONTRAAGENT_HUB_TOKEN; it is never a command line argument.
+
+options:
+  -h, --help            show this help message and exit
+  --runs-dir RUNS_DIR   the runs directory to ship (default: runs)
+  --hub HUB             the hub's address, for example http://hub:8790
+  --token-file TOKEN_FILE
+                        a file holding the hub's ingest token (default: the environment variable
+                        CONTRAAGENT_HUB_TOKEN)
+  --host-id HOST_ID     this host's name on the hub (default: CONTRAAGENT_HOST_ID, else the host
+                        name)
+  --interval INTERVAL   seconds between heartbeats and between passes (default: 3)
+  --since DAYS          of the runs not shipped yet, ship only those whose records changed in the
+                        last DAYS days (default: every run)
+  --once                make one full pass, then exit: 0 when the hub took everything, else 1
+  --progress-file PROGRESS_FILE
+                        where the relay keeps how far the hub is in each run (default: <runs-
+                        dir>.relay.json, next to the runs directory)
+  --timeout TIMEOUT     seconds to wait for each request to the hub (default: 30)
+
+$ contraagent hub --help
+usage: contraagent hub [-h] [--store memory|postgres://...]
+                       [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
+                       [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--ingest-token-file FILE]
+                       [--read-token-file FILE] [--host HOST] [--port PORT] [--allow-host NAME]
+                       [--cors-origin ORIGIN] [--title TITLE] [--max-blob-mb MAX_BLOB_MB]
+                       [--retain-days N] [--prune-every HOURS] [--openapi [PATH]]
+                       {prune} ...
+
+Receive every host's runs from `contraagent relay` and serve their monitor. Tokens are read from
+files, never from the command line. Without --read-token-file the monitor (every transcript) is
+open to anyone who reaches the port.
+
+options:
+  -h, --help            show this help message and exit
+  --store memory|postgres://...
+                        where records are kept (default: memory)
+  --blobs memory|dir:PATH|s3://BUCKET/PREFIX
+                        where file contents are kept (default: memory)
+  --streams-dir PATH    where task transcripts being written are kept on this host's disk; sealed
+                        segments go to --segments (without it transcripts are kept in memory and
+                        lost when the hub stops)
+  --segments DIR|s3://BUCKET/PREFIX
+                        where sealed transcript segments are kept (default: <streams-
+                        dir>/segments)
+  --ttl TTL             seconds a host counts as up after a heartbeat (default: 15)
+  --ingest-token-file FILE
+                        ingest tokens, one per line, or `host_id token` for a token good for that
+                        host only
+  --read-token-file FILE
+                        the token that opens the monitor; without it the monitor is open
+  --host HOST
+  --port PORT
+  --allow-host NAME     also answer monitor requests addressed to this host name (default:
+                        localhost, 127.0.0.1, [::1] and the --host address)
+  --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
+                        http://localhost:5173 for a UI dev server
+  --title TITLE
+  --max-blob-mb MAX_BLOB_MB
+                        the largest blob taken, in MiB (default: 256)
+  --retain-days N       remove runs with no activity for N days, while the hub runs (default:
+                        $CONTRAAGENT_RETENTION_DAYS; unset or empty: keep every run)
+  --prune-every HOURS   hours between prunes; the first is 5 minutes after start (default: 24, or
+                        1 when --retain-days is under 7)
+  --openapi [PATH]      write the ingest OpenAPI document to PATH (default: stdout) and exit
+
+commands:
+  {prune}
+    prune               remove old runs from the hub's storage once, without serving
+
+`contraagent hub prune --help`: remove old runs once, without serving.
+
+$ contraagent hub prune --help
+usage: contraagent hub prune [-h] [--store memory|postgres://...]
+                             [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
+                             [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--retain-days N]
+                             [--dry-run] [--blob-grace-hours H] [--json]
+
+Remove the runs with no activity for N days from the hub's storage, once, and print what was
+removed. A run is kept while the heartbeats in the store report it live or unresponsive. Do not
+run it while a hub started with --retain-days uses the same storage: one process prunes at a time.
+
+options:
+  -h, --help            show this help message and exit
+  --store memory|postgres://...
+                        where records are kept (default: memory)
+  --blobs memory|dir:PATH|s3://BUCKET/PREFIX
+                        where file contents are kept (default: memory)
+  --streams-dir PATH    where task transcripts being written are kept on this host's disk; sealed
+                        segments go to --segments (without it transcripts are kept in memory and
+                        lost when the hub stops)
+  --segments DIR|s3://BUCKET/PREFIX
+                        where sealed transcript segments are kept (default: <streams-
+                        dir>/segments)
+  --ttl TTL             seconds a host counts as up after a heartbeat (default: 15)
+  --retain-days N       remove runs with no activity for N days (default:
+                        $CONTRAAGENT_RETENTION_DAYS; one of the two is required)
+  --dry-run             remove nothing; report what would be removed
+  --blob-grace-hours H  hours a blob no run references is kept after it was stored (default: 24)
+  --json                print the report as JSON
+
+$ contraagent plugin --help
+usage: contraagent plugin [-h] {new,lint,render,hook} ...
+
+positional arguments:
+  {new,lint,render,hook}
+    new                 create a plugin from the template
+    lint                check that a plugin's parts agree
+    render              write each coding agent's native hooks from hooks.toml
+    hook                run a hook script on the input a coding agent's hook got, in Claude Code's
+                        shape
+
+options:
+  -h, --help            show this help message and exit
+
+$ contraagent plugin new --help
+usage: contraagent plugin new [-h] [--name NAME] directory
+
+positional arguments:
+  directory
+
+options:
+  -h, --help   show this help message and exit
+  --name NAME
+
+$ contraagent plugin lint --help
+usage: contraagent plugin lint [-h] paths [paths ...]
+
+positional arguments:
+  paths
+
+options:
+  -h, --help  show this help message and exit
+
+$ contraagent plugin render --help
+usage: contraagent plugin render [-h] [--agent AGENT] [--check] plugin
+
+positional arguments:
+  plugin
+
+options:
+  -h, --help     show this help message and exit
+  --agent AGENT  claude, codex, omp, opencode, pi (default: every renderer)
+  --check        only report files that are out of date
+
+$ contraagent plugin hook --help
+usage: contraagent plugin hook [-h] --agent {codex} --root ROOT [--tool TOOL] [--match MATCH]
+                               script
+
+positional arguments:
+  script           the hook script, relative to the plugin
+
+options:
+  -h, --help       show this help message and exit
+  --agent {codex}  the coding agent that runs the hook
+  --root ROOT      the plugin's directory
+  --tool TOOL      the tool the hook is for, as hooks.toml names it (default: every tool)
+  --match MATCH    run only when the command holds this text
+
+$ contraagent call --help
+usage: contraagent call [-h] {validate} ...
+
+positional arguments:
+  {validate}
+    validate  check the output a call file names (a plugin's Stop hook)
+
+options:
+  -h, --help  show this help message and exit
+
+$ contraagent call validate --help
+usage: contraagent call validate [-h] [--call CALL]
+
+options:
+  -h, --help   show this help message and exit
+  --call CALL  the call file (default: $CONTRAAGENT_CALL)
+
+$ contraagent check --help
+usage: contraagent check [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
+                         [--stub]
+                         flow
+
+positional arguments:
+  flow             the flow function: path/to/tasks.py:flow or package.module:flow
+
+options:
+  -h, --help       show this help message and exit
+  --config CONFIG  the pipeline's TOML file (default: each task's declared defaults)
+  --kwargs KWARGS  the flow's keyword arguments, as a JSON object
+  --agent AGENT    run every kind on this coding agent, with no failover hops (an override)
+  --model MODEL    run every kind on this model, with no failover hops (an override)
+  --stub           the stub agent stands in for every coding agent (a config naming a custom one)
+
+exit status: 0 when every check passes (warnings included), 1 when one fails or the flow's module
+cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)
+
+$ contraagent run --help
+usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
+                       [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
+                       [--preflight {substitute,stop,off}] [--stub] [--execute KIND]
+                       [--record DIR] [--replay DIR] [--record-max-file-mb N] [--record-missing]
+                       flow
+
+positional arguments:
+  flow                  the flow function: path/to/tasks.py:flow or package.module:flow
+
+options:
+  -h, --help            show this help message and exit
+  --config CONFIG       the pipeline's TOML file (default: each task's declared defaults)
+  --kwargs KWARGS       the flow's keyword arguments, as a JSON object
+  --agent AGENT         run every kind on this coding agent, with no failover hops (an override)
+  --model MODEL         run every kind on this model, with no failover hops (an override)
+  --run-id RUN_ID       the run's id (default: the flow's name)
+  --resume              continue the run: skip the tasks it already finished
+  --runs-dir RUNS_DIR   where run directories are written (default: runs)
+  --preflight {substitute,stop,off}
+                        probe every route before the first task; a kind left with no route that
+                        answered runs on the first route that answered (substitute) or refuses the
+                        run (stop); off: no probe (default: [defaults] preflight, else off)
+  --stub                a stub run: the stub agent plays every agent task and every Python task
+                        with its output's example (`examples` in the output's JSON Schema; where
+                        there is none, the smallest value the schema accepts); no model is called
+                        and no Python task's function runs (run id: <flow>-stub). A task whose
+                        example fails a validator ends invalid_output at once, and the last line
+                        names those validators
+  --execute KIND        with --stub or --replay: run the function of this Python task kind instead
+                        of playing it (repeatable)
+  --record DIR          write each task attempt's recording to DIR: its outputs, the files its
+                        changes= patterns saw change, its transcript and its result
+  --replay DIR          a replay: play the recordings in DIR in place of every agent task's launch
+                        and every Python task's function (but the kinds of --execute); nothing is
+                        spent (run id: <flow>-replay). Not with --stub or --record
+  --record-max-file-mb N
+                        with --record or --record-missing: keep a recorded file larger than N MB
+                        by its SHA-256 and size only (default 4); its task cannot be replayed
+  --record-missing      with --replay: a task with no recording in DIR launches (or runs its
+                        function) as in any run, and its recording is written into DIR; this can
+                        spend tokens
+
+exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is
+not (in a stub run too: a task whose example fails its validators has failed), or when the run is
+refused before its first task (the config, the routing, a run id that holds a run, the preflight),
+2 on a usage error (the flow's name, --kwargs, options that do not go together)
+
+$ contraagent docs --help
+usage: contraagent docs [-h] [--path] [--pointer] [topic]
+
+positional arguments:
+  topic       a topic the index lists (guide, tasks, ...)
+
+options:
+  -h, --help  show this help message and exit
+  --path      print where the documentation and its examples are installed
+  --pointer   print a block for your coding agent's instruction file (AGENTS.md, CLAUDE.md) that
+              points it at this documentation

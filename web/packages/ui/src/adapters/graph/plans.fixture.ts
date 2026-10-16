@@ -2,7 +2,7 @@
 // (outermost first) with the loops around each call site, what its flow call had
 // received when it was created, and its flow call. Test code only: the build leaves
 // `*.fixture.ts` out.
-import type { FlowCallNode, FlowFrame, Plan, PlanNode } from '@contraagent/api';
+import type { FlowCallNode, Frame, Plan, PlanNode } from '@contraagent/api';
 
 export const node = (key: string, unit: string, group: string, state: PlanNode['state'], extra: Partial<PlanNode> = {}): PlanNode => ({
   key, kind: group, unit, group, state, level: 0, ...extra,
@@ -12,7 +12,7 @@ export const group = (id: string, counts: Partial<Plan['groups'][number]> = {}):
 });
 
 /** A frame of a flow path, with the loops around its call site (each at pass 1). */
-export const F = (fn: string, ...loops: number[]): FlowFrame => ({ function: fn, file: 'flow.py', line: 1, loops: loops.map((line) => ({ line, pass: 1 })) });
+export const F = (fn: string, ...loops: number[]): Frame => ({ function: fn, file: 'flow.py', line: 1, loops: loops.map((line) => ({ line, pass: 1 })) });
 
 /**
  * A task created by a flow. `pass` is the pass of the innermost loop around the
@@ -23,7 +23,7 @@ export const ft = (
   unit: string,
   kind: string,
   state: PlanNode['state'],
-  flow: FlowFrame[],
+  flow: Frame[],
   { pass = 1, passes, ...extra }: Partial<PlanNode> & { pass?: number; passes?: number[] } = {},
 ): PlanNode => {
   const last = flow[flow.length - 1];
@@ -90,7 +90,7 @@ export function reviewRun(passes: Record<string, number>, opts: { calls?: boolea
 export const UNITS = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta'];
 
 /** The demo as a static flow: prepare -> summarize -> { review, write_note }, review -> report (one task, no unit). */
-export function staticDemo(stateOf: (key: string) => PlanNode['state'] = (k) => (k.endsWith('zeta') ? 'blocked' : 'done'), flow?: FlowFrame[]): Plan {
+export function staticDemo(stateOf: (key: string) => PlanNode['state'] = (k) => (k.endsWith('zeta') ? 'blocked' : 'done'), flow?: Frame[]): Plan {
   const extra = (x: Partial<PlanNode>): Partial<PlanNode> => (flow ? { ...x, flow, flow_call: '0' } : x);
   const nodes: PlanNode[] = [];
   for (const u of UNITS) {

@@ -14,12 +14,15 @@ export class FollowScroll {
   restored = false;
   /** The last position, kept while the list is hidden. */
   lastTop = 0;
+  /** A smooth scroll to the end is under way: its steps are not the reader leaving the end. */
+  private gliding = false;
 
   constructor(private readonly scroller: () => HTMLElement | null | undefined) {}
 
   toBottom(smooth = false): void {
     const sc = this.scroller();
     if (!sc) return;
+    this.gliding = smooth;
     if (smooth) sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' });
     else sc.scrollTop = sc.scrollHeight;
   }
@@ -28,7 +31,10 @@ export class FollowScroll {
   read(): TranscriptScroll | null {
     const sc = this.scroller();
     if (!sc || !sc.clientHeight) return null; // hidden: no position to keep
-    this.stick = sc.scrollHeight - sc.scrollTop - sc.clientHeight < STICK_PX;
+    const atEnd = sc.scrollHeight - sc.scrollTop - sc.clientHeight < STICK_PX;
+    // While gliding to the end, only a move up is the reader's; the glide ends at the end.
+    if (this.gliding && (sc.scrollTop < this.lastTop - 1 || atEnd)) this.gliding = false;
+    this.stick = atEnd || this.gliding;
     this.lastTop = sc.scrollTop;
     return { stick: this.stick, top: Math.round(sc.scrollTop) };
   }

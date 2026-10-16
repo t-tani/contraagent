@@ -5,6 +5,11 @@ the thing it stands for took. Register it with
 `@contraagent/elements/lanes/define`; the types and the placement functions are
 in `@contraagent/elements/lanes`.
 
+![Lanes on a time axis: a build that failed then passed, a test still running, and a line at now](images/lanes.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ::code{file="examples/lanes.ts"}
 
 ## Lanes and bars
@@ -37,7 +42,7 @@ less than 10 minutes, in `locale` (by default the page's `lang`).
 
 ## Look
 
-`--cae-lanes-label-width` sets the width of the lanes' labels (112px, 78px on
-a narrow screen). The parts are `axis`, `lane`, `lane-label`, `track`, `bar`,
+`--cae-lanes-label-width` sets the width of the lanes' labels (112px, 78px when
+the element is narrower than 760 px). The parts are `axis`, `lane`, `lane-label`, `track`, `bar`,
 `now`, `legend` and `empty`; with no bars the element shows `strings.empty`, or
 the `empty` slot.

@@ -118,8 +118,13 @@ describe('theme contrast', () => {
     ];
     const worst = (fg: string, on: number[][]) => Math.min(...on.map((b) => contrast(c(fg), b)));
 
+    // A selected item (the accent's tint) on a raised surface or in a well, such as a transcript's session tab:
+    // its secondary words take text-2, not text-muted.
+    const selected = ['raise', 'well'].map((k) => tint(c('accent'), share + 0.01, c(k)));
+
     it(`${name}: text reads at ${need}:1 on every surface and tint`, () => {
       for (const k of ['text', 'text-2', 'text-muted']) expect(worst(k, [...surfaces, ...tints]), k).toBeGreaterThanOrEqual(need);
+      for (const k of ['text', 'text-2']) expect(worst(k, selected), `${k} on a selected item`).toBeGreaterThanOrEqual(need);
     });
 
     it(`${name}: a status reads on the surfaces and on its own tint`, () => {

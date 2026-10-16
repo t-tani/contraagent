@@ -9,12 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, OpencodeBackend, Plugin, PluginError, agent_task
-from contraagent.backends.omp.backend import plugin_extension_args
-from contraagent.backends.pi.backend import plugin_args as pi_plugin_args
-from contraagent.pipeline.adapter import SpecAdapter
-from contraagent.pipeline.graph import Graph
-from contraagent.plugins import hooks, new_plugin
+from contraagent import PluginError, agent_task
+from contraagent._internal.backends.omp.backend import plugin_extension_args
+from contraagent._internal.backends.pi.backend import plugin_args as pi_plugin_args
+from contraagent._internal.pipeline.adapter import SpecAdapter
+from contraagent._internal.pipeline.graph import Graph
+from contraagent._internal.plugins import hooks
+from contraagent.backends import Launch, OpencodeBackend
+from contraagent.plugins import Plugin, new_plugin
 
 
 @pytest.fixture
@@ -92,6 +94,31 @@ def test_hooks_are_declared_once_and_rendered_into_each_agent(plugin):
     assert pi_plugin_args([str(plugin)])[-2:] == ["-e", str(plugin / "pi" / "index.ts")]
 
 
+def test_the_template_names_every_agent_and_file_it_renders_for(plugin):
+    from contraagent._internal.backends import backend_class, known_agents
+    from contraagent._internal.plugins.scaffold import rendered_comment
+
+    p = Plugin.load(plugin)
+    for agent, (files, _) in hooks.RENDERED_FILES.items():  # what each renderer says it writes
+        assert set(hooks.render(p, [agent])[0]) <= {*files, "settings.json"}
+    (plugin / "hooks" / "pre.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    add_hooks(plugin, '\n[[hooks]]\non = "pre_tool"\ntool = "bash"\nscript = "hooks/pre.sh"\n')
+    p = Plugin.load(plugin)
+    for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
+        assert set(hooks.render(p, [agent])[0]) == {*files, *tool_files}
+    toml = (plugin / "hooks.toml").read_text()
+    assert toml.startswith(rendered_comment() + "\n")
+    for agent, (files, tool_files) in hooks.RENDERED_FILES.items():
+        assert f"#   {agent} " in toml and all(f in toml for f in (*files, *tool_files))
+    readme = (plugin / "README.md").read_text()
+    for agent in known_agents():
+        assert f"`{backend_class(agent).binary}`" in readme
+    examples = Path(__file__).parents[1] / "src/contraagent/docs/examples"
+    for copy in (examples / "demo/plugins/docs", examples / "tutorial/plugins/triage"):  # the template's copies
+        assert (copy / "hooks.toml").read_text().startswith(rendered_comment() + "\n")
+        assert readme.splitlines()[2] in (copy / "README.md").read_text()
+
+
 def test_a_new_agent_registers_its_own_renderer(plugin):
     hooks.register_renderer("fake", lambda p: ({"fake.txt": ",".join(h["on"] for h in p.hooks)}, []))
     try:
@@ -164,7 +191,7 @@ def test_a_skill_plugin_holds_skills_only(plugin, tmp_path):
     (common / "agents").mkdir()
     with pytest.raises(PluginError, match=r"holds agents, settings.json; a plugin it names holds skills only"):
         agent_task("summarize", plugin=plugin, skills_from=[common])
-    with pytest.raises(PluginError, match="hooks.toml, hooks, package.json;"):  # a task's own plugin is not a skill plugin
+    with pytest.raises(PluginError, match="hooks.toml, hooks, package.json, codex;"):  # a task's own plugin is not a skill plugin
         agent_task("summarize", plugin=plugin, skills_from=[plugin])
 
 
@@ -228,7 +255,7 @@ def test_a_skill_linked_in_from_elsewhere_is_the_plugin_s(plugin, tmp_path):
 
 
 def test_render_leaves_a_skill_plugin_alone_and_lint_names_what_it_left(tmp_path, capsys):
-    from contraagent.cli import main
+    from contraagent._internal.cli import main
 
     common = skill_plugin(tmp_path / "common")
     assert main(["plugin", "render", str(common)]) == 0
@@ -292,3 +319,43 @@ def test_each_agent_s_hooks_read_claude_code_s_input_and_return_a_post_tool_obje
     for s in seen:
         assert s["tool_input"]["file_path"].endswith("/n.md")
         assert (s["tool_input"]["old_string"], s["tool_input"]["new_string"]) == ("a", "b")
+
+
+DRIVE_PATHS = """
+const [, , root, cwd] = process.argv;
+const paths = ["notes/n.md", "./notes/../notes/m.md", "~/x.md", `${cwd}/abs.md`];
+const oc = await (await import(`${root}/opencode/index.js`)).ContraagentHooks({ directory: cwd });
+for (const p of paths) {
+  await oc["tool.execute.before"]({ tool: "write" }, { args: { filePath: p, content: "x" } });
+  await oc["tool.execute.after"]({ tool: "write", args: { filePath: p, content: "x" } }, { output: "" });
+}
+for (const agent of ["omp", "pi"]) {
+  const handlers = {};
+  (await import(`${root}/${agent}/index.ts`)).default({ on: (name, fn) => (handlers[name] = fn) });
+  for (const p of paths) {
+    await handlers.tool_call({ toolName: "write", input: { path: p, content: "x" } }, { cwd });
+    await handlers.tool_result({ toolName: "write", input: { path: p, content: "x" }, content: [] }, { cwd });
+  }
+}
+"""
+
+
+@pytest.mark.skipif(shutil.which("bun") is None, reason="bun runs the rendered omp and pi extensions")
+def test_each_agent_s_hooks_read_an_absolute_file_path_as_claude_code_passes_it(plugin, tmp_path):
+    """omp, pi and opencode pass on the path the model wrote, often relative to the session's
+    directory; Claude Code always passes an absolute one, so a script matching `*/notes/*` or
+    reading the file from another directory works on every agent."""
+    (plugin / "hooks" / "seen.sh").write_text(
+        '#!/usr/bin/env bash\ncat >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\necho >> "$CLAUDE_PLUGIN_ROOT/seen.jsonl"\n'
+    )
+    (plugin / "hooks" / "seen.sh").chmod(0o755)
+    add_hooks(plugin, "".join(f'\n[[hooks]]\non = "{on}"\ntool = "write"\nscript = "hooks/seen.sh"\n' for on in ("pre_tool", "post_tool")))
+    hooks.write(Plugin.load(plugin))
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    (tmp_path / "drive.mjs").write_text(DRIVE_PATHS)
+    proc = subprocess.run(["bun", str(tmp_path / "drive.mjs"), str(plugin.resolve()), str(cwd)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    seen = [json.loads(line)["tool_input"]["file_path"] for line in (plugin / "seen.jsonl").read_text().splitlines() if line.strip()]
+    want = [str(cwd / "notes" / "n.md"), str(cwd / "notes" / "m.md"), str(Path.home() / "x.md"), str(cwd / "abs.md")]
+    assert seen == [p for p in want for _ in ("pre", "post")] * 3  # opencode, omp, pi

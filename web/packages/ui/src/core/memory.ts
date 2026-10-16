@@ -3,7 +3,7 @@
 // Forward and a reload return to it, and a new entry starts clean.
 //
 // Stored under one key of `history.state`, merged with whatever else a host
-// page keeps there (a router's own state survives). A monitor embedded with
+// page keeps there (the host's own state survives). A monitor embedded with
 // `history="memory"` keeps its own instead (`LocalMemory`, `keepMemory`): it
 // leaves the page's history alone, and two monitors on a page do not share it.
 

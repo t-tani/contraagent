@@ -71,6 +71,13 @@ export class StreamController implements ReactiveController {
     }
   }
 
+  /** More events of the saved transcript loaded last: folded in after the others, the same transcript (no new `generation`). */
+  append(events: readonly TranscriptEvent[]): void {
+    if (!events.length) return;
+    this.count += applyEvents(this.model, events);
+    this.version++;
+  }
+
   private onPage(page: StreamPage, generation: number): void {
     if (generation !== this.generation) return;
     if (!this.ready && page.behind) this.behind = page.behind;

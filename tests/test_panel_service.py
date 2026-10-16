@@ -1,5 +1,5 @@
 """How panels are served: a trends panel made once per period over the same runs, the runs
-it reads through, checked as a run panel is, and a slow panel holding no other route back."""
+it reads through, checked as a run panel is, and a slow panel holding no other endpoint back."""
 
 import asyncio
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import rundir
+from contraagent._internal.runs import layout
 from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, RunRecords
 
 PERIOD = Period.parse("2026-10-13", "2026-10-15", "UTC")
@@ -34,7 +34,7 @@ def test_a_trends_panel_reads_its_runs_through_period_runs(tmp_path):
     def view(runs: PeriodRuns, period: Period) -> dict:
         seen["runs"] = list(runs)
         seen["journal"] = runs.journal("r1")
-        seen["deferred"] = runs.records("r1", rundir.DEFERRED)
+        seen["deferred"] = runs.records("r1", layout.DEFERRED)
         seen["info"] = runs.info("r1")
         seen["dir"] = runs.dir("r1")
         return {"type": "tiles", "tiles": [{"id": "n", "label": "Runs", "value": len(runs)}]}
@@ -112,7 +112,7 @@ def test_a_trends_panel_is_checked_as_a_run_panel_is(tmp_path):
     from fastapi.exceptions import ResponseValidationError
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
     panels = {
@@ -133,7 +133,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
     pytest.importorskip("fastapi")
     import httpx
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
 
@@ -152,7 +152,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1", timeout=60) as c:
             q = "?from=2026-10-13&to=2026-10-15"
-            # More requests than the threads that answer the other routes (40).
+            # More requests than the threads that answer the other endpoints (40).
             heavy = [asyncio.create_task(c.get(f"/api/trends/panels/slow{i % 2}{q}")) for i in range(80)]
             heavy += [asyncio.create_task(c.get("/api/runs/r1/panels/slowrun")) for _ in range(2)]
             await asyncio.sleep(0.5)  # every slow request is in
@@ -172,7 +172,7 @@ def test_a_slow_run_panel_does_not_stop_the_event_loop(tmp_path):
     """The run feed reads its views off the event loop: while a run panel takes its time,
     the loop goes on serving."""
     pytest.importorskip("fastapi")
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", [row("2026-10-14T01:00:00Z")])
 

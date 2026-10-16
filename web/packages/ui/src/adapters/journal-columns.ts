@@ -73,7 +73,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
     const cause = e.stop === 'invalid_input' && own ? notStartedCause({ attempts: [e], cause: null }, ctx.outcomes, run) : '';
     const why = cause ? sentence(cause) : (!e.ok || !ran || e.stop === 'partial') && e.reason ? runRelative(e.reason, run) : '';
     const n = laterTry(e);
-    const later = n ? msg(str`The task was done on attempt ${n}`) : '';
+    const later = n ? msg(str`Task done on attempt ${n}`) : '';
     const warned = e.context_warned ? contextWarnedText(e) : '';
     if (!sw && !why && !later && !warned) return html`<span class="jdim">—</span>`;
     return html`${sw ? html`<span class="nw" title=${msg('Model switch')}>${sw}</span><br />` : nothing}${why ? html`${why}<br />` : nothing}${later
@@ -142,7 +142,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
     {
       id: 'tokens',
       header: msg('Tokens'),
-      tip: msg('Input / output tokens, then cache read / cache write'),
+      tip: msg('Input / output | cache read / cache write'),
       align: 'end',
       width: '92px',
       cell: (e) => {
@@ -189,7 +189,7 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       cell: (e) => {
         const unread = unreadEvents([e]);
         return html`<span class="jwhy" title=${e.reason || nothing}>${reason(e)}${unread
-          ? html` <span class="unread nw" title=${msg(str`Event types from the coding agent that this contraagent version does not recognize: ${unread}`)}
+          ? html` <span class="unread nw" title=${msg(str`Event types this contraagent version does not know (unread_events): ${unread}`)}
               ><span aria-hidden="true">⚠</span> ${msg('Unrecognized events')}</span
             >`
           : nothing}</span>`;

@@ -25,11 +25,16 @@ pytestmark = [
     pytest.mark.skipif(
         os.environ.get("CONTRAAGENT_LIVE") != "1", reason="live test: also set CONTRAAGENT_LIVE=1 (it calls real coding agents)"
     ),
+    pytest.mark.skipif(
+        "pi" not in os.environ.get("CONTRAAGENT_LIVE_AGENTS", "pi").split(","), reason="pi is not in CONTRAAGENT_LIVE_AGENTS"
+    ),
 ]
 
 from pydantic import BaseModel, Field  # noqa: E402
 
-from contraagent import Gateway, Launch, Limits, PiBackend, Pipeline, Subscription, agent_task  # noqa: E402
+from contraagent import Pipeline, agent_task  # noqa: E402
+from contraagent.backends import Launch, PiBackend  # noqa: E402
+from contraagent.config import Gateway, Limits, Subscription  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
@@ -157,7 +162,7 @@ def test_pi_sends_only_events_its_reader_knows(tmp_path):
     upgrade: record it (`tests/fixtures/pi/record.py`) and teach `PiTraceReader` what changed."""
     import importlib.util
 
-    from contraagent.backends.pi.wire import PiTraceReader
+    from contraagent._internal.backends.pi.wire import PiTraceReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "pi" / "record.py")
     assert spec and spec.loader

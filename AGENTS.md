@@ -22,21 +22,23 @@ there: one word, one meaning, on every screen. Japanese follows
 
 | Code term | UI (English) | UI (Japanese) |
 |---|---|---|
-| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; a trends column: Partly done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
 | a deferred task (`PlanNode.deferred`, from `deferred.jsonl`), in a live run too | not run, with its cause in words (`deferredText`, from `deferred_cause`; the recorded reason only for a cause it does not know) | 実行されず |
-| deferral causes `deadline`, `grace_window`, `cannot_finish`, `dependency_not_queued` | Past the deadline; Past the deadline and its finishing time; Cannot finish before the deadline \| needs `time` \| `time` left; An earlier task was never scheduled | 締め切りを過ぎた; 締め切りと仕上げの猶予を過ぎた; 締め切りまでに終わらない \| 必要な時間 \| 残り; 依存先タスクが登録されなかった |
+| deferral causes `deadline`, `grace_window`, `cannot_finish`, `dependency_not_queued`, `dependency_deferred` | Past the deadline; Past the deadline and its finishing time; Cannot finish before the deadline \| needs `time` \| `time` left; An earlier task was never scheduled; An earlier task was not run | 締め切りを過ぎた; 締め切りと仕上げの猶予を過ぎた; 締め切りまでに終わらない \| 必要な時間 \| 残り; 依存先タスクが登録されなかった; 依存先タスクが実行されなかった |
 | a credential's quota rest (`Rest`, `rests.jsonl`, deferral cause `rest`) | Identity `name` paused \| 5-hour usage 93% \| limit 90% \| until `time`; a pill: paused until `time`; over a run: Paused `time` → `time` | 認証情報 `name` は休止中; `time` まで休止; 休止 `time` → `time` |
 | a quota cap (`max_five_hour_pct`, `max_seven_day_pct`) | limit 90%; Limits: weekly 95% \| 5-hour 90% | 上限 |
 | the quota rule (`Pipeline(quota_rule=)`) and what it said | Usage rule; Usage rule: `text` | 利用率のルール |
 | a skipped hop (`skipped_hops`), in a model switch | `model` (identity paused) → `model` | （認証情報が休止中） |
 | attempt | attempt N | N 回目 |
+| a retry (an attempt after a failed attempt of the same task) | retry; tooltip: An attempt after a failed attempt (retries) | リトライ |
 | stop `error` | error | エラー |
-| round after contract errors | correction | 修正依頼 |
-| hop, failover | model switch | モデル切り替え |
-| contract, off-contract, valid | checked file, failed checks, passed | 検証対象のファイル, 検証エラー, OK |
+| stop `denied` (a tool call the permissions did not allow) | permission denied; trends: Denied tool calls (never "refused") | 権限エラー; 権限エラーになったツール呼び出し |
+| round after contract errors | correction; tooltip: Another round in the same agent session after failed checks (rounds) | 修正依頼 |
+| hop, failover | model switch; tooltip: A new agent session on the next model after a failed one (Router hops) | モデル切り替え |
+| contract, off-contract, valid | checked file, failed checks, passed (a checked file only; attempts and tasks are done) | 検証対象のファイル, 検証エラー, OK |
 | wall, wall_s | time | 所要時間 |
 | launch | agent session | エージェントのセッション |
 | worker, max_concurrent | running at once | 同時実行 |
@@ -89,7 +91,7 @@ there: one word, one meaning, on every screen. Japanese follows
 | a time box (`time_box`, `FlowCallNode.time_box`): a flow call's own deadline | Deadline (a function node's and a flow call's row); deferred: Past the deadline of `function`; tooltip: A deadline of its own (time_box) | 締め切り; `function` の締め切りを過ぎた |
 | `created_from` (an edge) | created after result | 結果を受けて作成 |
 | a loop's return to its next pass (a dotted edge in its box) | next pass | 次の周 |
-| a function node or a loop box (their layer, their passes) | has an inner view | 内部の表示あり |
+| a function node or a loop box (their layer, their passes) | has a level below | 下の階層あり |
 | a function drawn open (`FlowBox`), its control; every function's | Show inside / Hide inside; Show all inside / Hide all inside | 中を表示 / 中を隠す; すべての中を表示 / すべての中を隠す |
 | a chain of functions in one box (`FlowBox.parts`) | `a › b › c` (each part a link to its layer) | `a › b › c` |
 | the outline (`outlineTree`); an item folded or unfolded | Outline of the flow; Fold `x` / Unfold `x` | フローの構成; `x` を折りたたむ / `x` を展開 |
@@ -103,8 +105,8 @@ there: one word, one meaning, on every screen. Japanese follows
 | `RunSummary.unresponsive`, `RunActivity` `unresponsive` (its host stopped reporting while the run was alive) | no report from host; N with no report from host (a count) | ホストからの報告なし; ホストからの報告なし N 件 |
 | a run's `last_ts` while its host is not reporting | last activity | 最終更新 |
 | a count of runs / hosts | 1 run, N runs / 1 host, N hosts | 実行 N 件 / ホスト N 台 |
-| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Cost, tasks and models over the runs of a period (tooltip) | 推移 |
-| a tab of the Trends page (`Panel.tab`, route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
+| trends (`/api/trends`, `?page=trends`: what the runs of a period add up to) | Trends; Totals of the runs in a period (tooltip) | 推移 |
+| a tab of the Trends page (`Panel.tab`, view route `trendsTab`) | the first: Summary; the others: the `tab` as written | 全体 |
 | a trends period (`Period`: from, to, tz) | period; 7 days / 14 days / 30 days / Dates; `Oct 1 to Oct 14, 2026 \| Asia/Tokyo` | 期間; 7 日間 / 14 日間 / 30 日間 / 日付指定 |
 | a task's `priority` (`PlanNode.priority`), only when not 0 | Priority 2; tooltip: Tie-breaker in the queue's order (priority) | 優先度 2 |
 | peak context (`usage.peak_context`, `ModelUsage.peak_context`), `context_budget`, `context_warned` | Peak context: 142k \| 71% of the context limit 200k; near the context limit (91%) | 最大コンテキスト; コンテキストの上限; コンテキストの上限に接近（91%） |
@@ -157,7 +159,7 @@ for each kind of text.
 - **Global English.** Common words; no idioms, phrasal verbs or slang; no
   abbreviations but API, JSON, CLI, USD and units (B, k, M). Labels may be noun
   phrases; a string that states a cause or a relation keeps its verbs and
-  articles. Positive forms ("All attempts passed"). The text must keep its
+  articles. Positive forms ("All attempts done"). The text must keep its
   meaning through machine translation.
 
 ## Kept on purpose
@@ -169,7 +171,7 @@ for each kind of text.
 | `Backend`, `create_backend`, `register_backend`, `known_agents` | the adapter for a coding agent and its registry, keyed by agent name |
 | `[tasks.<kind>]`, `kind` | the config's table name and the task class; unambiguous |
 | `Launch`, `TaskResult`, `RunReport`, `Pending`, `WorkQueue`, `CursorStore`, `TaskAdapter` | already one meaning each |
-| `Route`, `Router`, hop | the failover chain |
+| `Route`, `Router`, hop | the failover chain (a route is one entry of it; a hop is one launch on one route) |
 | `ambient` | the built-in credential: the host's own setup |
 | `effort`, `max_turns`, `max_budget_usd` | the coding agents' own flag names |
 | cursor `stage` | a run phase |
@@ -177,13 +179,74 @@ for each kind of text.
 | `hollow` | defined in the `LaunchResult` docstring |
 | `RoutingPlan` | routing; `plan.jsonl` is the queue |
 
-## Layers
+## Public modules and layers
 
-Each layer imports only the layers above it in the list in the
-`src/contraagent/__init__.py` docstring (`errors`, `docs`, `dispatch`, `backends`,
-`contracts`, `routing`, `execution`, `plugins`, `pipeline`, `monitor`).
-`dispatch/` imports nothing outside the standard library. Never import a later
-layer from an earlier one; pass a callback or a protocol instead.
+The implementation is under `src/contraagent/_internal/`. A user imports only the
+public modules: `contraagent`, `contraagent.config`, `contraagent.backends`,
+`contraagent.engine`, `contraagent.plugins`, `contraagent.monitor`,
+`contraagent.monitor.api` and `contraagent.testing`. A public module holds no
+definitions: it imports names from `_internal`, lists them in `__all__` and calls
+`publish(__name__, __all__)` (`_internal/public.py`), which makes it each name's
+`__module__`. Public modules import only from `_internal`; nothing in `_internal`
+imports a public module. Each object has one public path. A name a user, the
+documentation or an example uses gets a public home; every contraagent type a public
+signature, field or callback argument reaches is exported too; the rest stays in
+`_internal`. A signature reaches a type only when its user needs it: a helper hides
+behind a method (`Backend.mark_launch`), a value returns the type it behaves as
+(`agent_task(implementations=)` a `Mapping`, `time_box` a generator). The type of a
+function a user writes or passes (a rule, a scope, a validator, a panel, a callback) is a
+`Protocol` with a docstring stating the call and `__call__` its signature (positional-only
+parameters, so any function of that shape fits), never a `Callable` alias; it is exported
+where the user meets it. A named alias a signature reaches (a union) is exported like a
+class; an alias of literal values is not (its annotation lists them, and the
+documentation names the field, not the alias). A public signature names every argument
+it takes, typed and documented: no `**kwargs` passed through to another function (the
+`**` a test allows: a task's own parameters, a flow's arguments, a record's fields); an
+argument set that mirrors another (`agent_task`'s task table keys, `Pipeline`'s
+`WorkQueue` arguments) has a test that holds the two equal. No public docstring names
+`contraagent._internal`: it names the public object. `contraagent.monitor.api` holds the
+schemas of the monitor's OpenAPI document that have no other public home, its
+`API_VERSION` and the union of transcript events (`AnyTranscriptEvent`), and nothing
+else. The examples in `docs/examples/` import only public modules; nothing outside the
+package imports `_internal` but the tests. The public modules import without the
+`monitor` and `hub` extras. `tests/test_public_api.py` checks the public modules and what
+they export.
+
+`tests/api/contraagent.api.txt` is the public API as griffe reads it: every name in
+a public module's `__all__`, with its signature, fields and defaults. A change to the
+public API shows in its diff; `uv run python tests/api/snapshot.py` rewrites it, and
+a test fails while it is stale. Every public symbol has a declared, known type
+(`pyright --verifytypes`, below): give a public parameter, return, field and attribute
+an annotation, and a `dict`, `list` or generic class its type arguments.
+
+A deprecated name (from 1.0, see Compatibility below) stays readable in its public
+module: the module sets
+`__getattr__ = migration(__name__, moved={"Old": "contraagent.engine:New"}, removed={"gone": "use ... instead"})`
+(`_internal/public.py`), and reading it warns `ContraagentDeprecationWarning` or says
+what to use. The tests turn that warning into an error, so contraagent itself never
+uses a deprecated name.
+
+Inside `_internal`, each layer imports only the layers above it in the list in the
+`src/contraagent/_internal/__init__.py` docstring (`errors`, `platform`,
+`commandline`, `public`, `docs`, `runs`, `dispatch`, `backends`, `contracts`,
+`routing`, `execution`, `plugins`, `pipeline`, `monitor`, `hub`, `testing`, `cli`).
+`platform/` (`procfs`, `envvars`, `telemetry`: the host and the names of a live agent
+process) and `commandline` are leaf modules, importing nothing else of the package.
+`runs/` (the run records layer: layout, files, times, `RunSource`, `Liveness`)
+imports only the standard library and `platform/`; every reader and writer of a run's
+files goes through it.
+`dispatch/` imports nothing but the standard library, pydantic and `runs/` (its record
+types, `dispatch/records.py`, are what every later layer writes and reads).
+`hub/` does not import `monitor/`, but for `hub/server.py`, which serves the monitor's
+app. Never import a later layer from an earlier one; pass a callback or a protocol
+instead.
+
+`uv run lint-imports` checks these import rules: one contract each in pyproject.toml's
+`[tool.importlinter]`, an exception only as a commented `ignore_imports` line.
+"The examples import no `_internal`" is the `protected` contract: the examples are
+modules of `contraagent.docs`, and only `_internal` and the public modules may import
+`_internal`. The tests are not in the graph. `tests/test_layers.py` runs it, so
+`uv run pytest` fails on a broken contract.
 
 The web UI in `web/` has the same rule: `@contraagent/api` (types, client,
 feeds, store; no UI) and `@contraagent/elements` (generic elements and their
@@ -191,7 +254,7 @@ parts: tokens, themes, primitives; no contraagent data) come before
 `@contraagent/ui` (the contraagent elements), which comes before `apps/monitor`
 (the page). `api` and `elements` never import each other. Within `ui`, an
 element renders what its properties give it and sends `ca-*` events
-(`core/events.ts`); only `ca-monitor` holds the store and the router. No
+(`core/events.ts`); only `ca-monitor` holds the store and the view router. No
 module changes the page at import: the languages (`configureLocales()`) and the
 themes (`adoptThemes()`) are set up by the page or by `ca-monitor` when it
 connects. A `cae-*`
@@ -203,7 +266,7 @@ element of `elements` takes plain data and its words (`strings`), and sends
 | `@contraagent/api` | its own files; no `lit`, `@lit/*` or other `@contraagent/*` |
 | `@contraagent/elements` | its own files and `lit`; no `@contraagent/*`, no `@lit/localize`, no `msg()`, and no glossary word in an exported name or in a `types.ts` property |
 | `elements`: its folders, in order: `core/`; `themes/`; `styles/`; `primitives/`; the components (`table/`, `matrix/`, `json/`, `markdown/`, `count/`, ...); `graph/` (it shows a mark matrix); `define/` | the folders before it and its own; a component imports another only from an earlier rank, and only `define/` registers a tag |
-| `ui`: `core/` (route, router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
+| `ui`: `core/` (view route, view router, events, i18n, memory, scroll) | `@contraagent/api`, `@contraagent/elements`, `lit`, `@lit/localize` and each other; never `words/`, `lib/`, `adapters/`, `controllers/` or `elements/` |
 | `ui`: `words/` (the words the UI shows), `lib/` | the above and each other; never `adapters/`, `controllers/` or `elements/` |
 | `ui`: `adapters/` (run data → what a generic element takes: a table's columns, the lists' filters) | the above and each other; never `controllers/` or `elements/` |
 | `ui`: `controllers/` (Lit reactive controllers: a task's detail, the theme, the language, the shortcuts) | the above and each other; never `elements/` |
@@ -230,9 +293,24 @@ every element class is `@localized()`. Translations live in
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright          # 0 errors; the "yaml" source warning is expected
+uv run lint-imports     # the import contracts (pyproject.toml); tests/test_layers.py runs it too
 uv run pytest           # live tests: CONTRAAGENT_LIVE=1 uv run pytest -m live (spend tokens)
 uv run pytest -m e2e    # the hub and relays as processes over Postgres and RustFS (docker)
+docker build -t contraagent-hub:dev .   # the hub's image from these sources and uv.lock
+uv run pyright --verifytypes contraagent --ignoreexternal
+uv run griffe check --search src contraagent --against <last tag>
+uv run towncrier build --draft --version X   # the next release's changelog; tests/test_changelog.py runs it and checks the fragments' names
+uv run towncrier check --compare-with origin/main   # a branch with a user-visible change adds a fragment
 ```
+
+`--verifytypes` lists every public symbol whose type is unknown or only inferred; it
+must list none outside `contraagent.docs` (`tests/test_public_api.py` checks this).
+Its score stays below 100% only because the examples under `contraagent.docs.examples`
+are installed with the package and counted as public; they are documentation, written
+without the annotations an API carries. `griffe check` lists the changes since a
+release that break a caller (a removed name, a new required parameter, a changed
+default); from 0.1.0 such a change waits for the release Compatibility below allows.
+Releases are tagged `<version>` (`0.1.0` is the first).
 
 pytest runs in parallel (pytest-xdist, at most 6 processes; `-n0` runs it in one).
 Tests that share something across a module (one hub, the `live-demo` directory, an agent's
@@ -245,8 +323,19 @@ spends a few cents) and run `tests/test_omp_wire.py`: an event `TraceReader` doe
 not know fails it.
 
 After changing a monitor response model or route, regenerate the committed
-contract: `uv run python -m contraagent.monitor --openapi src/contraagent/monitor/openapi.json`
+contract: `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`
 (a test fails while it is stale), then the TypeScript types: `pnpm gen` in `web/`.
+
+After changing a command's arguments or help, rewrite every command's `--help`:
+`uv run python tests/cli/help.py` writes `tests/cli/help.txt` (a test fails while it is
+stale; argparse's output depends on the Python version, so it compares on the version
+the file names, the one in `.python-version`).
+
+After changing a model of a run record (`_internal/execution/schemas.py`, the records
+in `_internal/dispatch/records.py` they hold) or the config file's tables, regenerate
+the JSON Schemas in `src/contraagent/docs/schemas/`:
+`uv run python -m contraagent._internal.execution.file_schemas` (a test fails while
+one is stale).
 
 The web UI (Node 22, pnpm via `corepack enable`; pnpm installs only versions
 published at least 14 days ago), in `web/`:
@@ -254,13 +343,14 @@ published at least 14 days ago), in `web/`:
 ```
 pnpm install
 pnpm check              # generated types current, tsc, eslint, vitest (every package)
-pnpm build              # rebuilds src/contraagent/monitor/static (committed; CI fails if stale), and the site
+pnpm build              # rebuilds src/contraagent/_internal/monitor/static (committed; CI fails if stale), and the site
 pnpm check:dist         # the built packages type-check as an npm consumer sees them, stay within the gzip budgets in size-budgets.json, and web/consumer builds one component alone (consumer/consumer.test.mjs)
 pnpm tarballs           # builds the three packages into tarballs/*.tgz that npm and pnpm install from this checkout
 pnpm dev                # live-reload UI against a monitor on :8787
 pnpm e2e                # build, then Playwright against the real monitor over the demo runs
 pnpm docs               # the documentation site, live reload
 pnpm i18n               # extract msg() strings to packages/ui/xliff, rebuild src/locales
+pnpm screenshots        # the screenshots of the root README and of the packages' docs (docs/images/): the showcase runs (scripts/showcase.py) in the real monitor, and each elements example alone (scripts/examples-page/); --only readme,ui,elements
 ```
 
 ## Documentation
@@ -288,16 +378,70 @@ version; nothing else holds that text.
   JSDoc), the HTTP API in `openapi.json`. Prose points to them.
 - **The site** (`web/apps/docs`, Astro Starlight) renders the packages'
   documentation: `scripts/collect.py` writes it into `src/content/docs/python/`
-  and `node/` (not committed) and fails on a quote or a link that does not
-  resolve. The site itself holds only its landing page, the live examples and the
-  references generated from `openapi.json`, `custom-elements.json` and the
-  elements' stylesheet. The live examples read `src/fixtures/demo-run.json`;
-  rewrite it with `uv run python web/apps/docs/scripts/fixture.py` after a change
-  to what the monitor returns.
-- The root `README.md` points to the packages and holds no documentation of its own.
-- `CHANGELOG.md`: record user-visible changes under `[Unreleased]`.
+  and `node/` (not committed) and fails on a quote, a link or an image that does
+  not resolve, and on an HTML tag in prose outside code. The site shows the web
+  packages' elements live, never as screenshots: `LIVE` in `collect.py` puts a
+  live element in place of each screenshot of an element (`images/`,
+  `docs/images/`), and the collector fails on a screenshot or an
+  `@contraagent/elements` topic without one. A paragraph under
+  `<!-- not on the site -->` is for readers of the files only. The site itself
+  holds only its landing page, the live examples, `LIVE` and the references
+  generated from `openapi.json`, `custom-elements.json` and the elements'
+  stylesheet. The live examples read `src/fixtures/demo-run.json` and an export
+  of the showcase runs in `public/demo/data/`; rewrite both with
+  `uv run python web/apps/docs/scripts/fixture.py` after a change to what the
+  monitor returns.
+- **No image in an npm package**: a web package's `docs/images/` (screenshots for
+  readers of the repository) is left out of its tarball (`"!docs/images"` in
+  `files`); `pnpm check:dist` fails on an image in any tarball.
+- The root `README.md` is the landing page: it may pitch and summarize, and it
+  points to the packages for everything a reader does. Its code is written out (GitHub
+  does not expand `::code`), each block after `<!-- ::code{...} -->` lines that
+  `tests/test_docs.py` checks against the example files. Its screenshots in
+  `docs/assets/readme/` (outside the package, and out of the sdist) come from the
+  showcase runs of the demo pipelines (`web/scripts/showcase.py`, every task done):
+  `pnpm --dir web screenshots --only readme` makes them again. Each is one region of a
+  view at most 880 CSS px wide, captured at device scale 2 and never scaled, and the
+  README shows it as `<img ... width="<its CSS width>">`, so its text shows at its own size.
+- Audience. The package documentation (`src/contraagent/docs/`, which
+  `contraagent docs` prints), the docstrings and the messages of `contraagent check`
+  are written for a coding agent that writes a pipeline from them alone. The root
+  `README.md` and the monitor are for the person who asks for the pipeline, runs it
+  and reviews it. Write for both by being exact and complete: every fact that an
+  agent needs is reachable from `contraagent docs`, without contraagent's source.
+- Prose style, for the READMEs and the topics: write plain declarative sentences
+  and short paragraphs, as a careful engineer writes a README. A paragraph or a list
+  item starts with a sentence that carries its point, not with a bold run-in label
+  ("**Resume.** ...", "**Failover**: ..."); a part that needs a label gets a real
+  heading. Bold marks at most a few words in a page. A link sits inside the
+  sentence, on the words it names ("[A hub](hub.md) serves ..."), never as a
+  parenthetical after it ("([the hub](hub.md))"). No slogan fragments ("Checked,
+  and corrected in the same session.") and no "Label: fragment" sentences. Vary
+  the openings of sentences and items rather than repeat one template. A screenshot's
+  caption is one or two plain sentences under the image. The global-English rules
+  of "Form" above apply here too.
+- `CHANGELOG.md` (Keep a Changelog) is written by towncrier: record a
+  user-visible change as a fragment in `changelog.d/` (`<slug>.<type>.md`, or
+  `+<slug>.<type>.md`; types `added`, `changed`, `deprecated`, `removed`,
+  `fixed`, `security`; Markdown, one bullet per fragment; `changelog.d/README.md`).
+  At a release, `uv run towncrier build --version X` writes the fragments into
+  `CHANGELOG.md` and removes them; `--draft` previews the section.
 
 ## Compatibility
 
-The package is unpublished. Rename freely: no compatibility aliases, no
-deprecation shims, no readers for old run directories.
+The public API is what `src/contraagent/docs/compatibility.md` lists: the
+public modules' `__all__`, the command line, the config file, the files a run
+writes and the monitor's `openapi.json`. `contraagent._internal` is not public:
+change it freely, with no aliases or shims inside it.
+
+- **Until 0.1.0 is tagged**: rename the public API freely too, with no
+  compatibility aliases, no deprecation shims and no readers for old run
+  directories; a `changelog.d/` fragment records each rename as old → new.
+- **From 0.1.0**: a change to the public API is deliberate. The checks (the
+  API snapshot, the `--help` snapshot, `openapi.json`, the file schemas) show
+  it, a `changelog.d/` fragment records it, and it waits for a minor release (from 1.0, a
+  major one, after `ContraagentDeprecationWarning` for two minor releases).
+  A record change that a reader of the current run format cannot read raises
+  `FORMAT` in `_internal/runs/layout.py` and adds the new format's fixture
+  beside `tests/fixtures/runs/v1/`; the monitor keeps reading every run format
+  in `FORMATS`.

@@ -8,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from contraagent.dispatch import FlowDriver, Task, TaskDeferred, TaskFailed, TaskResult, WorkQueue, result_or_raise
+from contraagent import Task, TaskDeferred, TaskFailed, TaskResult
+from contraagent._internal.dispatch import result_or_raise
+from contraagent.engine import FlowDriver, WorkQueue
 
 
 class Runner:

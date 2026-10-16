@@ -6,20 +6,32 @@ it up, upgrade it, and find what is wrong. What a hub and a relay are is in
 `contraagent relay --help`.
 
 The files below are in `examples/hub/` of the installed package (`contraagent docs
---path`); copy that directory to the host that runs the hub.
+--path`); copy that directory to the host that runs the hub. It is all the hub's host
+needs besides Docker with compose.
 
 ## Set up with compose
 
-`examples/hub/compose.yaml` runs the hub with Postgres and RustFS; the hub's image is
-built from this source tree (`examples/hub/Dockerfile`) or named by
-`CONTRAAGENT_HUB_IMAGE`.
+`examples/hub/compose.yaml` runs the hub with Postgres and RustFS. The hub's image is
+built from `examples/hub/Dockerfile`, which installs `contraagent[hub]` from PyPI at
+`CONTRAAGENT_VERSION` in `.env`: the version the directory came with, which is what
+`contraagent --version` prints where it is installed.
 
 ```
+cp -r "$(contraagent docs --path)/examples/hub" contraagent-hub && cd contraagent-hub
 ./make-tokens build-01 build-02     # one ingest token per host, the read token, .env with passwords
 $EDITOR .env                        # CONTRAAGENT_HUB_HOSTNAME: the name hosts and browsers use
-docker compose up -d
+docker compose up -d                # builds contraagent-hub:<version>, then starts the hub
 curl -s http://localhost:8790/healthz
 ```
+
+| To install the hub from | Set in `.env` |
+|---|---|
+| PyPI | `CONTRAAGENT_VERSION` (as shipped) |
+| a wheel (`contraagent-<version>-py3-none-any.whl`) | copy it into the directory, set `CONTRAAGENT_WHEEL` to its file name and `CONTRAAGENT_VERSION` to its version |
+| an image built elsewhere | `CONTRAAGENT_HUB_IMAGE`; `docker compose up -d --no-build` |
+
+The build fails when the installed version is not `CONTRAAGENT_VERSION`. Only wheels
+enter the build's context (`.dockerignore`), never `secrets/` or `.env`.
 
 `make-tokens` writes `secrets/ingest-tokens` (`<host_id> <token>`, each token good for
 that host only), `secrets/read-token`, `secrets/relay-<host>.env` for each host's relay,
@@ -104,9 +116,11 @@ hub; the relays fill in what came after the backup from their hosts.
 
 ## Upgrade
 
-Build or pull the new image and recreate the hub (`docker compose up -d --build hub`).
+Set `CONTRAAGENT_VERSION` in `.env` to the new version, then build the new image and
+recreate the hub (`docker compose up -d --build hub`). Compare the new version's
+`examples/hub/` with your copy for changed settings.
 The hub creates or extends its tables on start; it refuses a database written by a
-newer version. Relays and hubs speak the protocol in `contraagent/hub/openapi.json`:
+newer version. Relays and hubs speak the protocol `contraagent hub --openapi PATH` writes:
 upgrade the hub first, then the relays.
 
 ## When something is wrong

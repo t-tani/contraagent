@@ -1,9 +1,9 @@
-"""Where flow code created a task (`contraagent.pipeline.origin`): the frames of flow code.
+"""Where flow code created a task (`contraagent._internal.pipeline.origin`): the frames of flow code.
 The loops around them and their passes: `test_passes.py`."""
 
 import inspect
 
-from contraagent.pipeline import origin
+from contraagent._internal.pipeline import origin
 
 
 def line_of(fn, text: str) -> int:

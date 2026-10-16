@@ -3,10 +3,12 @@ monitor sums them per model (`Plan.models`)."""
 
 import threading
 
-from contraagent import AgentRunner, Backend, KindConfig, LaunchResult, Route, Router, Stop, Task, TaskAdapter
-from contraagent.backends.launch import CallUsage
-from contraagent.execution.journal import Journal
-from contraagent.monitor.core import model_usage
+from contraagent import OtherModel, Task
+from contraagent._internal.execution.journal import Journal
+from contraagent._internal.monitor.aggregate import model_usage
+from contraagent.backends import Backend, CallUsage, LaunchResult, Stop
+from contraagent.config import KindConfig, Route
+from contraagent.engine import AgentRunner, Router, TaskAdapter
 
 
 class Agent(Backend):
@@ -55,8 +57,8 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
     result = runner.run(Task("k", key="t"))
     assert result.ok
     first, second = result.hops
-    assert (first["agent"], first["model"], second["agent"], second["model"]) == ("claude", "m1", "omp", "m2")
-    assert first["usage"] == {
+    assert (first.agent, first.model, second.agent, second.model) == ("claude", "m1", "omp", "m2")
+    assert first.usage is not None and first.usage.model_dump(exclude_unset=True) == {
         "input": 100,
         "output": 10,
         "cache_read": 1000,
@@ -65,7 +67,7 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
         "peak_context": 1150,
         "context_window": None,
     }
-    assert second["usage"] == {
+    assert second.usage is not None and second.usage.model_dump(exclude_unset=True) == {
         "input": 1000,
         "output": 100,
         "cache_read": 10000,
@@ -74,7 +76,7 @@ def test_each_hop_of_a_failover_keeps_its_own_spend(tmp_path):
         "peak_context": 11500,
         "context_window": None,
     }
-    assert (first["cost_usd"], second["cost_usd"]) == (0.01, 0.04)
+    assert (first.cost_usd, second.cost_usd) == (0.01, 0.04)
 
     journal = Journal(tmp_path / "journal.jsonl", tmp_path / "launches.jsonl", run_id="r", run_group="r", unit_of=lambda t: t.unit)
     row = journal.append(result).model_dump()
@@ -127,13 +129,13 @@ def test_a_hop_s_spend_on_other_models_counts_on_each_of_them():
 
 
 def test_claude_code_s_model_usage_less_the_launch_s_own_model():
-    from contraagent.backends.claude.backend import other_models
+    from contraagent._internal.backends.claude.wire import other_models
 
     used = {
         "big-1": {"inputTokens": 8, "outputTokens": 900, "costUSD": 0.05},
         "small-1": {"inputTokens": 1200, "outputTokens": 100, "cacheReadInputTokens": 3, "costUSD": 0.01},
     }
-    small = {"cost_usd": 0.01, "input": 1200, "output": 100, "cache_read": 3, "cache_creation": 0}
+    small = OtherModel(cost_usd=0.01, input=1200, output=100, cache_read=3, cache_creation=0)
     assert other_models(used, "big-1") == {"small-1": small}
     assert other_models(used, "big") == {"small-1": small}  # an alias: its own is the one that wrote the most
     assert other_models({"big-1": used["big-1"]}, "big-1") == {}
@@ -141,16 +143,16 @@ def test_claude_code_s_model_usage_less_the_launch_s_own_model():
 
 
 def test_the_rounds_of_a_session_hold_its_spend_on_other_models():
-    from contraagent.contracts import fold_spend
+    from contraagent._internal.contracts.contract import fold_spend
 
     def launch(cost, small):
-        return LaunchResult(label="t", cost_usd=cost, other_models={"small": {"cost_usd": small, "input": 10}})
+        return LaunchResult(label="t", cost_usd=cost, other_models={"small": OtherModel(cost_usd=small, input=10)})
 
     # A coding agent that reports each launch's own spend: the rounds add up.
-    assert fold_spend(launch(0.1, 0.01), launch(0.2, 0.02), resumed=True).other_models == {"small": {"cost_usd": 0.03, "input": 20}}
+    assert fold_spend(launch(0.1, 0.01), launch(0.2, 0.02), resumed=True).other_models == {"small": OtherModel(cost_usd=0.03, input=20)}
     # One that reports the session's so far: the last round's stands.
     folded = fold_spend(launch(0.1, 0.01), launch(0.3, 0.03), resumed=True, session_total=True)
-    assert folded.other_models == {"small": {"cost_usd": 0.03, "input": 10}}
+    assert folded.other_models == {"small": OtherModel(cost_usd=0.03, input=10)}
 
 
 def test_the_monitor_s_plan_carries_the_models(tmp_path):
@@ -175,7 +177,7 @@ def test_the_monitor_s_plan_carries_the_models(tmp_path):
 
 
 def test_claude_code_s_context_window_is_its_own_model_s():
-    from contraagent.backends.claude.backend import context_window
+    from contraagent._internal.backends.claude.wire import context_window
 
     used = {
         "big-1": {"outputTokens": 900, "contextWindow": 1_000_000},

@@ -19,7 +19,7 @@ the documentation topic that explains it. A declaration that is wrong where it
 is written (a role the plugin does not define, an unknown budget key in
 `agent_task`) stops the import of the module that declares it, so it is the one
 error reported until it is fixed. `Pipeline.check(flow, ...)`
-does the same in Python; its docstring (`contraagent/pipeline/check.py`) lists
+does the same in Python; its docstring (`help(contraagent.Pipeline.check)`) lists
 every check, and `contraagent check --help` every option.
 
 A generator flow creates its tasks as it runs, so `check` runs it to its first
@@ -27,7 +27,7 @@ wait: every flow call it starts runs up to the first `yield` that waits for a
 task, and the tasks created by then are checked like a flow's that does not
 yield. The kinds it creates later are found in its code: the task declarations
 the flow refers to, directly or through the functions, modules, closures and
-containers it refers to (the docstring of `contraagent/pipeline/reach.py` says
+containers it refers to (the glossary's **reachable kind**, in [Concepts](concepts.md), says
 exactly what is followed). Their declarations and routing are checked too, and
 the report lists them as later kinds. Two declarations of one kind that differ
 and are both reachable are a warning, not an error: the flow may create tasks of
@@ -38,30 +38,88 @@ stub agent.
 
 Run it after every change to tasks, plugins or the config.
 
-## Stub run: the whole flow, nothing called
+## Stub run: the whole flow on examples, nothing called
 
 ```
-contraagent run tasks.py:<flow> --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
+contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
 ```
+
+With `--config`, its `[route]` lines name the routes a real run takes; without it,
+each kind's declared defaults.
 
 A stub run goes past the first wait. The stub agent plays every task: an agent
-task's output, and a Python task's return value, is the smallest value its schema
-accepts (required fields only, the shortest lists and strings, numbers nearest
-zero, an enum's first value). No model is called, no Python task's function
-runs, and the flow goes on to its end on those outputs, so the run lists every
-task the flow creates on that path (`kind · unit`, how it ended, and the flow
-path that created it). `--execute <kind>` runs that Python task kind's function
-instead (a read-only step whose real output the flow needs). The run id is
-`<flow>-stub`, and the monitor marks the run "stub agent".
+task's output, and a Python task's return value, is its output's **example**. No
+model is called, no Python task's function runs, and the flow goes on to its end on
+those outputs, so the run lists every task the flow creates on that path
+(`kind · unit`, how it ended, and the flow path that created it). `--execute <kind>`
+runs that Python task kind's function instead (a read-only step whose real output
+the flow needs). The run id is `<flow>-stub`, and the monitor marks the run "stub
+agent".
 
-The outputs are the smallest, so the flow takes the path they lead to: a branch
-on a value it never sees is not taken, a validator that wants more than the
-schema fails its task at once (the stub does not send the same value back), and a rule the stub cannot build (`pattern`) fails the
-task and names the rule. Flow code itself runs as in any run: a side effect in
-the flow's own body happens in a stub run too. Put side effects in Python tasks.
-In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
-execute=[...]))` scripts the replies of both kinds of task, as a test does
-(`contraagent/testing.py` lists the replies).
+The example follows one rule, at every part of the output's JSON Schema: the first
+entry of that part's `examples`, else the smallest value that part accepts (required
+fields only, the shortest lists and strings, numbers nearest zero, an enum's first
+value). So a model's own example is the whole value, a field's example is that
+field's value, and a part with none is the smallest:
+
+::code{file="examples/demo/tasks.py" from="class Summary(BaseModel):" to="class Score(BaseModel):"}
+
+A text output takes its example from `Annotated[str, Field(examples=[...])]` (the
+demo's `Note`); a plain `str` output is `stub`. `contraagent check` reports an
+example that does not pass its own model.
+
+Give each output model an example that passes its validators, and a stub run goes
+through the whole flow. In each string of an example the stub writes, `{unit}`,
+`{key}`, `{kind}` and `{params.<name>}` are the task call's, as in a claim, when the
+value is a string or a number; any other field stays as written. So one example
+passes a validator that compares an output with a param set per unit:
+`{"module": "{params.module}"}` is `"bank"` for the call `review("bank", module="bank")`.
+A coding agent reads the example as written, in the output's schema. Examples that
+agree with each other pass too: the demo's summary names the unit of the prepared
+example, and its note names the summary's unit:
+
+```
+demo="$(contraagent docs --path)/examples/demo"
+contraagent run "$demo/tasks.py:docs" --config "$demo/pipeline.toml" --stub --kwargs '{"units": ["alpha", "beta"]}'
+```
+
+```
+11 tasks created:
+  prepare · alpha | completed | docs > review_loop (line 151)
+  summarize · alpha | completed | docs > review_loop (line 151)
+  prepare · beta | completed | docs > review_loop (line 151)
+  summarize · beta | completed | docs > review_loop (line 151)
+  score · alpha | completed | docs > review_loop (line 155)
+  review · alpha | completed | docs > review_loop (line 156)
+  score · beta | completed | docs > review_loop (line 155)
+  review · beta | completed | docs > review_loop (line 156)
+  write_note · beta | completed | docs > review_loop (line 160)
+  write_note · alpha | completed | docs > review_loop (line 160)
+  report | completed | docs (line 167)
+✓ 11/11 tasks done in 0.6s; run in runs/docs-stub
+```
+
+The flow takes the path its examples lead to: the demo's review approves, so no
+summary is revised. A branch on a value no example holds is not taken, and a rule
+the stub cannot build where there is no example (`pattern`) fails the task and
+names the rule. A validator that rejects the example ends its task `invalid_output`
+after one round, with no correction round and no retry (the stub would write the
+same value again); the tasks that need its output do not run, `contraagent run`
+exits 1, and its last line names the validators:
+
+```
+  summarize-alpha: invalid_output out/summarize/alpha.json: [three_points] points: exactly three expected, got 0
+2 tasks failed checks on the examples the stub agent wrote (summarize: three_points), so the tasks that need their outputs did not run. Give each output model an example that passes its validators: `contraagent docs testing`
+```
+
+A stub run plays one reply per task, so the correction rounds, failures, retries
+and failover of a flow are tested on the stub agent ([below](#test-the-stub-agent)).
+
+Flow code itself runs as in any run: a side effect in the flow's own body happens
+in a stub run too. Put side effects in Python tasks. In Python,
+`Pipeline(stub=StubAgent(script, default=writes_example(), execute=[...]))`
+scripts the replies of both kinds of task, as a test does (the
+`contraagent.testing` module docstring lists the replies).
 
 ## Record once, replay in CI
 
@@ -115,8 +173,20 @@ after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change
-matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. The module docstring (`contraagent/execution/recording.py`) gives the
-layout of a recording directory.
+matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. A recording
+directory holds:
+
+```
+recordings/<kind>/<key>.json         the task's recording: one entry per attempt, in order
+recordings/<kind>/<key>/<id>/        the files of one attempt:
+    output-<n>                       the final contents of its n-th output file
+    output-<n>.message.txt           the whole final message beside an unwrapped output
+    files/<path>                     what its `changes=` patterns saw created or modified
+    stream.jsonl                     its part of the transcript, when transcripts are kept
+    pipeline/<name>.jsonl            a Python task's rows of `contraagent.log(name, ...)`, in order
+    pipeline/<name>.json             a Python task's last `contraagent.save(name, ...)`
+recordings/undeclared.json           the undeclared changes of the last recording run (below)
+```
 
 ### Undeclared changes
 
@@ -158,28 +228,31 @@ and `backends=` apply to the launches it makes; `--stub` and `--record` are refu
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call
 file like a real one and plays the reply scripted for each task: an output to
 write, nothing, a failure, or a rate limit. Only the coding agent is replaced;
-output checks, fix-up rounds, failover, retries and the journal run for real.
+output checks, correction rounds, failover, retries and the journal run for real.
 `stub.backends()` puts it under every coding agent's name, so the pipeline's
-own config routes to it, and under each name it acts as that agent does: as
-Claude Code it runs the plugin's Stop hooks before it ends its turn and replies
-again when one sends the output back (`launch.in_turn`); as omp it stops. A
+own config routes to it, and under each name it acts as that agent does: under
+the name of an agent whose stop hook continues the session (Claude Code, Codex) it
+runs the plugin's Stop hooks before it ends its turn and replies again when one
+sends the output back (`launch.in_turn`); under the others (omp, opencode, pi) it
+stops. A
 429 in a test moves the kind's later tasks to the hop too (see `routing`). A reply that
-reports a utilization reading (`writes(value, rate_limit=RateLimit(five_hour_pct=80))`)
+reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)
 rests a credential past its quota cap or its `quota_rule`, so a test can follow a task to
 its next hop, or to `deferred`. Tests import the flow's module like any other code: one
 outside the project's package needs the project root on `sys.path` (pytest's
-`pythonpath` setting). The module docstring (`contraagent/testing.py`) lists
-every kind of reply.
+`pythonpath` setting). The `contraagent.testing` module docstring
+(`help(contraagent.testing)`) lists every kind of reply.
 
 ::code{file="examples/demo/test_demo.py" from="def summary(launch):" to="@pytest.fixture"}
 
 Every launch is recorded (`stub.launches`, `stub.launches_of(key)`): which
-model it ran on, whether it was a fix-up round, the prompt it was sent, its
+model it ran on, whether it was a correction round, the prompt it was sent, its
 call file and the launch itself (its budget, environment and plugin).
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_flow_checks_clean" to="def test_the_report_covers"}
 
-What a flow returns is `RunReport.value`: a generator flow's return value, or
-the output of the task a flow that does not yield returns (its `Pending`):
+What a flow returns is `RunReport.value`, as the flow returned it: a generator
+flow's return value, or, for a flow that does not yield and returns a task call,
+that task's `Pending` (its output is `report.value.output`):
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_report_covers"}

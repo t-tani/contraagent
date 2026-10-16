@@ -1,6 +1,6 @@
-// The trends page's request, from where the monitor is (its route).
+// The trends page's request, from where the monitor is (its view route).
 import type { PanelInfo, RunSummary, TrendsQuery } from '@contraagent/api';
-import type { Route } from '../core/route.js';
+import type { ViewRoute } from '../core/view-route.js';
 
 /** The browser's time zone (an IANA name), `UTC` when it names none. */
 export const browserZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -21,8 +21,8 @@ export function daysBefore(day: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** What `/api/trends` is asked for on the trends page: the route's period, time zone and run group. */
-export function trendsQuery(r: Pick<Route, 'days' | 'from' | 'to' | 'tz' | 'group'>, now: Date = new Date()): TrendsQuery {
+/** What `/api/trends` is asked for on the trends page: the view route's period, time zone and run group. */
+export function trendsQuery(r: Pick<ViewRoute, 'days' | 'from' | 'to' | 'tz' | 'group'>, now: Date = new Date()): TrendsQuery {
   const tz = r.tz || browserZone();
   const period =
     r.days === 0 && r.from && r.to

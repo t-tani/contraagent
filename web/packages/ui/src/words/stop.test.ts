@@ -5,12 +5,18 @@ describe('stopLabel', () => {
   it('names stops in words, and an unknown one as unknown with its value', () => {
     expect([stopLabel('completed'), stopLabel('invalid_input'), stopLabel('invalid_output'), stopLabel('custom_stop'), stopLabel('')]).toEqual([
       'done',
-      'not started (input missing or failed checks)',
+      'not started',
       'failed checks',
       'unknown (custom_stop)',
       '—',
     ]);
     expect(stopLabel('invalid_input', 'invalid input: /r/out/a.json: required input is missing')).toBe('not started (input missing)');
+    expect(stopLabel('invalid_input', 'invalid input: input from review-a ended invalid_output: /r/out/review/a.json')).toBe(
+      'not started (earlier task failed)',
+    );
     expect(stopLabel('invalid_input', 'invalid input: /r/out/a.json: field x: wrong type')).toBe('not started (input failed checks)');
+    expect(stopLabel('invalid_input', 'invalid input: /r/out/a.json: required input is missing; /r/out/b.json: field x: wrong type')).toBe(
+      'not started (input missing and input failed checks)',
+    );
   });
 });

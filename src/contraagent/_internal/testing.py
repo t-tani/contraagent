@@ -1,0 +1,489 @@
+"""The stub coding agent: `contraagent.testing` publishes it, and its module docstring is
+the reference (the replies, the script keys, a stub run).
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import os
+import subprocess
+import threading
+import time
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel
+
+from contraagent._internal.backends import Backend, backend_class, known_agents
+from contraagent._internal.backends.credentials import Credential, CredentialBinding
+from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, QuotaRefusal, Stop, Usage
+from contraagent._internal.backends.streams import resolve_format
+from contraagent._internal.backends.wire import feedback_errors
+from contraagent._internal.contracts.calls import CallFile
+from contraagent._internal.contracts.contract import example
+from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.dispatch.templates import fill_example
+from contraagent._internal.routing.preflight import PROBE_PROMPT
+from contraagent._internal.runs.times import now_iso
+
+_UNSET: Any = object()
+#: How many times a stop hook may send the output back within one launch.
+_MAX_HOOK_OBJECTIONS = 5
+
+
+@dataclass(frozen=True)
+class Reply:
+    """What the stub does on one launch. Build one with `writes`, `writes_nothing`, `fails`, `rate_limited`."""
+
+    output: Any = _UNSET
+    stop: Stop = Stop.COMPLETED
+    reason: str = ""
+    #: The quota reading the launch reports.
+    quota: QuotaReading | None = None
+    #: Set when the launch is refused for its quota (`rate_limited`).
+    quota_refusal: QuotaRefusal | None = None
+    cost_usd: float | None = None
+    peak_context: int | None = None
+    context_window: int | None = None
+
+
+def writes(
+    value: Any,
+    *,
+    cost_usd: float | None = None,
+    quota: QuotaReading | None = None,
+    peak_context: int | None = None,
+    context_window: int | None = None,
+) -> Reply:
+    """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
+    `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
+    session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
+    running total, as the agent does. `quota`: the quota reading the launch reports
+    (`five_hour_pct`, `seven_day_pct`, ...; received now when it names no `observed_at`),
+    which quota caps and `quota_rule` judge.
+    `peak_context`: the launch reports one API call of this many input tokens, its peak
+    context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
+    launch reports no API call. `context_window`: the context window the launch reports for
+    its model (`LaunchResult.context_window`); without it the launch reports none."""
+    return Reply(output=value, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
+
+
+#: The output of `writes_example()`: built from the output's schema when it is played.
+_EXAMPLE: Any = object()
+
+
+def writes_example() -> Reply:
+    """Write the output's example: at every part of its schema, the first of its
+    `examples` (the model's own, a field's), else the smallest value that part accepts
+    (required fields only, the shortest lists and strings, numbers nearest zero). A text
+    output is the first of the `examples` of its `Annotated[str, Field(examples=[...])]`,
+    else `stub`. In each string of it, `{unit}`, `{key}`, `{kind}` and `{params.<name>}`
+    are the task call's, as in a claim (`claims=`), when the value is a string or a
+    number; any other field stays as written. A schema rule it cannot build where there is no example (`pattern`)
+    fails the reply and names it. As a task's only reply (not in a list, not from a
+    callable), a value its validators reject ends the task `invalid_output` after one
+    round, with no correction round and no retry."""
+    return Reply(output=_EXAMPLE)
+
+
+def writes_nothing() -> Reply:
+    """Complete without writing the output file."""
+    return Reply()
+
+
+def fails(stop: Stop = Stop.ERROR, reason: str = "stub: scripted failure") -> Reply:
+    """End the launch on `stop` without writing anything."""
+    return Reply(stop=stop, reason=reason)
+
+
+def rate_limited(retry_after_s: float | None = None) -> Reply:
+    """A 429, a quota refusal with the cool-off `retry_after_s`: the task moves to its next
+    failover hop, if it has one."""
+    return Reply(stop=Stop.RATE_LIMITED, reason="stub: 429 Too Many Requests", quota_refusal=QuotaRefusal(retry_after_s=retry_after_s))
+
+
+@dataclass(frozen=True)
+class StubLaunch:
+    """One launch the stub received: what a reply callable is given, and what `StubAgent.launches` records."""
+
+    run: str
+    key: str
+    kind: str
+    unit: str
+    params: dict[str, Any]
+    #: The launch's LLM (the route's model on a failover hop).
+    model: str
+    role: str | None
+    #: 1-based count of this task's replies in this run: correction rounds, retries, hops and replies in a turn all count.
+    n: int
+    #: True for a correction round: the same session, sent the failed checks.
+    resumed: bool
+    #: The launch's prompt, or for a reply within the turn what the stop hook said.
+    prompt: str
+    call: CallFile = field(repr=False)
+    #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential.
+    launch: Launch = field(repr=False)
+    #: True for a reply within the launch, after a stop hook sent the output back.
+    in_turn: bool = False
+
+
+@dataclass(frozen=True)
+class StubTask:
+    """One Python task a stub run played: what a reply callable is given, and what
+    `StubAgent.played` records."""
+
+    run: str
+    key: str
+    kind: str
+    unit: str
+    #: The function's arguments, upstream outputs resolved.
+    params: dict[str, Any] = field(repr=False)
+    #: 1-based count of this task's replies in this run.
+    n: int
+
+
+class StubAgent(Backend):
+    """A coding agent that reads its call file and plays the reply scripted for the task.
+
+    `script`: task key or kind -> reply (the kinds of reply: `contraagent.testing`'s module docstring). `default`: the
+    reply of a task with none scripted (`writes_example()` in `contraagent run --stub`).
+    `execute`: in a stub run, the Python task kinds whose functions run instead of
+    being played. `delay_s`: a pause per launch, for watching a stub run in the monitor.
+    """
+
+    name = "stub"
+    binary = ""
+    # It plays a launch with no tools as well as any other; under a coding agent's name it
+    # can do what that agent can (`_named`), so routing refuses there what it refuses for real.
+    light_launch = True
+
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """It denies what it is told to: it calls no tool."""
+        return None
+
+    def __init__(
+        self, script: Mapping[str, Any] | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0
+    ) -> None:
+        super().__init__(base_env={})
+        self.script: dict[str, Any] = dict(script or {})
+        self.default = default
+        self.execute: frozenset[str] = frozenset(execute)
+        self.delay_s = delay_s
+        #: Every launch, in the order they arrived.
+        self.launches: list[StubLaunch] = []
+        #: Every Python task a stub run played, in the order they ran.
+        self.played: list[StubTask] = []
+        self._counts: dict[tuple[str, str], int] = {}
+        #: Each session's cost so far, for a name whose coding agent reports that on a resume.
+        self._session_costs: dict[str, float] = {}
+        #: The sessions whose output is the example, written for a reply that is the same on
+        #: every launch: the stub cannot answer a correction round or a retry with anything else.
+        self._example_sessions: set[str] = set()
+        self._lock = threading.Lock()
+
+    def backends(self, names: Iterable[str] | None = None) -> dict[str, StubAgent]:
+        """This stub under every coding-agent name (default: every registered one, and `stub`),
+        for `Pipeline(backends=...)`: a config's routes and failover hops all land on it.
+        Each answers to its own name (the journal's `agent`) and shares this one's
+        script and record of launches."""
+        return {n: self._named(n) for n in (*(names if names is not None else known_agents()), self.name)}
+
+    def _named(self, name: str) -> StubAgent:
+        view = copy.copy(self)  # shallow: the script, the launches and the lock stay shared
+        view.name = name
+        cls = backend_class(name)
+        if cls is not None:
+            view.light_launch = cls.light_launch
+            view.cost_is_session_total = cls.cost_is_session_total
+            view.tool_deny_problem = cls.tool_deny_problem  # type: ignore[method-assign]
+        return view
+
+    def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]:
+        """The launches of task `key`, of every run or of `run`."""
+        return [launch for launch in self.launches if launch.key == key and run in (None, launch.run)]
+
+    # --- Backend -----------------------------------------------------------
+
+    def argv(self, launch: Launch) -> list[str]:
+        return ["stub", "--model", launch.model or "-", "--agent", launch.role or "-"]
+
+    def env(self, launch: Launch) -> dict[str, str]:
+        return {}
+
+    def bind_credential(
+        self, credential: Credential, model: str = "", *, env: dict[str, str] | None = None, label: str = ""
+    ) -> CredentialBinding:
+        """Any credential: the stub makes no API call, so none is used in place of another."""
+        return CredentialBinding(isolated=True, isolation="stub: no API calls")
+
+    def resumable(self, launch: Launch) -> Launch:
+        return launch  # the session id in each result is enough to resume
+
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
+        """None after the example of a reply that is the same on every launch: it
+        would write that value again, so the output's checks end the task (`invalid_output`)."""
+        with self._lock:
+            if prior.session_id in self._example_sessions:
+                return None
+        return super().resumed(launch, prior, prompt)
+
+    def run(self, launch: Launch) -> LaunchResult:
+        started = time.monotonic()
+        call_path = CallFile.path_of(launch)
+        if call_path is None and launch.prompt == PROBE_PROMPT:
+            return self._result(launch, started, writes_nothing())  # a preflight's probe answers
+        if call_path is None:
+            return self._result(launch, started, fails(reason="stub: no call file (an agent task without a call file)"))
+        call = CallFile.read(call_path)
+        self.mark_launch(launch)
+        self._tool(launch, f"{call.key}-read", "Read", str(call_path), json.dumps(call.params, ensure_ascii=False)[:2000])
+        record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
+        message: list[str] = []  # the final message, for an output taken from it
+        reply = self._play(launch, call, record, message)
+        fixed = self._fixed_example(record) and reply.stop is Stop.COMPLETED and call.output is not None
+        objections: list[list[str]] = []
+        # A stop hook's objection to the example would get the same value back.
+        while reply.stop is Stop.COMPLETED and not fixed and self._continues_on_stop_hook():
+            said = self._stop_hooks(launch, active=bool(objections))
+            if said is None or len(objections) >= _MAX_HOOK_OBJECTIONS:
+                break
+            objections.append(feedback_errors(said))
+            self._text(launch, f"stop hook: {said}")
+            reply = self._play(launch, call, self._record(launch, call, prompt=said, in_turn=True), message)
+        self._text(launch, message[-1] if message else f"stub: {_describe(reply)}")
+        result = self._result(launch, started, reply)
+        result.hook_errors = objections
+        result.result_text = message[-1] if message else ""
+        if fixed:
+            result.retryable = False  # another attempt writes the same value
+            with self._lock:
+                self._example_sessions.add(result.session_id)
+        return result
+
+    def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_turn: bool) -> StubLaunch:
+        with self._lock:
+            n = self._counts[call.run, call.key] = self._counts.get((call.run, call.key), 0) + 1
+            record = StubLaunch(
+                run=call.run,
+                key=call.key,
+                kind=call.kind,
+                unit=call.unit,
+                params=call.params,
+                model=launch.model,
+                role=launch.role,
+                n=n,
+                resumed=bool(launch.resume) and not in_turn,
+                prompt=prompt,
+                call=call,
+                launch=launch,
+                in_turn=in_turn,
+            )
+            self.launches.append(record)
+        return record
+
+    def _play(self, launch: Launch, call: CallFile, record: StubLaunch, message: list[str]) -> Reply:
+        """The scripted reply to `record`, its output written: to the output file, or, for an
+        output taken from the final message, to `message`."""
+        reply = self._reply(record)
+        if self.delay_s:
+            time.sleep(self.delay_s)
+        if reply.stop is Stop.COMPLETED and reply.output is not _UNSET:
+            if call.output is None:
+                if reply.output is _EXAMPLE:
+                    return writes_nothing()  # the example of a task with no output
+                return fails(reason=f"stub: {call.key} declares no output, but its reply writes one")
+            if reply.output is _EXAMPLE:
+                if record.resumed or record.in_turn:
+                    # The same value again cannot pass: the checks that refused it are not the schema's.
+                    return fails(reason=f"stub: the example of {call.key} fails its checks; script a reply for it")
+                schema = call.output.json_schema
+                text = call.output.format == "text" and not schema.get("examples")
+                value, problems = ("stub", []) if text else example(schema)
+                if problems:
+                    return fails(reason=f"stub: no example for {call.key}: {'; '.join(problems)}")
+                value = fill_example(value, unit=call.unit, key=call.key, kind=call.kind, params=call.params)
+                reply = writes(value, cost_usd=reply.cost_usd)
+            text = _text_of(reply.output)
+            if call.output.from_ == "message":
+                message.append(text)
+                return reply
+            path = Path(call.output.path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            self._tool(launch, f"{call.key}-{record.n}-write", "Write", call.output.path, "ok")
+        return reply
+
+    def _stop_hooks_file(self) -> str | None:
+        """The rendered hooks file whose Stop hooks the coding agent this stub plays runs,
+        continuing its turn when one objects (`Backend.stop_hooks_file`); None when it does not."""
+        cls = backend_class(self.name)
+        return cls.stop_hooks_file if cls is not None else None
+
+    def _continues_on_stop_hook(self) -> bool:
+        """Whether the coding agent this stub plays continues its turn when a stop hook objects."""
+        return self._stop_hooks_file() is not None
+
+    def _stop_hooks(self, launch: Launch, *, active: bool) -> str | None:
+        """Run the launch's plugins' Stop hooks as the coding agent does; what the first one
+        that objects (exit 2) says, or None when they all let the agent stop."""
+        payload = json.dumps({"hook_event_name": "Stop", "stop_hook_active": active, "session_id": launch.label})
+        for plugin_dir in launch.plugin_dirs:
+            rendered = Path(plugin_dir) / (self._stop_hooks_file() or "")
+            try:
+                declared = json.loads(rendered.read_text()).get("hooks", {}).get("Stop", [])
+            except (OSError, ValueError):
+                continue
+            env = {**os.environ, **launch.env, "CLAUDE_PLUGIN_ROOT": str(plugin_dir)}
+            for command in (h.get("command", "") for group in declared for h in group.get("hooks", [])):
+                proc = subprocess.run(
+                    ["bash", "-c", command], input=payload, capture_output=True, text=True, cwd=launch.cwd, env=env, timeout=120
+                )
+                if proc.returncode == 2:
+                    return proc.stderr.strip() or "the stop hook objected"
+        return None
+
+    # --- a stub run's Python tasks --------------------------------------------
+
+    def plays(self, kind: str) -> bool:
+        """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
+        return kind not in self.execute
+
+    def play_python(
+        self, run: str, key: str, kind: str, unit: str, params: dict[str, Any], json_schema: dict[str, Any] | None
+    ) -> tuple[bool, Any]:
+        """A stub run's Python task: (whether it returns an output, the output). `json_schema`
+        is its output's schema, None for a task with no output. A failure raises, as the
+        function would."""
+        with self._lock:
+            n = self._counts[run, key] = self._counts.get((run, key), 0) + 1
+            task = StubTask(run=run, key=key, kind=kind, unit=unit, params=params, n=n)
+            self.played.append(task)
+        reply = self._reply(task)
+        if reply.stop is not Stop.COMPLETED:
+            raise RuntimeError(reply.reason or f"stub: {reply.stop.value}")
+        if reply.output is _UNSET:
+            return False, None
+        if reply.output is _EXAMPLE:
+            if json_schema is None:
+                return False, None
+            value, problems = example(json_schema)
+            if problems:
+                raise RuntimeError(f"stub: no example for {key}: {'; '.join(problems)}")
+            return True, fill_example(value, unit=unit, key=key, kind=kind, params=params)
+        return True, reply.output
+
+    # --- internals ---------------------------------------------------------
+
+    def _entry(self, launch: StubLaunch | StubTask) -> Any:
+        return self.script.get(launch.key, self.script.get(launch.kind, self.default))
+
+    def _fixed_example(self, launch: StubLaunch) -> bool:
+        """Whether `launch`'s reply is `writes_example()` on every launch of its task (not a
+        list of replies, not a callable)."""
+        entry = self._entry(launch)
+        return isinstance(entry, Reply) and entry.output is _EXAMPLE
+
+    def _reply(self, launch: StubLaunch | StubTask) -> Reply:
+        entry = self._entry(launch)
+        if entry is _UNSET:
+            scripted = ", ".join(sorted(self.script)) or "nothing"
+            return fails(reason=f"stub: no reply scripted for {launch.key} (kind {launch.kind}); scripted: {scripted}")
+        if isinstance(entry, (list, tuple)):
+            if not entry:
+                return fails(reason=f"stub: the reply list for {launch.key} is empty")
+            entry = entry[min(launch.n, len(entry)) - 1]
+        if callable(entry) and not isinstance(entry, type):
+            entry = entry(launch)
+        return entry if isinstance(entry, Reply) else writes(entry)
+
+    # The transcript, in the stream format the monitor reads for this name (`claude`'s or `omp`'s).
+
+    def _text(self, launch: Launch, text: str) -> None:
+        if resolve_format(self.name) == "claude":
+            self._emit(launch, {"type": "assistant", "message": {"content": [{"type": "text", "text": text}]}})
+        else:
+            self._emit(launch, {"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": text + "\n"}})
+
+    def _tool(self, launch: Launch, cid: str, name: str, path: str, output: str) -> None:
+        if resolve_format(self.name) == "claude":
+            self._emit(
+                launch,
+                {
+                    "type": "assistant",
+                    "message": {"content": [{"type": "tool_use", "id": cid, "name": name, "input": {"file_path": path}}]},
+                },
+            )
+            self._emit(launch, {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": cid, "content": output}]}})
+        else:
+            self._emit(launch, {"type": "tool_execution_start", "toolCallId": cid, "toolName": name.lower(), "args": {"path": path}})
+            done = {"type": "tool_execution_end", "toolCallId": cid, "toolName": name.lower(), "isError": False}
+            self._emit(launch, {**done, "result": {"content": [{"type": "text", "text": output}]}})
+
+    def _emit(self, launch: Launch, event: dict[str, Any]) -> None:
+        if launch.stream_path is None:
+            return
+        with open(launch.stream_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+    def _result(self, launch: Launch, started: float, reply: Reply) -> LaunchResult:
+        session = launch.resume or f"stub-{launch.label}-{time.monotonic_ns()}"
+        cost = reply.cost_usd
+        if cost is not None and self.cost_is_session_total:
+            # As the coding agent it plays reports it: a resumed session's cost so far.
+            with self._lock:
+                cost = self._session_costs[session] = self._session_costs.get(session, 0.0) + cost
+        return LaunchResult(
+            label=launch.label,
+            agent=self.name,
+            stop=reply.stop,
+            ok=reply.stop is Stop.COMPLETED,
+            model=launch.model,
+            credential=launch.credential.label,
+            wall_s=round(time.monotonic() - started, 3),
+            session_id=session,
+            cost_usd=cost,
+            quota=[_observed(reply.quota)] if reply.quota is not None else [],
+            quota_refusal=reply.quota_refusal,
+            stderr_tail=reply.reason,
+            usage=Usage(calls=[CallUsage(launch.model, reply.peak_context, 0, 0, 0)]) if reply.peak_context is not None else Usage(),
+            context_window=reply.context_window,
+        )
+
+
+def _observed(reading: QuotaReading) -> QuotaReading:
+    """The reading with the time it arrived, now when the script gives none."""
+    if reading.observed_at:
+        return reading
+    return reading.model_copy(update={"observed_at": now_iso()})
+
+
+def _text_of(value: Any) -> str:
+    """An output as its file holds it: a model or a JSON value as JSON, a `str` as is."""
+    if isinstance(value, BaseModel):
+        return value.model_dump_json(indent=2)
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def _describe(reply: Reply) -> str:
+    if reply.stop is not Stop.COMPLETED:
+        return f"{reply.stop.value}: {reply.reason}"
+    return "wrote the output" if reply.output is not _UNSET else "wrote nothing"
+
+
+__all__ = [
+    "Reply",
+    "StubAgent",
+    "StubLaunch",
+    "StubTask",
+    "fails",
+    "rate_limited",
+    "writes",
+    "writes_nothing",
+    "writes_example",
+]

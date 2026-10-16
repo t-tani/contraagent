@@ -8,26 +8,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    AgentRunner,
-    Backend,
-    KindConfig,
-    LaunchResult,
-    Pipeline,
-    PipelineConfig,
-    RateLimit,
-    Route,
-    Router,
-    Stop,
-    Task,
-    TaskAdapter,
-    TaskResult,
-    agent_task,
-)
-from contraagent.dispatch import Deferral
-from contraagent.dispatch.queue import WorkQueue
-from contraagent.monitor import Monitor, api
-from contraagent.routing.quota import QuotaRests
+from contraagent import Pipeline, PipelineConfig, Task, TaskResult, agent_task
+from contraagent._internal.monitor import api
+from contraagent.backends import Backend, LaunchResult, Stop
+from contraagent.config import KindConfig, QuotaReading, Route
+from contraagent.engine import AgentRunner, Deferral, QuotaRests, Router, TaskAdapter, WorkQueue
+from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 
 NOW = datetime(2026, 10, 14, 12, 0, tzinfo=UTC)
@@ -37,8 +23,8 @@ def iso(t: datetime) -> str:
     return t.isoformat()
 
 
-def reading(credential="personal", five=None, week=None, *, resets=NOW + timedelta(hours=2), observed=NOW) -> RateLimit:
-    return RateLimit(
+def reading(credential="personal", five=None, week=None, *, resets=NOW + timedelta(hours=2), observed=NOW) -> QuotaReading:
+    return QuotaReading(
         five_hour_pct=five,
         five_hour_resets_at=iso(resets) if resets else None,
         seven_day_pct=week,
@@ -234,7 +220,7 @@ class Agent(Backend):
             stop=Stop.COMPLETED,
             ok=True,
             model=launch.model,
-            rate_limits=readings,
+            quota=readings,
         )
 
 
@@ -262,10 +248,10 @@ def test_a_resting_hop_is_skipped_without_a_launch(tmp_path):
     agent.seen.clear()
     second = r.run(Task("k", key="t2"))
     assert second.ok and agent.seen == ["sub-b"]
-    assert [h["credential"] for h in second.hops] == ["sub-b"]  # a skipped hop is no hop
+    assert [h.credential for h in second.hops] == ["sub-b"]  # a skipped hop is no hop
     assert second.reason == "personal rests: 5-hour usage 95%, max 90%; ran on hop 2/2 claude/m2@sub-b"
     [skipped] = second.skipped_hops
-    assert (skipped["route"], skipped["model"], skipped["credential"], skipped["window"], skipped["pct"], skipped["cap"]) == (
+    assert (skipped.route, skipped.model, skipped.credential, skipped.window, skipped.pct, skipped.cap) == (
         "hop 1/2 claude/m1@personal",
         "m1",
         "personal",
@@ -282,8 +268,8 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
     assert r.run(Task("k", key="t1")).ok
     deferral = r.deferral(Task("k", key="t2"))
     assert deferral is not None and deferral.reason == "personal rests: 5-hour usage 95%, max 90%"
-    assert deferral.cause["cause"] == "rest"
-    [rest] = deferral.cause["rests"]
+    assert deferral.cause.cause == "rest"
+    [rest] = deferral.cause.to_dict()["rests"]
     assert rest | {"until": ""} == {
         "route": "hop 1/1 claude/m1@personal",
         "model": "m1",
@@ -298,7 +284,7 @@ def test_with_no_hop_left_the_task_is_deferred(tmp_path):
     assert rest["until"] == iso(NOW + timedelta(hours=2))  # the window's reset
     res = r.run(Task("k", key="t2"))
     assert res.stop == "deferred" and not res.ok and res.reason.startswith("personal rests")
-    assert res.cause is not None and res.cause["cause"] == "rest"
+    assert res.cause is not None and res.cause.cause == "rest"
     assert agent.seen == ["personal"]
 
 
@@ -373,7 +359,7 @@ def seed(tmp_path, five):
         "kind": "x",
         "stop": "completed",
         "ok": True,
-        "quota": [reading(five=five).__dict__ | {"credential": "personal"}],
+        "quota": [reading(five=five).model_dump() | {"credential": "personal"}],
     }
     # A reading taken now, its window resetting in two hours from the real clock.
     row["quota"][0]["observed_at"] = datetime.now(UTC).isoformat()
@@ -399,7 +385,8 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
     cfg = config(tmp_path, '\n[defaults]\ncredential = "personal"\n')
     stub = StubAgent({"note": lambda launch: {"text": launch.unit}})
     report = Pipeline(cfg, runs_dir=tmp_path / "runs", backends=stub.backends(), cwd=tmp_path).run(flow, units=["a", "b"])
-    assert not report.ok and sorted(report.summary["deferred"]) == ["note-a", "note-b"]
+    assert report.ok and not report.failed and sorted(report.summary["deferred"]) == ["note-a", "note-b"]  # deferred: no failure
+    assert sorted(r.task.key for r in report.deferred) == ["note-a", "note-b"]
     assert stub.launches == []
     assert not (report.run_dir / "journal.jsonl").exists() or (report.run_dir / "journal.jsonl").read_text() == ""
     rows = [json.loads(line) for line in (report.run_dir / "deferred.jsonl").read_text().splitlines()]
@@ -423,7 +410,8 @@ def test_with_no_hop_left_the_run_defers_and_records_why(tmp_path):
 
 
 def test_a_queued_task_waits_only_in_a_live_run(tmp_path):
-    from contraagent.monitor.source import DirectorySource, StaticLiveness
+    from contraagent._internal.runs.liveness import StaticLiveness
+    from contraagent.monitor import DirectorySource
 
     run = tmp_path / "runs" / "r"
     run.mkdir(parents=True)
@@ -482,7 +470,7 @@ def test_the_queue_records_its_own_causes(tmp_path):
         def run(self, task):
             return TaskResult(task=task, ok=True, stop="completed")
 
-    q = WorkQueue(Never(), on_event=lambda e, t, **f: events.append((e, f.get("cause"))) if e == "deferred" else None)
+    q = WorkQueue(Never(), on_event=lambda e, t, **f: events.append((e, f["cause"].to_dict())) if e == "deferred" else None)
     q.add(Task("k", key="x", after=("never-queued",)))
     q.run()
     assert events == [("deferred", {"cause": "dependency_not_queued"})]
@@ -495,7 +483,8 @@ def test_a_cap_is_a_percentage(tmp_path, bad):
 
 
 def test_the_hosts_view_names_each_account_s_rests_in_force(tmp_path):
-    from contraagent.monitor.source import DirectorySource, StaticLiveness
+    from contraagent._internal.runs.liveness import StaticLiveness
+    from contraagent.monitor import DirectorySource
 
     def run(name: str, rests: list[dict]) -> None:
         d = tmp_path / "runs" / name

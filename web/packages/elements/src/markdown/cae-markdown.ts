@@ -28,6 +28,8 @@ export class CaeMarkdown extends LitElement {
     prose,
     css`
       :host { display: block; }
+      /* A path or a URL has no break opportunity; it wraps inside the box instead of widening it. */
+      .md-p, .md-h, .md-li, .md-q { overflow-wrap: anywhere; }
       .bar { display: flex; justify-content: flex-end; margin-bottom: 4px; }
     `,
   ];

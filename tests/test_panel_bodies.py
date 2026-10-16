@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from contraagent.monitor import Monitor, Panel, Period, PeriodRuns, api
-from contraagent.monitor.core import panel_body
-from contraagent.monitor.source import DirectorySource
+from contraagent._internal.monitor import api
+from contraagent._internal.monitor.core import panel_body
+from contraagent.monitor import DirectorySource, Monitor, Panel, Period, PeriodRuns
 
 BODY = TypeAdapter(api.PanelBody)
 
@@ -150,7 +150,7 @@ def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     write_run(tmp_path, "r1", ROWS)
     bad = Panel(lambda run: {"type": "hbars", "bars": [{"label": "x"}]}, title="bad")
@@ -167,7 +167,8 @@ def test_the_server_sends_a_run_panel_and_lists_each_panel_s_scope(tmp_path):
 
 def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
-    from contraagent.monitor import server
+    from contraagent._internal.cli import main as cli_main
+    from contraagent._internal.monitor import server
 
     views = tmp_path / "views.py"
     views.write_text(
@@ -177,20 +178,21 @@ def test_the_monitor_command_loads_panels_groups_and_task_detail(tmp_path, monke
         "def detail(run, key, rows):\n    return {'n': len(rows)}\n"
     )
     seen = {}
-    monkeypatch.setattr(server, "serve", lambda monitor, *a, **k: seen.setdefault("monitor", monitor))
+    monkeypatch.setattr(server, "bind_option", lambda host, port: None)
+    monkeypatch.setattr(server, "_serve", lambda monitor, *a, **k: seen.setdefault("monitor", monitor))
     monkeypatch.chdir(tmp_path)
     argv = ["--runs-dir", str(tmp_path), "--panels", f"{views}:PANELS", "--groups", "views.py:GROUPS"]
-    assert server.main([*argv, "--task-detail", "views:detail"]) == 0
+    assert cli_main(["monitor", *argv, "--task-detail", "views:detail"]) == 0
     mon = seen["monitor"]
     assert list(mon.panels) == ["facts"] and mon.group_defs[0]["id"] == "all"
     assert mon.task_detail_fn("r", "k", [1, 2]) == {"n": 2}
-    assert server.main(["--panels", "views.py"]) == 2
-    assert server.main(["--panels", "nowhere.py:PANELS"]) == 2
+    assert cli_main(["monitor", "--panels", "views.py"]) == 2
+    assert cli_main(["monitor", "--panels", "nowhere.py:PANELS"]) == 2
 
 
 def test_the_example_s_panels_load_as_the_command_would(tmp_path, monkeypatch):
+    from contraagent._internal.commandline import load_attr
     from contraagent.docs.examples.panels import views
-    from contraagent.monitor.server import load_attr
 
     monkeypatch.chdir(tmp_path)
     assert load_attr(f"{os.path.abspath(views.__file__)}:PANELS").keys() == {"spend", "cost"}

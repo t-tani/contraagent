@@ -1,0 +1,344 @@
+---
+// The landing page's replay of the demo pipeline's showcase run (./replay.ts plays it).
+import { code, TASKS, timeline } from './timeline';
+
+const lines = code();
+const data = timeline();
+const { t0, t1, plan, moments } = data;
+const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const done = plan.nodes.filter((n) => n.state === 'done').length;
+const file = TASKS.split('/').slice(-3).join('/');
+---
+
+<section class="rr not-content" data-run-replay data-ca-theme="contraagent-dark" aria-labelledby="rr-title">
+  <script is:inline>
+    // Before the first paint: the replay starts from its first frame (with reduced motion it shows the last).
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.currentScript.parentElement.classList.add('rr-js');
+  </script>
+  <h2 id="rr-title" class="rr-title">A run of the demo pipeline, replayed</h2>
+
+  <div class="rr-window">
+    <div class="rr-bar">
+      <span class="rr-status" aria-hidden="true">Run {data.run} | finished | {done} of {plan.nodes.length} done | {clock(t1 - t0)}</span>
+      <button class="rr-toggle" type="button" data-state="playing">Pause</button>
+      <div class="rr-progress" aria-hidden="true"><div class="rr-progress-bar"></div></div>
+    </div>
+
+    <div class="rr-grid">
+      <div class="rr-pane rr-code">
+        <div class="rr-head"><span class="rr-head-title">{file}</span><span class="rr-head-note">quoted from the tested example</span></div>
+        <div class="rr-pre" role="region" tabindex="0" aria-label={`Lines of ${file}`}>{
+          lines.map((l) =>
+            l.n ? (
+              <div class="rr-line" data-n={l.n}><span class="rr-n" aria-hidden="true">{l.n}</span><code set:html={l.html || ' '} /><span class="rr-badge" aria-hidden="true" /></div>
+            ) : (
+              <div class="rr-line rr-gap" aria-hidden="true"><span class="rr-n">⋮</span><code> </code></div>
+            ),
+          )
+        }</div>
+      </div>
+
+      <div class="rr-pane rr-graph">
+        <div class="rr-head"><span class="rr-head-title">Pipeline graph</span><code class="rr-head-tag">&lt;ca-pipeline-graph&gt;</code></div>
+        <div class="rr-body"><ca-pipeline-graph></ca-pipeline-graph></div>
+      </div>
+
+      <div class="rr-pane rr-kpis">
+        <div class="rr-head"><span class="rr-head-title">The run in numbers</span><code class="rr-head-tag">&lt;ca-kpis&gt;</code></div>
+        <div class="rr-body"><ca-kpis></ca-kpis></div>
+      </div>
+
+      <div class="rr-pane rr-transcript">
+        <div class="rr-head"><span class="rr-head-title">Transcript <span class="rr-spot-name">{data.spots[0]?.name}</span></span><code class="rr-head-tag">&lt;ca-transcript&gt;</code></div>
+        <div class="rr-body"><ca-transcript></ca-transcript></div>
+      </div>
+    </div>
+  </div>
+
+  <ol class="rr-moments" aria-label="What happened in the run">
+    {
+      moments.map((m) => (
+        <li class="rr-moment" data-at={m.at.toFixed(2)}>
+          <span class="rr-at">{clock(m.at)}</span>
+          <span class="rr-text">{m.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="rr-lede">
+    The flow is the demo pipeline of the package's examples. Its run on the demo agent plays again from its records in
+    <code>&lt;ca-pipeline-graph&gt;</code>, <code>&lt;ca-kpis&gt;</code> and <code>&lt;ca-transcript&gt;</code>, the elements of
+    the monitor. A highlighted line of code has running tasks that it created.
+  </p>
+
+  <script type="application/json" set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
+</section>
+
+<script>
+  import './replay';
+</script>
+
+<style>
+  .rr {
+    --rr-radius: 14px;
+    --rr-mono: var(--sl-font-mono, var(--sl-font-system-mono));
+    margin: 0 0 4rem;
+  }
+  .rr-title {
+    font-size: var(--sl-text-2xl);
+    line-height: 1.2;
+    margin: 0 0 1rem;
+    color: var(--sl-color-white);
+  }
+  .rr-lede {
+    max-width: 46rem;
+    margin: 1.5rem 0 0;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-base);
+  }
+  .rr-lede code { font-size: 0.85em; }
+
+  .rr-window {
+    position: relative;
+    background: var(--ca-backdrop);
+    color: var(--ca-text);
+    border: 1px solid var(--ca-line);
+    border-radius: var(--rr-radius);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--ca-text) 6%, transparent) inset, 0 30px 80px -30px color-mix(in srgb, var(--ca-shadow) 80%, transparent);
+    overflow: hidden;
+    font: 13px/1.5 var(--sl-font, var(--sl-font-system));
+  }
+  .rr-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--ca-line);
+    background: color-mix(in srgb, var(--ca-card) 70%, transparent);
+  }
+  .rr-status {
+    flex: 1;
+    min-width: 0;
+    font: 12px/1.4 var(--rr-mono);
+    color: var(--ca-text-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rr[data-phase='running'] .rr-status::before,
+  .rr[data-phase='finished'] .rr-status::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    vertical-align: 0;
+    background: var(--ca-status-running);
+    box-shadow: 0 0 0 0 var(--ca-status-running);
+    animation: rr-pulse 1.6s ease-out infinite;
+  }
+  .rr[data-phase='finished'] .rr-status::before { background: var(--ca-status-done); animation: none; }
+  .rr-paused .rr-status::before { animation-play-state: paused; }
+  @keyframes rr-pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ca-status-running) 60%, transparent); }
+    100% { box-shadow: 0 0 0 8px transparent; }
+  }
+  .rr-toggle {
+    flex: none;
+    font: 600 12px/1 var(--sl-font, var(--sl-font-system));
+    color: var(--ca-text);
+    background: var(--ca-raise);
+    border: 1px solid var(--ca-line2);
+    border-radius: 999px;
+    padding: 6px 12px 6px 28px;
+    cursor: pointer;
+    position: relative;
+  }
+  .rr-toggle::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    width: 9px;
+    height: 10px;
+    transform: translateY(-50%);
+    background: currentColor;
+    clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%, 65% 0);
+  }
+  .rr-toggle[data-state='paused']::before { clip-path: polygon(0 0, 100% 50%, 0 100%); }
+  .rr-toggle[data-state='ended']::before {
+    width: 10px;
+    height: 10px;
+    background: none;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    box-sizing: border-box;
+    clip-path: none;
+  }
+  .rr-toggle:hover { background: var(--ca-panel2); }
+  .rr-toggle:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: 2px; }
+  .rr:not(.rr-js) .rr-toggle { display: none; }
+  .rr-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; }
+  .rr-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ca-accent), var(--ca-agent));
+    transform-origin: 0 50%;
+    transform: scaleX(1);
+    will-change: transform;
+  }
+  .rr-js .rr-progress-bar { transform: scaleX(0); }
+
+  .rr-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+    background: var(--ca-line);
+  }
+  @media (min-width: 72rem) {
+    .rr-grid {
+      grid-template-columns: minmax(0, 37.5rem) minmax(0, 1fr);
+      grid-template-rows: auto 1fr auto;
+      grid-template-areas: 'code graph' 'transcript graph' 'kpis kpis';
+    }
+    .rr-code { grid-area: code; }
+    .rr-graph { grid-area: graph; }
+    .rr-kpis { grid-area: kpis; }
+    .rr-transcript { grid-area: transcript; }
+  }
+  .rr-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: color-mix(in srgb, var(--ca-bg) 82%, transparent);
+  }
+  .rr-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px 0;
+    font-size: 12px;
+    color: var(--ca-text-muted);
+  }
+  .rr-head-title { color: var(--ca-text-2); font-weight: 600; }
+  .rr-head-tag, .rr-head-note { margin-left: auto; font: 11px var(--rr-mono); color: var(--ca-text-muted); background: none; padding: 0; }
+  .rr-head-note { font-family: var(--sl-font, var(--sl-font-system)); }
+  .rr-spot-name { font-weight: 400; color: var(--ca-text-muted); margin-left: 6px; font-family: var(--rr-mono); }
+  .rr-body { padding: 10px 14px 14px; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+
+  /* The code: a line per row, its number in the gutter, a bar while it has tasks running. */
+  .rr-pre {
+    margin: 0;
+    padding: 10px 0 16px;
+    overflow-x: auto;
+    background: none;
+    border: 0;
+    font: 12px/1.65 var(--rr-mono);
+    color: var(--ca-text);
+    flex: 1;
+  }
+  .rr-pre:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: -2px; }
+  .rr-line {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3.2rem max-content;
+    align-items: baseline;
+    padding-right: 14px;
+    transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .rr-line::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 0;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--ca-status-running) 22%, transparent), color-mix(in srgb, var(--ca-status-running) 4%, transparent) 70%);
+    border-left: 2px solid var(--ca-status-running);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .rr-line.rr-live::before { opacity: 1; }
+  .rr-js .rr-line:not(.rr-on) { opacity: 0; transform: translateX(-6px); }
+  .rr-n { text-align: right; padding-right: 1rem; color: var(--ca-text-muted); opacity: 0.7; user-select: none; }
+  .rr-gap .rr-n { opacity: 0.5; }
+  .rr-line code { background: none; padding: 0; font: inherit; color: inherit; white-space: pre; }
+  .rr-badge {
+    position: absolute;
+    right: 10px;
+    /* One width for every count: the pill does not move as its text changes. */
+    min-width: 5.4rem;
+    box-sizing: border-box;
+    text-align: center;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0 7px;
+    border-radius: 999px;
+    font: 600 10.5px/1.7 var(--sl-font, var(--sl-font-system));
+    color: var(--ca-status-running);
+    background: color-mix(in srgb, var(--ca-status-running) 14%, var(--ca-bg));
+    border: 1px solid color-mix(in srgb, var(--ca-status-running) 45%, transparent);
+    white-space: nowrap;
+    transition: opacity 0.3s ease;
+  }
+  .rr-badge:empty { opacity: 0; }
+  .rr-code :global(.t-keyword) { color: var(--ca-code-keyword); }
+  .rr-code :global(.t-string) { color: var(--ca-code-string); }
+  .rr-code :global(.t-number) { color: var(--ca-code-number); }
+  .rr-code :global(.t-constant) { color: var(--ca-code-constant); }
+  .rr-code :global(.t-comment) { color: var(--ca-code-comment); }
+  .rr-code :global(.t-function) { color: var(--ca-code-function); }
+  .rr-code :global(.t-type) { color: var(--ca-code-type); }
+  .rr-code :global(.t-name) { color: var(--ca-code-name); }
+
+  .rr-graph .rr-body, .rr-transcript .rr-body { transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .rr-js:not(.rr-graph-on) .rr-graph .rr-body,
+  .rr-js:not(.rr-graph-on) .rr-transcript .rr-body { opacity: 0; transform: translateY(10px) scale(0.985); }
+  .rr-graph .rr-body { min-height: 30rem; }
+  .rr-transcript .rr-body { height: 21rem; overflow: hidden; }
+  @media (min-width: 72rem) {
+    /* A fixed height: the panel does not change size while the graph beside it grows. */
+    .rr-transcript .rr-body { flex: none; height: 19.5rem; }
+  }
+  .rr-kpis .rr-body { justify-content: flex-start; }
+
+  /* The moments of the run, in the order they happened; with the replay, each lights as it happens. */
+  .rr-moments {
+    list-style: none;
+    padding: 0;
+    margin: 1.25rem 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.75rem 1.25rem;
+  }
+  .rr-moment {
+    margin: 0;
+    padding: 0.6rem 0 0;
+    border-top: 2px solid var(--sl-color-gray-5);
+    font-size: var(--sl-text-sm);
+    line-height: 1.45;
+    color: var(--sl-color-gray-2);
+    transition: opacity 0.4s ease, border-color 0.4s ease;
+  }
+  .rr-at { display: block; font: 600 var(--sl-text-xs) var(--rr-mono); color: var(--sl-color-gray-3); margin-bottom: 0.2rem; font-variant-numeric: tabular-nums; }
+  .rr-js .rr-moment:not(.rr-past) { opacity: 0.4; }
+  .rr-moment.rr-past { border-top-color: var(--sl-color-gray-3); }
+  .rr-moment.rr-now { border-top-color: var(--sl-color-accent); }
+  .rr-moment.rr-now .rr-at { color: var(--sl-color-text-accent); }
+
+  @media (max-width: 40rem) {
+    .rr-head-note { display: none; }
+    .rr-status { white-space: normal; }
+    .rr-badge { display: none; }
+    .rr-pre { font-size: 11.5px; }
+    .rr-line { grid-template-columns: 2.4rem max-content; }
+    .rr-n { padding-right: 0.6rem; }
+    .rr-transcript .rr-body { height: 18rem; }
+    .rr-graph .rr-body { min-height: 20rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rr *, .rr *::before { transition: none !important; animation: none !important; }
+  }
+</style>

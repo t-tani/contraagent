@@ -6,7 +6,8 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { highlight, mdFile } from '@contraagent/elements/markdown';
 import { instructionsHtml, markInstructions } from '../../words/prompt.js';
 import { facts as row } from '../../words/format.js';
-import { implementationOfLabel, implementationOfTip, outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText, retriesTip } from '../../words/task-definition.js';
+import { retryTip } from '../../words/attempts.js';
+import { implementationOfLabel, implementationOfTip, outputOfText, outputOfTip, preserveLabel, preserveTip, retriedExceptionsLabel, retriedExceptionsTip, retriesLabel, retriesText } from '../../words/task-definition.js';
 import { RememberedSet } from '../../core/memory.js';
 import { base, factStyles, prose } from '@contraagent/elements/styles';
 import { contractChipStyles } from './contract-parts.js';
@@ -43,9 +44,12 @@ export class CaDefinition extends LitElement {
       .ct-in { display: flex; align-items: center; gap: 10px; padding: 5px 4px; border-top: 1px solid var(--line); }
       .df { border-top: 1px solid var(--line); }
       /* A file: its name opens and closes it (a disclosure button), and a Markdown file has its own toggle beside it. */
-      .df-hd { padding: 6px 2px; display: flex; gap: 10px; align-items: center; }
-      .df-sum { flex: 1 1 auto; min-width: 0; display: flex; gap: 10px; align-items: center; padding: 0; background: none; border: 0;
+      /* Too narrow for the name and the toggle on one line: the toggle goes under the name. */
+      .df-hd { padding: 6px 2px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+      .df-sum { flex: 1 1 16em; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 0; background: none; border: 0;
         color: inherit; text-align: start; cursor: pointer; }
+      .df-sum .jmono { min-width: 0; overflow-wrap: anywhere; }
+      .df-tog { flex: none; margin-inline-start: auto; }
       .df-sum::before { content: '▸'; color: var(--text-muted); width: 10px; flex: none; transition: transform 0.15s; }
       .df-sum[aria-expanded='true']::before { transform: rotate(90deg); }
       .py-sig { font-family: var(--mono); font-size: 14px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line);
@@ -135,7 +139,7 @@ export class CaDefinition extends LitElement {
       [msg('Parameters'), def.params && def.params !== 'none' ? def.params : msg('none', { id: 'none', desc: 'An empty value' })],
       [msg('Output', { id: 'definition-output', desc: 'The output file of a task definition' }), def.output && def.output !== 'none' ? def.output : msg('none', { id: 'none', desc: 'An empty value' })],
       ...((def.validators || []).length ? [[msg('Other checks'), (def.validators || []).join(', ')] as [string, string]] : []),
-      ...(def.retries ? [[retriesLabel(), html`<span title=${retriesTip()}>${retriesText(def.retries)}</span>`] as [string, TemplateResult]] : []),
+      ...(def.retries ? [[retriesLabel(), html`<span title=${retryTip()}>${retriesText(def.retries)}</span>`] as [string, TemplateResult]] : []),
       ...(def.retries && retryOn.length
         ? [[retriedExceptionsLabel(), html`<span class="jmono" title=${retriedExceptionsTip()}>${retryOn.join(', ')}</span>`] as [string, TemplateResult]]
         : []),

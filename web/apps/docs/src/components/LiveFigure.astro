@@ -1,0 +1,35 @@
+---
+// A live element on a page of the web packages, in place of its screenshot or
+// under the title (scripts/collect.py, `LIVE`), drawn as the gallery draws it;
+// then links to the reference of the elements it shows.
+import Demo from './Demo.astro';
+import ElementLinks from './ElementLinks.astro';
+import Example from './Example.astro';
+
+interface Figure {
+  demo?: string;
+  props?: Record<string, string>;
+  attrs?: Record<string, string>;
+  example?: string;
+  tags: string[];
+  height?: string;
+  page?: boolean;
+  scroll?: string;
+  theme?: string;
+  custom?: string;
+  caption?: string;
+}
+interface Props { figure: Figure }
+const { figure: f } = Astro.props;
+---
+
+<div class="ca-live not-content">
+  {
+    f.demo ? (
+      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} />
+    ) : (
+      <Example name={f.example!} page={f.page} theme={f.theme} custom={f.custom} caption={f.caption} source="none" />
+    )
+  }
+  {f.tags.length > 0 && <ElementLinks tags={f.tags} />}
+</div>

@@ -19,12 +19,14 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from contraagent import rundir
-from contraagent.hub import server
-from contraagent.hub.core import Hub, PruneReport
-from contraagent.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
-from contraagent.hub.retention import Pruner, default_prune_every, report_line
-from contraagent.hub.store import DirectoryBlobs, MemoryBlobs, MemoryHubStore
+from contraagent._internal.cli import main as cli_main
+from contraagent._internal.commandline import UsageError
+from contraagent._internal.hub import server
+from contraagent._internal.hub.core import Hub, PruneReport
+from contraagent._internal.hub.protocol import DocumentPut, Heartbeat, LogChunk, RecordBatch, RunLiveness, RunRef
+from contraagent._internal.hub.retention import Pruner, default_prune_every, report_line
+from contraagent._internal.hub.store import DirectoryBlobs, MemoryBlobs, MemoryHubStore
+from contraagent._internal.runs import layout
 
 NOW = datetime.now(UTC)
 OLD = NOW - timedelta(days=40)
@@ -37,8 +39,8 @@ def iso(at: datetime) -> str:
 
 def ship(store: MemoryHubStore, run_id: str, at: datetime, host: str = "h1") -> str:
     ref = RunRef(host_id=host, run_id=run_id, run_uid=f"uid-{run_id}")
-    journal = LogChunk(log=rundir.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
-    docs = [DocumentPut(name=rundir.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
+    journal = LogChunk(log=layout.JOURNAL, offset=0, lines=['{"key": "summarize-a", "ok": true}'])
+    docs = [DocumentPut(name=layout.RUN_INFO, text=f'{{"run_id": "{run_id}"}}')]
     store.put_batch(RecordBatch(run=ref, logs=[journal], documents=docs), iso(at))
     return ref.name
 
@@ -52,7 +54,7 @@ def heartbeat(store: MemoryHubStore, host: str, at: datetime, alive: list[str]) 
 
 
 def _days(flag, environ):
-    return server.retain_days(argparse.ArgumentParser(), flag, environ)
+    return server.retain_days(flag, environ)
 
 
 def test_retain_days_come_from_the_flag_then_the_environment_and_default_to_keeping_everything():
@@ -64,7 +66,7 @@ def test_retain_days_come_from_the_flag_then_the_environment_and_default_to_keep
 
 
 def test_retain_days_that_are_not_a_positive_number_are_refused():
-    with pytest.raises(SystemExit):
+    with pytest.raises(UsageError, match=server.RETENTION_ENV):
         _days(server._UNSET, {server.RETENTION_ENV: "thirty"})
     for bad in ("0", "-1", "x"):
         with pytest.raises(argparse.ArgumentTypeError):
@@ -83,7 +85,7 @@ def test_prune_every_needs_a_retention(tmp_path, monkeypatch):
     monkeypatch.delenv(server.RETENTION_ENV, raising=False)
     (tmp_path / "tokens").write_text("t\n")
     with pytest.raises(SystemExit) as exc:
-        server.main(["--ingest-token-file", str(tmp_path / "tokens"), "--prune-every", "2"])
+        cli_main(["hub", "--ingest-token-file", str(tmp_path / "tokens"), "--prune-every", "2"])
     assert exc.value.code == 2
 
 
@@ -111,7 +113,7 @@ class CountingHub(Hub):
 def test_the_thread_prunes_on_schedule_survives_an_exception_and_stops(caplog):
     hub = CountingHub(failing={1})
     pruner = Pruner(hub, older_than=timedelta(days=30), every_s=0.02, first_after_s=0.0)
-    with caplog.at_level(logging.INFO, logger="contraagent.hub.retention"):
+    with caplog.at_level(logging.INFO, logger="contraagent._internal.hub.retention"):
         pruner.start()
         assert hub.called.wait(10)
         pruner.stop()
@@ -195,7 +197,7 @@ def populated(tmp_path, monkeypatch):
 
 def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, capsys):
     store, blobs, names, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--dry-run", *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--dry-run", *argv]) == 0
     out = capsys.readouterr()
     assert "dry run: nothing removed" in out.out
     assert "Would remove: runs" in out.out and names["old"] in out.out
@@ -207,7 +209,7 @@ def test_hub_prune_dry_run_prints_the_report_and_changes_nothing(populated, caps
 
 def test_hub_prune_removes_old_runs_and_prints_json(populated, capsys):
     store, blobs, names, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--json", *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--json", *argv]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["dry_run"] is False and report["runs"] == [names["old"]]
     assert report["kept_runs"] == {names["live"]: "live"} and report["blobs"] == [sha]
@@ -218,17 +220,17 @@ def test_hub_prune_removes_old_runs_and_prints_json(populated, capsys):
 def test_hub_prune_takes_the_retention_from_the_environment_and_needs_one(populated, monkeypatch, capsys):
     store, _, names, _, argv = populated
     with pytest.raises(SystemExit) as exc:
-        server.main(["prune", *argv])
+        cli_main(["hub", "prune", *argv])
     assert exc.value.code == 2
     monkeypatch.setenv(server.RETENTION_ENV, "30")
-    assert server.main(["prune", *argv]) == 0
+    assert cli_main(["hub", "prune", *argv]) == 0
     assert names["old"] not in {e.name for e in store.runs()}
     assert "Removed: runs" in capsys.readouterr().out
 
 
 def test_a_blob_within_its_grace_is_kept(populated, capsys):
     _, blobs, _, sha, argv = populated
-    assert server.main(["prune", "--retain-days", "30", "--blob-grace-hours", str(24 * 50), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--blob-grace-hours", str(24 * 50), *argv]) == 0
     assert blobs.has(sha)
 
 
@@ -268,9 +270,9 @@ def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes
     streams = server.open_streams(str(hot), None, "memory", background=False)
     for name in (names["old"], names["recent"]):
         uid = store.entry(name).run_uid  # type: ignore[union-attr]
-        streams.append(name, uid, rundir.stream("summarize-a"), 0, ["a", "b"], iso(OLD))
-        streams.close(name, uid, rundir.stream("summarize-a"))
-        streams.append(name, uid, rundir.stream("summarize-b"), 0, ["open"], iso(OLD))
+        streams.append(name, uid, layout.stream("summarize-a"), 0, ["a", "b"], iso(OLD))
+        streams.close(name, uid, layout.stream("summarize-a"))
+        streams.append(name, uid, layout.stream("summarize-b"), 0, ["open"], iso(OLD))
     streams.shutdown()  # type: ignore[attr-defined]
 
     def files() -> list[str]:
@@ -278,10 +280,10 @@ def test_hub_prune_over_a_streams_dir_keeps_transcripts_on_a_dry_run_and_removes
 
     before = files()
     assert any("old" in f for f in before) and any(f.startswith("segments") for f in before)
-    assert server.main(["prune", "--retain-days", "30", "--dry-run", "--streams-dir", str(hot), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--dry-run", "--streams-dir", str(hot), *argv]) == 0
     assert files() == before
     capsys.readouterr()
-    assert server.main(["prune", "--retain-days", "30", "--json", "--streams-dir", str(hot), *argv]) == 0
+    assert cli_main(["hub", "prune", "--retain-days", "30", "--json", "--streams-dir", str(hot), *argv]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["runs"] == [names["old"]] and report["segments"]
     after = files()

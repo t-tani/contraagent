@@ -1,0 +1,605 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `launches.jsonl` in a run directory of run format 1.",
+  "$defs": {
+    "DeniedCall": {
+      "additionalProperties": false,
+      "description": "A tool call the coding agent refused (`denied`): the tool and the head of its input.",
+      "properties": {
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "input": {
+          "description": "the call's input as JSON, cut at 160 characters",
+          "title": "Input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "input"
+      ],
+      "title": "DeniedCall",
+      "type": "object"
+    },
+    "LaunchQuota": {
+      "additionalProperties": true,
+      "description": "The latest quota reading of a launch and its quota refusal, as `launches.jsonl` records\nthem in one (`rate_limit`): `status` `quota` for a refusal with no reading.",
+      "properties": {
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "credential": {
+          "default": "",
+          "title": "Credential",
+          "type": "string"
+        },
+        "five_hour_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Five Hour Pct"
+        },
+        "five_hour_resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Five Hour Resets At"
+        },
+        "seven_day_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seven Day Pct"
+        },
+        "seven_day_resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seven Day Resets At"
+        },
+        "status": {
+          "default": "",
+          "title": "Status",
+          "type": "string"
+        },
+        "account": {
+          "default": "",
+          "title": "Account",
+          "type": "string"
+        },
+        "status_window": {
+          "default": "",
+          "title": "Status Window",
+          "type": "string"
+        },
+        "threshold_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold Pct"
+        },
+        "overage_status": {
+          "default": "",
+          "title": "Overage Status",
+          "type": "string"
+        },
+        "overage_disabled_reason": {
+          "default": "",
+          "title": "Overage Disabled Reason",
+          "type": "string"
+        },
+        "using_overage": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Using Overage"
+        },
+        "windows": {
+          "additionalProperties": {
+            "$ref": "#/$defs/QuotaWindow"
+          },
+          "title": "Windows",
+          "type": "object"
+        },
+        "extra": {
+          "additionalProperties": true,
+          "title": "Extra",
+          "type": "object"
+        },
+        "retry_after_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the cool-off the provider stated with a quota refusal, in seconds",
+          "title": "Retry After S"
+        }
+      },
+      "title": "LaunchQuota",
+      "type": "object"
+    },
+    "LaunchUsage": {
+      "additionalProperties": false,
+      "description": "A launch's tokens as `launches.jsonl` records them (`Usage.as_dict`).",
+      "properties": {
+        "n_calls": {
+          "description": "API calls the coding agent made",
+          "title": "N Calls",
+          "type": "integer"
+        },
+        "resident": {
+          "description": "the whole input of the first API call; 0 with no call",
+          "title": "Resident",
+          "type": "integer"
+        },
+        "peak_context": {
+          "description": "the whole input of the largest API call; 0 with no call",
+          "title": "Peak Context",
+          "type": "integer"
+        },
+        "context_total": {
+          "description": "every API call's whole input, summed",
+          "title": "Context Total",
+          "type": "integer"
+        },
+        "input": {
+          "title": "Input",
+          "type": "integer"
+        },
+        "cache_read": {
+          "title": "Cache Read",
+          "type": "integer"
+        },
+        "cache_creation": {
+          "title": "Cache Creation",
+          "type": "integer"
+        },
+        "output_total": {
+          "description": "the output tokens of the launch's result",
+          "title": "Output Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n_calls",
+        "resident",
+        "peak_context",
+        "context_total",
+        "input",
+        "cache_read",
+        "cache_creation",
+        "output_total"
+      ],
+      "title": "LaunchUsage",
+      "type": "object"
+    },
+    "QuotaWindow": {
+      "additionalProperties": true,
+      "description": "One window of a reading: its utilization (%) and when it resets (ISO 8601).",
+      "properties": {
+        "pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pct"
+        },
+        "resets_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resets At"
+        }
+      },
+      "title": "QuotaWindow",
+      "type": "object"
+    },
+    "Stop": {
+      "description": "Why one launch ended: exactly one per launch. A task's result (`TaskResult.stop`)\nholds one of these too, or one of a task's own: `partial` (a Python task's\nplaceholder output, ok), `skipped` (a resume skipped it), `deferred` (not launched)\nor `duplicate_key` (not queued: a task with the same key was in flight).\n\n`completed`: ran to the end (`ok` still decides success). `timeout`: past `Limits.timeout_s`,\nkilled. `max_turns`: the coding agent stopped on its turn cap. `budget`: it stopped on\nits cost cap (`max_budget_usd`). `context_budget`: one API call's input passed\n`Limits.context_budget`. `stalled`: no transcript line for `Limits.stall_s`.\n`auth_failed`: a 401 or 403; a retry cannot fix the credential. `api_error`: the agent\nreported an API error (not a 429, a 401 or a refusal). `rate_limited`: a 429 or a\nusage-limit message. `refused`: a safety refusal. `aborted`: stopped in the middle of a\ntool call. `denied`: more permission denials than `Limits.max_denials`. `error`: a\nnonzero exit with no result (a Python task: it raised). `no_output`: the process ended\nwith no result line. `launch_failed`: the program is missing or the launch could not\nbe set up. `invalid_output`: the output was still off-contract after every round.\n`invalid_input`: an input the task reads is off-contract; nothing was launched.\n`credential_mismatch`: the agent reported another credential than the one chosen.",
+      "enum": [
+        "completed",
+        "timeout",
+        "max_turns",
+        "budget",
+        "context_budget",
+        "stalled",
+        "auth_failed",
+        "api_error",
+        "rate_limited",
+        "refused",
+        "aborted",
+        "denied",
+        "error",
+        "no_output",
+        "launch_failed",
+        "invalid_output",
+        "invalid_input",
+        "credential_mismatch"
+      ],
+      "title": "Stop",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One line of `runs/<run>/launches.jsonl`: one launch of a coding agent\n(`LaunchResult.as_dict`).",
+  "properties": {
+    "ts": {
+      "description": "when the launch started",
+      "title": "Ts",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "wall_s": {
+      "title": "Wall S",
+      "type": "number"
+    },
+    "stop": {
+      "$ref": "#/$defs/Stop"
+    },
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "exit": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "the coding agent's exit code; null when it did not exit",
+      "title": "Exit"
+    },
+    "agent": {
+      "title": "Agent",
+      "type": "string"
+    },
+    "cli_version": {
+      "title": "Cli Version",
+      "type": "string"
+    },
+    "argv": {
+      "description": "the command line, a prompt after `-p` cut at 200 characters",
+      "items": {
+        "type": "string"
+      },
+      "title": "Argv",
+      "type": "array"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "num_turns": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Num Turns"
+    },
+    "duration_api_ms": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Duration Api Ms"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Cost Usd"
+    },
+    "usage": {
+      "$ref": "#/$defs/LaunchUsage"
+    },
+    "context_window": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Context Window"
+    },
+    "context_pct": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Context Pct"
+    },
+    "rate_limit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LaunchQuota"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "permission_denials": {
+      "description": "tool calls refused",
+      "title": "Permission Denials",
+      "type": "integer"
+    },
+    "denied": {
+      "description": "the first 10 refused tool calls",
+      "items": {
+        "$ref": "#/$defs/DeniedCall"
+      },
+      "title": "Denied",
+      "type": "array"
+    },
+    "tool_uses": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Tool Uses",
+      "type": "object"
+    },
+    "hollow": {
+      "title": "Hollow",
+      "type": "boolean"
+    },
+    "tool_args": {
+      "additionalProperties": {
+        "items": {},
+        "type": "array"
+      },
+      "description": "by tool, the first 5 inputs of its calls",
+      "title": "Tool Args",
+      "type": "object"
+    },
+    "web_queries": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Web Queries",
+      "type": "array"
+    },
+    "unread_events": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Unread Events",
+      "type": "object"
+    },
+    "init_model": {
+      "title": "Init Model",
+      "type": "string"
+    },
+    "init_tools": {
+      "title": "Init Tools",
+      "type": "integer"
+    },
+    "init_errors": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Init Errors",
+      "type": "array"
+    },
+    "api_retries": {
+      "title": "Api Retries",
+      "type": "integer"
+    },
+    "retry_errors": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Retry Errors",
+      "type": "object"
+    },
+    "result_head": {
+      "description": "the final message, cut at 200 characters",
+      "title": "Result Head",
+      "type": "string"
+    },
+    "stderr_tail": {
+      "description": "the end of standard error, 300 characters",
+      "title": "Stderr Tail",
+      "type": "string"
+    },
+    "rounds": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Rounds"
+    },
+    "round_errors": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Round Errors",
+      "type": "array"
+    },
+    "round_costs": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Round Costs",
+      "type": "array"
+    },
+    "unwrapped": {
+      "title": "Unwrapped",
+      "type": "boolean"
+    },
+    "hook_errors": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Hook Errors",
+      "type": "array"
+    },
+    "context_budget": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Context Budget"
+    },
+    "context_warned": {
+      "title": "Context Warned",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ts",
+    "label",
+    "wall_s",
+    "stop",
+    "ok",
+    "exit",
+    "agent",
+    "cli_version",
+    "argv",
+    "model",
+    "session_id",
+    "num_turns",
+    "duration_api_ms",
+    "cost_usd",
+    "usage",
+    "context_window",
+    "context_pct",
+    "rate_limit",
+    "permission_denials",
+    "denied",
+    "tool_uses",
+    "hollow",
+    "tool_args",
+    "web_queries",
+    "unread_events",
+    "init_model",
+    "init_tools",
+    "init_errors",
+    "api_retries",
+    "retry_errors",
+    "result_head",
+    "stderr_tail",
+    "rounds",
+    "round_errors",
+    "round_costs",
+    "unwrapped",
+    "hook_errors",
+    "context_budget",
+    "context_warned"
+  ],
+  "title": "LaunchRow",
+  "type": "object"
+}

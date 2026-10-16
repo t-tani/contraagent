@@ -1,9 +1,10 @@
 # Guide
 
-contraagent's API is newer than any LLM's training data: read the topic before
-writing the code, and check what you wrote with `contraagent check`. The
-[tutorial](tutorial.md) builds a pipeline step by step; this page is the short
-form, with the decisions and the pitfalls.
+This page is for the one who writes a pipeline: usually a coding agent that a
+person asked for it. contraagent's API is newer than any model's training data, so
+read the topic before writing the code, and check what you wrote with
+`contraagent check`. The [tutorial](tutorial.md) builds a pipeline step by step.
+This page is the short form, with the decisions and the pitfalls.
 
 A pipeline has three parts: the **interface** of each task, in Python; the
 **implementation** of each agent task, a plugin the coding agent loads itself;
@@ -12,6 +13,7 @@ and the **flow**, a plain function that calls the tasks. The demo is all three:
 ```
 examples/demo/
   tasks.py        the interface (agent tasks, Python tasks) and the flows
+  checks.py       a check run as a command (a CommandValidator's program)
   plugins/docs/   the implementation, loaded by the coding agent itself
   pipeline.toml   routing: which coding agent and model each kind runs on
   test_demo.py    the flows checked and tested without spending tokens
@@ -19,7 +21,8 @@ examples/demo/
 ```
 
 `python -m contraagent.docs.examples.demo.run` runs it on a demo agent (no
-coding agent needed) and serves the monitor on http://127.0.0.1:8787.
+coding agent needed) and serves the monitor on http://127.0.0.1:8787 (`--port`
+for another port).
 
 ## Steps
 
@@ -37,10 +40,13 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 7. **Check.** `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`
    until it prints ✓. → [Checking and testing](testing.md)
 8. **Test.** The flow on `contraagent.testing.StubAgent`, in pytest. → [Checking and testing](testing.md)
-9. **Run.** `contraagent run` with the arguments `check` took (`--run-id`, `--resume`
-   to continue one), or `Pipeline(config).run(flow, ...)` from a program that
-   needs more (its own backends, env, monitor panels). Watch it in the
-   monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
+9. **Run.** A run on the coding agents spends tokens, so the person who asked for
+   the pipeline starts it, unless they ask the agent to. `contraagent run` takes the
+   arguments `check` took (`--run-id`, `--resume`
+   to continue one), or `Pipeline(config).run(flow, ...)` from a program for what a
+   command line cannot pass: a journal column (`row_extras`), a `quota_rule`, scopes,
+   enrichers, its own backends, `env` (`examples/runner/run.py` lists them). The person
+   watches it in the monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
 
 ## Decisions
 
@@ -60,7 +66,7 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 - An output model in the script you run or inside a function: the agent's own
   check cannot import it.
 - A Python validator runs in the runner only, so the agent hears of its errors in
-  a fix-up round. A rule the agent should meet before it stops is a
+  a correction round. A rule the agent should meet before it stops is a
   `CommandValidator` (given `{call}` when it needs the params).
 - A kind with no `max_turns` or `timeout_s`, in code or in the config, is refused.
 - A relative `plugin=` path is relative to the file that calls `agent_task`.
@@ -82,30 +88,39 @@ coding agent needed) and serves the monitor on http://127.0.0.1:8787.
 - A failed task refuses every task that reads its output; a task that reads
   every unit's output (a report) is refused when any of them failed.
 - The library reports through `logging` (`contraagent.*`): configure it at INFO
-  to see routing, each task's start and end, fix-ups and model switches.
+  to see routing, each task's start and end, correction rounds and model switches.
 - Running a flow again under the same run id needs `resume=True` (`--resume`), or another run id.
 
 ## Limits
 
 - Linux only: run locks and process tracking use `fcntl` and `/proc`.
-- On omp no stop hook can keep a session going: the runner's check and its
-  session resume enforce the output instead. omp's credential isolation is
-  verified for the `anthropic`, `openai-codex` and `litellm` providers only.
-- opencode is the same on stop hooks. It reports no 5-hour or weekly usage, so
-  a credential used on opencode never rests on a quota; a launch it runs sees
-  the user's own opencode config (`~/.config/opencode`), except a light launch.
-- Codex runs no light launch (`agent_task(tools=())`), takes of a plugin its
-  role's file, its skills and its `.mcp.json` (no hooks, so the runner's check
-  and its session resume enforce the output), and enforces neither `max_budget_usd` nor
-  `context_budget`: it reports no cost, and its per-call tokens only after the
-  launch (its peak context and `context_warn_pct` still hold).
+- The coding agents differ in what they enforce, and [Coding agents](agents.md)
+  has a row for each difference. In short: only Claude Code and Codex run a stop
+  hook that continues the session, so on omp, opencode and pi the runner's check
+  and a correction round hold the output to its contract; Codex runs no light
+  launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
+  `context_budget`; omp and pi do not enforce `max_turns`.
+- A credential rests on a quota only where its coding agent reports quota
+  readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
+  login, and opencode and pi for an `opencode-go` model, through the OpenCode Go
+  usage ([Routing](routing.md#quota-caps)). A gateway, an API key or another
+  opencode or pi model never rests on a quota.
+- omp's credential isolation is verified for the `anthropic`, `openai-codex` and
+  `litellm` providers only. A launch opencode runs sees the user's own opencode
+  config (`~/.config/opencode`), except a light launch.
 - `workload_identity`, `bedrock` and `vertex` follow Claude Code's
   documentation and are not yet checked against the real CLI.
+- contraagent writes outside the run directory: its scratch directories under
+  `<temp dir>/contraagent-<uid>/`, and pi's and Codex's directories under
+  `~/.cache/contraagent/` ([Coding agents](agents.md#directories-outside-the-run)).
 
 ## The API
 
-The docstrings are the reference: `contraagent/pipeline/` (`agent_task`,
-`python_task`, `Pipeline`, `Pipeline.check`), `contraagent/plugins/`,
-`contraagent/contracts.py`, `contraagent/validators.py`,
-`contraagent/backends/credentials.py`, `contraagent/testing.py`, and the layer
-list in `contraagent/__init__.py`. `contraagent docs --path` prints where they are.
+The docstrings are the reference. A pipeline imports from the public modules only:
+`contraagent` (`agent_task`, `python_task`, `Pipeline`, `Pipeline.check`,
+validators, the task and result a callback is given, the errors), `contraagent.config`
+(credentials, routes, budgets), `contraagent.backends` (the coding agents, the call file),
+`contraagent.engine` (the runners, schedulers and contracts underneath a pipeline),
+`contraagent.plugins`, `contraagent.monitor` and `contraagent.testing`
+([Compatibility](compatibility.md) says what is public). `help(<name>)` prints a
+name's docstring, and `contraagent docs --path` prints where the documentation is.

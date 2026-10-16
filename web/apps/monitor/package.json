@@ -2,7 +2,7 @@
   "name": "@contraagent/monitor-app",
   "private": true,
   "type": "module",
-  "description": "The page the Python monitor serves: <ca-monitor>, built into src/contraagent/monitor/static",
+  "description": "The page the Python monitor serves: <ca-monitor>, built into src/contraagent/_internal/monitor/static",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

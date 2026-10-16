@@ -72,7 +72,7 @@ function peek(v: unknown): string {
   if (typed) return typedPeek(typed);
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
   const keys = Object.keys(v);
-  if (!keys.length) return msg('Empty');
+  if (!keys.length) return msg('none', { id: 'none', desc: 'An empty value' });
   const names = `${keys.slice(0, 4).join(', ')}${keys.length > 4 ? ', …' : ''}`;
   return Array.isArray(v) ? msg(str`${keys.length} items: ${names}`) : msg(str`${keys.length} keys: ${names}`);
 }
@@ -149,6 +149,8 @@ export class CaOverview extends LitElement {
       .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
       .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
       .fl.muted { opacity: 0.7; }
+      .problems h4.sub { margin: 10px 0 2px; font-size: 11px; font-weight: 600; color: var(--text-muted); display: flex; }
+      .problems h4.sub .r { margin-left: auto; font-weight: 400; }
       .next { margin: 10px 2px 2px; font-size: 12px; color: var(--text-2); }
       .next code { font-family: var(--mono); }
       .more { font-size: 12px; margin: 6px 10px 0; }
@@ -161,11 +163,11 @@ export class CaOverview extends LitElement {
   @property({ attribute: false }) host: HostSummary | undefined;
   @property({ attribute: false }) info!: Info;
   @property() run = '';
-  /** The pipeline graph's layer (`Route.layer`). */
+  /** The pipeline graph's layer (`ViewRoute.layer`). */
   @property() layer = '';
-  /** The unit highlighted in the pipeline graph (`Route.unit`). */
+  /** The unit highlighted in the pipeline graph (`ViewRoute.unit`). */
   @property() unit = '';
-  /** What is selected in the pipeline graph (`Route.sel`). */
+  /** What is selected in the pipeline graph (`ViewRoute.sel`). */
   @property() sel = '';
 
   private go(tab: 'outputs' | 'procs' | `panel:${string}`): void {
@@ -234,14 +236,14 @@ export class CaOverview extends LitElement {
           : nothing}
         ${s.plan.models?.length
           ? html`<section class="panel enter">
-              <h3 title=${msg('The agent sessions by the model they ran on. Each model of a model switch counts its own part. Python tasks run on no model.')}>${msg('Models')}
+              <h3 title=${msg('What the agent sessions spent on each model, each model of a model switch counted separately (Plan.models)')}>${msg('Models')}
                 <span class="r">${s.plan.models.length === 1 ? msg('1 model') : msg(str`${s.plan.models.length} models`)}</span></h3>
               <ca-model-usage .models=${s.plan.models}></ca-model-usage>
             </section>`
           : nothing}
         ${runAccounts(s.journal).length || s.plan.rests?.length
           ? html`<section class="panel enter">
-              <h3 title=${msg('Reported at each agent session start. Account-wide: every task that runs at once shares it.')}>
+              <h3 title=${msg('Account-wide | read at each agent session start')}>
                 ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
               <ca-quota .journal=${s.journal} .caps=${s.plan.quota_caps ?? []} .rests=${s.plan.rests ?? []} .rule=${s.plan.quota_rule ?? ''} ?live=${live}></ca-quota>
             </section>`
@@ -361,8 +363,8 @@ export class CaOverview extends LitElement {
             ${units.map(
               ([u, x]) => html`<div class="cu">
                 <span class="jmono">${u}</span>
-                <span class="meta">${facts(x.step || '—', x.loop_pass ? msg(str`loop pass ${x.loop_pass}`) : '')}</span>
-                <span class="cu-bar" title=${x.completed.length === 1 ? msg('1 step completed') : msg(str`${x.completed.length} steps completed`)}><i style="width:${Math.min(100, 12 * (x.completed.length + 1))}%"></i></span>
+                <span class="meta">${facts(x.step || '—', x.loop_pass ? msg(str`pass ${x.loop_pass}`) : '')}</span>
+                <span class="cu-bar" title=${x.completed.length === 1 ? msg('1 step done') : msg(str`${x.completed.length} steps done`)}><i style="width:${Math.min(100, 12 * (x.completed.length + 1))}%"></i></span>
                 ${x.inflight.length ? pill({ text: msg('running'), tone: 'running', title: x.inflight.join('\n') }) : nothing}
               </div>`,
             )}
@@ -385,7 +387,7 @@ export class CaOverview extends LitElement {
             ${p.description ? html`<div class="meta">${p.description}</div>` : nothing}
             ${line ? html`<div class="pc-peek">${line}</div>` : nothing}
           </div>
-          <span class="pc-go">${msg(str`Show ${p.title || p.name}`)}</span>
+          <span class="pc-go">${msg('Show view')}</span>
         </button>`;
         },
       )}
@@ -410,9 +412,9 @@ export class CaOverview extends LitElement {
   private problems(live: boolean) {
     const { outcomes, problems } = deriveRun(this.state.journal, this.state.plan);
     const { failed, notStarted, partial, recovered } = problems;
-    if (!failed.length && !notStarted.length && !partial.length && !recovered.length) {
-      return html`<div class="ok"><span aria-hidden="true">✓</span>${msg('No problems')}</div>`;
-    }
+    const issues = failed.length + notStarted.length + partial.length;
+    const ok = html`<div class="ok"><span aria-hidden="true">✓</span>${msg('No problems')}</div>`;
+    if (!issues && !recovered.length) return ok;
     const reason = (t: TaskOutcome) => runRelative(t.attempts[t.attempts.length - 1]?.reason || '—', this.run).slice(0, 200);
     const stoppedLine = (stopped: TaskOutcome[]) =>
       stopped.length
@@ -421,7 +423,8 @@ export class CaOverview extends LitElement {
             ${stopped.map((x) => taskChip(this, this.name(x), x))}
           </div>`
         : nothing;
-    return html`${repeat(
+    // The tasks done after retrying are done, not problems: a group of their own, after the problems.
+    return html`${issues ? nothing : ok}${repeat(
         failed,
         (p) => p.task.key,
         (p) => {
@@ -452,6 +455,7 @@ export class CaOverview extends LitElement {
           <div class="meta">${reason(t)}</div>
         </div>`,
       )}
+      ${recovered.length ? html`<h4 class="sub">${sentence(outcomeLabel('recovered'))} <span class="r">${recovered.length}</span></h4>` : nothing}
       ${repeat(
         recovered,
         (t) => t.key,
@@ -462,12 +466,12 @@ export class CaOverview extends LitElement {
             ${statusWord({ text: outcomeLabel('recovered'), tone: outcomeTone('recovered') })}
             ${this.nameButton(t)}<span></span>
             <div class="meta">${fails === 1
-              ? msg(str`Done on attempt ${n} after 1 failed attempt`)
-              : msg(str`Done on attempt ${n} after ${fails} failed attempts`)}</div>
+              ? msg(str`Done on attempt ${n} | 1 failed attempt`)
+              : msg(str`Done on attempt ${n} | ${fails} failed attempts`)}</div>
           </div>`;
         },
       )}
-      ${this.nextStep(live, failed.length + notStarted.length + partial.length)}`;
+      ${this.nextStep(live, issues)}`;
   }
 
   /** For a finished run with problems: how many tasks are not done (the tasks resume=True runs again). */

@@ -38,7 +38,7 @@ export function nodeTable(h: GraphHost) {
   // The frame keeps the drawing's height when the drawing of this graph was laid out (left to right); else the table's own, up to the frame's limit.
   const height = !h.down && h.laidOut && h.pz.frameH > 0 ? `height:${Math.round(h.pz.frameH)}px` : `max-height:max(${FRAME_MIN}px, ${FRAME_SHARE * 100}vh)`;
   const rows = h.arr.drawn.map((id) => h.nodes.get(id)).filter((n): n is GraphNode => !!n);
-  return html`<div class="frame tframe" part="frame" style=${height} @scroll=${() => h.card.place()}
+  return html`<div class="frame tframe" part="frame" data-scroll="x" style=${height} @scroll=${() => h.card.place()}
       @click=${(e: MouseEvent) => !(e.target as Element).closest('tbody tr') && h.select(null)}>
     <table class="list view" part="table">
       <thead>
@@ -71,9 +71,9 @@ export function nodeTable(h: GraphHost) {
                 : nothing}</span>
             </th>
             <td class="fit st">${statusLine(n)}</td>
-            <td class="rel">${list(nb.solid)}</td>
-            ${dashed ? html`<td class="rel">${list(nb.dashed)}</td>` : nothing}
-            <td class="rel">${list(nb.later)}</td>
+            <td class="rel"><span>${list(nb.solid)}</span></td>
+            ${dashed ? html`<td class="rel"><span>${list(nb.dashed)}</span></td>` : nothing}
+            <td class="rel"><span>${list(nb.later)}</span></td>
           </tr>`;
         })}
       </tbody>

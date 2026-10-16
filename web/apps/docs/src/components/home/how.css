@@ -1,0 +1,271 @@
+/*
+ * The landing page's "how it works" scene (HowItWorks.astro). The rules that
+ * depend on the stages' shares of the scroll (the animations and their windows,
+ * and the fallback's states) are in how-stages.css, written by scripts/how_css.py.
+ *
+ * Wide screens with motion: the scene stays in place (sticky) while its track
+ * scrolls by; each stage owns its share of that scroll. Its panel comes in, its
+ * step lights, the loop's words light from the stage that does them, and the rail
+ * behind the numbers fills. Scroll-driven animations on the track's view timeline
+ * (longhand properties: the minifier folds a shorthand, which resets the timeline);
+ * where they are missing, ./how-scene.ts sets data-stage on the track and the same
+ * states are reached by transitions. Transforms and opacity only; nothing leaves
+ * the page or the tab order, and the stage panels hold nothing focusable.
+ * Narrow screens and reduced motion: the stages follow one another, each with its
+ * panel, at rest.
+ */
+
+.how { margin: 4rem 0 2rem; }
+.how-title { margin: 0; font-size: clamp(1.7rem, 1.1rem + 1.6vw, 2.5rem); line-height: 1.1; letter-spacing: -0.025em; color: var(--sl-color-white); text-wrap: balance; }
+.how-lede { margin: 0.9rem 0 0; max-width: 34rem; color: var(--sl-color-gray-2); font-size: var(--sl-text-base); line-height: 1.55; }
+
+/* The loop the agent goes through: its words light as the scene reaches them. */
+.how-loop { list-style: none; display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 1.1rem 0 0; padding: 0; }
+.how-loop-step {
+  position: relative;
+  margin: 0;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--sl-color-gray-5);
+  font: 600 var(--sl-text-xs) / 1.4 var(--sl-font-mono, var(--sl-font-system-mono));
+  color: var(--sl-color-gray-2);
+  isolation: isolate;
+}
+.how-loop-step::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--sl-color-accent) 22%, var(--sl-color-bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sl-color-accent) 60%, transparent), 0 0 14px color-mix(in srgb, var(--sl-color-accent) 40%, transparent);
+  opacity: 1;
+}
+.how-loop-step:not(:last-child)::after { content: '→'; position: absolute; right: -0.33rem; top: 50%; translate: 50% -50%; color: var(--sl-color-gray-3); font-size: 0.7rem; }
+.how-loop-step + .how-loop-step { margin-left: 0.55rem; }
+
+/* The steps, and a rail behind their numbers: grid items of the list, the rail under the steps
+   (each number is opaque). Nothing here is positioned: in the wide scene, a step's words and
+   panel are placed by the scene. */
+.how-steps { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 0.9rem; row-gap: 0.25rem; }
+.how-rail {
+  grid-column: 1;
+  grid-row: 1 / span var(--n);
+  justify-self: center;
+  width: 2px;
+  margin: 1rem 0;
+  border-radius: 2px;
+  z-index: 0;
+  list-style: none;
+}
+.how-rail-track { background: var(--sl-color-gray-5); }
+.how-rail-fill {
+  background: linear-gradient(to bottom, var(--sl-color-accent), color-mix(in srgb, var(--sl-color-accent) 45%, hsl(268 90% 66%)));
+  transform-origin: 50% 0;
+}
+.how-step { grid-column: 1 / -1; grid-row: var(--r); z-index: 1; margin: 0; display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 0.9rem; padding: 0.45rem 0.6rem 0.45rem 0; }
+.how-glow, .how-words { grid-column: 2; grid-row: 1; min-width: 0; }
+.how-words { z-index: 1; }
+.how-stage { grid-row: 2; }
+/* The step on screen: a panel behind its words (a grid item in the same cell: no positioning, so the
+   words' panel in the wide scene is placed by the scene, not by the step). */
+.how-glow {
+  z-index: 0;
+  margin: -0.35rem -0.6rem -0.35rem -0.7rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sl-color-accent) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 28%, transparent);
+  opacity: 0;
+}
+.how-n {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font: 600 var(--sl-text-sm) var(--sl-font-mono, var(--sl-font-system-mono));
+  color: var(--sl-color-text-accent);
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 55%, var(--sl-color-bg));
+  /* Opaque: the page's background under a tint of the accent, so the rail never shows through. */
+  background: color-mix(in srgb, var(--sl-color-accent) 14%, var(--sl-color-bg));
+}
+.how-n::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sl-color-accent) 20%, transparent), 0 0 18px color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+.how-who { margin: 0; font: 600 var(--sl-text-xs) / 1.3 var(--sl-font-mono, var(--sl-font-system-mono)); letter-spacing: 0.02em; color: var(--sl-color-text-accent); text-transform: uppercase; }
+.how-step-title { margin: 0.1rem 0 0; font-size: var(--sl-text-base); line-height: 1.3; color: var(--sl-color-white); }
+.how-text { margin: 0.2rem 0 0; font-size: var(--sl-text-sm); line-height: 1.5; color: var(--sl-color-gray-2); }
+.how-link { display: inline-block; margin-top: 0.2rem; font-size: var(--sl-text-sm); color: var(--sl-color-text-accent); }
+
+/* A stage's panel: a terminal or a message, from the CLI's real output. */
+.how-stage { grid-column: 2; min-width: 0; margin-top: 0.75rem; }
+.term, .chat {
+  font: 12px/1.6 var(--sl-font-mono, var(--sl-font-system-mono));
+  color: var(--sl-color-white);
+}
+.term p, .chat p { margin: 0; }
+.term pre { margin: 0; padding: 0; background: none; border: 0; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.term-cmd { color: var(--sl-color-white); overflow-wrap: anywhere; }
+.term-cmd + .term-cmd, .term-out + .term-cmd, .run-figs + .term-cmd { margin-top: 0.6rem; }
+.term-p { color: var(--sl-color-gray-3); user-select: none; }
+.term-out { color: var(--sl-color-gray-2); margin-top: 0.25rem; }
+.term-md { color: var(--sl-color-gray-2); white-space: normal; }
+.term-md p { margin: 0 0 0.5rem; }
+.term-file { margin-top: 0.75rem !important; font-size: 11px; font-weight: 600; color: var(--sl-color-gray-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.term-topics { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; color: var(--sl-color-gray-2); }
+.term-topics li { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.term-topics li::before { content: '- '; color: var(--sl-color-gray-3); }
+.term-code { margin-top: 0.3rem; }
+.code-l { display: grid; grid-template-columns: 2.4rem max-content; }
+.code-l code { background: none; padding: 0; font: inherit; white-space: pre; color: var(--sl-color-white); }
+.code-n { color: var(--sl-color-gray-3); text-align: right; padding-right: 0.8rem; opacity: 0.75; user-select: none; }
+.term-code { overflow-x: auto; }
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  /* In the window, a panel holds nothing focusable: no scroller either. */
+  .term-code { overflow: hidden; }
+}
+.term-code .t-keyword { color: hsl(268 85% 75%); }
+.term-code .t-string { color: hsl(150 60% 65%); }
+.term-code .t-number { color: hsl(38 90% 68%); }
+.term-code .t-constant { color: hsl(22 95% 68%); }
+.term-code .t-function { color: hsl(198 90% 72%); }
+.term-code .t-type { color: hsl(45 90% 70%); }
+.term-code .t-name { color: hsl(214 90% 78%); }
+:root[data-theme='light'] .term-code .t-keyword { color: hsl(268 60% 45%); }
+:root[data-theme='light'] .term-code .t-string { color: hsl(150 70% 26%); }
+:root[data-theme='light'] .term-code .t-number, :root[data-theme='light'] .term-code .t-type { color: hsl(32 90% 32%); }
+:root[data-theme='light'] .term-code .t-constant { color: hsl(18 85% 38%); }
+:root[data-theme='light'] .term-code .t-function { color: hsl(205 85% 34%); }
+:root[data-theme='light'] .term-code .t-name { color: hsl(222 70% 42%); }
+.ln { display: inline; }
+.ln-ok, .ln-pass { color: hsl(152 60% 58%); }
+.ln-bad, .ln-del { color: hsl(0 85% 72%); }
+.ln-warn { color: hsl(40 95% 65%); }
+.ln-read { color: var(--sl-color-text-accent); }
+.ln-add { color: hsl(152 60% 58%); }
+:root[data-theme='light'] .ln-ok, :root[data-theme='light'] .ln-pass, :root[data-theme='light'] .ln-add { color: hsl(152 75% 26%); }
+:root[data-theme='light'] .ln-bad, :root[data-theme='light'] .ln-del { color: hsl(0 70% 42%); }
+:root[data-theme='light'] .ln-warn { color: hsl(35 95% 30%); }
+.term-loop { font-size: 11.5px; }
+.slip + .slip { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--sl-color-gray-5); }
+.chat-who { font-size: 11px; font-weight: 600; color: var(--sl-color-gray-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.chat-msg {
+  margin-top: 0.5rem !important;
+  padding: 0.9rem 1rem;
+  border-radius: 14px 14px 14px 4px;
+  font: var(--sl-text-sm) / 1.6 var(--sl-font, var(--sl-font-system));
+  color: var(--sl-color-white);
+  background: color-mix(in srgb, var(--sl-color-accent) 16%, var(--sl-color-bg));
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+}
+
+/* The run: one mark per task, in the order they finished, and its figures. */
+.run-marks { display: flex; flex-wrap: wrap; gap: 5px; margin: 0.7rem 0 0; max-width: 26rem; }
+.run-mark { width: 12px; height: 12px; border-radius: 50%; background: hsl(152 60% 50%); }
+.run-mark.is-python { border-radius: 3px; background: hsl(152 45% 42%); }
+.run-mark.is-fixed { box-shadow: 0 0 0 2px var(--sl-color-bg), 0 0 0 3.5px hsl(40 95% 60%); }
+.run-mark.is-switched { box-shadow: 0 0 0 2px var(--sl-color-bg), 0 0 0 3.5px hsl(198 90% 62%); }
+.run-figs { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; margin: 0.8rem 0 0; }
+.run-figs div { margin: 0; }
+.run-figs dt { font: 600 10.5px/1.3 var(--sl-font, var(--sl-font-system)); color: var(--sl-color-gray-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.run-figs dd { margin: 0.1rem 0 0; font: 700 1.5rem/1.1 var(--sl-font, var(--sl-font-system)); color: var(--sl-color-white); font-variant-numeric: tabular-nums; }
+
+/* The window the panels appear in (the wide scene only). */
+.how-window { display: none; }
+.how-depth { display: none; }
+
+/* Narrow screens, or reduced motion: the stages in order, each panel framed. */
+.how-stage {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-gray-5);
+  background: var(--sl-color-gray-7, var(--sl-color-black));
+}
+:root[data-theme='light'] .how-stage { background: hsl(228 33% 97%); }
+
+
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+  .how-track { position: relative; height: calc(100svh + var(--shares) * 52svh); view-timeline: --how block; }
+  .how-pin {
+    position: sticky;
+    top: var(--sl-nav-height, 3.5rem);
+    height: calc(100svh - var(--sl-nav-height, 3.5rem));
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+    column-gap: 3rem;
+    align-items: center;
+  }
+  .how-left { grid-column: 1; align-self: center; }
+  .how-text { font-size: 0.8rem; line-height: 1.45; }
+  /* The steps: who and what, and a link; a step's words go to the window, over its panel. */
+  .how-step { padding-block: 0.3rem; }
+  .how-steps { row-gap: 0.15rem; margin-top: 1.25rem; }
+  .how-step-title { display: inline; font-size: 0.95rem; }
+  .how-link { display: inline; margin: 0 0 0 0.6rem; font-size: 0.8rem; }
+  .how-who { font-size: 10.5px; }
+  /* The window, the words of the step on screen, and its panel: one box on the right. */
+  .how-pin { --wh: min(38rem, calc(100% - 3rem)); --ww: calc(54% - 1.5rem); }
+  .how-window, .how-stage, .how-text {
+    position: absolute;
+    right: 0;
+    width: var(--ww);
+  }
+  .how-window { top: calc(50% - var(--wh) / 2); height: var(--wh); }
+  .how-text {
+    z-index: 1;
+    top: calc(50% - var(--wh) / 2 + 2.6rem);
+    margin: 0;
+    padding: 0.9rem 1.4rem 0.8rem;
+    height: 5.4rem;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: var(--sl-color-gray-2);
+    border-bottom: 1px dashed var(--sl-color-gray-5);
+  }
+  /* No grid lines: the scene is a grid, and a placed box would take its area as its frame. */
+  .how-stage { grid-area: auto; top: calc(50% - var(--wh) / 2 + 8.4rem); height: calc(var(--wh) - 8.8rem); }
+  .how-window {
+    display: block;
+    border-radius: 16px;
+    border: 1px solid var(--sl-color-gray-5);
+    background:
+      radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 10%, transparent), transparent 60%),
+      color-mix(in srgb, var(--sl-color-black) 92%, var(--sl-color-accent));
+    box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 40%, transparent), 0 24px 60px -30px hsl(228 60% 4% / 0.6);
+  }
+  :root[data-theme='light'] .how-window { background: radial-gradient(90% 60% at 100% 0%, color-mix(in srgb, var(--sl-color-accent) 8%, transparent), transparent 60%), hsl(228 40% 98%); box-shadow: 0 40px 100px -40px color-mix(in srgb, var(--sl-color-accent) 35%, transparent), 0 20px 50px -30px hsl(228 40% 30% / 0.25); }
+  .how-window-bar { display: flex; align-items: center; gap: 6px; padding: 0.7rem 1rem; border-bottom: 1px solid var(--sl-color-gray-5); font-size: 0.75rem; color: var(--sl-color-gray-3); }
+  .how-window-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--sl-color-gray-5); }
+  .how-window-bar span { margin-left: 0.6rem; }
+  .how-stage {
+    z-index: 1;
+    margin: 0;
+    padding: 0.4rem 1.4rem 1rem;
+    border: 0;
+    background: none;
+    overflow: hidden;
+  }
+  :root[data-theme='light'] .how-stage { background: none; }
+  .term, .chat { font-size: 12.5px; }
+  /* Depth: a field behind the scene that moves slower than the page. */
+  .how-depth {
+    display: block;
+    position: absolute;
+    inset: -10% calc(50% - 50vw);
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(circle at center, color-mix(in srgb, var(--sl-color-gray-3) 22%, transparent) 1px, transparent 1.6px);
+    background-size: 24px 24px;
+    -webkit-mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
+    mask-image: radial-gradient(ellipse 50% 60% at 72% 50%, #000 20%, transparent 75%);
+  }
+  .how-pin { isolation: isolate; }
+}

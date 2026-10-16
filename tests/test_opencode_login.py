@@ -6,11 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import AMBIENT, ApiKey, Gateway, Launch, OmpBackend, OpencodeBackend, PiBackend, Subscription
-from contraagent.backends.launch import ACCOUNT_SECRET, RateLimit, account_digest
-from contraagent.backends.omp.backend import dotenv_credentials, omp_dotenv_files
-from contraagent.backends.opencode import login
-from contraagent.routing.quota import QuotaRests
+from contraagent._internal.backends import opencode_key as login
+from contraagent._internal.backends.launch import ACCOUNT_SECRET, account_digest
+from contraagent._internal.backends.omp.backend import dotenv_credentials, omp_dotenv_files
+from contraagent.backends import Launch, OmpBackend, OpencodeBackend, PiBackend
+from contraagent.config import AMBIENT, ApiKey, Gateway, QuotaReading, QuotaWindow, Subscription
+from contraagent.engine import QuotaRests
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
 KEY = "sk-test-opencode-go-0000"
@@ -40,10 +41,10 @@ def test_the_go_usage_route_reads_as_the_windows_omp_reports():
     assert r is not None
     assert (r.five_hour_pct, r.seven_day_pct) == (0.0, 99.0)
     assert r.five_hour_resets_at == "2026-10-14T22:38:16+00:00" and r.seven_day_resets_at == "2026-10-19T00:00:00+00:00"
-    assert r.windows["monthly"] == {"pct": 100.0, "resets_at": "2026-11-04T00:48:31+00:00"}
+    assert r.windows["monthly"] == QuotaWindow(pct=100.0, resets_at="2026-11-04T00:48:31+00:00")
     assert r.status == "exhausted,warning"  # monthly refused, weekly past 80%
     assert r.account == account_digest(ACCOUNT_SECRET, KEY)
-    assert KEY not in json.dumps(r.__dict__)
+    assert KEY not in r.model_dump_json()
 
 
 @pytest.mark.parametrize(
@@ -170,9 +171,8 @@ def test_one_login_is_one_account_so_a_rest_on_one_agent_holds_on_the_others(tmp
     assert set(accounts.values()) == {login.account_of_key(KEY)}
     rests = QuotaRests({"oc": sub})
     reading = login.go_reading(go_body(), KEY)
-    assert isinstance(reading, RateLimit)
-    reading.credential = "oc"  # as the runner labels a reading of the opencode launch
-    rests.observe(reading)
+    assert isinstance(reading, QuotaReading)
+    rests.observe(reading.model_copy(update={"credential": "oc"}))  # as the runner labels a reading of the opencode launch
     for be in agents:
         assert rests.rests("oc", "k", lambda name, be=be: be.account(sub, GO_MODEL)), be.name
     # Another key on the same credential name is another account: the reading does not hold it.

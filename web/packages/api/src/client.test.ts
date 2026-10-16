@@ -22,7 +22,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 describe('createMonitorClient', () => {
-  it('builds each route from the base URL, its path parameters (encoded) and its query', async () => {
+  it('builds each endpoint from the base URL, its path parameters (encoded) and its query', async () => {
     const { c, requests } = client(() => json({}));
     await c.info();
     await c.runs();

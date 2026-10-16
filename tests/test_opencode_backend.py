@@ -3,12 +3,15 @@ writes, the readers of stdout and stderr. No token is spent; `tests/live/` runs 
 
 import json
 import os
+import tempfile
 import time
 
 import pytest
 
-from contraagent import ApiKey, CredentialError, Gateway, Launch, Limits, OpencodeBackend, Stop, Subscription
-from contraagent.backends.opencode.backend import LIGHT_AGENT
+from contraagent import CredentialError
+from contraagent._internal.backends.opencode.backend import LIGHT_AGENT
+from contraagent.backends import Launch, OpencodeBackend, Stop
+from contraagent.config import ApiKey, Gateway, Limits, Subscription
 from test_backends_offline import fake_cli
 
 OPENCODE = r"""
@@ -56,7 +59,8 @@ def test_a_launch_runs_with_its_key_alone(opencode, tmp_path):
     result, seen = opencode(launch, MY_KEY="sk-test", OPENCODE_API_KEY="leftover", ANTHROPIC_API_KEY="leftover", PWD="/elsewhere")
     assert result.stop == Stop.COMPLETED and result.ok, result.stderr_tail
     assert result.result_text == "done" and result.session_id == "ses_1" and result.tool_uses == {"bash": 1}
-    assert (result.usage.n_calls, result.usage.output, result.usage.cache_read, result.cost_usd) == (2, 12, 200, 0.004)
+    t = result.usage.totals()
+    assert t is not None and (t.calls, t.output, t.cache_read, result.cost_usd) == (2, 12, 200, 0.004)
     env = seen["env"]
     assert config(seen)["provider"] == {"anthropic": {"options": {"apiKey": "sk-test"}}}  # over any key in the user's config
     assert env["OPENCODE_AUTH_CONTENT"] == "{}"  # and no stored login
@@ -71,7 +75,7 @@ def test_a_quota_refusal_in_the_log_ends_the_launch(opencode, tmp_path):
     launch = Launch(prompt="x", label="t", model="opencode-go/m", cwd=tmp_path, env={"FAKE_QUOTA": "1"}, limits=Limits(timeout_s=30))
     t0 = time.monotonic()
     result, _ = opencode(launch)
-    assert result.stop == Stop.RATE_LIMITED and result.rate_limit is not None
+    assert result.stop == Stop.RATE_LIMITED and result.quota_refusal is not None
     assert result.result_text == "AI_APICallError: Go usage limit exceeded"
     assert time.monotonic() - t0 < 15
 
@@ -119,11 +123,12 @@ def test_a_light_launch_runs_as_its_own_agent_with_no_tool(tmp_path):
     assert env["XDG_CONFIG_HOME"] != "/home/u/.config"  # no user config: with no tool, nothing else reads it
 
 
-def test_a_resumable_launch_keeps_its_session_in_its_own_directory(tmp_path):
+def test_a_resumable_launch_keeps_its_session_in_its_own_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # the session directory: under tmp_path
     backend = OpencodeBackend(base_env={})
     launch = backend.resumable(Launch(prompt="x", label="t", cwd=tmp_path))
     assert backend.env(launch)["OPENCODE_DB"] == str(launch.session_dir.resolve() / "opencode.db")
-    from contraagent import LaunchResult
+    from contraagent.backends import LaunchResult
 
     nxt = backend.resumed(launch, LaunchResult(label="t", session_id="ses_9"), "fix it")
     assert nxt is not None and "--session=ses_9" in backend.argv(nxt) and backend.argv(nxt)[-1] == "fix it"

@@ -12,6 +12,7 @@ the in-session stop hook, the runner's output check, the journal and the monitor
     claude    claude-haiku-5-5                effort low
     omp       anthropic/claude-haiku-5-5      effort low
     opencode  CONTRAAGENT_LIVE_OPENCODE_MODEL (default: OpenCode Zen's free Muse model)
+    codex     gpt-5.6-luna                    effort low   (codex's own login)
 
 Then a generator flow on each coding agent (`test_review_flow_*`): two units, each
 summarized, then checked by a Python task and revised in a `while` loop until the check
@@ -24,6 +25,7 @@ task's instructions changed (that task and the tasks that received a changed out
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -37,7 +39,8 @@ pytestmark = [
 
 from pydantic import BaseModel, Field  # noqa: E402
 
-from contraagent import ClaudeBackend, OmpBackend, OpencodeBackend, Pipeline, agent_task, python_task  # noqa: E402
+from contraagent import Pipeline, agent_task, python_task  # noqa: E402
+from contraagent.backends import ClaudeBackend, CodexBackend, OmpBackend, OpencodeBackend  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from contraagent.plugins import new_plugin  # noqa: E402
 
@@ -57,14 +60,25 @@ model = "anthropic/claude-haiku-5-5"
 [tasks.summarize_opencode]
 agent = "opencode"
 model = "{OPENCODE_MODEL}"
+
+[tasks.summarize_codex]
+agent = "codex"
+model = "gpt-5.6-luna"
+effort = "low"
 """
 
 #: Each coding agent's backend, for every pipeline below.
-BACKENDS = {"claude": ClaudeBackend, "omp": OmpBackend, "opencode": OpencodeBackend}
+BACKENDS = {"claude": ClaudeBackend, "omp": OmpBackend, "opencode": OpencodeBackend, "codex": CodexBackend}
 #: The coding agents this live run launches: CONTRAAGENT_LIVE_AGENTS (comma-separated), else all.
-AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(BACKENDS)).split(",") if a]
+#: A name this file has no backend for (another file's agent) is left out.
+AGENTS = [a for a in os.environ.get("CONTRAAGENT_LIVE_AGENTS", ",".join(BACKENDS)).split(",") if a in BACKENDS]
 #: Each agent's task and unit in the summarize run.
-SUMMARIZE = {"claude": ("summarize", "c1"), "omp": ("summarize_omp", "o1"), "opencode": ("summarize_opencode", "p1")}
+SUMMARIZE = {
+    "claude": ("summarize", "c1"),
+    "omp": ("summarize_omp", "o1"),
+    "opencode": ("summarize_opencode", "p1"),
+    "codex": ("summarize_codex", "x1"),
+}
 
 
 def only(agent: str) -> None:
@@ -114,7 +128,7 @@ def ws():
     new_plugin(root / "plugins" / "summarize")
     (root / "plugins" / "summarize" / "agents" / "worker.md").write_text(ROLE)
     (root / "in").mkdir()
-    for unit in ("c1", "o1", "p1"):
+    for unit in ("c1", "o1", "p1", "x1"):
         (root / "in" / f"{unit}.md").write_text(DOC)
     (root / "pipeline.toml").write_text(CONFIG)
     return root
@@ -139,7 +153,7 @@ def run_all(ws):
         ws / "pipeline.toml",
         runs_dir=ws / "runs",
         cwd=ws,
-        max_concurrent=3,
+        max_concurrent=4,
         backends={name: cls() for name, cls in BACKENDS.items()},
         log=print,
     )
@@ -148,7 +162,7 @@ def run_all(ws):
     rows = {r["key"]: r for r in mon.journal("live")[0]}
     src = Path(__file__).resolve().parents[2] / "src"
     print(
-        f"\n  run kept in {report.run_dir}\n  watch it:  PYTHONPATH={src} {sys.executable} -m contraagent.monitor --runs-dir {ws / 'runs'}"
+        f"\n  run kept in {report.run_dir}\n  watch it:  PYTHONPATH={src} {sys.executable} -m contraagent monitor --runs-dir {ws / 'runs'}"
     )
     return {"report": report, "rows": rows, "handles": handles, "monitor": mon}
 
@@ -159,6 +173,7 @@ def run_all(ws):
         ("summarize-c1", "c1", "claude", "claude-haiku-5-5"),
         ("summarize_omp-o1", "o1", "omp", "anthropic/claude-haiku-5-5"),
         ("summarize_opencode-p1", "p1", "opencode", OPENCODE_MODEL),
+        ("summarize_codex-x1", "x1", "codex", "gpt-5.6-luna"),
     ],
 )
 def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, unit, agent, model):
@@ -179,7 +194,7 @@ def test_task_ran_on_its_configured_route_and_met_its_contract(run_all, task, un
 def test_monitor_sees_every_run_as_valid_outputs(run_all):
     mon, tally = run_all["monitor"], run_all["monitor"].outputs("live")["tally"]
     print("\n  outputs tally:", {k: v for k, v in tally.items() if v})
-    assert tally["valid"] == len(AGENTS) and tally["invalid"] == tally["refused"] == tally["failed"] == 0
+    assert tally["valid"] == len([a for a in AGENTS if a in SUMMARIZE]) and tally["invalid"] == tally["refused"] == tally["failed"] == 0
     assert {e["key"] for e in mon.journal("live")[0]} == {f"{kind}-{unit}" for a, (kind, unit) in SUMMARIZE.items() if a in AGENTS}
     assert not mon.procs("live")["alive"]  # run.finish() marked it done
 
@@ -209,6 +224,11 @@ def test_the_role_reaches_each_coding_agent_its_own_way(run_all, agent):
         assert "--agent" in argv and "worker" in argv and "--plugin-dir" in argv
     elif agent == "omp":
         assert any("worker.md" in a for a in argv) and "--plugin-dir" in argv  # attached, omp has no --agent
+    elif agent == "codex":
+        # codex has no named-agent flag: the role's file is written into the prompt
+        launch = next(e for e in page["events"] if e["type"] == "launch")
+        assert "--agent" not in argv and not any("worker" in a for a in argv[:-1])
+        assert "worker.md" in launch["prompt"] and "Summarizes the document" in launch["prompt"]
     else:
         # opencode takes the role and the plugin as config (`instructions`, `skills`), not on its command line
         assert not any("worker" in a for a in argv[:-1])
@@ -228,20 +248,32 @@ def _project_with_its_own_instructions(root):
     skill = root / ".opencode" / "skills" / "opencode-canary"
     skill.mkdir(parents=True)
     skill.joinpath("SKILL.md").write_text("---\nname: opencode-canary\ndescription: A project skill.\n---\nbody\n")
+    skill = root / ".agents" / "skills" / "agents-canary"  # where codex and pi look for a project's skills
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("---\nname: agents-canary\ndescription: A project skill.\n---\nbody\n")
+    skill = root / ".codex" / "skills" / "codex-canary"
+    skill.mkdir(parents=True)
+    skill.joinpath("SKILL.md").write_text("---\nname: codex-canary\ndescription: A project skill.\n---\nbody\n")
 
 
 ASK = "No tools. Name every skill available to you, comma-separated, then say hello in three words."
-LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canary")
+LEAKS = ("PINEAPPLE", "MANGO", "KIWI", "PLUM", "project-canary", "opencode-canary", "agents-canary", "codex-canary")
 
 
 @pytest.mark.parametrize(
     "backend, model",
-    [(ClaudeBackend, "claude-haiku-5-5"), (OmpBackend, "anthropic/claude-haiku-5-5"), (OpencodeBackend, OPENCODE_MODEL)],
+    [
+        (ClaudeBackend, "claude-haiku-5-5"),
+        (OmpBackend, "anthropic/claude-haiku-5-5"),
+        (OpencodeBackend, OPENCODE_MODEL),
+        (CodexBackend, "gpt-5.6-luna"),
+    ],
 )
 def test_a_task_agent_takes_no_instructions_from_the_project(tmp_path, backend, model):
     """Each coding agent would load the project's instruction files and skills: neither may."""
     only(backend.name)
-    from contraagent import Launch, Limits
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
 
     _project_with_its_own_instructions(tmp_path)
     launch = Launch(prompt=ASK, label="isolation", model=model, effort="low", cwd=tmp_path, limits=Limits(timeout_s=120, max_turns=2))
@@ -256,8 +288,8 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     only("omp")
     import importlib.util
 
-    from contraagent.backends.omp.rpc import _Accumulator
-    from contraagent.backends.omp.trace import TraceReader
+    from contraagent._internal.backends.omp.rpc import RpcReader
+    from contraagent._internal.backends.omp.wire import TraceReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "omp" / "record.py")
     assert spec and spec.loader
@@ -267,10 +299,10 @@ def test_omp_sends_only_events_its_reader_knows(tmp_path):
     reader = TraceReader()
     for ev in wires["json"]:
         reader.feed(ev)
-    acc = _Accumulator()
+    rpc = RpcReader("rec")
     for frame in wires["rpc"]:
-        acc.feed(frame, "rec")
-    for name, read in (("json", reader), ("rpc", acc.reader)):
+        rpc.feed(frame)
+    for name, read in (("json", reader), ("rpc", rpc)):
         print(f"\n  {name}: tool_uses={dict(read.tool_uses)} unread={dict(read.unread)}")
         assert not read.unread, f"{name}: omp sent events the reader does not know"
         assert dict(read.tool_uses) == {"read": 1, "bash": 1, "web_search": 1}
@@ -283,7 +315,7 @@ def test_opencode_sends_only_events_its_reader_knows(tmp_path):
     only("opencode")
     import importlib.util
 
-    from contraagent.backends.opencode.wire import EventReader
+    from contraagent._internal.backends.opencode.wire import EventReader
 
     spec = importlib.util.spec_from_file_location("record", Path(__file__).parents[1] / "fixtures" / "opencode" / "record.py")
     assert spec and spec.loader
@@ -295,6 +327,62 @@ def test_opencode_sends_only_events_its_reader_knows(tmp_path):
     print(f"\n  opencode: tool_uses={dict(reader.tool_uses)} unread={dict(reader.unread)}")
     assert not reader.unread, "opencode sent events the reader does not know"
     assert dict(reader.tool_uses) == {"read": 1, "bash": 1}
+
+
+#: A launch that makes the agent read a file, run a command and think: the events a task's
+#: launch sends, for the tests below.
+WIRE_ASK = "Read the file notes.txt, then run the shell command `wc -l notes.txt`. Answer with the file's first word and its line count."
+
+
+def _wire_launch(backend, model: str, cwd: Path):
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
+
+    (cwd / "notes.txt").write_text("retry\nqueue\ndead-letter\n")
+    launch = Launch(prompt=WIRE_ASK, label="wire", model=model, effort="low", cwd=cwd, limits=Limits(timeout_s=180, max_turns=6))
+    result = backend().run(launch)
+    print(f"\n  {backend.name}: stop={result.stop} tool_uses={dict(result.tool_uses)} unread={result.unread_events}")
+    assert result.ok, (result.stop, result.result_text[-300:], result.stderr_tail)
+    assert result.tool_uses
+    return result
+
+
+def test_claude_sends_only_events_its_reader_knows(tmp_path):
+    """The Claude Code installed here: every event of a launch is one `claude/wire.py`'s
+    KNOWN_EVENTS lists. A failure after an upgrade: add the new type to the list and read it."""
+    only("claude")
+    result = _wire_launch(ClaudeBackend, "claude-haiku-5-5", tmp_path)
+    assert not result.unread_events, "claude sent events the reader does not know"
+
+
+def test_codex_sends_only_events_its_reader_knows(tmp_path):
+    """The codex installed here: every `--json` event of a launch is one `codex/wire.py`'s
+    KNOWN_EVENTS lists. A failure after an upgrade: add the new type to the list and read it."""
+    only("codex")
+    result = _wire_launch(CodexBackend, "gpt-5.6-luna", tmp_path)
+    assert not result.unread_events, "codex sent events the reader does not know"
+    assert result.usage.calls and result.init_model == "gpt-5.6-luna"  # read from the rollout file
+
+
+def test_codex_writes_temporary_files_in_its_own_directory_not_in_tmp(tmp_path):
+    """A command codex runs makes a temporary file with `mktemp`: it lands in the launch's own
+    directory under `<temp dir>/contraagent-<uid>/`, which is gone after the launch, and the sandbox
+    leaves nothing directly in the system's temporary directory."""
+    only("codex")
+    from contraagent._internal.backends.base import temp_root
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
+
+    system_tmp = tempfile.gettempdir()
+    before = set(os.listdir(system_tmp))
+    prompt = 'Run this shell command and reply with its output only: f=$(mktemp) && echo hello > "$f" && cat "$f" && echo "$f"'
+    launch = Launch(prompt=prompt, label="tmp-probe", model="gpt-5.6-luna", effort="low", cwd=tmp_path, limits=Limits(timeout_s=300))
+    result = CodexBackend().run(launch)
+    assert result.ok, result.stderr_tail
+    assert "hello" in result.result_text and f"{temp_root()}/codex-tmp-probe-" in result.result_text, result.result_text
+    new = set(os.listdir(system_tmp)) - before
+    assert not new & {".git", ".agents", ".codex"} and not any(n.startswith("codex-") for n in new), new
+    assert not list(temp_root().glob("codex-tmp-probe-*"))  # removed with the launch
 
 
 # --- a generator flow on each coding agent -------------------------------------------------
@@ -310,7 +398,7 @@ model = "{model}"
 effort = "low"
 """
 
-FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5", "opencode": OPENCODE_MODEL}
+FLOW_ROUTES = {"claude": "claude-haiku-5-5", "omp": "anthropic/claude-haiku-5-5", "opencode": OPENCODE_MODEL, "codex": "gpt-5.6-luna"}
 FLOW_UNITS = ["a", "b"]
 
 
@@ -381,7 +469,7 @@ def _rows(path: Path) -> list[dict]:
 def flow_runs(ws):
     """Per coding agent: the review flow run, resumed unchanged, then resumed with `revise`'s
     instructions changed. Each step's report, its new journal rows and launches."""
-    from contraagent.execution.estimates import JournalEstimates
+    from contraagent.engine import JournalEstimates
 
     for unit in FLOW_UNITS:
         (ws / "in" / f"{unit}.md").write_text(DOC)
@@ -552,7 +640,7 @@ def test_monitor_serves_the_flow_and_its_loops(flow_runs, agent):
     only(agent)
     from fastapi.testclient import TestClient
 
-    from contraagent.monitor import server
+    from contraagent._internal.monitor import server
 
     run = flow_runs[agent]
     client = TestClient(server.create_app(Monitor(run["run_dir"].parent)), base_url="http://127.0.0.1")

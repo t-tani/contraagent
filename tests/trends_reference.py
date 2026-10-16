@@ -1,5 +1,5 @@
 """The trends as they were first computed, one journal row at a time: the reference the
-bucketed digests of `contraagent.monitor.trends` must agree with (`test_trends.py`).
+bucketed digests of `contraagent._internal.monitor.trends` must agree with (`test_trends.py`).
 Only the utilization changed shape: each hour's highest reading instead of every reading.
 
 Trends: what the runs of a period add up to, day by day.
@@ -16,7 +16,7 @@ It works in two steps, so that any period, time zone or grouping costs little:
   journal row, utilization reading, refused tool call, rest and deferral). A
   digest depends only on the run's files, so it is kept: in memory, keyed by the
   run's `signature`, and, for a finished run in a runs directory, in the run's
-  `trends.json` (`rundir.TRENDS`), so a restarted monitor reads it back.
+  `trends.json` (`layout.TRENDS`), so a restarted monitor reads it back.
 * `aggregate(digests, period, groups)`: the trends of a period over digests,
   with `bodies(view)`, the same numbers as panel bodies (`{"type": "blocks", ...}`)
   for a page that draws them without words of its own.
@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from contraagent import rundir
+from contraagent._internal.runs import layout
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
 DIGEST_VERSION = 1
@@ -47,7 +47,7 @@ MAX_DAYS = 366
 DEFAULT_DAYS = 14
 
 #: The logs a digest reads; their sizes, with the run's start and finish, are its signature.
-DIGEST_LOGS = (rundir.JOURNAL, rundir.LAUNCHES, rundir.RESTS, rundir.DEFERRED)
+DIGEST_LOGS = (layout.JOURNAL, layout.LAUNCHES, layout.RESTS, layout.DEFERRED)
 
 _TOKENS = ("input", "output", "cache_read", "cache_creation", "calls")
 _WINDOWS = ("five_hour", "seven_day")
@@ -167,7 +167,7 @@ def digest(source, run: str) -> dict:
     rows = []
     kinds: dict[str, str] = {}
     quota = []
-    for e in _parse(source.lines(run, rundir.JOURNAL)[0]):
+    for e in _parse(source.lines(run, layout.JOURNAL)[0]):
         kinds[str(e.get("key", ""))] = str(e.get("kind", "?"))
         rows.append(
             {
@@ -210,17 +210,17 @@ def digest(source, run: str) -> dict:
                     }
                 )
     denied = []
-    for launch in _parse(source.lines(run, rundir.LAUNCHES)[0]):
+    for launch in _parse(source.lines(run, layout.LAUNCHES)[0]):
         for d in launch.get("denied") or ():
             if isinstance(d, dict) and d.get("tool"):
                 key = str(launch.get("label", ""))
                 denied.append({"ts": launch.get("ts", ""), "key": key, "kind": kinds.get(key, ""), "tool": str(d["tool"])})
     rests = [
         {k: r.get(k) for k in ("ts", "event", "credential", "window", "pct", "cap", "rule", "until", "account", "reading") if k in r}
-        for r in _parse(source.lines(run, rundir.RESTS)[0])
+        for r in _parse(source.lines(run, layout.RESTS)[0])
     ]
     deferred = []
-    for d in _parse(source.lines(run, rundir.DEFERRED)[0]):
+    for d in _parse(source.lines(run, layout.DEFERRED)[0]):
         cause = d["cause"] if isinstance(d.get("cause"), dict) else {}
         deferred.append(
             {
@@ -271,7 +271,7 @@ def _round(v: float | None, n: int = 6) -> float | None:
 def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str] | None = None) -> dict:
     """The trends of `period` over run `digests` (`digest`); `groups` maps a kind to the
     group it is counted in (the monitor's `groups`), each other kind being its own."""
-    from contraagent.monitor.core import model_usage  # the per-model sums one run's plan shows
+    from contraagent._internal.monitor.aggregate import model_usage
 
     group_of = dict(groups or {})
     days = [d.isoformat() for d in period.days]

@@ -1,0 +1,1 @@
+- A long path or URL in rendered Markdown (`cae-markdown`) wraps inside its box instead of widening it.

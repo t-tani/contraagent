@@ -6,25 +6,13 @@ import sys
 import pytest
 from pydantic import BaseModel
 
-from contraagent import (
-    Backend,
-    KindConfig,
-    LaunchResult,
-    Pipeline,
-    PipelineConfig,
-    PreflightStopped,
-    RateLimit,
-    Route,
-    Router,
-    RoutingError,
-    RoutingPlan,
-    Stop,
-    agent_task,
-)
-from contraagent.cli import main
-from contraagent.monitor.api import Plan
-from contraagent.monitor.core import Monitor
-from contraagent.routing.preflight import DroppedRoute, KeptKind, Substitution
+from contraagent import Pipeline, PipelineConfig, PreflightStopped, RoutingError, agent_task
+from contraagent._internal.cli import main
+from contraagent.backends import Backend, LaunchResult, QuotaRefusal, Stop
+from contraagent.config import KindConfig, Route
+from contraagent.engine import Router, RoutingPlan
+from contraagent.monitor import Monitor
+from contraagent.monitor.api import DroppedRoute, KeptKind, Plan, Substitution
 from contraagent.testing import StubAgent
 
 
@@ -47,8 +35,8 @@ class Agent(Backend):
     def run(self, launch):
         self.seen.append(launch.model)
         stop = self.script(launch.model)
-        rl = RateLimit(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
-        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, rate_limit=rl)
+        rl = QuotaRefusal(retry_after_s=300) if stop == Stop.RATE_LIMITED else None
+        return LaunchResult(label=launch.label, agent=self.name, stop=stop, ok=stop == Stop.COMPLETED, model=launch.model, quota_refusal=rl)
 
 
 def kind(agent, model, credential="ambient"):
@@ -77,12 +65,12 @@ def test_substitute_runs_a_kind_with_no_route_left_on_the_first_route_that_answe
     assert (plan.configs["b"].agent, plan.configs["b"].model) == ("omp", "alive")
     assert "b" not in plan.routers
     assert record.policy == "substitute"
-    assert record.substituted == [Substitution("b", "claude", "dead", "omp", "alive")]
+    assert record.substituted == [Substitution(kind="b", from_agent="claude", from_model="dead", to_agent="omp", to_model="alive")]
     assert record.dropped == [
-        DroppedRoute("claude", "dead", "ambient", "rate limited", ("b",)),
-        DroppedRoute("claude", "dead-hop", "ambient", "rate limited", ("b",)),
+        DroppedRoute(agent="claude", model="dead", credential="ambient", reason="rate limited", kinds=("b",)),
+        DroppedRoute(agent="claude", model="dead-hop", credential="ambient", reason="rate limited", kinds=("b",)),
     ]
-    assert json.loads(json.dumps(record.as_dict()))["substituted"][0]["to_model"] == "alive"
+    assert json.loads(json.dumps(record.model_dump(mode="json")))["substituted"][0]["to_model"] == "alive"
 
 
 def test_substitute_keeps_a_kind_when_the_route_that_answered_runs_as_another_credential():
@@ -92,7 +80,7 @@ def test_substitute_keeps_a_kind_when_the_route_that_answered_runs_as_another_cr
     record = plan.preflight("substitute")
     assert plan.configs["b"].model == "dead"  # left as configured
     [kept] = record.kept
-    assert kept == KeptKind("b", "claude", "dead", kept.reason)
+    assert kept == KeptKind(kind="b", agent="claude", model="dead", reason=kept.reason)
     assert "runs as team, not personal" in kept.reason
 
 
@@ -161,7 +149,7 @@ def test_a_stopped_run_launches_nothing_and_records_why(tmp_path):
     info = json.loads((tmp_path / "r" / "run.json").read_text())
     assert info["preflight"]["policy"] == "stop" and info["preflight"]["stopped"] == ["check"]
     plan = Plan.model_validate(Monitor(tmp_path).plan("r"))
-    assert plan.preflight is not None and plan.preflight.dropped[0].kinds == ["check"]
+    assert plan.preflight is not None and plan.preflight.dropped[0].kinds == ("check",)
 
 
 def test_a_substituted_run_records_where_each_kind_ran(tmp_path):

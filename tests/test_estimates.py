@@ -3,11 +3,11 @@
 import json
 import os
 
-from contraagent import Pipeline
-from contraagent.dispatch.task import Frame, Loop, Origin, Task
+from contraagent import Frame, Loop, Origin, Pipeline, Task
+from contraagent._internal.execution.estimates import run_tails
+from contraagent._internal.pipeline.graph import Graph
 from contraagent.docs.examples.review import flow as example
-from contraagent.execution.estimates import JournalEstimates, run_tails
-from contraagent.pipeline.graph import Graph
+from contraagent.engine import JournalEstimates
 from contraagent.testing import StubAgent
 
 DOCS = "flows.docs"
@@ -63,8 +63,8 @@ def review_run(review_s: float, revise_s: float):
 
 
 def task(kind, flow=(DOCS, LOOP), passes=()):
-    frames = [Frame(f, "flows.py", 1) for f in flow]
-    frames[-1] = Frame(flow[-1], "flows.py", 1, tuple(Loop(10 + i, p) for i, p in enumerate(passes)))
+    frames = [Frame(function=f, file="flows.py", line=1) for f in flow]
+    frames[-1] = Frame(function=flow[-1], file="flows.py", line=1, loops=tuple(Loop(line=10 + i, pass_=p) for i, p in enumerate(passes)))
     return Task(kind, unit="z", origin=Origin(flow=tuple(frames)))
 
 

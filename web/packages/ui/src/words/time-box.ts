@@ -1,11 +1,11 @@
 // A flow call's own deadline (`time_box`), in words: the function node of the
 // pipeline graph and its flow calls show it.
-import type { TimeBoxInfo } from '@contraagent/api';
+import type { TimeBoxRecord } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { facts, fmtDur, listText, localTime } from './format.js';
 
 /** A deadline's terms: `45m 00s | finishing time 15m 00s | finishing kinds: lint_fixer, report`. */
-export function timeBoxFacts(box: TimeBoxInfo): string {
+export function timeBoxFacts(box: TimeBoxRecord): string {
   const kinds = box.finishing_kinds ?? [];
   return facts(
     fmtDur(box.deadline_s),

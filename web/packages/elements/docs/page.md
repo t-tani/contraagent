@@ -6,6 +6,11 @@ beside a detail panel of the page's own. The whole example is
 `docs/examples/ci-pipeline.ts`; it uses only the package's public entry points,
 and `mount(host)` builds the page in any element.
 
+![A CI pipeline's page in the light theme: a theme switch, stat tiles, the layered graph of its steps beside a detail panel, and a table of its jobs](images/page.webp)
+
+<!-- not on the site -->
+Live on this topic's page of the documentation site (`pnpm docs` in `web/`).
+
 ## What the page holds
 
 The elements keep no state of their own that the page needs: each one draws
@@ -27,6 +32,15 @@ themes' rules once, and `data-ca-theme` on any ancestor then picks a theme
 ([Theming](theming.md)).
 
 ::code{file="examples/ci-pipeline.ts" from="import '@contraagent/elements/segmented/define'" to="// ---- The data"}
+
+## Widths
+
+Each element is as wide as its container and lays itself out by its own width,
+not the window's: its host is a CSS container (`container-type: inline-size`),
+so the same element fits a sidebar, a column or a whole page. Its width does
+not come from its content: in a flex row, give it a width or `flex: 1`. A table
+wider than its element scrolls inside its own box. This page's two columns
+become one below 760 px of the page's own width (`@container` in its stylesheet).
 
 ## The data
 

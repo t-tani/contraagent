@@ -2,7 +2,7 @@
 import { css } from 'lit';
 
 export const taskViewStyles = css`
-  :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; }
+  :host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; position: relative; container-type: inline-size; }
   .taskmeta { flex: none; background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid var(--line);
     border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; color: var(--text-2); }
   .tm-head { display: flex; gap: 12px; align-items: center; }
@@ -43,13 +43,18 @@ export const taskViewStyles = css`
   .qlink { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-align: left; font: inherit; }
   .qlink:hover { text-decoration: underline; }
 
-  .tviews { flex: none; display: flex; gap: 4px; margin: 2px 0 8px; border-bottom: 1px solid var(--line); }
+  .tviews { flex: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; border-bottom: 1px solid var(--line); }
+  @container (max-width: 480px) {
+    .tviews { gap: 0; }
+    .tview { padding: 6px 10px; }
+  }
   .tview { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-muted); padding: 6px 14px; cursor: pointer; }
   .tview:hover { color: var(--text-2); }
   .tview.sel { color: var(--text); border-bottom-color: var(--accent); }
   .tview .badge { margin-left: 6px; font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--raise); color: var(--text-2); }
 
-  .pane { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  /* A positioned box: what is placed in it (a screen reader's text) scrolls with it, not past the view's end. */
+  .pane { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; }
   .upstream { margin-bottom: 12px; }
   .up-hd { display: flex; align-items: center; gap: 10px; margin: 2px 0 6px; }
   .down { display: flex; flex-wrap: wrap; gap: 8px; }

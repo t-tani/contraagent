@@ -2,8 +2,10 @@
 #
 #   ./make-tokens build-01 build-02     # tokens in secrets/, passwords in .env
 #
-# and set CONTRAAGENT_HUB_HOSTNAME in .env. The hub is built from this source tree
-# (Dockerfile), or taken from CONTRAAGENT_HUB_IMAGE when that names a built image.
+# and set CONTRAAGENT_HUB_HOSTNAME in .env. The hub's image is built from Dockerfile beside
+# this file: contraagent[hub] at CONTRAAGENT_VERSION from PyPI, or the wheel named by
+# CONTRAAGENT_WHEEL in this directory. CONTRAAGENT_HUB_IMAGE names it (default:
+# contraagent-hub:<version>); naming an image built elsewhere uses that image.
 # Settings: .env.example. Tokens: compose secrets, read from CONTRAAGENT_SECRETS_DIR
 # (default: ./secrets).
 
@@ -11,10 +13,12 @@ name: contraagent-hub
 
 services:
   hub:
-    image: ${CONTRAAGENT_HUB_IMAGE:-contraagent-hub:local}
+    image: ${CONTRAAGENT_HUB_IMAGE:-contraagent-hub:${CONTRAAGENT_VERSION}}
     build:
-      context: ../../../../..
-      dockerfile: src/contraagent/docs/examples/hub/Dockerfile
+      context: .
+      args:
+        CONTRAAGENT_VERSION: ${CONTRAAGENT_VERSION:?set CONTRAAGENT_VERSION in .env}
+        CONTRAAGENT_WHEEL: ${CONTRAAGENT_WHEEL:-}
     command:
       - --host=0.0.0.0
       - --allow-host=${CONTRAAGENT_HUB_HOSTNAME:-localhost}

@@ -1,6 +1,6 @@
 // Words for the run's preflight (`Plan.preflight`): one request to each model of the
 // run before its first agent session, and what became of the kinds whose models did not answer.
-import type { Preflight, PreflightDropped, PreflightSubstitution } from '@contraagent/api';
+import type { PreflightRecord, DroppedRoute, Substitution } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { credentialLabel } from './credential.js';
 import { facts, listText } from './format.js';
@@ -12,7 +12,7 @@ export const routeName = (agent: string, model: string): string => (model ? `${a
 export const preflightLabel = (): string => msg('Model availability');
 
 /** What the preflight is, for its tooltip, with its policy. */
-export const preflightTip = (policy: Preflight['policy']): string =>
+export const preflightTip = (policy: PreflightRecord['policy']): string =>
   msg(str`One request to each model before the first agent session (preflight, policy ${policy})`);
 
 /** A preflight that dropped no model. */
@@ -22,7 +22,7 @@ export const allAvailable = (): string => msg('all models available');
 export const unavailableLabel = (): string => msg('Unavailable', { desc: 'A model that did not answer the request before the run' });
 
 /** A dropped model in one row: `claude / opus | identity work | rate limited | kinds review and summarize`. */
-export const unavailableText = (d: PreflightDropped): string =>
+export const unavailableText = (d: DroppedRoute): string =>
   facts(
     routeName(d.agent, d.model),
     d.credential ? msg(str`identity ${credentialLabel(d.credential)}`) : '',
@@ -37,7 +37,7 @@ export const replacedLabel = (): string => msg('Model replaced');
 export const replacedTip = (): string => msg('A kind with no available model, run on the first model that answered (substitute)');
 
 /** A replaced model in one row: `review | claude / opus → claude / sonnet`. */
-export const replacedText = (s: PreflightSubstitution): string =>
+export const replacedText = (s: Substitution): string =>
   facts(s.kind, `${routeName(s.from_agent, s.from_model)} → ${routeName(s.to_agent, s.to_model)}`);
 
 /** A kind none of whose models is available (`kept`, `stopped`). */

@@ -75,7 +75,7 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
     {
       id: 'time',
       header: msg('Time'),
-      tip: msg('Sum over all attempts'),
+      tip: msg('Summed over all attempts'),
       align: 'end',
       width: '132px',
       cell: (t) =>
@@ -87,7 +87,7 @@ export function taskColumns(ctx: TaskColumnsContext): DataColumn<TaskRow>[] {
     {
       id: 'tokens',
       header: msg('Tokens'),
-      tip: msg('Input and output tokens, all attempts'),
+      tip: msg('Input and output, summed over all attempts'),
       align: 'end',
       width: '72px',
       cell: (t) =>

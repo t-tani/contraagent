@@ -75,7 +75,7 @@ export class CaModelUsage extends LitElement {
           </div>`
         : nothing}
       ${shareBar(shareParts(this.models, measure), { label: measureLabel(measure) })}
-      <div class="wrap" tabindex="0" role="region" aria-label=${msg('Models')}>
+      <div class="wrap" data-scroll="x" tabindex="0" role="region" aria-label=${msg('Models')}>
         <table>
           <thead>
             <tr>

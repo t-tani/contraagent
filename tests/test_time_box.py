@@ -8,8 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from contraagent import Pipeline, PipelineConfig, python_task, time_box
-from contraagent.dispatch import FlowDriver, Task, TaskDeferred, TaskResult, WorkQueue, result_or_raise
+from contraagent import Pipeline, PipelineConfig, Task, TaskDeferred, TaskResult, python_task, time_box
+from contraagent._internal.dispatch import result_or_raise
+from contraagent.engine import FlowDriver, WorkQueue
 from contraagent.monitor import Monitor
 
 
@@ -40,7 +41,7 @@ def drive(*flows, wait_s: float = 0.0, **queue_options):
 
     def on_event(event, task, **fields):
         if event == "deferred":
-            deferred.append({"key": task.key, **fields})
+            deferred.append({"key": task.key, **fields, "cause": fields["cause"].to_dict()})
 
     runner = Runner()
     driver = FlowDriver(answer=result_or_raise)
@@ -237,8 +238,8 @@ class FakeTime:
 
 @pytest.fixture
 def clock(monkeypatch):
-    import contraagent.dispatch.flow as flow_module
-    import contraagent.dispatch.queue as queue_module
+    import contraagent._internal.dispatch.flow as flow_module
+    import contraagent._internal.dispatch.queue as queue_module
 
     fake = FakeTime()
     monkeypatch.setattr(queue_module, "time", fake)
@@ -291,3 +292,84 @@ def test_the_time_box_example_cuts_the_writes_and_still_summarizes_and_publishes
     assert report.results["python:publish"].ok
     [deferral] = rows(report.run_dir / "deferred.jsonl")
     assert deferral["key"] == "write-c" and deferral["cause"] == {"cause": "deadline", "flow_call": "0.1"}
+    assert report.ok and [r.task.key for r in report.deferred] == ["write-c"]  # the other topics wait: no failure
+
+
+# --- a deferral in the run's report: not a failure -------------------------------
+
+
+def test_a_deferral_the_flow_caught_leaves_the_run_ok(tmp_path, clock):
+    spent[:] = [clock]
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(cycle, unit="a")
+    assert report.value == "cut" and report.ok and not report.failed and not report.flow_errors
+    [deferred] = report.deferred
+    assert deferred.task.key == "python:late-a" and deferred.stop == "deferred"
+    assert deferred.cause is not None and deferred.cause.cause == "deadline" and "time box of flow call 0.1" in deferred.reason
+
+
+def uncaught(unit):
+    yield slow(unit)
+    yield late(unit)  # deferred: the flow does not catch TaskDeferred
+    return "whole"
+
+
+def test_a_deferral_the_flow_does_not_catch_ends_the_flow_and_the_run_is_not_ok(tmp_path, clock):
+    spent[:] = [clock]
+
+    def flow(unit):
+        return (yield time_box(uncaught(unit), deadline_s=0.15))
+
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow, unit="a")
+    assert not report.ok and report.value is None and not report.failed
+    assert [r.task.key for r in report.deferred] == ["python:late-a"]
+    [call] = report.flow_errors
+    assert isinstance(call.error, TaskDeferred)
+
+
+@python_task
+def echo(text: str) -> str:
+    return text
+
+
+def hands_on(unit):
+    yield slow(unit)
+    return late(unit)  # not waited for: created past the deadline, deferred
+
+
+def test_a_task_that_reads_a_deferred_output_is_deferred_too(tmp_path, clock):
+    spent[:] = [clock]
+
+    def flow(unit):
+        text = yield time_box(hands_on(unit), deadline_s=0.15)
+        echo(unit, text=text)  # outside the box; its input never comes
+        publish(unit, after=[text])  # only ordered after it: it launches
+
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None).run(flow, unit="a")
+    assert report.ok and not report.failed
+    assert sorted(r.task.key for r in report.deferred) == ["python:echo-a", "python:late-a"]
+    assert report.results["python:publish-a"].ok
+    echoed = report.results["python:echo-a"]
+    assert echoed.cause is not None and echoed.cause.cause == "dependency_deferred" and echoed.cause.dependency == "python:late-a"
+    by_key = {r["key"]: r for r in rows(report.run_dir / "deferred.jsonl")}
+    assert by_key["python:echo-a"]["cause"] == {"cause": "dependency_deferred", "dependency": "python:late-a"}
+
+
+def test_contraagent_run_exits_0_when_its_tasks_were_deferred_and_the_flow_caught_it(tmp_path, capsys, monkeypatch):
+    import sys
+
+    from contraagent._internal.cli import main
+
+    (tmp_path / "boxed.py").write_text(
+        "import time\n"
+        "from contraagent import TaskDeferred, python_task, time_box\n"
+        "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(0.3)\n    return unit\n"
+        "@python_task\ndef late(unit: str) -> str:\n    return unit\n"
+        "def work(unit):\n    yield slow(unit)\n    try:\n        yield late(unit)\n    except TaskDeferred:\n        return 'cut'\n"
+        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=0.05))\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert main(["run", "boxed.py:flow", "--kwargs", '{"unit": "a"}']) == 0
+    out = capsys.readouterr().out
+    assert "1/2 tasks done, 1 deferred" in out and "python:late-a: deferred" in out
+    sys.modules.pop("boxed", None)

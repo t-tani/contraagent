@@ -33,19 +33,11 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from contraagent import (
-    Backend,
-    CallFile,
-    LaunchResult,
-    Overrides,
-    Pipeline,
-    RateLimit,
-    Stop,
-    envvars,
-)
-from contraagent.backends.launch import CallUsage, Usage
-from contraagent.backends.process import write_launch_marker
+from contraagent import Overrides, Pipeline
+from contraagent.backends import Backend, CallFile, CallUsage, LaunchResult, QuotaRefusal, Stop, Usage, known_agents
+from contraagent.config import QuotaReading
 from contraagent.docs.examples.demo.tasks import docs
+from contraagent.monitor import Panel, RunRecords
 
 HERE = Path(__file__).resolve().parent
 
@@ -77,11 +69,13 @@ class DemoAgent(Backend):
     def run(self, launch):
         started = time.monotonic()
         started_at = datetime.now(UTC).isoformat(timespec="seconds")
-        call = CallFile.read(Path(launch.env[envvars.CALL]))
+        call_path = CallFile.path_of(launch)
+        assert call_path is not None, "every launch of the demo is an agent task's"
+        call = CallFile.read(call_path)
         with self._lock:
             n = self.rounds[launch.label] = self.rounds.get(launch.label, 0) + 1
         stream = Path(launch.stream_path) if launch.stream_path else None
-        write_launch_marker(self.argv(launch), launch)  # one marker per round
+        self.mark_launch(launch)  # one marker per round
 
         def emit(event, pause=0.5):
             if stream:
@@ -115,7 +109,7 @@ class DemoAgent(Backend):
             )
             cost = (fresh * 3 + written * 3.75 + cached * 0.3 + out * 15) / 1_000_000
             with self._lock:  # one reading per session start, account-wide, as Claude Code reports it
-                reading = RateLimit(
+                reading = QuotaReading(
                     status="allowed",
                     five_hour_pct=round(self.used, 1),
                     seven_day_pct=round(40 + self.used / 10, 1),
@@ -133,7 +127,7 @@ class DemoAgent(Backend):
                 wall_s=round(time.monotonic() - started, 2),  # what the launch actually took
                 usage=usage,
                 cost_usd=round(cost, 6),
-                rate_limits=[reading],
+                quota=[reading],
                 session_id=f"s-{launch.label}",
                 **kw,
             )
@@ -145,11 +139,11 @@ class DemoAgent(Backend):
 
         unit = call.unit
         text(f"## {call.kind} {unit}\nRound {n} on `{launch.model or 'default'}` as `{launch.role}`.\n")
-        tool("read", {"path": launch.env[envvars.CALL]}, json.dumps(call.params, ensure_ascii=False)[:300])
+        tool("read", {"path": str(call_path)}, json.dumps(call.params, ensure_ascii=False)[:300])
         if call.kind == "summarize":
             if launch.model == "primary-model" and unit == "beta":
                 tool("bash", {"command": "curl -s https://api.example/limits"}, "429 Too Many Requests", err=True)
-                return done(Stop.RATE_LIMITED, rate_limit=RateLimit(retry_after_s=600))
+                return done(Stop.RATE_LIMITED, quota_refusal=QuotaRefusal(retry_after_s=600))
             points = ["parses a config file", "validates it", "reports errors"]
             write(json.dumps({"unit": unit, "points": points[:2] if unit == "delta" and n == 1 else points}))
         elif call.kind == "review":
@@ -181,9 +175,24 @@ class DemoAgent(Backend):
         return done()
 
 
+def notes(run: RunRecords) -> dict:
+    """Each unit's note, read through the run's records, so it shows on a hub too."""
+    keys = {row["unit"]: row["key"] for row in run.journal() if row["kind"] == "write_note" and row["ok"]}
+    return {unit: note.text for unit, key in sorted(keys.items()) if (note := run.output(key)) is not None}
+
+
+#: The demo's own view in the monitor: a tab of each run.
+PANELS = {"notes": Panel(notes, title="notes", description="What write_note produced", icon="✎")}
+
+
 def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--real", metavar="AGENT", help="use a real coding agent (claude, omp) instead of the demo agent")
+    ap.add_argument(
+        "--real",
+        metavar="AGENT",
+        choices=known_agents(),
+        help=f"use a real coding agent ({', '.join(known_agents())}) instead of the demo agent",
+    )
     ap.add_argument("--no-serve", action="store_true", help="do not start the monitor")
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--fast", action="store_true", help="demo agent with short pauses (what the tests run)")
@@ -200,16 +209,9 @@ def main(argv: list[str] | None = None):
         pipeline = Pipeline(HERE / "pipeline.toml", runs_dir="demo-runs", backends={"stub": DemoAgent(pace=0.03 if args.fast else 1.0)})
 
     if not args.no_serve:
-        from contraagent.monitor import Monitor, Panel, RunRecords, serve
+        from contraagent.monitor import Monitor, serve
 
-        def notes(run: RunRecords) -> dict:
-            return {p.stem: p.read_text(encoding="utf-8") for p in sorted(Path("demo-runs", run.id, "out", "write_note").glob("*.md"))}
-
-        monitor = Monitor(
-            "demo-runs",
-            title="contraagent demo",
-            panels={"notes": Panel(notes, title="notes", description="What write_note produced", icon="✎")},
-        )
+        monitor = Monitor("demo-runs", title="contraagent demo", panels=PANELS)
         threading.Thread(target=serve, daemon=True, args=(monitor, "127.0.0.1", args.port)).start()
         time.sleep(1)
         print(f"monitor: http://127.0.0.1:{args.port}", flush=True)

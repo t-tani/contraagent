@@ -7,9 +7,9 @@ it. Neither changes how a pipeline runs: the run directory stays the record, and
 whose hub is unreachable keeps running and catches up later.
 
 Every option is in `contraagent hub --help` and `contraagent relay --help`; the wire
-between them is `contraagent/hub/openapi.json`. Install the `hub` extra
-(`pip install 'contraagent[hub]'`) on the hub's host. How to run one for real (compose, tokens, retention,
-backups) is in [Operating a hub](hub-operations.md).
+between them is the OpenAPI document `contraagent hub --openapi PATH` writes. Install the `hub` extra
+(`pip install 'contraagent[hub]'`) on the hub's host, or run it in compose from an image of the installed
+version. How to run one for real (compose, tokens, retention, backups) is in [Operating a hub](hub-operations.md).
 
 ## Start a hub
 
@@ -81,8 +81,8 @@ the lines go to one object in `--segments` as zstd frames of about 256 KiB with 
 of their first lines, and the index is recorded in the `--store` database (with
 `--store memory`, it is rebuilt from the sealed objects when the hub starts). A page of an
 earlier part of a transcript is one ranged read of one object. The hub answers each
-batch with how many lines it holds and how many are sealed (`Accepted.logs`,
-`Accepted.durable`).
+batch with how many lines it holds and how many are sealed (`logs` and `durable` of
+its response, `Accepted` in the OpenAPI document `contraagent hub --openapi` writes).
 
 A restarted hub resumes its open segments from `--streams-dir`. The open segments live
 on one host's disk, so a hub is one process.

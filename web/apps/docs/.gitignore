@@ -23,3 +23,4 @@ pnpm-debug.log*
 # pages collected from the packages (scripts/collect.py)
 src/content/docs/python/
 src/content/docs/node/
+public/schemas/

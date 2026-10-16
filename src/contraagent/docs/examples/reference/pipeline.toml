@@ -1,5 +1,7 @@
+#:schema ../../schemas/pipeline.schema.json
 # A reference pipeline config: every table and key, annotated.
-# tests/test_examples.py loads it and builds a routing plan from it, so it stays valid.
+# The package's tests load it, build a routing plan from it and check that it writes
+# every key of the JSON Schema, so it stays valid and complete.
 #
 # The config is operations, not definitions: which coding agent, model and
 # credential each kind of task runs on, where it fails over to, and budgets that
@@ -8,6 +10,7 @@
 # --- run-wide defaults --------------------------------------------------------
 
 [defaults]
+_comment = "a note for the reader; every table takes one, and contraagent ignores it"
 agent = "claude"                    # a registered coding agent: claude, omp, omp-rpc, opencode, pi, codex
 effort = "medium"                   # checked against the agent's CLI (Backend.effort_levels)
 credential = "personal"             # without it: "ambient", the host's own setup
@@ -37,7 +40,12 @@ credential = "ambient"              # the OPENCODE_API_KEY omp finds: the enviro
 # --- one table per kind of task ---------------------------------------------
 
 [tasks.summarize]                   # agent_task("summarize", ...)
+# Routing: each key outranks [defaults] for this kind.
+agent = "claude"
 model = "claude-sonnet-5-5"
+effort = "high"
+# credential = "personal"
+# model_failover = false
 # Budgets. max_turns and timeout_s are required for every kind (here or in agent_task).
 max_turns = 20                      # turns per launch; outranks agent_task(..., max_turns=10)
 timeout_s = 600                     # seconds per launch
@@ -90,10 +98,20 @@ timeout_s = 900
 
 # --- credentials --------------------------------------------------------------
 # Secrets are references, read in the launching process: env:NAME or file:/path.
-# `traits` are labels a task's `requires` is matched against.
+# `traits` are labels a task's `requires` is matched against. Every type takes
+# `isolate`: true (the default but for ambient) keeps the coding agent from using
+# anything it would load by itself (stored logins, keys in its own config) instead
+# of this credential; and the quota caps max_five_hour_pct and max_seven_day_pct.
+
+[credentials.host]                  # the host's own setup, as the built-in "ambient" is, with caps of its own
+type = "ambient"
+isolate = false                     # the default for ambient: the agent loads what it would load by itself
+max_five_hour_pct = 95
 
 [credentials.personal]              # a /login (Claude Code), a profile login (omp) or a stored login (opencode)
 type = "subscription"
+provider = "anthropic"              # the default; omp, pi and opencode name the provider whose login it is
+isolate = true                      # the default: only this login, never a key the agent finds by itself
 max_five_hour_pct = 90              # quota caps: past them the credential rests until the window resets,
 max_seven_day_pct = 95              # and its tasks take the next hop (or are deferred with none left)
 # config_dir = "/home/me/.claude-work"   # Claude Code: the CLAUDE_CONFIG_DIR holding the login
@@ -104,18 +122,22 @@ type = "api_key"
 provider = "anthropic"
 key = "env:ZDR_ANTHROPIC_API_KEY"
 traits = ["zdr"]
+isolate = true
 
 [credentials.company-gateway]       # your own endpoint (LiteLLM, a proxy, a self-hosted API)
 type = "gateway"
 base_url = "env:LITELLM_BASE_URL"   # or a literal URL
 token = "env:LITELLM_API_TOKEN"
+isolate = true
 # auth = "bearer"                   # or "api_key" (sent as x-api-key; Claude Code only)
 # provider = "litellm"              # how omp and opencode address it: models are litellm/<model>
 # headers = { X-Team = "research" } # Anthropic-API endpoints only
 
 [credentials.token-a]               # long-lived OAuth tokens (claude setup-token)
 type = "oauth_token"
+provider = "anthropic"              # the default
 token = "env:CLAUDE_TOKEN_A"
+isolate = true
 
 [credentials.token-b]
 type = "oauth_token"
@@ -126,10 +148,34 @@ type = "pool"
 members = ["token-a", "token-b"]
 strategy = "round_robin"            # or "in_order": the next member only after a 429
 cooldown_s = 900                    # rest after a 429 when the provider states no retry-after
+isolate = true
+max_five_hour_pct = 90              # each member's cap when it sets none of its own
+max_seven_day_pct = 95
 
-# Also: type = "workload_identity" (federation_rule_id, organization_id,
-# identity_token_file), "bedrock" (region, aws_profile or bearer) and
-# "vertex" (project, region, credentials_file). Claude Code only.
+# Claude Code only, from here on.
+[credentials.federated]             # Anthropic workload identity federation
+type = "workload_identity"
+provider = "anthropic"              # the default
+federation_rule_id = "fdrl_0123"
+organization_id = "00000000-0000-0000-0000-000000000000"
+identity_token_file = "/var/run/secrets/tokens/anthropic"  # the identity token, exchanged for API access
+service_account_id = "svac_0123"    # optional
+workspace_id = "wrkspc_0123"        # optional
+isolate = true
+
+[credentials.aws]                   # Amazon Bedrock
+type = "bedrock"
+region = "us-east-1"
+aws_profile = "bedrock"             # an AWS profile; without it the default chain
+# bearer = "env:AWS_BEARER_TOKEN_BEDROCK"  # or a Bedrock API key instead
+isolate = true
+
+[credentials.gcp]                   # Google Vertex AI
+type = "vertex"
+project = "my-project"
+region = "us-east5"
+credentials_file = "/etc/gcp/vertex.json"  # a service-account key or a federation config; without it the default
+isolate = true
 
 # --- the pipeline's own tables ------------------------------------------------
 

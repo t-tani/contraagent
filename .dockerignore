@@ -1,0 +1,13 @@
+# The build context of Dockerfile (the developer's hub image) is the repository root; only what the image installs
+# enters it. Everything else (.git, .venv, node_modules, web/, runs, .claude/, tokens)
+# stays out.
+*
+!pyproject.toml
+!uv.lock
+!LICENSE
+!src/
+**/__pycache__
+**/*.py[cod]
+**/.env
+src/contraagent/docs/examples/hub/secrets
+src/contraagent/docs/examples/hub/*.whl

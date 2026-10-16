@@ -8,6 +8,9 @@ import { msg, str } from '@lit/localize';
 import { problemTone } from '../lib/tone.js';
 import { factList, facts, fmtDur, kindUnit, tokenCount, usd } from '../words/format.js';
 import { stateCount } from '../words/index.js';
+import { retryTip } from '../words/attempts.js';
+import { correctionTip } from '../words/contract.js';
+import { modelSwitchTip } from '../words/hops.js';
 
 /**
  * The run's figures, from the journal. Only tries that ran count: a task
@@ -88,7 +91,7 @@ function notStartedCauses(outcomes: Iterable<TaskOutcome>): string[] {
     const ps = last?.stop === 'invalid_input' ? inputProblems(last.reason) : [];
     if (ps.some((p) => p.problem === 'missing')) missing = true;
     if (ps.some((p) => p.problem === 'checks')) checks = true;
-    if (!ps.length && t.cause) earlier = true;
+    if (ps.some((p) => p.problem === 'failed') || (!ps.length && t.cause)) earlier = true;
   }
   return factList(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
 }
@@ -136,7 +139,7 @@ export function kpiTiles(journal: readonly JournalRow[], d: Pick<RunDerived, 'ou
       tone: problemTone(k.bad, 'failed'),
       label: msg('Failed attempts'),
       value: k.bad,
-      sub: [k.bad ? [] : [msg('All attempts passed')]],
+      sub: [k.bad ? [] : [msg('All attempts done')]],
       ...(k.bad ? { action: history('bad', msg('Failed attempts in history')) } : {}),
     },
     {
@@ -145,37 +148,37 @@ export function kpiTiles(journal: readonly JournalRow[], d: Pick<RunDerived, 'ou
       label: msg('Not started'),
       value: c.not_started,
       sub: [c.not_started ? notStartedCauses(outcomes.values()) : [msg('All tasks started')]],
-      ...(c.not_started ? { action: history('invalid_input', msg('Not-started tasks in history')) } : {}),
+      ...(c.not_started ? { action: history('invalid_input', msg('Tasks not started in history')) } : {}),
     },
     {
       id: 'wall',
       label: msg('Agent session time'),
       value: fmtDur(k.launchWall),
       sub: [[msg(str`Python tasks: ${fmtDur(k.pythonWall)}`)]],
-      tip: msg('Sum over all agent sessions, including ones running at once'),
+      tip: msg('Summed over agent sessions, including sessions that ran at once'),
     },
     {
       id: 'retry',
       label: msg('Retries'),
       value: k.retries,
       sub: [[!k.retries ? msg('No retries') : k.retriedTasks === 1 ? msg('1 task retried') : msg(str`${k.retriedTasks} tasks retried`)]],
-      tip: msg('Attempts after a failed attempt, each in a new agent session (RetryingRunner)'),
+      tip: retryTip(),
       ...(k.retries ? { action: show(journal, k.retriedKeys, 'retried', msg('Retried tasks in history')) } : {}),
     },
     {
       id: 'ct',
       label: msg('Corrections'),
       value: k.fixups,
-      sub: [[!k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with corrections') : msg(str`${k.fixupTasks} tasks with corrections`)]],
-      tip: msg('More rounds in the same agent session after the output failed checks (rounds)'),
+      sub: [[!k.fixups ? msg('No corrections') : k.fixupTasks === 1 ? msg('1 task with a correction') : msg(str`${k.fixupTasks} tasks with corrections`)]],
+      tip: correctionTip(),
       ...(k.fixups ? { action: show(journal, k.fixupKeys, 'fixup', msg('Attempts with corrections in history')) } : {}),
     },
     {
       id: 'fo',
       label: msg('Model switches'),
       value: k.switches,
-      sub: [[!k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with model switches') : msg(str`${k.switchTasks} tasks with model switches`)]],
-      tip: msg('To the next model after a failure such as a rate limit, an error or a timeout (Router hops)'),
+      sub: [[!k.switches ? msg('No model switches') : k.switchTasks === 1 ? msg('1 task with a model switch') : msg(str`${k.switchTasks} tasks with model switches`)]],
+      tip: modelSwitchTip(),
     },
   ];
 }

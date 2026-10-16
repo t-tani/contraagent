@@ -11,9 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from contraagent import Launch, Stop
-from contraagent.backends.opencode.wire import EventReader, normalize_event, parse_events, refusal_in_log
-from contraagent.backends.streams import normalize_stream_line
+from contraagent._internal.backends.opencode.wire import EventReader, normalize_event, refusal_in_log
+from contraagent.backends import Launch, Stop, normalize_stream_line
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
 VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/json.jsonl"))
@@ -47,7 +46,7 @@ def events(version: str) -> list[dict]:
 
 def read(evs: list[dict], exit_code: int = 0):
     raw = "".join(json.dumps(e) + "\n" for e in evs).encode()
-    return parse_events(LAUNCH, "opencode", raw, exit_code, None)
+    return EventReader(LAUNCH.model).read(raw).result(LAUNCH, "opencode", exit_code=exit_code, killed=None)
 
 
 @pytest.mark.parametrize("version", VERSIONS)
@@ -56,7 +55,7 @@ def test_a_recorded_launch_reads_whole(version):
     assert result.stop == Stop.COMPLETED and result.ok
     assert result.result_text.strip(".").lower() == "done"  # the last message only, not what came before a tool call
     assert result.tool_uses == {"read": 1, "bash": 1}
-    assert result.usage.n_calls == 3 and result.usage.output > 0 and result.cost_usd is not None
+    assert len(result.usage.calls) == 3 and sum(c.output for c in result.usage.calls) > 0 and result.cost_usd is not None
     assert result.session_id.startswith("ses_")
     assert result.unread_events == {}, "opencode sends events this reader does not know"
     assert json.loads(result.raw_result["tool_args"]["bash"][0])["command"] == "echo hi"
@@ -80,7 +79,7 @@ def test_an_error_event_names_the_stop_and_its_cause():
     assert read([UNKNOWN], exit_code=1).stop == Stop.API_ERROR
     quota = {**FREE_TIER, "error": {"name": "APIError", "data": {"message": "Too Many Requests", "statusCode": 429}}}
     limited = read([quota], exit_code=1)
-    assert limited.stop == Stop.RATE_LIMITED and limited.rate_limit is not None
+    assert limited.stop == Stop.RATE_LIMITED and limited.quota_refusal is not None
     assert normalize_event(FREE_TIER) == {"type": "notice", "text": "error: OpenCode's free tier can only be used from within OpenCode."}
 
 

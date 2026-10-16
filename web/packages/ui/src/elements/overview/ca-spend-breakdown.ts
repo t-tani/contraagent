@@ -39,7 +39,7 @@ export class CaSpendBreakdown extends LitElement {
       .seg-output { background: var(--tok-output); }
       .legend { margin-top: 10px; }
       h4 { margin: 16px 0 6px; font-size: 12px; color: var(--text-2); font-weight: 600; }
-      .top { display: grid; grid-template-columns: minmax(0, max-content) 64px 64px 40px; column-gap: 20px; row-gap: 4px; align-items: baseline; }
+      .top { display: grid; grid-template-columns: minmax(0, max-content) 64px 64px max-content; column-gap: 20px; row-gap: 4px; align-items: baseline; }
       .top a { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     `,
   ];
