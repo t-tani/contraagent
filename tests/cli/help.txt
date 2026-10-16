@@ -319,7 +319,9 @@ options:
                         run (stop); off: no probe (default: [defaults] preflight, else off)
   --stub                a stub run: the stub agent plays every agent task and every Python task
                         with the smallest output its schema accepts; no model is called and no
-                        Python task's function runs (run id: <flow>-stub)
+                        Python task's function runs (run id: <flow>-stub). It checks the flow's
+                        wiring: a task whose smallest output fails a validator ends invalid_output
+                        at once, and the last line names those validators
   --execute KIND        with --stub or --replay: run the function of this Python task kind instead
                         of playing it (repeatable)
   --record DIR          write each task attempt's recording to DIR: its outputs, the files its
@@ -335,9 +337,9 @@ options:
                         spend tokens
 
 exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is
-not, or when the run is refused before its first task (the config, the routing, a run id that
-holds a run, the preflight), 2 on a usage error (the flow's name, --kwargs, options that do not go
-together)
+not (in a stub run too: a task whose smallest output fails its validators has failed), or when the
+run is refused before its first task (the config, the routing, a run id that holds a run, the
+preflight), 2 on a usage error (the flow's name, --kwargs, options that do not go together)
 
 $ contraagent docs --help
 usage: contraagent docs [-h] [--path] [--pointer] [topic]

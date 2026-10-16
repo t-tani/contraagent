@@ -2,6 +2,7 @@
 
 import json
 import sys
+from pathlib import Path
 from typing import Literal
 
 import pytest
@@ -127,12 +128,49 @@ def two_items(path, value: Found) -> list[str]:
     return [] if len(value.items) == 2 else [f"items: two expected, got {len(value.items)}"]
 
 
-def test_a_smallest_output_its_validators_refuse_fails_at_once(tmp_path):
-    strict = agent_task(
-        "strict", instructions="Find two items.", output=Found, validators=[two_items], max_turns=5, timeout_s=60, retries=0
-    )
+strict = agent_task("strict", instructions="Find two items.", output=Found, validators=[two_items], max_turns=5, timeout_s=60, retries=2)
+
+
+def test_a_smallest_output_its_validators_refuse_fails_its_checks_at_once(tmp_path):
     stub = StubAgent(default=writes_smallest())
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(lambda: strict("a"), run_id="s")
     [failed] = report.failed
-    assert "fails its checks; script a reply for it" in failed.reason
-    assert [launch.resumed for launch in stub.launches] == [False, True]  # one correction, not one per resume
+    assert failed.stop == "invalid_output"
+    assert failed.reason.endswith("[two_items] items: two expected, got 1")
+    # The same value again cannot pass: no correction round, and no retry for all of `retries=2`.
+    assert [launch.resumed for launch in stub.launches] == [False]
+    assert len((report.run_dir / "journal.jsonl").read_text().splitlines()) == 1
+
+
+def test_a_list_of_replies_corrects_a_smallest_output(tmp_path):
+    stub = StubAgent({"strict": [writes_smallest(), {"items": [{"id": "abc", "score": 1}] * 2, "verdict": "keep"}]})
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(lambda: strict("a"), run_id="s")
+    assert report.ok, report.failed
+    assert [launch.resumed for launch in stub.launches] == [False, True]
+
+
+DEMO = Path(__file__).resolve().parents[1] / "src/contraagent/docs/examples/demo"
+
+
+def test_the_cli_names_the_checks_the_smallest_outputs_failed(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    argv = ["run", f"{DEMO / 'tasks.py'}:docs", "--stub", "--kwargs", '{"units": ["alpha", "beta"]}', "--runs-dir", str(tmp_path)]
+    code = main(argv)
+    out = capsys.readouterr().out
+    assert code == 1, out
+    assert "  summarize · alpha | invalid_output | docs > review_loop (line " in out
+    assert out.splitlines()[-1] == (
+        "2 tasks failed checks on the smallest outputs of the stub agent (summarize: three_points), so the tasks that "
+        "need their outputs did not run. Test these checks in pytest with StubAgent replies that carry real content: "
+        "`contraagent docs testing`"
+    )
+
+
+def test_the_cli_says_nothing_of_checks_when_every_task_passes(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    code = main(["run", f"{__file__}:flow", "--stub", "--kwargs", '{"units": ["a"]}', "--runs-dir", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "smallest outputs" not in out

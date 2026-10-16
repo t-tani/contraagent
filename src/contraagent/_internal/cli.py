@@ -133,9 +133,10 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
         help="run a flow, as `check` names it, and report its tasks (for more control, call Pipeline.run from Python)",
         add_arguments=_run_arguments,
         run=_flow_command,
-        epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not, "
-        "or when the run is refused before its first task (the config, the routing, a run id that holds a run, the "
-        "preflight), 2 on a usage error (the flow's name, --kwargs, options that do not go together)",
+        epilog="exit status: 0 when the run is ok (RunReport.ok: no task and no flow call failed), 1 when it is not "
+        "(in a stub run too: a task whose smallest output fails its validators has failed), or when the run is refused "
+        "before its first task (the config, the routing, a run id that holds a run, the preflight), "
+        "2 on a usage error (the flow's name, --kwargs, options that do not go together)",
     )
     add_command(
         sub, "docs", help="the documentation installed with this version: the index, or one topic", add_arguments=_docs_arguments, run=_docs
@@ -187,7 +188,9 @@ def _run_arguments(run: argparse.ArgumentParser) -> None:
         "--stub",
         action="store_true",
         help="a stub run: the stub agent plays every agent task and every Python task with the smallest output its schema "
-        "accepts; no model is called and no Python task's function runs (run id: <flow>-stub)",
+        "accepts; no model is called and no Python task's function runs (run id: <flow>-stub). It checks the flow's "
+        "wiring: a task whose smallest output fails a validator ends invalid_output at once, and the last line names "
+        "those validators",
     )
     run.add_argument(
         "--execute",
@@ -343,12 +346,43 @@ def _flow_command(args) -> int:
     later = f", {len(result.deferred)} deferred" if result.deferred else ""
     print(f"{'✓' if result.ok else '✗'} {done}/{len(result.results)} tasks done{later} in {spent}; run in {result.run_dir}")
     for failed in result.failed:
-        print(f"  {failed.task.key}: {failed.stop} {failed.reason[:300]}")
+        # A path in the run's directory as the run names it (`out/<kind>/<unit>.json`), as the log does.
+        reason = failed.reason.replace(str(Path(result.run_dir).resolve()) + "/", "").replace(str(result.run_dir) + "/", "")
+        print(f"  {failed.task.key}: {failed.stop} {reason[:300]}")
     for deferred in result.deferred:
         print(f"  {deferred.task.key}: deferred {deferred.reason[:300]}")
     for call in result.flow_errors:
         print(f"  flow call {call.id} ({call.function}): {type(call.error).__name__}: {str(call.error)[:300]}")
+    if stub is not None and (note := _smallest_refused(result, stub)):
+        print(note)
     return 0 if result.ok else 1
+
+
+def _smallest_refused(result, stub) -> str:
+    """In a stub run, the statement on the tasks whose smallest output failed its checks: how
+    many, the checks of each kind that refused it, and the next step. Empty when there are none."""
+    import re
+
+    checks: dict[str, list[str]] = {}
+    count = 0
+    for failed in result.failed:
+        task = failed.task
+        if failed.stop != "invalid_output" or (task.executor == "python" and not stub.plays(task.kind)):
+            continue  # not the stub's output: a Python task kind it executes
+        count += 1
+        names = checks.setdefault(task.kind, [])
+        for error in failed.round_errors[-1] if failed.round_errors else ():
+            for name in re.findall(r"\[([^\]]+)\]", error)[:1]:  # `path: [validator] message`
+                names += [name] if name not in names else []
+    if not count:
+        return ""
+    refused = "; ".join(f"{kind}: {', '.join(names) or 'its checks'}" for kind, names in checks.items())
+    tasks = "1 task" if count == 1 else f"{count} tasks"
+    return (
+        f"{tasks} failed checks on the smallest outputs of the stub agent ({refused}), so the tasks that need "
+        f"{'its output' if count == 1 else 'their outputs'} did not run. Test these checks in pytest with StubAgent "
+        "replies that carry real content: `contraagent docs testing`"
+    )
 
 
 def _print_created(result) -> None:

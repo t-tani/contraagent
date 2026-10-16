@@ -77,7 +77,9 @@ _SMALLEST: Any = object()
 def writes_smallest() -> Reply:
     """Write the smallest value the output's schema accepts: required fields only, the
     shortest lists and strings, numbers nearest zero. A text output is `stub`. A schema
-    rule it cannot build (`pattern`) fails the reply and names it."""
+    rule it cannot build (`pattern`) fails the reply and names it. As a task's only reply
+    (not in a list, not from a callable), a value its validators reject ends the task
+    `invalid_output` after one round, with no correction round and no retry."""
     return Reply(output=_SMALLEST)
 
 
@@ -172,6 +174,9 @@ class StubAgent(Backend):
         self._counts: dict[tuple[str, str], int] = {}
         #: Each session's cost so far, for a name whose coding agent reports that on a resume.
         self._session_costs: dict[str, float] = {}
+        #: The sessions whose output is the smallest one, written for a reply that is the same on
+        #: every launch: the stub cannot answer a correction round or a retry with anything else.
+        self._smallest_sessions: set[str] = set()
         self._lock = threading.Lock()
 
     def backends(self, names: Iterable[str] | None = None) -> dict[str, StubAgent]:
@@ -212,6 +217,14 @@ class StubAgent(Backend):
     def resumable(self, launch: Launch) -> Launch:
         return launch  # the session id in each result is enough to resume
 
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None:
+        """None after the smallest output of a reply that is the same on every launch: it
+        would write that value again, so the output's checks end the task (`invalid_output`)."""
+        with self._lock:
+            if prior.session_id in self._smallest_sessions:
+                return None
+        return super().resumed(launch, prior, prompt)
+
     def run(self, launch: Launch) -> LaunchResult:
         started = time.monotonic()
         call_path = CallFile.path_of(launch)
@@ -225,8 +238,10 @@ class StubAgent(Backend):
         record = self._record(launch, call, prompt=launch.prompt, in_turn=False)
         message: list[str] = []  # the final message, for an output taken from it
         reply = self._play(launch, call, record, message)
+        smallest = self._fixed_smallest(record) and reply.stop is Stop.COMPLETED and call.output is not None
         objections: list[list[str]] = []
-        while reply.stop is Stop.COMPLETED and self._continues_on_stop_hook():
+        # A stop hook's objection to the smallest output would get the same value back.
+        while reply.stop is Stop.COMPLETED and not smallest and self._continues_on_stop_hook():
             said = self._stop_hooks(launch, active=bool(objections))
             if said is None or len(objections) >= _MAX_HOOK_OBJECTIONS:
                 break
@@ -237,6 +252,10 @@ class StubAgent(Backend):
         result = self._result(launch, started, reply)
         result.hook_errors = objections
         result.result_text = message[-1] if message else ""
+        if smallest:
+            result.retryable = False  # another attempt writes the same value
+            with self._lock:
+                self._smallest_sessions.add(result.session_id)
         return result
 
     def _record(self, launch: Launch, call: CallFile, *, prompt: str, in_turn: bool) -> StubLaunch:
@@ -350,8 +369,17 @@ class StubAgent(Backend):
 
     # --- internals ---------------------------------------------------------
 
+    def _entry(self, launch: StubLaunch | StubTask) -> Any:
+        return self.script.get(launch.key, self.script.get(launch.kind, self.default))
+
+    def _fixed_smallest(self, launch: StubLaunch) -> bool:
+        """Whether `launch`'s reply is `writes_smallest()` on every launch of its task (not a
+        list of replies, not a callable)."""
+        entry = self._entry(launch)
+        return isinstance(entry, Reply) and entry.output is _SMALLEST
+
     def _reply(self, launch: StubLaunch | StubTask) -> Reply:
-        entry = self.script.get(launch.key, self.script.get(launch.kind, self.default))
+        entry = self._entry(launch)
         if entry is _UNSET:
             scripted = ", ".join(sorted(self.script)) or "nothing"
             return fails(reason=f"stub: no reply scripted for {launch.key} (kind {launch.kind}); scripted: {scripted}")
