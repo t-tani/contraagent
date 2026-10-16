@@ -10,7 +10,9 @@ export const graphStyles = [
   executorIconStyles,
   markStyles,
   css`
-    :host { display: block; }
+    /* A column: a height set on the host is the graph's, less the outline's line above it. */
+    :host { display: flex; flex-direction: column; }
+    cae-layered-graph { flex: auto; min-height: 0; }
 
     .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-bottom: 8px; font-size: 12px; }
     .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0; }

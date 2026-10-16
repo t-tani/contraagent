@@ -6,7 +6,14 @@
 // and with reduced motion (where the rail is drawn full). In Firefox too, which has
 // no scroll-driven animations (the scene's fallback), when Playwright's Firefox is
 // installed.
+//
+// The replay's window fits one screen on a wide one: once the scroll has settled it
+// (when the replay starts), all of it is under the site's header and above the foot
+// of the screen, at 1280×720, 1366×768, 1440×900 and 1920×1080; and nothing in it is
+// wider than its box or cut off at the bottom (./fit.ts), while it plays and at its
+// last frame.
 import { expect, firefox, test, type Page } from '@playwright/test';
+import { clips, overflows, settle } from './fit.js';
 
 const DOCS = `http://127.0.0.1:${Number(process.env['E2E_DOCS_PORT'] ?? 18795)}`;
 
@@ -89,3 +96,60 @@ test("in Firefox (the scene's fallback), the numbers stay on top of the rail", a
   }
   await ff.close();
 });
+
+/** The replay's window against the screen: its box, the header's foot and the screen's height. */
+async function windowBox(page: Page): Promise<{ top: number; bottom: number; below: number; height: number }> {
+  return page.evaluate(() => {
+    const r = document.querySelector('.rr-window')!.getBoundingClientRect();
+    const below = document.querySelector('header.header')?.getBoundingClientRect().bottom ?? 0;
+    return { top: r.top, bottom: r.bottom, below, height: innerHeight };
+  });
+}
+
+/** What is cut off or too wide in the replay's window. */
+async function misfits(page: Page): Promise<string[]> {
+  return [...(await overflows(page, '.rr-window')), ...(await clips(page, '.rr-window'))];
+}
+
+for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080]] as const) {
+  test(`the replay's window fits the screen at ${width}×${height} once the scroll has settled it`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const context = await browser.newContext({ viewport: { width, height }, colorScheme: 'dark' });
+    const page = await context.newPage();
+    await page.goto(`${DOCS}/`);
+    await page.waitForLoadState('networkidle');
+    // A reader's scroll, a step at a time, until the replay starts.
+    for (let i = 0; i < 200 && !(await page.locator('.rr.rr-playing').count()); i++) {
+      await page.mouse.wheel(0, 40);
+      await page.waitForTimeout(20);
+    }
+    await expect(page.locator('.rr')).toHaveClass(/rr-playing/);
+    // The scroll comes to rest (and snaps, the browser's proximity snap).
+    await expect.poll(async () => {
+      const y = await page.evaluate(() => scrollY);
+      await page.waitForTimeout(250);
+      return (await page.evaluate(() => scrollY)) === y;
+    }).toBe(true);
+    await settle(page);
+    const box = await windowBox(page);
+    expect(box.top).toBeGreaterThanOrEqual(box.below);
+    expect(box.bottom).toBeLessThanOrEqual(box.height);
+    // While it plays: the graph and the transcript have content.
+    await page.waitForTimeout(6000);
+    expect(await misfits(page)).toEqual([]);
+    await context.close();
+  });
+
+  test(`the replay's last frame fits its window at ${width}×${height}`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width, height }, colorScheme: 'light', reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    await page.goto(`${DOCS}/`);
+    await page.waitForLoadState('networkidle');
+    await page.locator('.rr-window').evaluate((e) => e.scrollIntoView({ block: 'end' }));
+    await settle(page);
+    const box = await windowBox(page);
+    expect(box.bottom - box.top).toBeLessThanOrEqual(box.height - box.below);
+    expect(await misfits(page)).toEqual([]);
+    await context.close();
+  });
+}
