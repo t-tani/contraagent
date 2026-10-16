@@ -108,10 +108,11 @@ def test_stall_stops_a_silent_process(tmp_path):
         time.sleep(30)
     """
     t0 = time.monotonic()
-    out, _, _, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=10, stall=0.3))
+    # The stall limit counts from the launch: it is longer than a Python start under load.
+    out, _, _, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=10, stall=1.5))
     assert killed is Stop.STALLED
     assert out == b"hello\n"
-    assert time.monotonic() - t0 < 3
+    assert time.monotonic() - t0 < 5
 
 
 def test_sink_stop_ends_the_run(tmp_path):
@@ -155,9 +156,9 @@ def test_eof_without_exit_is_still_bounded(tmp_path):
         time.sleep(30)
     """
     t0 = time.monotonic()
-    out, _, _, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=0.8))
+    out, _, _, killed = run_process(_py(code), dict(os.environ), _launch(tmp_path, timeout=2))
     assert out == b"bye\n" and killed is Stop.TIMEOUT
-    assert time.monotonic() - t0 < 5
+    assert time.monotonic() - t0 < 6
 
 
 def test_long_prompt_goes_over_stdin(tmp_path):

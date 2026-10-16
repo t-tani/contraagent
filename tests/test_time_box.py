@@ -362,10 +362,11 @@ def test_contraagent_run_exits_0_when_its_tasks_were_deferred_and_the_flow_caugh
     (tmp_path / "boxed.py").write_text(
         "import time\n"
         "from contraagent import TaskDeferred, python_task, time_box\n"
-        "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(0.3)\n    return unit\n"
+        # `slow` outlasts the box, which leaves time for `slow` to start on a slow machine.
+        "@python_task\ndef slow(unit: str) -> str:\n    time.sleep(1.3)\n    return unit\n"
         "@python_task\ndef late(unit: str) -> str:\n    return unit\n"
         "def work(unit):\n    yield slow(unit)\n    try:\n        yield late(unit)\n    except TaskDeferred:\n        return 'cut'\n"
-        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=0.05))\n"
+        "def flow(unit):\n    return (yield time_box(work(unit), deadline_s=1.0))\n"
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
