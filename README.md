@@ -237,27 +237,16 @@ give the details for each coding agent.
 Each task runs in a new session of its coding agent. The session receives what the
 task defines, and the rest of the host's agent setup is kept out.
 
-```mermaid
-flowchart TB
-    subgraph given["Given to the session"]
-        role["the task's role:<br>its instructions"]
-        plugin["the task's plugin:<br>skills, hooks, MCP servers,<br>permissions"]
-        call["the call file: parameters<br>and the output contract"]
-        cwd["the working directory"]
-        cred["one credential"]
-    end
-    subgraph kept["Kept out"]
-        settings["the user's and the project's settings"]
-        files["instruction files:<br>CLAUDE.md, AGENTS.md"]
-        user["the user's skills, hooks<br>and MCP servers"]
-        others["the sessions of other tasks"]
-        host["the host's credential<br>variables (for any<br>credential but ambient)"]
-    end
-    given --> session(["one task's session<br>of its coding agent"])
-    kept -- "not given" --x session
-```
+| Given to the task's session | Kept out |
+|---|---|
+| The task's role: its instructions | The user's and the project's settings |
+| The task's plugin: skills, hooks, MCP servers, permissions | Instruction files (`CLAUDE.md`, `AGENTS.md`) |
+| The call file: the parameters and the output contract | The user's skills, hooks and MCP servers |
+| The working directory | The sessions of other tasks |
+| One credential | The host's credential variables, for any credential but `ambient` |
+| The coding agent's built-in tools | |
 
-The agent keeps its own built-in tools. Claude Code runs with `--setting-sources ""`
+Claude Code runs with `--setting-sources ""`
 and `--strict-mcp-config`, and its `CLAUDE.md` files and auto-memory are disabled.
 Codex runs with `--ignore-rules`, its plugins are disabled, and it reads no
 `AGENTS.md`.
@@ -331,27 +320,49 @@ A test runs `contraagent check` on it with its flow
 ([`flow.py`](src/contraagent/docs/examples/security/flow.py)), and a stub run in
 which one task is refused on hop 1 and another on every hop.</sub>
 
-Two tasks of that run go through the chain in different ways. The task
-`audit · upload` is refused on hop 1, and the task `audit · auth` is not.
+A task of `audit` can take these paths through the chain:
 
 ```mermaid
 flowchart LR
-    upload(["audit · upload"]) --> h1
-    auth(["audit · auth"]) --> h1
-    subgraph chain["The failover chain of audit, in the order of pipeline.toml"]
-        direction LR
-        h1["hop 1<br>Claude Code<br>claude-opus-5-5"]
-        h2["hop 2<br>Codex CLI<br>gpt-6.1-sol"]
-        h3["hop 3<br>opencode<br>opencode-go/deepseek-v4.1-flash"]
-        h1 -- "refused: a new session<br>on the next hop" --> h2
-        h2 -- "refused" --> h3
-    end
-    h1 -- "completed" --> checked["The output is checked<br>against the model Audit"]
-    h2 -- "completed" --> checked
-    h3 -- "completed" --> checked
-    h3 -- "refused" --> failed["The task fails with<br>the stop refused"]
-    checked --> journal[("journal.jsonl: one row per attempt,<br>with each hop and its stop")]
-    failed --> journal
+    task([a task of audit]) --> h1
+    h1["hop 1<br>Claude Code<br>claude-opus-5-5"] -- refused --> h2["hop 2<br>Codex CLI<br>gpt-6.1-sol"]
+    h2 -- refused --> h3["hop 3<br>opencode<br>deepseek-v4.1-flash"]
+    h3 -- refused --> failed[task failed]
+    h1 & h2 & h3 -- output file --> ok[check passed]
+    ok --> j[(journal row)]
+    failed --> j
+    classDef hop fill:#4f8ff733,stroke:#4f8ff7
+    classDef bad fill:#e5484d33,stroke:#e5484d
+    classDef good fill:#30a46c33,stroke:#30a46c
+    classDef rec fill:#8e8e9333,stroke:#8e8e93
+    class h1,h2,h3 hop
+    class failed bad
+    class ok good
+    class j rec
+```
+
+In one run, the task `audit · upload` is refused on hop 1, and the task
+`audit · auth` is not:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as Runner
+    participant C as Claude Code<br>claude-opus-5-5
+    participant X as Codex CLI<br>gpt-6.1-sol
+    participant J as Journal
+    R->>C: launch audit · upload
+    C-->>R: refused
+    Note over R,C: not retried on hop 1
+    R->>X: launch on hop 2
+    X-->>R: output file
+    R->>R: check passed
+    R->>J: row: hops 1, 2
+    R->>C: launch audit · auth
+    Note over R,C: other tasks stay on hop 1
+    C-->>R: output file
+    R->>R: check passed
+    R->>J: row: hop 1
 ```
 
 - contraagent reads the refusal from the coding agent's output. The journal keeps
@@ -378,10 +389,16 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    kind["[tasks.audit]<br>credential =<br>#quot;anthropic-key#quot;"] --> table["[credentials.anthropic-key]<br>key = #quot;env:ANTHROPIC_API_KEY#quot;"]
-    table -- "read in the launching process" --> env["The session's environment:<br>the host's variables without any<br>credential variable, then this key"]
-    env --> session(["Claude Code session"])
-    kind -. "the name only" .-> journal[("journal.jsonl<br>credential: anthropic-key")]
+    cfg["credential name<br>in the config"] --> sec["env: or file:<br>reference"]
+    sec -- read at launch --> env["host environment<br>without its keys<br>+ this key"]
+    env --> agent([coding agent])
+    cfg -. name only .-> j[(journal)]
+    classDef cfg fill:#4f8ff733,stroke:#4f8ff7
+    classDef secret fill:#f5a62333,stroke:#f5a623
+    classDef rec fill:#8e8e9333,stroke:#8e8e93
+    class cfg cfg
+    class sec,env secret
+    class j rec
 ```
 
 - The config names the credentials. They can be subscriptions, API keys, OAuth
