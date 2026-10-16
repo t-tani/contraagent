@@ -137,9 +137,11 @@ def test_the_reference_config_builds_a_routing_plan():
 
 
 def test_the_security_config_checks_on_its_flow(capsys):
-    """`contraagent check --config` on the security example: three hops, three coding agents."""
+    """`contraagent check --config` on the security example: three hops, three coding agents.
+    `--stub`, so the host's own model lists (opencode's, Codex's) do not decide it."""
     flow, config = EXAMPLES / "security" / "flow.py", EXAMPLES / "security" / "pipeline.toml"
-    assert main(["check", f"{flow}:audit_all", "--config", str(config), "--kwargs", '{"modules": ["auth"]}']) == 0
+    args = ["check", f"{flow}:audit_all", "--config", str(config), "--stub", "--kwargs", '{"modules": ["auth"]}']
+    assert main(args) == 0
     out = capsys.readouterr().out
     assert "audit: claude/claude-opus-5-5" in out and "credential=anthropic-key" in out
     assert "codex/gpt-6.1-sol@openai-key then opencode/opencode-go/deepseek-v4.1-flash@opencode-go" in out
