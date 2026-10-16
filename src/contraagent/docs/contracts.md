@@ -75,10 +75,10 @@ that does not.
 
 ## Checked twice, by the same rules
 
-- **Inside the session**, on Claude Code and Codex. The plugin's stop hook runs
-  `contraagent call validate`, which reads the call file (`$CONTRAAGENT_CALL`),
+- **Inside the session**, on Claude Code, Codex and omp. The plugin's stop hook
+  runs `contraagent call validate`, which reads the call file (`$CONTRAAGENT_CALL`),
   imports the output model and runs the command validators. A failure keeps the
-  agent working in the same turn. omp, opencode and pi have no stop hook that
+  agent working in the same turn. opencode and pi have no stop hook that
   continues a session ([Coding agents](agents.md)): for them the runner's check
   below is the first one, and its errors come back in a correction round.
 - **By the runner, after the turn.** The schema, freshness (a file left by an

@@ -115,8 +115,8 @@ def test_validators_send_the_errors_back_into_the_session(tmp_path, plugin_dir):
             ]
         }
     )
-    # omp: no stop hook continues its turn, so every check comes back as a correction round
-    rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(lambda: summarize("u", path="x"), run_id="v")
+    # pi: no stop hook continues its turn, so every check comes back as a correction round
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent="pi")).run(lambda: summarize("u", path="x"), run_id="v")
     [res] = rep.results.values()
     assert res.ok and res.launch_result.rounds == 3
     prompts = [launch.prompt for launch in agent.launches]
@@ -422,10 +422,10 @@ def test_progress_is_logged_as_it_happens(tmp_path, plugin_dir, caplog):
     assert any(line.startswith("[end] summarize-u: completed") and "2 rounds" in line for line in lines)
 
 
-@pytest.mark.parametrize("coding_agent", ["claude", "codex"])
+@pytest.mark.parametrize("coding_agent", ["claude", "codex", "omp"])
 def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin_dir, coding_agent):
-    """Claude Code and Codex continue the session when a Stop hook objects: each runs its own
-    rendered hooks file (`hooks/hooks.json`, `codex/hooks.json`)."""
+    """Claude Code, Codex and omp continue the session when a Stop hook objects: each runs its
+    own rendered hooks file (`hooks/hooks.json`, `codex/hooks.json`, `omp/hooks.json`)."""
     lint = CommandValidator(
         [sys.executable, "-c", "import sys; sys.exit('no heading' if not open(sys.argv[1]).read().startswith('#') else 0)"], name="heading"
     )

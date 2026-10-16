@@ -1370,10 +1370,13 @@ class OmpBackend(Backend)
     plaintext_stream = True
     def read_models(self) -> dict[str, int | None] | None
     signals: Signals = omp_wire.SIGNALS
+    stop_hooks_file: str | None = HOOKS_FILE
     thinking: str = thinking
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
     trace: bool = trace
     def usage_reading(self, launch: Launch) -> QuotaReading | None
-    watched_limits: frozenset[str] = frozenset({'max_budget_usd'})
+    watched_limits: frozenset[str] = frozenset({'max_budget_usd', 'max_turns'})
     wire: ModuleType | None = omp_wire
 
 class OmpRpcBackend(OmpBackend)

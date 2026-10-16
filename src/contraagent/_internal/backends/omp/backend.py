@@ -35,7 +35,7 @@ from contraagent._internal.backends.credentials import (
     secret_value,
 )
 from contraagent._internal.backends.launch import ACCOUNT_UUID, Launch, account_digest
-from contraagent._internal.backends.omp import catalogue
+from contraagent._internal.backends.omp import catalogue, deny
 from contraagent._internal.backends.omp import wire as omp_wire
 from contraagent._internal.backends.omp.config import OmpModelChains, load_model_chains
 from contraagent._internal.backends.process import via_stdin
@@ -99,6 +99,11 @@ def _usage_reading(argv: list[str], env: dict[str, str], provider: str) -> Quota
 #: omp's window ids, as Claude Code's readings name the windows.
 _OMP_WINDOWS = {"5h": "five_hour", "7d": "seven_day"}
 
+
+#: A plugin's stop hooks for omp, in Claude Code's `hooks/hooks.json` format, relative to the
+#: plugin (`contraagent plugin render` writes it): the plugin's extension, `omp/index.ts`,
+#: runs them at omp's `session_stop`.
+HOOKS_FILE = "omp/hooks.json"
 
 #: What a task agent may see beyond its plugin and call file: nothing (`isolation/config.yml`).
 ISOLATION = Path(__file__).resolve().parent / "isolation"
@@ -187,6 +192,13 @@ def plugin_extension_args(plugin_dirs) -> list[str]:
     return [a for plug in plugin_dirs for f in plugin_files.extensions(plug, "omp") for a in ("-e", str(f))]
 
 
+def deny_args(launch: Launch) -> list[str]:
+    """`-e` of contraagent's own extension that denies the task's `disallowed_tools` (`deny`),
+    for a launch that denies a tool and has tools at all; its rules are in the environment
+    (`deny.env`)."""
+    return deny.args(launch.limits.disallowed_tools) if launch.tools != () else []
+
+
 def session_args(launch: Launch) -> list[str]:
     """Where omp keeps this launch's session, and which one to continue.
 
@@ -234,6 +246,42 @@ class OmpBackend(Backend):
     skills, rules, hooks, tools or MCP servers; the overlay's directory, which holds no
     plugins, is the agent's `CLAUDE_CONFIG_DIR`, so the user's installed Claude Code
     plugins are not loaded either.
+
+    A plugin's extension (`omp/index.ts`, `-e` from its `package.json`) runs its tool
+    hooks and, at omp's `session_stop`, the stop hooks of `omp/hooks.json`: one that exits
+    2 continues the session with what it said (`stop_hooks_file`). `Limits.max_turns` and
+    `Limits.max_budget_usd` are counted from the event stream (`watched_limits`).
+
+    `Limits.disallowed_tools` loads contraagent's own extension (`-e .../omp/deny.ts`),
+    with its rules as JSON in `CONTRAAGENT_OMP_DENY`. It takes a tool denied whole out of
+    the tools the model is offered and blocks a call a rule denies before it runs. Claude
+    Code's names become omp's tools:
+
+        Bash               bash; a pattern holds each command of the line, the parts
+                           between `&&`, `||`, `;`, `|` and `&`: `git push:*` is `git push`
+                           alone or followed by more words, `npm * build` any words for
+                           the `*`, anything else the command exactly
+        Read               read; a pattern holds the path read
+        Write              write; a pattern holds the path written
+        Edit, MultiEdit    edit and ast_edit; a pattern holds the path of edit and write,
+                           and denies ast_edit whole (it edits every file its glob finds)
+        Glob               glob and find
+        Grep               grep and ast_grep
+        WebSearch          web_search
+        Agent, Task        task
+        TodoWrite          todo
+        WebFetch           read of an http(s) URL; `WebFetch(domain:example.com)`: of that
+                           host or one under it
+        Skill              read of a `skill://` URL; `Skill(name)`: of that skill
+        mcp__s__t          omp's name of that MCP tool (`mcp__s_t`); `mcp__s`, `mcp__s__*`:
+                           every tool of server `s`
+        another name       omp's tool of that name, in lower case (`Eval` is `eval`)
+
+    A path pattern is Claude Code's: `//` starts an absolute path, `~/` one in the home
+    directory, anything else is from the launch's directory; `*` matches within one part
+    of a path, `**` across parts, and `secrets/**` the directory and all under it. A
+    pattern of another tool (`Glob(src/**)`, `Agent(explore)`, `WebFetch(https://...)`)
+    cannot be held: the route is refused (`tool_deny_problem`).
     """
 
     name = "omp"
@@ -257,9 +305,20 @@ class OmpBackend(Backend):
     signals: Signals = omp_wire.SIGNALS
     # A line of text mode's stream is its plain-text narration.
     plaintext_stream = True
-    # omp's CLI has no cost cap: the cost of each API call, as its `message_end` reports it,
-    # summed (trace mode; text mode reports none).
-    watched_limits: frozenset[str] = frozenset({"max_budget_usd"})
+    # omp's CLI has no cost cap and no turn cap: the cost of each API call, as its
+    # `message_end` reports it, summed, and its tool calls counted (trace mode; text mode
+    # reports neither).
+    watched_limits: frozenset[str] = frozenset({"max_budget_usd", "max_turns"})
+    # The plugin's Stop hooks, in Claude Code's format, which the plugin's extension
+    # (`omp/index.ts`) runs at omp's `session_stop`: one that exits 2 continues the session.
+    stop_hooks_file: str | None = HOOKS_FILE
+
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None:
+        """omp denies tools in an extension of contraagent's own (`deny`): whole tools, and
+        patterns of a command (`Bash`), a path (`Read`, `Write`, `Edit`), a domain
+        (`WebFetch(domain:...)`) or a skill (`Skill`); a pattern of another tool it cannot."""
+        return deny.problem(denied)
 
     def __init__(self, binary: str = "", base_env: dict[str, str] | None = None, thinking: str = "medium", trace: bool = True):
         super().__init__(binary, base_env)
@@ -338,8 +397,9 @@ class OmpBackend(Backend):
         other credential, every other one removed and the chosen one applied last.
         Raises `CredentialError` (LAUNCH_FAILED) when it cannot bind."""
         binding = self.bind_credential(launch.credential, launch.model, env=self._base_env, label=launch.label)
-        env = child_env(self._base_env, launch.credential, binding, launch.env, drop=PARENT_SESSION_ENV)
-        return {**env, "CLAUDE_CONFIG_DIR": str(ISOLATION)}
+        env = child_env(self._base_env, launch.credential, binding, launch.env, drop=(*PARENT_SESSION_ENV, deny.DENY_ENV))
+        rules = deny.env(launch.limits.disallowed_tools, Path(launch.cwd)) if deny_args(launch) else {}
+        return {**env, "CLAUDE_CONFIG_DIR": str(ISOLATION), **rules}
 
     # --- credentials -------------------------------------------------------
     #
@@ -428,6 +488,7 @@ class OmpBackend(Backend):
         for plug in launch.plugin_dirs:
             a += ["--plugin-dir", plug]
         a += plugin_extension_args(launch.plugin_dirs)
+        a += deny_args(launch)
         # `effort` is the neutral name for reasoning depth; omp spells it
         # `--thinking` and Claude Code spells it `--effort`. The launch
         # value wins so a per-task effort reaches the CLI — before this,

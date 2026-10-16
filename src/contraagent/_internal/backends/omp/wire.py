@@ -11,7 +11,7 @@ from typing import Self
 
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Stop
 from contraagent._internal.backends.refusal import QUOTA_RE, Ending, Signals, quota_refusal
-from contraagent._internal.backends.wire import EventFold, tokens, tool_preview
+from contraagent._internal.backends.wire import EventFold, feedback_errors, tokens, tool_preview
 
 #: How omp words a refusal: a provider's quota in its own words (providers disagree on the
 #: wording), read only when the wire gives no status; a status decides alone. omp reports
@@ -20,6 +20,20 @@ SIGNALS = Signals(quota=QUOTA_RE, status_decides=True)
 
 #: omp's built-in web search tool; its arguments carry `query`.
 WEB_SEARCH_TOOL = "web_search"
+#: The `customType` of the message omp continues a session with when a `session_stop`
+#: handler blocks the stop (a plugin's stop hook, `omp/index.ts`): its `content` is what the
+#: hook said.
+STOP_CONTINUATION = "session-stop-continuation"
+
+
+def stop_hook_feedback(message: object) -> str | None:
+    """What a stop hook said, when `message` is the one omp continues the session with, else None."""
+    if not isinstance(message, dict) or message.get("role") != "custom" or message.get("customType") != STOP_CONTINUATION:
+        return None
+    content = message.get("content")
+    return content if isinstance(content, str) else None
+
+
 # A quota notice is a short message; a completed agent answer is not. The ceiling keeps
 # a passing mention of "rate limit" inside a legitimate text-mode answer from being read
 # as the provider refusing the launch.
@@ -110,6 +124,9 @@ def normalize_event(e: dict) -> dict:
     if t in ("message_start", "message_end"):
         m = e.get("message", {})
         role = m.get("role", "")
+        if (said := stop_hook_feedback(m)) is not None:
+            # Once, at its end, as Claude Code's transcript shows it.
+            return {"type": "notice", "text": f"Stop hook feedback:\n{said}"[:4000]} if t == "message_end" else {"type": "skip"}
         try:
             c = m["content"][0]
         except (KeyError, IndexError, TypeError):
@@ -271,6 +288,8 @@ class TraceReader(EventFold):
         self.executed: dict[str, int] = {}
         self.api_status: int | None = None
         self.api_error = ""
+        #: What the plugin's stop hook sent back within the launch, per objection.
+        self.hook_errors: list[list[str]] = []
 
     def feed(self, ev: dict) -> Stop | None:
         typ = str(ev.get("type") or "")
@@ -316,6 +335,8 @@ class TraceReader(EventFold):
         if found is not None:
             self.add_call(*found)
         message = ev.get("message")
+        if (said := stop_hook_feedback(message)) is not None:
+            self.hook_errors.append(feedback_errors(said))
         if isinstance(message, dict) and message.get("role") == "assistant":
             # The latest assistant message decides: an error omp retried past is not the outcome.
             self.api_status, self.api_error = None, ""
@@ -361,6 +382,7 @@ class TraceReader(EventFold):
             result_text=text,
             quota_refusal=quota_refusal(self.api_error) if stop is Stop.RATE_LIMITED else None,
             tool_uses=dict(self.tool_uses or self.executed),
+            hook_errors=list(self.hook_errors),
             # The provider's own words, which omp puts on no stderr: the journal's reason.
             stderr_tail=self.api_error if stop is not Stop.COMPLETED else "",
         )

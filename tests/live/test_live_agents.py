@@ -385,6 +385,48 @@ def test_codex_writes_temporary_files_in_its_own_directory_not_in_tmp(tmp_path):
     assert not list(temp_root().glob("codex-tmp-probe-*"))  # removed with the launch
 
 
+def test_omp_denies_the_task_s_tools_inside_the_launch(tmp_path):
+    """`disallowed_tools` on omp: a whole tool is not offered, and a call a pattern denies is
+    blocked before it runs, with the rule as the reason the agent sees."""
+    only("omp")
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
+
+    (tmp_path / "secret.txt").write_text("PLUM-7731\n")
+    (tmp_path / "keep.txt").write_text("kept\n")
+    prompt = (
+        "Do these steps, one tool call each, and go on when one fails: 1) run the shell command `echo ok && rm -f keep.txt`; "
+        "2) read the file secret.txt; 3) call web_search once for 'oh-my-pi'. Then reply with one line per step saying what happened."
+    )
+    denied = ("Bash(rm:*)", "Read(secret.txt)", "WebSearch")
+    limits = Limits(timeout_s=180, max_turns=8, disallowed_tools=denied)
+    launch = Launch(prompt=prompt, label="deny", model="anthropic/claude-haiku-5-5", effort="low", cwd=tmp_path, limits=limits)
+    result = OmpBackend().run(launch)
+    print(f"\n  omp: stop={result.stop} tool_uses={dict(result.tool_uses)}\n  {result.result_text[-400:]}")
+    assert result.ok, (result.stop, result.stderr_tail)
+    assert (tmp_path / "keep.txt").exists()  # `rm` never ran, nor `echo` on its line
+    assert "PLUM-7731" not in result.result_text and "web_search" not in result.tool_uses
+
+
+def test_omp_ends_a_launch_past_its_max_turns(tmp_path):
+    """omp has no turn cap: contraagent counts the tool calls and ends the launch past it."""
+    only("omp")
+    from contraagent.backends import Launch
+    from contraagent.config import Limits
+
+    launch = Launch(
+        prompt="Run `echo one`, then `echo two`, then `echo three`, then `echo four`, one tool call each, then reply done.",
+        label="turns",
+        model="anthropic/claude-haiku-5-5",
+        effort="low",
+        cwd=tmp_path,
+        limits=Limits(timeout_s=180, max_turns=2),
+    )
+    result = OmpBackend().run(launch)
+    print(f"\n  omp: stop={result.stop} tool_uses={dict(result.tool_uses)}")
+    assert result.stop.value == "max_turns" and sum(result.tool_uses.values()) == 3
+
+
 # --- a generator flow on each coding agent -------------------------------------------------
 
 #: The word the check requires: the first summary is told not to use it, so pass 1 of each

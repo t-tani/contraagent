@@ -1,12 +1,14 @@
 """`disallowed_tools`: tools a kind's launches may not use, set in its task table or its declaration."""
 
+import json
 import os
+import re
 from pathlib import Path
 
 import pytest
 
 from contraagent import ConfigError, PipelineConfig, RoutingError, agent_task
-from contraagent.backends import ClaudeBackend, CodexBackend, Launch, OmpBackend, OpencodeBackend, PiBackend
+from contraagent.backends import ClaudeBackend, CodexBackend, Launch, OmpBackend, OmpRpcBackend, OpencodeBackend, PiBackend
 from contraagent.config import Limits
 from contraagent.engine import RoutingPlan
 
@@ -48,13 +50,13 @@ def test_routing_refuses_an_agent_that_cannot_deny_them_on_any_hop():
     config = PipelineConfig(
         {
             "defaults": {"agent": "claude"},
-            "tasks": {"w": {"fallbacks": [{"agent": "opencode", "model": "anthropic/x"}, {"agent": "omp", "model": "anthropic/y"}]}},
+            "tasks": {"w": {"fallbacks": [{"agent": "omp", "model": "anthropic/x"}, {"agent": "codex", "model": "gpt-y"}]}},
         }
     )
-    backends = {"claude": ClaudeBackend(), "opencode": OpencodeBackend(), "omp": OmpBackend()}
+    backends = {"claude": ClaudeBackend(), "omp": OmpBackend(), "codex": CodexBackend()}
     declared = {"w": {**BUDGET, "disallowed_tools": DENIED}}
     with pytest.raises(
-        RoutingError, match=r"w hop 3/3 omp/anthropic/y: the task denies Bash\(rm:\*\), WebFetch, and omp has no way to deny a tool"
+        RoutingError, match=r"w hop 3/3 codex/gpt-y: the task denies Bash\(rm:\*\), WebFetch, and codex has no way to deny a tool"
     ):
         RoutingPlan.build(config, ["w"], backends, declared=declared)
     RoutingPlan.build(config, ["w"], backends, declared={"w": BUDGET})  # nothing denied: every hop is fine
@@ -99,3 +101,71 @@ def test_opencode_denies_a_pattern_after_the_rule_the_tool_had(tmp_path):
         },  # outside git: from the drive's root
     }
     assert permission_rules(("Bash",), {"bash": {"*": "allow", "rm*": "deny"}}, tmp_path) == {"bash": "deny"}
+
+
+def test_omp_denies_whole_tools_and_the_patterns_its_extension_sees():
+    assert OmpBackend.tool_deny_problem(DENIED) is None
+    assert OmpRpcBackend.tool_deny_problem(DENIED) is None
+    taken = ("Read(secrets/**)", "Edit(//etc/hosts)", "WebFetch(domain:x.com)", "Skill(deploy)", "mcp__srv__q")
+    assert OmpBackend.tool_deny_problem(taken) is None
+    assert OmpBackend.tool_deny_problem(("Grep(*.env)", "WebFetch(https://x.com)", "Agent(explore)")) == (
+        "omp denies these tools whole only, not Grep(*.env), WebFetch(https://x.com), Agent(explore)"
+    )
+
+
+def test_omp_loads_its_deny_extension_with_the_rules_in_the_environment(tmp_path):
+    from contraagent._internal.backends.omp import deny
+
+    launch = Launch(prompt="p", model="anthropic/m", cwd=tmp_path, limits=Limits(disallowed_tools=DENIED))
+    for backend in (OmpBackend(base_env={}), OmpRpcBackend(base_env={})):
+        argv = backend.argv(launch)
+        assert argv[argv.index(str(deny.EXTENSION)) - 1] == "-e" and deny.EXTENSION.is_file()
+        rules = json.loads(backend.env(launch)[deny.DENY_ENV])
+        assert [r["rule"] for r in rules] == list(DENIED)
+    # Nothing denied, or no tools at all: no extension and no rules, whatever the host has set.
+    host = OmpBackend(base_env={deny.DENY_ENV: "[]"})
+    for quiet in (Launch(prompt="p", model="m", cwd=tmp_path), Launch(prompt="p", model="m", cwd=tmp_path, tools=(), limits=launch.limits)):
+        assert str(deny.EXTENSION) not in host.argv(quiet)
+        assert deny.DENY_ENV not in host.env(quiet)
+
+
+def test_omp_s_rules_match_as_claude_code_s_patterns_do(tmp_path):
+    from contraagent._internal.backends.omp import deny
+
+    home = tmp_path / "home"
+    work = tmp_path / "work"
+    denied = (
+        *("WebSearch", "Edit", "Bash(git push:*)", "Bash(npm * build)", "Read(secrets/**)", "Read(src/**/*.md)"),
+        *("Write(~/notes.txt)", "Edit(//etc/hosts)", "WebFetch", "WebFetch(domain:x.com)", "Skill(deploy)"),
+        *("mcp__Doc-Store__search", "mcp__other", "Glob(src/**)"),
+    )
+    rules = deny.rules(denied, work, home)
+    by_rule = {r["rule"]: r for r in rules}
+    assert "Glob(src/**)" not in by_rule  # not taken: `problem` names it
+    assert by_rule["WebSearch"] == {"rule": "WebSearch", "tools": ["web_search"]}
+    assert by_rule["Edit"]["tools"] == ["edit", "ast_edit"]
+    # A command pattern is matched against each command of the line (the extension splits it).
+    push = re.compile(by_rule["Bash(git push:*)"]["command"])
+    assert push.match("git push") and push.match("git push origin main")
+    assert not push.match("git pushy") and not push.match("git status")
+    build = re.compile(by_rule["Bash(npm * build)"]["command"])
+    assert build.match("npm run build") and not build.match("npm run test")
+
+    def path(rule):
+        return re.compile(next(r["path"] for r in rules if r["rule"] == rule and "path" in r))
+
+    w = work.resolve().as_posix()
+    assert path("Read(secrets/**)").match(f"{w}/secrets") and path("Read(secrets/**)").match(f"{w}/secrets/a/b.txt")
+    assert not path("Read(secrets/**)").match(f"{w}/secretsx")
+    md = path("Read(src/**/*.md)")
+    assert md.match(f"{w}/src/a.md") and md.match(f"{w}/src/x/y/a.md") and not md.match(f"{w}/src/a.txt")
+    assert path("Write(~/notes.txt)").match(f"{home.as_posix()}/notes.txt")
+    assert path("Edit(//etc/hosts)").match("/etc/hosts") and not path("Edit(//etc/hosts)").match("/etc/hostsx")
+    # An edit pattern holds edit and write to the path, and ast_edit whole (its glob is no path).
+    edits = [r for r in rules if r["rule"] == "Edit(//etc/hosts)"]
+    assert edits[0]["tools"] == ["edit", "write"] and edits[1] == {"rule": "Edit(//etc/hosts)", "tools": ["ast_edit"]}
+    assert by_rule["WebFetch"] == {"rule": "WebFetch", "tools": ["read"], "schemes": ["http", "https"]}
+    assert by_rule["WebFetch(domain:x.com)"]["host"] == "x.com"
+    assert by_rule["Skill(deploy)"] == {"rule": "Skill(deploy)", "tools": ["read"], "schemes": ["skill"], "host": "deploy"}
+    assert by_rule["mcp__Doc-Store__search"]["tools"] == ["mcp__doc_store_search"]
+    assert by_rule["mcp__other"]["prefix"] == "mcp__other_"

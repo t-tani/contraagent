@@ -33,10 +33,12 @@ hidden (`render` returns notes, `lint` shows them):
     pre_tool   PreToolUse hook            `tool_call` event, `{block, reason}`  `tool.execute.before`, throws the reason
     post_tool  PostToolUse hook           `tool_result` event: exit 2 adds the  `tool.execute.after`: exit 2 adds the
                                           message to the result the agent sees  message to the tool's output
-    stop       Stop hook (continues)      none: `omp -p`, `pi -p` do not        none: `opencode run` ends once the
-                                       continue a session an extension       session is idle.
-                                       resumes at `agent_end`.
-               For omp, pi and opencode, the runner's own contract check resumes the session instead.
+    stop       Stop hook (continues)      omp: `session_stop` event, the hooks  none: `opencode run` ends once the
+                                          of `omp/hooks.json`; `{decision:      session is idle.
+                                          "block", reason}` continues the
+                                          session. pi: none, `pi -p` does not
+                                          continue a session.
+               For pi and opencode, the runner's own contract check resumes the session instead.
 
     Codex (codex/hooks.json, Codex's own format, passed as config by the Codex backend):
     `PreToolUse`, `PostToolUse` and `Stop` hooks with Claude Code's semantics (exit 2
@@ -67,6 +69,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE as CODEX_HOOKS_FILE
+from contraagent._internal.backends.omp.backend import HOOKS_FILE as OMP_HOOKS_FILE
 from contraagent._internal.platform.commands import commands
 
 if TYPE_CHECKING:
@@ -147,8 +150,7 @@ def render_claude(plugin: Plugin) -> Rendered:
     groups: dict[tuple[str, str], list[dict]] = {}
     for h in plugin.hooks:
         if h["on"] == "stop":
-            cmd = STOP_VALIDATE if h.get("run") == "validate" else f"${{CLAUDE_PLUGIN_ROOT}}/{h['script']}"
-            groups.setdefault(("Stop", ""), []).append({"type": "command", "command": cmd})
+            groups.setdefault(("Stop", ""), []).append({"type": "command", "command": stop_command(h)})
         else:
             event = "PreToolUse" if h["on"] == "pre_tool" else "PostToolUse"
             matcher = CLAUDE_TOOL.get(h.get("tool", ""), h.get("tool") or ".*")
@@ -230,7 +232,7 @@ function run(h: Hook, toolName: string, input: Input, cwd: string) {
     env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PROJECT_DIR: cwd },
   });
 }
-
+__HELPERS__
 export default function (pi: __API__): void {
   if (PRE.length) {
     pi.on("tool_call", async (event, ctx) => {
@@ -260,30 +262,76 @@ export default function (pi: __API__): void {
       }
       if (said.length) return { content: [...event.content, { type: "text", text: `__FEEDBACK__${said.join("\\n")}` }] };
     });
+  }__STOP__
+}
+"""
+
+#: The omp extension's stop hooks: the commands of the plugin's `omp/hooks.json` (in Claude
+#: Code's format) run at omp's `session_stop`, with the JSON Claude Code sends a Stop hook;
+#: the first that exits 2 blocks the stop, and omp continues the session with its words.
+_OMP_STOP = """
+  const STOP = stopCommands();
+  if (STOP.length) {
+    pi.on("session_stop", async (event, ctx) => {
+      const input = JSON.stringify({
+        hook_event_name: "Stop",
+        session_id: event.session_id,
+        transcript_path: event.session_file ?? "",
+        cwd: ctx.cwd,
+        stop_hook_active: Boolean(event.stop_hook_active),
+      });
+      for (const command of STOP) {
+        const r = spawnSync(process.env.CONTRAAGENT_BASH || "bash", ["-c", command], {
+          cwd: ctx.cwd,
+          encoding: "utf8",
+          input,
+          env: { ...process.env, CLAUDE_PLUGIN_ROOT: ROOT, CLAUDE_PROJECT_DIR: ctx.cwd },
+        });
+        // exit 2: the agent goes on in the same session with what the hook said, as with Claude Code
+        if (r.status === 2) return { decision: "block", reason: (r.stderr || "a stop hook objected").trim() };
+      }
+    });
+  }"""
+
+#: What the omp extension reads its stop hooks with.
+_OMP_STOP_READER = """
+// The commands of the Stop hooks in `omp/hooks.json`, in the order Claude Code runs them.
+function stopCommands(): string[] {
+  try {
+    const declared = JSON.parse(readFileSync(join(ROOT, "__STOP_FILE__"), "utf8"));
+    const groups: { hooks?: { command?: unknown }[] }[] = declared?.hooks?.Stop ?? [];
+    return groups.flatMap(g => g.hooks ?? []).map(h => h.command).filter((c): c is string => typeof c === "string");
+  } catch {
+    return [];
   }
 }
 """
 
 
+def stop_command(hook: dict) -> str:
+    """The command a `stop` hook runs, as Claude Code's `hooks/hooks.json` writes it."""
+    return STOP_VALIDATE if hook.get("run") == "validate" else f"${{CLAUDE_PLUGIN_ROOT}}/{hook['script']}"
+
+
 def render_omp(plugin: Plugin) -> Rendered:
-    """`package.json` (`omp.extensions`) and `omp/index.ts`, when there is a tool hook to translate."""
-    notes: list[str] = []
+    """`package.json` (`omp.extensions`), `omp/index.ts` and `omp/hooks.json`, when the plugin
+    declares a hook. The extension runs the tool hooks at omp's `tool_call` and `tool_result`
+    and the stop hooks of `omp/hooks.json` at its `session_stop`, which continues the session
+    when one exits 2 (checked against omp 18.9.1, in `omp -p` and over RPC)."""
     pre = [h for h in plugin.hooks if h["on"] == "pre_tool"]
     post = [h for h in plugin.hooks if h["on"] == "post_tool"]
-    if any(h["on"] == "stop" for h in plugin.hooks):
-        notes.append(
-            "omp: a stop hook cannot continue a session in `omp -p`; the runner's contract check "
-            "(run_until_valid, which resumes the session) does the same job"
-        )
+    stop = [stop_command(h) for h in plugin.hooks if h["on"] == "stop"]
     pkg = _read_json(plugin.root / "package.json") or {"name": plugin.name, "version": "0.1.0"}
     files: dict[str, str] = {}
-    if pre or post:
-        files["omp/index.ts"] = _extension("omp", OMP_HOOK_API, OMP_CLAUDE_TOOL, pre, post)
+    if pre or post or stop:
+        files["omp/index.ts"] = _extension("omp", OMP_HOOK_API, OMP_CLAUDE_TOOL, pre, post, stop_file=OMP_HOOKS_FILE)
+        declared = {"Stop": [{"hooks": [{"type": "command", "command": c} for c in stop]}]} if stop else {}
+        files[OMP_HOOKS_FILE] = json.dumps({"hooks": declared}, indent=2) + "\n"
         pkg["omp"] = {"extensions": ["./omp/index.ts"]}
     else:
         pkg.pop("omp", None)
     files["package.json"] = json.dumps(pkg, indent=2) + "\n"
-    return files, notes
+    return files, []
 
 
 def render_pi(plugin: Plugin) -> Rendered:
@@ -320,14 +368,18 @@ PI_CLAUDE_TOOL = {**CLAUDE_TOOL, "find": "Glob", "ls": "LS"}
 OMP_CLAUDE_TOOL = {**CLAUDE_TOOL, "find": "Glob"}
 
 
-def _extension(agent: str, api: tuple[str, str], tools: dict[str, str], pre: list[dict], post: list[dict]) -> str:
-    """The extension that runs the plugin's tool hooks inside omp or pi."""
+def _extension(agent: str, api: tuple[str, str], tools: dict[str, str], pre: list[dict], post: list[dict], stop_file: str = "") -> str:
+    """The extension that runs the plugin's tool hooks inside omp or pi, and with `stop_file`
+    (omp) the stop hooks that file declares."""
 
     def view(hs):
         return json.dumps([{k: h[k] for k in ("tool", "match", "script") if h.get(k)} for h in hs], indent=2)
 
+    imports = api[1] + ('\nimport { readFileSync } from "node:fs";' if stop_file else "")
     return (
-        _EXTENSION_TEMPLATE.replace("__IMPORT__", api[1])
+        _EXTENSION_TEMPLATE.replace("__IMPORT__", imports)
+        .replace("__HELPERS__", _OMP_STOP_READER.replace("__STOP_FILE__", stop_file) if stop_file else "")
+        .replace("__STOP__", _OMP_STOP if stop_file else "")
         .replace("__API__", api[0])
         .replace("__AGENT__", agent)
         .replace("__CLAUDE_TOOL__", json.dumps(tools))
@@ -609,7 +661,7 @@ def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "
 
 register_renderer("claude", render_claude, files=("hooks/hooks.json",))
 register_renderer("codex", render_codex, files=(CODEX_HOOKS_FILE,))
-register_renderer("omp", render_omp, files=("package.json",), tool_files=("omp/index.ts",))
+register_renderer("omp", render_omp, files=("package.json", "omp/index.ts", OMP_HOOKS_FILE))
 register_renderer("opencode", render_opencode, tool_files=("opencode/index.js",))
 register_renderer("pi", render_pi, files=("package.json",), tool_files=("pi/index.ts",))
 

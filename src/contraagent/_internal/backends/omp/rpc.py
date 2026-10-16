@@ -28,7 +28,14 @@ from pathlib import Path
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import Launch, Stop
 from contraagent._internal.backends.omp import wire as omp_wire
-from contraagent._internal.backends.omp.backend import OmpBackend, isolation_args, plugin_extension_args, prompt_args, session_args
+from contraagent._internal.backends.omp.backend import (
+    OmpBackend,
+    deny_args,
+    isolation_args,
+    plugin_extension_args,
+    prompt_args,
+    session_args,
+)
 from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import LaunchError
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
@@ -151,6 +158,7 @@ class OmpRpcBackend(OmpBackend):
         for plug in launch.plugin_dirs:
             a += ["--plugin-dir", plug]
         a += plugin_extension_args(launch.plugin_dirs)
+        a += deny_args(launch)
         # Same neutral effort as the omp backend: the launch value wins
         # over the constructor default so a per-task effort reaches the CLI.
         a += ["--thinking", launch.effort or self.thinking, "--approval-mode", "yolo", *isolation_args()]

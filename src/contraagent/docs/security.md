@@ -93,10 +93,10 @@ accepts. The facts that concern security:
 The coding agents' CLIs do not enforce the same things. The table in
 [What each one does](agents.md#what-each-one-does) has a row for each:
 
-- `disallowed_tools`: Claude Code and opencode deny tools and some patterns, pi whole
-  tools only; omp and Codex cannot,
-  so a route on them is refused before anything launches.
-- `max_turns`: omp and pi do not enforce it, and on Codex it counts tool calls.
+- `disallowed_tools`: Claude Code, opencode and omp deny tools and some patterns, pi
+  whole tools only; Codex cannot, so a route on it is refused before anything launches,
+  as is a route whose agent cannot deny a pattern the task names.
+- `max_turns`: pi does not enforce it, and on omp and Codex it counts tool calls.
 - `max_budget_usd`: Codex reports no cost, so the cap does not hold there.
 - `context_budget`: only Claude Code and opencode launches are stopped by it.
 

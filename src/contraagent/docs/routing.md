@@ -69,10 +69,13 @@ role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode
 whole tools and a pattern of a command (`Bash(git push:*)`), a path (`Read(secrets/**)`,
 `Edit(...)`), a domain (`WebFetch(domain:example.com)`) or a skill (`Skill(deploy)`),
 each after the rule the tool had, so the rest of the tool stays allowed; a pattern of
-another tool there is refused; pi whole tools
-(`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
-deny a tool, and a route on them is refused before anything launches
-(`Backend.tool_deny_problem`), failover hops included ([Coding agents](agents.md)).
+another tool there is refused; omp, in an extension of contraagent's own that sees
+each call before it runs, whole tools and a pattern of a command, a path read or
+written (`Read`, `Write`, `Edit`), a domain or a skill, so a pattern of another tool
+there is refused; pi whole tools (`--exclude-tools`), so a pattern there is refused;
+Codex has no way to deny a tool. A route that cannot deny what the task names is
+refused before anything launches (`Backend.tool_deny_problem`), failover hops
+included ([Coding agents](agents.md)).
 
 ## Failover
 
