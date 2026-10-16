@@ -33,7 +33,7 @@ from typing import Any, NamedTuple, Protocol
 
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import lines_at as read_lines_at
-from contraagent._internal.runs.files import read_lines, seek_line, write_document
+from contraagent._internal.runs.files import read_document, read_lines, seek_line, write_document
 from contraagent._internal.runs.names import check_name, entry_parts, is_plain, under
 from contraagent._internal.runs.times import iso_of, parse_iso
 
@@ -347,8 +347,7 @@ class DirectorySource:
     def document(self, run: str, name: str) -> str | None:
         path = self._entry(run, name)[0] if "/" not in name else self.path(run, name)
         try:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                return f.read()
+            return read_document(path)
         except OSError:
             return None
 

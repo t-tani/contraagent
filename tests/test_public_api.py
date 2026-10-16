@@ -465,11 +465,12 @@ def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path
     assert uv is not None, "uv makes the environment"
     venv = tmp_path / "venv"
     subprocess.run([uv, "venv", "--quiet", "--python", sys.executable, str(venv)], check=True, capture_output=True)
-    python = venv / ("Scripts" if sys.platform == "win32" else "bin") / "python"
+    python = venv / "Scripts" / "python.exe" if sys.platform == "win32" else venv / "bin" / "python"
     pins = [f"{name}=={importlib.metadata.version(name)}" for name in ("pydantic", "psutil")]
     install = [uv, "pip", "install", "--quiet", "--python", str(python), *pins]
     if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:
-        subprocess.run(install, check=True, capture_output=True)
+        done = subprocess.run(install, capture_output=True, text=True)
+        assert done.returncode == 0, done.stderr
     src = Path(__file__).parents[1] / "src"
     done = subprocess.run([str(python), "-I", "-c", IMPORT_WITHOUT_EXTRAS, str(src)], capture_output=True, text=True)
     assert (done.returncode, done.stdout.strip()) == (0, "ok"), done.stderr

@@ -485,8 +485,9 @@ def _local_lines(path: Path) -> int:
     return len(path.read_text().splitlines())
 
 
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGKILL], ids=["sigterm", "sigkill"])
-def test_a_hub_restarted_on_its_stores_loses_nothing_and_its_relays_catch_up(env, live, sig):
+@pytest.mark.parametrize("name", ["SIGTERM", "SIGKILL"], ids=["sigterm", "sigkill"])
+def test_a_hub_restarted_on_its_stores_loses_nothing_and_its_relays_catch_up(env, live, name):
+    sig = getattr(signal, name)  # by name: Windows has no SIGKILL, and the module still imports there
     assert env.hub is not None
     path = live / "streams" / f"{LIVE_KEY}.stream.jsonl"
     writer = Writer(path, 100_000 + 10_000 * int(sig))

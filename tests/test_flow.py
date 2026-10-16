@@ -346,7 +346,7 @@ def test_a_run_id_that_holds_a_run_is_refused_unless_resumed(tmp_path, plugin_di
 
 
 def _files(root: Path) -> dict[str, tuple[bytes, int]]:
-    return {str(p.relative_to(root)): (p.read_bytes(), p.stat().st_mtime_ns) for p in sorted(root.rglob("*")) if p.is_file()}
+    return {p.relative_to(root).as_posix(): (p.read_bytes(), p.stat().st_mtime_ns) for p in sorted(root.rglob("*")) if p.is_file()}
 
 
 def test_a_refused_run_writes_nothing(tmp_path, plugin_dir):
@@ -439,3 +439,17 @@ def test_a_stop_hook_sends_a_command_check_back_within_the_turn(tmp_path, plugin
     assert "JSON output" not in second.prompt  # a text output is not told about JSON
     row = json.loads((rep.run_dir / "journal.jsonl").read_text().splitlines()[0])
     assert row["rounds"] == 1 and row["hook_errors"] == [[second.prompt.split("- ", 1)[1].strip()]]
+
+
+@pytest.mark.parametrize("run_id", ["a:b", "q?", "CON", "nul.x", "com1", "end.", "end ", "../x", ".hidden", "a/b"])
+def test_a_run_id_windows_could_not_hold_is_refused_everywhere(tmp_path, plugin_dir, run_id):
+    summarize, _ = declare(plugin_dir)
+    with pytest.raises(ValueError, match="not a file name on every operating system"):
+        pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"), run_id=run_id)
+    assert not (tmp_path / "runs").exists()
+
+
+def test_the_default_run_id_of_a_lambda_is_a_portable_name(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    rep = pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"))
+    assert rep.run_dir.name == "_lambda_" and rep.ok
