@@ -65,6 +65,44 @@ def test_a_note_a_status_grid_and_a_link_column():
     assert isinstance(table, api.TableBody) and table.columns[0].link == "url"
 
 
+def test_a_code_body_and_a_tree_whose_files_carry_their_code():
+    code = BODY.validate_python({"type": "code", "text": "a\nb\n", "language": "py", "start": 7, "highlight": [7, [8, 9]], "anchor": "src"})
+    assert isinstance(code, api.CodeBody) and code.highlight == [7, (8, 9)] and code.anchor == "src"
+    assert api.panel_data({"type": "code", "text": "x", "highlight": [[2, 3]]}) == {"type": "code", "text": "x", "highlight": [[2, 3]]}
+    tree = BODY.validate_python(
+        {
+            "type": "tree",
+            "nodes": [
+                {"name": "src", "children": [{"name": "a.py", "code": {"text": "x = 1"}}, {"name": "b.py", "id": "b"}]},
+                {"name": "report", "link": {"task": "review-alpha", "run": "r1"}, "badge": "failed", "tone": "failed"},
+                {"name": "notes", "link": {"anchor": "src"}},
+            ],
+            "selected": "src/a.py",  # a node's id: the names from the top, unless it has one of its own
+        }
+    )
+    assert isinstance(tree, api.TreeBody) and tree.nodes[0].children[0].code is not None
+    assert BODY.validate_python({"type": "tree", "nodes": [{"name": "x", "children": [{"name": "y"}]}], "selected": "x/y"})
+
+
+def test_the_output_files_example_pairs_a_tree_with_each_file_s_code(tmp_path):
+    from contraagent.docs.examples.panels.files import PANELS
+
+    run = tmp_path / "r1"
+    write_run(tmp_path, "r1", [{**ROWS[0], "unit": "a"}, {**ROWS[1], "unit": "b"}, {**ROWS[2], "unit": "a"}])
+    (run / "out").mkdir()
+    (run / "out" / "a.json").write_text('{"words": 3}')
+    (run / "contracts").mkdir()
+    (run / "contracts" / "write-a.json").write_text(json.dumps({"outputs": [{"path": str(run / "out" / "a.json")}]}))
+    body = BODY.validate_python(Monitor(tmp_path, panels=PANELS).panel("files", "r1"))
+    assert isinstance(body, api.BlocksBody)
+    tree = body.blocks[1]
+    assert isinstance(tree, api.TreeBody)
+    assert [(n.name, [c.name for c in n.children]) for n in tree.nodes] == [("triage", ["a.json"]), ("write", ["a.json", "b.json"])]
+    done, failed = tree.nodes[1].children
+    assert done.code is not None and done.code.language == "json" and done.code.text == '{"words": 3}' and done.badge is None
+    assert failed.code is None and failed.link == api.TreeLink(task="write-b") and (failed.badge, failed.tone) == ("timeout", "failed")
+
+
 def test_the_hourly_runs_example_draws_a_status_grid_a_note_and_linked_runs(tmp_path):
     from contraagent.docs.examples.panels.cycles import cycles
 
@@ -104,6 +142,18 @@ def test_the_hourly_runs_example_draws_a_status_grid_a_note_and_linked_runs(tmp_
             "rows[1]._tone is 'ok'; a tone is one of failed, attention, done, running, muted, neutral",
         ),
         ({"type": "table", "columns": [{"id": "a", "label": "A", "link": ""}], "rows": []}, "at least 1 character"),
+        ({"type": "code", "text": "x", "highlight": [[4, 2]]}, "highlight[0] is 4 to 2"),
+        ({"type": "code", "text": "x", "start": 10, "highlight": [3]}, "highlight[0] starts at line 3, before the first line (10)"),
+        ({"type": "tree", "nodes": [{"name": "a"}, {"name": "a"}]}, "two nodes have the id 'a'"),
+        ({"type": "tree", "nodes": [{"name": "a"}], "selected": "b"}, "selected is 'b'; no node has that id"),
+        (
+            {"type": "tree", "nodes": [{"name": "a", "link": {"panel": "p", "task": "t"}}]},
+            "names one of panel, task and anchor; this one names panel, task",
+        ),
+        ({"type": "tree", "nodes": [{"name": "a", "link": {"anchor": "x", "run": "r"}}]}, "an anchor is in the same panel"),
+        ({"type": "tree", "nodes": [{"name": "a", "code": {"text": "x"}, "link": {"task": "t"}}]}, "node 'a' has code and a link"),
+        ({"type": "tree", "nodes": [{"name": "a", "icon": "file", "children": [{"name": "b"}]}]}, "node 'a' is a file with children"),
+        ({"type": "tree", "nodes": [{"name": "a", "tone": "ok"}]}, "'failed', 'attention'"),
     ],
 )
 def test_a_body_names_what_is_wrong_with_it(body, says):

@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.5.0"
+    "version": "3.6.0"
   },
   "paths": {
     "/api/info": {
@@ -247,6 +247,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/NoteBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CodeBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TreeBody"
                     },
                     {
                       "$ref": "#/components/schemas/BlocksBody"
@@ -699,6 +705,12 @@
                       "$ref": "#/components/schemas/NoteBody"
                     },
                     {
+                      "$ref": "#/components/schemas/CodeBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TreeBody"
+                    },
+                    {
                       "$ref": "#/components/schemas/BlocksBody"
                     },
                     {
@@ -951,6 +963,19 @@
             "description": "shown folded, under its title",
             "default": false
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
           "type": {
             "type": "string",
             "const": "blocks",
@@ -983,6 +1008,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/NoteBody"
+                },
+                {
+                  "$ref": "#/components/schemas/CodeBody"
+                },
+                {
+                  "$ref": "#/components/schemas/TreeBody"
                 },
                 {
                   "$ref": "#/components/schemas/BlocksBody"
@@ -1083,6 +1114,114 @@
         "title": "ChartSeries",
         "description": "One series: a value per label of the chart's `x`; null where it has none."
       },
+      "CodeBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
+          "type": {
+            "type": "string",
+            "const": "code",
+            "title": "Type",
+            "default": "code"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "description": "a name of `LANGUAGES` or a file extension; '': plain text",
+            "default": ""
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start",
+            "description": "the number of the first line",
+            "default": 1
+          },
+          "highlight": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "prefixItems": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Highlight",
+            "description": "lines marked: a line, or a range, both ends included"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path",
+            "description": "the file the text is, named over it"
+          },
+          "wrap": {
+            "type": "boolean",
+            "title": "Wrap",
+            "description": "long lines wrap; otherwise they scroll sideways",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "CodeBody",
+        "description": "A text shown as code: highlighted by its `language` (one of `LANGUAGES`, a file's\nextension such as `py`, or anything else for plain text), with line numbers from\n`start`. `highlight` marks lines in those numbers: a line (`7`) or a range of lines,\nboth included (`[10, 14]`). `path` names the file over it. Long lines scroll sideways\nunless `wrap`. The monitor shows the first `CODE_LINES` lines (and at most\n`CODE_CHARACTERS` characters) and says how many it left out."
+      },
       "ColumnsBody": {
         "properties": {
           "title": {
@@ -1102,6 +1241,19 @@
             "title": "Collapsed",
             "description": "shown folded, under its title",
             "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
           },
           "type": {
             "type": "string",
@@ -2045,6 +2197,19 @@
             "description": "shown folded, under its title",
             "default": false
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
           "type": {
             "type": "string",
             "const": "hbars",
@@ -2118,6 +2283,19 @@
             "title": "Collapsed",
             "description": "shown folded, under its title",
             "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
           },
           "type": {
             "type": "string",
@@ -2846,6 +3024,19 @@
             "description": "shown folded, under its title",
             "default": false
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
           "type": {
             "type": "string",
             "const": "lines",
@@ -3114,6 +3305,19 @@
             "title": "Collapsed",
             "description": "shown folded, under its title",
             "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
           },
           "type": {
             "type": "string",
@@ -3388,6 +3592,12 @@
               },
               {
                 "$ref": "#/components/schemas/NoteBody"
+              },
+              {
+                "$ref": "#/components/schemas/CodeBody"
+              },
+              {
+                "$ref": "#/components/schemas/TreeBody"
               },
               {
                 "$ref": "#/components/schemas/BlocksBody"
@@ -4692,6 +4902,19 @@
             "description": "shown folded, under its title",
             "default": false
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
           "type": {
             "type": "string",
             "const": "status_grid",
@@ -4874,6 +5097,19 @@
             "title": "Collapsed",
             "description": "shown folded, under its title",
             "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
           },
           "type": {
             "type": "string",
@@ -5588,6 +5824,19 @@
             "description": "shown folded, under its title",
             "default": false
           },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
           "type": {
             "type": "string",
             "const": "tiles",
@@ -5941,6 +6190,235 @@
         ],
         "title": "ToolStartEvent",
         "description": "A tool call starting (or omp's progress update for it). `call` pairs it with its end event."
+      },
+      "TreeBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
+          "type": {
+            "type": "string",
+            "const": "tree",
+            "title": "Type",
+            "default": "tree"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/TreeNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "selected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nodes"
+        ],
+        "title": "TreeBody",
+        "description": "A tree of nodes, folded and opened by the reader: files and directories, say. A\nnode's `code` is shown beside the tree when the node is selected, with no request\nof its own: a panel of files returns their texts with the tree. `selected` is the\nnode selected first (its `id`; default: the first node with code)."
+      },
+      "TreeLink": {
+        "properties": {
+          "panel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task",
+            "description": "a task's key"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run",
+            "description": "the run of `panel` or `task`; a trends panel names it"
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TreeLink",
+        "description": "Where a tree node leads, in the monitor: a run panel's tab (`panel`, its name), a\ntask (`task`, its key), each in `run` (default: the run shown), or a body of the same\npanel (`anchor`, its `anchor`). Exactly one of `panel`, `task` and `anchor`."
+      },
+      "TreeNode": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "directory"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge"
+          },
+          "tone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "failed",
+                  "attention",
+                  "done",
+                  "running",
+                  "muted",
+                  "neutral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone"
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open",
+            "default": true
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/TreeNode"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TreeLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TreeNode",
+        "description": "One node of a tree: its `name`, and `children` under it. `id` names it (default: the\nnames from the top, joined by `/`). `icon` is `directory` for a node with children and\n`file` for one without, unless given. `badge` is a word beside the name, coloured by\n`tone`. A node shows its `code` beside the tree when\nit is selected, or leads elsewhere by its `link`; not both. `open`: its children are\nshown at first."
       },
       "TrendDay": {
         "properties": {

@@ -59,7 +59,7 @@ from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaRe
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.5.0"
+API_VERSION = "3.6.0"
 
 
 class Closed(BaseModel):
@@ -981,6 +981,9 @@ ValueFormat = Literal["usd", "pct", "duration", "tokens", "datetime", "number"]
 class _Body(Closed):
     title: str | None = Field(default=None, description="a heading over the body")
     collapsed: bool = Field(default=False, description="shown folded, under its title")
+    anchor: str | None = Field(
+        default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+    )
 
 
 class PanelTile(Closed):
@@ -1117,6 +1120,119 @@ class StatusGridBody(_Body):
         return self
 
 
+#: The most lines of a code body the monitor shows; it shows that it cut the rest, and Copy copies the whole text.
+CODE_LINES = 5000
+#: The most characters of a code body the monitor shows, at the end of a line.
+CODE_CHARACTERS = 500_000
+
+#: The languages a code body is highlighted in, by name; each also by its usual file
+#: extensions and short names (`py`, `js`, `ts`, `h`, `hpp`, `rs`, `sh`, `bash`, `yml`, `html`,
+#: `svg`, `patch`, ...). Any other name is shown as plain text.
+LANGUAGES = ("python", "json", "javascript", "typescript", "c", "cpp", "java", "go", "rust", "shell", "toml", "yaml", "sql", "xml", "diff")
+
+
+class CodeBody(_Body):
+    """A text shown as code: highlighted by its `language` (one of `LANGUAGES`, a file's
+    extension such as `py`, or anything else for plain text), with line numbers from
+    `start`. `highlight` marks lines in those numbers: a line (`7`) or a range of lines,
+    both included (`[10, 14]`). `path` names the file over it. Long lines scroll sideways
+    unless `wrap`. The monitor shows the first `CODE_LINES` lines (and at most
+    `CODE_CHARACTERS` characters) and says how many it left out."""
+
+    type: Literal["code"] = "code"
+    text: str
+    language: str = Field(default="", description="a name of `LANGUAGES` or a file extension; '': plain text")
+    start: int = Field(default=1, ge=0, description="the number of the first line")
+    highlight: list[int | tuple[int, int]] = Field(default_factory=list, description="lines marked: a line, or a range, both ends included")
+    path: str | None = Field(default=None, description="the file the text is, named over it")
+    wrap: bool = Field(default=False, description="long lines wrap; otherwise they scroll sideways")
+
+    @model_validator(mode="after")
+    def _lines(self) -> CodeBody:
+        for i, mark in enumerate(self.highlight):
+            first, last = (mark, mark) if isinstance(mark, int) else mark
+            if first > last:
+                raise ValueError(f"highlight[{i}] is {first} to {last}: a range goes from its first line to its last")
+            if first < self.start:
+                raise ValueError(f"highlight[{i}] starts at line {first}, before the first line ({self.start})")
+        return self
+
+
+class TreeLink(Closed):
+    """Where a tree node leads, in the monitor: a run panel's tab (`panel`, its name), a
+    task (`task`, its key), each in `run` (default: the run shown), or a body of the same
+    panel (`anchor`, its `anchor`). Exactly one of `panel`, `task` and `anchor`."""
+
+    panel: str | None = Field(default=None, min_length=1)
+    task: str | None = Field(default=None, min_length=1, description="a task's key")
+    run: str | None = Field(default=None, min_length=1, description="the run of `panel` or `task`; a trends panel names it")
+    anchor: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _one(self) -> TreeLink:
+        named = [k for k in ("panel", "task", "anchor") if getattr(self, k) is not None]
+        if len(named) != 1:
+            raise ValueError(f"a link names one of panel, task and anchor; this one names {', '.join(named) or 'none'}")
+        if self.run is not None and self.anchor is not None:
+            raise ValueError("an anchor is in the same panel: it takes no run")
+        return self
+
+
+class TreeNode(Closed):
+    """One node of a tree: its `name`, and `children` under it. `id` names it (default: the
+    names from the top, joined by `/`). `icon` is `directory` for a node with children and
+    `file` for one without, unless given. `badge` is a word beside the name, coloured by
+    `tone`. A node shows its `code` beside the tree when
+    it is selected, or leads elsewhere by its `link`; not both. `open`: its children are
+    shown at first."""
+
+    name: str = Field(min_length=1)
+    id: str | None = Field(default=None, min_length=1)
+    icon: Literal["file", "directory"] | None = None
+    badge: str | None = None
+    tone: Tone | None = None
+    open: bool = True
+    children: list[TreeNode] = Field(default_factory=list)
+    code: CodeBody | None = None
+    link: TreeLink | None = None
+
+    @model_validator(mode="after")
+    def _one_use(self) -> TreeNode:
+        if self.code is not None and self.link is not None:
+            raise ValueError(f"node {self.name!r} has code and a link: a node shows its code or leads elsewhere, not both")
+        if self.icon == "file" and self.children:
+            raise ValueError(f"node {self.name!r} is a file with children; a node with children is a directory")
+        return self
+
+
+class TreeBody(_Body):
+    """A tree of nodes, folded and opened by the reader: files and directories, say. A
+    node's `code` is shown beside the tree when the node is selected, with no request
+    of its own: a panel of files returns their texts with the tree. `selected` is the
+    node selected first (its `id`; default: the first node with code)."""
+
+    type: Literal["tree"] = "tree"
+    nodes: list[TreeNode]
+    selected: str | None = None
+
+    @model_validator(mode="after")
+    def _ids(self) -> TreeBody:
+        seen: set[str] = set()
+
+        def walk(nodes: list[TreeNode], parent: str) -> None:
+            for n in nodes:
+                key = n.id or (f"{parent}/{n.name}" if parent else n.name)
+                if key in seen:
+                    raise ValueError(f"two nodes have the id {key!r}; give one an id of its own")
+                seen.add(key)
+                walk(n.children, f"{parent}/{n.name}" if parent else n.name)
+
+        walk(self.nodes, "")
+        if self.selected is not None and self.selected not in seen:
+            raise ValueError(f"selected is {self.selected!r}; no node has that id")
+        return self
+
+
 class BlocksBody(_Body):
     """Bodies one under another: a panel of several parts."""
 
@@ -1125,7 +1241,7 @@ class BlocksBody(_Body):
 
 
 #: The `type` of each typed body.
-PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "blocks")
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "code", "tree", "blocks")
 
 
 def _panel_kind(v: Any) -> str:
@@ -1143,10 +1259,13 @@ PanelBody = Annotated[
     | Annotated[HBarsBody, Tag("hbars")]
     | Annotated[StatusGridBody, Tag("status_grid")]
     | Annotated[NoteBody, Tag("note")]
+    | Annotated[CodeBody, Tag("code")]
+    | Annotated[TreeBody, Tag("tree")]
     | Annotated[BlocksBody, Tag("blocks")]
     | Annotated[dict[str, Any], Tag("untyped")],
     Discriminator(_panel_kind),
 ]
+TreeNode.model_rebuild()
 BlocksBody.model_rebuild()
 
 _PANEL_BODY = TypeAdapter(PanelBody)

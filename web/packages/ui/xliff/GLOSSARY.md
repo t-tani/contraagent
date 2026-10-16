@@ -110,6 +110,9 @@ wherever the UI shows a state or a count to the reader.
 | Total (the sum of a stacked bar) / Other (series past the sixth, summed) / Label (a chart table's first column) | 合計 / その他 / 項目 |
 | `low` to `high` (a heatmap's colour scale) | `low` 〜 `high` |
 | No values (a chart with nothing to draw) / No rows (a table with no rows) | 値なし / 行なし |
+| Copy / Copied (a code body's button, and what it says after copying) / Wrap lines (a code body's switch) / No text | コピー / コピー済み / 行を折り返す / テキストなし |
+| First 5,000 of 12,000 lines (a code body cut short) | 全 12,000 行のうち先頭 5,000 行 |
+| No items (a tree body with no nodes) / No selection (a tree body's code pane with no node selected) | 項目なし / 未選択 |
 | custom column (`row_extras`: a journal column the pipeline's code adds; its name is the pipeline's, shown as written) | カスタム列 |
 | Models (a run's use of each model, `Plan.models`), Share, Measure, Other models (the models past the sixth colour, folded into one part of the bar) | モデル別の内訳, 割合, 指標, その他のモデル |
 | identity (the credential an attempt authenticated as) | 認証情報 |

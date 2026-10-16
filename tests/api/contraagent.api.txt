@@ -2229,18 +2229,37 @@ def new_plugin(directory: str | Path, name: str = '') -> list[Path]
 ## contraagent.monitor
 
 class BlocksBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     blocks: list[PanelBody]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['blocks'] = 'blocks'
 
+CODE_CHARACTERS = 500000
+
+CODE_LINES = 5000
+
 class ChartSeries(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     name: str
     values: list[float | None]
 
+class CodeBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
+    collapsed: bool = Field(default=False, description='shown folded, under its title')
+    highlight: list[int | tuple[int, int]] = Field(default_factory=list, description='lines marked: a line, or a range, both ends included')
+    language: str = Field(default='', description="a name of `LANGUAGES` or a file extension; '': plain text")
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    path: str | None = Field(default=None, description='the file the text is, named over it')
+    start: int = Field(default=1, ge=0, description='the number of the first line')
+    text: str
+    title: str | None = Field(default=None, description='a heading over the body')
+    type: Literal['code'] = 'code'
+    wrap: bool = Field(default=False, description='long lines wrap; otherwise they scroll sideways')
+
 class ColumnsBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     series: list[ChartSeries]
@@ -2309,6 +2328,7 @@ class HBar(Closed)
     value: float
 
 class HBarsBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     bars: list[HBar]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2317,6 +2337,7 @@ class HBarsBody(_Body)
     unit: ValueFormat | None = None
 
 class HeatmapBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     title: str | None = Field(default=None, description='a heading over the body')
@@ -2326,7 +2347,10 @@ class HeatmapBody(_Body)
     x: list[str]
     y: list[str]
 
+LANGUAGES = ('python', 'json', 'javascript', 'typescript', 'c', 'cpp', 'java', 'go', 'rust', 'shell', 'toml', 'yaml', 'sql', 'xml', 'diff')
+
 class LinesBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     series: list[ChartSeries]
@@ -2411,6 +2435,7 @@ class Monitor
     async def wait_stream(self, run: str, key: str, beyond: int, timeout: float) -> int
 
 class NoteBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     text: str
@@ -2418,7 +2443,7 @@ class NoteBody(_Body)
     tone: Tone | None = None
     type: Literal['note'] = 'note'
 
-PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'blocks')
+PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'blocks')
 
 @dataclass
 class Panel
@@ -2440,7 +2465,7 @@ class Panel
     tab: str = ''
     title: str = ''
 
-PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
+PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[CodeBody, Tag('code')] | Annotated[TreeBody, Tag('tree')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
 
 class PanelFn(Protocol)
     def __call__(self, run: RunRecords, /) -> PanelBody | BaseModel | Mapping[str, Any]
@@ -2540,6 +2565,7 @@ class Stat(NamedTuple)
     size: int
 
 class StatusGridBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     cells: list[list[GridCell | None]]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2549,6 +2575,7 @@ class StatusGridBody(_Body)
     y: list[str]
 
 class TableBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     columns: list[TableColumn]
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2570,11 +2597,40 @@ class TaskDetailFn(Protocol)
     def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None
 
 class TilesBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     tiles: list[PanelTile]
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['tiles'] = 'tiles'
+
+class TreeBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
+    collapsed: bool = Field(default=False, description='shown folded, under its title')
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    nodes: list[TreeNode]
+    selected: str | None = None
+    title: str | None = Field(default=None, description='a heading over the body')
+    type: Literal['tree'] = 'tree'
+
+class TreeLink(Closed)
+    anchor: str | None = Field(default=None, min_length=1)
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    panel: str | None = Field(default=None, min_length=1)
+    run: str | None = Field(default=None, min_length=1, description='the run of `panel` or `task`; a trends panel names it')
+    task: str | None = Field(default=None, min_length=1, description="a task's key")
+
+class TreeNode(Closed)
+    badge: str | None = None
+    children: list[TreeNode] = Field(default_factory=list)
+    code: CodeBody | None = None
+    icon: Literal['file', 'directory'] | None = None
+    id: str | None = Field(default=None, min_length=1)
+    link: TreeLink | None = None
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1)
+    open: bool = True
+    tone: Tone | None = None
 
 class TrendsPanelFn(Protocol)
     def __call__(self, runs: PeriodRuns, period: Period, /) -> PanelBody | BaseModel | Mapping[str, Any]
@@ -2614,7 +2670,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.5.0'
+API_VERSION = '3.6.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { typedBody, type PanelBody } from '@contraagent/api';
 import { describe, expect, it } from 'vitest';
-import { bodyColumns, cellUrl, rowTone } from '../../adapters/panel-body.js';
+import { bodyColumns, bodyTree, cellUrl, rowTone } from '../../adapters/panel-body.js';
 import { cellText, fractionPct } from '../../words/panels.js';
 import './ca-panel-body.js';
 import './ca-panel-view.js';
@@ -156,5 +156,81 @@ describe('a panel body', () => {
     const plain = await mount<CaPanelView>('ca-panel-view', { name: 'raw', data: { x: 1 } });
     expect(plain.shadowRoot!.querySelector('ca-panel-body')).toBeNull();
     expect(plain.shadowRoot!.querySelector('cae-json-tree')).not.toBeNull();
+  });
+});
+
+const FILES = {
+  type: 'blocks',
+  blocks: [
+    { type: 'note', text: 'Read me.', anchor: 'about' },
+    {
+      type: 'tree',
+      nodes: [
+        {
+          name: 'src',
+          children: [
+            { name: 'a.py', code: { text: 'def a():\n    return 1\n', language: 'py', highlight: [2] } },
+            { name: 'b.json', code: { text: '{"b": true}', language: 'json', path: 'out/b.json' } },
+          ],
+        },
+        { name: 'review', link: { task: 'review-alpha' }, badge: 'failed', tone: 'failed' },
+        { name: 'about', link: { anchor: 'about' } },
+        { name: 'other run', link: { panel: 'files', run: 'r2' } },
+      ],
+    },
+  ],
+} as unknown as PanelBody;
+
+describe('a tree body', () => {
+  it('names each node by its path and selects the first node with code', () => {
+    const t = bodyTree({ type: 'tree', nodes: [{ name: 'x', children: [{ name: 'y', code: { text: '' } }, { name: 'z', id: 'own' }] }] } as never);
+    expect(t.items[0]!.children!.map((c) => [c.id, c.selectable])).toEqual([
+      ['x/y', true],
+      ['own', false],
+    ]);
+    expect(t.first).toBe('x/y');
+    expect(t.items[0]!.selectable).toBe(false);
+  });
+
+  it("shows the selected node's code beside the tree, and another node's code when it is selected, with no request", async () => {
+    const el = await mount<CaPanelBody>('ca-panel-body', { body: FILES });
+    const root = el.shadowRoot!;
+    const tree = root.querySelector('cae-tree')!;
+    expect(tree.selected).toBe('src/a.py');
+    const code = () => root.querySelector('cae-code')!;
+    expect(code().code).toContain('def a()');
+    expect(code().highlight).toEqual([2]);
+    expect(code().path).toBe('src/a.py'); // the node's path when the code names none
+    tree.dispatchEvent(new CustomEvent('cae-select', { detail: { id: 'src/b.json' }, bubbles: true, composed: true }));
+    await el.updateComplete;
+    expect(code().code).toBe('{"b": true}');
+    expect(code().path).toBe('out/b.json');
+    expect(root.querySelector('cae-tree')!.selected).toBe('src/b.json');
+  });
+
+  it('leads a node with a link to its task, a run panel or a body of the panel', async () => {
+    const el = await mount<CaPanelBody>('ca-panel-body', { body: FILES });
+    const sent: unknown[] = [];
+    el.addEventListener('ca-navigate', (e) => sent.push(e.detail));
+    const tree = el.shadowRoot!.querySelector('cae-tree')!;
+    const select = (id: string) => tree.dispatchEvent(new CustomEvent('cae-select', { detail: { id }, bubbles: true, composed: true }));
+    select('review');
+    select('other run');
+    expect(sent).toEqual([
+      { page: '', tab: 'stream', key: 'review-alpha', view: 'transcript', round: null },
+      { page: '', run: 'r2', tab: 'panel:files' },
+    ]);
+    select('about');
+    expect(el.shadowRoot!.activeElement).toBe(el.shadowRoot!.querySelector('[data-anchor="about"]'));
+    await el.updateComplete;
+    expect(el.shadowRoot!.querySelector('cae-code')!.code).toContain('def a()'); // a link does not change the code shown
+  });
+
+  it('draws a code body on its own', async () => {
+    const el = await mount<CaPanelBody>('ca-panel-body', {
+      body: { type: 'code', title: 'Script', text: 'echo hi', language: 'sh', start: 10, wrap: true },
+    });
+    const code = el.shadowRoot!.querySelector('cae-code')!;
+    expect([code.language, code.start, code.wrap, code.label]).toEqual(['sh', 10, true, 'Script']);
   });
 });

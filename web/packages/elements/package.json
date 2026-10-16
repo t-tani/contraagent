@@ -1,7 +1,7 @@
 {
   "name": "@contraagent/elements",
   "version": "0.1.0",
-  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, charts (columns, lines, a heatmap, horizontal bars), a check table, a transcript, a JSON tree, markdown and counters. No contraagent data, no localization library",
+  "description": "Generic web components (Lit) and their parts: design tokens, themes, status pills, legends, a segmented control, a data table, a layered graph, a mark matrix, stat tiles, time lanes, charts (columns, lines, a heatmap, horizontal bars), a check table, a transcript, a JSON tree, markdown, highlighted code, a tree of items and counters. No contraagent data, no localization library",
   "license": "MIT",
   "keywords": [
     "web-components",
@@ -51,6 +51,16 @@
       "source": "./src/markdown/index.ts",
       "types": "./dist/markdown/index.d.ts",
       "default": "./dist/markdown/index.js"
+    },
+    "./code": {
+      "source": "./src/code/index.ts",
+      "types": "./dist/code/index.d.ts",
+      "default": "./dist/code/index.js"
+    },
+    "./tree": {
+      "source": "./src/tree/index.ts",
+      "types": "./dist/tree/index.d.ts",
+      "default": "./dist/tree/index.js"
     },
     "./count": {
       "source": "./src/count/index.ts",
@@ -111,6 +121,16 @@
       "source": "./src/define/markdown.ts",
       "types": "./dist/define/markdown.d.ts",
       "default": "./dist/define/markdown.js"
+    },
+    "./code/define": {
+      "source": "./src/define/code.ts",
+      "types": "./dist/define/code.d.ts",
+      "default": "./dist/define/code.js"
+    },
+    "./tree/define": {
+      "source": "./src/define/tree.ts",
+      "types": "./dist/define/tree.d.ts",
+      "default": "./dist/define/tree.js"
     },
     "./count/define": {
       "source": "./src/define/count.ts",
@@ -179,7 +199,7 @@
     "./src/define/*.ts"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/*/{segmented,data-table,layered-graph,mark-matrix,stat-tiles,lanes,column-chart,line-chart,heatmap,bar-chart,check-table,transcript,json-tree,cae-markdown,count,elapsed}.ts'",
+    "build": "tsc -p tsconfig.build.json && cem analyze --litelement --globs 'src/*/{segmented,data-table,layered-graph,mark-matrix,stat-tiles,lanes,column-chart,line-chart,heatmap,bar-chart,check-table,transcript,json-tree,cae-markdown,code,tree,count,elapsed}.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p docs"
   },
   "peerDependencies": {

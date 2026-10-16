@@ -9096,5 +9096,462 @@
    "ev": "text_delta",
    "delta": "Done.\n"
   }
- ]
+ ],
+ "panelBody": {
+  "collapsed": false,
+  "type": "blocks",
+  "blocks": [
+   {
+    "collapsed": false,
+    "type": "note",
+    "text": "A file is the output of a task's last attempt; its badge names how an attempt that failed ended."
+   },
+   {
+    "collapsed": false,
+    "type": "tree",
+    "nodes": [
+     {
+      "name": "review",
+      "open": true,
+      "children": [
+       {
+        "name": "alpha.json",
+        "id": "review-alpha",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/alpha.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "beta.json",
+        "id": "review-beta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/beta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "delta.json",
+        "id": "review-delta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/delta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "eta.json",
+        "id": "review-eta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/eta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "gamma.json",
+        "id": "review-gamma",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": false, \"note\": \"Name the file format.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/gamma.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "gamma.json",
+        "id": "review-gamma~2",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/gamma.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "iota.json",
+        "id": "review-iota",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/iota.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "kappa.json",
+        "id": "review-kappa",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/kappa.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "theta.json",
+        "id": "review-theta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"approved\": true, \"note\": \"Accurate and complete.\"}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/review/theta.json",
+         "wrap": false
+        }
+       }
+      ]
+     },
+     {
+      "name": "revise",
+      "open": true,
+      "children": [
+       {
+        "name": "gamma.json",
+        "id": "revise-gamma",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"gamma\", \"points\": [\"parses a config file (TOML)\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/revise/gamma.json",
+         "wrap": false
+        }
+       }
+      ]
+     },
+     {
+      "name": "summarize",
+      "open": true,
+      "children": [
+       {
+        "name": "alpha.json",
+        "id": "summarize-alpha",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"alpha\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/alpha.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "beta.json",
+        "id": "summarize-beta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"beta\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/beta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "delta.json",
+        "id": "summarize-delta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"delta\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/delta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "eta.json",
+        "id": "summarize-eta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"eta\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/eta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "gamma.json",
+        "id": "summarize-gamma",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"gamma\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/gamma.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "iota.json",
+        "id": "summarize-iota",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"iota\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/iota.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "kappa.json",
+        "id": "summarize-kappa",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"kappa\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/kappa.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "theta.json",
+        "id": "summarize-theta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "{\"unit\": \"theta\", \"points\": [\"parses a config file\", \"validates it\", \"reports errors\"]}",
+         "language": "json",
+         "start": 1,
+         "highlight": [],
+         "path": "out/summarize/theta.json",
+         "wrap": false
+        }
+       }
+      ]
+     },
+     {
+      "name": "write_note",
+      "open": true,
+      "children": [
+       {
+        "name": "alpha.json",
+        "id": "write_note-alpha",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# alpha\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/alpha.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "beta.json",
+        "id": "write_note-beta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# beta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/beta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "delta.json",
+        "id": "write_note-delta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# delta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/delta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "eta.json",
+        "id": "write_note-eta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# eta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/eta.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "gamma.json",
+        "id": "write_note-gamma",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# gamma\n\nparses a config file (TOML)。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/gamma.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "iota.json",
+        "id": "write_note-iota",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# iota\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/iota.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "kappa.json",
+        "id": "write_note-kappa",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# kappa\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/kappa.json",
+         "wrap": false
+        }
+       },
+       {
+        "name": "theta.json",
+        "id": "write_note-theta",
+        "open": true,
+        "children": [],
+        "code": {
+         "collapsed": false,
+         "type": "code",
+         "text": "# theta\n\nparses a config file。\n\nvalidates it。\n\nreports errors。\n",
+         "language": "",
+         "start": 1,
+         "highlight": [],
+         "path": "out/write_note/theta.json",
+         "wrap": false
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
 }

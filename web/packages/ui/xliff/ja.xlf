@@ -3151,6 +3151,35 @@
   <source>created, kept after the failed attempt</source>
   <target>作成、試行の失敗後も保持</target>
 </trans-unit>
+<trans-unit id="s6e4da2972d0c2e38">
+  <source>No selection</source>
+  <target>未選択</target>
+</trans-unit>
+<trans-unit id="s3687049d1af562c4">
+  <source>Copy</source>
+  <target>コピー</target>
+</trans-unit>
+<trans-unit id="sf4de3bfbfaca12e5">
+  <source>Copied</source>
+  <target>コピー済み</target>
+</trans-unit>
+<trans-unit id="sa31c8369058044aa">
+  <source>Wrap lines</source>
+  <target>行を折り返す</target>
+</trans-unit>
+<trans-unit id="s484059ca23104b6d">
+  <source>No text</source>
+  <target>テキストなし</target>
+</trans-unit>
+<trans-unit id="sa70d23a470af74da">
+  <source>No items</source>
+  <target>項目なし</target>
+</trans-unit>
+<trans-unit id="sc7561e5ea00d47ad">
+  <source>First <x id="0" equiv-text="${shown.toLocaleString(getLocale())}"/> of <x id="1" equiv-text="${total.toLocaleString(getLocale())}"/> lines</source>
+  <note from="lit-localize">A code body cut short: the lines shown of all its lines</note>
+  <target>全 <x id="1" equiv-text="${total.toLocaleString(getLocale())}"/> 行のうち先頭 <x id="0" equiv-text="${shown.toLocaleString(getLocale())}"/> 行</target>
+</trans-unit>
 </body>
 </file>
 </xliff>
