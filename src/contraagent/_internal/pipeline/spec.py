@@ -23,7 +23,7 @@ import types
 import typing
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Literal, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
@@ -737,8 +737,8 @@ class PythonTask[Out]:
                 shown = file.resolve().relative_to((cwd or Path.cwd()).resolve())
             except ValueError:
                 shown = file
-            body["file"], body["line"] = str(shown), start
-            body["files"] = [{"path": str(shown), "part": "source", "text": "".join(lines)[:20_000]}]
+            body["file"], body["line"] = shown.as_posix(), start
+            body["files"] = [{"path": shown.as_posix(), "part": "source", "text": "".join(lines)[:20_000]}]
         except (OSError, TypeError):
             pass  # a function without source (built-in, REPL): the facts above still say what it is
         return body
@@ -1038,7 +1038,7 @@ def _check_output_name(owner: str, template: Any) -> None:
             raise ValueError(f"{owner}: output_name {template!r} names {{{field}}}; it may name unit, key and kind")
         if spec or conversion:
             raise ValueError(f"{owner}: output_name {template!r}: {{{field}}} takes no format or conversion")
-    if template.startswith("/") or Path(template).is_absolute():
+    if _rooted(template):
         raise ValueError(f"{owner}: output_name {template!r} is absolute; it is a path relative to the run's out/")
     if bad := [seg for seg in template.split("/") if seg in ("", ".", "..")]:
         segment = repr(bad[0]) if bad[0] else "empty"
@@ -1057,7 +1057,7 @@ def _check_changes_pattern(kind: str, pattern: str) -> None:
     unknown = sorted(fields - {"unit", "key", "kind"})
     if unknown:
         raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} names {', '.join(unknown)}; it may name unit, key and kind")
-    if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
+    if _rooted(pattern) or ".." in PureWindowsPath(pattern).parts:
         raise ValueError(f"agent_task({kind!r}): changes pattern {pattern!r} is not inside the working directory")
 
 
@@ -1075,6 +1075,12 @@ def _caller_dir() -> Path | None:
     caller = frame.f_back.f_back if frame and frame.f_back else None
     file = caller.f_globals.get("__file__") if caller else None
     return Path(file).resolve().parent if file else None
+
+
+def _rooted(path: str) -> bool:
+    """Whether `path` starts at a root on some OS: `/`, `\\`, a drive (`C:`) or a share. Not a
+    path inside the working directory on any of them, whichever OS reads it now."""
+    return bool(PureWindowsPath(path).anchor)
 
 
 def _relative_to(base: Path | None, path: str | Path) -> Path:

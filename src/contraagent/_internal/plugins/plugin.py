@@ -104,11 +104,11 @@ class Plugin:
         """`role`, checked; or the plugin's only role when none is named."""
         if role is None:
             if len(self.roles) > 1:
-                raise PluginError(f"{self.root}: defines roles {', '.join(self.roles)}; name one (role=...)")
+                raise PluginError(f"{self.root.as_posix()}: defines roles {', '.join(self.roles)}; name one (role=...)")
             return self.roles[0] if self.roles else None
         if role not in self.roles:
             raise PluginError(
-                f"{self.root}: no role {role!r} (agents/{role}.md){did_you_mean(role, self.roles)}; "
+                f"{self.root.as_posix()}: no role {role!r} (agents/{role}.md){did_you_mean(role, self.roles)}; "
                 f"it defines: {', '.join(self.roles) or 'none'}"
             )
         return role
@@ -117,7 +117,7 @@ class Plugin:
 
     def skill_files(self) -> list[tuple[str, str]]:
         """`(path relative to the plugin, text)` of every Markdown file under `skills/`."""
-        return [(str(f.relative_to(self.root)), f.read_text(encoding="utf-8")) for f in markdown_under(self.root / "skills")]
+        return [(f.relative_to(self.root).as_posix(), f.read_text(encoding="utf-8")) for f in markdown_under(self.root / "skills")]
 
     def besides_skills(self) -> list[str]:
         """The parts it holds that act besides skills (`NOT_SKILLS`); empty for a skill plugin."""
@@ -139,7 +139,7 @@ class Plugin:
     # --- views -------------------------------------------------------------
 
     _PARTS = (
-        (str(PLUGIN_JSON), "plugin"),
+        (PLUGIN_JSON.as_posix(), "plugin"),
         ("settings.json", "settings"),
         (".mcp.json", "mcp"),
         (HOOKS_TOML, "hooks"),
@@ -156,7 +156,7 @@ class Plugin:
                 files.append({"path": rel, "part": part, "text": f.read_text(encoding="utf-8")[:limit]})
         for sub, part in (("agents", "agent"), ("skills", "skill")):
             for f in markdown_under(self.root / sub):
-                files.append({"path": str(f.relative_to(self.root)), "part": part, "text": f.read_text(encoding="utf-8")[:limit]})
+                files.append({"path": f.relative_to(self.root).as_posix(), "part": part, "text": f.read_text(encoding="utf-8")[:limit]})
         return {"plugin": True, "name": self.name, "root": str(self.root), "role": role, "plugin_dirs": [str(self.root)], "files": files}
 
     def lint(self) -> list[str]:

@@ -200,18 +200,22 @@ def check_input(contract: InputContract, cwd: Path) -> list[str]:
     if not path.exists():
         if not contract.required:
             return []
-        return [f"input from {contract.producer} is missing: {path}" if contract.producer else f"{path}: required input is missing"]
+        return [
+            f"input from {contract.producer} is missing: {path.as_posix()}"
+            if contract.producer
+            else f"{path.as_posix()}: required input is missing"
+        ]
     failure = contract.producer_failure() if contract.producer_failure is not None else ""
     if failure:
-        return [f"input from {contract.producer} ended {failure}: {path}"]
+        return [f"input from {contract.producer} ended {failure}: {path.as_posix()}"]
     try:
         text = path.read_text(encoding="utf-8")
         if contract.schema is not None:
             contract.schema.model_validate_json(text)
     except (OSError, UnicodeDecodeError) as exc:
-        return [f"{path}: unreadable: {exc}"]
+        return [f"{path.as_posix()}: unreadable: {exc}"]
     except ValueError as exc:
-        return [f"{path}: {line}" for line in str(exc).splitlines()[:_MAX_ERRORS]]
+        return [f"{path.as_posix()}: {line}" for line in str(exc).splitlines()[:_MAX_ERRORS]]
     return []
 
 
@@ -262,13 +266,13 @@ def check_file(
     path = Path(path)
     now = file_stamp(path)
     if now is None:
-        return Check(path, False, [f"{path}: file was not written"])
+        return Check(path, False, [f"{path.as_posix()}: file was not written"])
     if fresh and before is not None and now == before:
-        return Check(path, False, [f"{path}: file predates this task and was not rewritten"])
+        return Check(path, False, [f"{path.as_posix()}: file predates this task and was not rewritten"])
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
-        return Check(path, False, [f"{path}: unreadable: {exc}"])
+        return Check(path, False, [f"{path.as_posix()}: unreadable: {exc}"])
     if schema is None:
         return _validated(path, text, validators, params, call, cwd, before=before_value)
     try:
@@ -277,12 +281,12 @@ def check_file(
         # Reported apart from the schema errors: pydantic's own message for
         # a syntax error names no line, and "line 40 column 3" is the part
         # the agent needs to find a trailing comma.
-        return Check(path, False, [f"{path}: not valid JSON: {exc}"])
-    lost = [f"{path}: {e}" for e in pointers.kept(document, preserved)] if preserved else []
+        return Check(path, False, [f"{path.as_posix()}: not valid JSON: {exc}"])
+    lost = [f"{path.as_posix()}: {e}" for e in pointers.kept(document, preserved)] if preserved else []
     try:
         value = schema.model_validate_json(text)
     except ValidationError as exc:
-        errors = [f"{path}: {e}" for e in _describe(exc)] + lost
+        errors = [f"{path.as_posix()}: {e}" for e in _describe(exc)] + lost
         # A command checks the file, not the model: it runs too, so one round reports every error.
         commands = [v for v in validators if isinstance(v, CommandValidator)]
         errors += run_validators(commands, path, None, params=params, call=call, cwd=cwd)
@@ -387,7 +391,7 @@ def record_contracts(
                 json_schema = {}
         return {
             "io": role,
-            "path": str(c.resolve(cwd)),
+            "path": c.resolve(cwd).as_posix(),
             "schema_name": name,
             "schema_ref": ref,
             "schema": json_schema,

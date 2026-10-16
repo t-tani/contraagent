@@ -64,7 +64,7 @@ def lint_skills(plugin: Plugin) -> list[str]:
         fm = frontmatter(skill.read_text(encoding="utf-8"))
         for k in ("name", "description"):
             if not fm.get(k):
-                errs.append(f"{skill.relative_to(r)}: frontmatter has no {k}")
+                errs.append(f"{skill.relative_to(r).as_posix()}: frontmatter has no {k}")
     return errs
 
 

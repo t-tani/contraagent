@@ -50,7 +50,7 @@ def test_the_file_is_read_ahead_of_the_task_only_for_a_contract_that_compares(tm
     contract = OutputContract(path, Doc, fresh=False, validators=(grows,))
     before = contract.before(tmp_path)
     assert contract.compares and before.value(Doc) == Doc(items=["a"])
-    assert contract.check(tmp_path, before).errors == [f"{path}: [grows] items: 1 before, 1 now"]
+    assert contract.check(tmp_path, before).errors == [f"{path.as_posix()}: [grows] items: 1 before, 1 now"]
     path.write_text(json.dumps({"items": ["a", "b"]}))
     assert contract.check(tmp_path, before).ok
 

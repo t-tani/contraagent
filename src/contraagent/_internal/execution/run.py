@@ -380,7 +380,7 @@ class Run:
             # Why the first round went back: the correction is otherwise only a count here.
             first = " ".join(launched.round_errors[0][0].split())
             # A path in the run's directory as the run names it, so the cause fits in the line.
-            for root in (str(self.dir.resolve()) + os.sep, str(self.dir) + os.sep):
+            for root in (self.dir.resolve().as_posix() + "/", self.dir.as_posix() + "/", str(self.dir.resolve()) + os.sep):
                 first = first.replace(root, "")
             line += f", {rounds} rounds (round 1: {first[:160]}{'…' if len(first) > 160 else ''})"
         elif rounds and rounds > 1:

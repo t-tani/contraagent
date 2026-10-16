@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import parse_qs, urlparse
+from urllib.request import url2pathname
 
 from contraagent._internal.runs.files import write_document
 
@@ -174,5 +175,5 @@ def open_objects(url: str | None) -> SegmentObjects:
     if url.startswith("s3://"):
         return S3SegmentObjects(url)
     if url.startswith("file://"):
-        return DirectorySegmentObjects(urlparse(url).path)
+        return DirectorySegmentObjects(url2pathname(urlparse(url).path))  # file:///C:/x: C:\x on Windows
     return DirectorySegmentObjects(url)

@@ -27,7 +27,7 @@ MODEL = "openai/gpt-5.6-luna"
 
 def record(cwd: Path) -> list[dict]:
     """The events of one launch, as pi sent them."""
-    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n")
+    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n", encoding="utf-8", newline="\n")
     launch = Launch(prompt=PROMPT, label="rec", model=MODEL, effort="low", cwd=cwd, limits=Limits(timeout_s=180))
     backend = PiBackend()
     out = subprocess.run(
@@ -49,12 +49,14 @@ def slim(value, cwd: str):
 
 
 def main() -> int:
-    version = subprocess.run(["pi", "--version"], capture_output=True, text=True).stdout.strip()
+    version = subprocess.run(["pi", "--version"], capture_output=True, text=True, encoding="utf-8").stdout.strip()
     target = Path(__file__).parent / version
     target.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         events = record(Path(tmp))
-        (target / "json.jsonl").write_text("".join(json.dumps(slim(e, tmp), ensure_ascii=False) + "\n" for e in events))
+        (target / "json.jsonl").write_text(
+            "".join(json.dumps(slim(e, tmp), ensure_ascii=False) + "\n" for e in events), encoding="utf-8", newline="\n"
+        )
     print(f"recorded pi {version} into {target}")
     return 0
 

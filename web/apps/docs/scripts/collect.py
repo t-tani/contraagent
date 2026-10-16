@@ -192,7 +192,7 @@ def main() -> None:
         if page["key"] in LIVE:
             page["out"] = page["out"].with_suffix(".mdx")
         page["out"].parent.mkdir(parents=True, exist_ok=True)
-        page["out"].write_text(render(source, page, pages))
+        page["out"].write_text(render(source, page, pages), encoding="utf-8", newline="\n")
     shutil.rmtree(SCHEMAS, ignore_errors=True)
     shutil.copytree(docs.DIR / "schemas", SCHEMAS)
     sys.stdout.write(f"collected {len(pages)} pages and {len(list(SCHEMAS.glob('*.json')))} schemas\n")
@@ -238,7 +238,10 @@ def render(source: Path, page: dict, pages: dict[Path, dict]) -> str:
     meta.append("---")
     if not live:
         return "\n".join([*meta, *out]) + "\n"
-    component = Path(os.path.relpath(COMPONENTS / "LiveFigure.astro", page["out"].parent)).as_posix()
+    try:
+        component = Path(os.path.relpath(COMPONENTS / "LiveFigure.astro", page["out"].parent)).as_posix()
+    except ValueError:  # the pages written to another drive (Windows): no relative path reaches it
+        component = (COMPONENTS / "LiveFigure.astro").as_posix()
     top = [f"\0{i}" for i, f in enumerate(live) if not f.get("at")]
     text = mdx_escape("\n".join([*top, *([""] if top else []), *out]))
     text = re.sub(r"\0(\d+)", lambda m: f"<LiveFigure figure={{{json.dumps(live[int(m[1])])}}} />", text)
@@ -354,7 +357,7 @@ def check_live(keys: set[str]) -> None:
         d["tagName"]
         for manifest in MANIFESTS
         if manifest.is_file()
-        for module in json.loads(manifest.read_text())["modules"]
+        for module in json.loads(manifest.read_text(encoding="utf-8"))["modules"]
         for d in module.get("declarations", [])
         if d.get("tagName")
     }

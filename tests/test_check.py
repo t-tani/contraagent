@@ -126,7 +126,7 @@ def test_a_flow_that_raises_is_reported_at_the_callers_line(plugin_dir):
 
 
 def test_a_broken_plugin_is_linted(plugin_dir):
-    (plugin_dir / "hooks.toml").write_text("")
+    (plugin_dir / "hooks.toml").write_text("", encoding="utf-8", newline="\n")
     summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
     report = pipeline().check(lambda: summarize("a"))
     assert any(e.startswith(f"plugin {plugin_dir.resolve()}: hooks.toml: no stop hook") for e in report.errors)
@@ -138,7 +138,9 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
         "from contraagent import agent_task\n"
         "class Summary(BaseModel):\n    points: list[str]\n"
         "summarize = agent_task('summarize', plugin='plugins/summarize', output=Summary, max_turns=5, timeout_s=60)\n"
-        "def flow(units):\n    for u in units:\n        summarize(u)\n"
+        "def flow(units):\n    for u in units:\n        summarize(u)\n",
+        encoding="utf-8",
+        newline="\n",
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
@@ -147,7 +149,9 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     sys.modules.pop("tasks", None)
 
     (tmp_path / "tasks.py").write_text(
-        "from contraagent import agent_task\nsummarize = agent_task('summarize', plugin='plugins/summarize', role='nobody', output=str)\n"
+        "from contraagent import agent_task\nsummarize = agent_task('summarize', plugin='plugins/summarize', role='nobody', output=str)\n",
+        encoding="utf-8",
+        newline="\n",
     )
     assert main(["check", "tasks.py:flow"]) == 1
     assert "no role 'nobody'" in capsys.readouterr().out
@@ -182,7 +186,7 @@ def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
 def test_a_pipeline_table_passes_check_unread_and_table_returns_it(plugin_dir, tmp_path):
     summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
     f = tmp_path / "pipeline.toml"
-    f.write_text('[pipeline.report]\ntitle = "Weekly"\nany_key = [1, 2]\n\n[pipeline.index]\nport = 8080\n')
+    f.write_text('[pipeline.report]\ntitle = "Weekly"\nany_key = [1, 2]\n\n[pipeline.index]\nport = 8080\n', encoding="utf-8", newline="\n")
     config = PipelineConfig.load(f)
 
     def flow():
@@ -237,7 +241,7 @@ def test_the_report_shows_each_kinds_route_and_a_flow_error_at_the_flows_line(pl
     assert report.routes == {"summarize": "claude/m1 effort=medium max_turns=5 timeout_s=60; on a 429: omp/m2"}
 
     def flow():
-        (tmp_path / "missing.txt").read_text()  # raises inside pathlib
+        (tmp_path / "missing.txt").read_text(encoding="utf-8")  # raises inside pathlib
 
     errors = pipeline().check(flow).errors
     assert f"{__file__}:" in errors[0] and "FileNotFoundError" in errors[0]
@@ -249,7 +253,9 @@ def test_run_takes_what_check_takes_and_exits_by_the_outcome(tmp_path, capsys, m
         "@python_task\ndef double(n: int) -> int:\n    return 2 * n\n"
         "@python_task\ndef fail() -> int:\n    raise ValueError('no')\n"
         "def flow(n):\n    return double(n=n)\n"
-        "def failing():\n    fail()\n"
+        "def failing():\n    fail()\n",
+        encoding="utf-8",
+        newline="\n",
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
@@ -472,8 +478,8 @@ def flow(helper):
 
 @pytest.fixture
 def edit_board(tmp_path, monkeypatch):
-    (tmp_path / "edit_tasks.py").write_text(EDIT_TASKS)
-    (tmp_path / "edit_board.py").write_text(EDIT_BOARD)
+    (tmp_path / "edit_tasks.py").write_text(EDIT_TASKS, encoding="utf-8", newline="\n")
+    (tmp_path / "edit_board.py").write_text(EDIT_BOARD, encoding="utf-8", newline="\n")
     monkeypatch.setattr(sys, "path", [str(tmp_path), *sys.path])
     import edit_board  # type: ignore[import-not-found]
 

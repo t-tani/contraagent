@@ -155,7 +155,7 @@ def test_the_live_feed_says_when_the_journal_replay_is_over(demo_runs):
 
 
 def test_the_committed_openapi_document_is_current():
-    committed = server.OPENAPI_FILE.read_text()
+    committed = server.OPENAPI_FILE.read_text(encoding="utf-8")
     assert committed == server.openapi_document(), (
         "openapi.json is stale: run `uv run contraagent monitor --openapi src/contraagent/_internal/monitor/openapi.json`"
     )
@@ -186,7 +186,7 @@ def test_the_contract_is_served_and_describes_the_live_feeds(tmp_path):
 def test_openapi_flag_writes_the_document(tmp_path):
     out = tmp_path / "openapi.json"
     assert cli_main(["monitor", "--openapi", str(out)]) == 0
-    assert out.read_text() == server.openapi_document()
+    assert out.read_text(encoding="utf-8") == server.openapi_document()
 
 
 # --- security ----------------------------------------------------------------
@@ -219,13 +219,15 @@ def secret_layout(tmp_path):
     """runs/r1 is a real run; secret/ sits next to runs/ with files a traversal would read."""
     runs = tmp_path / "runs"
     (runs / "r1" / "streams").mkdir(parents=True)
-    (runs / "r1" / "journal.jsonl").write_text("")
+    (runs / "r1" / "journal.jsonl").write_text("", encoding="utf-8", newline="\n")
     secret = tmp_path / "secret"
     (secret / "streams").mkdir(parents=True)
     row = {"ts": "t", "key": "leak", "kind": "k", "stop": "completed", "ok": True}
-    (secret / "journal.jsonl").write_text(json.dumps(row) + "\n")
-    (secret / "streams" / "leak.stream.jsonl").write_text('{"type":"launch","argv":["SECRET"],"cwd":"","prompt":""}\n')
-    (runs / "r1" / "streams" / "ok.stream.jsonl").write_text("")
+    (secret / "journal.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8", newline="\n")
+    (secret / "streams" / "leak.stream.jsonl").write_text(
+        '{"type":"launch","argv":["SECRET"],"cwd":"","prompt":""}\n', encoding="utf-8", newline="\n"
+    )
+    (runs / "r1" / "streams" / "ok.stream.jsonl").write_text("", encoding="utf-8", newline="\n")
     return runs
 
 
@@ -300,7 +302,7 @@ def test_the_page_makes_no_third_party_requests():
     for f in static.iterdir():
         if f.suffix == ".png":  # an image requests nothing
             continue
-        text = f.read_text()
+        text = f.read_text(encoding="utf-8")
         assert "googleapis" not in text and "gstatic" not in text, f.name
 
 
@@ -451,8 +453,8 @@ def test_a_file_outside_the_runs_working_directory_is_served_as_recorded(review_
     run = tmp_path / "docs"
     run.mkdir()
     for name in ("plan.jsonl", "flow_calls.jsonl", "journal.jsonl"):
-        (run / name).write_text((review_run / "docs" / name).read_text())
-    (run / "run.json").write_text(json.dumps({"run_id": "docs", "cwd": str(tmp_path)}))
+        (run / name).write_text((review_run / "docs" / name).read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+    (run / "run.json").write_text(json.dumps({"run_id": "docs", "cwd": str(tmp_path)}), encoding="utf-8", newline="\n")
     plan = Monitor(tmp_path).plan("docs", live={})
     files = {f["file"] for n in plan["nodes"] for f in n["flow"]} | {f["file"] for c in plan["flow_calls"] for f in c["flow"]}
     assert len(files) == 1 and Path(files.pop()).is_absolute()
@@ -461,7 +463,9 @@ def test_a_file_outside_the_runs_working_directory_is_served_as_recorded(review_
 def test_a_run_whose_tasks_no_flow_created_has_no_flow_call(tmp_path):
     run = tmp_path / "byhand"
     run.mkdir()
-    (run / "plan.jsonl").write_text(json.dumps({"key": "a", "kind": "a", "unit": "", "after": [], "executor": "agent"}) + "\n")
+    (run / "plan.jsonl").write_text(
+        json.dumps({"key": "a", "kind": "a", "unit": "", "after": [], "executor": "agent"}) + "\n", encoding="utf-8", newline="\n"
+    )
     plan = client_for(Monitor(tmp_path)).get("/api/runs/byhand/plan").json()
     assert plan["flow_calls"] == [] and "flow_call" not in plan["nodes"][0]  # an origin field it never had is absent
 
@@ -470,10 +474,10 @@ def test_the_live_feed_sends_the_plan_when_a_flow_call_ends(review_run, tmp_path
     monkeypatch.setattr(server, "TICK_S", 0.01)
     run = tmp_path / "docs"
     run.mkdir()
-    rows = (review_run / "docs" / "flow_calls.jsonl").read_text().splitlines()
+    rows = (review_run / "docs" / "flow_calls.jsonl").read_text(encoding="utf-8").splitlines()
     starts = [r for r in rows if json.loads(r)["event"] == "start"]
-    (run / "flow_calls.jsonl").write_text("\n".join(starts) + "\n")
-    (run / "plan.jsonl").write_text((review_run / "docs" / "plan.jsonl").read_text())
+    (run / "flow_calls.jsonl").write_text("\n".join(starts) + "\n", encoding="utf-8", newline="\n")
+    (run / "plan.jsonl").write_text((review_run / "docs" / "plan.jsonl").read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     mon = Monitor(tmp_path)
 
     async def feed() -> list[str]:
@@ -488,7 +492,7 @@ def test_the_live_feed_sends_the_plan_when_a_flow_call_ends(review_run, tmp_path
                 looped = next(n for n in plan["nodes"] if n["key"] == "review-b~2")
                 assert looped["flow"][1]["loops"][0]["pass"] == 2  # the wire's name, as in plan.jsonl
             if msg["event"] == "ready":
-                with open(run / "flow_calls.jsonl", "a") as f:
+                with open(run / "flow_calls.jsonl", "a", encoding="utf-8", newline="\n") as f:
                     f.write(json.dumps({"ts": "", "id": "0", "event": "end", "state": "raised", "error": "ValueError: no"}) + "\n")
             if len(states) == 2:
                 return states
@@ -515,7 +519,7 @@ def test_a_pipelines_own_journal_columns_are_named_and_passed_through(tmp_path):
         {"ts": "2026-10-14T00:00:00+00:00", "key": "write-a", **done, "effect": "new"},
         {"ts": "2026-10-14T00:01:00+00:00", "key": "write-b", **done, "effect": "updated", "lines": 3},
     ]
-    (d / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (d / "journal.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8", newline="\n")
     client = client_for(Monitor(tmp_path))
     [summary] = client.get("/api/runs").json()
     assert summary["row_extras"] == ["effect", "lines"]

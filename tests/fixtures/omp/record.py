@@ -29,7 +29,7 @@ MODEL = "anthropic/claude-haiku-5-5"
 
 def record(cwd: Path) -> dict[str, list[dict]]:
     """Both wires' events of one launch each, as omp sent them."""
-    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n")
+    (cwd / "note.txt").write_text("The retry queue holds failed jobs.\n", encoding="utf-8", newline="\n")
     launch = Launch(prompt=PROMPT, label="rec", model=MODEL, cwd=cwd, limits=Limits(timeout_s=180, max_turns=8))
     backend = OmpBackend()
     out = subprocess.run(backend.argv(launch), cwd=cwd, env=backend.env(launch), capture_output=True, timeout=200).stdout
@@ -62,13 +62,13 @@ def slim(value, cwd: str):
 
 
 def main() -> int:
-    version = subprocess.run(["omp", "--version"], capture_output=True, text=True).stdout.strip().removeprefix("omp/")
+    version = subprocess.run(["omp", "--version"], capture_output=True, text=True, encoding="utf-8").stdout.strip().removeprefix("omp/")
     target = Path(__file__).parent / version
     target.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         for wire, evs in record(Path(tmp)).items():
             text = "".join(json.dumps(slim(e, tmp), ensure_ascii=False) + "\n" for e in evs)
-            (target / f"{wire}.jsonl").write_text(text)
+            (target / f"{wire}.jsonl").write_text(text, encoding="utf-8", newline="\n")
     print(f"recorded omp {version} into {target}")
     return 0
 

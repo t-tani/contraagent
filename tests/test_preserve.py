@@ -113,7 +113,7 @@ def test_a_contract_checks_the_parts_against_the_file_as_it_was(tmp_path):
     path.write_text(json.dumps({"source": "a.md", "items": [{"id": "y1", "title": "One"}], "pair": "bad"}))
     errors = contract.check(tmp_path, before).errors
     assert any("pair" in e for e in errors), errors  # the schema's errors and the parts', in one round
-    assert f'{path}: /items/0/id changed: it must stay "x1" (now "y1")' in errors
+    assert f'{path.as_posix()}: /items/0/id changed: it must stay "x1" (now "y1")' in errors
     path.write_text(json.dumps({"source": "b.md", "items": [{"id": "x1", "title": "Uno"}]}))
     assert contract.check(tmp_path, before).ok
     path.write_text("not json")

@@ -3,7 +3,8 @@
 Python's default for a text file and a child's text output is the locale's encoding:
 UTF-8 on Linux and macOS, a code page on Windows (cp1252, cp932, ...). So every text
 read or write in the package names its encoding, and every text write its newline (`\\n`;
-Windows would write `\\r\\n`), checked here on the source."""
+Windows would write `\\r\\n`), checked here on the source. So does every script that
+writes a committed file (a snapshot, a recording, the docs site's pages)."""
 
 import ast
 from pathlib import Path
@@ -11,6 +12,9 @@ from pathlib import Path
 import contraagent
 
 SRC = Path(contraagent.__file__).parent
+REPO = Path(__file__).resolve().parents[1]
+#: The scripts that write committed files.
+SCRIPTS = [REPO / "tests" / d for d in ("api", "cli", "fixtures")] + [REPO / "web" / "apps" / "docs" / "scripts"]
 
 #: Subprocess calls whose `text=True` decodes the child's output.
 _SUBPROCESS = {"run", "Popen", "check_output", "check_call"}
@@ -59,8 +63,8 @@ def _is_os(fn: ast.Attribute) -> bool:
 
 def test_every_text_read_and_write_names_its_encoding():
     found = []
-    for f in sorted(SRC.rglob("*.py")):
+    for f in sorted(p for d in (SRC, *SCRIPTS) for p in d.rglob("*.py")):
         for node in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Call) and (why := _unnamed(node)):
-                found.append(f"{f.relative_to(SRC)}:{node.lineno}: {why}")
+                found.append(f"{f.relative_to(REPO if f.is_relative_to(REPO) else SRC)}:{node.lineno}: {why}")
     assert not found, "\n".join(found)

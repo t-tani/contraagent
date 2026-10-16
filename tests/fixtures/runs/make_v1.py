@@ -72,10 +72,12 @@ def main() -> None:
         shutil.copytree(report.run_dir, out)
         for path in out.rglob("*"):
             if path.is_file():
-                path.write_text(path.read_text().replace(str(work), CWD).replace(str(HERE), FLOW))
-    info = json.loads((out / "run.json").read_text())
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace(str(work), CWD).replace(str(HERE), FLOW), encoding="utf-8", newline="\n"
+                )
+    info = json.loads((out / "run.json").read_text(encoding="utf-8"))
     info.update(host_id="host-1", pid=1, start_ticks=1, argv=["flow.py"])
-    (out / "run.json").write_text(json.dumps(info))
+    (out / "run.json").write_text(json.dumps(info), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

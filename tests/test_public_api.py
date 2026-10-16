@@ -76,7 +76,7 @@ def _internal_aliases() -> dict[int, list[str]]:
     for name, mod in list(sys.modules.items()):
         if not name.startswith("contraagent._internal") or mod is None or not getattr(mod, "__file__", None):
             continue
-        tree = ast.parse(Path(mod.__file__).read_text())
+        tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
         bound = set()
         for node in tree.body:
             if isinstance(node, ast.Assign):
@@ -469,10 +469,10 @@ def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path
     pins = [f"{name}=={importlib.metadata.version(name)}" for name in ("pydantic", "psutil")]
     install = [uv, "pip", "install", "--quiet", "--python", str(python), *pins]
     if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:
-        done = subprocess.run(install, capture_output=True, text=True)
+        done = subprocess.run(install, capture_output=True, text=True, encoding="utf-8")
         assert done.returncode == 0, done.stderr
     src = Path(__file__).parents[1] / "src"
-    done = subprocess.run([str(python), "-I", "-c", IMPORT_WITHOUT_EXTRAS, str(src)], capture_output=True, text=True)
+    done = subprocess.run([str(python), "-I", "-c", IMPORT_WITHOUT_EXTRAS, str(src)], capture_output=True, text=True, encoding="utf-8")
     assert (done.returncode, done.stdout.strip()) == (0, "ok"), done.stderr
 
 
@@ -515,7 +515,7 @@ def test_the_monitor_api_holds_its_openapi_schemas():
     import contraagent.monitor.api
 
     openapi = Path(contraagent.__file__).parent / "_internal" / "monitor" / "openapi.json"
-    schemas = set(json.loads(openapi.read_text())["components"]["schemas"])
+    schemas = set(json.loads(openapi.read_text(encoding="utf-8"))["components"]["schemas"])
     extra = {"API_VERSION", "AnyTranscriptEvent"}
     assert [n for n in contraagent.monitor.api.__all__ if n not in schemas | extra] == []
     homes = {name for module in PUBLIC for name in importlib.import_module(module).__all__}
@@ -561,7 +561,7 @@ def test_the_api_snapshot_is_current():
     snapshot = _snapshot_module()
     assert snapshot.PUBLIC == PUBLIC
     current = snapshot.render()
-    committed = snapshot.SNAPSHOT.read_text() if snapshot.SNAPSHOT.exists() else ""
+    committed = snapshot.SNAPSHOT.read_text(encoding="utf-8") if snapshot.SNAPSHOT.exists() else ""
     if current != committed:
         import difflib
 
@@ -579,6 +579,7 @@ def test_the_public_modules_are_fully_typed():
         [sys.executable, "-m", "pyright", "--verifytypes", "contraagent", "--ignoreexternal", "--outputjson"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
     ).stdout
     symbols = json.loads(out)["typeCompleteness"]["symbols"]
     incomplete = [
