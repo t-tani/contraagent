@@ -126,7 +126,7 @@ contraagent runs on Linux, macOS and Windows. What differs:
 | The run lock | `flock` | `msvcrt.locking` |
 | A coding agent installed by npm (`claude.cmd`) | — | started as the program the batch file runs, so the arguments reach it unchanged; a batch file npm did not make is refused |
 | A prompt goes over stdin | past 60,000 characters | past 16,000 characters (a command line holds at most 32,767) |
-| A plugin's hook scripts | the `bash` on `PATH` | the bash of Git for Windows: `CONTRAAGENT_BASH`, else `CLAUDE_CODE_GIT_BASH_PATH`, else a `bash` on `PATH` outside `System32`, else the one in Program Files. Claude Code runs its own hooks with it too. Without one, a hook script does not run. |
+| A plugin's hook scripts | the `bash` on `PATH` | the bash of Git for Windows: `CONTRAAGENT_BASH`, else `CLAUDE_CODE_GIT_BASH_PATH`, else a `bash` on `PATH` outside `System32`, else the one in Program Files. Claude Code runs its own hooks with it too. Codex runs a hook's command under PowerShell, so a Codex launch has PowerShell start that bash. Without one, a hook script does not run, and a Codex launch is passed no plugin hooks. |
 | A link in pi's agent directory or to a Codex skill | a symbolic link | a symbolic link where the user may make one, else a junction (a directory) or a hard link or copy (a file) |
 | Scratch directories | `<temp dir>/contraagent-<uid>/` | `%TEMP%\contraagent\` (`%TEMP%` is the user's own) |
 | Codex's sandbox | bubblewrap on Linux, Seatbelt on macOS | Codex's Windows sandbox (`windows.sandbox` in Codex's config) |
