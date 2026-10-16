@@ -7,3 +7,4 @@ export * from './ca-timeline.js';
 export * from './ca-spend-breakdown.js';
 export * from './ca-model-usage.js';
 export * from './ca-quota.js';
+export * from './ca-services.js';

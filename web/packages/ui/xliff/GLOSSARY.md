@@ -115,6 +115,7 @@ wherever the UI shows a state or a count to the reader.
 | default (the built-in credential `ambient`: local credentials) | 既定 |
 | No unit (a row for tasks that run once per run, not once per unit) | ユニットなし |
 | Locks (a task's claims: the names it holds while it runs) | ロック; tooltip: 実行中にこのタスクが占有する名前（claims） |
+| Services (the long-lived helper a lock name stands for: `Plan.services`); its start / its stop | サービス; 開始 / 停止 (not 起動: that is a launch) |
 | reasoning (the model's thinking in a transcript) | 思考 |
 | cost (USD, as the coding agent reports it) | 料金 |
 | tokens / input / output / cache read / cache write / API calls | トークン / 入力 / 出力 / キャッシュ読み込み / キャッシュ書き込み / API 呼び出し |

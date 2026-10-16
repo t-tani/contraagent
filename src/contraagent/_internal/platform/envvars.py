@@ -25,3 +25,14 @@ CALL = "CONTRAAGENT_CALL"
 #: The bash a plugin's hook scripts run under, set where it is not the `bash` on PATH
 #: (on Windows, the one of Git for Windows: `commands.bash`).
 BASH = "CONTRAAGENT_BASH"
+
+#: The start of the variable that holds the address of a service the task claims
+#: (`service(name)`).
+SERVICE_PREFIX = "CONTRAAGENT_SERVICE_"
+
+
+def service(name: str) -> str:
+    """The variable that holds the address of the service claim name `name` stands for:
+    `CONTRAAGENT_SERVICE_` and the name in capitals, each character but a letter or a
+    digit turned into `_` (`db:alpha` -> `CONTRAAGENT_SERVICE_DB_ALPHA`)."""
+    return SERVICE_PREFIX + "".join(c if c.isascii() and c.isalnum() else "_" for c in name.upper())

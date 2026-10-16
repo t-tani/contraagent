@@ -38,6 +38,7 @@ from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent._internal.execution.run import Run
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
+from contraagent._internal.execution.services import Service, Services
 from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.check import CheckReport, check_flow
 from contraagent._internal.pipeline.graph import MAX_PASSES, Graph
@@ -164,6 +165,8 @@ class Pipeline:
         claim_capacity: Mapping[str, int | PerTask] | None = None,
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
+        services: Mapping[str, Service] | None = None,
+        service_idle_s: float | None = None,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
         `[credentials.<name>]`); None runs on each task's declared defaults.
@@ -243,7 +246,20 @@ class Pipeline:
         config's `[defaults.claim_capacity]` key by key.
         `retry_wait_s`: the wait before the one retry of a task that ended `api_error`,
         `no_output` or `launch_failed`. `throttle_s`: how long two `rate_limited` ends in a
-        row halve the tasks running at once."""
+        row halve the tasks running at once.
+
+        `services`: the service each claim name stands for (`Service`: a function of the
+        name that returns a context manager), by the name or an `fnmatch` pattern, as
+        `claim_capacity` takes them. The first task that claims the name starts it, before
+        its first attempt; every task that claims it shares it while it runs, as many at
+        once as the name's claim capacity lets; and it runs until the run ends, a run
+        that raises or is interrupted included. A task reaches it by its address: an agent
+        task in its environment (`CONTRAAGENT_SERVICE_<NAME>`), a Python task by
+        `contraagent.service_address(name)`. A start that raises fails each task that
+        claims the name, with stop `launch_failed`. `services.jsonl` records each start and
+        stop. `service_idle_s`: stop a service once no task has held it for that many
+        seconds (0: as soon as the last one ends), and start it again for the next task
+        that claims its name; None keeps every service running until the run ends."""
         if config is None:
             config = PipelineConfig()
         elif not isinstance(config, PipelineConfig):
@@ -304,6 +320,15 @@ class Pipeline:
             if not isinstance(value, PerTask) and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ConfigError(f"Pipeline(claim_capacity=) {name!r} = {value!r} is not a non-negative integer or a PerTask")
         capacity = {**config.claim_capacity([]), **given}
+        #: The service each claim name or pattern stands for (`Service`).
+        self.services: dict[str, Service] = _checked_services(services)
+        if service_idle_s is not None and (
+            isinstance(service_idle_s, bool) or not isinstance(service_idle_s, (int, float)) or service_idle_s < 0
+        ):
+            raise ValueError(
+                f"Pipeline: service_idle_s={service_idle_s!r} is not a non-negative number of seconds (None: until the run ends)"
+            )
+        self.service_idle_s: float | None = service_idle_s
         #: What the run's `WorkQueue` is given beside its runner (`Run.queue`).
         self.queue_options: dict[str, Any] = dict(
             deadline_s=deadline_s,
@@ -375,6 +400,10 @@ class Pipeline:
             run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
         ) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
+            services = Services(
+                self.services, run.dir, idle_s=self.service_idle_s, log=lambda line, warning: run.progress(line, warning=warning)
+            )
+            run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
@@ -473,15 +502,19 @@ class Pipeline:
                     queue = run.queue(
                         _InputsFirst(
                             graph,
-                            recording(
-                                run.python_runner(
-                                    RetryingRunner(runner, on_attempt=run.record_attempt),
-                                    cwd=self.cwd,
-                                    scopes=self.scopes,
-                                    enrichers=self.enrichers,
+                            services.wrap(
+                                recording(
+                                    run.python_runner(
+                                        RetryingRunner(runner, on_attempt=run.record_attempt),
+                                        cwd=self.cwd,
+                                        scopes=self.scopes,
+                                        enrichers=self.enrichers,
+                                    ),
+                                    recorder,
+                                    self.replay,
                                 ),
-                                recorder,
-                                self.replay,
+                                # A Python task's result is journaled by the queue, an agent task's here.
+                                on_failed=lambda result: run.record_attempt(result) if result.task.fn is None else None,
                             ),
                         ),
                         follow_up=follow_up,
@@ -494,7 +527,10 @@ class Pipeline:
                     queue.extend(tasks)
                     summary = queue.run()
                 finally:
-                    driver.finish()
+                    try:
+                        services.close()
+                    finally:
+                        driver.finish()
             if driven:
                 specs = graph.agent_specs()
                 check_task_tables(self.config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()})
@@ -530,6 +566,21 @@ class Pipeline:
         runner.configs = {**runner.configs, **plan.configs}
         if self.replay is None or self.replay.record_missing:
             runner.routers.update(plan.routers)
+
+
+def _checked_services(services: Mapping[str, Service] | None) -> dict[str, Service]:
+    """`Pipeline(services=)` checked: each key a claim name or pattern, each value callable."""
+    out: dict[str, Service] = {}
+    for name, service in (services or {}).items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Pipeline(services=): {name!r} is not a claim name")
+        if not callable(service):
+            raise TypeError(
+                f"Pipeline(services=) {name!r} = {service!r} is not a Service: give a function of the claim name "
+                "that returns a context manager (a generator function decorated with contextlib.contextmanager)"
+            )
+        out[name] = service
+    return out
 
 
 def _start(

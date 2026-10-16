@@ -253,6 +253,8 @@ class Pipeline
         claim_capacity: Mapping[str, int | PerTask] | None = None,
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
+        services: Mapping[str, Service] | None = None,
+        service_idle_s: float | None = None,
     ) -> None
     backends: dict[str, Backend]
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport
@@ -283,6 +285,8 @@ class Pipeline
     ) -> RunReport
     runs_dir: Path
     scopes: tuple[TaskScope, ...]
+    service_idle_s: float | None
+    services: dict[str, Service]
     stub
 
 @dataclass(frozen=True)
@@ -392,6 +396,9 @@ class RunReport
     run_id: str
     summary: dict[str, Any] = field(default_factory=dict)
     value: Any = None
+
+class Service(Protocol)
+    def __call__(self, name: str, /) -> AbstractContextManager[str | None]
 
 class SkippedHop(Rest)
     model: str = ''
@@ -693,6 +700,8 @@ def python_task(
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]
 
 def save(name: str, value: Any) -> None
+
+def service_address(name: str) -> str | None
 
 def time_box(
     flow: Generator[Y, S, R],
@@ -2568,7 +2577,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.4.0'
+API_VERSION = '3.5.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
@@ -2870,6 +2879,7 @@ class Plan(Closed)
     quota_caps: list[QuotaCap] = Field(default_factory=list, description="the run's credentials that have quota caps (`run.json`)")
     quota_rule: str = Field('', description="`module.qualname` of the run's quota rule (`Pipeline(quota_rule=)`); empty for none")
     rests: list[CredentialRest] = Field(default_factory=list, description='each rest of a credential in the run (`rests.jsonl`), in start order')
+    services: list[ServiceSpan] = Field(default_factory=list, description='each start of a service of the run (`services.jsonl`), with its stop, in start order')
 
 class PlanGroup(Closed)
     blocked: int
@@ -2996,6 +3006,18 @@ class RunSummary(Closed)
     tokens: TokenUsage = Field(description='tokens of every attempt, summed')
     unresponsive: bool = Field(False, description='its host last reported it alive and has stopped reporting (a hub only)')
     wall_s: int = Field(description="sum of the rows' wall time, rounded to seconds")
+
+class ServiceSpan(Closed)
+    address: str | None = Field(None, description='what it gave its tasks to reach it; null for none')
+    key: str = Field('', description='the task whose claim started it')
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    name: str = Field(description='the claim name the service stands for')
+    start_error: str = Field('', description='the exception of a start that failed (the service did not start); empty when it started')
+    start_s: float = Field(0.0, description='how long its start took, in seconds')
+    started_at: str = Field(description='when its start ended, ISO 8601')
+    stop_cause: ServiceStopCause | None = Field(None, description='why it stopped; null while it is up')
+    stop_error: str = Field('', description='the exception its stop raised; empty when the stop went well')
+    stopped_at: str = Field('', description='when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded')
 
 class StageEntry(Closed)
     at: str

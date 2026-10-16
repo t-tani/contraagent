@@ -182,6 +182,16 @@ def _is_pattern(name: str) -> bool:
     return any(ch in name for ch in "*?[")
 
 
+def claim_entry[T](entries: Mapping[str, T], name: str) -> T | None:
+    """The entry of claim name `name` in `entries`, keyed by a name or an `fnmatch` pattern
+    (`claim_capacity`, `Pipeline(services=)`): its own, else that of the longest pattern
+    that matches it (of two as long, the first given); None when none does."""
+    if name in entries:
+        return entries[name]
+    patterns = sorted((k for k in entries if _is_pattern(k)), key=len, reverse=True)
+    return next((entries[p] for p in patterns if fnmatch.fnmatchcase(name, p)), None)
+
+
 class RunnerConfig(Protocol):
     """What `WorkQueue` reads of a task's config (`TaskRunner.config`): `max_concurrent`."""
 

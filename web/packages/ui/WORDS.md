@@ -45,6 +45,7 @@ written are in `web/AGENTS.md`.
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |
 | `claims` (names a task holds while it runs) | Locks (before the names; tooltip: Names this task holds while it runs (claims)) | ロック; tooltip: 実行中にこのタスクが占有する名前（claims） |
+| a service (`Plan.services`, `ServiceSpan`, `services.jsonl`) and its state | Services; running, stopped, did not start, stop not recorded; Started `time` in `duration` \| Stopped `time` \| No task held it, The run ended, The run was stopped by a signal \| Stop failed | サービス; 稼働中, 停止, 開始できず, 停止の記録なし; `time` に開始（`duration`） \| `time` に停止 \| 保持するタスクがなかった, 実行が終了した, 実行がシグナルで停止された \| 停止でエラー |
 | `model` (the LLM a session ran on) | model (never "LLM") | モデル |
 | `thinking` (the model's reasoning in a transcript) | reasoning | 思考 |
 | upstream / downstream tasks | earlier tasks / later tasks | 依存先タスク / 後続タスク |

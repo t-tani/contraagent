@@ -146,6 +146,7 @@ class Run:
         deferred.jsonl          one row per deferred task: its key and why it was not launched
                                 (`reason`, and `cause` as data: `Deferral`)
         rests.jsonl             each start and end of a credential's quota rest (`QuotaRests`)
+        services.jsonl          each start and stop of a service (`execution.services`)
         inflight/<key>.json     one marker per running task
         contracts/, definitions/  what each task declared, for the monitor
         pipeline/<name>.jsonl   a pipeline log: the rows of `contraagent.log(name, row)`

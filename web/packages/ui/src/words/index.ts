@@ -18,6 +18,7 @@ export * from './table.js';
 export * from './changes.js';
 export * from './claims.js';
 export * from './rests.js';
+export * from './services.js';
 export * from './time-box.js';
 export * from './row-extras.js';
 export * from './models.js';

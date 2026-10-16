@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.4.0"
+    "version": "3.5.0"
   },
   "paths": {
     "/api/info": {
@@ -3518,6 +3518,14 @@
             "title": "Models",
             "description": "each model the run's agent sessions ran on, in order of first use"
           },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceSpan"
+            },
+            "type": "array",
+            "title": "Services",
+            "description": "each start of a service of the run (`services.jsonl`), with its stop, in start order"
+          },
           "preflight": {
             "anyOf": [
               {
@@ -4453,6 +4461,87 @@
         ],
         "title": "RunSummary",
         "description": "One run directory, as the run picker lists it."
+      },
+      "ServiceSpan": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the claim name the service stands for"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At",
+            "description": "when its start ended, ISO 8601"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the task whose claim started it",
+            "default": ""
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address",
+            "description": "what it gave its tasks to reach it; null for none"
+          },
+          "start_s": {
+            "type": "number",
+            "title": "Start S",
+            "description": "how long its start took, in seconds",
+            "default": 0.0
+          },
+          "start_error": {
+            "type": "string",
+            "title": "Start Error",
+            "description": "the exception of a start that failed (the service did not start); empty when it started",
+            "default": ""
+          },
+          "stopped_at": {
+            "type": "string",
+            "title": "Stopped At",
+            "description": "when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded",
+            "default": ""
+          },
+          "stop_cause": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "run_end",
+                  "interrupted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Cause",
+            "description": "why it stopped; null while it is up"
+          },
+          "stop_error": {
+            "type": "string",
+            "title": "Stop Error",
+            "description": "the exception its stop raised; empty when the stop went well",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "started_at"
+        ],
+        "title": "ServiceSpan",
+        "description": "One start of the service a claim name stands for (`services.jsonl`), with its stop:\na service that stopped when idle and started again has a span for each start."
       },
       "SkippedHop": {
         "properties": {

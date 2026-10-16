@@ -3091,6 +3091,62 @@
   <source>JSON Lines, one object of schema <x id="0" equiv-text="${schemaName(o)}"/> per line</source>
   <target>JSON Lines（1 行ごとに JSON オブジェクト、スキーマ <x id="0" equiv-text="${schemaName(o)}"/>）</target>
 </trans-unit>
+<trans-unit id="sf55d634dcc743595">
+  <source>Services</source>
+  <target>サービス</target>
+</trans-unit>
+<trans-unit id="s5c7b236b3fa997c2">
+  <source>No services</source>
+  <target>サービスなし</target>
+</trans-unit>
+<trans-unit id="s84b40036b7da0073">
+  <source>No task held it</source>
+  <target>保持するタスクがなかった</target>
+</trans-unit>
+<trans-unit id="s5144d023ec192e11">
+  <source>The run ended</source>
+  <target>実行が終了した</target>
+</trans-unit>
+<trans-unit id="sd3458f28f628e82d">
+  <source>Started <x id="0" equiv-text="${localTime(s.started_at)}"/> in <x id="1" equiv-text="${fmtDur(s.start_s ?? 0)}"/></source>
+  <target><x id="0" equiv-text="${localTime(s.started_at)}"/> に開始（<x id="1" equiv-text="${fmtDur(s.start_s ?? 0)}"/>）</target>
+</trans-unit>
+<trans-unit id="sb76f9199c15fe03c">
+  <source>Stopped <x id="0" equiv-text="${localTime(s.stopped_at)}"/></source>
+  <target><x id="0" equiv-text="${localTime(s.stopped_at)}"/> に停止</target>
+</trans-unit>
+<trans-unit id="s673f9ec66716c84a">
+  <source>Stop failed</source>
+  <target>停止でエラー</target>
+</trans-unit>
+<trans-unit id="sbd58f76b47025b9c">
+  <source>stop not recorded</source>
+  <target>停止の記録なし</target>
+  <note from="lit-localize">A service of a finished run whose stop is not in services.jsonl</note>
+</trans-unit>
+<trans-unit id="service-running">
+  <source>running</source>
+  <target>稼働中</target>
+  <note from="lit-localize">A service that is running</note>
+</trans-unit>
+<trans-unit id="sa3deee7949f9fece">
+  <source>stopped</source>
+  <target>停止</target>
+  <note from="lit-localize">A service that stopped</note>
+</trans-unit>
+<trans-unit id="s5410888308ba73df">
+  <source>did not start</source>
+  <target>開始できず</target>
+  <note from="lit-localize">A service whose start failed</note>
+</trans-unit>
+<trans-unit id="s8b41b9223ed7838d">
+  <source>A long-lived helper that the tasks holding one lock share (services.jsonl)</source>
+  <target>同じロックを持つタスクが共有する常駐の補助プロセス（services.jsonl）</target>
+</trans-unit>
+<trans-unit id="sd5a1f34cfcac265f">
+  <source>The run was stopped by a signal</source>
+  <target>実行がシグナルで停止された</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

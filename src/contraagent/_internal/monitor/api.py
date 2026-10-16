@@ -45,12 +45,21 @@ from pydantic import (
 
 # The record types a run writes are part of this contract: a response holds them as they are.
 from contraagent._internal.dispatch.flow import FlowState
-from contraagent._internal.dispatch.records import DeferralCause, Executor, Frame, Rest, RestEvent, TimeBoxRecord, TokenUsage
+from contraagent._internal.dispatch.records import (
+    DeferralCause,
+    Executor,
+    Frame,
+    Rest,
+    RestEvent,
+    ServiceStopCause,
+    TimeBoxRecord,
+    TokenUsage,
+)
 from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaReading
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.4.0"
+API_VERSION = "3.5.0"
 
 
 class Closed(BaseModel):
@@ -405,6 +414,21 @@ class CredentialRest(Rest):
     ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
 
 
+class ServiceSpan(Closed):
+    """One start of the service a claim name stands for (`services.jsonl`), with its stop:
+    a service that stopped when idle and started again has a span for each start."""
+
+    name: str = Field(description="the claim name the service stands for")
+    started_at: str = Field(description="when its start ended, ISO 8601")
+    key: str = Field("", description="the task whose claim started it")
+    address: str | None = Field(None, description="what it gave its tasks to reach it; null for none")
+    start_s: float = Field(0.0, description="how long its start took, in seconds")
+    start_error: str = Field("", description="the exception of a start that failed (the service did not start); empty when it started")
+    stopped_at: str = Field("", description="when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded")
+    stop_cause: ServiceStopCause | None = Field(None, description="why it stopped; null while it is up")
+    stop_error: str = Field("", description="the exception its stop raised; empty when the stop went well")
+
+
 class PlanGroup(Closed):
     """A group: a column of the pipeline view (a kind, the kinds `Monitor(groups=)` puts
     together, or the implementation kinds of a base kind), its members counted by state."""
@@ -460,6 +484,9 @@ class Plan(Closed):
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
     models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
+    services: list[ServiceSpan] = Field(
+        default_factory=list, description="each start of a service of the run (`services.jsonl`), with its stop, in start order"
+    )
     preflight: PreflightRecord | None = Field(
         None, description="what the run's preflight did (`run.json`); null when its run.json records none"
     )
