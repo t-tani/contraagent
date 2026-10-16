@@ -45,6 +45,7 @@ import glob
 import hashlib
 import inspect
 import json
+import os
 import re
 import string
 from collections.abc import Callable, Iterator, Sequence
@@ -310,7 +311,8 @@ class Graph:
         """`spec`'s `output_name` filled in for a task named `name` (its unit, or its key)
         under `out_dir`. A key that would take it outside raises."""
         rel = spec.output_name.format(unit=name, key=base, kind=spec.kind)
-        if rel.startswith("/") or any(seg in ("", ".", "..") for seg in rel.split("/")):
+        segments = rel.replace(os.sep, "/").split("/")  # a backslash parts a path on Windows too
+        if rel.startswith("/") or Path(rel).anchor or any(seg in ("", ".", "..") for seg in segments):
             raise ValueError(f"{spec.kind}: output_name {spec.output_name!r} filled in for key {base!r} is {rel!r}, not a path inside out/")
         return self.out_dir / rel
 
@@ -359,7 +361,7 @@ class Graph:
         out, writer = None, None
         if _writes_output(spec):
             # A task given key= writes a file of its own: two keys on one unit never share one.
-            name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(":", "_")
+            name = (given or unit or base.removeprefix(PYTHON_KEY_PREFIX)).replace("/", "_").replace(os.sep, "_").replace(":", "_")
             other = getattr(spec, "output_of", None)
             if other is not None:
                 out, writer = self._output_of(other, name, base)

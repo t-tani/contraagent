@@ -35,6 +35,7 @@ from contraagent._internal.backends.process import LaunchError, Sink, run_proces
 from contraagent._internal.backends.refusal import Signals, quota_refusal
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
 from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.runs.times import now_iso
 
 #: Variables that tie a process to a Claude Code session that started contraagent
@@ -324,7 +325,7 @@ class Backend(abc.ABC):
         with tempfile.TemporaryFile() as out:
             try:
                 proc = subprocess.run(
-                    [self.binary, *args],
+                    commands.resolve([self.binary, *args], self.base_path()),
                     stdout=out,
                     stderr=subprocess.DEVNULL,
                     timeout=self.catalogue_timeout_s,

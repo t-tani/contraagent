@@ -113,7 +113,10 @@ def bind(host: str, port: int) -> socket.socket:
     """A TCP socket bound to `host`:`port` (`OSError` when it cannot be), for `serve_on`:
     a server announces its address only once it holds it."""
     sock = socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform == "win32":  # SO_REUSEADDR there lets a second server take the port too
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         sock.bind((host, port))
     except OSError:

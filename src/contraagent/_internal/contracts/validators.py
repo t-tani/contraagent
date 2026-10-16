@@ -49,6 +49,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from contraagent._internal.platform.commands import CommandError, commands
+
 
 class Validator(Protocol):
     """A check an output file must pass beyond its schema (`agent_task(validators=)`,
@@ -151,9 +153,13 @@ class CommandValidator:
             return ["{call} names the task's call file, and this task has none (a Python task)"]
         argv = self.command_for(Path(path), call)
         try:
-            proc = subprocess.run(argv, capture_output=True, text=True, timeout=self.timeout_s, cwd=cwd, encoding="utf-8", errors="replace")
+            proc = subprocess.run(
+                commands.resolve(argv), capture_output=True, text=True, timeout=self.timeout_s, cwd=cwd, encoding="utf-8", errors="replace"
+            )
         except FileNotFoundError:
             return [f"command not found: {argv[0]}"]
+        except CommandError as exc:
+            return [str(exc)]
         except subprocess.TimeoutExpired:
             return [f"timed out after {self.timeout_s:g}s"]
         if proc.returncode == 0:

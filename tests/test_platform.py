@@ -15,12 +15,14 @@ import pytest
 
 from contraagent._internal.platform import groups as groups_mod
 from contraagent._internal.platform import processes
+from contraagent._internal.platform.commands import CommandError, PosixCommands, WindowsCommands
 from contraagent._internal.platform.groups import (
     CREATE_NEW_PROCESS_GROUP,
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     PosixGroups,
     WindowsGroups,
 )
+from contraagent._internal.platform.links import PosixLinks, WindowsLinks
 from contraagent._internal.platform.locks import PosixLocks, WindowsLocks
 
 posix = pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups and flock")
@@ -310,3 +312,124 @@ def test_a_launch_whose_environment_is_not_readable_is_known_by_its_telemetry_li
     cmd = f"claude -p {telemetry.line('r1', 'review', '', 'review', None)}"
     assert _env_of_telemetry(cmd) == {envvars.RUN: "r1", envvars.KIND: "review", envvars.UNIT: "", envvars.TASK: "review"}
     assert _env_of_telemetry("claude -p") == {}
+
+
+# --- commands -------------------------------------------------------------------------------
+
+#: What npm's cmd-shim writes for a package's bin, as `claude.cmd`.
+_NPM_SHIM = r"""@ECHO off
+GOTO start
+:find_dp0
+SET dp0=%~dp0
+EXIT /b
+:start
+SETLOCAL
+CALL :find_dp0
+
+IF EXIST "%dp0%\node.exe" (
+  SET "_prog=%dp0%\node.exe"
+) ELSE (
+  SET "_prog=node"
+  SET PATHEXT=%PATHEXT:;.JS;=;%
+)
+
+endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_modules\@anthropic-ai\claude-code\cli.js" %*
+"""
+
+
+def _write(path, text: str) -> None:
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def test_a_posix_command_line_starts_as_it_is():
+    assert PosixCommands().resolve(["claude", "-p", "50% & more"]) == ["claude", "-p", "50% & more"]
+
+
+def test_a_windows_program_is_looked_up_on_the_given_path(tmp_path):
+    asked = []
+    found = {"claude": str(tmp_path / "claude.exe")}
+
+    def which(name, path):
+        asked.append(path)
+        return found.get(name)
+
+    assert WindowsCommands(which).resolve(["claude", "-p", "x"], "C:\\bin") == [found["claude"], "-p", "x"]
+    assert asked == ["C:\\bin"]
+    assert WindowsCommands(which).resolve(["missing", "-p"]) == ["missing", "-p"]  # the OS reports it
+
+
+def test_an_npm_batch_file_runs_its_script_with_node(tmp_path):
+    _write(tmp_path / "claude.cmd", _NPM_SHIM)
+    found = {"claude": str(tmp_path / "claude.cmd"), "node": "C:\\node\\node.exe"}
+    commands = WindowsCommands(lambda name, path: found.get(name))
+    argv = commands.resolve(["claude", "-p", "50% & more"])
+    assert argv[0] == "C:\\node\\node.exe" and argv[2:] == ["-p", "50% & more"]
+    assert argv[1].endswith("cli.js") and argv[1].startswith(str(tmp_path))
+    (tmp_path / "node.exe").write_bytes(b"")  # npm's own node beside it comes first
+    assert commands.resolve(["claude"])[0] == str(tmp_path / "node.exe")
+
+
+def test_an_npm_batch_file_of_a_program_runs_the_program(tmp_path):
+    _write(tmp_path / "codex.cmd", '@"%~dp0\\node_modules\\@openai\\codex\\bin\\codex.exe" %*\n')
+    argv = WindowsCommands(lambda name, path: str(tmp_path / "codex.cmd")).resolve(["codex", "exec"])
+    assert argv[0].endswith("codex.exe") and argv[1:] == ["exec"]
+
+
+def test_a_batch_file_that_is_not_npms_is_refused(tmp_path):
+    _write(tmp_path / "tool.bat", "@echo %*\n")
+    with pytest.raises(CommandError, match="batch file"):
+        WindowsCommands(lambda name, path: str(tmp_path / "tool.bat")).resolve(["tool", "x"])
+    _write(tmp_path / "js.cmd", '@"%~dp0\\x.js" %*\n')
+    with pytest.raises(CommandError, match="node is not on PATH"):
+        WindowsCommands(lambda name, path: str(tmp_path / "js.cmd") if name == "js" else None).resolve(["js"])
+
+
+def test_a_hook_runs_under_the_bash_on_path_on_posix():
+    assert PosixCommands().bash({}) == "bash"
+
+
+def test_a_windows_hook_runs_under_the_bash_of_git_for_windows_never_wsl(tmp_path):
+    wsl = "C:\\Windows\\System32\\bash.exe"
+    assert WindowsCommands(lambda name, path: wsl).bash({}) is None
+    assert WindowsCommands(lambda name, path: wsl).bash({"CLAUDE_CODE_GIT_BASH_PATH": "D:\\git\\bash.exe"}) == "D:\\git\\bash.exe"
+    assert WindowsCommands(lambda name, path: None).bash({"CONTRAAGENT_BASH": "E:\\b", "CLAUDE_CODE_GIT_BASH_PATH": "D:"}) == "E:\\b"
+    assert WindowsCommands(lambda name, path: "C:\\Git\\usr\\bin\\bash.exe").bash({}) == "C:\\Git\\usr\\bin\\bash.exe"
+    installed = tmp_path / "Git" / "bin" / "bash.exe"
+    installed.parent.mkdir(parents=True)
+    installed.write_bytes(b"")
+    assert WindowsCommands(lambda name, path: wsl).bash({"ProgramFiles": str(tmp_path)}) == str(installed)
+
+
+# --- links ----------------------------------------------------------------------------------
+
+
+@posix
+def test_a_posix_link_is_a_symbolic_link(tmp_path):
+    (tmp_path / "dir").mkdir()
+    (tmp_path / "file").write_text("x", encoding="utf-8", newline="\n")
+    for name in ("dir", "file"):
+        PosixLinks().link(tmp_path / name, tmp_path / f"{name}-link")
+        assert os.readlink(tmp_path / f"{name}-link") == str(tmp_path / name)
+
+
+def test_a_windows_link_is_a_symbolic_link_where_the_user_may_make_one(tmp_path):
+    (tmp_path / "dir").mkdir()
+    (tmp_path / "file").write_text("x", encoding="utf-8", newline="\n")
+    made = []
+
+    def refused(*a, **kw):
+        raise OSError("A required privilege is not held by the client")
+
+    def record(how):
+        return lambda source, link, **kw: made.append((how, source, link))
+
+    allowed = WindowsLinks(symlink=record("symlink"))
+    allowed.link(tmp_path / "dir", tmp_path / "a")
+    assert made[-1][0] == "symlink"
+    plain = WindowsLinks(symlink=refused, junction=record("junction"), hardlink=record("hardlink"))
+    plain.link(tmp_path / "dir", tmp_path / "b")
+    plain.link(tmp_path / "file", tmp_path / "c")
+    assert [m[0] for m in made[-2:]] == ["junction", "hardlink"]
+    other_volume = WindowsLinks(symlink=refused, hardlink=refused, copy=record("copy"))
+    other_volume.link(tmp_path / "file", tmp_path / "d")
+    assert made[-1] == ("copy", str(tmp_path / "file"), str(tmp_path / "d"))

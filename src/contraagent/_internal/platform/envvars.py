@@ -22,3 +22,6 @@ PARAMS = "CONTRAAGENT_PARAMS"
 PYTHON = "CONTRAAGENT_PYTHON"
 #: The task's call file (`contraagent._internal.contracts.calls`): its parameters and output contract.
 CALL = "CONTRAAGENT_CALL"
+#: The bash a plugin's hook scripts run under, set where it is not the `bash` on PATH
+#: (on Windows, the one of Git for Windows: `commands.bash`).
+BASH = "CONTRAAGENT_BASH"

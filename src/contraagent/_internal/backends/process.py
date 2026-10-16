@@ -18,6 +18,7 @@ from typing import Protocol
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
 from contraagent._internal.errors import ContraagentError
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import groups
 
 # How much of a (possibly very large, stdin-fed) prompt the launch marker
@@ -167,7 +168,7 @@ def run_process(
     since = live_processes.epoch()
     try:
         proc = subprocess.Popen(
-            argv,
+            commands.resolve(argv, env.get("PATH")),
             cwd=launch.cwd,
             env=env,
             stdin=subprocess.PIPE if via_stdin(launch) else subprocess.DEVNULL,

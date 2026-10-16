@@ -67,6 +67,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from contraagent._internal.backends.codex.hooks import HOOKS_FILE as CODEX_HOOKS_FILE
+from contraagent._internal.platform.commands import commands
 
 if TYPE_CHECKING:
     from contraagent._internal.plugins.plugin import Plugin
@@ -222,7 +223,7 @@ function applies(h: Hook, toolName: string, input: Input): boolean {
 }
 
 function run(h: Hook, toolName: string, input: Input, cwd: string) {
-  return spawnSync("bash", [join(ROOT, h.script)], {
+  return spawnSync(process.env.CONTRAAGENT_BASH || "bash", [join(ROOT, h.script)], {
     cwd,
     encoding: "utf8",
     input: JSON.stringify({ tool_name: CLAUDE_TOOL[toolName] ?? toolName, tool_input: input }),
@@ -383,7 +384,7 @@ function applies(h, tool, input) {
 }
 
 function run(h, tool, input, cwd) {
-  return spawnSync("bash", [join(ROOT, h.script)], {
+  return spawnSync(process.env.CONTRAAGENT_BASH || "bash", [join(ROOT, h.script)], {
     cwd,
     encoding: "utf8",
     input: JSON.stringify({ tool_name: CLAUDE_TOOL[tool] ?? tool, tool_input: input }),
@@ -581,7 +582,7 @@ def run_codex_hook(stdin_text: str, root: str | Path, script: str, tool: str = "
     outs: list[str] = []
     for run in runs:
         proc = subprocess.run(
-            ["bash", str(root / script)],
+            [commands.bash() or "bash", str(root / script)],
             input=json.dumps(run),
             capture_output=True,
             text=True,

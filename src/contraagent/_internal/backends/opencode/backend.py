@@ -262,7 +262,7 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
         skills = [str(Path(p) / "skills") for p in launch.plugin_dirs if (Path(p) / "skills").is_dir()]
         if skills:
             cfg["skills"] = {"paths": skills}
-        hooks = [f"file://{Path(p).resolve() / HOOKS_FILE}" for p in launch.plugin_dirs if (Path(p) / HOOKS_FILE).is_file()]
+        hooks = [(Path(p).resolve() / HOOKS_FILE).as_uri() for p in launch.plugin_dirs if (Path(p) / HOOKS_FILE).is_file()]
         if hooks:
             cfg["plugin"] = hooks
         if launch.mcp_config:

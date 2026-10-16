@@ -104,6 +104,14 @@ def test_this_machine_s_paths_and_name_are_taken_out(tmp_path):
     assert "/etc/hosts was read; see work/notes.md" in outputs
 
 
+def test_a_person_s_windows_path_is_taken_out_on_any_os():
+    from contraagent._internal.monitor.export import Redactor
+
+    redact = Redactor([])
+    assert redact.path("read C:\\Users\\alice\\notes.md and D:\\data\\x.csv") == "read <path> and D:\\data\\x.csv"
+    assert redact.path("C:\\Users\\alice\\a.md", content=True) == "C:\\Users\\alice\\a.md"  # a document's contents stay
+
+
 def test_keep_puts_the_paths_back_and_exclude_takes_a_key_out(tmp_path):
     rd = runs(tmp_path, ids=("only",))
     export(Monitor(rd), tmp_path / "kept", keep=["paths"], now=NOW)

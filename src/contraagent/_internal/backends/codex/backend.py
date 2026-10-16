@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import secrets
 import shutil
 from pathlib import Path
@@ -61,6 +62,7 @@ from contraagent._internal.backends.launch import Launch, Stop
 from contraagent._internal.backends.process import via_stdin
 from contraagent._internal.backends.refusal import Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch
+from contraagent._internal.platform.links import links
 
 #: Config every launch gets: nothing the user or the project would add to the
 #: instructions, and network access for the commands the agent runs. Hooks are turned on
@@ -274,8 +276,8 @@ class CodexBackend(ResumeById, Backend):
         for plug in launch.plugin_dirs:
             for found in sorted((Path(plug) / "skills").glob("*/SKILL.md")):
                 link = skills / found.parent.name
-                if not link.is_symlink():
-                    link.symlink_to(found.parent.resolve(), target_is_directory=True)
+                if not os.path.lexists(link):  # a symbolic link, or a junction on Windows
+                    links.link(found.parent.resolve(), link)
         return home
 
     # --- sessions ----------------------------------------------------------

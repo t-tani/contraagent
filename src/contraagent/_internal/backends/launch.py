@@ -15,6 +15,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,9 +24,10 @@ from contraagent._internal.backends.credentials import AMBIENT, Credential
 from contraagent._internal.dispatch.records import OtherModel, QuotaReading, TokenUsage
 from contraagent._internal.runs.files import append_lines
 
-# Prompt text beyond this size goes over stdin, not argv
-# (Linux caps one argv element at 128KB; stdin takes 10MB).
-STDIN_THRESHOLD = 60_000
+# Prompt text beyond this size goes over stdin, not argv (stdin takes 10MB). Linux caps one
+# argv element at 128KB; Windows caps the whole command line at 32767 characters, of which the
+# other arguments (a system prompt, a JSON schema) take their share.
+STDIN_THRESHOLD = 16_000 if sys.platform == "win32" else 60_000
 
 
 class Stop(str, enum.Enum):

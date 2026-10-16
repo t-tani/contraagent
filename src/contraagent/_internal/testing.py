@@ -26,6 +26,7 @@ from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.dispatch.records import QuotaReading
 from contraagent._internal.dispatch.templates import fill_example
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.preflight import PROBE_PROMPT
 from contraagent._internal.runs.times import now_iso
 
@@ -340,7 +341,7 @@ class StubAgent(Backend):
             env = {**os.environ, **launch.env, "CLAUDE_PLUGIN_ROOT": str(plugin_dir)}
             for command in (h.get("command", "") for group in declared for h in group.get("hooks", [])):
                 proc = subprocess.run(
-                    ["bash", "-c", command],
+                    [commands.bash(env) or "bash", "-c", command],
                     input=payload,
                     capture_output=True,
                     text=True,

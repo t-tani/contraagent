@@ -33,6 +33,7 @@ from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import LaunchError
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
+from contraagent._internal.platform.commands import commands
 from contraagent._internal.platform.groups import groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
@@ -176,7 +177,7 @@ class OmpRpcBackend(OmpBackend):
         since = live_processes.epoch()
         try:
             proc = subprocess.Popen(
-                argv,
+                commands.resolve(argv, env.get("PATH")),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
