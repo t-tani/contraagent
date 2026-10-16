@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import json
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -237,3 +238,19 @@ def test_every_writer_of_a_task_file_names_it_by_file_name(tmp_path):
     task = Task("review", unit="a", key="review-a~2")
     assert SpecAdapter("r1", tmp_path).call_path(task) == tmp_path / layout.task_entry(layout.CALLS, task.key)
     assert layout.task_entry(layout.CALLS, task.key) == "calls/review-a_2.json"
+
+
+def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is_not(tmp_path, monkeypatch):
+    from contraagent._internal.runs import files
+
+    monkeypatch.setattr(files.sys, "platform", "win32")
+    doc = tmp_path / "d.json"
+    began = time.monotonic()
+    with pytest.raises(FileNotFoundError):
+        files.read_document(doc)  # nothing replaces it: absent at once
+    assert time.monotonic() - began < 0.5
+    # A replace in progress: Windows may show the document as absent until it ends.
+    tmp = tmp_path / ".d.json.1.abc.tmp"
+    tmp.write_text("{}")
+    threading.Timer(0.1, lambda: (doc.write_text('{"n": 1}'), tmp.unlink())).start()
+    assert json.loads(files.read_document(doc)) == {"n": 1}
