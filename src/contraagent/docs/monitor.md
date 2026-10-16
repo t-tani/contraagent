@@ -153,7 +153,7 @@ requests whose `Host` names this machine.
 
 It reads a run's records only through a run source and liveness
 (`contraagent.monitor.RunSource`, `contraagent.monitor.Liveness`): by default the runs
-directory (`DirectorySource`) and this host's `/proc`. `Monitor(source=..., liveness=...)`
+directory (`DirectorySource`) and this host's processes. `Monitor(source=..., liveness=...)`
 serves the same views from another store; the records of a run and their JSON Schemas
 are in [Compatibility](compatibility.md#run-formats-and-schemas), and the files of a run
 directory in the docstring of `contraagent.engine.Run`.

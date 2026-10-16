@@ -10,7 +10,7 @@ handles failover, quotas, deadlines and resume, and a live monitor shows every r
 
 ![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-3776ab)
 ![Typed](https://img.shields.io/badge/typing-typed-2a6db2)
-![Linux](https://img.shields.io/badge/platform-Linux-555)
+![Linux | macOS | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-555)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 ## Start
@@ -19,8 +19,8 @@ You ask your coding agent to write the pipeline. It can, because the package shi
 its documentation for coding agents: `contraagent docs` prints it, and it matches
 the installed version.
 
-Install contraagent in your project. Real runs need Linux, Python 3.12 or later, and
-a coding agent on `PATH`.
+Install contraagent in your project. Real runs need Linux, macOS or Windows, Python 3.12 or
+later, and a coding agent on `PATH`.
 
 ```
 uv add 'contraagent[monitor]'       # or: pip install 'contraagent[monitor]'
@@ -202,7 +202,7 @@ Every agent session leaves a record in the run directory, and the read-only moni
 For each task, it shows the transcript of each session with its tool calls, web
 searches, messages and reasoning, the files the task changed, model switches,
 failed checks and corrections, deferrals, tokens, cost and subscription usage. A
-live process tree of the agent sessions and Python tasks comes from `/proc`. The
+live process tree of the agent sessions and Python tasks comes from the OS. The
 events are what each coding agent reports in its own output, plus that process tree.
 They are not a kernel-level capture of every file or network access. The topic
 [The monitor](src/contraagent/docs/monitor.md) describes every view, and the

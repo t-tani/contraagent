@@ -43,9 +43,10 @@ pipeline needs, so the agent needs no source code of contraagent.
 
 ## Install
 
-Real runs need Linux, Python 3.12 or later, and one or more coding agents on `PATH`,
-such as `claude` (Claude Code), `omp` (oh-my-pi), `opencode`, `pi` (pi.dev) or
-`codex` (Codex CLI).
+Real runs need Linux, macOS or Windows, Python 3.12 or later, and one or more coding
+agents on `PATH`, such as `claude` (Claude Code), `omp` (oh-my-pi), `opencode`, `pi`
+(pi.dev) or `codex` (Codex CLI). [Operating systems](guide.md#operating-systems) lists
+what differs between them.
 
 ```
 uv add contraagent                  # or: pip install contraagent

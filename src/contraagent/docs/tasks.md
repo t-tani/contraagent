@@ -393,10 +393,10 @@ run at once:
 time the queue tries to start such a task, the capacity is the tasks that hold the
 name plus as many more as the free memory holds, and at most the usable cores
 divided by `cores`. While no task holds the name it is at least 1, so a run always
-goes on even on a host short of memory. The free memory is `MemAvailable` of
-`/proc/meminfo`, less `memory_mb` for each such task started in the last 30
-seconds, since a server just started has not taken its memory yet; where there is
-no `/proc/meminfo` (not Linux), memory does not limit the name. The capacity grows
+goes on even on a host short of memory. The free memory is what the OS reports as
+available (on Linux `MemAvailable` of `/proc/meminfo`), less `memory_mb` for each
+such task started in the last 30 seconds, since a server just started has not taken
+its memory yet; where the OS reports none, memory does not limit the name. The capacity grows
 as memory frees, and a waiting task starts then, while the others still run.
 
 A claim that names `{unit}` on a task with no unit, or a parameter the call does

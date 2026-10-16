@@ -55,8 +55,9 @@ its environment in full.
 Every coding agent's launches make their scratch directories under
 `<temp dir>/contraagent-<uid>/` (`<temp dir>` is `$TMPDIR`, else `/tmp`), an
 owner-only directory that contraagent refuses to use when it is a symbolic link or
-another user's (a `PermissionError` that names the path). The process removes them
-when it exits. Besides it:
+another user's (a `PermissionError` that names the path); on Windows,
+`%TEMP%\contraagent\`, in the user's own temporary directory. The process removes
+them when it exits. Besides it:
 
 - **pi** runs with an agent directory of contraagent's own under
   `~/.cache/contraagent/pi/` (`$XDG_CACHE_HOME`, when set, in place of `~/.cache`),

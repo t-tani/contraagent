@@ -93,7 +93,8 @@ for another port).
 
 ## Limits
 
-- Linux only: run locks and process tracking use `fcntl` and `/proc`.
+- On macOS and Windows some things differ from Linux
+  ([Operating systems](#operating-systems)).
 - The coding agents differ in what they enforce, and [Coding agents](agents.md)
   has a row for each difference. In short: only Claude Code and Codex run a stop
   hook that continues the session, so on omp, opencode and pi the runner's check
@@ -113,6 +114,30 @@ for another port).
 - contraagent writes outside the run directory: its scratch directories under
   `<temp dir>/contraagent-<uid>/`, and pi's and Codex's directories under
   `~/.cache/contraagent/` ([Coding agents](agents.md#directories-outside-the-run)).
+
+## Operating systems
+
+contraagent runs on Linux, macOS and Windows. What differs:
+
+| | Linux, macOS | Windows |
+|---|---|---|
+| An agent session's processes | a session of its own; stopped by SIGTERM, then SIGKILL | a process group of its own in a Job Object; stopped by CTRL_BREAK, then by ending the job |
+| The pipeline's process killed outright | a watchdog process stops the sessions still running | the OS ends the job of each session still running |
+| The run lock | `flock` | `msvcrt.locking` |
+| A coding agent installed by npm (`claude.cmd`) | — | started as the program the batch file runs, so the arguments reach it unchanged; a batch file npm did not make is refused |
+| A prompt goes over stdin | past 60,000 characters | past 16,000 characters (a command line holds at most 32,767) |
+| A plugin's hook scripts | the `bash` on `PATH` | the bash of Git for Windows: `CONTRAAGENT_BASH`, else `CLAUDE_CODE_GIT_BASH_PATH`, else a `bash` on `PATH` outside `System32`, else the one in Program Files. Claude Code runs its own hooks with it too. Without one, a hook script does not run. |
+| A link in pi's agent directory or to a Codex skill | a symbolic link | a symbolic link where the user may make one, else a junction (a directory) or a hard link or copy (a file) |
+| Scratch directories | `<temp dir>/contraagent-<uid>/` | `%TEMP%\contraagent\` (`%TEMP%` is the user's own) |
+| Codex's sandbox | bubblewrap on Linux, Seatbelt on macOS | Codex's Windows sandbox (`windows.sandbox` in Codex's config) |
+| `contraagent hub`, `contraagent relay` | stop gracefully on SIGTERM | Windows sends no SIGTERM |
+
+On macOS the OS shows no process's environment to another process, so the monitor
+knows an agent session by the telemetry line in its command line; a session whose
+prompt came over stdin shows in the process tree without its task.
+
+The test suite runs on all three. The tests that launch real coding agents and the
+hub's end-to-end tests run on Linux.
 
 ## The API
 

@@ -188,8 +188,11 @@ Hook scripts read the JSON Claude Code sends hooks; the omp and pi extensions
 plugin (`opencode/index.js`) build the same
 payload, so one script serves every agent. Codex sends its hooks the same JSON with its
 own tool names, so a Codex hook with a script runs it through
-`contraagent plugin hook --agent codex`, which builds Claude Code's tool calls. The
-tool input comes in Claude Code's names whatever the agent calls its arguments:
+`contraagent plugin hook --agent codex`, which builds Claude Code's tool calls. A
+script runs under bash on every OS; on Windows under the bash of Git for Windows
+([Operating systems](guide.md#operating-systems)), so commit it with LF line ends
+(`*.sh text eol=lf` in `.gitattributes`). The tool input comes in Claude Code's names
+whatever the agent calls its arguments:
 
 | Claude Code | omp | pi | opencode | Codex |
 |---|---|---|---|---|
