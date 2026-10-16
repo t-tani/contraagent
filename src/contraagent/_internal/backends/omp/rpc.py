@@ -148,7 +148,7 @@ class OmpRpcBackend(OmpBackend):
         # Ephemeral unless the run may resume this session: then it is
         # saved under the launch's own session_dir.
         a += session_args(launch) if launch.session_dir is not None or launch.resume else ["--no-session"]
-        for plug in launch.plugin_dirs:
+        for plug in self._loaded_plugin_dirs(launch):
             a += ["--plugin-dir", plug]
         a += plugin_extension_args(launch.plugin_dirs)
         # Same neutral effort as the omp backend: the launch value wins

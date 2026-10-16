@@ -115,6 +115,18 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it("names a failed attempt's files that its kind kept", async () => {
+    const kept: TaskDetail = {
+      ...emptyDetail('write-a'),
+      rows: [row('write-a', { stop: 'timeout', ok: false, attempt: 0, changes: { created: ['t/a/x.md'], modified: [], deleted: [], removed: [], kept: ['t/a/x.md'] } })],
+    };
+    const { client } = fakeClient({ 'write-a': kept });
+    const el = await view({ client, taskKey: 'write-a' });
+    const fold = [...root(el).querySelectorAll('details.io-fold')].find((d) => text(d.querySelector('summary')) === '1 changed file');
+    expect([...fold!.querySelectorAll('li')].map(text)).toEqual(['t/a/x.md | created, kept after the failed attempt']);
+    el.remove();
+  });
+
   it("shows the pipeline's own columns: the latest attempt's, and each attempt's in its chip", async () => {
     const custom: TaskDetail = {
       ...emptyDetail('write-a'),

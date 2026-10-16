@@ -34,6 +34,7 @@ from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent._internal.execution.run import Run
@@ -150,6 +151,7 @@ class Pipeline:
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
+        mcp_servers: McpServers | None = None,
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
@@ -186,7 +188,8 @@ class Pipeline:
         `log`: a function given each progress line instead of the `logging` module.
         `max_passes`: how many passes a `while` loop of flow code may make: a task call, or a
         `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
-        `[defaults] max_passes`, else 10.
+        `[defaults] max_passes`, else 10. A generator function's `@max_passes(n)` bounds
+        its own `while` loops in place of it.
         `quota_rule(credential, reading)`: a reason the credential rests now, or None, given its
         latest quota reading (`QuotaReading`), or the reason and when the rest ends
         (`(reason, datetime)`); beside the config's own caps
@@ -199,6 +202,9 @@ class Pipeline:
         `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt; one that cares
         about some tasks only tests `task.kind` or `task.executor`.
         `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
+        `mcp_servers(task, params, servers)`: the MCP servers an agent task's coding agent gets,
+        built from the task, its params and its plugin's servers (`McpServers`); None keeps
+        the plugin's. The user's and the project's MCP servers stay out either way.
         `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
@@ -298,6 +304,7 @@ class Pipeline:
         self.scopes: tuple[TaskScope, ...] = tuple(scopes)
         self.enrichers: tuple[ResultEnricher, ...] = tuple(enrichers)
         self.row_extras = row_extras
+        self.mcp_servers: McpServers | None = mcp_servers
         # A malformed [defaults.claim_capacity] is reported by the routing plan too.
         given = dict(claim_capacity or {})
         for name, value in given.items():
@@ -334,6 +341,10 @@ class Pipeline:
           by the in-session hook (in a fresh interpreter, as the hook does); its command
           validators' programs are on PATH;
         * each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
+        * `mcp_servers`, called for each agent task created whose params are known (none
+          waits for another task's output): it raises nothing and returns servers;
+        * a kind that keeps a failed attempt's files (`keep_failed_changes`) declares
+          `changes` patterns;
         * routing: the config against those kinds (budgets, efforts, failover chains,
           credentials and the traits tasks require), the coding agents' programs on
           PATH, and each model against the list its coding agent keeps locally
@@ -383,7 +394,7 @@ class Pipeline:
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
-            adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
+            adapter = SpecAdapter(run.run_id, run_dir, self.cwd, mcp_servers=self.mcp_servers)
             recorder = None
             into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
             if into is not None:

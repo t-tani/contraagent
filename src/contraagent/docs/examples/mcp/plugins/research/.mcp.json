@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "glossary": {"command": "glossary-server", "args": ["--stdio"]}
+  }
+}

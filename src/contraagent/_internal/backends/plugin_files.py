@@ -19,6 +19,12 @@ def mcp_servers(path: str | Path) -> dict[str, dict]:
     return {str(name): spec for name, spec in servers.items() if isinstance(spec, dict)}
 
 
+def write_mcp_servers(path: Path, servers: dict[str, dict]) -> None:
+    """Write `servers` as a Claude Code `.mcp.json` (`mcpServers`), which every backend reads
+    as it reads a plugin's."""
+    path.write_text(json.dumps({"mcpServers": servers}, indent=2), encoding="utf-8", newline="\n")
+
+
 def extensions(plugin_dir: str | Path, agent: str) -> list[Path]:
     """The extension files a plugin's `package.json` lists under `<agent>.extensions` (the hooks
     `contraagent plugin render` writes for omp and pi), those that exist."""

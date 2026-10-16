@@ -31,6 +31,7 @@ from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
+from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.routing.plan import RoutingError, RoutingPlan
@@ -134,7 +135,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
     report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
-    report.add("plugins", _plugin_errors(agent_specs))
+    report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_routing(pipeline, agent_specs, report)
     return report
 
@@ -228,6 +229,24 @@ def _param_errors(node: Node) -> list[str]:
             errs += [f"{node.key}: param {name}: {e['msg']}" for e in exc.errors()]
         except Exception as exc:  # not JSON-able, or an annotation TypeAdapter cannot take
             errs.append(f"{node.key}: param {name}: {exc}")
+    return errs
+
+
+def _mcp_errors(pipeline: Pipeline, graph: Graph, run_dir: Path) -> list[str]:
+    """`Pipeline(mcp_servers=)` called for each agent task created whose params are known
+    now (none waits for another task's output): what it raises, or a value that is no
+    table of servers."""
+    if pipeline.mcp_servers is None:
+        return []
+    adapter = SpecAdapter("check", run_dir, pipeline.cwd, mcp_servers=pipeline.mcp_servers)
+    errs: list[str] = []
+    for node in graph.nodes:
+        if node.spec.executor != "agent" or node.spec.light or any(_holds_pending(v) for v in node.params.values()) or _param_errors(node):
+            continue
+        try:
+            adapter.mcp_servers_of(graph.task_of(node))
+        except Exception as exc:
+            errs.append(f"{node.key}: mcp_servers: {where(exc)}{type(exc).__name__}: {exc}")
     return errs
 
 
@@ -382,6 +401,14 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    report.add(
+        "tasks",
+        [
+            f"{kind}: keep_failed_changes keeps the files under changes=, and agent_task({kind!r}) declares no changes"
+            for kind, rc in plan.configs.items()
+            if rc.keep_failed_changes and kind in specs and not specs[kind].changes
+        ],
+    )
     agents = {rc.agent for rc in plan.configs.values()} | {r.agent for router in plan.routers.values() for r in router.routes}
     for agent in sorted(agents):
         backend = pipeline.backends.get(agent)

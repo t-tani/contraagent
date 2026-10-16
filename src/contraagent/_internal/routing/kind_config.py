@@ -56,6 +56,9 @@ class KindConfig:
     # exponential backoff.
     retries: int = 2
     retry_backoff_base: float = 2.0
+    #: Leave the files a failed attempt created under its task's `changes` patterns in place
+    #: (`Changes.kept`) instead of removing them (`Changes.removed`).
+    keep_failed_changes: bool = False
 
     @classmethod
     def build(cls, defaults: dict[str, Any], overrides: dict[str, Any] | None) -> KindConfig:

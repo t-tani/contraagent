@@ -1,0 +1,1 @@
+`Pipeline(mcp_servers=)` takes a function (`McpServers`) that builds the MCP servers of each agent task from the task, its params and its plugin's `.mcp.json`, for every coding agent; the user's and the project's MCP servers stay out, and `contraagent check` calls it for the tasks it builds.

@@ -8,28 +8,58 @@ and the output it must leave behind with its validators.
 
 from __future__ import annotations
 
+import atexit
+import json
+import shutil
 import string
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from pydantic_core import to_jsonable_python
 
-from contraagent._internal.backends.base import Backend
+from contraagent._internal.backends import plugin_files
+from contraagent._internal.backends.base import Backend, safe_label, temp_dir
 from contraagent._internal.contracts.calls import CallFile, CallOutput, call_prompt, inline_prompt, schema_ref_of
 from contraagent._internal.contracts.contract import InputContract, OutputContract
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.task import Task
-from contraagent._internal.execution.adapter import TaskAdapter
+from contraagent._internal.execution.adapter import McpServers, TaskAdapter
 from contraagent._internal.pipeline.graph import Node
 from contraagent._internal.platform import envvars
 from contraagent._internal.plugins.scaffold import DEFAULT_SETTINGS
 from contraagent._internal.runs import layout
 
 
+def checked_mcp_servers(key: str, given: object) -> dict[str, dict[str, Any]]:
+    """What a `McpServers` function returned for task `key`, as `.mcp.json` `mcpServers`:
+    a table of servers by name, each with a `command` (a local server) or a `url` (a
+    remote one), every value one JSON can hold. Anything else raises `TypeError`."""
+    where = f"Pipeline(mcp_servers=) for {key}"
+    if not isinstance(given, Mapping):
+        raise TypeError(f"{where} returned {type(given).__name__}: return the servers by name, or None for the plugin's")
+    out: dict[str, dict[str, Any]] = {}
+    for name, server in given.items():
+        if not isinstance(name, str) or not name:
+            raise TypeError(f"{where}: a server's name is a non-empty string, not {name!r}")
+        if not isinstance(server, Mapping) or not any(isinstance(server.get(k), str) and server.get(k) for k in ("command", "url")):
+            raise TypeError(f"{where}: server {name!r} is {server!r}; give it a command (a local server) or a url (a remote one)")
+        try:
+            out[name] = json.loads(json.dumps(dict(server)))
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"{where}: server {name!r} holds a value JSON cannot hold: {exc}") from None
+    return out
+
+
 class SpecAdapter(TaskAdapter):
-    def __init__(self, run_id: str, run_dir: Path, cwd: Path | None = None) -> None:
+    """`mcp_servers`: the run's `McpServers` function (`Pipeline(mcp_servers=)`), or None."""
+
+    def __init__(self, run_id: str, run_dir: Path, cwd: Path | None = None, mcp_servers: McpServers | None = None) -> None:
         self.run_id = run_id
         self.calls_dir = Path(run_dir) / layout.CALLS
         self.cwd = Path(cwd) if cwd is not None else Path.cwd()
+        self.mcp_servers = mcp_servers
+        self._mcp_dir: Path | None = None
 
     @staticmethod
     def _node(task: Task) -> Node:
@@ -117,7 +147,31 @@ class SpecAdapter(TaskAdapter):
         return str(f) if f.is_file() else None
 
     def mcp_config_path(self, task: Task) -> str | None:
-        """The task's own plugin's `.mcp.json`, if it has one; none for a light launch."""
+        """The task's own plugin's `.mcp.json`, if it has one; none for a light launch. With
+        `mcp_servers`, the servers it returns, written to a file of their own in an owner-only
+        temporary directory (a server's arguments may hold a secret, so never in the run
+        directory), removed when the process ends."""
+        servers = self.mcp_servers_of(task)
+        if servers is None:
+            return self._plugin_mcp(task)
+        if self._mcp_dir is None:
+            self._mcp_dir = temp_dir("mcp-")
+            atexit.register(shutil.rmtree, self._mcp_dir, True)
+        path = self._mcp_dir / f"{safe_label(task.key)}.mcp.json"
+        plugin_files.write_mcp_servers(path, servers)
+        return str(path)
+
+    def mcp_servers_of(self, task: Task) -> dict[str, dict[str, Any]] | None:
+        """What `mcp_servers` returns for `task`, checked: None when there is no `mcp_servers`,
+        it returns None, or the task is a light launch. A value that is not a table of named
+        servers, each with a `command` or a `url`, raises `TypeError`."""
+        if self.mcp_servers is None or self._node(task).spec.light:
+            return None
+        own = self._plugin_mcp(task)
+        given = self.mcp_servers(task, self.call(task).params, plugin_files.mcp_servers(own) if own is not None else {})
+        return None if given is None else checked_mcp_servers(task.key, given)
+
+    def _plugin_mcp(self, task: Task) -> str | None:
         spec = self._node(task).spec
         f = spec.plugin.root / ".mcp.json" if spec.plugin is not None and not spec.light else None
         return str(f) if f is not None and f.is_file() else None

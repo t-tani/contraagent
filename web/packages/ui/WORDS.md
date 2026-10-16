@@ -54,7 +54,7 @@ written are in `web/AGENTS.md`.
 | a light launch (`TaskDefinition.tools` `[]`) | Tools: none (a task definition's fact) | ツール: なし |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
-| `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
+| `changes` (created, modified, deleted, removed, kept) | changed files: created, modified, deleted; created, removed after the failed attempt; created, kept after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除, 作成、試行の失敗後も保持 |
 | `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
 | a replay (`RunSummary.replay`), a mark beside the run's name; one that also launched (`stub` false, `record_missing`) | replay; replay and new sessions | リプレイ; リプレイと新しいセッション |

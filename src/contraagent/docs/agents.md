@@ -24,6 +24,7 @@ budget and ends the launch itself.
 | | claude | omp | opencode | pi | codex |
 |---|---|---|---|---|---|
 | A plugin reaches it | `--plugin-dir` | `--plugin-dir` | as config: its role as `instructions`, its skills as `skills.paths`, its `.mcp.json` as `mcp`, its rendered hooks as a `plugin` | its skills by `--skill`, its hooks by `-e pi/index.ts`, its `.mcp.json` through an extension of contraagent's own | as config: its role's file in the prompt, its skills linked in a `HOME` of its own, its `.mcp.json` as `mcp_servers`, its rendered hooks as `hooks` |
+| A launch's MCP servers (`Launch.mcp_config`: the plugin's `.mcp.json`, or what `Pipeline(mcp_servers=)` returns) | `--mcp-config`, with `--strict-mcp-config` | the plugin's `.mcp.json`; for servers of the task's own, a copy of the plugin in a scratch directory whose `.mcp.json` holds them | as config: `mcp` | through an extension of contraagent's own | as config: `mcp_servers` |
 | Role file attached to the prompt (`needs_inline_role_file`) | no: `--agent <role>` | yes | no: added to its system prompt (`instructions`) | yes | yes |
 | Permissions | the plugin's `settings.json` | none: `--approval-mode yolo` | the role's `tools:` | none | its `workspace-write` sandbox |
 | Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | no | no | no | yes: `codex/hooks.json` |

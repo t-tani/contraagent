@@ -582,6 +582,11 @@
           "description": "tools its launches may not use: \"WebFetch\", \"Bash(git push:*)\"",
           "title": "Disallowed Tools"
         },
+        "keep_failed_changes": {
+          "type": "boolean",
+          "description": "leave the files a failed attempt created under the kind's `changes` patterns in place",
+          "title": "Keep Failed Changes"
+        },
         "max_turns": {
           "type": "integer",
           "title": "Max Turns"

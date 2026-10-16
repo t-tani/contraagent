@@ -3079,6 +3079,10 @@
   <source>not started (earlier task failed)</source>
   <target>未実行（依存先タスクが失敗）</target>
 </trans-unit>
+<trans-unit id="se414b08e593473b2">
+  <source>created, kept after the failed attempt</source>
+  <target>作成、試行の失敗後も保持</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

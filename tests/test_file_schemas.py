@@ -16,7 +16,6 @@ from contraagent._internal.execution import file_schemas
 from contraagent._internal.execution.schemas import RunInfo
 from contraagent._internal.routing import config as config_module
 from contraagent._internal.routing.config_schema import DefaultsTable, PipelineFile, TaskTable
-from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
 from contraagent._internal.runs import layout
 from contraagent.testing import StubAgent, fails, writes_example
 
@@ -41,7 +40,7 @@ def _aliases(model: type[BaseModel]) -> set[str]:
 def test_the_config_schema_names_the_keys_the_loader_accepts():
     assert _aliases(PipelineFile) == set(config_module.TABLES)
     assert _aliases(DefaultsTable) == {*config_module.DEFAULTS_KEYS, "_comment"}
-    assert _aliases(TaskTable) == {*config_module.TASK_ROUTING_KEYS, *TASK_TABLE_KEYS, "_comment"}
+    assert _aliases(TaskTable) == {*config_module.TASK_KEYS, "_comment"}
 
 
 def test_the_reference_config_matches_its_schema():

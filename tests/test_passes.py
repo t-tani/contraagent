@@ -13,7 +13,7 @@ import textwrap
 import pytest
 from pydantic import BaseModel
 
-from contraagent import Pipeline, TooManyPasses, agent_task, python_task
+from contraagent import Pipeline, TooManyPasses, agent_task, max_passes, python_task
 from contraagent._internal.pipeline import loops
 from contraagent.testing import StubAgent
 
@@ -421,6 +421,78 @@ def test_max_passes_bounds_each_while_loop_and_names_it(tmp_path):
     assert isinstance(call.error, TooManyPasses)
     assert f"cell-0-4: pass 5 of the loop at {__file__}:{line_of(flow, 'while r < 5')}" in str(call.error)
     assert "max_passes=4" in str(call.error)
+
+
+def test_a_function_bound_takes_the_place_of_the_runs_for_its_own_while_loops(tmp_path):
+    @max_passes(6)
+    def converge(u):
+        r = 0
+        while r < 5:
+            yield step(u, key=f"{u}-{r}")
+            r += 1
+
+    @max_passes(2)
+    def short(u):
+        r = 0
+        while r < 5:
+            yield step(u, key=f"{u}-{r}")
+            r += 1
+
+    def unbounded(u):
+        r = 0
+        while r < 5:
+            yield step(u, key=f"{u}-{r}")
+            r += 1
+
+    def flow():
+        for name, child in (("long", converge), ("short", short), ("plain", unbounded)):
+            try:
+                yield [child(name)]
+            except TooManyPasses as exc:
+                yield step(f"failed-{name}", key=f"failed-{name}", n=len(str(exc)))
+
+    rep = pipeline(tmp_path, max_passes=3).run(flow)
+    assert rep.ok, rep.flow_errors
+    assert sorted(k for k in rep.results if k.startswith("long")) == [f"long-{r}" for r in range(5)]  # 5 passes, under 6
+    assert sorted(k for k in rep.results if k.startswith("short")) == ["short-0", "short-1"]
+    assert sorted(k for k in rep.results if k.startswith("plain")) == ["plain-0", "plain-1", "plain-2"]  # the run's 3
+    assert "failed-short" in rep.results and "failed-plain" in rep.results and "failed-long" not in rep.results
+
+
+def test_a_function_bound_names_itself_and_holds_in_yield_from(tmp_path):
+    @max_passes(2)
+    def inner(u):
+        r = 0
+        while r < 5:
+            yield step(u, key=f"{u}-{r}")
+            r += 1
+
+    def flow():
+        yield from inner("u")
+
+    rep = pipeline(tmp_path).run(flow)
+    [call] = rep.flow_errors
+    assert isinstance(call.error, TooManyPasses)
+    message = str(call.error)
+    assert f"pass 3 of the loop at {__file__}:{line_of(inner, 'while r < 5')}" in message
+    assert "max_passes=2 of test_passes." in message and "a larger @max_passes(n) on test_passes." in message
+
+
+def test_max_passes_refuses_what_it_cannot_bound():
+    with pytest.raises(ValueError, match="positive integer"):
+        max_passes(0)
+    with pytest.raises(TypeError, match="generator function"):
+
+        @max_passes(3)
+        def plain():
+            return 1
+
+    with pytest.raises(TypeError, match="no `while` loop"):
+
+        @max_passes(3)
+        def only_for():
+            for u in range(3):
+                yield step(f"u{u}")
 
 
 def test_a_for_loop_has_no_limit(tmp_path):

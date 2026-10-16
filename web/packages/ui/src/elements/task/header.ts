@@ -212,7 +212,9 @@ function changesFold(tries: JournalRow[]) {
     if (!c) return [];
     const at = withChanges > 1 ? (names[i] ?? '') : '';
     const gone = new Set(c.removed);
-    const of = (paths: string[] | undefined, kind: ChangeKind) => (paths ?? []).map((p) => facts(at, p, changeLabel(gone.has(p) ? 'removed' : kind)));
+    const kept = new Set(c.kept);
+    const after = (p: string, kind: ChangeKind): ChangeKind => (gone.has(p) ? 'removed' : kept.has(p) ? 'kept' : kind);
+    const of = (paths: string[] | undefined, kind: ChangeKind) => (paths ?? []).map((p) => facts(at, p, changeLabel(after(p, kind))));
     return [...of(c.created, 'created'), ...of(c.modified, 'modified'), ...of(c.deleted, 'deleted')];
   });
   if (!withChanges) return nothing;

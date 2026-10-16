@@ -220,7 +220,8 @@ be made (`zeta`) ends its loop there.
   `review-beta~2`, ..., with its output file (`out/review/beta~2.json`). One key
   created by two flow calls raises `ValueError` at the second: `key=` tells
   them apart.
-- A `while` loop of flow code is bounded by `max_passes` (see below).
+- A `while` loop of flow code is bounded by `max_passes`, or by its function's
+  `@max_passes(n)` (see below).
 - Every kind the flow's code reaches (see [Checking and testing](testing.md)) is
   routed, and probed by the preflight (`preflight="substitute"` or `"stop"`), before the first launch: a config
   problem refuses the run. A kind declared inside the flow's body is routed when
@@ -304,6 +305,18 @@ later pass raises `TooManyPasses`, which names the loop (`file:line`) and the
 pass; for a child flow call the parent receives it at the `yield`. A `for` loop
 has no limit: it ends with its iterable. A comprehension has none either.
 
+Loops that converge at different speeds need different bounds. A generator
+function decorated with `@max_passes(n)` gives each `while` loop of its own code
+the bound `n`, in every call of it, in place of the run's value; every other loop
+keeps the run's. The decorator returns the function itself, so the flow is still a
+plain function. `analyse_file`, below, revises a column's reading at most 4 times
+whatever the run's `max_passes` is. Two loops that need different bounds go in two
+functions: one of them may run in the same flow call through `yield from`, since the
+bound belongs to the function's code, not to the flow call. `TooManyPasses` names
+the function whose bound the loop passed. `@max_passes` on a function that is not a
+generator function, or that has no `while` loop, raises `TypeError` where it is
+declared.
+
 Passes are counted from the loops' back edges as the flow runs
 (`sys.monitoring`), about 1 µs each time flow
 code goes back to the start of a loop. When the two monitoring tool ids it can
@@ -319,7 +332,7 @@ a `classify` per file (a batch sized by what `unpack` returned) and yields one
 format (a kind chosen on a result, both reachable), then loops over the top
 columns and, inside that, revises each until `verify` accepts it.
 
-::code{file="examples/analysis/flow.py" from="def analyse_file(" to="def analyse_bundle("}
+::code{file="examples/analysis/flow.py" from="@max_passes(4)" to="def analyse_bundle("}
 
 ::code{file="examples/analysis/flow.py" from="def analyse_bundle(" to="def analyse("}
 
@@ -423,6 +436,28 @@ that matches a directory covers everything under it. Each attempt's journal row
 then holds its changes (`created`, `modified`, `deleted`), and the files a
 failed attempt created (a timeout, a run of failed checks) are removed, with the
 directories it created for them (`removed`). A modified file is not restored.
+
+The files of a failed attempt can show why it failed: the notes of a long analysis
+that ran out of time, a draft that did not pass its checks. A kind declared with
+`keep_failed_changes=True` (or `keep_failed_changes = true` in its
+`[tasks.<kind>]` table, which outranks the declaration) leaves them in place, and
+its journal row lists them as `kept` in place of `removed`. The next attempt starts
+from the tree with them in it, as a resume does: it sees them as files that exist,
+so what it writes over them is `modified`, and a file it does not touch stays.
+Nothing tells the agent about them; a role that must start from a clean directory
+removes them itself, or the kind does not keep them. A kind that keeps them needs
+`changes` patterns: without any, the declaration raises, and `contraagent check`
+reports a task table that sets it.
+
+::code{file="examples/changes/flow.py" from="study = agent_task(" to="def pipeline("}
+
+A pattern that starts with `!` leaves out what it matches, and everything under a
+directory it matches, whatever the other patterns cover: `["**", "!.git/**",
+"!**/__pycache__"]` is every file of the working directory but the version control
+directory and the caches. The scan does not enter a directory left out this way, so a
+large one costs nothing. A list of `!` patterns alone covers nothing and raises where
+the task is declared. `.gitignore` is not read: the files a task writes are often
+ones it lists.
 
 A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`

@@ -76,6 +76,9 @@ class Changes(BaseModel):
     deleted: tuple[str, ...] = ()
     #: The created files removed because the attempt failed.
     removed: tuple[str, ...] = ()
+    #: The created files left in place though the attempt failed: its kind keeps them
+    #: (`keep_failed_changes`).
+    kept: tuple[str, ...] = ()
 
 
 # --- hop ---------------------------------------------------------------------

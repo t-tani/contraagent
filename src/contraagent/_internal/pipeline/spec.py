@@ -224,6 +224,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> AgentTask[Out]: ...
 
 
@@ -266,6 +267,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> Mapping[str, AgentTask[Out]]: ...
 
 
@@ -307,6 +309,7 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    keep_failed_changes: bool | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
@@ -339,9 +342,10 @@ def agent_task[Out](
     `changes`: `Path.glob` patterns, relative to the working directory, of the files its
     tasks may change beside their output (`["topics/{unit}/**"]`; `{unit}`, `{key}` and
     `{kind}` as in `output_name`; a pattern that matches a directory covers everything
-    under it). Each attempt's changes under them are recorded in its journal row, and
-    the files a failed attempt created are removed. Tasks that run at once under one
-    pattern cannot be told apart: put `{unit}` in it.
+    under it; one that starts with `!` leaves out what it matches and everything under it,
+    `["**", "!.git/**"]`). Each attempt's changes under them are recorded in its journal row, and
+    the files a failed attempt created are removed (but with `keep_failed_changes`, below).
+    Tasks that run at once under one pattern cannot be told apart: put `{unit}` in it.
     `instructions`: a text put before the call protocol, for a task with no plugin. Such a
     task runs with the permissions of the plugin template's `settings.json` (Claude Code).
     `output_name`: the output file's path relative to `<run>/out/`, a template:
@@ -416,6 +420,9 @@ def agent_task[Out](
     `max_concurrent`: tasks of this kind running at once (`Pipeline(max_concurrent=)` caps the run).
     `retries`: fresh-session attempts after the first, each after one that made no progress;
     `retry_backoff_base`: the seconds before the first of them, doubled per attempt.
+    `keep_failed_changes`: leave the files a failed attempt created under `changes` in place,
+    as the evidence of why it failed, instead of removing them; its journal row lists them
+    as `changes.kept`. The next attempt, and a resume, start from the tree with them in it.
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
     given = locals()
@@ -490,6 +497,10 @@ def agent_task[Out](
     changes = tuple(changes)
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
+    if changes and all(p.startswith("!") for p in changes):
+        raise TypeError(f"agent_task({kind!r}): changes holds only patterns that leave paths out (`!`); give one that covers paths")
+    if keep_failed_changes and not changes:
+        raise TypeError(f"agent_task({kind!r}): keep_failed_changes keeps the files under changes=; give the patterns, or drop it")
     checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
@@ -1047,9 +1058,10 @@ def _check_output_name(owner: str, template: Any) -> None:
 
 def _check_changes_pattern(kind: str, pattern: str) -> None:
     """A `changes` pattern: relative, inside the working directory, naming only `{unit}`,
-    `{key}` and `{kind}`."""
-    if not isinstance(pattern, str) or not pattern:
+    `{key}` and `{kind}`; after a leading `!` for one that leaves paths out."""
+    if not isinstance(pattern, str) or not pattern.removeprefix("!"):
         raise TypeError(f"agent_task({kind!r}): changes holds {pattern!r}, not a pattern")
+    pattern = pattern.removeprefix("!")  # one that leaves paths out follows the same rules
     try:
         fields = {f for _, f, _, _ in string.Formatter().parse(pattern) if f is not None}
     except ValueError as exc:

@@ -3,7 +3,7 @@
 
 `PipelineConfig` reads the file itself, with messages that name the table and the key;
 these models state the same tables and keys (`TABLES`, `DEFAULTS_KEYS`,
-`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, the credential types), so an editor or a CI step
+`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, `TASK_ATTEMPT_KEYS`, the credential types), so an editor or a CI step
 can check a file with no contraagent installed.
 """
 
@@ -71,6 +71,9 @@ def _budget(want: type | tuple[type, ...]) -> Any:
 
 class _TaskRouting(_Routing):
     disallowed_tools: list[str] | None = Field(None, description='tools its launches may not use: "WebFetch", "Bash(git push:*)"')
+    keep_failed_changes: StrictBool | None = Field(
+        None, description="leave the files a failed attempt created under the kind's `changes` patterns in place"
+    )
 
 
 _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK_TABLE_KEYS.items()}

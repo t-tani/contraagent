@@ -9,13 +9,33 @@ reads and must leave behind. `pipeline.Pipeline` fills all of it from
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from contraagent._internal.backends.base import Backend
 from contraagent._internal.contracts.contract import InputContract, OutputContract
 from contraagent._internal.dispatch.task import Task
+
+
+class McpServers(Protocol):
+    """A function that gives an agent task's coding agent its MCP servers
+    (`Pipeline(mcp_servers=)`): `mcp_servers(task, params, servers)`.
+
+    `task` is the task (`task.kind`, `task.unit`, `task.key`); `params`, its params as its
+    call file holds them; `servers`, its plugin's MCP servers, the `mcpServers` of its
+    `.mcp.json` by name (empty for a plugin with none, and for a task with no plugin). It
+    returns the servers the coding agent gets, by name, in the plugin's place:
+    `{**servers, "index": {...}}` adds one to the plugin's, a dict without them replaces
+    them, and `{}` gives none. None keeps the plugin's as they are. A server is a table in
+    the form of `.mcp.json`: `command`, `args` and `env` for a local one, `type` (`"http"`
+    or `"sse"`), `url` and `headers` for a remote one; each coding agent takes it as it
+    takes a plugin's. It is called before each launch of a task that is not a light
+    launch. One for some kinds only tests `task.kind` and returns None for the others."""
+
+    def __call__(
+        self, task: Task, params: dict[str, Any], servers: dict[str, dict[str, Any]], /
+    ) -> Mapping[str, Mapping[str, Any]] | None: ...
 
 
 class TaskAdapter:

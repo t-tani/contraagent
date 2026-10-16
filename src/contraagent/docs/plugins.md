@@ -153,6 +153,30 @@ Code task stays on its inputs; a task that searches removes them from `deny`.
 The queries a launch made are in its journal row (`web_queries`), for every
 coding agent.
 
+## MCP servers built for each task
+
+A plugin's `.mcp.json` gives every task of its kind the same MCP servers. A server
+that needs something of the task, such as the folder it serves or a unit's own
+address, is built by a function the pipeline is given: `Pipeline(mcp_servers=)`.
+The function takes the task, its params as its call file holds them, and its
+plugin's servers by name, and returns the servers the coding agent gets, which
+replace the plugin's. To add a server, return the plugin's servers with it; to
+keep the plugin's as they are, return None; to give none, return `{}`. The
+docstring of `contraagent.McpServers` states the form of a server.
+
+::code{file="examples/mcp/flow.py" from="answer = agent_task(" to="def ask_all("}
+
+The function is called before each launch of a task, but not for a light launch,
+which loads no MCP server. Every coding agent takes the servers it returns as it
+takes a plugin's `.mcp.json` ([Coding agents](agents.md)), and the user's and the
+project's MCP servers stay out as before (the table above). What it returns is
+written to a file in an owner-only temporary directory, not in the run directory,
+since a server's arguments or environment may hold a secret; the file is removed
+when the process ends. A function that raises, or returns something that is not a
+table of servers each with a `command` or a `url`, ends the launch as
+`launch_failed`. `contraagent check` calls it for each task the flow creates before
+its first wait and reports the same.
+
 ## Hooks
 
 Hooks are declared once, agent-neutrally, and rendered into each coding agent's
