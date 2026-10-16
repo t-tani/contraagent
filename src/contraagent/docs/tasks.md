@@ -398,6 +398,34 @@ columns and, inside that, revises each until `verify` accepts it.
 The parsers claim `heavy` (`claims=["heavy"]`), so one runs at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
 
+## A task that finds something missing
+
+A task can find that it lacks something the run could provide: a document, a
+setting, the output of another kind. Its output model says so in a field of its
+own, and the task still writes what it can. The field's description tells the
+agent what to put there, as for any other field:
+
+::code{file="examples/missing/flow.py" from="class Review(" to="class Fetched("}
+
+The flow reads the field at the `yield` and acts on it. Here it runs the task that
+provides each missing document and yields the review again with the documents it now
+has; the second review of a unit has the key `review-<unit>~2`. The `while` loop ends
+when nothing is missing or nothing new was found, and `max_passes` bounds it as any
+other loop:
+
+::code{file="examples/missing/flow.py" from="def review_unit(" to="def reviews("}
+
+What stays missing is not a failure: the task ended ok, and its output says what it
+lacks. The flow logs each open item as a row of a [pipeline log](#a-pipelines-own-records),
+and a run panel shows the rows in the monitor ([panels](monitor.md#your-own-views-panels)):
+
+::code{file="examples/missing/flow.py" from="def missing(" to="#: What"}
+
+When only a person can provide the item, the run ends with the item open. To have a
+resume (`--resume`) run the task again once the item is there, declare the place the
+task reads it from with `outside_state=` (above): its fingerprint then changes when
+the item appears.
+
 ## A deadline over part of a flow: time boxes
 
 `Pipeline(deadline_s=)` is a deadline over the whole run. When only one part of a
