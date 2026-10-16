@@ -532,3 +532,36 @@ def test_the_landing_scenes_stage_css_is_current():
     astro = (root / "src/components/home/HowItWorks.astro").read_text()
     weights = re.search(r"const WEIGHTS = \[([\d, ]+)\]", astro)
     assert weights and [int(w) for w in weights.group(1).split(",")] == how.WEIGHTS
+
+
+def _landing():
+    """The landing page's capture of the CLI's output (web/apps/docs/scripts/landing.py), as a module."""
+    import importlib.util
+
+    path = docs.DIR.parents[2] / "web/apps/docs/scripts/landing.py"
+    spec = importlib.util.spec_from_file_location("landing", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_landing_pages_cli_outputs_are_current():
+    """landing-outputs.json is what scripts/landing.py writes now: the commands run again here,
+    and the file holds no timing, so only a change to what they print makes a difference."""
+    landing = _landing()
+    assert landing.OUT.read_text() == landing.text(landing.outputs()), "run uv run python web/apps/docs/scripts/landing.py"
+    how = (landing.HERE / "src/components/home/how.ts").read_text()
+    assert f"export const KWARGS = '{landing.KWARGS}';" in how
+
+
+def test_the_docs_site_runs_no_command_when_it_renders():
+    """What a command prints is captured by a script of web/apps/docs/scripts into src/fixtures;
+    a page that ran it would take seconds to answer on the dev server."""
+    src = _landing().HERE / "src"
+    running = [
+        str(f.relative_to(src))
+        for f in src.rglob("*")
+        if f.suffix in {".ts", ".js", ".mjs", ".astro", ".tsx", ".jsx"} and re.search(r"child_process|\bexeca\b", f.read_text())
+    ]
+    assert running == []
