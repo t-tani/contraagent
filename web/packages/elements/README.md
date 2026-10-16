@@ -33,8 +33,14 @@ The subpaths are `primitives`, `styles`, `themes`, `data-table`, `graph`,
 `tiles/define`, `lanes/define`, `charts/define`, `check-table/define`,
 `transcript/define`, `json-tree/define`, `markdown/define`, `count/define`).
 
-The package is not in the npm registry; install it from a checkout of the
-repository.
+Install the package from the npm registry:
+
+```
+npm install @contraagent/elements
+```
+
+A checkout of the repository packs its own version ([Use it from a
+checkout](#use-it-from-a-checkout)).
 
 ## Use it from a checkout
 

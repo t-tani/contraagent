@@ -25,8 +25,15 @@ the monitor with `--cors-origin` naming your page's origin.
 <ca-monitor base-url="http://127.0.0.1:8787" history="memory"></ca-monitor>
 ```
 
-The packages are not in the npm registry; install them from a checkout of the
-repository ([Use it from a checkout](#use-it-from-a-checkout)). In a page with
+Install the package from the npm registry, which brings `@contraagent/api` and
+`@contraagent/elements` with it:
+
+```
+npm install @contraagent/ui
+```
+
+A checkout of the repository packs its own version ([Use it from a
+checkout](#use-it-from-a-checkout)). In a page with
 a build step, import the package once: every element registers itself. Lit and
 Lit Localize are peer dependencies. Importing changes nothing else in the page:
 call `configureLocales()` for the languages and `adoptThemes(document)` for the

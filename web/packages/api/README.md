@@ -11,8 +11,14 @@ A `::code` line quotes a file of the package; the [documentation site](https://t
 
 ## Getting it
 
-The package is not in the npm registry; install it from a checkout of the
-repository. Every monitor also serves the client, the feeds and the store as
+Install the package from the npm registry:
+
+```
+npm install @contraagent/api
+```
+
+A checkout of the repository packs its own version ([Use it from a
+checkout](#use-it-from-a-checkout)). Every monitor also serves the client, the feeds and the store as
 exports of its `/app.js` (`@contraagent/ui`'s documentation).
 
 ## Use it from a checkout
