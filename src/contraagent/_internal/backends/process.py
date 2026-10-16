@@ -97,14 +97,19 @@ def _drain(pipe, buf: list[str], sink: Sink | None = None, stops: list[Stop] | N
 
 
 def _terminate(proc: subprocess.Popen) -> None:
-    """Stop the whole process group (`groups`): asked first, killed after 10s."""
+    """Stop the whole process group (`groups`): asked first, killed after 10s. The child
+    itself is always waited for, so it is never left unreaped: with no group left to
+    signal (on macOS, `killpg` refuses a group whose processes have all ended), the child
+    has ended or is ended on its own."""
     try:
         if not groups.terminate(proc):
-            return
+            if proc.poll() is None:
+                proc.kill()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             groups.kill(proc)
+            proc.kill()
             try:
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
