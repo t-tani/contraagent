@@ -1,16 +1,17 @@
 # Every command's --help (Python 3.12, COLUMNS=100); `uv run python tests/cli/help.py` writes it.
 
 $ contraagent --help
-usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,check,run,docs} ...
+usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,recording,check,run,docs} ...
 
 positional arguments:
-  {monitor,relay,hub,plugin,call,check,run,docs}
+  {monitor,relay,hub,plugin,call,recording,check,run,docs}
     monitor             live web monitor for runs (see `contraagent monitor --help`)
     relay               ship this host's runs to a hub (see `contraagent relay --help`)
     hub                 receive every host's runs and serve their monitor (see `contraagent hub
                         --help`)
     plugin              agent-task plugins: the implementation of an agent task
     call                agent-task call files
+    recording           recordings a replay plays (`contraagent docs testing`)
     check               check a flow, its plugins and its routing without launching anything
     run                 run a flow, as `check` names it, and report its tasks (for more control,
                         call Pipeline.run from Python)
@@ -281,6 +282,34 @@ usage: contraagent call validate [-h] [--call CALL]
 options:
   -h, --help   show this help message and exit
   --call CALL  the call file (default: $CONTRAAGENT_CALL)
+
+$ contraagent recording --help
+usage: contraagent recording [-h] {import} ...
+
+positional arguments:
+  {import}
+    import    write a recording of each task a run finished, from its run directory, as if the run
+              had been recorded
+
+options:
+  -h, --help  show this help message and exit
+
+$ contraagent recording import --help
+usage: contraagent recording import [-h] [--record-max-file-mb N] RUN_DIR DIR
+
+positional arguments:
+  RUN_DIR               the run's directory (runs/<run-id>)
+  DIR                   the recordings directory to write into, as --record and --replay name it
+
+options:
+  -h, --help            show this help message and exit
+  --record-max-file-mb N
+                        a task with a file larger than N MB is not imported (default 4), as a
+                        recording keeps it by hash only
+
+exit status: 0 when every task the run finished was imported, 1 when one could not be (a missing
+or rewritten file, a file over the cap) or none was, or when the run directory cannot be read; a
+task that did not finish is listed, not imported
 
 $ contraagent check --help
 usage: contraagent check [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]

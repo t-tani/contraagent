@@ -19,6 +19,7 @@ contraagent run tasks.py:docs --record DIR   # a run that keeps each task attemp
 contraagent run tasks.py:docs --replay DIR [--execute KIND | --execute-all] [--record-missing]
                                          # a replay: every task plays its recording, nothing is spent;
                                          # with --record-missing, a task with none runs and is recorded
+contraagent recording import runs/docs DIR   # a recording of each task a run finished, from its directory
 contraagent --version                    # the installed version
 contraagent docs [TOPIC] [--path]        # the documentation installed with the package
 contraagent docs --pointer >> AGENTS.md  # point a project's coding agent at it
@@ -124,6 +125,27 @@ def parser(command: str | None = "") -> argparse.ArgumentParser:
     val = csub.add_parser("validate", help="check the output a call file names (a plugin's Stop hook)")
     val.add_argument("--call", default=None, help="the call file (default: $CONTRAAGENT_CALL)")
 
+    recording = add_command(
+        sub, "recording", help="recordings a replay plays (`contraagent docs testing`)", add_arguments=_no_arguments, run=_recording
+    )
+    rsub = recording.add_subparsers(dest="rcmd", required=True)
+    imp = rsub.add_parser(
+        "import",
+        help="write a recording of each task a run finished, from its run directory, as if the run had been recorded",
+        epilog="exit status: 0 when every task the run finished was imported, 1 when one could not be (a missing or "
+        "rewritten file, a file over the cap) or none was, or when the run directory cannot be read; a task that "
+        "did not finish is listed, not imported",
+    )
+    imp.add_argument("run_dir", metavar="RUN_DIR", help="the run's directory (runs/<run-id>)")
+    imp.add_argument("directory", metavar="DIR", help="the recordings directory to write into, as --record and --replay name it")
+    imp.add_argument(
+        "--record-max-file-mb",
+        type=float,
+        default=None,
+        metavar="N",
+        help="a task with a file larger than N MB is not imported (default 4), as a recording keeps it by hash only",
+    )
+
     add_command(
         sub,
         "check",
@@ -161,6 +183,20 @@ def _call(args) -> int:
     if message:
         print(message, file=sys.stderr)
     return code
+
+
+def _recording(args) -> int:
+    from contraagent._internal.execution.recording import MAX_FILE_MB, RecordingError
+    from contraagent._internal.execution.recording_import import import_recording
+
+    cap = args.record_max_file_mb if args.record_max_file_mb is not None else MAX_FILE_MB
+    try:
+        report = import_recording(args.run_dir, args.directory, max_file_mb=cap)
+    except RecordingError as exc:
+        print(f"✗ {exc}")
+        return 1
+    print(report)
+    return 0 if report.ok else 1
 
 
 def _docs_arguments(docs: argparse.ArgumentParser) -> None:

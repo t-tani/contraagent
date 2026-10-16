@@ -287,6 +287,29 @@ def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):
         assert shown and all(line in page for line in shown), shown
 
 
+def test_the_import_commands_replay_the_demo_as_the_testing_page_shows(tmp_path):
+    """The testing page's import: a stub run of the demo, imported, then replayed."""
+    page = docs.text("testing")
+    units = '{"units": ["alpha"]}'
+    demo = f"{(EXAMPLES / 'demo').as_posix()}/tasks.py:docs"
+    commands = [
+        (f"""contraagent run "$demo/tasks.py:docs" --stub --kwargs '{units}'""", ["run", demo, "--stub", "--kwargs", units]),
+        ("contraagent recording import runs/docs-stub recordings/", ["recording", "import", "runs/docs-stub", "recordings/"]),
+        (
+            f"""contraagent run "$demo/tasks.py:docs" --replay recordings/ --kwargs '{units}'""",
+            ["run", demo, "--replay", "recordings/", "--kwargs", units],
+        ),
+    ]
+    for line, argv in commands:
+        assert line in page
+        proc = subprocess.run([sys.executable, "-m", "contraagent", *argv], cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        if argv[0] == "recording":
+            assert proc.stdout.strip() in page
+    rows = [json.loads(line) for line in (tmp_path / "runs" / "docs-replay" / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 6 and all(r["replayed"] and not r["reason"] for r in rows)
+
+
 def test_every_page_of_every_package_expands(tmp_path):
     """Each quote resolves: what `contraagent docs` prints and the site renders."""
     root = docs.DIR.parents[2]

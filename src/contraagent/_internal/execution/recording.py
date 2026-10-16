@@ -57,6 +57,12 @@ with no recording ends `error` after one attempt: `no recording for <key>`; so d
 whose recording holds a file by hash only, its reason naming the file. With `record_missing`
 such a recording counts as missing. A recording made with another
 fingerprint is played all the same; the result's reason says so.
+
+An **imported recording** (`recording_import.import_recording`) was written from the run
+directory of a run that was not recorded; its entry names that run (`imported`). It is
+played only for a task of its own key and of the fingerprint each attempt holds: for
+another, the task ends `error` with a reason that names it, as a file kept by hash does,
+and with `record_missing` it counts as missing. A `~n` key never plays one of its base.
 """
 
 from __future__ import annotations
@@ -433,10 +439,7 @@ class Recorder:
 
     def _attempt_dir(self, task: Task) -> tuple[str, Path]:
         """A fresh folder for one attempt's files: its name and its path."""
-        token = f"{task.attempt + 1}-{secrets.token_hex(4)}"
-        files = self.directory / layout.file_name(kind_name(task.kind)) / layout.file_name(task.key) / token
-        files.mkdir(parents=True, exist_ok=True)
-        return token, files
+        return attempt_folder(self.directory, kind_name(task.kind), task.key, task.attempt + 1)
 
     def _facts(self, task: Task, token: str, result: TaskResult) -> dict[str, Any]:
         return {
@@ -453,9 +456,7 @@ class Recorder:
     def _keep(self, task: Task, executor: str, attempt: dict[str, Any]) -> None:
         """Add `attempt` to the task's recording (its first attempt in this run replaces it)."""
         kind = kind_name(task.kind)
-        home = self.directory / layout.file_name(kind)
-        entry_file = home / f"{layout.file_name(task.key)}.json"
-        folder = home / layout.file_name(task.key)
+        entry_file, _ = entry_paths(self.directory, kind, task.key)
         with self._lock:
             earlier: list[dict[str, Any]] = []
             if task.attempt > 0:
@@ -463,20 +464,40 @@ class Recorder:
                     earlier = json.loads(entry_file.read_text(encoding="utf-8")).get("attempts", [])
                 except (OSError, ValueError):
                     earlier = []
-            body = {
-                "version": VERSION,
-                "key": task.key,
-                "kind": kind,
-                "executor": executor,
-                "unit": task.declared_unit,
-                "attempts": [*earlier, attempt],
-            }
-            write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
-            # The attempts the entry no longer names: an earlier run's recording of this key.
-            named = {a.get("files") for a in body["attempts"]}
-            for old in folder.iterdir():
-                if old.is_dir() and old.name not in named:
-                    shutil.rmtree(old, ignore_errors=True)
+            write_entry(self.directory, kind, task.key, executor, task.declared_unit, [*earlier, attempt])
+
+
+def entry_paths(directory: Path, kind: str, key: str) -> tuple[Path, Path]:
+    """Where task `key`'s recording is in `directory`: its entry file and the folder of its attempts' files."""
+    home = directory / layout.file_name(kind)
+    return home / f"{layout.file_name(key)}.json", home / layout.file_name(key)
+
+
+def attempt_folder(directory: Path, kind: str, key: str, attempt: int) -> tuple[str, Path]:
+    """A fresh folder for the files of attempt `attempt` (from 1) of task `key`: its name and its path."""
+    token = f"{attempt}-{secrets.token_hex(4)}"
+    files = entry_paths(directory, kind, key)[1] / token
+    files.mkdir(parents=True, exist_ok=True)
+    return token, files
+
+
+def write_entry(
+    directory: Path, kind: str, key: str, executor: str, unit: str, attempts: list[dict[str, Any]], imported: dict[str, Any] | None = None
+) -> Path:
+    """Replace task `key`'s recording with `attempts`, then remove the folders of attempts it
+    no longer names: an earlier recording of this key. `imported`: where an imported
+    recording came from (`import_recording`). The entry file."""
+    entry_file, folder = entry_paths(directory, kind, key)
+    body: dict[str, Any] = {"version": VERSION, "key": key, "kind": kind, "executor": executor, "unit": unit}
+    if imported is not None:
+        body["imported"] = imported
+    body["attempts"] = attempts
+    write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
+    named = {a.get("files") for a in attempts}
+    for old in folder.iterdir() if folder.is_dir() else ():
+        if old.is_dir() and old.name not in named:
+            shutil.rmtree(old, ignore_errors=True)
+    return entry_file
 
 
 @dataclass
@@ -585,8 +606,18 @@ class Replay:
             return playing
 
     def _blocked(self, task: Task, key: str) -> str:
-        """Why the recording `key` cannot be played for `task`: a file it keeps by hash only."""
+        """Why the recording `key` cannot be played for `task`: an imported recording of
+        another fingerprint, or a file it keeps by hash only."""
         body, _ = self.recordings[key]
+        imported = body.get("imported")
+        if isinstance(imported, dict) and task.fingerprint:
+            for attempt in body.get("attempts") or ():
+                if attempt.get("fingerprint") != task.fingerprint:
+                    return (
+                        f"the recording of {key} was imported from run {imported.get('run') or '?'} with another fingerprint "
+                        f"({str(attempt.get('fingerprint') or '')[:12]}, task {task.fingerprint[:12]}): the task's definition "
+                        "or inputs changed since; import a run of this definition, or use --record-missing"
+                    )
         for attempt in body.get("attempts") or ():
             for kept in attempt.get("by_hash") or ():
                 kind = kind_name(task.kind)
@@ -614,13 +645,17 @@ class Replay:
 
     def _choose(self, key: str) -> str | None:
         """The key's own recording; for a `~n` key with none, the first recording of its base
-        after `~n` that no task has played."""
+        after `~n` that no task has played and that was not imported (an imported recording
+        plays only for its own key)."""
         if key in self.recordings:
             return key
         base, n = base_key(key)
         if n == 1:
             return None
-        later = sorted((k for k in self.recordings if base_key(k)[0] == base and base_key(k)[1] > n), key=lambda k: base_key(k)[1])
+        later = sorted(
+            (k for k in self.recordings if base_key(k)[0] == base and base_key(k)[1] > n and "imported" not in self.recordings[k][0]),
+            key=lambda k: base_key(k)[1],
+        )
         return next((k for k in later if k not in self._played), None)
 
     # --- playing ---------------------------------------------------------------

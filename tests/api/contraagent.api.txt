@@ -370,6 +370,23 @@ class QuotaRule(Protocol)
 
 class RecordingError(ContraagentError)
 
+@dataclass(frozen=True)
+class RecordingImport
+    def __init__(
+        self,
+        run_dir: Path,
+        directory: Path,
+        imported: tuple[str, ...] = (),
+        unfinished: Mapping[str, str] = dict(),
+        skipped: Mapping[str, str] = dict(),
+    ) -> None
+    directory: Path
+    imported: tuple[str, ...] = ()
+    @property ok: bool
+    run_dir: Path
+    skipped: Mapping[str, str] = field(default_factory=dict)
+    unfinished: Mapping[str, str] = field(default_factory=dict)
+
 class ResultEnricher(Protocol)
     def enrich(self, task: Task, before: Any, result: TaskResult) -> TaskResult | None
     def snapshot(self, task: Task) -> Any
@@ -690,6 +707,13 @@ def agent_task(
     keep_failed_changes: bool | None = None,
     max_corrections: int | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
+
+def import_recording(
+    run_dir: str | Path,
+    directory: str | Path,
+    *,
+    max_file_mb: float = MAX_FILE_MB,
+) -> RecordingImport
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
 
