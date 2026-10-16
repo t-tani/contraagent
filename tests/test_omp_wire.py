@@ -2,7 +2,8 @@
 
 `tests/fixtures/omp/<version>/` holds one launch per wire, recorded with the same prompt
 (read a file, run `echo hi`, one `web_search`, reply "done") and slimmed (long strings cut,
-paths replaced) by `fixtures/omp/record.py`. A newer omp gets a new directory recorded the
+paths replaced) by `fixtures/omp/record.py`, and `stop.jsonl`, a launch whose plugin's stop
+hook objected once and whose task denied a command. A newer omp gets a new directory recorded the
 same way; the tests run on every recording.
 """
 
@@ -139,3 +140,40 @@ def recorded_peak(version: str, wire: str) -> int:
 def test_a_recorded_launch_reports_its_peak_context(version, read, wire):
     result = read(version)
     assert result.peak_context == recorded_peak(version, wire) >= result.usage.resident > 0
+
+
+STOP_VERSIONS = sorted(p.parent.name for p in FIXTURES.glob("*/stop.jsonl"))
+
+
+@pytest.mark.parametrize("version", STOP_VERSIONS)
+def test_a_stop_hook_s_objection_is_read_from_the_continued_session(version):
+    """`stop.jsonl`: the plugin's stop hook objected once and omp went on in the same session,
+    and the task's `Bash(rm:*)` blocked the call."""
+    result = TraceReader().read((FIXTURES / version / "stop.jsonl").read_bytes()).result(LAUNCH, "omp", exit_code=0, killed=None)
+    assert result.stop == Stop.COMPLETED and result.ok
+    assert result.hook_errors == [["out.txt: must hold the word BANANA, not APPLE"]]
+    assert result.tool_uses == {"write": 2, "bash": 1} and result.unread_events == {}
+    shown = [normalize_event(e) for e in events(version, "stop")]
+    said = [e["text"] for e in shown if e["type"] == "notice" and e["text"].startswith("Stop hook feedback:")]
+    assert said == ["Stop hook feedback:\nThe output file does not pass its checks:\n- out.txt: must hold the word BANANA, not APPLE"]
+    blocked = [e for e in shown if e["type"] == "tool_execution_end" and e["tool"] == "bash"]
+    assert blocked[0]["err"] and "denied by the task's disallowed_tools: Bash(rm:*)" in blocked[0]["out"]
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_max_turns_ends_a_launch_past_its_tool_calls(version):
+    """omp has no turn cap: contraagent counts the tool calls as they arrive, as for Codex."""
+    from contraagent._internal.backends.wire import LimitsWatch
+    from contraagent.backends import OmpBackend
+    from contraagent.config import Limits
+
+    assert "max_turns" in OmpBackend.watched_limits
+    reader = TraceReader()
+    watch = LimitsWatch(Limits(max_turns=2), OmpBackend.watched_limits, reader)
+    stop = None
+    for line in (FIXTURES / version / "json.jsonl").read_bytes().splitlines():
+        stop = reader.feed_line(line) or watch()
+        if stop is not None:
+            break
+    assert stop == Stop.MAX_TURNS and sum(reader.tool_uses.values()) == 3
+    assert reader.result(LAUNCH, "omp", exit_code=None, killed=Stop.MAX_TURNS).stop == Stop.MAX_TURNS

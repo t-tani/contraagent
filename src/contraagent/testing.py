@@ -51,7 +51,7 @@ A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub p
 route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
 
 Under a name whose coding agent continues its turn when a stop hook objects
-(Claude Code, Codex: `Backend.stop_hooks_file`), the stub does what that agent
+(Claude Code, Codex, omp: `Backend.stop_hooks_file`), the stub does what that agent
 does: once it has written its output it runs the Stop hooks of the launch's
 plugins (their rendered `hooks/hooks.json` or `codex/hooks.json`, with the agent's
 working directory and environment), and when one exits 2 it is sent the hook's

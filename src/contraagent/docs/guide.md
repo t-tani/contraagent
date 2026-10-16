@@ -96,11 +96,11 @@ for another port).
 - On macOS and Windows some things differ from Linux
   ([Operating systems](#operating-systems)).
 - The coding agents differ in what they enforce, and [Coding agents](agents.md)
-  has a row for each difference. In short: only Claude Code and Codex run a stop
-  hook that continues the session, so on omp, opencode and pi the runner's check
-  and a correction round hold the output to its contract; Codex runs no light
+  has a row for each difference. In short: Claude Code, Codex and omp run a stop
+  hook that continues the session, so on opencode and pi the runner's check and a
+  correction round alone hold the output to its contract; Codex runs no light
   launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
-  `context_budget`; omp and pi do not enforce `max_turns`.
+  `context_budget`; pi does not enforce `max_turns`.
 - A credential rests on a quota only where its coding agent reports quota
   readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
   login, and opencode and pi for an `opencode-go` model, through the OpenCode Go

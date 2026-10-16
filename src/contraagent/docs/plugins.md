@@ -188,11 +188,11 @@ own hook system, so they run inside the agent:
 |---|---|---|---|---|
 | `pre_tool` | `PreToolUse`; exit 2 blocks | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
 | `post_tool` | `PostToolUse`; exit 2 sends the script's words to the agent | `PostToolUse`; exit 2 sends the script's words to the agent | `tool_result` event; exit 2 adds the script's words to the result the agent sees | `tool.execute.after`; exit 2 adds the script's words to the tool's output |
-| `stop` | the agent checks its own file and carries on in the same turn | `Stop`; as on Claude Code | none: `omp -p` and `pi -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
+| `stop` | the agent checks its own file and carries on in the same turn | `Stop`; as on Claude Code | omp: the `session_stop` event runs the stop hooks of `omp/hooks.json`, and one that exits 2 continues the session, as on Claude Code; pi: none, `pi -p` cannot continue a session from it, and the runner's check resumes the session instead | none, as on pi: `opencode run` ends once the session is idle |
 
 On every agent, a `post_tool` script that exits 2 has the agent fix what it says
-in the same session, and on Claude Code and Codex a `stop` hook that exits 2 does
-the same (checked live on each).
+in the same session, and on Claude Code, Codex and omp a `stop` hook that exits 2
+does the same (checked live on each).
 
 Codex reads hooks in Claude Code's format, from each layer of its config. The Codex
 backend passes `codex/hooks.json` as the launch's config (`-c hooks=...`), with

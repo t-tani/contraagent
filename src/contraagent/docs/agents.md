@@ -27,21 +27,38 @@ budget and ends the launch itself.
 | A launch's MCP servers (`Launch.mcp_config`: the plugin's `.mcp.json`, or what `Pipeline(mcp_servers=)` returns) | `--mcp-config`, with `--strict-mcp-config` | the plugin's `.mcp.json`; for servers of the task's own, a copy of the plugin in a scratch directory whose `.mcp.json` holds them | as config: `mcp` | through an extension of contraagent's own | as config: `mcp_servers` |
 | Role file attached to the prompt (`needs_inline_role_file`) | no: `--agent <role>` | yes | no: added to its system prompt (`instructions`) | yes | yes |
 | Permissions | the plugin's `settings.json` | none: `--approval-mode yolo` | the role's `tools:` | none | its `workspace-write` sandbox |
-| Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | no | no | no | yes: `codex/hooks.json` |
-| Hooks rendered from `hooks.toml` | `hooks/hooks.json` | `omp/index.ts` | `opencode/index.js` | `pi/index.ts` | `codex/hooks.json`, with no `read`, `grep` or `glob` hook |
+| Stop hook continues the session (`stop_hooks_file`) | yes: `hooks/hooks.json` | yes: `omp/hooks.json`, run by `omp/index.ts` at omp's `session_stop` | no | no | yes: `codex/hooks.json` |
+| Hooks rendered from `hooks.toml` | `hooks/hooks.json` | `omp/index.ts` and `omp/hooks.json` | `opencode/index.js` | `pi/index.ts` | `codex/hooks.json`, with no `read`, `grep` or `glob` hook |
 | Light launch (`light_launch`) | yes | yes | yes | yes | no |
-| `max_turns` enforced | yes, by the agent (`--max-turns`) | no | yes, by the agent (`steps`) | no | yes, by contraagent: it counts tool calls |
+| `max_turns` enforced | yes, by the agent (`--max-turns`) | yes, by contraagent: it counts tool calls | yes, by the agent (`steps`) | no | yes, by contraagent: it counts tool calls |
 | `max_budget_usd` enforced | yes, by the agent (`--max-budget-usd`) | yes, by contraagent | yes, by contraagent | yes, by contraagent | no: it reports no cost |
 | `context_budget` enforced | yes, by contraagent | no | yes, by contraagent | no | no |
-| `disallowed_tools` taken | yes: whole tools and patterns | no: the route is refused | yes: whole tools, and patterns of a command, a path, a domain or a skill | yes: whole tools only | no: the route is refused |
+| `disallowed_tools` taken | yes: whole tools and patterns | yes, by an extension of contraagent's own: whole tools, and patterns of a command (`Bash`), a path read or written (`Read`, `Write`, `Edit`, `MultiEdit`), a domain (`WebFetch(domain:...)`) or a skill (`Skill`); a pattern of another tool is refused | yes: whole tools, and patterns of a command, a path, a domain or a skill | yes: whole tools only | no: the route is refused |
 | Quota readings read by contraagent before each launch (`usage_reading`) | no: in its stream, when a session starts or resumes | yes: `omp usage` | yes: for an `opencode-go` model, the OpenCode Go usage | yes: as opencode | no: in its stream, with each API call of a ChatGPT login |
 | Cost of a resumed session (`cost_is_session_total`) | the session's so far | each launch's own | each launch's own | each launch's own | none reported |
 
-On an agent whose stop hook does not continue the session (omp, opencode, pi),
-the runner's check after the launch holds the output to its contract: an output
-that fails goes back to the same session as a correction round
-([contracts](contracts.md)). A budget that is not enforced is still recorded: the
-journal holds each launch's turns, cost and peak context as the agent reports them.
+On an agent whose stop hook does not continue the session (opencode, pi), the
+runner's check after the launch holds the output to its contract: an output that
+fails goes back to the same session as a correction round
+([contracts](contracts.md)). On omp, the plugin's extension (`omp/index.ts`) runs
+the stop hooks of `omp/hooks.json` when the agent is about to stop, and one that
+exits 2 keeps the agent working in the same session, as on Claude Code; the journal
+records what it sent back (`hook_errors`). A budget that is not enforced is still
+recorded: the journal holds each launch's turns, cost and peak context as the agent
+reports them. On omp, the budgets contraagent enforces are read from its event stream,
+which `OmpBackend(trace=False)` turns off.
+
+omp has no flag that denies a tool. A launch whose task sets `disallowed_tools` loads
+an extension of contraagent's own (`-e`), which sees each tool call before it runs. A
+tool denied whole is taken out of the tools the model is offered, and a call that a
+rule denies is blocked: the model is told the rule (`denied by the task's
+disallowed_tools: Bash(rm:*)`). A `Bash` pattern holds each command of the line, the
+parts between `&&`, `||`, `;`, `|` and `&`. A path pattern holds the file a `read`,
+`write` or `edit` call names; an `Edit` pattern also denies `ast_edit` whole, since
+that tool edits every file its glob finds. `WebFetch` and `Skill` are omp's `read` of
+an `http(s)://` or `skill://` URL. The docstring of `OmpBackend` (`contraagent.backends`)
+gives each name's omp tools. As on Claude Code, a pattern does not hold a command that
+another tool runs: a `Read` pattern does not stop `bash` from printing the file.
 
 The details are in the other topics: how each agent loads a plugin, what each one
 keeps out of a launch, and how each one gets a tool, in [plugins](plugins.md); the

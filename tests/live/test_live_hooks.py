@@ -1,7 +1,7 @@
 """A plugin's post_tool hook against real coding agents: it objects (exit 2) to a note written
 without a title line, and the agent fixes the note in the same session. The hook script reads
 the tool input in Claude Code's shape (`file_path`) on every agent. On the agents whose stop
-hook continues the session (Claude Code, Codex), a check the stop hook fails is fixed in the
+hook continues the session (Claude Code, Codex, omp), a check the stop hook fails is fixed in the
 same session too.
 
     CONTRAAGENT_LIVE=1 uv run pytest -m live -s tests/live/test_live_hooks.py
@@ -152,7 +152,7 @@ if "call validate" in parent:
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the check reads its parent's command line from /proc")
-@pytest.mark.parametrize("agent", ["claude", "codex"])
+@pytest.mark.parametrize("agent", ["claude", "codex", "omp"])
 def test_a_check_the_stop_hook_fails_is_fixed_in_the_same_session(ws, agent):
     if agent not in AGENTS:
         pytest.skip(f"{agent} is not in CONTRAAGENT_LIVE_AGENTS")

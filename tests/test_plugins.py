@@ -195,7 +195,7 @@ def test_a_skill_plugin_holds_skills_only(plugin, tmp_path):
     (common / "agents").mkdir()
     with pytest.raises(PluginError, match=r"holds agents, settings.json; a plugin it names holds skills only"):
         agent_task("summarize", plugin=plugin, skills_from=[common])
-    with pytest.raises(PluginError, match="hooks.toml, hooks, package.json, codex;"):  # a task's own plugin is not a skill plugin
+    with pytest.raises(PluginError, match="hooks.toml, hooks, package.json, codex, omp;"):  # a task's own plugin is not a skill plugin
         agent_task("summarize", plugin=plugin, skills_from=[plugin])
 
 

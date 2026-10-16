@@ -235,9 +235,9 @@ write, nothing, a failure, or a rate limit. Only the coding agent is replaced;
 output checks, correction rounds, failover, retries and the journal run for real.
 `stub.backends()` puts it under every coding agent's name, so the pipeline's
 own config routes to it, and under each name it acts as that agent does: under
-the name of an agent whose stop hook continues the session (Claude Code, Codex) it
-runs the plugin's Stop hooks before it ends its turn and replies again when one
-sends the output back (`launch.in_turn`); under the others (omp, opencode, pi) it
+the name of an agent whose stop hook continues the session (Claude Code, Codex,
+omp) it runs the plugin's Stop hooks before it ends its turn and replies again when
+one sends the output back (`launch.in_turn`); under the others (opencode, pi) it
 stops. A
 429 in a test moves the kind's later tasks to the hop too (see `routing`). A reply that
 reports a quota reading (`writes(value, quota=QuotaReading(five_hour_pct=80))`)

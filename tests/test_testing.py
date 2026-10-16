@@ -49,7 +49,7 @@ def test_replies_by_key_kind_list_and_callable(tmp_path, plugin_dir):
 def test_an_output_left_off_contract_is_sent_back_then_refused(tmp_path, plugin_dir):
     review = agent_task("review", plugin=plugin_dir, output=Verdict, max_turns=5, timeout_s=60, retries=0)
     agent = StubAgent({"review": [writes_nothing(), "not json", {"approved": "maybe"}]})
-    report = run(tmp_path, agent, lambda: review("a"), config={"defaults": {"agent": "omp"}})  # no stop hook: runner rounds
+    report = run(tmp_path, agent, lambda: review("a"), config={"defaults": {"agent": "pi"}})  # no stop hook: runner rounds
     assert report.results["review-a"].stop == "invalid_output"
     assert [launch.resumed for launch in agent.launches] == [False, True, True, True]  # the last reply repeats
 
