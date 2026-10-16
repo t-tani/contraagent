@@ -44,10 +44,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import functools
+import html
 import importlib.util
 import ipaddress
 import json
 import logging
+import re
 import socket
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
@@ -61,8 +63,9 @@ try:
     from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.middleware.trustedhost import TrustedHostMiddleware
+    from fastapi.openapi.docs import get_swagger_ui_html
     from fastapi.openapi.utils import get_openapi
-    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
     from sse_starlette.sse import EventSourceResponse
 except ModuleNotFoundError:
     # The `monitor` extra is optional; `require_extra` says so in words
@@ -86,6 +89,9 @@ from contraagent._internal.commandline import (
     serve_on,
     setup_logging,
     write_openapi,
+)
+from contraagent._internal.commandline import (
+    base_path as _base_path,
 )
 from contraagent._internal.monitor import api, export
 from contraagent._internal.monitor.core import Monitor
@@ -113,6 +119,21 @@ _EXTRA_MODULES = ("fastapi", "uvicorn", "sse_starlette")
 
 #: The media type of each kind of file the page loads.
 _MEDIA_TYPES = {"js": "text/javascript", "css": "text/css", "svg": "image/svg+xml", "png": "image/png"}
+
+
+#: A URL of the page's own (`./app.js`, `./favicon.svg`): relative to the page, as the build writes them.
+_PAGE_URL = re.compile(r'(\s(?:href|src)=")\./')
+
+
+def page(html_text: str, base: str) -> str:
+    """The page `index.html` for a monitor served under the base path `base` (`base_path`):
+    `<ca-monitor base-url="<base>">`, and each URL of its own (scripts, styles, icons)
+    under `base`; for no base, the page as it is."""
+    if not base:
+        return html_text
+    attr = html.escape(base, quote=True)
+    html_text = _PAGE_URL.sub(lambda m: f"{m.group(1)}{attr}/", html_text)
+    return html_text.replace("<ca-monitor></ca-monitor>", f'<ca-monitor base-url="{attr}"></ca-monitor>', 1)
 
 
 def require_extra() -> None:
@@ -266,23 +287,45 @@ async def stream_feed(
             await monitor.wait_stream(run, key, marker, STREAM_WAIT_S)
 
 
-def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_origins: Iterable[str] = (), docs: bool = False) -> FastAPI:
+def create_app(
+    monitor: Monitor,
+    *,
+    allowed_hosts: Iterable[str] = (),
+    cors_origins: Iterable[str] = (),
+    docs: bool = False,
+    base_path: str = "",
+) -> FastAPI:
     """The monitor as an ASGI app.
 
     `allowed_hosts` adds `Host` names to `LOCAL_HOSTS` (the bound address, a LAN
     name: `host_names`); `cors_origins` lets a front end served from another origin (a
     dev server) read the API; `docs` serves the interactive API docs at
-    `/api/docs`.
+    `/api/docs`. `base_path` is the path a reverse proxy serves the monitor under
+    (`/monitor`): the page names it in every URL it reads (`<ca-monitor base-url>`, its
+    scripts and icons), and the API docs in theirs (the OpenAPI document's `servers`).
+    The app answers at `/` only: the proxy takes the base path off before it passes a
+    request on, and a request that still carries it (`/monitor/api/runs`) gets 404, so a
+    proxy that does not take it off fails at its first request instead of half working.
+    A value that is not such a path raises `ValueError`.
     """
     require_extra()
+    base = _base_path(base_path)
     app = FastAPI(
         title=OPENAPI_TITLE,
         version=api.API_VERSION,
         description="Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
         openapi_url="/api/openapi.json",
-        docs_url="/api/docs" if docs else None,
+        docs_url=None,
         redoc_url=None,
+        # Not `root_path`: Starlette would answer `/monitor/api/runs` beside `/api/runs`.
+        servers=[{"url": base}] if base else None,
     )
+    if docs:
+
+        @app.get("/api/docs", include_in_schema=False)
+        def api_docs() -> HTMLResponse:
+            return get_swagger_ui_html(openapi_url=f"{base}/api/openapi.json", title=f"{OPENAPI_TITLE} - Swagger UI")
+
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[*LOCAL_HOSTS, *allowed_hosts])
     origins = list(cors_origins)
     if origins:
@@ -444,8 +487,10 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 
     @app.get("/", include_in_schema=False)
     @app.get("/index.html", include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(static / "index.html")
+    def index() -> Any:
+        if not base:
+            return FileResponse(static / "index.html")
+        return HTMLResponse(page((static / "index.html").read_text(encoding="utf-8"), base))
 
     @app.get("/{name}.{ext}", include_in_schema=False)
     def asset(name: str, ext: str) -> FileResponse:
@@ -470,7 +515,7 @@ def create_app(monitor: Monitor, *, allowed_hosts: Iterable[str] = (), cors_orig
 def _openapi(app: FastAPI) -> dict:
     """FastAPI's document plus the SSE message models, which no JSON endpoint
     references: each feed's `text/event-stream` response points at them."""
-    doc = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
+    doc = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes, servers=app.servers or None)
     schemas = doc.setdefault("components", {}).setdefault("schemas", {})
     ref = "#/components/schemas/{model}"
     for name, adapter, title in (
@@ -500,19 +545,30 @@ def serve(
     allowed_hosts: Iterable[str] = (),
     cors_origins: Iterable[str] = (),
     docs: bool = False,
+    base_path: str = "",
 ) -> None:
     """Serve `monitor` on `host`:`port` until stopped (`create_app`). `allowed_hosts` adds
-    `Host` names to the local ones and the bound address (`host_names`). A port it cannot
-    listen on raises `OSError` (`EADDRINUSE` when another server holds it)."""
-    _serve(monitor, bind(host, port), host, allowed_hosts=allowed_hosts, cors_origins=cors_origins, docs=docs)
+    `Host` names to the local ones and the bound address (`host_names`); `base_path` is the
+    path a reverse proxy serves it under. A port it cannot listen on raises `OSError`
+    (`EADDRINUSE` when another server holds it)."""
+    base = _base_path(base_path)  # before the port is taken
+    _serve(monitor, bind(host, port), host, allowed_hosts=allowed_hosts, cors_origins=cors_origins, docs=docs, base_path=base)
 
 
 def _serve(
-    monitor: Monitor, sock: socket.socket, host: str, *, allowed_hosts: Iterable[str], cors_origins: Iterable[str], docs: bool
+    monitor: Monitor,
+    sock: socket.socket,
+    host: str,
+    *,
+    allowed_hosts: Iterable[str],
+    cors_origins: Iterable[str],
+    docs: bool,
+    base_path: str = "",
 ) -> None:
     """Serve `monitor` on the bound `sock`, announcing its address first."""
-    app = create_app(monitor, allowed_hosts=host_names(host, allowed_hosts), cors_origins=cors_origins, docs=docs)
-    log.info("%s on %s  runs=%s", monitor.title, address(sock), monitor.runs_dir)
+    app = create_app(monitor, allowed_hosts=host_names(host, allowed_hosts), cors_origins=cors_origins, docs=docs, base_path=base_path)
+    under = f"  base path={base_path}" if base_path else ""
+    log.info("%s on %s  runs=%s%s", monitor.title, address(sock), monitor.runs_dir, under)
     serve_on(app, sock)
 
 
@@ -550,5 +606,5 @@ def run(args: argparse.Namespace) -> int:
     formats = dict(item.split("=", 1) for item in args.stream_format if "=" in item)
     monitor = Monitor(args.runs_dir, title=args.title, stream_formats=formats, **load_extensions(args))
     sock = bind_option(args.host, args.port)
-    _serve(monitor, sock, args.host, allowed_hosts=args.allow_host, cors_origins=args.cors_origin, docs=args.docs)
+    _serve(monitor, sock, args.host, allowed_hosts=args.allow_host, cors_origins=args.cors_origin, docs=args.docs, base_path=args.base_path)
     return 0

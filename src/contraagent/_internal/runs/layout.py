@@ -8,7 +8,7 @@ so the layout is written down once; a record's name relative to the run director
 
 Logs (one JSON object per line, appended, never rewritten; `files.append_lines`
 writes them and `files.read_lines` reads complete lines only): `JOURNAL`, `LAUNCHES`,
-`PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, one transcript per task, `stream(key)`, and
+`PLAN`, `FLOW_CALLS`, `DEFERRED`, `RESTS`, `SERVICES`, one transcript per task, `stream(key)`, and
 the pipeline logs, `pipeline_log(name)`.
 
 Documents (a whole JSON file, replaced atomically by `files.write_document`):
@@ -60,6 +60,7 @@ PLAN = "plan.jsonl"
 FLOW_CALLS = "flow_calls.jsonl"
 DEFERRED = "deferred.jsonl"
 RESTS = "rests.jsonl"
+SERVICES = "services.jsonl"
 CURSOR = "cursor.json"
 TRENDS = "trends.json"
 STREAMS = "streams"
@@ -76,7 +77,7 @@ FOLDERS = (CONTRACTS, DEFINITIONS, CALLS, INFLIGHT, PIPELINE)
 STREAM_SUFFIX = ".stream.jsonl"
 
 #: The append-only logs every run has, by name (a task's transcript is `stream(key)`).
-LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED, RESTS)
+LOGS = (JOURNAL, LAUNCHES, PLAN, FLOW_CALLS, DEFERRED, RESTS, SERVICES)
 
 #: Every entry of a run directory contraagent writes, and the pipeline's own folder: all
 #: of it but `out/`, the tasks' outputs.

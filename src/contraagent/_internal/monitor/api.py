@@ -45,12 +45,21 @@ from pydantic import (
 
 # The record types a run writes are part of this contract: a response holds them as they are.
 from contraagent._internal.dispatch.flow import FlowState
-from contraagent._internal.dispatch.records import DeferralCause, Executor, Frame, Rest, RestEvent, TimeBoxRecord, TokenUsage
+from contraagent._internal.dispatch.records import (
+    DeferralCause,
+    Executor,
+    Frame,
+    Rest,
+    RestEvent,
+    ServiceStopCause,
+    TimeBoxRecord,
+    TokenUsage,
+)
 from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaReading
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.4.0"
+API_VERSION = "3.5.0"
 
 
 class Closed(BaseModel):
@@ -396,6 +405,11 @@ class PlanNode(PlanRow):
     deferred_cause: DeferralCause | None = Field(
         None, description="the same as data; null when it was not deferred, or the run recorded no cause"
     )
+    rerun: str = Field(
+        "",
+        description="why a resume ran it again although an earlier attempt of the run had finished it "
+        "(its outside state changed, ...), from its last journal row; empty when no earlier attempt had",
+    )
 
 
 class CredentialRest(Rest):
@@ -403,6 +417,20 @@ class CredentialRest(Rest):
 
     since: str = Field(description="when it began resting, ISO 8601")
     ended: str = Field("", description="when it was found not resting again, ISO 8601; empty while it rests (or the run ended first)")
+
+
+class ServiceSpan(Closed):
+    """One start of the service a claim name stands for (`services.jsonl`), with its stop."""
+
+    name: str = Field(description="the claim name the service stands for")
+    started_at: str = Field(description="when its start ended, ISO 8601")
+    key: str = Field("", description="the task whose claim started it")
+    address: str | None = Field(None, description="what it gave its tasks to reach it; null for none")
+    start_s: float = Field(0.0, description="how long its start took, in seconds")
+    start_error: str = Field("", description="the exception of a start that failed (the service did not start); empty when it started")
+    stopped_at: str = Field("", description="when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded")
+    stop_cause: ServiceStopCause | None = Field(None, description="why it stopped; null while it is up")
+    stop_error: str = Field("", description="the exception its stop raised; empty when the stop went well")
 
 
 class PlanGroup(Closed):
@@ -460,6 +488,9 @@ class Plan(Closed):
         default_factory=list, description="each rest of a credential in the run (`rests.jsonl`), in start order"
     )
     models: list[ModelUsage] = Field(default_factory=list, description="each model the run's agent sessions ran on, in order of first use")
+    services: list[ServiceSpan] = Field(
+        default_factory=list, description="each start of a service of the run (`services.jsonl`), with its stop, in start order"
+    )
     preflight: PreflightRecord | None = Field(
         None, description="what the run's preflight did (`run.json`); null when its run.json records none"
     )
@@ -469,8 +500,9 @@ class Plan(Closed):
 
 
 class FileView(Closed):
-    """A contract's file as it is now. `content` is the parsed JSON, else the
-    text (cut at 20 000 characters, `truncated`), else null when unreadable."""
+    """A contract's file as it is now. `content` is the parsed JSON (for rows, the list of
+    the lines that parse), else the text (cut at 20 000 characters, `truncated`), else null
+    when unreadable."""
 
     exists: bool
     size: int = 0
@@ -498,6 +530,9 @@ class ContractSpec(Open):
     io: Literal["output", "input"]
     path: str
     producer: str | None = Field(None, description="input: the key of the task whose output it is")
+    format: Literal["json", "text", "jsonl"] | None = Field(
+        None, description="what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)"
+    )
     schema_name: str
     schema_ref: str = ""
     fresh: bool | None = None
@@ -950,6 +985,9 @@ ValueFormat = Literal["usd", "pct", "duration", "tokens", "datetime", "number"]
 class _Body(Closed):
     title: str | None = Field(default=None, description="a heading over the body")
     collapsed: bool = Field(default=False, description="shown folded, under its title")
+    anchor: str | None = Field(
+        default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+    )
 
 
 class PanelTile(Closed):
@@ -1086,6 +1124,119 @@ class StatusGridBody(_Body):
         return self
 
 
+#: The most lines of a code body the monitor shows; it shows that it cut the rest, and Copy copies the whole text.
+CODE_LINES = 5000
+#: The most characters of a code body the monitor shows, at the end of a line.
+CODE_CHARACTERS = 500_000
+
+#: The languages a code body is highlighted in, by name; each also by its usual file
+#: extensions and short names (`py`, `js`, `ts`, `h`, `hpp`, `rs`, `sh`, `bash`, `yml`, `html`,
+#: `svg`, `patch`, ...). Any other name is shown as plain text.
+LANGUAGES = ("python", "json", "javascript", "typescript", "c", "cpp", "java", "go", "rust", "shell", "toml", "yaml", "sql", "xml", "diff")
+
+
+class CodeBody(_Body):
+    """A text shown as code: highlighted by its `language` (one of `LANGUAGES`, a file's
+    extension such as `py`, or anything else for plain text), with line numbers from
+    `start`. `highlight` marks lines in those numbers: a line (`7`) or a range of lines,
+    both included (`[10, 14]`). `path` names the file over it. Long lines scroll sideways
+    unless `wrap`. The monitor shows the first `CODE_LINES` lines (and at most
+    `CODE_CHARACTERS` characters) and says how many it left out."""
+
+    type: Literal["code"] = "code"
+    text: str
+    language: str = Field(default="", description="a name of `LANGUAGES` or a file extension; '': plain text")
+    start: int = Field(default=1, ge=0, description="the number of the first line")
+    highlight: list[int | tuple[int, int]] = Field(default_factory=list, description="lines marked: a line, or a range, both ends included")
+    path: str | None = Field(default=None, description="the file the text is, named over it")
+    wrap: bool = Field(default=False, description="long lines wrap; otherwise they scroll sideways")
+
+    @model_validator(mode="after")
+    def _lines(self) -> CodeBody:
+        for i, mark in enumerate(self.highlight):
+            first, last = (mark, mark) if isinstance(mark, int) else mark
+            if first > last:
+                raise ValueError(f"highlight[{i}] is {first} to {last}: a range goes from its first line to its last")
+            if first < self.start:
+                raise ValueError(f"highlight[{i}] starts at line {first}, before the first line ({self.start})")
+        return self
+
+
+class TreeLink(Closed):
+    """Where a tree node leads, in the monitor: a run panel's tab (`panel`, its name), a
+    task (`task`, its key), each in `run` (default: the run shown), or a body of the same
+    panel (`anchor`, its `anchor`). Exactly one of `panel`, `task` and `anchor`."""
+
+    panel: str | None = Field(default=None, min_length=1)
+    task: str | None = Field(default=None, min_length=1, description="a task's key")
+    run: str | None = Field(default=None, min_length=1, description="the run of `panel` or `task`; a trends panel names it")
+    anchor: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _one(self) -> TreeLink:
+        named = [k for k in ("panel", "task", "anchor") if getattr(self, k) is not None]
+        if len(named) != 1:
+            raise ValueError(f"a link names one of panel, task and anchor; this one names {', '.join(named) or 'none'}")
+        if self.run is not None and self.anchor is not None:
+            raise ValueError("an anchor is in the same panel: it takes no run")
+        return self
+
+
+class TreeNode(Closed):
+    """One node of a tree: its `name`, and `children` under it. `id` names it (default: the
+    names from the top, joined by `/`). `icon` is `directory` for a node with children and
+    `file` for one without, unless given. `badge` is a word beside the name, coloured by
+    `tone`. A node shows its `code` beside the tree when
+    it is selected, or leads elsewhere by its `link`; not both. `open`: its children are
+    shown at first."""
+
+    name: str = Field(min_length=1)
+    id: str | None = Field(default=None, min_length=1)
+    icon: Literal["file", "directory"] | None = None
+    badge: str | None = None
+    tone: Tone | None = None
+    open: bool = True
+    children: list[TreeNode] = Field(default_factory=list)
+    code: CodeBody | None = None
+    link: TreeLink | None = None
+
+    @model_validator(mode="after")
+    def _one_use(self) -> TreeNode:
+        if self.code is not None and self.link is not None:
+            raise ValueError(f"node {self.name!r} has code and a link: a node shows its code or leads elsewhere, not both")
+        if self.icon == "file" and self.children:
+            raise ValueError(f"node {self.name!r} is a file with children; a node with children is a directory")
+        return self
+
+
+class TreeBody(_Body):
+    """A tree of nodes, folded and opened by the reader: files and directories, say. A
+    node's `code` is shown beside the tree when the node is selected, with no request
+    of its own: a panel of files returns their texts with the tree. `selected` is the
+    node selected first (its `id`; default: the first node with code)."""
+
+    type: Literal["tree"] = "tree"
+    nodes: list[TreeNode]
+    selected: str | None = None
+
+    @model_validator(mode="after")
+    def _ids(self) -> TreeBody:
+        seen: set[str] = set()
+
+        def walk(nodes: list[TreeNode], parent: str) -> None:
+            for n in nodes:
+                key = n.id or (f"{parent}/{n.name}" if parent else n.name)
+                if key in seen:
+                    raise ValueError(f"two nodes have the id {key!r}; give one an id of its own")
+                seen.add(key)
+                walk(n.children, f"{parent}/{n.name}" if parent else n.name)
+
+        walk(self.nodes, "")
+        if self.selected is not None and self.selected not in seen:
+            raise ValueError(f"selected is {self.selected!r}; no node has that id")
+        return self
+
+
 class BlocksBody(_Body):
     """Bodies one under another: a panel of several parts."""
 
@@ -1094,7 +1245,7 @@ class BlocksBody(_Body):
 
 
 #: The `type` of each typed body.
-PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "blocks")
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "code", "tree", "blocks")
 
 
 def _panel_kind(v: Any) -> str:
@@ -1112,10 +1263,13 @@ PanelBody = Annotated[
     | Annotated[HBarsBody, Tag("hbars")]
     | Annotated[StatusGridBody, Tag("status_grid")]
     | Annotated[NoteBody, Tag("note")]
+    | Annotated[CodeBody, Tag("code")]
+    | Annotated[TreeBody, Tag("tree")]
     | Annotated[BlocksBody, Tag("blocks")]
     | Annotated[dict[str, Any], Tag("untyped")],
     Discriminator(_panel_kind),
 ]
+TreeNode.model_rebuild()
 BlocksBody.model_rebuild()
 
 _PANEL_BODY = TypeAdapter(PanelBody)

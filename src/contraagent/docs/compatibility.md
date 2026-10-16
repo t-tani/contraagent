@@ -94,9 +94,10 @@ through the monitor's API, which is public.
 | `flow_calls.jsonl` | each flow call's start and end | yes: `flow_calls.schema.json` |
 | `deferred.jsonl` | each deferred task and its cause | yes: `deferred.schema.json` |
 | `rests.jsonl` | each start and end of a credential's quota rest | yes: `rests.schema.json` |
+| `services.jsonl` | each start and stop of a service | yes: `services.schema.json` |
 | `cursor.json` | a resume cursor (`CursorStore`), when a pipeline keeps one | yes: `cursor.schema.json` |
 | `calls/<key>.json` | the call file an agent task's launch was given | yes: the model `contraagent.backends.CallFile` |
-| `out/` | the tasks' outputs, at the paths their kinds' `output_name` gives | yes: each one's schema is its task's output |
+| `out/` | the tasks' outputs, at the paths their kinds' `output_name` gives | yes: each one's schema is its task's output; for rows, each line's is the row's model |
 | `out/<...>.message.txt` | the whole final message beside an output taken out of it (`unwrap`) | yes: plain text |
 | `pipeline/<name>.jsonl`, `pipeline/<name>.json` | the pipeline's own log and document (`contraagent.log`, `contraagent.save`) | yes: the rows and the values the pipeline wrote |
 | `contracts/<key>.json`, `definitions/<kind>.json` | what each task and each kind declared | run format only |
@@ -125,6 +126,7 @@ This release writes run format 1 and reads run format 1. A `run.json` without
 | `flow_calls.jsonl` | `flow_calls.schema.json` (one line) |
 | `deferred.jsonl` | `deferred.schema.json` (one line) |
 | `rests.jsonl` | `rests.schema.json` (one line) |
+| `services.jsonl` | `services.schema.json` (one line) |
 | `cursor.json` | `cursor.schema.json` |
 | the config file (`pipeline.toml`) | `pipeline.schema.json` |
 

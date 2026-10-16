@@ -31,7 +31,7 @@ from __future__ import annotations
 import threading
 import time
 import tomllib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +66,15 @@ class Route:
     def identity(self) -> tuple[str, str, str]:
         """(agent, model, credential): two routes with the same identity are one hop."""
         return (self.agent, self.model, self.credential)
+
+
+def on_credential(routes: Sequence[Route], credential: str) -> tuple[Route, ...]:
+    """`routes` in order, each on `credential` (a task call's, `AgentTask.__call__`): a route
+    that becomes the same as one before it is dropped, so no hop repeats another."""
+    out: dict[tuple[str, str], Route] = {}
+    for r in routes:
+        out.setdefault((r.agent, r.model), Route(r.agent, r.model, credential))
+    return tuple(out.values())
 
 
 def parse_chain(entries, where: str, known_agents: tuple[str, ...] | None = None) -> tuple[Route, ...]:
@@ -167,6 +176,12 @@ class Router:
         # before it says nothing about whether the limit has passed.
         self._opened_at = float("-inf")
         self._switches: list[tuple[str, str]] = []
+
+    def on_credential(self, credential: str) -> Router:
+        """A breaker of its own over this chain's routes, each on `credential` (`on_credential`):
+        a 429 as one identity says nothing about another's, so it starts closed."""
+        routes = on_credential(self.routes, credential)
+        return Router(routes[0], routes[1:], self.probe_interval_s, self.max_probe_interval_s, self._clock)
 
     def _index_of(self, route: Route) -> int | None:
         return next((i for i, r in enumerate(self.routes) if r.identity == route.identity), None)

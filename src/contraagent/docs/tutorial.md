@@ -304,8 +304,8 @@ models its own way.
 For each triage, contraagent writes the call file, starts `claude -p` with the
 plugin loaded and the role selected, and waits. Before the agent stops, the
 plugin's stop hook checks its output file against the schema; when it fails,
-the agent reads the errors and fixes the file in the same turn. Claude Code and
-Codex run this stop hook; omp, opencode and pi have none that continues a session
+the agent reads the errors and fixes the file in the same turn. Claude Code,
+Codex and omp run this stop hook; opencode and pi have none that continues a session
 ([Coding agents](agents.md)), so for them the runner's check below does this work.
 After the session, the runner checks the file again, with the validators too. An
 output that still fails goes back to the same session with the errors, a

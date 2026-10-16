@@ -69,7 +69,7 @@
     }
   },
   "additionalProperties": true,
-  "description": "One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies\nand its origin. A task with no origin (built by hand) has an empty `flow` and\n`created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind.",
+  "description": "One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies\nand its origin. A task with no origin (built by hand) has an empty `flow` and\n`created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind,\n`credential` only for a task whose call names one.",
   "properties": {
     "ts": {
       "default": "",
@@ -111,6 +111,12 @@
       "description": "its task call's `priority`: a tie-breaker in the queue, higher first",
       "title": "Priority",
       "type": "number"
+    },
+    "credential": {
+      "default": "",
+      "description": "the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it",
+      "title": "Credential",
+      "type": "string"
     },
     "executor": {
       "default": "agent",

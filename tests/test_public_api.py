@@ -398,7 +398,7 @@ def test_agent_task_takes_each_task_table_key_by_name():
 
     declaration = {
         "kind", "output", "params", "plugin", "skills_from", "role", "instructions", "validators", "output_name", "output_from",
-        "unwrap", "requires", "claims", "changes", "tools", "rerun_on_resume", "preserve", "output_of", "implementations",
+        "unwrap", "requires", "claims", "changes", "tools", "rerun_on_resume", "preserve", "output_of", "implementations", "outside_state",
     }  # fmt: skip
     keywords = _keywords(agent_task)
     assert set(keywords) - declaration == set(TASK_KEYS)

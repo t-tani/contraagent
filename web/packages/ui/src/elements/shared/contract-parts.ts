@@ -10,7 +10,7 @@ import { preserveLabel, preserveTip } from '../../words/task-definition.js';
 import { statusChip } from '@contraagent/elements/primitives';
 import { verdict, verdictStyles } from '@contraagent/elements/check-table';
 import '@contraagent/elements/check-table/define';
-import { checkRowsFromContract, checkTableStrings, contentObject, rootOf } from '../../adapters/check-rows.js';
+import { checkRowsFromContract, checkTableStrings, contentObject, rootOf, rowOf } from '../../adapters/check-rows.js';
 import { contractTone } from '../../lib/tone.js';
 import '@contraagent/elements/json-tree/define';
 
@@ -53,11 +53,26 @@ export function fieldCheckTable(o: ContractSpec): TemplateResult {
   </details>`;
   // A text result (a text file, or one JSON value) has no fields to check: show the file itself.
   if (!rows) return f.exists ? whole : html``;
+  // Rows: the fields of one line, and the lines themselves.
+  if (o.format === 'jsonl') {
+    const lines = html`<details class="ct-raw">
+      <summary>${facts(rowCount(f), `${f.size ?? 0} B`, f.mtime ? msg(str`written ${localTime(f.mtime, true)}`) : '', f.truncated ? msg('truncated') : '')}</summary>
+      ${fileContent(f)}
+    </details>`;
+    return html`<cae-check-table .rows=${rows} .showValues=${false} .strings=${checkTableStrings()}></cae-check-table>
+      ${f.exists ? lines : nothing}`;
+  }
   // No file: the fields it must have, and nothing to check them against; its status chip says it is not there.
   if (!f.exists) return rows.length ? html`<cae-check-table .rows=${rows} .showValues=${false} .strings=${checkTableStrings()}></cae-check-table>` : html``;
   return html`<cae-check-table .rows=${rows} .strings=${checkTableStrings()}></cae-check-table>
     ${!contentObject(o) ? html`<div class="meta note">${msg('Not a JSON object')}</div>` : nothing}
     ${whole}`;
+}
+
+/** How many rows a rows file holds, in words: `3 rows`. */
+function rowCount(f: FileView): string {
+  const n = Array.isArray(f.content) ? f.content.length : 0;
+  return n === 1 ? msg('1 row') : msg(str`${n} rows`);
 }
 
 /** The fold over a file's content: `Whole file | 1204 B | written Oct 12, 10:38:40`. */
@@ -70,7 +85,7 @@ const wholeFile = (f: FileView): string =>
  */
 export function schemaName(o: ContractSpec): TemplateResult {
   const root = rootOf(o.schema_name);
-  const shown = o.schema_name === 'text' || root === 'str' ? msg('text') : root ?? o.schema_name;
+  const shown = o.schema_name === 'text' || root === 'str' ? msg('text') : root ?? rowOf(o.schema_name) ?? o.schema_name;
   return html`<b class="jmono" title=${o.schema_ref || o.schema_name}>${shown}</b>`;
 }
 
@@ -78,6 +93,7 @@ export function schemaName(o: ContractSpec): TemplateResult {
 export function formatOf(o: ContractSpec): unknown {
   const tip = o.schema_ref || o.schema_name;
   if (o.schema_name === 'text') return msg('text file');
+  if (o.format === 'jsonl') return msg(html`JSON Lines, one object of schema ${schemaName(o)} per line`);
   const root = rootOf(o.schema_name);
   if (root === 'str') return html`<span title=${tip}>${msg('text (JSON string)')}</span>`;
   if (root) return html`<span title=${tip}>${msg(str`JSON value of type ${root}`)}</span>`;

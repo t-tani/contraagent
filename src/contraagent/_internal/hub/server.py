@@ -7,7 +7,7 @@ One ASGI app (`create_hub_app`) over a `Hub`, with two parts that never share a 
   HEAD /ingest/blobs/<sha256>  200 or 404
   PUT  /ingest/blobs/<sha256>  raw bytes -> 204; 400 when they do not hash to <sha256>
   GET  /healthz                Health: 200 when every store answers, 503 naming those that do not
-  GET  /login?token=<read>     sets the read cookie and redirects to /
+  GET  /login?token=<read>     sets the read cookie and redirects to the page (`/`, or the base path's)
   everything else              the monitor (`contraagent._internal.monitor.server.create_app`)
                                over `hub_monitor(hub)`: API, SSE feeds, the bundled UI
 
@@ -70,6 +70,9 @@ from contraagent._internal.commandline import (
     serve_on,
     setup_logging,
     write_openapi,
+)
+from contraagent._internal.commandline import (
+    base_path as _base_path,
 )
 from contraagent._internal.hub.core import BLOB_GRACE, Hub
 from contraagent._internal.hub.protocol import (
@@ -163,12 +166,15 @@ async def _plain(send: Send, status: int, text: str, headers: Iterable[tuple[byt
 class ReadGuard:
     """The monitor behind the read token: `Authorization: Bearer` or the cookie `/login` sets.
 
-    `read_token=None` lets every request through, `/login` included (it then only redirects)."""
+    `read_token=None` lets every request through, `/login` included (it then only redirects).
+    `base_path`: the path a reverse proxy serves the hub under (`/monitor`), where `/login`
+    redirects and the cookie's `Path`."""
 
-    def __init__(self, app: ASGIApp, read_token: str | None) -> None:
+    def __init__(self, app: ASGIApp, read_token: str | None, base_path: str = "") -> None:
         self.app = app
         self.read_token = read_token
         self.cookie = _cookie_value(read_token) if read_token else ""
+        self.base_path = base_path
 
     def _allowed(self, scope: Scope) -> bool:
         if self.read_token is None:
@@ -196,13 +202,14 @@ class ReadGuard:
         await self.app(scope, receive, send)
 
     async def _login(self, scope: Scope, send: Send) -> None:
-        headers: list[tuple[bytes, bytes]] = [(b"location", b"/"), (b"cache-control", b"no-store"), (b"content-length", b"0")]
+        page = f"{self.base_path}/".encode()
+        headers: list[tuple[bytes, bytes]] = [(b"location", page), (b"cache-control", b"no-store"), (b"content-length", b"0")]
         if self.read_token is not None:
             given = parse_qs(scope.get("query_string", b"").decode("latin-1")).get("token", [""])[0]
             if not hmac.compare_digest(given.encode(), self.read_token.encode()):
                 await _plain(send, 401, "not the read token")
                 return
-            attrs = "; Path=/; HttpOnly; SameSite=Strict" + ("; Secure" if scope.get("scheme") == "https" else "")
+            attrs = f"; Path={self.base_path or '/'}; HttpOnly; SameSite=Strict" + ("; Secure" if scope.get("scheme") == "https" else "")
             headers.append((b"set-cookie", f"{COOKIE}={self.cookie}{attrs}".encode()))
         await send({"type": "http.response.start", "status": 303, "headers": headers})
         await send({"type": "http.response.body", "body": b""})
@@ -483,20 +490,23 @@ def create_hub_app(
     title: str = "contraagent hub",
     max_records_bytes: int = MAX_RECORDS_BYTES,
     max_blob_bytes: int = MAX_BLOB_BYTES,
+    base_path: str = "",
 ) -> ASGIApp:
     """The hub as one ASGI app: the ingest endpoints and the monitor (`hub_monitor`).
 
     `ingest_tokens`: see `create_ingest_app`. `read_token=None` leaves the monitor open.
-    `allowed_hosts` and `cors_origins` are the monitor's (`monitor.server.create_app`)."""
+    `allowed_hosts`, `cors_origins` and `base_path` are the monitor's
+    (`monitor.server.create_app`); `/login` redirects under `base_path` too."""
     allowed = [*LOCAL_HOSTS, *allowed_hosts]
+    base_path = _base_path(base_path)
     ingest = BodyLimit(
         create_ingest_app(hub, ingest_tokens, max_records_bytes=max_records_bytes, max_blob_bytes=max_blob_bytes),
         max_records_bytes=max_records_bytes,
         max_blob_bytes=max_blob_bytes,
     )
-    monitor = create_app(hub_monitor(hub, title=title), allowed_hosts=allowed, cors_origins=cors_origins)
+    monitor = create_app(hub_monitor(hub, title=title), allowed_hosts=allowed, cors_origins=cors_origins, base_path=base_path)
     # The Host check comes before the read guard, so /login is under it too.
-    guarded = TrustedHostMiddleware(ReadGuard(monitor, read_token), allowed_hosts=allowed)
+    guarded = TrustedHostMiddleware(ReadGuard(monitor, read_token, base_path=base_path), allowed_hosts=allowed)
     return _Dispatch(ingest, guarded)
 
 
@@ -733,6 +743,7 @@ def run(args: argparse.Namespace) -> int:
         cors_origins=args.cors_origin,
         title=args.title,
         max_blob_bytes=int(args.max_blob_mb * 2**20),
+        base_path=args.base_path,
     )
     store, blobs = args.store.split("://")[0], args.blobs.split(":")[0]  # a DSN may hold a password
     log.info("%s on %s  store=%s blobs=%s ingest tokens=%d", args.title, address(sock), store, blobs, len(tokens))

@@ -24,7 +24,9 @@ from contraagent._internal.backends.streams import resolve_format
 from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
+from contraagent._internal.contracts.rows import rows_text
 from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.dispatch.task import kind_matches
 from contraagent._internal.dispatch.templates import fill_example
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.preflight import PROBE_PROMPT
@@ -54,12 +56,16 @@ class Reply:
 def writes(
     value: Any,
     *,
+    stop: Stop = Stop.COMPLETED,
     cost_usd: float | None = None,
     quota: QuotaReading | None = None,
     peak_context: int | None = None,
     context_window: int | None = None,
 ) -> Reply:
-    """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is.
+    """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is;
+    for rows (`Rows[Row]`), a list of models or dicts as one JSON object per line.
+    `stop`: how the launch ends after it wrote the file; `Stop.TIMEOUT` or `Stop.STALLED` plays a
+    launch the runner stopped after it wrote what it had (`agent_task(partial_on=)`).
     `cost_usd` is what this launch cost; under the name of a coding agent that reports a resumed
     session's cost so far (Claude Code, `Backend.cost_is_session_total`), the stub reports that
     running total, as the agent does. `quota`: the quota reading the launch reports
@@ -69,7 +75,7 @@ def writes(
     context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
     launch reports no API call. `context_window`: the context window the launch reports for
     its model (`LaunchResult.context_window`); without it the launch reports none."""
-    return Reply(output=value, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
+    return Reply(output=value, stop=stop, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
 
 
 #: The output of `writes_example()`: built from the output's schema when it is played.
@@ -81,8 +87,8 @@ def writes_example() -> Reply:
     `examples` (the model's own, a field's), else the smallest value that part accepts
     (required fields only, the shortest lists and strings, numbers nearest zero). A text
     output is the first of the `examples` of its `Annotated[str, Field(examples=[...])]`,
-    else `stub`. In each string of it, `{unit}`, `{key}`, `{kind}` and `{params.<name>}`
-    are the task call's, as in a claim (`claims=`), when the value is a string or a
+    else `stub`. Rows (`Rows[Row]`) are one row, the example of `Row`. In each string of it,
+    `{unit}`, `{key}`, `{kind}` and `{params.<name>}` are the task call's, as in a claim (`claims=`), when the value is a string or a
     number; any other field stays as written. A schema rule it cannot build where there is no example (`pattern`)
     fails the reply and names it. As a task's only reply (not in a list, not from a
     callable), a value its validators reject ends the task `invalid_output` after one
@@ -125,7 +131,8 @@ class StubLaunch:
     #: The launch's prompt, or for a reply within the turn what the stop hook said.
     prompt: str
     call: CallFile = field(repr=False)
-    #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential.
+    #: The `Launch` itself: its budget (`limits`), `env`, `plugin_dirs`, credential, working
+    #: directory (`cwd`) and MCP servers file (`mcp_config`, there while the launch runs).
     launch: Launch = field(repr=False)
     #: True for a reply within the launch, after a stop hook sent the output back.
     in_turn: bool = False
@@ -152,7 +159,8 @@ class StubAgent(Backend):
     `script`: task key or kind -> reply (the kinds of reply: `contraagent.testing`'s module docstring). `default`: the
     reply of a task with none scripted (`writes_example()` in `contraagent run --stub`).
     `execute`: in a stub run, the Python task kinds whose functions run instead of
-    being played. `delay_s`: a pause per launch, for watching a stub run in the monitor.
+    being played, by name or `fnmatch` pattern (`("*",)`: every Python task's, and the stub
+    agent plays the agent tasks only). `delay_s`: a pause per launch, for watching a stub run in the monitor.
     """
 
     name = "stub"
@@ -167,7 +175,12 @@ class StubAgent(Backend):
         return None
 
     def __init__(
-        self, script: Mapping[str, Any] | None = None, *, default: Any = _UNSET, execute: Iterable[str] = (), delay_s: float = 0.0
+        self,
+        script: Mapping[str, Any] | None = None,
+        *,
+        default: Any = _UNSET,
+        execute: Iterable[str] = (),
+        delay_s: float = 0.0,
     ) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
@@ -292,7 +305,9 @@ class StubAgent(Backend):
         reply = self._reply(record)
         if self.delay_s:
             time.sleep(self.delay_s)
-        if reply.stop is Stop.COMPLETED and reply.output is not _UNSET:
+        # A reply that writes and then stops (`writes(value, stop=...)`) writes a file, never a final message.
+        writing = reply.stop is Stop.COMPLETED or (call.output is not None and call.output.from_ == "file")
+        if reply.output is not _UNSET and writing:
             if call.output is None:
                 if reply.output is _EXAMPLE:
                     return writes_nothing()  # the example of a task with no output
@@ -307,8 +322,10 @@ class StubAgent(Backend):
                 if problems:
                     return fails(reason=f"stub: no example for {call.key}: {'; '.join(problems)}")
                 value = fill_example(value, unit=call.unit, key=call.key, kind=call.kind, params=call.params)
+                if call.output.format == "jsonl":
+                    value = [value]  # one row
                 reply = writes(value, cost_usd=reply.cost_usd)
-            text = _text_of(reply.output)
+            text = _text_of(reply.output, call.output.format)
             if call.output.from_ == "message":
                 message.append(text)
                 return reply
@@ -359,14 +376,22 @@ class StubAgent(Backend):
 
     def plays(self, kind: str) -> bool:
         """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
-        return kind not in self.execute
+        return not kind_matches(kind, self.execute)
 
     def play_python(
-        self, run: str, key: str, kind: str, unit: str, params: dict[str, Any], json_schema: dict[str, Any] | None
+        self,
+        run: str,
+        key: str,
+        kind: str,
+        unit: str,
+        params: dict[str, Any],
+        json_schema: dict[str, Any] | None,
+        *,
+        rows: bool = False,
     ) -> tuple[bool, Any]:
         """A stub run's Python task: (whether it returns an output, the output). `json_schema`
-        is its output's schema, None for a task with no output. A failure raises, as the
-        function would."""
+        is its output's schema, None for a task with no output; with `rows`, the schema of one
+        row, and the example is one row. A failure raises, as the function would."""
         with self._lock:
             n = self._counts[run, key] = self._counts.get((run, key), 0) + 1
             task = StubTask(run=run, key=key, kind=kind, unit=unit, params=params, n=n)
@@ -382,7 +407,8 @@ class StubAgent(Backend):
             value, problems = example(json_schema)
             if problems:
                 raise RuntimeError(f"stub: no example for {key}: {'; '.join(problems)}")
-            return True, fill_example(value, unit=unit, key=key, kind=kind, params=params)
+            value = fill_example(value, unit=unit, key=key, kind=kind, params=params)
+            return True, [value] if rows else value
         return True, reply.output
 
     # --- internals ---------------------------------------------------------
@@ -470,8 +496,11 @@ def _observed(reading: QuotaReading) -> QuotaReading:
     return reading.model_copy(update={"observed_at": now_iso()})
 
 
-def _text_of(value: Any) -> str:
-    """An output as its file holds it: a model or a JSON value as JSON, a `str` as is."""
+def _text_of(value: Any, format: str = "json") -> str:
+    """An output as its file holds it: a model or a JSON value as JSON, a `str` as is; rows
+    (`format` `jsonl`): a list as one JSON object per line, one model or dict as one line."""
+    if format == "jsonl" and not isinstance(value, str):
+        return rows_text(value if isinstance(value, (list, tuple)) else [value])
     if isinstance(value, BaseModel):
         return value.model_dump_json(indent=2)
     if isinstance(value, str):

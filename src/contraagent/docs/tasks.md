@@ -19,16 +19,18 @@ them all):
 
 | Options | For | Topic |
 |---|---|---|
-| `output`, `params`, `validators` | what it takes and leaves behind, and the checks its output must pass | [Contracts](contracts.md) |
+| `output`, `params`, `validators` | what it takes and leaves behind (a model, `str`, or `Rows[Row]`), and the checks its output must pass | [Contracts](contracts.md) |
+| `partial_on` | keeping what a launch wrote when the runner stopped it for its time | [Contracts](contracts.md#a-launch-stopped-for-its-time) |
+| `max_corrections` | how many times an output that fails its checks goes back to the session | [Contracts](contracts.md#checked-twice-by-the-same-rules) |
 | `output_from`, `unwrap`, `tools=()` | an output in the final message; a light launch | [Contracts](contracts.md) |
 | `preserve`, `output_of` | filling in another task's file, and the parts to keep | [Contracts](contracts.md) |
 | `plugin`, `role`, `instructions`, `skills_from`, `implementations` | its implementation | [Plugins](plugins.md) |
 | `output_name` | where its output file is | "Flows that depend on results", below |
 | `rerun_on_resume` | a step that a resume runs again | "The flow", below |
-| `claims` | one task at a time on a name | "Claims", below |
-| `changes` | the files it changes beside its output | "Files a task changes", below |
+| `claims` | one task at a time on a name, and the service a name stands for | "Claims" and "Services", below |
+| `changes`, `keep_failed_changes` | the files it changes beside its output, and whether the files of a failed attempt stay | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
-| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks | [Routing](routing.md) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
 | `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
 
 ## Python tasks
@@ -52,7 +54,7 @@ in the flow's own body: a stub run plays Python tasks and runs flow code as it i
 
 ### Retries
 
-A Python task that talks to a service may fail for a reason a fresh attempt
+A Python task that talks to a server may fail for a reason a fresh attempt
 cures: a dropped connection, a timeout. `retries` is the number of fresh
 attempts after the first, and `retry_on` the exception classes that earn one;
 any other exception fails the task at once, and so does an off-contract input
@@ -60,8 +62,10 @@ or output. Each attempt is a journal row of its own, with its attempt number
 and its exception, as for an agent task, and waits `RetryingRunner`'s backoff
 first. Declaring one without the other raises at the decorator.
 
-A function that needs a service restores it itself, at its start: a fresh
-attempt then finds the service running again.
+A function that needs a server restores it itself, at its start: a fresh
+attempt then finds the server running again. A server that the tasks of a claim
+share can instead be a service of the run ("Services", below), which the runner
+starts and stops.
 
 ::code{file="examples/retries/flow.py" from="@python_task(retries=2" to="summarize = agent_task("}
 
@@ -71,7 +75,7 @@ again on a resume (as with `claims` and `rerun_on_resume`).
 
 ### Partial results
 
-A Python task whose service stays unavailable may still give the run something to
+A Python task whose server stays unavailable may still give the run something to
 go on with: it returns `Partial(value, reason=...)`. `value` is its output as
 usual, checked against its output schema and written to its output file;
 `reason` says why it is partial, in one line. The task finishes ok with stop
@@ -89,6 +93,10 @@ the placeholder. Every other task a resume skips as usual. Annotate the function
 A partial result is not a retry: for a failure a fresh attempt cures, use
 `retries`; when the attempts run out, the exception fails the task. To end with a
 placeholder instead, catch the exception and return `Partial`.
+
+An agent task is partial when the runner stopped its launch for its time and what
+it wrote passes its checks: `agent_task(partial_on=["timeout", "stalled"])`, in
+[Contracts](contracts.md#a-launch-stopped-for-its-time).
 
 ## The flow
 
@@ -111,6 +119,16 @@ reference to the task's future output:
   needs every summary.
 - `after=` orders tasks without passing data.
 - `priority=` breaks ties in the queue, higher first (see below).
+- `credential=` (an agent task's) names the `[credentials.<name>]` that task runs
+  as on every route of its kind, in place of the kind's own; how it ranks, fails
+  over and rests is in [Routing](routing.md#a-task-calls-credential). A Python task
+  runs no coding agent, so it has no credential: its call refuses `credential=`
+  unless its function has a parameter of that name.
+- A call that the run could not make raises `TypeError` at the call, and
+  `contraagent check` reports it at the flow's line: a `key` that is not a
+  string, an `after` that is not a list of tasks, a `priority` that is not a
+  number, and for a Python task a keyword its function has no parameter for, or a
+  required parameter left out.
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
@@ -162,6 +180,43 @@ Its fingerprint does not change when they run again, so a resume would skip it.
 `rerun_on_resume=True` on its declaration (`agent_task`, `@python_task`) makes a
 resume run it again whatever an earlier attempt did. A task that takes the output
 of a task that ran again needs no flag: its fingerprint already changes.
+
+A task can also read state that is not in its params or its inputs: a state file
+the pipeline keeps, files another process wrote, a file its instructions tell the
+agent to read. A resume does not see that state change, and would skip the task
+with an output made from the old state. Its declaration gives `outside_state=`, a
+function of the task's unit and params that returns that state as a JSON value,
+and the task's fingerprint covers the value. In the example, both tasks read a
+backlog file, and the function returns the file's digest:
+
+::code{file="examples/outside/flow.py" from="BACKLOG = " to="class OpenItems"}
+
+::code{file="examples/outside/flow.py" from="@python_task(outside_state" to="def topics("}
+
+- The function is called when the task is about to start, once every task it waits
+  for finished, with its params and the outputs it is given. So it sees what those
+  tasks wrote, and a resume compares the state as it is then. A relative path is
+  relative to the pipeline's process, as in the task itself.
+- It returns any JSON value: a digest, a version, a list or a dict of them, a pydantic
+  model. A digest stands for a file of any size; `hashlib.file_digest` reads it in
+  blocks. A file that is missing is a state too: return a value for it (an empty
+  string), so the task runs again once the file appears.
+- A function that raises, or that returns what is not JSON, refuses the task
+  (`invalid_input`, its reason the exception), and the tasks that wait for it do not
+  start. `contraagent check` calls it for every task whose params are known before the
+  run and reports the same.
+- A task that waits for one with outside state, without receiving its output, runs
+  again when that task runs again, as for any change of its fingerprint.
+- A file the task itself writes is no outside state: its digest changes with every
+  run, so the task would run again on every resume. `rerun_on_resume` and
+  `outside_state` do not go together.
+- A recording keeps the digest of the outside state, not the state: a replay calls
+  the function in its own working directory, and plays a recording made with another
+  outside state all the same, its result's reason saying so.
+
+When a resume runs a task again that an earlier attempt finished, its journal row
+says why in `rerun` (`its outside state changed`, `its last result was partial`,
+...), the start line of the log says so too, and the monitor shows it on the task.
 
 A program gives the run id and the resume to `Pipeline.run`, as
 `examples/runner/run.py` does with the `--run-id` and `--resume` it takes:
@@ -220,7 +275,8 @@ be made (`zeta`) ends its loop there.
   `review-beta~2`, ..., with its output file (`out/review/beta~2.json`). One key
   created by two flow calls raises `ValueError` at the second: `key=` tells
   them apart.
-- A `while` loop of flow code is bounded by `max_passes` (see below).
+- A `while` loop of flow code is bounded by `max_passes`, or by its function's
+  `@max_passes(n)` (see below).
 - Every kind the flow's code reaches (see [Checking and testing](testing.md)) is
   routed, and probed by the preflight (`preflight="substitute"` or `"stop"`), before the first launch: a config
   problem refuses the run. A kind declared inside the flow's body is routed when
@@ -264,8 +320,9 @@ first, whatever the priorities; so does a task that has waited past
 then the shortest remaining work) comes before it too. A priority is not part
 of the fingerprint: a resumed run that changes one skips the same tasks.
 `plan.jsonl` records it. A params model with a field named `priority` (or
-`key`, `after`), or a Python task's function with such a parameter, is refused
-where the task is declared: the task call takes these words itself.
+`key`, `after`, and for an agent task `credential`), or a Python task's function
+with such a parameter, is refused where the task is declared: the task call takes
+these words itself.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
@@ -304,6 +361,19 @@ later pass raises `TooManyPasses`, which names the loop (`file:line`) and the
 pass; for a child flow call the parent receives it at the `yield`. A `for` loop
 has no limit: it ends with its iterable. A comprehension has none either.
 
+Loops that converge at different speeds need different bounds. A generator
+function decorated with `@max_passes(n)` gives each `while` loop of its own code
+the bound `n`, in every call of it, in place of the run's value; every other loop
+keeps the run's. The decorator returns the function itself, so the flow is still a
+plain function, and `max_passes` is imported from `contraagent`. `analyse_file`, in
+the next section, revises a column's reading at most 4 times whatever the run's
+`max_passes` is. Two loops that need different bounds go in two
+functions: one of them may run in the same flow call through `yield from`, since the
+bound belongs to the function's code, not to the flow call. `TooManyPasses` names
+the function whose bound the loop passed. `@max_passes` on a function that is not a
+generator function, or that has no `while` loop, raises `TypeError` where it is
+declared.
+
 Passes are counted from the loops' back edges as the flow runs
 (`sys.monitoring`), about 1 µs each time flow
 code goes back to the start of a loop. When the two monitoring tool ids it can
@@ -319,7 +389,7 @@ a `classify` per file (a batch sized by what `unpack` returned) and yields one
 format (a kind chosen on a result, both reachable), then loops over the top
 columns and, inside that, revises each until `verify` accepts it.
 
-::code{file="examples/analysis/flow.py" from="def analyse_file(" to="def analyse_bundle("}
+::code{file="examples/analysis/flow.py" from="@max_passes(4)" to="def analyse_bundle("}
 
 ::code{file="examples/analysis/flow.py" from="def analyse_bundle(" to="def analyse("}
 
@@ -327,6 +397,34 @@ columns and, inside that, revises each until `verify` accepts it.
 
 The parsers claim `heavy` (`claims=["heavy"]`), so one runs at a time. The monitor draws each flow call as a node that opens its own
 layer, and the nodes a loop created in a box (a nested loop is a box inside it).
+
+## A task that finds something missing
+
+A task can find that it lacks something the run could provide: a document, a
+setting, the output of another kind. Its output model says so in a field of its
+own, and the task still writes what it can. The field's description tells the
+agent what to put there, as for any other field:
+
+::code{file="examples/missing/flow.py" from="class Review(" to="class Fetched("}
+
+The flow reads the field at the `yield` and acts on it. Here it runs the task that
+provides each missing document and yields the review again with the documents it now
+has; the second review of a unit has the key `review-<unit>~2`. The `while` loop ends
+when nothing is missing or nothing new was found, and `max_passes` bounds it as any
+other loop:
+
+::code{file="examples/missing/flow.py" from="def review_unit(" to="def reviews("}
+
+What stays missing is not a failure: the task ended ok, and its output says what it
+lacks. The flow logs each open item as a row of a [pipeline log](#a-pipelines-own-records),
+and a run panel shows the rows in the monitor ([panels](monitor.md#your-own-views-panels)):
+
+::code{file="examples/missing/flow.py" from="def missing(" to="#: What"}
+
+When only a person can provide the item, the run ends with the item open. To have a
+resume (`--resume`) run the task again once the item is there, declare the place the
+task reads it from with `outside_state=` (above): its fingerprint then changes when
+the item appears.
 
 ## A deadline over part of a flow: time boxes
 
@@ -414,6 +512,127 @@ nothing. Claims are not part of the fingerprint: they change
 when a task runs, not what it does. The plan records each task's claims, and the
 monitor shows them in the task's detail.
 
+## Services: a server that the tasks of a claim share
+
+Some tasks need a long-lived helper while they run: a worker service, a database, a
+local server. A **service** is the helper a claim name stands for. `Pipeline(services=)`
+names it by the claim name, and its value (`Service`) is a function of the name that
+returns a context manager: entering it starts the service and gives its address, a
+string its tasks reach it by (None when there is nothing to reach); exiting it stops
+the service.
+
+::code{file="examples/services/flow.py" from="@contextlib.contextmanager" to="def topics("}
+
+::code{file="examples/services/flow.py" from="def pipeline("}
+
+A task that claims the name holds the service while it runs. The first such task
+starts it, before its first attempt; a task that claims the name while it starts
+waits for that start. Every task that claims the name shares the one service, as many
+at once as the name's claim capacity lets ("Claims", above), and the service runs
+until the run ends. A key may be an `fnmatch` pattern, as in `claim_capacity`: a
+service under `db:*` is started once for each name it matches (`db:alpha`, `db:beta`),
+and is given that name.
+
+A task reaches the service by its address. A Python task calls
+`contraagent.service_address(name)`; an agent task's coding agent finds it in the
+variable `CONTRAAGENT_SERVICE_<NAME>`, the name in capitals with each character but a
+letter or a digit turned into `_` (`db:alpha` gives `CONTRAAGENT_SERVICE_DB_ALPHA`):
+
+::code{file="examples/services/flow.py" from="@python_task(claims=" to="summarize = agent_task("}
+
+::code{file="examples/services/flow.py" from="review = agent_task(" to="class _Lookup("}
+
+The call file does not name the variable, so the role or the instructions do. For a
+service under a pattern, whose variable differs from unit to unit, the flow can pass
+the variable's name in the task's params.
+
+The run's end stops every service still running, the last started first: a run that
+returns, a run that raises, and a run stopped by Ctrl-C or SIGTERM. A process killed
+outright (SIGKILL) runs no stop.
+
+A start that raises fails the task that started it, and every task that claims the
+name later in the run, with stop `launch_failed` and the start's exception as the
+reason (`service 'index' did not start: OSError: ...`); the other tasks of the run
+still run. The start is not tried again in the run: a service whose start can fail
+for a moment retries inside its own start. A resumed run starts it again for the
+tasks that run again; a task the resume skips starts nothing. A stop that raises is
+recorded with its exception, and the service counts as stopped.
+
+`services.jsonl` records each start (the task that started it, its address, how long
+it took, or the exception) and each stop (why: `run_end` or `interrupted`),
+and the monitor shows each start of a service with its stop (`Plan.services`).
+`Pipeline.check` warns about a service that no task of the run claims, and fails
+a task that claims two services whose names give one variable.
+
+A service is a function, so it is not an argument of the command line: a pipeline
+with services is checked and run from a program, `Pipeline(config, services=...)`
+with `.check(...)` and `.run(...)` (the example's `pipeline()`; `examples/runner/run.py`
+is such a program). `contraagent check` and `contraagent run` know no service, and a
+Python task that calls `service_address` in such a run raises `KeyError`, which says
+that the pipeline defines no service of that name.
+
+A stub run and a replay start a service only for a task that really runs: a Python
+task whose function runs (a kind that `execute` matches), and an agent task that launches a coding agent (a task with no
+recording, under `record_missing`). A task they play holds no service: no service
+starts for it, and its launch has no `CONTRAAGENT_SERVICE_<NAME>` variable, so a
+stub's reply finds none. A scope ("Around each attempt", below) suits a helper of one
+attempt; a service suits one that the tasks of a claim share.
+
+## Concurrency: how many tasks run at once
+
+Every task of a run runs in a thread of the run's process. An agent task's thread
+waits on its coding agent's process, which mostly waits on a remote model; a Python
+task's thread calls its function. A task whose dependencies are done starts once
+three limits all have room, and the queue then starts the first such task in its
+order:
+
+- The run's slots: `Pipeline(max_concurrent=)`, 4 by default, is how many tasks run
+  at once. Every running task takes a slot, an agent task or a Python task alike.
+  Two `rate_limited` ends in a row halve the slots for `throttle_s`.
+- Its kind's limit: `max_concurrent` of an agent task kind, in `agent_task(...)` or
+  `[tasks.<kind>]`, is how many tasks of that kind run at once. A Python task kind
+  has no such limit, and a task table is not read for it.
+- Its claims: each name it claims has room under its claim capacity ("Claims",
+  above). Claims hold for agent tasks and Python tasks alike.
+
+A task that cannot start does not hold back the tasks after it: while a long
+computation waits for room on its claim, an agent task later in the order takes a
+free slot.
+
+A long computation in a Python task holds its slot for as long as it computes. With
+4 slots and nothing else to stop them, four such tasks keep every agent task
+waiting, although the agent tasks need little of this host. Give the computations
+a bound of their own with a claim: each of them claims one name, its claim capacity
+is how many compute at once, and `max_concurrent` is that number plus the agent
+tasks that should run beside them. The agent tasks then always have their slots,
+and take the others too while nothing computes.
+
+::code{file="examples/concurrency/flow.py" from="#: Two measurements" to="class Stats("}
+
+::code{file="examples/concurrency/flow.py" from="@python_task" to="summarize = agent_task("}
+
+::code{file="examples/concurrency/flow.py" from="def pipeline("}
+
+The capacity may instead be a share of the host, a `PerTask` (`{"local":
+PerTask(cores=1)}`): as many compute at once as the usable cores hold. Choose
+`max_concurrent` above the most that capacity gives, so that slots stay for the agent
+tasks. To keep the agent tasks themselves at a number (a provider's rate limit), every
+agent task kind claims one more name, with that number as its capacity; a kind's
+`max_concurrent` bounds one kind only.
+
+A Python task runs in this process, under its interpreter lock: while a function
+computes in pure Python, the other threads of the run, the queue's own included, run
+only in turns with it. A computation that takes long belongs in a child process
+(`subprocess.run`, `concurrent.futures.ProcessPoolExecutor`) or in a library that
+releases the lock while it computes; the task's thread then waits, as an agent task's
+does. The example's `measure` runs its computation in a child process.
+
+`run.json` records the run's slots (`max_workers`), and the monitor shows them beside
+the running tasks; the plan records each task's claims. `Pipeline.check` warns about a
+`[tasks.<kind>]` table that names a Python task kind, whose `max_concurrent` would
+bound nothing. `contraagent run` does not take `max_concurrent`: a program gives it
+("The flow", above), and `[defaults.claim_capacity]` gives the capacities.
+
 ## Files a task changes
 
 An agent task whose work is files in the working tree, beside its output,
@@ -423,6 +642,28 @@ that matches a directory covers everything under it. Each attempt's journal row
 then holds its changes (`created`, `modified`, `deleted`), and the files a
 failed attempt created (a timeout, a run of failed checks) are removed, with the
 directories it created for them (`removed`). A modified file is not restored.
+
+The files of a failed attempt can show why it failed: the notes of a long analysis
+that ran out of time, a draft that did not pass its checks. A kind declared with
+`keep_failed_changes=True` (or `keep_failed_changes = true` in its
+`[tasks.<kind>]` table, which outranks the declaration) leaves them in place, and
+its journal row lists them as `kept` in place of `removed`. The next attempt starts
+from the tree with them in it, as a resume does: it sees them as files that exist,
+so what it writes over them is `modified`, and a file it does not touch stays.
+Nothing tells the agent about them; a role that must start from a clean directory
+removes them itself, or the kind does not keep them. A kind that keeps them needs
+`changes` patterns: without any, the declaration raises, and `contraagent check`
+reports a task table that sets it.
+
+::code{file="examples/changes/flow.py" from="study = agent_task(" to="def pipeline("}
+
+A pattern that starts with `!` leaves out what it matches, and everything under a
+directory it matches, whatever the other patterns cover: `["**", "!.git/**",
+"!**/__pycache__"]` is every file of the working directory but the version control
+directory and the caches. The scan does not enter a directory left out this way, so a
+large one costs nothing. A list of `!` patterns alone covers nothing and raises where
+the task is declared. `.gitignore` is not read: the files a task writes are often
+ones it lists.
 
 A file is counted as the change of the attempt that was running when it changed.
 Two tasks that run at once under one pattern cannot be told apart: put `{unit}`
@@ -472,20 +713,26 @@ without a suffix. They write into the current run: in flow code, the run
 thread the queue runs it. Anywhere else they raise `NoCurrentRun`. A relay ships them
 to a hub with the rest of the run, and a panel reads them back wherever the monitor
 reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
-plays does not run, so it logs nothing; flow code runs as in any run.
+plays does not run, so it logs nothing (the kinds that `--execute` matches run and
+log); flow code runs as in any run.
 
 In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
 settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was
 started with (`contraagent run --config`, `Pipeline(config)`), as parsed. It is an
 empty table when the file has none, or the run has no config file
-([routing](routing.md)).
+([routing](routing.md)). While `contraagent check` (`Pipeline.check`) builds the
+flow, flow code reads the table of the config the check is given, the same table a
+run reads, so a flow may read its settings in its body. A check writes no run: what
+`log` and `save` write while it builds the flow goes into a temporary directory,
+which the check removes.
 
 ::code{file="examples/panels/records.py" from="@python_task" to="def words("}
 
 ## How a task ends
 
-A result's `stop` says why: `completed`, `partial` (a Python task's placeholder
-output, ok; a resume runs it again), `invalid_output` (still off-contract
+A result's `stop` says why: `completed`, `partial` (ok, part of the work: a Python
+task's placeholder output, or what an agent task wrote before its launch was
+stopped, its reason the launch's stop; a resume runs it again), `invalid_output` (still off-contract
 after every correction round), `invalid_input` (nothing launched), a budget
 (`timeout`, `max_turns`, `budget`), `rate_limited` with no hop left, and the
 rest of `contraagent.backends.Stop`, each with its meaning in its docstring.

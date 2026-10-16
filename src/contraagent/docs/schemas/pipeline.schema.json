@@ -582,6 +582,24 @@
           "description": "tools its launches may not use: \"WebFetch\", \"Bash(git push:*)\"",
           "title": "Disallowed Tools"
         },
+        "partial_on": {
+          "items": {
+            "enum": [
+              "timeout",
+              "stalled"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "description": "the stops after which a launch's output that passes every check is a partial result",
+          "title": "Partial On"
+        },
+        "keep_failed_changes": {
+          "type": "boolean",
+          "description": "leave the files a failed attempt created under the kind's `changes` patterns in place",
+          "title": "Keep Failed Changes"
+        },
         "max_turns": {
           "type": "integer",
           "title": "Max Turns"
@@ -651,6 +669,12 @@
             }
           ],
           "title": "Retry Backoff Base"
+        },
+        "max_corrections": {
+          "maximum": 20,
+          "minimum": 0,
+          "type": "integer",
+          "title": "Max Corrections"
         }
       },
       "title": "TaskTable",

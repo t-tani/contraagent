@@ -1,7 +1,7 @@
 """The facts a run records, one type each, used by every layer that writes or reads them.
 
 A task's result (`TaskResult`), the run's files (`journal.jsonl`, `plan.jsonl`,
-`flow_calls.jsonl`, `deferred.jsonl`, `rests.jsonl`) and the monitor's HTTP API all hold
+`flow_calls.jsonl`, `deferred.jsonl`, `rests.jsonl`, `services.jsonl`) and the monitor's HTTP API all hold
 these values; each is defined here once, as a pydantic model, so a file row and an API
 response are the same type. Values are frozen. Nothing here imports anything outside the
 standard library and pydantic.
@@ -16,6 +16,7 @@ standard library and pydantic.
   attempt passed over because of it, and a line of `rests.jsonl`.
 * `DeferralCause`: why a task was deferred, as data.
 * `TimeBoxRecord`: a flow call's time box as `flow_calls.jsonl` records it.
+* `ServiceEvent`: a service's start or stop, a line of `services.jsonl`.
 """
 
 from __future__ import annotations
@@ -67,7 +68,9 @@ class Frame(BaseModel):
 
 class Changes(BaseModel):
     """The files one attempt changed under its task's `changes` patterns, as paths relative
-    to the working directory: those it `created`, `modified` and `deleted`."""
+    to the working directory: those it `created`, `modified` and `deleted`. Of a failed
+    attempt's created files, `removed` lists those the runner removed, and `kept` those it
+    left in place because the kind keeps them (`keep_failed_changes`)."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
@@ -76,6 +79,9 @@ class Changes(BaseModel):
     deleted: tuple[str, ...] = ()
     #: The created files removed because the attempt failed.
     removed: tuple[str, ...] = ()
+    #: The created files left in place though the attempt failed: its kind keeps them
+    #: (`keep_failed_changes`).
+    kept: tuple[str, ...] = ()
 
 
 # --- hop ---------------------------------------------------------------------
@@ -372,3 +378,29 @@ class TimeBoxRecord(BaseModel):
     grace_s: float = Field(description="seconds past the deadline its `finishing_kinds` still launch")
     slack_s: float = Field(description="seconds before the deadline from which its tasks are ordered for it")
     finishing_kinds: tuple[str, ...] = Field(default=(), description="the kinds that still launch past the deadline")
+
+
+# --- service -----------------------------------------------------------------
+
+#: Why a service stopped: the run ended (`run_end`), or the run was stopped by a signal
+#: (`interrupted`).
+ServiceStopCause = Literal["run_end", "interrupted"]
+
+
+class ServiceEvent(BaseModel):
+    """One line of `services.jsonl`: the service a claim name stands for started (`event`
+    `start`) or stopped (`stop`). A start with an `error` did not start; a stop with an
+    `error` raised while it stopped, and the service counts as stopped."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
+
+    ts: str = Field(description="when the start or the stop ended (UTC ISO 8601)")
+    event: Literal["start", "stop"]
+    name: str = Field(description="the claim name the service stands for")
+    key: str | None = Field(default=None, description="`start`: the task whose claim started it")
+    address: str | None = Field(default=None, description="`start`: what the service gave its tasks to reach it; null for none")
+    cause: ServiceStopCause | None = Field(default=None, description="`stop`: why it stopped")
+    error: str | None = Field(
+        default=None, description="the exception of a start that failed or a stop that raised; null when it went well"
+    )
+    wall_s: float = Field(default=0.0, description="how long the start or the stop took, in seconds")

@@ -10,8 +10,8 @@ a deferral's cause) are the record types of `dispatch/records.py`.
 * `LaunchRow` — one line of `runs/<run>/launches.jsonl`: one launch, as
   `LaunchResult.as_dict` writes it.
 * `PlanRow`, `FlowCallRow`, `DeferredRow` — one line of `plan.jsonl`,
-  `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` (`dispatch/records.py`) is one
-  line of `rests.jsonl`.
+  `flow_calls.jsonl`, `deferred.jsonl`. `RestEvent` and `ServiceEvent`
+  (`dispatch/records.py`) are one line of `rests.jsonl` and of `services.jsonl`.
 * `RunInfo` — `runs/<run>/run.json`: who drives the run, which run it is, its run format.
 * `Cursor` — the resume cursor (`CursorStore`): where a run is, so a resume
   never guesses. `extra="forbid"` throughout, because a renamed field or a
@@ -90,6 +90,9 @@ class JournalRow(BaseModel):
     #: The errors of each round that failed its output checks, in order, cut at 5 each:
     #: each was sent back as the next round; after `invalid_output`, the last is what still stood.
     round_errors: list[list[str]] = Field(default_factory=list)
+    #: The correction rounds its kind allowed after the first (`max_corrections`); None
+    #: without an output contract, or in a run format before it was recorded.
+    max_corrections: int | None = None
     #: What the plugin's stop hook sent back within a launch, before the agent ended its turn
     #: (Claude Code), one list per objection, cut at 5 each: none of them took a correction round.
     hook_errors: list[list[str]] = Field(default_factory=list)
@@ -114,6 +117,12 @@ class JournalRow(BaseModel):
     context_warned: bool = False
     #: A digest of what defines the task's work (`Task.fingerprint`): what a resume compares.
     fingerprint: str = ""
+    #: The SHA-256 of the outside state its fingerprint covered when the attempt started
+    #: (`agent_task(outside_state=)`); empty for a task that declares none.
+    outside: str = ""
+    #: Why a resume ran the task again although an earlier attempt of the run had finished it
+    #: (its outside state changed, ...); empty when no earlier attempt had.
+    rerun: str = ""
     #: The flow call that created the task (`Origin.flow_call`); None for a task with no origin.
     flow_call: str | None = None
     #: The attempt was played from a recording (a replay), not launched or called: it spent nothing.
@@ -207,7 +216,8 @@ class LaunchRow(BaseModel):
 class PlanRow(BaseModel):
     """One line of `runs/<run>/plan.jsonl`: a task a queue accepted, with its dependencies
     and its origin. A task with no origin (built by hand) has an empty `flow` and
-    `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind."""
+    `created_from`, and `flow_call` null; `base_kind` is set only for an implementation kind,
+    `credential` only for a task whose call names one."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", serialize_by_alias=True)
 
@@ -218,6 +228,11 @@ class PlanRow(BaseModel):
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     after: list[str] = Field(default_factory=list, description="task keys it waits for")
     priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
+    credential: str = Field(
+        "",
+        description="the credential its task call names (`credential=`), which every route of its kind ran it as; "
+        "empty when it names none, or a run-wide override outranks it",
+    )
     executor: Executor = "agent"
     flow: list[Frame] = Field(default_factory=list, description="the flow path: frames of flow code that created it, outermost first")
     created_from: list[str] = Field(default_factory=list, description="keys whose results its flow call had received when it created it")
@@ -228,8 +243,9 @@ class PlanRow(BaseModel):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """The row as `plan.jsonl` records it: `base_kind` only when it is set."""
-        return self.model_dump(mode="json", exclude=None if self.base_kind else {"base_kind"})
+        """The row as `plan.jsonl` records it: `base_kind` and `credential` only when set."""
+        unset = {name for name in ("base_kind", "credential") if not getattr(self, name)}
+        return self.model_dump(mode="json", exclude=unset or None)
 
 
 class FlowCallRow(BaseModel):

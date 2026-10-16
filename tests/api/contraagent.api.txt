@@ -26,6 +26,7 @@ class AgentTask[Out]
         preserve: tuple[str, ...] = (),
         output_of: AgentTask[Any] | PythonTask[Any] | None = None,
         base_kind: str = '',
+        outside_state: OutsideState | None = None,
     ) -> None
     def __call__(
         self,
@@ -34,6 +35,7 @@ class AgentTask[Out]
         key: str | None = None,
         after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
+        credential: str | None = None,
         **params: Any,
     ) -> Pending[Out]
     base_kind: str = ''
@@ -53,6 +55,7 @@ class AgentTask[Out]
     output_name: str
     output_of: AgentTask[Any] | PythonTask[Any] | None = None
     @property output_schema: type[BaseModel] | None
+    outside_state: OutsideState | None = None
     params: type[BaseModel] | None
     plugin: Plugin | None
     @property plugins: tuple[Plugin, ...]
@@ -69,6 +72,7 @@ class AgentTask[Out]
 class Changes(BaseModel)
     created: tuple[str, ...] = ()
     deleted: tuple[str, ...] = ()
+    kept: tuple[str, ...] = ()
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     modified: tuple[str, ...] = ()
     removed: tuple[str, ...] = ()
@@ -166,6 +170,15 @@ class Loop(BaseModel)
     model_config: ConfigDict = ConfigDict(extra='forbid', frozen=True, serialize_by_alias=True)
     pass_: int | None = Field(validation_alias=AliasChoices('pass', 'pass_'), serialization_alias='pass', description='one iteration of this loop, numbered from 1 since the loop was last entered in that frame; null when not counted')
 
+class McpServers(Protocol)
+    def __call__(
+        self,
+        task: Task,
+        params: dict[str, Any],
+        servers: dict[str, dict[str, Any]],
+        /,
+    ) -> Mapping[str, Mapping[str, Any]] | None
+
 class NoCurrentRun(ContraagentError)
 
 @dataclass(frozen=True)
@@ -188,6 +201,9 @@ class OtherModel(BaseModel)
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     output: int = 0
     def plus(self, other: OtherModel) -> OtherModel
+
+class OutsideState(Protocol)
+    def __call__(self, unit: str, params: dict[str, Any], /) -> Any
 
 @dataclass(frozen=True)
 class Overrides
@@ -239,6 +255,7 @@ class Pipeline
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
+        mcp_servers: McpServers | None = None,
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
@@ -253,6 +270,7 @@ class Pipeline
         claim_capacity: Mapping[str, int | PerTask] | None = None,
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
+        services: Mapping[str, Service] | None = None,
     ) -> None
     backends: dict[str, Backend]
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport
@@ -264,6 +282,7 @@ class Pipeline
     log
     max_concurrent
     max_passes: int
+    mcp_servers: McpServers | None
     overrides
     preflight: PreflightPolicy
     queue_options: dict[str, Any]
@@ -283,6 +302,7 @@ class Pipeline
     ) -> RunReport
     runs_dir: Path
     scopes: tuple[TaskScope, ...]
+    services: dict[str, Service]
     stub
 
 @dataclass(frozen=True)
@@ -320,6 +340,7 @@ class PythonTask[Out]
         retries: int = 0,
         retry_on: tuple[type[Exception], ...] = (),
         output_name: str = DEFAULT_OUTPUT_NAME,
+        outside_state: OutsideState | None = None,
     ) -> None
     def __call__(
         self,
@@ -342,6 +363,7 @@ class PythonTask[Out]
     output_format = 'json'
     output_name: str = DEFAULT_OUTPUT_NAME
     output_schema: type[BaseModel] | None
+    outside_state: OutsideState | None = None
     rerun_on_resume: bool = False
     retries: int = 0
     retry_on: tuple[type[Exception], ...] = ()
@@ -352,6 +374,23 @@ class QuotaRule(Protocol)
 
 class RecordingError(ContraagentError)
 
+@dataclass(frozen=True)
+class RecordingImport
+    def __init__(
+        self,
+        run_dir: Path,
+        directory: Path,
+        imported: tuple[str, ...] = (),
+        unfinished: Mapping[str, str] = dict(),
+        not_imported: Mapping[str, str] = dict(),
+    ) -> None
+    directory: Path
+    imported: tuple[str, ...] = ()
+    not_imported: Mapping[str, str] = field(default_factory=dict)
+    @property ok: bool
+    run_dir: Path
+    unfinished: Mapping[str, str] = field(default_factory=dict)
+
 class ResultEnricher(Protocol)
     def enrich(self, task: Task, before: Any, result: TaskResult) -> TaskResult | None
     def snapshot(self, task: Task) -> Any
@@ -359,6 +398,8 @@ class ResultEnricher(Protocol)
 class RoutingError(ContraagentError, ValueError)
     def __init__(self, *errors: str) -> None
     errors: list[str]
+
+class Rows[Row: BaseModel](list[Row])
 
 class RunExists(ContraagentError)
     def __init__(self, run_dir: Path, rows: int)
@@ -391,6 +432,9 @@ class RunReport
     summary: dict[str, Any] = field(default_factory=dict)
     value: Any = None
 
+class Service(Protocol)
+    def __call__(self, name: str, /) -> AbstractContextManager[str | None]
+
 class SkippedHop(Rest)
     model: str = ''
     route: str = ''
@@ -417,20 +461,26 @@ class Task
         origin: Origin | None = None,
         fingerprint: str = '',
         base_kind: str = '',
+        fingerprint_at_start: bool = False,
+        outside: str = '',
+        credential: str = '',
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
     base_kind: str = ''
     claims: tuple[str, ...] = ()
+    credential: str = ''
     @property declared_unit: str
     estimate_s: float | None = None
     @property executor: Executor
     fingerprint: str = ''
+    fingerprint_at_start: bool = False
     fn: Callable[[], object] | None = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     key: str = ''
     kind: str
     origin: Origin | None = None
+    outside: str = ''
     params: dict[str, Any] = field(default_factory=dict)
     payload: Any = None
     priority: float = 0.0
@@ -469,6 +519,7 @@ class TaskResult
         retryable: bool = True,
         replayed: bool = False,
         payload: Any = None,
+        max_corrections: int | None = None,
     ) -> None
     cause: DeferralCause | None = None
     changes: Changes | None = None
@@ -480,6 +531,7 @@ class TaskResult
     @classmethod
     def launch_failed(cls, task: Task, reason: str) -> TaskResult
     launch_result: Any = None
+    max_corrections: int | None = None
     notes: dict[str, Any] = field(default_factory=dict)
     ok: bool
     payload: Any = None
@@ -559,6 +611,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -576,6 +629,9 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out]
 @overload
 def agent_task(
@@ -599,6 +655,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -616,6 +673,9 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> Mapping[str, AgentTask[Out]]
 def agent_task(
     kind: str,
@@ -638,6 +698,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -655,9 +716,21 @@ def agent_task(
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal['timeout', 'stalled']] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]
 
+def import_recording(
+    run_dir: str | Path,
+    directory: str | Path,
+    *,
+    record_max_file_mb: float = MAX_FILE_MB,
+) -> RecordingImport
+
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
+
+def max_passes(n: int, /) -> Callable[[F], F]
 
 def pipeline_table(name: str) -> dict[str, Any]
 
@@ -673,6 +746,7 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]
 def python_task(
     fn: Callable[..., Any] | None = None,
@@ -685,9 +759,12 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]
 
 def save(name: str, value: Any) -> None
+
+def service_address(name: str) -> str | None
 
 def time_box(
     flow: Generator[Y, S, R],
@@ -764,6 +841,9 @@ class KindConfig
         light: bool = False,
         retries: int = 2,
         retry_backoff_base: float = 2.0,
+        partial_on: tuple[str, ...] = (),
+        keep_failed_changes: bool = False,
+        max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -774,14 +854,18 @@ class KindConfig
     disallowed_tools: tuple[str, ...] = ()
     effort: str | None = None
     exclude_dynamic_sections: bool = False
+    keep_failed_changes: bool = False
     light: bool = False
     def limits(self) -> Limits
     max_budget_usd: float | None = None
     max_concurrent: int | None = None
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS
     max_denials: int | None = None
     max_turns: int = 50
     model: str = ''
     model_failover: bool = False
+    partial_on: tuple[str, ...] = ()
+    @property partial_stops: frozenset[Stop]
     requires: tuple[str, ...] = ()
     retries: int = 2
     retry_backoff_base: float = 2.0
@@ -976,7 +1060,7 @@ class CallFile(BaseModel)
 
 class CallOutput(BaseModel)
     commands: list[dict[str, Any]] = Field(default_factory=list)
-    format: Literal['json', 'text'] = 'json'
+    format: Literal['json', 'text', 'jsonl'] = 'json'
     from_: Literal['file', 'message'] = Field('file', validation_alias=AliasChoices('from', 'from_'), serialization_alias='from')
     json_schema: dict[str, Any] = Field(default_factory=dict)
     model_config: ConfigDict = ConfigDict(extra='forbid', serialize_by_alias=True)
@@ -1360,10 +1444,13 @@ class OmpBackend(Backend)
     plaintext_stream = True
     def read_models(self) -> dict[str, int | None] | None
     signals: Signals = omp_wire.SIGNALS
+    stop_hooks_file: str | None = HOOKS_FILE
     thinking: str = thinking
+    @classmethod
+    def tool_deny_problem(cls, denied: tuple[str, ...]) -> str | None
     trace: bool = trace
     def usage_reading(self, launch: Launch) -> QuotaReading | None
-    watched_limits: frozenset[str] = frozenset({'max_budget_usd'})
+    watched_limits: frozenset[str] = frozenset({'max_budget_usd', 'max_turns'})
     wire: ModuleType | None = omp_wire
 
 class OmpRpcBackend(OmpBackend)
@@ -1897,6 +1984,7 @@ class Router
     max_probe_interval_s
     def next_route_after(self, route: Route) -> Route | None
     def now(self) -> float
+    def on_credential(self, credential: str) -> Router
     def other_agents_after(self, route: Route) -> list[Route]
     def pick(self) -> Route | None
     primary
@@ -1933,6 +2021,7 @@ class RoutingPlan
         budgets_required: bool = True,
         all_kinds: bool = True,
     ) -> RoutingPlan
+    def call_problems(self, kind: str, credential: str) -> list[str]
     config: PipelineConfig
     configs: dict[str, KindConfig] = field(default_factory=dict)
     credentials: dict[str, Credential] = field(default_factory=dict)
@@ -2138,7 +2227,7 @@ def run_until_valid(
     backend: Backend,
     launch: Launch,
     contracts: Sequence[OutputContract],
-    max_resumes: int = DEFAULT_MAX_RESUMES,
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS,
 ) -> LaunchResult
 
 ## contraagent.plugins
@@ -2173,18 +2262,37 @@ def new_plugin(directory: str | Path, name: str = '') -> list[Path]
 ## contraagent.monitor
 
 class BlocksBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     blocks: list[PanelBody]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['blocks'] = 'blocks'
 
+CODE_CHARACTERS = 500000
+
+CODE_LINES = 5000
+
 class ChartSeries(Closed)
     model_config: ConfigDict = ConfigDict(extra='forbid')
     name: str
     values: list[float | None]
 
+class CodeBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
+    collapsed: bool = Field(default=False, description='shown folded, under its title')
+    highlight: list[int | tuple[int, int]] = Field(default_factory=list, description='lines marked: a line, or a range, both ends included')
+    language: str = Field(default='', description="a name of `LANGUAGES` or a file extension; '': plain text")
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    path: str | None = Field(default=None, description='the file the text is, named over it')
+    start: int = Field(default=1, ge=0, description='the number of the first line')
+    text: str
+    title: str | None = Field(default=None, description='a heading over the body')
+    type: Literal['code'] = 'code'
+    wrap: bool = Field(default=False, description='long lines wrap; otherwise they scroll sideways')
+
 class ColumnsBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     series: list[ChartSeries]
@@ -2253,6 +2361,7 @@ class HBar(Closed)
     value: float
 
 class HBarsBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     bars: list[HBar]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2261,6 +2370,7 @@ class HBarsBody(_Body)
     unit: ValueFormat | None = None
 
 class HeatmapBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     title: str | None = Field(default=None, description='a heading over the body')
@@ -2270,7 +2380,10 @@ class HeatmapBody(_Body)
     x: list[str]
     y: list[str]
 
+LANGUAGES = ('python', 'json', 'javascript', 'typescript', 'c', 'cpp', 'java', 'go', 'rust', 'shell', 'toml', 'yaml', 'sql', 'xml', 'diff')
+
 class LinesBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     series: list[ChartSeries]
@@ -2355,6 +2468,7 @@ class Monitor
     async def wait_stream(self, run: str, key: str, beyond: int, timeout: float) -> int
 
 class NoteBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     text: str
@@ -2362,7 +2476,7 @@ class NoteBody(_Body)
     tone: Tone | None = None
     type: Literal['note'] = 'note'
 
-PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'blocks')
+PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'blocks')
 
 @dataclass
 class Panel
@@ -2384,7 +2498,7 @@ class Panel
     tab: str = ''
     title: str = ''
 
-PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
+PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[CodeBody, Tag('code')] | Annotated[TreeBody, Tag('tree')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
 
 class PanelFn(Protocol)
     def __call__(self, run: RunRecords, /) -> PanelBody | BaseModel | Mapping[str, Any]
@@ -2484,6 +2598,7 @@ class Stat(NamedTuple)
     size: int
 
 class StatusGridBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     cells: list[list[GridCell | None]]
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2493,6 +2608,7 @@ class StatusGridBody(_Body)
     y: list[str]
 
 class TableBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     columns: list[TableColumn]
     model_config: ConfigDict = ConfigDict(extra='forbid')
@@ -2514,11 +2630,40 @@ class TaskDetailFn(Protocol)
     def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None
 
 class TilesBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     collapsed: bool = Field(default=False, description='shown folded, under its title')
     model_config: ConfigDict = ConfigDict(extra='forbid')
     tiles: list[PanelTile]
     title: str | None = Field(default=None, description='a heading over the body')
     type: Literal['tiles'] = 'tiles'
+
+class TreeBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
+    collapsed: bool = Field(default=False, description='shown folded, under its title')
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    nodes: list[TreeNode]
+    selected: str | None = None
+    title: str | None = Field(default=None, description='a heading over the body')
+    type: Literal['tree'] = 'tree'
+
+class TreeLink(Closed)
+    anchor: str | None = Field(default=None, min_length=1)
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    panel: str | None = Field(default=None, min_length=1)
+    run: str | None = Field(default=None, min_length=1, description='the run of `panel` or `task`; a trends panel names it')
+    task: str | None = Field(default=None, min_length=1, description="a task's key")
+
+class TreeNode(Closed)
+    badge: str | None = None
+    children: list[TreeNode] = Field(default_factory=list)
+    code: CodeBody | None = None
+    icon: Literal['file', 'directory'] | None = None
+    id: str | None = Field(default=None, min_length=1)
+    link: TreeLink | None = None
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    name: str = Field(min_length=1)
+    open: bool = True
+    tone: Tone | None = None
 
 class TrendsPanelFn(Protocol)
     def __call__(self, runs: PeriodRuns, period: Period, /) -> PanelBody | BaseModel | Mapping[str, Any]
@@ -2529,6 +2674,7 @@ def create_app(
     allowed_hosts: Iterable[str] = (),
     cors_origins: Iterable[str] = (),
     docs: bool = False,
+    base_path: str = '',
 ) -> FastAPI
 
 def export(
@@ -2552,11 +2698,12 @@ def serve(
     allowed_hosts: Iterable[str] = (),
     cors_origins: Iterable[str] = (),
     docs: bool = False,
+    base_path: str = '',
 ) -> None
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.4.0'
+API_VERSION = '3.5.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
@@ -2602,6 +2749,7 @@ class ContractSpec(Open)
     errors: list[str] = Field(default_factory=list)
     fields: list[ContractField]
     file: FileView
+    format: Literal['json', 'text', 'jsonl'] | None = Field(None, description='what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)')
     fresh: bool | None = None
     io: Literal['output', 'input']
     model_config: ConfigDict = ConfigDict(extra='allow')
@@ -2740,12 +2888,15 @@ class JournalRow(BaseModel)
     hops: list[Hop] = Field(default_factory=list)
     key: str
     kind: str
+    max_corrections: int | None = None
     model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
+    outside: str = ''
     quota: list[QuotaReading] = Field(default_factory=list)
     reason: str = ''
     replayed: bool = False
+    rerun: str = ''
     round_errors: list[list[str]] = Field(default_factory=list)
     rounds: int | None = None
     route: str = ''
@@ -2857,6 +3008,7 @@ class Plan(Closed)
     quota_caps: list[QuotaCap] = Field(default_factory=list, description="the run's credentials that have quota caps (`run.json`)")
     quota_rule: str = Field('', description="`module.qualname` of the run's quota rule (`Pipeline(quota_rule=)`); empty for none")
     rests: list[CredentialRest] = Field(default_factory=list, description='each rest of a credential in the run (`rests.jsonl`), in start order')
+    services: list[ServiceSpan] = Field(default_factory=list, description='each start of a service of the run (`services.jsonl`), with its stop, in start order')
 
 class PlanGroup(Closed)
     blocked: int
@@ -2882,6 +3034,7 @@ class PlanNode(PlanRow)
     base_kind: str = Field('', description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty")
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     created_from: list[str] = Field(default_factory=list, description='keys whose results its flow call had received when it created it')
+    credential: str = Field('', description='the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
     deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
     deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
     executor: Executor = 'agent'
@@ -2893,6 +3046,7 @@ class PlanNode(PlanRow)
     level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
     model_config: ConfigDict = ConfigDict(extra='allow', serialize_by_alias=True)
     priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
+    rerun: str = Field('', description='why a resume ran it again although an earlier attempt of the run had finished it (its outside state changed, ...), from its last journal row; empty when no earlier attempt had')
     route: str = ''
     state: TaskState
     stop: str = ''
@@ -2983,6 +3137,18 @@ class RunSummary(Closed)
     tokens: TokenUsage = Field(description='tokens of every attempt, summed')
     unresponsive: bool = Field(False, description='its host last reported it alive and has stopped reporting (a hub only)')
     wall_s: int = Field(description="sum of the rows' wall time, rounded to seconds")
+
+class ServiceSpan(Closed)
+    address: str | None = Field(None, description='what it gave its tasks to reach it; null for none')
+    key: str = Field('', description='the task whose claim started it')
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    name: str = Field(description='the claim name the service stands for')
+    start_error: str = Field('', description='the exception of a start that failed (the service did not start); empty when it started')
+    start_s: float = Field(0.0, description='how long its start took, in seconds')
+    started_at: str = Field(description='when its start ended, ISO 8601')
+    stop_cause: ServiceStopCause | None = Field(None, description='why it stopped; null while it is up')
+    stop_error: str = Field('', description='the exception its stop raised; empty when the stop went well')
+    stopped_at: str = Field('', description='when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded')
 
 class StageEntry(Closed)
     at: str
@@ -3313,6 +3479,8 @@ class StubAgent(Backend)
         unit: str,
         params: dict[str, Any],
         json_schema: dict[str, Any] | None,
+        *,
+        rows: bool = False,
     ) -> tuple[bool, Any]
     played: list[StubTask]
     def plays(self, kind: str) -> bool
@@ -3372,6 +3540,7 @@ def rate_limited(retry_after_s: float | None = None) -> Reply
 def writes(
     value: Any,
     *,
+    stop: Stop = Stop.COMPLETED,
     cost_usd: float | None = None,
     quota: QuotaReading | None = None,
     peak_context: int | None = None,

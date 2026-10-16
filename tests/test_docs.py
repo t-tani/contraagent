@@ -110,7 +110,7 @@ def test_the_pointer_names_the_commands_it_points_to(capsys):
 def test_check_errors_name_topics_that_exist():
     report = CheckReport()
     report.add("routing", ["routing: x"])
-    assert "read: `contraagent docs routing`" in str(report)
+    assert "read: (contraagent docs routing)" in str(report)
     names = {t.name for t in docs.topics()}
     source = (docs.DIR.parent / "_internal" / "pipeline" / "check.py").read_text(encoding="utf-8")
     assert set(re.findall(r'\.add\("(\w+)"', source)) <= names
@@ -181,6 +181,33 @@ def test_a_refusal_moves_only_that_task_along_the_security_chain(tmp_path):
     ]
     assert rows["audit-exploit"]["stop"] == "refused" and not report.results["audit-exploit"].ok
     assert [launch.model for launch in agent.launches_of("audit-auth")] == ["claude-opus-5-5"]
+
+
+def test_the_credentials_example_runs_the_restricted_document_as_its_call_s_credential(tmp_path, capsys):
+    """The routing topic's example: the document in `RESTRICTED` runs as `company` on the
+    primary and, after a 429, on the failover hop; the other runs as the kind's `team`."""
+    from contraagent import Pipeline
+    from contraagent.docs.examples.credentials import flow
+    from contraagent.testing import StubAgent, rate_limited
+
+    path, config = EXAMPLES / "credentials" / "flow.py", EXAMPLES / "credentials" / "pipeline.toml"
+    assert (
+        main(["check", f"{path}:summarize_all", "--config", str(config), "--stub", "--kwargs", '{"documents": ["plan", "contract"]}']) == 0
+    )
+    assert "summarize: claude/claude-opus-5-5" in capsys.readouterr().out
+    summary = {"text": "a summary"}
+    agent = StubAgent(
+        {"summarize-contract": lambda launch: rate_limited() if launch.model == "claude-opus-5-5" else summary, "summarize": summary}
+    )
+    pipeline = Pipeline(config, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
+    report = pipeline.run(flow.summarize_all, documents=["plan", "contract"])
+    assert report.ok, report.failed
+    rows = {r["key"]: r for r in map(json.loads, (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines())}
+    assert [(h["model"], h["credential"]) for h in rows["summarize-contract"]["hops"]] == [
+        ("claude-opus-5-5", "company"),
+        ("claude-sonnet-5-5", "company"),
+    ]
+    assert [(h["model"], h["credential"]) for h in rows["summarize-plan"]["hops"]] == [("claude-opus-5-5", "team")]
 
 
 def test_the_demo_plugin_is_clean():
@@ -258,6 +285,29 @@ def test_the_tutorial_commands_print_what_the_page_shows(tmp_path):
         assert proc.returncode == 0, proc.stdout + proc.stderr
         shown = [line for line in proc.stdout.splitlines() if line.startswith(("✓ 4 tasks", "  triage", "  write_table"))]
         assert shown and all(line in page for line in shown), shown
+
+
+def test_the_import_commands_replay_the_demo_as_the_testing_page_shows(tmp_path):
+    """The testing page's import: a stub run of the demo, imported, then replayed."""
+    page = docs.text("testing")
+    units = '{"units": ["alpha"]}'
+    demo = f"{(EXAMPLES / 'demo').as_posix()}/tasks.py:docs"
+    commands = [
+        (f"""contraagent run "$demo/tasks.py:docs" --stub --kwargs '{units}'""", ["run", demo, "--stub", "--kwargs", units]),
+        ("contraagent recording import runs/docs-stub recordings/", ["recording", "import", "runs/docs-stub", "recordings/"]),
+        (
+            f"""contraagent run "$demo/tasks.py:docs" --replay recordings/ --kwargs '{units}'""",
+            ["run", demo, "--replay", "recordings/", "--kwargs", units],
+        ),
+    ]
+    for line, argv in commands:
+        assert line in page
+        proc = subprocess.run([sys.executable, "-m", "contraagent", *argv], cwd=tmp_path, capture_output=True, text=True, encoding="utf-8")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        if argv[0] == "recording":
+            assert proc.stdout.strip() in page
+    rows = [json.loads(line) for line in (tmp_path / "runs" / "docs-replay" / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 6 and all(r["replayed"] and not r["reason"] for r in rows)
 
 
 def test_every_page_of_every_package_expands(tmp_path):

@@ -144,7 +144,8 @@ files (`CLAUDE.md`, `AGENTS.md`), skills, hooks and MCP servers are excluded, an
 are the conversations of other tasks.
 
 The agent writes the output file, and contraagent checks it against the pydantic
-model and the validators. When a check fails, the errors go to the same agent
+model and the validators. An output can also be rows, a JSON Lines file that the
+agent adds to as it works, checked line by line. When a check fails, the errors go to the same agent
 session, and the agent corrects the file in a correction round, up to a set number
 of rounds. A `CommandValidator` also runs in the agent's own stop hook, so the agent
 fixes the file before its turn ends. The flow receives the file as a typed object
@@ -155,7 +156,8 @@ a task moves along its kind's `fallbacks` to another model, coding agent or
 credential (the account that the agent's API calls are billed to). Caps on a
 subscription's 5-hour and weekly usage pause a credential until its usage window
 resets. Work that cannot finish before the run's deadline is deferred, with its
-cause recorded. `contraagent run --resume` runs a task again only when its
+cause recorded. A kind can keep what a launch stopped for its time had written, as a
+partial result, when that passes its checks. `contraagent run --resume` runs a task again only when its
 parameters, its definition or the outputs it received have changed.
 
 ## Why contraagent
@@ -181,8 +183,9 @@ and adds what a pipeline of them needs.
   every route before the first launch.
 - A function that the flow calls can have its own deadline (`time_box`), and a
   deferred task is not a failure. Tasks that share a resource can claim its name
-  (`claims`) so that they run one at a time. Each kind also has its own limit of
-  tasks that run at once.
+  (`claims`) so that they run one at a time. A claim name can also stand for a
+  service, such as a local server, that the first task to claim it starts and the
+  run's end stops. Each kind also has its own limit of tasks that run at once.
 - A task whose input is missing does not start, and its recorded cause names the
   earlier task. On resume, a task's `fingerprint`, a digest of its parameters, its
   definition and the outputs it received, decides whether it runs again.
@@ -221,7 +224,8 @@ recordings in place of the coding agent, with nothing spent. In pytest,
 `contraagent.testing.StubAgent` plays scripted replies. With several hosts,
 `contraagent relay` on each host sends its runs to a
 [hub](src/contraagent/docs/hub.md) (`contraagent hub`), which serves one monitor for
-all of them.
+all of them. With `--base-path`, the monitor and the hub work behind a reverse proxy
+that serves them under a path of a site.
 
 ## For security engineers
 
@@ -231,10 +235,10 @@ defines:
 | Given to the task's session | Kept out |
 |---|---|
 | The task's role: its instructions | The user's and the project's settings |
-| The task's plugin: skills, hooks, MCP servers, permissions | Instruction files (`CLAUDE.md`, `AGENTS.md`) |
+| The task's plugin: skills, hooks, MCP servers, permissions; or MCP servers the pipeline builds for the task | Instruction files (`CLAUDE.md`, `AGENTS.md`) |
 | The call file: the parameters and the output contract | The user's skills, hooks and MCP servers |
 | The working directory | The sessions of other tasks |
-| One credential | The host's credential variables, for any credential but `ambient` |
+| One credential: its kind's, or the one its task call names | The host's credential variables, for any credential but `ambient` |
 | The coding agent's built-in tools | |
 
 With only the task's purpose in its context, a model's safeguards are less likely to
@@ -366,10 +370,10 @@ This repository holds four packages, and each has its own documentation.
 | `@contraagent/api` (npm) | the typed client for the monitor's API | [web/packages/api/](web/packages/api/README.md) |
 
 [The documentation site](https://t-tani.github.io/contraagent/) renders all four, and `pnpm run docs` in `web/`
-serves it from this checkout. The npm
-packages are not published to the npm registry. `pnpm tarballs` in `web/` packs them
-so that you can install them from this checkout, and `pnpm --dir web screenshots`
-makes the screenshots in this README.
+serves it from this checkout. The npm packages are in the npm registry
+(`npm install @contraagent/ui`). `pnpm tarballs` in `web/` packs the version of this
+checkout to install instead, and `pnpm --dir web screenshots` makes the screenshots in
+this README.
 
 [AGENTS.md](AGENTS.md) is for work on contraagent itself, and
 [CHANGELOG.md](CHANGELOG.md) lists the changes. contraagent is MIT licensed.

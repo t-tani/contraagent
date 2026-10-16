@@ -91,6 +91,33 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it("says an agent task's partial result in the words of the stop its launch ended on", async () => {
+    const stopped: TaskDetail = {
+      ...emptyDetail('scan-a'),
+      rows: [row('scan-a', { stop: 'partial', ok: true, reason: 'timeout' })],
+      io: {
+        ...review.io,
+        outputs: [
+          spec('/r/out/scan/a.jsonl', {
+            format: 'jsonl', schema_name: 'Rows[Finding]',
+            fields: [{ name: 'line', type: 'integer', required: true }],
+            file: { exists: true, content: [{ line: 1 }, { line: 2 }], size: 24, truncated: false },
+          }),
+        ],
+      },
+    };
+    const { client } = fakeClient({ 'scan-a': stopped });
+    const el = await view({ client, taskKey: 'scan-a' });
+    expect(text(root(el).querySelector('.verdict'))).toBe('Partly done: timed out');
+    el.view = 'output';
+    await el.updateComplete;
+    await settle();
+    const pane = text(root(el).querySelector('.pane'));
+    expect(pane).toContain('JSON Lines, one object of schema Finding per line');
+    expect(pane).toContain('2 rows');
+    el.remove();
+  });
+
   it('lists the files each attempt changed, and a failed attempt\'s removed ones', async () => {
     const changed: TaskDetail = {
       ...emptyDetail('write-a'),
@@ -112,6 +139,18 @@ describe('ca-task-view', () => {
       'Attempt 2 | t/a/old.md | modified',
       'Attempt 2 | t/a/gone.md | deleted',
     ]);
+    el.remove();
+  });
+
+  it("names a failed attempt's files that its kind kept", async () => {
+    const kept: TaskDetail = {
+      ...emptyDetail('write-a'),
+      rows: [row('write-a', { stop: 'timeout', ok: false, attempt: 0, changes: { created: ['t/a/x.md'], modified: [], deleted: [], removed: [], kept: ['t/a/x.md'] } })],
+    };
+    const { client } = fakeClient({ 'write-a': kept });
+    const el = await view({ client, taskKey: 'write-a' });
+    const fold = [...root(el).querySelectorAll('details.io-fold')].find((d) => text(d.querySelector('summary')) === '1 changed file');
+    expect([...fold!.querySelectorAll('li')].map(text)).toEqual(['t/a/x.md | created, kept after the failed attempt']);
     el.remove();
   });
 

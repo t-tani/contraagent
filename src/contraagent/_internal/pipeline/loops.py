@@ -21,6 +21,11 @@ smaller line of its target and of its back jumps, which is its `while` line on
 every Python version. Targets on one line are one loop. `is_while(file, line)`
 says which loops are `while` loops: `max_passes` bounds those only.
 
+**Bounds** (`max_passes(n)`, a decorator). A generator function of flow code may
+carry its own bound: `n` passes for each `while` loop of its code, in every call of
+it, in place of the run's `max_passes`. `bound(file, line)` is a loop's own bound, or
+None for the run's.
+
 **Runtime part** (`LoopCounter`, `counting`). A `sys.monitoring` tool (the
 first free id of 3 and 4, named `contraagent`) receives the `JUMP` events of
 the process while a counter is active. A jump that is not a backward jump to a
@@ -49,6 +54,7 @@ from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from types import CodeType, FrameType
+from typing import Any
 
 from contraagent._internal.dispatch.records import Loop
 from contraagent._internal.pipeline.origin import flow_code
@@ -85,12 +91,49 @@ class _Code:
 _NONE = _Code()
 _codes: dict[CodeType, _Code] = {}
 _whiles: set[tuple[str, int]] = set()  # (file, line) of each `while` loop of the code analysed
+_bounds: dict[tuple[str, int], int] = {}  # (file, line) of a `while` loop -> its function's `max_passes(n)`
 
 
 def is_while(file: str, line: int) -> bool:
     """Whether the loop of flow code at `file:line` is a `while` loop (`max_passes` bounds
     these; a `for` loop ends with its iterable)."""
     return (file, line) in _whiles
+
+
+def bound(file: str, line: int) -> int | None:
+    """The passes the `while` loop at `file:line` may make, when its function carries
+    `max_passes(n)`; None: the run's `max_passes`."""
+    return _bounds.get((file, line))
+
+
+def max_passes[F: Callable[..., Any]](n: int, /) -> Callable[[F], F]:
+    """A decorator: each `while` loop of the generator function it decorates may make `n`
+    passes, in every call of it, in place of the run's `max_passes` (`Pipeline(max_passes=)`,
+    `[defaults] max_passes`). A task call, or a `yield` of a child flow call, in a later pass
+    raises `TooManyPasses`. It returns the function itself, so a flow stays a plain function.
+    Loops with different bounds go in functions of their own (`yield from` runs one in the
+    same flow call). An `n` that is not a positive integer raises ValueError; a function that
+    is not a generator function, or has no `while` loop (a `for` loop ends with its iterable),
+    raises TypeError."""
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"max_passes({n!r}): the passes of a `while` loop are a positive integer")
+
+    def bounded(fn: F) -> F:
+        code = getattr(fn, "__code__", None)
+        name = getattr(fn, "__qualname__", repr(fn))
+        if not isinstance(code, CodeType) or not code.co_flags & inspect.CO_GENERATOR:
+            raise TypeError(f"@max_passes({n}) on {name}: only the loops of a generator function are counted {_TOPIC}")
+        info = loops_of(code) if flow_code(code.co_filename) else _analyse(code)
+        whiles = [loop.line for loop in info.loops.values() if loop.while_]
+        if not whiles:
+            raise TypeError(f"@max_passes({n}) on {name}: it has no `while` loop to bound; a `for` loop ends with its iterable {_TOPIC}")
+        _bounds.update({(code.co_filename, line): n for line in whiles})
+        return fn
+
+    return bounded
+
+
+_TOPIC = "(contraagent docs tasks, Loops and passes)"
 
 
 def loops_of(code: CodeType) -> _Code:

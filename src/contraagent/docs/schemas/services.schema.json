@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "One line of `services.jsonl` in a run directory of run format 1.",
+  "additionalProperties": true,
+  "description": "One line of `services.jsonl`: the service a claim name stands for started (`event`\n`start`) or stopped (`stop`). A start with an `error` did not start; a stop with an\n`error` raised while it stopped, and the service counts as stopped.",
+  "properties": {
+    "ts": {
+      "description": "when the start or the stop ended (UTC ISO 8601)",
+      "title": "Ts",
+      "type": "string"
+    },
+    "event": {
+      "enum": [
+        "start",
+        "stop"
+      ],
+      "title": "Event",
+      "type": "string"
+    },
+    "name": {
+      "description": "the claim name the service stands for",
+      "title": "Name",
+      "type": "string"
+    },
+    "key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "`start`: the task whose claim started it",
+      "title": "Key"
+    },
+    "address": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "`start`: what the service gave its tasks to reach it; null for none",
+      "title": "Address"
+    },
+    "cause": {
+      "anyOf": [
+        {
+          "enum": [
+            "run_end",
+            "interrupted"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "`stop`: why it stopped",
+      "title": "Cause"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the exception of a start that failed or a stop that raised; null when it went well",
+      "title": "Error"
+    },
+    "wall_s": {
+      "default": 0.0,
+      "description": "how long the start or the stop took, in seconds",
+      "title": "Wall S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "ts",
+    "event",
+    "name"
+  ],
+  "title": "ServiceEvent",
+  "type": "object"
+}

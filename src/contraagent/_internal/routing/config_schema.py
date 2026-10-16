@@ -3,22 +3,24 @@
 
 `PipelineConfig` reads the file itself, with messages that name the table and the key;
 these models state the same tables and keys (`TABLES`, `DEFAULTS_KEYS`,
-`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, the credential types), so an editor or a CI step
+`TASK_ROUTING_KEYS`, `TASK_TABLE_KEYS`, `TASK_ATTEMPT_KEYS`, the credential types), so an editor or a CI step
 can check a file with no contraagent installed.
 """
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, TypeAdapter, create_model
 
 from contraagent._internal.backends.credentials import AnyCredential
-from contraagent._internal.routing.kind_config import TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, TASK_TABLE_KEYS
 from contraagent._internal.routing.preflight import PreflightPolicy
 
 #: A `context_warn_pct`: a whole percent from 1 to 99.
 WarnPct = Annotated[StrictInt, Field(ge=1, le=99)]
+#: A `max_corrections`: correction rounds after the first launch.
+Corrections = Annotated[StrictInt, Field(ge=0, le=MAX_CORRECTIONS_LIMIT)]
 
 
 class _Table(BaseModel):
@@ -71,10 +73,19 @@ def _budget(want: type | tuple[type, ...]) -> Any:
 
 class _TaskRouting(_Routing):
     disallowed_tools: list[str] | None = Field(None, description='tools its launches may not use: "WebFetch", "Bash(git push:*)"')
+    partial_on: list[Literal["timeout", "stalled"]] | None = Field(
+        None,
+        min_length=1,
+        description="the stops after which a launch's output that passes every check is a partial result",
+    )
+    keep_failed_changes: StrictBool | None = Field(
+        None, description="leave the files a failed attempt created under the kind's `changes` patterns in place"
+    )
 
 
 _TASK_FIELDS: dict[str, Any] = {key: (_budget(want), None) for key, want in TASK_TABLE_KEYS.items()}
 _TASK_FIELDS["context_warn_pct"] = (Union[WarnPct, None], None)  # noqa: UP007
+_TASK_FIELDS["max_corrections"] = (Union[Corrections, None], None)  # noqa: UP007
 
 #: `[tasks.<kind>]`, a task table: one kind's routing and budgets.
 TaskTable: type[BaseModel] = create_model(  # pyright: ignore[reportCallIssue]

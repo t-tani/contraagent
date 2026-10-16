@@ -123,14 +123,14 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 - [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test.
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.
 - [Concepts](concepts.md): the words contraagent uses, each with one meaning.
-- [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks, the flow, flows that depend on results, time boxes, claims, files a task changes, scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
-- [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks.
-- [Contracts and validators](contracts.md): how outputs are checked and sent back.
-- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
-- [Coding agents](agents.md): what each of the five coding agents does and does not do, and how to add another.
-- [Security model](security.md): what a task's session receives, refusals and failover, credentials, what each coding agent enforces, what a run records and who can read it.
-- [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow on the outputs' examples, and flows tested on a stub agent.
-- [The monitor](monitor.md): the live view of runs, and an export of it that needs no server.
+- [Tasks and flows](tasks.md): agent tasks and a map of their options, Python tasks and partial results, the flow and a task call's options, flows that depend on results, loops and their passes, time boxes, claims, services, files a task changes (those of a failed attempt kept, paths left out), scopes and enrichers around each attempt, a pipeline's own records, and the engine underneath.
+- [Plugins](plugins.md): an agent task's implementation: roles, skills, hooks, and the MCP servers a pipeline builds for each task.
+- [Contracts and validators](contracts.md): how outputs are checked and sent back: models, text and rows (JSON Lines), a launch stopped for its time, correction rounds and their number, validators, the parts to keep.
+- [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity and a task call's own credential, quota caps.
+- [Coding agents](agents.md): what each of the five coding agents does and does not do (stop hooks, budgets, tool denial, MCP servers), and how to add another.
+- [Security model](security.md): what a task's session receives and what a pipeline adds to it, refusals and failover, credentials, what each coding agent enforces, what a run records and who can read it.
+- [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow on the outputs' examples (with some or all Python tasks executed), record and replay, and flows tested on a stub agent.
+- [The monitor](monitor.md): the live view of runs, the monitor behind a reverse proxy, and an export of it that needs no server.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
 - [Operating a hub](hub-operations.md): set up with compose, connect hosts, tokens, retention, backups, upgrades, troubleshooting.
 - [Compatibility](compatibility.md): what is public, what a release may change, deprecation, every file of a run directory and which are public, and the formats and JSON Schemas of the files a run writes and of the config file.
@@ -139,9 +139,11 @@ and the [documentation site](https://t-tani.github.io/contraagent/) print the qu
 script that runs it); `examples/review/flow.py` and `examples/analysis/flow.py`
 are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/changes/flow.py` is a task that changes files beside its output;
+`examples/mcp/flow.py` builds an MCP server for each task from its params;
+`examples/services/flow.py` is a local server that the tasks which claim its name share;
 `examples/implementations/flow.py` declares a step with two implementations and chooses one per unit;
 `examples/runner/run.py` runs a flow from a program, with what `contraagent run` cannot pass;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
-other directories of `examples/` (`before/`, `claims/`, `hub/`, `light/`, `panels/`,
-`partial/`, `preserve/`, `retries/`, `scopes/`, `security/`, `skills/`, `time_box/`) are each quoted
+other directories of `examples/` (`before/`, `claims/`, `credentials/`, `hub/`, `light/`, `panels/`,
+`partial/`, `preserve/`, `proxy/`, `retries/`, `rows/`, `scopes/`, `security/`, `skills/`, `time_box/`) are each quoted
 by the topic that explains them. The test suite runs them all.

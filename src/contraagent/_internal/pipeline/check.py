@@ -6,6 +6,7 @@ The `Pipeline.check` docstring lists the checks; `reach.py` finds the reachable 
 from __future__ import annotations
 
 import contextlib
+import fnmatch
 import json
 import logging
 import re
@@ -27,13 +28,19 @@ from pydantic_core import to_jsonable_python
 from contraagent._internal.backends.base import temp_root
 from contraagent._internal.contracts.calls import schema_ref_of
 from contraagent._internal.contracts.contract import example
+from contraagent._internal.contracts.rows import is_rows, row_of
 from contraagent._internal.contracts.validators import CommandValidator
 from contraagent._internal.dispatch.flow import FlowDriver
+from contraagent._internal.dispatch.queue import claim_entry
 from contraagent._internal.dispatch.task import kind_name
 from contraagent._internal.errors import ContraagentError, did_you_mean
+from contraagent._internal.execution.pipeline_files import writing_into
+from contraagent._internal.execution.services import env_clashes
+from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.graph import Graph, Node, Pending, kind_clash
 from contraagent._internal.pipeline.reach import reachable
-from contraagent._internal.routing.plan import RoutingError, RoutingPlan
+from contraagent._internal.platform import envvars
+from contraagent._internal.routing.plan import RoutingError, RoutingPlan, check_task_tables
 
 if TYPE_CHECKING:
     from contraagent._internal.pipeline.pipeline import Pipeline
@@ -44,6 +51,9 @@ _NOT_OWN = tuple(
     {_PACKAGE, *(Path(p).resolve() for name in ("stdlib", "platstdlib", "purelib", "platlib") if (p := sysconfig.get_paths().get(name)))}
 )
 _LOG_TAG = re.compile(r"^\[\w+\] ")  # a log line's `[task]`, not part of the warning
+#: The one form of a message's pointer to the topic that explains it, and its section:
+#: `(contraagent docs <topic>, <section>)`, or `(contraagent docs <topic>)` for a whole topic.
+POINTER = re.compile(r"\(contraagent docs ([a-z][a-z-]*)(?:, ([^()]+))?\)")
 
 
 def _count(n: int, noun: str) -> str:
@@ -59,7 +69,8 @@ class CheckReport:
     warnings: list[str] = field(default_factory=list)
     #: Task count by kind, in the order the flow first called each kind.
     kinds: dict[str, int] = field(default_factory=dict)
-    #: The documentation topics that explain the errors (`contraagent docs <topic>`).
+    #: The documentation topics that explain the errors (`contraagent docs <topic>`): the
+    #: topic an error's own pointer names, else the topic of the check that found it.
     topics: list[str] = field(default_factory=list)
     #: False when the flow raised before its tasks could be added.
     built: bool = True
@@ -67,16 +78,25 @@ class CheckReport:
     routes: dict[str, str] = field(default_factory=dict)
     #: A generator flow's reachable kinds that its first step did not create, in the order found.
     later_kinds: list[str] = field(default_factory=list)
+    #: The pointer of each error, once: its own (`POINTER`), else its check's topic.
+    _pointers: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
 
     @property
     def ok(self) -> bool:
         return not self.errors
 
     def add(self, topic: str, errors: list[str]) -> None:
-        """Errors, and the documentation topic that explains them."""
+        """Errors, and the documentation topic that explains them: `topic`, for an error
+        with no pointer of its own (`POINTER`)."""
         self.errors += errors
-        if errors and topic not in self.topics:
-            self.topics.append(topic)
+        for error in errors:
+            own = list(POINTER.finditer(error))
+            pointer = own[-1].group(0) if own else f"(contraagent docs {topic})"
+            named = own[-1].group(1) if own else topic
+            if named not in self.topics:
+                self.topics.append(named)
+            if pointer not in self._pointers:
+                self._pointers.append(pointer)
 
     def __str__(self) -> str:
         tasks = sum(self.kinds.values())
@@ -93,7 +113,7 @@ class CheckReport:
         lines += [f"  {kind}: {route}" for kind, route in self.routes.items()]
         lines += [f"  error: {e}" for e in self.errors]
         lines += [f"  warning: {w}" for w in self.warnings]
-        lines += [f"  read: {', '.join(f'`contraagent docs {t}`' for t in self.topics)}"] if self.topics else []
+        lines += [f"  read: {' '.join(self._pointers)}"] if self._pointers else []
         return "\n".join(lines)
 
 
@@ -103,7 +123,10 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
         graph = Graph(Path(tmp) / "out", max_passes=pipeline.max_passes)
         driver = FlowDriver(waits_for=graph.waits_for, answer=graph.answer, created=graph.take_new, on_flow_call=graph.on_flow_call)
         graph.driver = driver
-        with graph.building():
+        # The check's directory is the flow's current run: `pipeline_table` reads the config the
+        # check is given, as a run's flow reads the one it was started with, and `log` and
+        # `save` write into the directory, which goes with the check.
+        with writing_into(tmp, pipeline.config), graph.building():
             try:
                 value = flow(*args, **kwargs)
             except Exception as exc:
@@ -133,10 +156,53 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
     report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
+    report.add("tasks", _outside_state_errors(graph))
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
-    report.add("plugins", _plugin_errors(agent_specs))
-    _check_routing(pipeline, agent_specs, report)
+    report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
+    _check_services(pipeline.services, graph, [*specs.values(), *found], report)
+    _check_task_tables(pipeline, specs, report)
+    _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential])
     return report
+
+
+def _check_services(services: dict[str, Any], graph: Graph, declarations: list[Any], report: CheckReport) -> None:
+    """A task that claims two services whose names share one environment variable (an
+    error), and a service no task of the run claims: neither a created task's claim nor a
+    reachable kind's claim template (a warning; `{...}` in a template matches any name)."""
+    if not services:
+        return
+    errors: list[str] = []
+    for node in graph.nodes:
+        names = [n for n in dict.fromkeys(node.claims) if claim_entry(services, n) is not None]
+        errors += [
+            f"{node.key}: services {a!r} and {b!r} share the variable {envvars.service(a)}; claim one of them"
+            for a, b in env_clashes(names)
+        ]
+    report.add("tasks", errors)
+    names = {n for node in graph.nodes for n in node.claims}
+    templates = {re.sub(r"\{[^}]*\}", "*", t) for spec in declarations for t in getattr(spec, "claims", ())}
+
+    def claimed(key: str) -> bool:
+        if any(fnmatch.fnmatchcase(n, key) for n in names):
+            return True
+        return any(fnmatch.fnmatchcase(t, key) or fnmatch.fnmatchcase(key, t) for t in templates)
+
+    report.warnings += [
+        f"services: {key!r} is claimed by no task of the run, so it never starts (contraagent docs tasks, Services)"
+        for key in services
+        if not claimed(key)
+    ]
+
+
+def _check_task_tables(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport) -> None:
+    """The task tables against the run's kinds, created and reachable (a warning each, as a
+    run logs them): one naming no kind, and one naming a Python task kind, whose
+    `max_concurrent` would bound nothing."""
+    python = {kind for kind, spec in specs.items() if spec.executor == "python"}
+    agents = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
+    with _warnings_of("contraagent") as warnings:
+        check_task_tables(pipeline.config.task_tables([]), agents, {kind: spec.base_kind for kind, spec in agents.items()}, python=python)
+    report.warnings += ["routing: " + _LOG_TAG.sub("", w) for w in warnings]
 
 
 def _kind_clashes(declarations: list[Any]) -> list[str]:
@@ -231,6 +297,38 @@ def _param_errors(node: Node) -> list[str]:
     return errs
 
 
+def _outside_state_errors(graph: Graph) -> list[str]:
+    """Each created task's `outside_state`, called as the run will call it when the task
+    starts, for the tasks whose params are known now (none waits for another task's output):
+    what it raises, or a value that is not JSON (`Graph.starting`)."""
+    errs: list[str] = []
+    for node in graph.nodes:
+        if getattr(node.spec, "outside_state", None) is None or any(_holds_pending(v) for v in node.params.values()):
+            continue
+        task = graph.starting(graph.task_of(node))
+        if why := graph.refusal(task):
+            errs.append(f"{node.key}: {why}")
+    return errs
+
+
+def _mcp_errors(pipeline: Pipeline, graph: Graph, run_dir: Path) -> list[str]:
+    """`Pipeline(mcp_servers=)` called for each agent task created whose params are known
+    now (none waits for another task's output): what it raises, or a value that is no
+    table of servers."""
+    if pipeline.mcp_servers is None:
+        return []
+    adapter = SpecAdapter("check", run_dir, pipeline.cwd, mcp_servers=pipeline.mcp_servers)
+    errs: list[str] = []
+    for node in graph.nodes:
+        if node.spec.executor != "agent" or node.spec.light or any(_holds_pending(v) for v in node.params.values()) or _param_errors(node):
+            continue
+        try:
+            adapter.mcp_servers_of(graph.task_of(node))
+        except Exception as exc:
+            errs.append(f"{node.key}: mcp_servers: {where(exc)}{type(exc).__name__}: {exc}")
+    return errs
+
+
 def _holds_pending(value: Any) -> bool:
     if isinstance(value, Pending):
         return True
@@ -256,8 +354,9 @@ def _schema_errors(specs: dict[str, Any]) -> list[str]:
             continue
         ref = schema_ref_of(schema)
         if ref is None:
+            model = row_of(schema)  # a rows output is imported by its row
             errs.append(
-                f"{kind}: output {schema.__qualname__} is defined in {schema.__module__}, where the in-session "
+                f"{kind}: output {model.__qualname__} is defined in {model.__module__}, where the in-session "
                 "hook cannot import it; define it at the top level of an importable module"
             )
         else:
@@ -269,13 +368,16 @@ def _schema_errors(specs: dict[str, Any]) -> list[str]:
 
 def _example_errors(specs: dict[str, Any]) -> list[str]:
     """Outputs whose example (`examples` in their JSON Schema, the model's own or a field's)
-    does not pass their own schema: the value a stub run writes (`contraagent.testing.writes_example`)."""
+    does not pass their own schema: the value a stub run writes (`contraagent.testing.writes_example`).
+    The example of rows is one row, its model's."""
     errs: list[str] = []
     for kind, spec in specs.items():
         model = spec.output_schema
         target = model if model is not None else spec.output if spec.executor == "agent" and spec.output is not str else None
         if target is None:
             continue
+        if model is not None and is_rows(model):
+            target = model = row_of(model)
         try:
             adapter = TypeAdapter(target)
             schema = adapter.json_schema()
@@ -304,29 +406,33 @@ def _has_examples(node: Any) -> bool:
 
 _IMPORT_PROBE = """
 import json, sys
+from pathlib import Path
 from contraagent._internal.contracts.calls import SchemaRef, import_schema
 out = {}
 for kind, ref in json.loads(sys.stdin.read()).items():
     if import_schema(SchemaRef(**ref)) is None:
         out[kind] = f"output {ref['module']}.{ref['qualname']} cannot be imported from {ref['search_path']} by the in-session hook"
-print(json.dumps(out))
+Path(sys.argv[1]).write_text(json.dumps(out), encoding="utf-8")
 """
 
 
 def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """What the hook (`contraagent call validate`, same interpreter) would fail to import."""
+    """What the hook (`contraagent call validate`, same interpreter) would fail to import.
+    The probe writes its answer to a file, since a module it imports may print."""
     try:
-        proc = subprocess.run(
-            [sys.executable, "-c", _IMPORT_PROBE],
-            input=json.dumps(refs),
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return json.loads(proc.stdout)
+        with tempfile.TemporaryDirectory(prefix="probe-", dir=temp_root()) as tmp:
+            answer = Path(tmp) / "answer.json"
+            subprocess.run(
+                [sys.executable, "-c", _IMPORT_PROBE, str(answer)],
+                input=json.dumps(refs),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return json.loads(answer.read_text(encoding="utf-8"))
     except (subprocess.SubprocessError, ValueError, OSError) as exc:
         return {kind: f"output import not checked: {exc}" for kind in refs}
 
@@ -357,7 +463,9 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
     return errs
 
 
-def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport) -> None:
+def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, calls: list[Node]) -> None:
+    """The routing plan of `specs`, and the credential each of `calls` names (a task call's
+    `credential=`): one that does not exist, or that a route of its kind cannot carry."""
     if not specs:
         return
     with _warnings_of("contraagent") as warnings:
@@ -371,6 +479,7 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
                 bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                 requirements={kind: spec.requires for kind, spec in specs.items()},
                 light=[kind for kind, spec in specs.items() if spec.light],
+                all_kinds=False,  # the task tables: `_check_task_tables`
             )
         except RoutingError as exc:
             report.add("routing", [f"routing: {e}" for e in exc.errors])
@@ -382,12 +491,51 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    if not pipeline.overrides.credential:  # an override outranks every call's credential
+        for kind, keys in _call_credentials(calls).items():
+            report.routes[kind] += "".join(f"; credential={c} for {', '.join(ks)}, by their task calls" for c, ks in keys.items())
+    refused = [f"routing: {n.key}: credential={n.credential!r}: {p}" for n in calls for p in plan.call_problems(n.spec.kind, n.credential)]
+    report.add("routing", refused)
+    report.add("contracts", _partial_errors(specs, plan))
+    report.add(
+        "tasks",
+        [
+            f"{kind}: keep_failed_changes keeps the files under changes=, and agent_task({kind!r}) declares no changes"
+            for kind, rc in plan.configs.items()
+            if rc.keep_failed_changes and kind in specs and not specs[kind].changes
+        ],
+    )
     agents = {rc.agent for rc in plan.configs.values()} | {r.agent for router in plan.routers.values() for r in router.routes}
     for agent in sorted(agents):
         backend = pipeline.backends.get(agent)
         if backend is not None and backend.binary and shutil.which(backend.binary, path=backend.base_path()) is None:
             report.warnings.append(f"routing: {agent}: {backend.binary} is not on PATH; its launches would fail")
     _check_models(pipeline, plan, report)
+
+
+def _call_credentials(calls: list[Node]) -> dict[str, dict[str, list[str]]]:
+    """The task keys of `calls` by kind name and the credential each call names."""
+    out: dict[str, dict[str, list[str]]] = {}
+    for node in calls:
+        out.setdefault(kind_name(node.spec.kind), {}).setdefault(node.credential, []).append(node.key)
+    return out
+
+
+def _partial_errors(specs: dict[str, Any], plan: RoutingPlan) -> list[str]:
+    """Kinds whose `partial_on` (given in code or in `[tasks.<kind>]`) can keep nothing: no
+    output, or an output in the final message, which a stopped launch never gives."""
+    errs: list[str] = []
+    for kind, spec in specs.items():
+        rc = plan.configs.get(kind)
+        if rc is None or not rc.partial_on:
+            continue
+        if spec.output is None or spec.output_from != "file":
+            what = "has no output" if spec.output is None else 'gives its output in its final message (output_from="message")'
+            errs.append(
+                f"{kind}: partial_on = {list(rc.partial_on)} keeps the output file a stopped launch wrote, and the task {what}; "
+                f"drop partial_on from agent_task({kind!r}) or [tasks.{kind}]"
+            )
+    return errs
 
 
 def _check_models(pipeline: Pipeline, plan: RoutingPlan, report: CheckReport) -> None:

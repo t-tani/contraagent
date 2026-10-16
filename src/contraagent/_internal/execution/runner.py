@@ -31,12 +31,13 @@ from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, Credential, Pool
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.backends.process import signal_of
-from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_until_valid
+from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_checked
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
-from contraagent._internal.dispatch.task import STOP_DEFERRED, Deferral, Task, TaskResult, kind_name
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult, kind_name
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
+from contraagent._internal.execution.services import service_environment
 from contraagent._internal.platform import envvars, telemetry
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.kind_config import KindConfig
@@ -85,7 +86,8 @@ def _fails_over(result: TaskResult) -> bool:
 
 
 def _hop(label: str, result: TaskResult) -> Hop:
-    """One launch on one route: where it ran and what it spent. Taken before the hops
+    """One launch on one route: where it ran, how it ended (its launch's stop: `timeout` for
+    a partial result too) and what it spent. Taken before the hops
     after it fold their spend into the attempt's, so each hop holds its own (its rounds,
     and pool members tried on it, included)."""
     o = result.launch_result
@@ -97,7 +99,7 @@ def _hop(label: str, result: TaskResult) -> Hop:
         agent=o.agent if o else "",
         model=o.model if o else "",
         credential=o.credential if o else "",
-        stop=result.stop,
+        stop=o.stop.value if o is not None else result.stop,
         wall_s=round(result.wall_s, 1),  # this hop, pool members tried on it included
         cost_usd=o.cost_usd if o else None,
         usage=hop_usage,
@@ -175,11 +177,14 @@ class AgentRunner:
         self.scopes = tuple(scopes)
         self.enrichers = tuple(enrichers)
         self.rests = rests
-        self._changes = ChangesEnricher(self.adapter.changes, self.cwd)
+        self._changes = ChangesEnricher(self.adapter.changes, self.cwd, keep=self._keeps_failed_changes)
         self._defined: set[str] = set()
         # The account each coding agent bills as each credential for a model, asked once a run.
         self._accounts: dict[tuple[str, str, str], str] = {}
         self._accounts_lock = threading.Lock()
+        # (kind, a task call's credential) -> (the kind's router it was made from, its own router).
+        self._call_routers: dict[tuple[str, str], tuple[Router | None, Router | None]] = {}
+        self._call_routers_lock = threading.Lock()
 
     # --- configuration -----------------------------------------------------
 
@@ -189,10 +194,26 @@ class AgentRunner:
         rc = self.configs.get(task.kind)
         if rc is None:
             raise KeyError(f"no [tasks.{kind_name(task.kind)}] in the config: every kind needs agent/model routing and budgets")
-        return rc
+        return replace(rc, credential=task.credential) if task.credential and task.credential != rc.credential else rc
+
+    def _keeps_failed_changes(self, task: Task) -> bool:
+        rc = self.configs.get(task.kind)
+        return rc is not None and rc.keep_failed_changes
 
     def router_for(self, task: Task) -> Router | None:
-        return self.routers.get(task.kind)
+        """The kind's failover breaker; for a task whose call names a credential
+        (`Task.credential`), one of the kind and that credential, over the kind's routes each
+        on it (`Router.on_credential`), made once a run. None: the task has a single route."""
+        router = self.routers.get(task.kind)
+        if router is None or not task.credential or all(r.credential == task.credential for r in router.routes):
+            return router
+        with self._call_routers_lock:
+            base, own = self._call_routers.get((task.kind, task.credential), (None, None))
+            if base is not router:  # a kind routed again (`Pipeline`) gets a breaker of its new chain
+                own = router.on_credential(task.credential)
+                own = own if len(own.routes) > 1 else None
+                self._call_routers[(task.kind, task.credential)] = (router, own)
+            return own
 
     def backend_for_route(self, task: Task, route: Route | None) -> Backend:
         """The coding agent for this task on `route` (None: the kind's own).
@@ -227,6 +248,7 @@ class AgentRunner:
             **({envvars.BASH: bash} if bash and bash != "bash" else {}),
             **self.env,
             **self.adapter.env(task),
+            **service_environment(),
             envvars.RUN: self.run_id,
             envvars.TASK: task.key,
             envvars.KIND: kind_name(task.kind),
@@ -559,13 +581,19 @@ class AgentRunner:
 
     def _run_as(self, task: Task, route: Route | None, credential: Credential) -> TaskResult:
         """One launch on one route as one credential. `ok`/`stop` come straight from the
-        backend's `LaunchResult`; a domain's own progress verdict is a `ResultEnricher`'s job."""
+        backend's `LaunchResult`, but for a launch stopped on one of its kind's `partial_on`
+        whose outputs passed every check (`CheckedLaunch.partial`): ok, stop `partial`, its
+        reason the launch's stop (`timeout`, `stalled`). A domain's own progress verdict is a
+        `ResultEnricher`'s job."""
         backend = self.backend_for_route(task, route)
         launch = self.launch(task, route, backend, credential)
         contracts = self.adapter.output_contracts(task)
         # With declared outputs the launch is resumed until every one holds,
-        # or the correction budget is spent (then INVALID_OUTPUT, not ok).
-        launch_result = run_until_valid(backend, launch, contracts) if contracts else backend.run(launch)
+        # or the kind's `max_corrections` are spent (then INVALID_OUTPUT, not ok).
+        kc = self.config(task)
+        checked = run_checked(backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops)
+        launch_result = checked.result
+        max_corrections = kc.max_corrections if contracts else None
         for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
             reading = launch_result.quota[i] = reading.model_copy(
                 update={
@@ -587,9 +615,22 @@ class AgentRunner:
         # A signal-terminated process (exit code 128+N) is almost always
         # external (teardown, an interrupted run), not the task's own logic.
         sig = signal_of(launch_result.exit_code)
-        if sig is not None:
+        if sig is not None and not checked.partial:
             note = f"terminated by {signal.Signals(sig).name}"
             reason = f"{note}: {reason}" if reason else note
+        if checked.partial:
+            # Stopped for its time, and what it wrote passed every check: kept, as a partial result.
+            return TaskResult(
+                task=task,
+                launch_result=launch_result,
+                ok=True,
+                wall_s=launch_result.wall_s,
+                stop=STOP_PARTIAL,
+                reason=launch_result.stop.value,
+                rounds=launch_result.rounds,
+                round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+                max_corrections=max_corrections,
+            )
         return TaskResult(
             task=task,
             launch_result=launch_result,
@@ -599,6 +640,7 @@ class AgentRunner:
             reason=reason,
             rounds=launch_result.rounds,
             round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+            max_corrections=max_corrections,
             retryable=launch_result.retryable,
         )
 

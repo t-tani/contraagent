@@ -1,16 +1,18 @@
 # Every command's --help (Python 3.12, COLUMNS=100); `uv run python tests/cli/help.py` writes it.
 
 $ contraagent --help
-usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,check,run,docs} ...
+usage: contraagent [-h] [--version] {monitor,relay,hub,plugin,call,recording,check,run,docs} ...
 
 positional arguments:
-  {monitor,relay,hub,plugin,call,check,run,docs}
+  {monitor,relay,hub,plugin,call,recording,check,run,docs}
     monitor             live web monitor for runs (see `contraagent monitor --help`)
     relay               ship this host's runs to a hub (see `contraagent relay --help`)
     hub                 receive every host's runs and serve their monitor (see `contraagent hub
                         --help`)
     plugin              agent-task plugins: the implementation of an agent task
     call                agent-task call files
+    recording           recordings a replay plays (contraagent docs testing, Record once, replay
+                        in CI)
     check               check a flow, its plugins and its routing without launching anything
     run                 run a flow, as `check` names it, and report its tasks (for more control,
                         call Pipeline.run from Python)
@@ -25,8 +27,8 @@ error; `contraagent <command> --help` says what each command's means
 
 $ contraagent monitor --help
 usage: contraagent monitor [-h] [--runs-dir RUNS_DIR] [--host HOST] [--port PORT]
-                           [--allow-host NAME] [--cors-origin ORIGIN] [--title TITLE]
-                           [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
+                           [--allow-host NAME] [--cors-origin ORIGIN] [--base-path PATH]
+                           [--title TITLE] [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
                            [--groups MODULE:ATTR] [--task-detail MODULE:ATTR] [--docs]
                            [--openapi [PATH]]
                            {export} ...
@@ -42,6 +44,9 @@ options:
                         localhost, 127.0.0.1, [::1] and the --host address)
   --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
                         http://localhost:5173 for a UI dev server
+  --base-path PATH      the path a reverse proxy serves the monitor under, e.g. /monitor: the page
+                        names it in every URL it reads; the proxy takes it off before it passes a
+                        request on (default: none, the monitor is at /)
   --title TITLE
   --stream-format AGENT=FORMAT
                         render a custom coding agent's transcript as a built-in format (claude,
@@ -124,8 +129,9 @@ usage: contraagent hub [-h] [--store memory|postgres://...]
                        [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
                        [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--ingest-token-file FILE]
                        [--read-token-file FILE] [--host HOST] [--port PORT] [--allow-host NAME]
-                       [--cors-origin ORIGIN] [--title TITLE] [--max-blob-mb MAX_BLOB_MB]
-                       [--retain-days N] [--prune-every HOURS] [--openapi [PATH]]
+                       [--cors-origin ORIGIN] [--base-path PATH] [--title TITLE]
+                       [--max-blob-mb MAX_BLOB_MB] [--retain-days N] [--prune-every HOURS]
+                       [--openapi [PATH]]
                        {prune} ...
 
 Receive every host's runs from `contraagent relay` and serve their monitor. Tokens are read from
@@ -156,6 +162,9 @@ options:
                         localhost, 127.0.0.1, [::1] and the --host address)
   --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
                         http://localhost:5173 for a UI dev server
+  --base-path PATH      the path a reverse proxy serves the monitor under, e.g. /monitor: the page
+                        names it in every URL it reads; the proxy takes it off before it passes a
+                        request on (default: none, the monitor is at /)
   --title TITLE
   --max-blob-mb MAX_BLOB_MB
                         the largest blob taken, in MiB (default: 256)
@@ -275,6 +284,34 @@ options:
   -h, --help   show this help message and exit
   --call CALL  the call file (default: $CONTRAAGENT_CALL)
 
+$ contraagent recording --help
+usage: contraagent recording [-h] {import} ...
+
+positional arguments:
+  {import}
+    import    write a recording of each task a run finished, from its run directory, as if the run
+              had been recorded
+
+options:
+  -h, --help  show this help message and exit
+
+$ contraagent recording import --help
+usage: contraagent recording import [-h] [--record-max-file-mb N] RUN_DIR DIR
+
+positional arguments:
+  RUN_DIR               the run's directory (runs/<run-id>)
+  DIR                   the recordings directory to write into, as --record and --replay name it
+
+options:
+  -h, --help            show this help message and exit
+  --record-max-file-mb N
+                        a task with a file larger than N MB is not imported (default 4), as a
+                        recording keeps it by hash only
+
+exit status: 0 when every task the run finished was imported, 1 when one could not be (a missing
+or rewritten file, a file over the cap) or none was, or when the run directory cannot be read; a
+task that did not finish is listed, not imported
+
 $ contraagent check --help
 usage: contraagent check [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
                          [--stub]
@@ -297,7 +334,7 @@ cannot be loaded, 2 on a usage error (the flow's name, --kwargs, options)
 $ contraagent run --help
 usage: contraagent run [-h] [--config CONFIG] [--kwargs KWARGS] [--agent AGENT] [--model MODEL]
                        [--run-id RUN_ID] [--resume] [--runs-dir RUNS_DIR]
-                       [--preflight {substitute,stop,off}] [--stub] [--execute KIND]
+                       [--preflight {substitute,stop,off}] [--stub] [--execute PATTERN]
                        [--record DIR] [--replay DIR] [--record-max-file-mb N] [--record-missing]
                        flow
 
@@ -320,11 +357,13 @@ options:
   --stub                a stub run: the stub agent plays every agent task and every Python task
                         with its output's example (`examples` in the output's JSON Schema; where
                         there is none, the smallest value the schema accepts); no model is called
-                        and no Python task's function runs (run id: <flow>-stub). A task whose
-                        example fails a validator ends invalid_output at once, and the last line
-                        names those validators
-  --execute KIND        with --stub or --replay: run the function of this Python task kind instead
-                        of playing it (repeatable)
+                        and no Python task's function runs, but those of --execute (run id:
+                        <flow>-stub). A task whose example fails a validator ends invalid_output
+                        at once, and the last line names those validators
+  --execute PATTERN     with --stub or --replay: run the functions of the Python task kinds
+                        PATTERN matches instead of playing them: a kind, or an fnmatch pattern of
+                        kinds ('*': every Python task, and only the agent tasks are played);
+                        repeatable
   --record DIR          write each task attempt's recording to DIR: its outputs, the files its
                         changes= patterns saw change, its transcript and its result
   --replay DIR          a replay: play the recordings in DIR in place of every agent task's launch

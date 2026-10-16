@@ -13,7 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from typing import Any
 
-from contraagent._internal.backends.launch import Limits
+from contraagent._internal.backends.launch import Limits, Stop
+from contraagent._internal.contracts.contract import DEFAULT_MAX_CORRECTIONS
 from contraagent._internal.dispatch.task import kind_name
 
 
@@ -56,6 +57,20 @@ class KindConfig:
     # exponential backoff.
     retries: int = 2
     retry_backoff_base: float = 2.0
+    #: The stops after which a launch's output, when it passes every check, is kept as a
+    #: partial result (`agent_task(partial_on=)`): some of `PARTIAL_STOPS`.
+    partial_on: tuple[str, ...] = ()
+    #: Leave the files a failed attempt created under its task's `changes` patterns in place
+    #: (`Changes.kept`) instead of removing them (`Changes.removed`).
+    keep_failed_changes: bool = False
+    #: The correction rounds after the first launch: how many times an output that fails its
+    #: checks goes back to the same session with the errors (`run_until_valid(max_corrections=)`).
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS
+
+    @property
+    def partial_stops(self) -> frozenset[Stop]:
+        """`partial_on` as stops (`run_checked(partial_on=)`)."""
+        return frozenset(Stop(s) for s in self.partial_on)
 
     @classmethod
     def build(cls, defaults: dict[str, Any], overrides: dict[str, Any] | None) -> KindConfig:
@@ -64,6 +79,7 @@ class KindConfig:
         d.update({k: v for k, v in (overrides or {}).items() if k in cls.__dataclass_fields__})
         d["disallowed_tools"] = tuple(d.get("disallowed_tools") or ())
         d["requires"] = tuple(d.get("requires") or ())
+        d["partial_on"] = tuple(d.get("partial_on") or ())
         return cls(**d)
 
     def limits(self) -> Limits:
@@ -82,6 +98,11 @@ class KindConfig:
         return replace(self, **changes)
 
 
+#: The stops a kind may keep a partial result after (`partial_on`): those the runner itself
+#: ends a launch on for time, with no word from the agent that it is done or why not.
+PARTIAL_STOPS: tuple[str, ...] = (Stop.TIMEOUT.value, Stop.STALLED.value)
+
+
 #: The numeric keys of a task table (`[tasks.<kind>]`), with the type each
 #: must hold; the routing keys (agent, model, ...) are checked in `config.py`.
 #: Listed explicitly so a typo is an error rather than a key `build` drops.
@@ -96,7 +117,13 @@ TASK_TABLE_KEYS: dict[str, type | tuple[type, ...]] = {
     "max_concurrent": int,
     "retries": int,
     "retry_backoff_base": (int, float),
+    "max_corrections": int,
 }
+
+#: The most correction rounds a kind may allow (`max_corrections`): each is a full turn
+#: of the same session, its context growing, and an output still wrong after this many is
+#: not converging.
+MAX_CORRECTIONS_LIMIT = 20
 
 assert set(TASK_TABLE_KEYS) <= {f.name for f in fields(KindConfig)}
 

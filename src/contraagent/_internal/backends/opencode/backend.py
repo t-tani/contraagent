@@ -28,7 +28,7 @@ from types import MappingProxyType, ModuleType
 from typing import Any, ClassVar
 
 from contraagent._internal.backends import opencode_key, plugin_files
-from contraagent._internal.backends.base import PARENT_SESSION_ENV, Backend
+from contraagent._internal.backends.base import DENY_POINTER, PARENT_SESSION_ENV, Backend
 from contraagent._internal.backends.credentials import (
     Ambient,
     ApiKey,
@@ -223,7 +223,13 @@ class OpencodeBackend(OpencodeKeyAccount, Backend):
                 or (key == "webfetch" and not m.group(2).startswith("domain:"))
             )
         ]
-        return f"opencode denies these tools whole only, not {', '.join(odd)}" if odd else None
+        if not odd:
+            return None
+        return (
+            f"opencode cannot hold {', '.join(odd)}: it holds a pattern of Bash, Read, Write, Edit, MultiEdit, NotebookEdit, "
+            "Skill and "
+            f"WebFetch(domain:...) only; deny such a tool whole {DENY_POINTER}"
+        )
 
     # --- argv and config ------------------------------------------------------
 

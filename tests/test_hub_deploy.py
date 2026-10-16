@@ -231,7 +231,8 @@ def _get(url: str, token: str | None = None) -> tuple[int, bytes]:
         with urllib.request.urlopen(request, timeout=5) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        with e:  # an error answer holds its body open until it is closed
+            return e.code, e.read()
 
 
 def _copy_of_the_example(to: Path) -> Path:

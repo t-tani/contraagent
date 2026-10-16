@@ -1,0 +1,9 @@
+A task can declare the outside state it reads beside its params and inputs:
+`agent_task(outside_state=)` and `@python_task(outside_state=)` take a function of the
+unit and params (`OutsideState`) that returns a JSON value, such as a digest of a state
+file. The function is called when the task is about to start; the value is part of the
+fingerprint, so a resume runs the task again when the state changed. A function that
+raises refuses the task (`invalid_input`), and `contraagent check` reports it. When a
+resume runs a finished task again, the journal row says why (`rerun`), and the monitor
+shows it on the task (`PlanNode.rerun`). The journal row also holds the digest of the
+outside state (`outside`).

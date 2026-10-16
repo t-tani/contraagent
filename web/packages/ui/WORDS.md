@@ -11,7 +11,7 @@ written are in `web/AGENTS.md`.
 
 | Code term | UI (English) | UI (Japanese) |
 |---|---|---|
-| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:`; trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
+| a task's outcome (`Outcome`: done, recovered, partial, failed, not_started, running, waiting, skipped; plan state `partial`, stop `partial`, `TaskCounts.partial`) | status: done, done after retrying, partly done, failed, not started, running, waiting, skipped; a partial task's reason after `Partly done:` (an agent task's, the stop its launch ended on, in words: `Partly done: timed out`); trends columns: Done, Tasks done, Partly done; Done 97%; Attempts not done | 状態: 完了, リトライ後に完了, 一部のみ完了, 失敗, 未実行, 実行中, 待機中, スキップ |
 | stop (`completed`, `invalid_input`, `timeout`, ...) | outcome; each value in words (`stopLabel`) | 結果 |
 | plan state `blocked` | not started | 未実行 |
 | plan state `pending` after the run ended | not run | 実行されず |
@@ -28,6 +28,7 @@ written are in `web/AGENTS.md`.
 | round after contract errors | correction; tooltip: Another round in the same agent session after failed checks (rounds) | 修正依頼 |
 | hop, failover | model switch; tooltip: A new agent session on the next model after a failed one (Router hops) | モデル切り替え |
 | contract, off-contract, valid | checked file, failed checks, passed (a checked file only; attempts and tasks are done) | 検証対象のファイル, 検証エラー, OK |
+| rows (`ContractSpec.format` `jsonl`: a JSON Lines output, `schema_name` `Rows[Row]`) | JSON Lines, one object of schema `Row` per line; N rows (the lines that parse) | JSON Lines（1 行ごとに JSON オブジェクト、スキーマ `Row`）; N 行 |
 | wall, wall_s | time | 所要時間 |
 | launch | agent session | エージェントのセッション |
 | worker, max_concurrent | running at once | 同時実行 |
@@ -44,6 +45,7 @@ written are in `web/AGENTS.md`.
 | the built-in credential `ambient` | default; tooltip: local credentials (ambient) | 既定 |
 | a task with no unit (`unit` empty), as a row of units | No unit; tooltip: tasks that run once per run, not once per unit | ユニットなし |
 | `claims` (names a task holds while it runs) | Locks (before the names; tooltip: Names this task holds while it runs (claims)) | ロック; tooltip: 実行中にこのタスクが占有する名前（claims） |
+| a service (`Plan.services`, `ServiceSpan`, `services.jsonl`) and its state | Services (tooltip: A long-lived helper that the tasks holding one lock share (services.jsonl)); running, stopped, did not start, stop not recorded; Started `time` in `duration` \| Stopped `time` \| The run ended, The run was stopped by a signal \| Stop failed | サービス; 稼働中, 停止, 開始できず, 停止の記録なし; `time` に開始（`duration`） \| `time` に停止 \| 実行が終了した, 実行がシグナルで停止された \| 停止でエラー |
 | `model` (the LLM a session ran on) | model (never "LLM") | モデル |
 | `thinking` (the model's reasoning in a transcript) | reasoning | 思考 |
 | upstream / downstream tasks | earlier tasks / later tasks | 依存先タスク / 後続タスク |
@@ -54,7 +56,7 @@ written are in `web/AGENTS.md`.
 | a light launch (`TaskDefinition.tools` `[]`) | Tools: none (a task definition's fact) | ツール: なし |
 | `web_queries`; a web search tool card (`web_query`, the pages it returned) | web searches; query, results | Web 検索; 検索語, 検索結果 |
 | a web fetch tool card (`web_fetch`) | page | ページ |
-| `changes` (created, modified, deleted, removed) | changed files: created, modified, deleted; created, removed after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除 |
+| `changes` (created, modified, deleted, removed, kept) | changed files: created, modified, deleted; created, removed after the failed attempt; created, kept after the failed attempt | 変更したファイル: 作成, 変更, 削除, 作成、試行の失敗後に削除, 作成、試行の失敗後も保持 |
 | `output_from` `message` (an output taken from the agent's final message) | Output: `Verdict` \| from the final message | 最後のメッセージから |
 | a stub run (`RunSummary.stub`), a mark beside the run's name | stub agent | スタブエージェント |
 | a replay (`RunSummary.replay`), a mark beside the run's name; one that also launched (`stub` false, `record_missing`) | replay; replay and new sessions | リプレイ; リプレイと新しいセッション |

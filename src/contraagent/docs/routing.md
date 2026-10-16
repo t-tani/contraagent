@@ -12,13 +12,15 @@ checks a config that names it):
 
 Highest first: overrides (`Pipeline(overrides=...)`, e.g. from command-line
 flags), the kind's `[tasks.<kind>]` table, `agent_task(...)`, `[defaults]`, the
-built-in default.
+built-in default. A credential has one more place, the task call (below): it sits
+under the overrides and over the kind's table.
 
 `[defaults]` takes the routing keys (`agent`, `model`, `effort`, `credential`,
-`model_failover`, `fallbacks`) and the run's own settings (`max_passes`, `preflight`,
-`claim_capacity`, `context_warn_pct`), nothing else. A budget (`max_turns`,
-`timeout_s`, `max_budget_usd`, ...) is a kind's: it goes in `[tasks.<kind>]` or
-`agent_task(...)`, and `[defaults]` refuses it.
+`model_failover`, `fallbacks`), the run's own settings (`max_passes`, `preflight`,
+`claim_capacity`) and the default of every kind that gives none (`context_warn_pct`),
+nothing else. A budget (`max_turns`, `timeout_s`, `max_budget_usd`,
+`max_corrections`, ...) is a kind's: it goes in `[tasks.<kind>]` or `agent_task(...)`,
+and `[defaults]` refuses it.
 
 Refused before anything launches: a kind with no turn or time budget anywhere,
 an effort the coding agent's CLI does not accept, an unknown agent in a chain,
@@ -27,7 +29,8 @@ of the flow is reported, not fatal: one config file often serves several flows,
 but it may be a typo.
 
 A pipeline keeps its own settings in the same file, each in a **pipeline table**
-`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config with
+`[pipeline.<name>]`. Flow code and Python tasks read one of the run's config (or of
+the config a check is given) with
 `contraagent.pipeline_table(name)` ([tasks](tasks.md)), other code with
 `PipelineConfig.table(name)`; either is an empty table when the file has none.
 contraagent never checks the keys inside; a `pipeline.<name>` that is not a table is
@@ -62,6 +65,22 @@ a `context_warn_pct` but no `context_budget` is refused before anything launches
 `[defaults].context_warn_pct` applies to every kind with a `context_budget` and
 none of its own.
 
+`max_corrections` (0 to 20, default 3, in a task table or `agent_task(...)`) caps the correction rounds of a kind: how many times an output that
+fails its checks goes back to the same session ([contracts](contracts.md#checked-twice-by-the-same-rules)).
+A value out of that range is refused before anything launches.
+
+`keep_failed_changes = true` (in a task table, which outranks `agent_task(...)`) leaves
+the files a failed attempt created under the kind's `changes` patterns in place, for
+the next attempt to start from
+([Files a task changes](tasks.md#files-a-task-changes)). A kind with no `changes`
+patterns cannot keep them, and `contraagent check` reports a table that sets it.
+
+`max_concurrent` (in a task table or `agent_task(...)`) is how many tasks of a kind
+run at once. The run's own limits sit beside it, and
+[Concurrency](tasks.md#concurrency-how-many-tasks-run-at-once) says how they work
+together: the run's slots, a kind's limit and the claims, and how a claim keeps long
+Python tasks from taking the agent tasks' slots.
+
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
 tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
@@ -69,10 +88,13 @@ role's `tools:` allow. Claude Code denies both (`--disallowedTools`); opencode
 whole tools and a pattern of a command (`Bash(git push:*)`), a path (`Read(secrets/**)`,
 `Edit(...)`), a domain (`WebFetch(domain:example.com)`) or a skill (`Skill(deploy)`),
 each after the rule the tool had, so the rest of the tool stays allowed; a pattern of
-another tool there is refused; pi whole tools
-(`--exclude-tools`), so a pattern there is refused; omp and Codex have no way to
-deny a tool, and a route on them is refused before anything launches
-(`Backend.tool_deny_problem`), failover hops included ([Coding agents](agents.md)).
+another tool there is refused; omp, in an extension of contraagent's own that sees
+each call before it runs, whole tools and a pattern of a command, a path read or
+written (`Read`, `Write`, `Edit`, `MultiEdit`; an `Edit` pattern also denies omp's
+`ast_edit` whole), a domain or a skill, so a pattern of another tool there is refused; pi whole tools (`--exclude-tools`), so a pattern there is refused;
+Codex has no way to deny a tool. A route that cannot deny what the task names is
+refused before anything launches (`Backend.tool_deny_problem`), failover hops
+included ([Coding agents](agents.md)).
 
 ## Failover
 
@@ -123,7 +145,7 @@ Three questions, answered in three places:
 |---|---|
 | What may this task's data be sent under? | the task, in code: the traits it `requires` (e.g. `zdr`) |
 | Which identities exist, and what are they? | the config: `[credentials.<name>]`, each with a type and its `traits` |
-| Which identity does each task use? | the config: `credential` in `[defaults]`, `[tasks.<kind>]` and each failover hop |
+| Which identity does each task use? | the config: `credential` in `[defaults]`, `[tasks.<kind>]` and each failover hop; for one task, its call |
 
 With no credential configured, every task runs as `ambient`: the host's own
 setup, untouched. `ambient` carries no traits, so a task that requires any never
@@ -159,6 +181,51 @@ every launch. A member that answers 429 rests on that model for the provider's
 stated retry-after, and the task goes to the next member at once; with every
 member resting, the route's own failover takes over. A pool carries only the
 traits every member carries.
+
+## A task call's credential
+
+A kind runs as one credential, but the data of one unit may have to go under another
+account. The task call names it, as the name of a `[credentials.<name>]`:
+
+::code{file="examples/credentials/flow.py" from="#: The documents"}
+
+::code{file="examples/credentials/pipeline.toml"}
+
+The rule is that the narrower choice outranks the wider one, and an override
+outranks them all. The config outranks the declaration because a declaration is the
+default of a whole kind. The config has no table for one unit, so the task call is
+the only place that can name a credential for it, and it outranks the kind's
+`[tasks.<kind>]` table, `agent_task(...)` and `[defaults]`. An override
+(`Overrides(credential=...)`) is the choice of the person who runs the pipeline and
+outranks the call too: the task runs as the override's credential, and the log says so.
+
+The call's credential is the credential of every route of the kind: the primary and
+each failover hop, whatever credential the hop names. A 429 or a refusal moves the task
+to the next hop as the same credential, never to another identity. Two hops that become
+the same route are one hop. The tasks of one kind and one call credential share a
+failover breaker of their own: a 429 as that credential does not move the kind's other
+tasks, and a 429 of theirs does not move these.
+
+A credential that does not exist, that does not carry a trait the task `requires`, or
+that the coding agent of one of the routes cannot use with its model, is refused before
+the task launches: by `contraagent check` for the tasks the flow creates before its
+first wait, by `Pipeline.run` before anything launches for those same tasks, and at the
+task call for a task a generator flow creates later (a `ValueError` in that flow call).
+The preflight does not probe a route as a call's credential.
+
+A call's credential that rests on its quota is passed over like any resting
+credential: every hop is on it, so the task is deferred, not failed.
+
+The `[route]` line of a kind names the kind's credential. `contraagent check` adds the
+tasks whose calls name another one to their kind's line (`credential=company for
+summarize-beta, by their task calls`), and a run's `[start]` line names the call's
+credential (`[start] summarize-beta credential=company`). With an override, neither
+does, since the override's credential is in effect.
+
+A credential is who the work is billed to, not what the work is: it is not part of the
+fingerprint, and a resumed run that names another credential for a call skips the task
+it already finished. `plan.jsonl` records the call's credential (`credential`) when it is
+in effect, and the journal records the credential each launch ran as, as for every task.
 
 ## Quota caps
 

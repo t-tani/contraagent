@@ -403,20 +403,27 @@ export type components = {
              */
             collapsed?: boolean;
             /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
              * Type
              * @default blocks
              * @constant
              */
             type?: "blocks";
             /** Blocks */
-            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             })[];
         };
         /**
          * Changes
          * @description The files one attempt changed under its task's `changes` patterns, as paths relative
-         *     to the working directory: those it `created`, `modified` and `deleted`.
+         *     to the working directory: those it `created`, `modified` and `deleted`. Of a failed
+         *     attempt's created files, `removed` lists those the runner removed, and `kept` those it
+         *     left in place because the kind keeps them (`keep_failed_changes`).
          */
         Changes: {
             /**
@@ -439,6 +446,11 @@ export type components = {
              * @default []
              */
             removed?: string[];
+            /**
+             * Kept
+             * @default []
+             */
+            kept?: string[];
         } & {
             [key: string]: unknown;
         };
@@ -451,6 +463,72 @@ export type components = {
             name: string;
             /** Values */
             values: (number | null)[];
+        };
+        /**
+         * CodeBody
+         * @description A text shown as code: highlighted by its `language` (one of `LANGUAGES`, a file's
+         *     extension such as `py`, or anything else for plain text), with line numbers from
+         *     `start`. `highlight` marks lines in those numbers: a line (`7`) or a range of lines,
+         *     both included (`[10, 14]`). `path` names the file over it. Long lines scroll sideways
+         *     unless `wrap`. The monitor shows the first `CODE_LINES` lines (and at most
+         *     `CODE_CHARACTERS` characters) and says how many it left out.
+         */
+        CodeBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
+             * Type
+             * @default code
+             * @constant
+             */
+            type?: "code";
+            /** Text */
+            text: string;
+            /**
+             * Language
+             * @description a name of `LANGUAGES` or a file extension; '': plain text
+             * @default
+             */
+            language?: string;
+            /**
+             * Start
+             * @description the number of the first line
+             * @default 1
+             */
+            start?: number;
+            /**
+             * Highlight
+             * @description lines marked: a line, or a range, both ends included
+             */
+            highlight?: (number | [
+                number,
+                number
+            ])[];
+            /**
+             * Path
+             * @description the file the text is, named over it
+             */
+            path?: string | null;
+            /**
+             * Wrap
+             * @description long lines wrap; otherwise they scroll sideways
+             * @default false
+             */
+            wrap?: boolean;
         };
         /**
          * ColumnsBody
@@ -468,6 +546,11 @@ export type components = {
              * @default false
              */
             collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
             /**
              * Type
              * @default columns
@@ -557,6 +640,11 @@ export type components = {
              * @description input: the key of the task whose output it is
              */
             producer?: string | null;
+            /**
+             * Format
+             * @description what the file holds: one JSON document, any text, or rows (JSON Lines, `fields` those of one line)
+             */
+            format?: ("json" | "text" | "jsonl") | null;
             /** Schema Name */
             schema_name: string;
             /**
@@ -813,8 +901,9 @@ export type components = {
         };
         /**
          * FileView
-         * @description A contract's file as it is now. `content` is the parsed JSON, else the
-         *     text (cut at 20 000 characters, `truncated`), else null when unreadable.
+         * @description A contract's file as it is now. `content` is the parsed JSON (for rows, the list of
+         *     the lines that parse), else the text (cut at 20 000 characters, `truncated`), else null
+         *     when unreadable.
          */
         FileView: {
             /** Exists */
@@ -942,6 +1031,11 @@ export type components = {
              */
             collapsed?: boolean;
             /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
              * Type
              * @default hbars
              * @constant
@@ -973,6 +1067,11 @@ export type components = {
              * @default false
              */
             collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
             /**
              * Type
              * @default heatmap
@@ -1235,6 +1334,8 @@ export type components = {
             rounds?: number | null;
             /** Round Errors */
             round_errors?: string[][];
+            /** Max Corrections */
+            max_corrections?: number | null;
             /** Hook Errors */
             hook_errors?: string[][];
             usage?: components["schemas"]["TokenUsage"] | null;
@@ -1261,6 +1362,16 @@ export type components = {
              * @default
              */
             fingerprint?: string;
+            /**
+             * Outside
+             * @default
+             */
+            outside?: string;
+            /**
+             * Rerun
+             * @default
+             */
+            rerun?: string;
             /** Flow Call */
             flow_call?: string | null;
             /**
@@ -1331,6 +1442,11 @@ export type components = {
              * @default false
              */
             collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
             /**
              * Type
              * @default lines
@@ -1480,6 +1596,11 @@ export type components = {
              */
             collapsed?: boolean;
             /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
              * Type
              * @default note
              * @constant
@@ -1617,7 +1738,7 @@ export type components = {
              */
             event: string;
             /** Data */
-            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             };
         };
@@ -1678,6 +1799,11 @@ export type components = {
              * @description each model the run's agent sessions ran on, in order of first use
              */
             models?: components["schemas"]["ModelUsage"][];
+            /**
+             * Services
+             * @description each start of a service of the run (`services.jsonl`), with its stop, in start order
+             */
+            services?: components["schemas"]["ServiceSpan"][];
             /** @description what the run's preflight did (`run.json`); null when its run.json records none */
             preflight?: components["schemas"]["PreflightRecord"] | null;
         };
@@ -1759,6 +1885,12 @@ export type components = {
              */
             priority?: number;
             /**
+             * Credential
+             * @description the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it
+             * @default
+             */
+            credential?: string;
+            /**
              * Executor
              * @default agent
              * @enum {string}
@@ -1825,6 +1957,12 @@ export type components = {
             deferred?: string;
             /** @description the same as data; null when it was not deferred, or the run recorded no cause */
             deferred_cause?: components["schemas"]["DeferralCause"] | null;
+            /**
+             * Rerun
+             * @description why a resume ran it again although an earlier attempt of the run had finished it (its outside state changed, ...), from its last journal row; empty when no earlier attempt had
+             * @default
+             */
+            rerun?: string;
         } & {
             [key: string]: unknown;
         };
@@ -2169,6 +2307,62 @@ export type components = {
             row_extras?: string[];
         };
         /**
+         * ServiceSpan
+         * @description One start of the service a claim name stands for (`services.jsonl`), with its stop.
+         */
+        ServiceSpan: {
+            /**
+             * Name
+             * @description the claim name the service stands for
+             */
+            name: string;
+            /**
+             * Started At
+             * @description when its start ended, ISO 8601
+             */
+            started_at: string;
+            /**
+             * Key
+             * @description the task whose claim started it
+             * @default
+             */
+            key?: string;
+            /**
+             * Address
+             * @description what it gave its tasks to reach it; null for none
+             */
+            address?: string | null;
+            /**
+             * Start S
+             * @description how long its start took, in seconds
+             * @default 0
+             */
+            start_s?: number;
+            /**
+             * Start Error
+             * @description the exception of a start that failed (the service did not start); empty when it started
+             * @default
+             */
+            start_error?: string;
+            /**
+             * Stopped At
+             * @description when it stopped, ISO 8601; empty while it is up, or when the run ended with no stop recorded
+             * @default
+             */
+            stopped_at?: string;
+            /**
+             * Stop Cause
+             * @description why it stopped; null while it is up
+             */
+            stop_cause?: ("run_end" | "interrupted") | null;
+            /**
+             * Stop Error
+             * @description the exception its stop raised; empty when the stop went well
+             * @default
+             */
+            stop_error?: string;
+        };
+        /**
          * SkippedHop
          * @description A hop of the failover chain an attempt passed over without a launch, because its
          *     credential rested: its route label and model, and the rest.
@@ -2247,6 +2441,11 @@ export type components = {
              */
             collapsed?: boolean;
             /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
              * Type
              * @default status_grid
              * @constant
@@ -2318,6 +2517,11 @@ export type components = {
              * @default false
              */
             collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
             /**
              * Type
              * @default table
@@ -2589,6 +2793,11 @@ export type components = {
              */
             collapsed?: boolean;
             /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
              * Type
              * @default tiles
              * @constant
@@ -2775,6 +2984,93 @@ export type components = {
             web_fetch?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * TreeBody
+         * @description A tree of nodes, folded and opened by the reader: files and directories, say. A
+         *     node's `code` is shown beside the tree when the node is selected, with no request
+         *     of its own: a panel of files returns their texts with the tree. `selected` is the
+         *     node selected first (its `id`; default: the first node with code).
+         */
+        TreeBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
+             * Type
+             * @default tree
+             * @constant
+             */
+            type?: "tree";
+            /** Nodes */
+            nodes: components["schemas"]["TreeNode"][];
+            /** Selected */
+            selected?: string | null;
+        };
+        /**
+         * TreeLink
+         * @description Where a tree node leads, in the monitor: a run panel's tab (`panel`, its name), a
+         *     task (`task`, its key), each in `run` (default: the run shown), or a body of the same
+         *     panel (`anchor`, its `anchor`). Exactly one of `panel`, `task` and `anchor`.
+         */
+        TreeLink: {
+            /** Panel */
+            panel?: string | null;
+            /**
+             * Task
+             * @description a task's key
+             */
+            task?: string | null;
+            /**
+             * Run
+             * @description the run of `panel` or `task`; a trends panel names it
+             */
+            run?: string | null;
+            /** Anchor */
+            anchor?: string | null;
+        };
+        /**
+         * TreeNode
+         * @description One node of a tree: its `name`, and `children` under it. `id` names it (default: the
+         *     names from the top, joined by `/`). `icon` is `directory` for a node with children and
+         *     `file` for one without, unless given. `badge` is a word beside the name, coloured by
+         *     `tone`. A node shows its `code` beside the tree when
+         *     it is selected, or leads elsewhere by its `link`; not both. `open`: its children are
+         *     shown at first.
+         */
+        TreeNode: {
+            /** Name */
+            name: string;
+            /** Id */
+            id?: string | null;
+            /** Icon */
+            icon?: ("file" | "directory") | null;
+            /** Badge */
+            badge?: string | null;
+            /** Tone */
+            tone?: ("failed" | "attention" | "done" | "running" | "muted" | "neutral") | null;
+            /**
+             * Open
+             * @default true
+             */
+            open?: boolean;
+            /** Children */
+            children?: components["schemas"]["TreeNode"][];
+            code?: components["schemas"]["CodeBody"] | null;
+            link?: components["schemas"]["TreeLink"] | null;
         };
         /**
          * TrendDay
@@ -3314,7 +3610,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };
@@ -3616,7 +3912,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["BlocksBody"] | {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };

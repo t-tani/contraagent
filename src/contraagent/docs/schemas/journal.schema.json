@@ -4,7 +4,7 @@
   "$defs": {
     "Changes": {
       "additionalProperties": true,
-      "description": "The files one attempt changed under its task's `changes` patterns, as paths relative\nto the working directory: those it `created`, `modified` and `deleted`.",
+      "description": "The files one attempt changed under its task's `changes` patterns, as paths relative\nto the working directory: those it `created`, `modified` and `deleted`. Of a failed\nattempt's created files, `removed` lists those the runner removed, and `kept` those it\nleft in place because the kind keeps them (`keep_failed_changes`).",
       "properties": {
         "created": {
           "default": [],
@@ -36,6 +36,14 @@
             "type": "string"
           },
           "title": "Removed",
+          "type": "array"
+        },
+        "kept": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Kept",
           "type": "array"
         }
       },
@@ -637,6 +645,18 @@
       "title": "Round Errors",
       "type": "array"
     },
+    "max_corrections": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Corrections"
+    },
     "hook_errors": {
       "items": {
         "items": {
@@ -722,6 +742,16 @@
     "fingerprint": {
       "default": "",
       "title": "Fingerprint",
+      "type": "string"
+    },
+    "outside": {
+      "default": "",
+      "title": "Outside",
+      "type": "string"
+    },
+    "rerun": {
+      "default": "",
+      "title": "Rerun",
       "type": "string"
     },
     "flow_call": {

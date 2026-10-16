@@ -3079,6 +3079,107 @@
   <source>not started (earlier task failed)</source>
   <target>未実行（依存先タスクが失敗）</target>
 </trans-unit>
+<trans-unit id="s80c0e9fb2bb2e230">
+  <source>1 row</source>
+  <target>1 行</target>
+</trans-unit>
+<trans-unit id="sb16ea30b732565de">
+  <source><x id="0" equiv-text="${n}"/> rows</source>
+  <target><x id="0" equiv-text="${n}"/> 行</target>
+</trans-unit>
+<trans-unit id="h0ddbe8131d040868">
+  <source>JSON Lines, one object of schema <x id="0" equiv-text="${schemaName(o)}"/> per line</source>
+  <target>JSON Lines（1 行ごとに JSON オブジェクト、スキーマ <x id="0" equiv-text="${schemaName(o)}"/>）</target>
+</trans-unit>
+<trans-unit id="sf55d634dcc743595">
+  <source>Services</source>
+  <target>サービス</target>
+</trans-unit>
+<trans-unit id="s5c7b236b3fa997c2">
+  <source>No services</source>
+  <target>サービスなし</target>
+</trans-unit>
+<trans-unit id="s5144d023ec192e11">
+  <source>The run ended</source>
+  <target>実行が終了した</target>
+</trans-unit>
+<trans-unit id="sd3458f28f628e82d">
+  <source>Started <x id="0" equiv-text="${localTime(s.started_at)}"/> in <x id="1" equiv-text="${fmtDur(s.start_s ?? 0)}"/></source>
+  <target><x id="0" equiv-text="${localTime(s.started_at)}"/> に開始（<x id="1" equiv-text="${fmtDur(s.start_s ?? 0)}"/>）</target>
+</trans-unit>
+<trans-unit id="sb76f9199c15fe03c">
+  <source>Stopped <x id="0" equiv-text="${localTime(s.stopped_at)}"/></source>
+  <target><x id="0" equiv-text="${localTime(s.stopped_at)}"/> に停止</target>
+</trans-unit>
+<trans-unit id="s673f9ec66716c84a">
+  <source>Stop failed</source>
+  <target>停止でエラー</target>
+</trans-unit>
+<trans-unit id="sbd58f76b47025b9c">
+  <source>stop not recorded</source>
+  <target>停止の記録なし</target>
+  <note from="lit-localize">A service of a finished run whose stop is not in services.jsonl</note>
+</trans-unit>
+<trans-unit id="service-running">
+  <source>running</source>
+  <target>稼働中</target>
+  <note from="lit-localize">A service that is running</note>
+</trans-unit>
+<trans-unit id="sa3deee7949f9fece">
+  <source>stopped</source>
+  <target>停止</target>
+  <note from="lit-localize">A service that stopped</note>
+</trans-unit>
+<trans-unit id="s5410888308ba73df">
+  <source>did not start</source>
+  <target>開始できず</target>
+  <note from="lit-localize">A service whose start failed</note>
+</trans-unit>
+<trans-unit id="s8b41b9223ed7838d">
+  <source>A long-lived helper that the tasks holding one lock share (services.jsonl)</source>
+  <target>同じロックを持つタスクが共有する常駐の補助プロセス（services.jsonl）</target>
+</trans-unit>
+<trans-unit id="sd5a1f34cfcac265f">
+  <source>The run was stopped by a signal</source>
+  <target>実行がシグナルで停止された</target>
+</trans-unit>
+<trans-unit id="se414b08e593473b2">
+  <source>created, kept after the failed attempt</source>
+  <target>作成、試行の失敗後も保持</target>
+</trans-unit>
+<trans-unit id="s4f0b2143a5fc9bf2">
+  <source>Ran again after a resume: <x id="0" equiv-text="${node.rerun}"/></source>
+  <target>再開後に再実行: <x id="0" equiv-text="${node.rerun}"/></target>
+</trans-unit>
+<trans-unit id="s6e4da2972d0c2e38">
+  <source>No selection</source>
+  <target>未選択</target>
+</trans-unit>
+<trans-unit id="s3687049d1af562c4">
+  <source>Copy</source>
+  <target>コピー</target>
+</trans-unit>
+<trans-unit id="sf4de3bfbfaca12e5">
+  <source>Copied</source>
+  <target>コピー済み</target>
+</trans-unit>
+<trans-unit id="sa31c8369058044aa">
+  <source>Wrap lines</source>
+  <target>行を折り返す</target>
+</trans-unit>
+<trans-unit id="s484059ca23104b6d">
+  <source>No text</source>
+  <target>テキストなし</target>
+</trans-unit>
+<trans-unit id="sa70d23a470af74da">
+  <source>No items</source>
+  <target>項目なし</target>
+</trans-unit>
+<trans-unit id="sc7561e5ea00d47ad">
+  <source>First <x id="0" equiv-text="${shown.toLocaleString(getLocale())}"/> of <x id="1" equiv-text="${total.toLocaleString(getLocale())}"/> lines</source>
+  <note from="lit-localize">A code body cut short: the lines shown of all its lines</note>
+  <target>全 <x id="1" equiv-text="${total.toLocaleString(getLocale())}"/> 行のうち先頭 <x id="0" equiv-text="${shown.toLocaleString(getLocale())}"/> 行</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

@@ -33,17 +33,19 @@ from contraagent._internal.backends import Backend, create_backend, known_agents
 from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
 from contraagent._internal.execution.run import Run
 from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
+from contraagent._internal.execution.services import Service, Services
 from contraagent._internal.pipeline.adapter import SpecAdapter
 from contraagent._internal.pipeline.check import CheckReport, check_flow
 from contraagent._internal.pipeline.graph import MAX_PASSES, Graph
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
-from contraagent._internal.routing.plan import Overrides, RoutingPlan, check_task_tables
+from contraagent._internal.routing.plan import Overrides, RoutingError, RoutingPlan, call_credential_problems, check_task_tables
 from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent._internal.routing.quota import QuotaRule
 from contraagent._internal.runs.names import portable
@@ -103,10 +105,14 @@ class RunReport:
 
 class _InputsFirst:
     """The queue's runner: `runner`, but a task that reads the output of a deferred task is
-    deferred too (`Graph.input_deferral`), not refused for its missing input."""
+    deferred too (`Graph.input_deferral`), not refused for its missing input; a task whose
+    fingerprint is complete only when it starts is given as it starts by the graph
+    (`Graph.starting`), and one whose outside state could not be worked out then is refused
+    (`invalid_input`), its agent task's result journaled by `on_refused` (a Python task's is
+    journaled by the queue)."""
 
-    def __init__(self, graph: Graph, runner: Any) -> None:
-        self._graph, self._runner = graph, runner
+    def __init__(self, graph: Graph, runner: Any, on_refused: Callable[[TaskResult], None]) -> None:
+        self._graph, self._runner, self._on_refused = graph, runner, on_refused
 
     def config(self, task: Task) -> Any:
         return self._runner.config(task)
@@ -114,7 +120,16 @@ class _InputsFirst:
     def deferral(self, task: Task) -> Deferral | None:
         return self._graph.input_deferral(task) or self._runner.deferral(task)
 
+    def starting(self, task: Task) -> Task:
+        return self._graph.starting(task)
+
     def run(self, task: Task) -> TaskResult:
+        why = self._graph.refusal(task)
+        if why:
+            refused = TaskResult(task=task, ok=False, stop=STOP_INVALID_INPUT, reason=why[:300], rounds=0)
+            if task.fn is None:
+                self._on_refused(refused)
+            return refused
         return self._runner.run(task)
 
 
@@ -150,6 +165,7 @@ class Pipeline:
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
         row_extras: Callable[[TaskResult], dict[str, Any]] | None = None,
+        mcp_servers: McpServers | None = None,
         stub: Any = None,
         record: str | Path | None = None,
         replay: str | Path | None = None,
@@ -164,6 +180,7 @@ class Pipeline:
         claim_capacity: Mapping[str, int | PerTask] | None = None,
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
+        services: Mapping[str, Service] | None = None,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
         `[credentials.<name>]`); None runs on each task's declared defaults.
@@ -186,7 +203,8 @@ class Pipeline:
         `log`: a function given each progress line instead of the `logging` module.
         `max_passes`: how many passes a `while` loop of flow code may make: a task call, or a
         `yield` of a child flow call, in a later pass raises `TooManyPasses`; default
-        `[defaults] max_passes`, else 10.
+        `[defaults] max_passes`, else 10. A generator function's `@max_passes(n)` bounds
+        its own `while` loops in place of it.
         `quota_rule(credential, reading)`: a reason the credential rests now, or None, given its
         latest quota reading (`QuotaReading`), or the reason and when the rest ends
         (`(reason, datetime)`); beside the config's own caps
@@ -199,6 +217,9 @@ class Pipeline:
         `TaskResult.payload`, `.ok` and `.stop`). Both run once per attempt; one that cares
         about some tasks only tests `task.kind` or `task.executor`.
         `row_extras(result)` adds a domain's own columns to each journal row (`Run`).
+        `mcp_servers(task, params, servers)`: the MCP servers an agent task's coding agent gets,
+        built from the task, its params and its plugin's servers (`McpServers`); None keeps
+        the plugin's. The user's and the project's MCP servers stay out either way.
         `stub`: a stub agent (`contraagent.testing.StubAgent`) makes each run a stub run: it
         plays every agent task, under every coding agent's name, and every Python task but
         the kinds it executes (`StubAgent(execute=)`), so no model is called and no
@@ -214,7 +235,8 @@ class Pipeline:
         the directory); its run id defaults to `<flow>-replay`. Not with `record`, `stub`,
         `backends` or `preflight`.
         `execute`: with `replay`, the Python task kinds whose functions run instead of being
-        played (as `StubAgent(execute=)` in a stub run).
+        played, by name or `fnmatch` pattern (`("*",)`: every one's, and only the agent tasks
+        are played), as `StubAgent(execute=)` in a stub run.
         `record_missing`: with `replay`, a task with no recording launches on the coding agents
         (`backends`, default every registered one) through the config's routing, or runs its
         function, and its recording is written into the `replay` directory (which may be empty);
@@ -243,7 +265,20 @@ class Pipeline:
         config's `[defaults.claim_capacity]` key by key.
         `retry_wait_s`: the wait before the one retry of a task that ended `api_error`,
         `no_output` or `launch_failed`. `throttle_s`: how long two `rate_limited` ends in a
-        row halve the tasks running at once."""
+        row halve the tasks running at once.
+
+        `services`: the service each claim name stands for (`Service`: a function of the
+        name that returns a context manager), by the name or an `fnmatch` pattern, as
+        `claim_capacity` takes them. The first task that claims the name starts it, before
+        its first attempt; every task that claims it shares it while it runs, as many at
+        once as the name's claim capacity lets; and it runs until the run ends, a run
+        that raises or is interrupted included. A task reaches it by its address: an agent
+        task in its environment (`CONTRAAGENT_SERVICE_<NAME>`), a Python task by
+        `contraagent.service_address(name)`. A start that raises fails each task that
+        claims the name, with stop `launch_failed`. `services.jsonl` records each start and
+        stop. A stub run or a replay starts none for a task it plays: only a Python task
+        whose function runs, or an agent task that launches a coding agent, holds its
+        services."""
         if config is None:
             config = PipelineConfig()
         elif not isinstance(config, PipelineConfig):
@@ -298,12 +333,15 @@ class Pipeline:
         self.scopes: tuple[TaskScope, ...] = tuple(scopes)
         self.enrichers: tuple[ResultEnricher, ...] = tuple(enrichers)
         self.row_extras = row_extras
+        self.mcp_servers: McpServers | None = mcp_servers
         # A malformed [defaults.claim_capacity] is reported by the routing plan too.
         given = dict(claim_capacity or {})
         for name, value in given.items():
             if not isinstance(value, PerTask) and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ConfigError(f"Pipeline(claim_capacity=) {name!r} = {value!r} is not a non-negative integer or a PerTask")
         capacity = {**config.claim_capacity([]), **given}
+        #: The service each claim name or pattern stands for (`Service`).
+        self.services: dict[str, Service] = _checked_services(services)
         #: What the run's `WorkQueue` is given beside its runner (`Run.queue`).
         self.queue_options: dict[str, Any] = dict(
             deadline_s=deadline_s,
@@ -334,12 +372,21 @@ class Pipeline:
           by the in-session hook (in a fresh interpreter, as the hook does); its command
           validators' programs are on PATH;
         * each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
+        * `mcp_servers`, called for each agent task created whose params are known (none
+          waits for another task's output): it raises nothing and returns servers;
+        * `outside_state`, called for each task created whose params are known, as a run
+          calls it when the task starts: it raises nothing and returns a JSON value;
+        * a kind that keeps a failed attempt's files (`keep_failed_changes`) declares
+          `changes` patterns;
         * routing: the config against those kinds (budgets, efforts, failover chains,
-          credentials and the traits tasks require), the coding agents' programs on
+          credentials and the traits tasks require; the credential each task created
+          names in its call, `credential=`), the coding agents' programs on
           PATH, and each model against the list its coding agent keeps locally
           (`Backend.catalogue`, e.g. `omp models --json`).
 
-        Nothing is launched, no run directory is written and no token is spent. The one
+        While the flow builds, `contraagent.pipeline_table` reads this pipeline's config
+        as a run does; `contraagent.log` and `save` write into a temporary directory the
+        check removes. Nothing is launched, no run directory is written and no token is spent. The one
         check left to a run is the preflight (`Pipeline(preflight="stop")`), which probes
         each route of the same kinds. The `CheckReport` holds every problem found."""
         return check_flow(self, flow, args, kwargs)
@@ -375,6 +422,13 @@ class Pipeline:
             run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
         ) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
+            services = Services(
+                self.services,
+                run.dir,
+                log=lambda line, warning: run.progress(line, warning=warning),
+                plays=self._plays,
+            )
+            run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
             if self.stub is not None:
                 run.update_info(stub=True)
             if self.replay is not None:
@@ -383,7 +437,8 @@ class Pipeline:
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
-            adapter = SpecAdapter(run.run_id, run_dir, self.cwd)
+            graph.credential_override = self.overrides.credential
+            adapter = SpecAdapter(run.run_id, run_dir, self.cwd, mcp_servers=self.mcp_servers)
             recorder = None
             into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
             if into is not None:
@@ -424,6 +479,8 @@ class Pipeline:
                         for spec in reachable(flow, *args, *kwargs.values()):
                             graph.reached(spec)
                     specs = graph.agent_specs()
+                    if not driven:  # a generator flow's kinds are known at its end (below)
+                        _check_tables(self.config, specs, graph)
                     plan = RoutingPlan.build(
                         self.config,
                         list(specs),
@@ -433,8 +490,17 @@ class Pipeline:
                         bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                         requirements={kind: spec.requires for kind, spec in specs.items()},
                         light=[kind for kind, spec in specs.items() if spec.light],
-                        all_kinds=not driven,
+                        all_kinds=False,
                     )
+                    # The task calls so far that name a credential, refused before anything launches.
+                    refused = [
+                        f"{node.key}: credential={node.credential!r}: {problem}"
+                        for node in graph.nodes
+                        if node.credential
+                        for problem in plan.call_problems(node.spec.kind, node.credential)
+                    ]
+                    if refused:
+                        raise RoutingError(*refused)
                     try:
                         preflight = plan.preflight(self.preflight)
                     except PreflightStopped as exc:
@@ -470,19 +536,27 @@ class Pipeline:
                         enrichers=enrichers,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
+                    graph.check_credential = lambda kind, credential: call_credential_problems(
+                        runner.configs[kind], runner.routers.get(kind), credential, plan.credentials, self.backends, self.overrides
+                    )
                     queue = run.queue(
                         _InputsFirst(
                             graph,
-                            recording(
-                                run.python_runner(
-                                    RetryingRunner(runner, on_attempt=run.record_attempt),
-                                    cwd=self.cwd,
-                                    scopes=self.scopes,
-                                    enrichers=self.enrichers,
+                            services.wrap(
+                                recording(
+                                    run.python_runner(
+                                        RetryingRunner(runner, on_attempt=run.record_attempt),
+                                        cwd=self.cwd,
+                                        scopes=self.scopes,
+                                        enrichers=self.enrichers,
+                                    ),
+                                    recorder,
+                                    self.replay,
                                 ),
-                                recorder,
-                                self.replay,
+                                # A Python task's result is journaled by the queue, an agent task's here.
+                                on_failed=lambda result: run.record_attempt(result) if result.task.fn is None else None,
                             ),
+                            on_refused=run.record_attempt,
                         ),
                         follow_up=follow_up,
                         resume=resume,
@@ -494,10 +568,13 @@ class Pipeline:
                     queue.extend(tasks)
                     summary = queue.run()
                 finally:
-                    driver.finish()
+                    try:
+                        services.close()
+                    finally:
+                        driver.finish()
             if driven:
                 specs = graph.agent_specs()
-                check_task_tables(self.config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()})
+                _check_tables(self.config, specs, graph)
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
@@ -510,6 +587,13 @@ class Pipeline:
             return RunReport(
                 run_id=run.run_id, run_dir=run.dir, results=dict(graph.results), summary=summary, value=value, flow_errors=errors
             )
+
+    def _plays(self, task: Task) -> bool:
+        """Whether this run plays `task` (a stub run, a replay): no function of its runs and
+        no coding agent launches for it, so it holds no service."""
+        if self.stub is not None:
+            return task.fn is None or self.stub.plays(task.kind)
+        return self.replay is not None and self.replay.plays_task(task)
 
     def _route(self, spec: Any, runner: AgentRunner) -> None:
         """Route a kind while the run runs: one first created then, or one created by another
@@ -530,6 +614,28 @@ class Pipeline:
         runner.configs = {**runner.configs, **plan.configs}
         if self.replay is None or self.replay.record_missing:
             runner.routers.update(plan.routers)
+
+
+def _check_tables(config: PipelineConfig, specs: Mapping[str, Any], graph: Graph) -> None:
+    """Log each `[tasks.<name>]` table that names no agent kind of the run (`check_task_tables`),
+    one that names a Python task kind of the run as such."""
+    python = {node.spec.kind for node in graph.nodes if node.spec.executor == "python"}
+    check_task_tables(config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()}, python=python)
+
+
+def _checked_services(services: Mapping[str, Service] | None) -> dict[str, Service]:
+    """`Pipeline(services=)` checked: each key a claim name or pattern, each value callable."""
+    out: dict[str, Service] = {}
+    for name, service in (services or {}).items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Pipeline(services=): {name!r} is not a claim name")
+        if not callable(service):
+            raise TypeError(
+                f"Pipeline(services=) {name!r} = {service!r} is not a Service: give a function of the claim name "
+                "that returns a context manager (a generator function decorated with contextlib.contextmanager)"
+            )
+        out[name] = service
+    return out
 
 
 def _start(

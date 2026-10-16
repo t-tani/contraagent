@@ -30,6 +30,24 @@ Three exceptions remain:
   providers `anthropic`, `openai-codex` and `litellm`. It does not verify other omp
   providers, so a task that requires traits is refused on them.
 
+A pipeline can give a session more than its plugin holds:
+
+- [MCP servers built for each task](plugins.md#mcp-servers-built-for-each-task):
+  `Pipeline(mcp_servers=)` returns the servers of each task, which replace its
+  plugin's. The coding agent starts them as it starts a plugin's, and they see what
+  the function gives them from the task's params. contraagent writes them to a file in an owner-only
+  temporary directory, not to the run directory, because a server's arguments or
+  environment may hold a secret, and removes the file when the process ends.
+- [Services](tasks.md#services-a-server-that-the-tasks-of-a-claim-share): a task
+  that claims a service's name gets its address in `CONTRAAGENT_SERVICE_<NAME>`, and
+  a task that claims no service gets no such variable. The pipeline's own process
+  starts a service, with its rights, outside any sandbox of a coding agent.
+  `services.jsonl` and the monitor show its address, so an address holds no secret.
+- [Files a task changes](tasks.md#files-a-task-changes): a kind declared with
+  `keep_failed_changes` leaves the files a failed attempt created in the working
+  directory, and the next attempt, and any later task, sees them. Nothing marks them
+  as the output of a failed attempt but the journal row's `changes.kept`.
+
 ## A refused task and its failover chain
 
 A launch that a model's safeguards refuse ends with the stop `refused`. The task
@@ -80,6 +98,12 @@ accepts. The facts that concern security:
   the one credential that its hop names. A tool that needs a key of its own gets it
   through `Pipeline(env=...)`.
 - A launch on `ambient` keeps the host's environment as it is.
+- A task call may name the credential of that one task
+  ([A task call's credential](routing.md#a-task-calls-credential)). It runs as that
+  credential on every hop of its kind, so a refusal or a 429 never moves it to
+  another identity. A credential that lacks a trait the task `requires` is refused
+  before the task launches, as for a kind's own. `plan.jsonl` records the call's
+  credential, and the journal the one each launch ran as.
 - A launch whose coding agent reports a credential source that does not match its
   credential ends with the stop `credential_mismatch`. It does not move to another
   hop.
@@ -93,10 +117,16 @@ accepts. The facts that concern security:
 The coding agents' CLIs do not enforce the same things. The table in
 [What each one does](agents.md#what-each-one-does) has a row for each:
 
-- `disallowed_tools`: Claude Code and opencode deny tools and some patterns, pi whole
-  tools only; omp and Codex cannot,
-  so a route on them is refused before anything launches.
-- `max_turns`: omp and pi do not enforce it, and on Codex it counts tool calls.
+- `disallowed_tools`: Claude Code, opencode and omp deny tools and some patterns, pi
+  whole tools only; Codex cannot, so a route on it is refused before anything launches,
+  as is a route whose agent cannot deny a pattern the task names.
+- `max_turns`: pi does not enforce it, and on omp and Codex it counts tool calls.
+- On omp, `disallowed_tools` is enforced by an extension of contraagent's own inside
+  the agent's process, which sees each tool call before it runs. omp has no
+  permission checks of its own (`--approval-mode yolo`), so the extension is the only
+  thing that denies a call. As on Claude Code, a pattern does not hold what another
+  tool does: a `Read(secrets/**)` pattern does not stop `bash` from printing the file.
+  Deny the whole tool (`Bash`) when that matters.
 - `max_budget_usd`: Codex reports no cost, so the cap does not hold there.
 - `context_budget`: only Claude Code and opencode launches are stopped by it.
 
@@ -133,6 +163,7 @@ The coding agents' CLIs do not enforce the same things. The table in
 | Codex's sandbox | `workspace-write`, with the network on. |
 | Scratch directories | `<temp dir>/contraagent-<uid>/`, owner-only. |
 | Each attempt | `journal.jsonl`: the coding agent, model, credential name, hops, tokens, cost, web searches, and the changed files among those the task declares with `changes=`. |
+| Each service | `services.jsonl`: each start, with the task that started it and its address, and each stop. |
 | Each launch | `launches.jsonl`: the command line, with the prompt cut to 200 characters, and the refused tool calls. |
 | What each agent was given, and what it did | The run directory: the call file of each task (`calls/`) and the transcript of each task (`streams/`). |
 
@@ -146,6 +177,12 @@ capture of every file or network access.
 - The [monitor](monitor.md) answers GET requests only and binds to `127.0.0.1` by
   default. It answers only local host names and the names given with
   `--allow-host`.
+- The monitor has no login of its own. Behind a
+  [reverse proxy](monitor.md#behind-a-reverse-proxy) (`--base-path`), it answers
+  everyone the proxy passes, so the proxy checks who may read it, or it serves a hub
+  with a read token. The `Host` check still applies: a proxy that passes the
+  browser's host name needs that name given with `--allow-host`, and `*` turns the
+  check off.
 - `contraagent monitor export` never includes transcripts or processes. By default
   it redacts paths and the host's name
   ([Without a server: an export](monitor.md#without-a-server-an-export)).
@@ -155,6 +192,6 @@ capture of every file or network access.
 - The hub's monitor requires the read token when the hub has one
   (`--read-token-file`). With no read token, the monitor is open to anyone who
   reaches the port, and a hub bound to an address other than loopback logs a
-  warning.
+  warning. Under a base path, its `/login` sets the cookie for that path only.
 - The hub reads its tokens from files and compares them in constant time.
   [Operating a hub](hub-operations.md#tokens) shows how to add and rotate them.

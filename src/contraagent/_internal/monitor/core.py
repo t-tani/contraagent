@@ -35,7 +35,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ValidationError
 
 from contraagent._internal.backends.streams import normalize_stream_line, resolve_format
-from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, TimeBoxRecord
+from contraagent._internal.dispatch.records import DeferralCause, Rest, RestEvent, ServiceEvent, TimeBoxRecord
 from contraagent._internal.execution.cursor import parse_cursor
 from contraagent._internal.execution.schemas import JournalRow
 from contraagent._internal.monitor import trends
@@ -229,6 +229,16 @@ class TaskDetailFn(Protocol):
     domain merged into the task's detail (`Monitor.task_detail`); None adds nothing."""
 
     def __call__(self, run: str, key: str, rows: list[dict[str, Any]], /) -> Mapping[str, Any] | None: ...
+
+
+def _json_line(line: str) -> Any:
+    """One line of a JSON Lines file, parsed; None for a blank line or one that does not parse."""
+    if not line.strip():
+        return None
+    try:
+        return json.loads(line)
+    except ValueError:
+        return None
 
 
 def _running_keys(snap: dict[str, Any]) -> set:
@@ -566,6 +576,8 @@ class Monitor:
                         "attempts": j.get("attempt", 0) + 1,
                     }
                 )
+                if j.get("rerun"):
+                    node["rerun"] = str(j["rerun"])
             nodes.append(node)
         by_key = {n["key"]: n for n in nodes}
         changed = True
@@ -598,6 +610,7 @@ class Monitor:
             "flow_calls": self._flow_calls(run, cwd),
             **self._quota(run),
             "models": model_usage(journal),
+            "services": self._services(run),
             **self._preflight(run),
         }
 
@@ -638,6 +651,30 @@ class Monitor:
                 open_.pop(name)["ended"] = event.ts
         rule = info.get("quota_rule")
         return {"quota_caps": quota_caps, "quota_rule": rule if isinstance(rule, str) else "", "rests": rests}
+
+    def _services(self, run: str) -> list[dict[str, Any]]:
+        """Each start of a service (`services.jsonl`), folded with the stop that ended it, in
+        start order. A stop ends the latest open start of its name; a start an earlier
+        process of a resumed run never stopped (it was killed) stays without one."""
+        spans: list[dict[str, Any]] = []
+        up: dict[str, dict[str, Any]] = {}
+        for row in parse_rows(self.source.lines(run, layout.SERVICES)[0]):
+            try:
+                event = ServiceEvent.model_validate(row)
+            except ValidationError:
+                continue
+            if event.event == "start":
+                span = {"name": event.name, "started_at": event.ts, "key": event.key or "", "address": event.address}
+                span["start_s"] = event.wall_s
+                if event.error is not None:
+                    span["start_error"] = event.error
+                else:
+                    up[event.name] = span
+                spans.append(span)
+            elif event.name in up:
+                span = up.pop(event.name)
+                span.update(stopped_at=event.ts, stop_cause=event.cause, stop_error=event.error or "")
+        return spans
 
     def _cwd(self, run: str) -> Path | None:
         """The run's working directory, as `run.json` records it."""
@@ -817,7 +854,7 @@ class Monitor:
         for rec in parse_rows(self.source.folder(run, layout.CONTRACTS)):
             row = last.get(rec.get("key", ""))
             for spec in rec.get("outputs", []) + rec.get("inputs", []):
-                spec["file"] = self._file_view(run, spec["path"])
+                spec["file"] = self._file_view(run, spec["path"], rows=spec.get("format") == "jsonl")
                 props = (spec.get("schema") or {}).get("properties", {})
                 req = set((spec.get("schema") or {}).get("required", []))
                 spec["fields"] = [{"name": n, "type": self._type_of(p), "required": n in req} for n, p in props.items()]
@@ -838,7 +875,9 @@ class Monitor:
             return f"list[{Monitor._type_of(prop.get('items', {}))}]"
         return "|".join(x.get("type", "any") for x in prop["anyOf"]) if "anyOf" in prop else str(t)
 
-    def _file_view(self, run: str, path: str, limit: int = 20_000) -> dict[str, Any]:
+    def _file_view(self, run: str, path: str, limit: int = 20_000, *, rows: bool = False) -> dict[str, Any]:
+        """A file as `FileView` shows it; with `rows`, a JSON Lines file whose content is the
+        list of its lines that parse."""
         got = self.source.file(run, path)
         if got is None:
             return {"exists": False}
@@ -848,6 +887,9 @@ class Monitor:
             out["content"] = None
             return out
         out["truncated"] = len(text) > limit
+        if rows:
+            out["content"] = [row for line in text[:limit].splitlines() if (row := _json_line(line)) is not None]
+            return out
         try:
             out["content"] = json.loads(text) if len(text) <= limit else text[:limit]
         except ValueError:  # a text output, or JSON that does not parse: the text itself

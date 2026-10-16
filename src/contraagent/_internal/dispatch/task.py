@@ -26,6 +26,7 @@ live in `contraagent._internal.dispatch.interceptors`.
 
 from __future__ import annotations
 
+import fnmatch
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -45,6 +46,17 @@ def kind_name(kind) -> str:
     compare equal to their values.
     """
     return str(getattr(kind, "value", kind))
+
+
+#: The characters of an `fnmatch` pattern, which a kind name does not hold.
+GLOB_CHARACTERS = frozenset("*?[")
+
+
+def kind_matches(kind, patterns: frozenset[str]) -> bool:
+    """Whether `kind` is matched by one of `patterns` (kind names or `fnmatch` patterns of
+    them, `*` for every kind): what a stub run or a replay executes (`--execute`)."""
+    name = kind_name(kind)
+    return name in patterns or any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 
 @dataclass(frozen=True)
@@ -126,9 +138,18 @@ class Task:
     `fingerprint`: a digest of what defines its work, set by whoever builds it;
     a resumed run skips a key only when its last journal row is ok with the
     same fingerprint.
+    `fingerprint_at_start`: its fingerprint is complete only when it is about to start (it
+    covers outside state, its own or that of a task it waits for): the queue asks the
+    runner for the task as it starts (`starting`) and a resume asks whether to skip it
+    then, not when it is queued.
+    `outside`: the SHA-256 of its outside state, once it is about to start; empty for a
+    task that declares none, or before.
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
+    `credential`: the credential its task call names (a `[credentials.<name>]`), which
+    every route of its kind runs it as; empty: its kind's own. Routing, not work: no part
+    of the fingerprint.
     """
 
     kind: str
@@ -149,6 +170,10 @@ class Task:
     origin: Origin | None = None
     fingerprint: str = ""
     base_kind: str = ""
+    # Fields new since 0.1.0 come last, so a positional argument keeps its place.
+    fingerprint_at_start: bool = False
+    outside: str = ""
+    credential: str = ""
 
     def __post_init__(self) -> None:
         # Generic, collision-safe fallbacks -- a domain that always assigns
@@ -189,7 +214,7 @@ STOP_PARTIAL = "partial"
 
 @dataclass(frozen=True)
 class Partial[Out]:
-    """What a Python task returns when it could do only part of its work (a service it
+    """What a Python task returns when it could do only part of its work (a server it
     needs was unavailable): `value`, its output as usual (checked against its output
     schema, written to its output file, and what the flow receives), and `reason`, why,
     in one line. The task finishes ok with stop `partial`, so the flow and later tasks go
@@ -231,6 +256,7 @@ class TaskResult:
     `hops`: each launch of the attempt, in order, one `Hop` per route it launched on.
     `rounds`: the rounds its output checks took (1: passed at once); 0 or None when none ran (refused, or no output contract).
     `round_errors`: the errors of each round that failed its checks, in order; the last is what stayed wrong.
+    `max_corrections`: the correction rounds its kind allowed after the first; None when no output contract ran.
     `changes`: the files the attempt changed under its `changes` patterns; None when it declares none.
     `skipped_hops`: the hops passed over without a launch, in order, each with why its credential rests.
     `cause`: a `deferred` result's cause as data (`Deferral.cause`); None for any other result.
@@ -260,6 +286,8 @@ class TaskResult:
     retryable: bool = True
     replayed: bool = False
     payload: Any = None
+    # Fields new since 0.1.0 come last, so a positional argument keeps its place.
+    max_corrections: int | None = None
 
     @classmethod
     def skipped(cls, task: Task) -> TaskResult:

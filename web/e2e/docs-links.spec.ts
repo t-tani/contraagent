@@ -146,8 +146,13 @@ for (const path of OPENED) {
 test('the search loads its index from under the base, and its results link under it', async ({ page }) => {
   const bad = watch(page);
   await page.goto(`${DOCS}/python/tutorial/`);
-  await page.getByRole('button', { name: 'Search' }).click();
-  await page.locator('#starlight__search input').fill('monitor');
+  // The button opens the dialog only once the page's script has run: click until it opens.
+  const input = page.locator('#starlight__search input');
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Search' }).click();
+    await expect(input).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
+  await input.fill('monitor');
   const result = page.locator('#starlight__search a[href]').first();
   await expect(result).toBeVisible();
   expect(new URL((await result.getAttribute('href'))!, page.url()).pathname).toMatch(new RegExp(`^${BASE}/`));

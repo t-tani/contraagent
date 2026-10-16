@@ -2,7 +2,10 @@
 // written, by its format, and the words of the charts it draws.
 import type { ValueFormat } from '@contraagent/api';
 import type { ChartStrings } from '@contraagent/elements/charts';
+import type { CodeStrings } from '@contraagent/elements/code';
+import type { TreeStrings } from '@contraagent/elements/tree';
 import { msg, str } from '@lit/localize';
+import { getLocale } from '../core/i18n.js';
 import { fmtDur, localTime, tokenCount, usd } from './format.js';
 
 /** A fraction as a percent: `97%`, `4.5%` under 10, `<0.1%` above 0. */
@@ -51,3 +54,18 @@ export const chartStrings = (): Partial<ChartStrings> => ({
   none: '—',
   scale: (low: string, high: string) => msg(str`${low} to ${high}`, { desc: 'A heatmap\'s colour scale: its lowest and highest value' }),
 });
+
+/** The words of a code body (`<cae-code>`), in the UI's language. */
+export const codeStrings = (): Partial<CodeStrings> => ({
+  copy: msg('Copy'),
+  copied: msg('Copied'),
+  wrap: msg('Wrap lines'),
+  empty: msg('No text'),
+  cut: (shown: number, total: number) =>
+    msg(str`First ${shown.toLocaleString(getLocale())} of ${total.toLocaleString(getLocale())} lines`, {
+      desc: 'A code body cut short: the lines shown of all its lines',
+    }),
+});
+
+/** The words of a tree body (`<cae-tree>`), in the UI's language. */
+export const treeStrings = (): Partial<TreeStrings> => ({ empty: msg('No items') });

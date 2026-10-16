@@ -21,18 +21,19 @@ import re
 import string
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
-from typing import Any, Literal, TypeVar, overload
+from typing import Any, Literal, Protocol, TypeVar, overload
 
 from pydantic import BaseModel, ConfigDict, RootModel, TypeAdapter, ValidationError
 from pydantic.errors import PydanticSchemaGenerationError
 
 from contraagent._internal.contracts.pointers import schema_error, syntax_error
+from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
 from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
-from contraagent._internal.dispatch.task import Partial
+from contraagent._internal.dispatch.task import GLOB_CHARACTERS, Partial
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.pipeline.graph import Pending, current_graph
 from contraagent._internal.plugins import Plugin, PluginError
@@ -41,8 +42,41 @@ from contraagent._internal.routing.config import TASK_KEYS, ConfigError, Pipelin
 
 Out = TypeVar("Out")
 
-#: Where a task's JSON output file goes, relative to `<run>/out/` (`.md` for a text output).
+
+class OutsideState(Protocol):
+    """A function that returns a task's outside state: what its work depends on beside its
+    params, its definition and the outputs it reads (`agent_task(outside_state=)`,
+    `@python_task(outside_state=)`). `outside_state(unit, params)` is given the task's unit
+    (empty for a task with none) and its params, every output of another task resolved, and
+    returns any JSON value: a digest of the files the task reads, a version, a list or a dict
+    of them, a pydantic model. The task's fingerprint covers the value, so a resume runs the
+    task again when it returns another. It is called when the task is about to start, once
+    every task it waits for finished; one that raises, or returns what is not JSON, refuses
+    the task (`invalid_input`)."""
+
+    def __call__(self, unit: str, params: dict[str, Any], /) -> Any: ...
+
+
+#: Where a task's JSON output file goes, relative to `<run>/out/` (`.md` for a text output,
+#: `.jsonl` for rows).
 DEFAULT_OUTPUT_NAME = "{kind}/{unit}.json"
+
+
+def default_output_name(output: Any) -> str:
+    """Where an output declared `output` goes by default: `{kind}/{unit}.json`, `.md` for a
+    text output, `.jsonl` for rows (`Rows[Row]`)."""
+    if is_text(output):
+        return "{kind}/{unit}.md"
+    if rows_model(output) is not None:
+        return "{kind}/{unit}.jsonl"
+    return DEFAULT_OUTPUT_NAME
+
+
+def output_format_of(output: Any) -> str:
+    """`text`, `jsonl` (rows) or `json`: what an output's file holds, as the call file says."""
+    if is_text(output):
+        return "text"
+    return "jsonl" if rows_model(output) is not None else "json"
 
 
 @dataclass(frozen=True, eq=False)
@@ -77,25 +111,36 @@ class AgentTask[Out]:
     output_of: AgentTask[Any] | PythonTask[Any] | None = None
     #: The base kind of an implementation kind (`agent_task(implementations=)`); empty for any other.
     base_kind: str = ""
+    #: The function that returns its outside state, which its fingerprint covers (`agent_task(outside_state=)`).
+    outside_state: OutsideState | None = None
 
     #: Who executes it (`Task.executor`): a coding agent.
     executor = "agent"
 
     @property
     def output_schema(self) -> type[BaseModel] | None:
-        """The schema the output file is checked against; None for a text output."""
+        """The schema the output file is checked against: the model; for rows (`Rows[Row]`)
+        the file of them (`RowsFile[Row]`); None for a text output."""
+        row = rows_model(self.output)
+        if row is not None:
+            return rows_file(row)
         return self.output if isinstance(self.output, type) and issubclass(self.output, BaseModel) else None
 
     @property
     def output_format(self) -> str | None:
+        """`json`, `text` or `jsonl` (rows); None for a task with no output."""
         if self.output is None:
             return None
-        return "text" if is_text(self.output) else "json"
+        return output_format_of(self.output)
 
     @property
     def output_json_schema(self) -> dict[str, Any]:
-        """The output's JSON Schema, as the call file carries it: the model's; for a text
-        output `Annotated[str, Field(examples=[...])]`, the string's with its examples; else empty."""
+        """The output's JSON Schema, as the call file carries it: the model's; for rows, the
+        row model's, which each line meets; for a text output `Annotated[str, Field(examples=[...])]`,
+        the string's with its examples; else empty."""
+        row = rows_model(self.output)
+        if row is not None:
+            return row.model_json_schema()
         if self.output_schema is not None:
             return self.output_schema.model_json_schema()
         if self.output is not None and self.output is not str:
@@ -125,7 +170,8 @@ class AgentTask[Out]:
         """A digest of what defines this kind of task, part of each task's fingerprint: its
         instructions, its role file's content, the skills of its plugins, its output schema,
         its validators, its params schema, its `changes` patterns, where its output arrives,
-        whose output file it writes (`output_of`), the parts of it to keep (`preserve`) and, for a light launch, that it has no tools."""
+        whose output file it writes (`output_of`), the parts of it to keep (`preserve`), the name of
+        its `outside_state` function and, for a light launch, that it has no tools."""
         return _digest(self._defined())
 
     def differences(self, other: AgentTask[Any]) -> list[str]:
@@ -167,6 +213,7 @@ class AgentTask[Out]:
             **({"preserve": list(self.preserve)} if self.preserve else {}),
             **({"output_of": self.output_of.kind} if self.output_of is not None else {}),
             **({"tools": list(self.tools)} if self.tools is not None else {}),
+            **({"outside_state": _function_name(self.outside_state)} if self.outside_state is not None else {}),
         }
 
     def __call__(
@@ -176,13 +223,25 @@ class AgentTask[Out]:
         key: str | None = None,
         after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
+        credential: str | None = None,
         **params: Any,
     ) -> Pending[Out]:
         """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
-        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter."""
+        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter.
+        `credential` names a `[credentials.<name>]` this task runs as on every route of its
+        kind, failover hops included, in place of the kind's; None: the kind's. It outranks
+        the kind's `[tasks.<kind>]` table and its declaration; a run-wide override
+        (`Overrides(credential=)`) outranks it. A credential that does not exist or does not
+        carry the traits the task `requires` is refused before the task launches."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=params)
+        words = {
+            "key": _checked_key(self.kind, key),
+            "after": _checked_after(self.kind, after),
+            "priority": _checked_priority(self.kind, priority),
+            "credential": _checked_credential(self.kind, credential),
+        }
+        return current_graph().add(self, unit=unit, params=params, **words)
 
 
 @overload
@@ -207,6 +266,7 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -224,6 +284,9 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out]: ...
 
 
@@ -249,6 +312,7 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -266,6 +330,9 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> Mapping[str, AgentTask[Out]]: ...
 
 
@@ -290,6 +357,7 @@ def agent_task[Out](
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -307,9 +375,14 @@ def agent_task[Out](
     max_concurrent: int | None = None,
     retries: int | None = None,
     retry_backoff_base: float | None = None,
+    partial_on: Sequence[Literal["timeout", "stalled"]] | None = None,
+    keep_failed_changes: bool | None = None,
+    max_corrections: int | None = None,
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
+    `kind`: the name of its class of work; it holds no `*`, `?` or `[`, which a pattern of
+    kinds uses (`contraagent run --stub --execute PATTERN`).
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
     to the file that declares the task. Its role (`agents/<role>.md`) is the
     procedure; `role` picks one when the plugin has several.
@@ -319,11 +392,14 @@ def agent_task[Out](
     loads it, so a plugin with any of them is refused here.
     `params`: a pydantic model the task's parameters must satisfy (default: any
     JSON values). They reach the agent in its call file, never in the prompt.
-    `output`: a pydantic model (a JSON file checked against it) or `str` (a text
-    document); `Annotated[str, Field(examples=[...])]` is a text document with an example
+    `output`: a pydantic model (a JSON file checked against it), `str` (a text
+    document) or `Rows[Row]` (rows: a JSON Lines file, each line one `Row`, which the agent
+    may write one row at a time; the flow receives a `Rows`, a list of `Row`);
+    `Annotated[str, Field(examples=[...])]` is a text document with an example
     (the model's own example: `model_config = ConfigDict(json_schema_extra={"examples": [...]})`),
     which a stub run writes (`contraagent.testing.writes_example`). `validators` add checks the file must pass beyond its schema
-    (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`).
+    (`contraagent.Validator`: a Python function, `CommandValidator(["textlint", ...])`); a
+    Python validator of rows is given the `Rows`.
     `requires`: traits the credential it runs under must carry (`["zdr"]` for a
     task whose data may only go to a zero-data-retention organization). Which
     credential that is, is the config's to say; a route that does not satisfy
@@ -339,15 +415,16 @@ def agent_task[Out](
     `changes`: `Path.glob` patterns, relative to the working directory, of the files its
     tasks may change beside their output (`["topics/{unit}/**"]`; `{unit}`, `{key}` and
     `{kind}` as in `output_name`; a pattern that matches a directory covers everything
-    under it). Each attempt's changes under them are recorded in its journal row, and
-    the files a failed attempt created are removed. Tasks that run at once under one
-    pattern cannot be told apart: put `{unit}` in it.
+    under it; one that starts with `!` leaves out what it matches and everything under it,
+    `["**", "!.git/**"]`). Each attempt's changes under them are recorded in its journal row, and
+    the files a failed attempt created are removed (but with `keep_failed_changes`, below).
+    Tasks that run at once under one pattern cannot be told apart: put `{unit}` in it.
     `instructions`: a text put before the call protocol, for a task with no plugin. Such a
     task runs with the permissions of the plugin template's `settings.json` (Claude Code).
     `output_name`: the output file's path relative to `<run>/out/`, a template:
     `{unit}` is the unit, or the key when the task call gives `key=` (or no unit);
     `{key}` and `{kind}`. Default `{kind}/{unit}.json` (`{kind}/{unit}.md` for a text
-    output); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
+    output, `{kind}/{unit}.jsonl` for rows); `"reports/{unit}.json"` writes `out/reports/alpha.json`. An absolute path, a
     `..`, `.` or empty segment, or another field raises here. Two kinds whose templates name
     one file, or two tasks given one file, raise when the flow reaches the second
     (`Pipeline.check` reports it before a run).
@@ -385,6 +462,12 @@ def agent_task[Out](
     an earlier attempt of the run finished them, for a final step that reports or publishes
     the state of the work. A task that takes the output of a task that ran again already
     runs again, through its fingerprint.
+    `outside_state`: a function of the task's unit and params (`OutsideState`) that returns
+    what its work depends on beside its params and inputs, as a JSON value: a digest of a file
+    its instructions or role tell the agent to read, a version of a state another process
+    keeps. Its fingerprint covers the value, so a resume runs the task again when it returns
+    another. It is called when the task is about to start, so it sees what the tasks it waits
+    for wrote; `contraagent docs tasks` tells more.
     `implementations`: one step done in several ways, by name: `{"python": "plugins/review-python",
     "go": "plugins/review-go"}` (plugin directories, relative as `plugin` is; it takes the place
     of `plugin`). Each is a kind of its own, `<kind>-<name>` (`review-go`), with that plugin
@@ -416,9 +499,24 @@ def agent_task[Out](
     `max_concurrent`: tasks of this kind running at once (`Pipeline(max_concurrent=)` caps the run).
     `retries`: fresh-session attempts after the first, each after one that made no progress;
     `retry_backoff_base`: the seconds before the first of them, doubled per attempt.
+    `partial_on`: stops of a launch (`"timeout"`, `"stalled"`: the runner ended it for its
+    `timeout_s` or its `stall_s`) after which the output the agent wrote is kept: when it
+    exists, was written by this attempt and passes every check, the task finishes ok with
+    stop `partial` and the stop as its reason, as a Python task that returns `Partial` does;
+    its output is what the flow receives, and a resume runs it again. Rows keep the rows
+    written so far (an unfinished last line is removed). Without it such a launch fails as
+    any other. It takes an output the agent writes to a file.
+    `keep_failed_changes`: leave the files a failed attempt created under `changes` in place,
+    as the evidence of why it failed, instead of removing them; its journal row lists them
+    as `changes.kept`. The next attempt, and a resume, start from the tree with them in it.
+    `max_corrections`: the correction rounds after the first launch, 0 to 20 (default 3):
+    how many times an output that fails its checks goes
+    back to the same session with the errors before the task ends `invalid_output`; 0
+    sends none back.
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
     given = locals()
+    _check_kind(f"agent_task({kind!r})", kind)
     table = {key: _table_value(given[key]) for key in TASK_KEYS if given[key] is not None}
     base = _caller_dir()
     if implementations is not None:
@@ -446,6 +544,7 @@ def agent_task[Out](
                         rerun_on_resume=rerun_on_resume,
                         preserve=preserve,
                         output_of=output_of,
+                        outside_state=outside_state,
                         **table,
                     ),
                     base_kind=kind,
@@ -455,22 +554,31 @@ def agent_task[Out](
         )
     if plugin is None and instructions is None:
         raise TypeError(f"agent_task({kind!r}): give plugin= (its implementation) or, for a task without one, instructions=")
-    if output is not None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
-        raise TypeError(f"agent_task({kind!r}): output must be a pydantic model or str, not {output!r}")
+    try:
+        rows = rows_model(output)
+    except TypeError as exc:
+        raise TypeError(f"agent_task({kind!r}): output {exc}") from None
+    if output is not None and rows is None and not is_text(output) and not (isinstance(output, type) and issubclass(output, BaseModel)):
+        raise TypeError(f"agent_task({kind!r}): output must be a pydantic model, str or Rows[Model], not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
-    if params is not None and (taken := sorted(RESERVED_PARAMS & set(params.model_fields))):
+    if params is not None and (taken := sorted(AGENT_CALL_WORDS & set(params.model_fields))):
         raise TypeError(
             f"agent_task({kind!r}): params {params.__name__} has a field named {', '.join(taken)}; "
-            f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the field"
+            f"an agent task call takes {', '.join(sorted(AGENT_CALL_WORDS))} itself: rename the field"
         )
     if output_from not in ("file", "message"):
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
     if output_from == "message" and output is None:
         raise TypeError(f'agent_task({kind!r}): output_from="message" needs an output (a pydantic model or str)')
-    if unwrap and (output_from != "message" or is_text(output)):
+    if unwrap and (output_from != "message" or is_text(output) or rows is not None):
         raise TypeError(
             f'agent_task({kind!r}): unwrap takes a JSON output out of the final message: give output_from="message" and a pydantic model'
+        )
+    if partial_on is not None and (output is None or output_from != "file"):
+        raise TypeError(
+            f"agent_task({kind!r}): partial_on keeps the output file a stopped launch wrote; "
+            'give an output the agent writes (output_from="file")'
         )
     checked_preserve = _checked_preserve(kind, preserve, output, output_from)
     _check_output_of(kind, output_of, output, output_name)
@@ -490,7 +598,12 @@ def agent_task[Out](
     changes = tuple(changes)
     for pattern in changes:
         _check_changes_pattern(kind, pattern)
+    if changes and all(p.startswith("!") for p in changes):
+        raise TypeError(f"agent_task({kind!r}): changes holds only patterns that leave paths out (`!`); give one that covers paths")
+    if keep_failed_changes and not changes:
+        raise TypeError(f"agent_task({kind!r}): keep_failed_changes keeps the files under changes=; give the patterns, or drop it")
     checked_claims = _checked_claims(f"agent_task({kind!r})", claims)
+    _check_outside_state(f"agent_task({kind!r})", outside_state, rerun_on_resume)
     loaded = Plugin.load(_relative_to(base, plugin)) if plugin is not None else None
     shared = tuple(Plugin.load(_relative_to(base, p)) for p in ([skills_from] if isinstance(skills_from, (str, Path)) else skills_from))
     for p in shared:
@@ -513,13 +626,14 @@ def agent_task[Out](
         claims=checked_claims,
         skills_from=shared,
         changes=changes,
-        output_name=output_name or ("{kind}/{unit}.md" if is_text(output) else DEFAULT_OUTPUT_NAME),
+        output_name=output_name or default_output_name(output),
         output_from=output_from,
         unwrap=bool(unwrap),
         tools=checked_tools,
         rerun_on_resume=bool(rerun_on_resume),
         preserve=checked_preserve,
         output_of=output_of,
+        outside_state=outside_state,
     )
 
 
@@ -604,7 +718,7 @@ def _check_output_of(kind: str, other: Any, output: Any, output_name: str | None
         raise TypeError(f"agent_task({kind!r}): output_of names this kind itself")
     if other.output_format is None or (other.executor == "python" and other.output_schema is None):
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes no output file")
-    mine = "text" if is_text(output) else "json"
+    mine = output_format_of(output)
     if other.output_format != mine:
         raise TypeError(f"agent_task({kind!r}): output_of {other.kind!r} writes a {other.output_format} file, and this output is {mine}")
 
@@ -617,7 +731,7 @@ def _checked_preserve(kind: str, preserve: Sequence[str], output: Any, output_fr
     if not pointers:
         return ()
     if not (isinstance(output, type) and issubclass(output, BaseModel)):
-        raise TypeError(f"agent_task({kind!r}): preserve keeps parts of a JSON output: give output= a pydantic model")
+        raise TypeError(f"agent_task({kind!r}): preserve keeps parts of a JSON document: give output= a pydantic model (not str or Rows)")
     if output_from != "file":
         raise TypeError(f'agent_task({kind!r}): preserve keeps parts of a file the agent writes, not of output_from="message"')
     json_schema = output.model_json_schema()
@@ -660,15 +774,20 @@ class PythonTask[Out]:
     retry_on: tuple[type[Exception], ...] = ()
     #: The output file's path relative to `<run>/out/`, a template (`python_task(output_name=)`).
     output_name: str = DEFAULT_OUTPUT_NAME
+    #: The function that returns its outside state, which its fingerprint covers (`python_task(outside_state=)`).
+    outside_state: OutsideState | None = None
     #: What checks and converts its arguments against the function's annotations.
     _param_types: _ParamTypes = dataclasses.field(init=False, repr=False)
 
     #: Who executes it (`Task.executor`): this process, in Python.
     executor = "python"
+    #: What its output file holds: `json`, or `jsonl` for a task that returns `Rows`.
     output_format = "json"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_param_types", _ParamTypes(self.fn))  # once, at declaration
+        if is_rows(self.output_schema):
+            object.__setattr__(self, "output_format", "jsonl")
 
     @property
     def kind(self) -> str:
@@ -685,13 +804,40 @@ class PythonTask[Out]:
     ) -> Pending[Out]:
         """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
         A function with a `unit` parameter is given the unit too. `priority`, as for an
-        agent task: a tie-breaker in the queue, higher first."""
-        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=kwargs)
+        agent task: a tie-breaker in the queue, higher first. A call the function could not
+        take (a keyword it has no parameter for, a required parameter left out) raises
+        TypeError here, and so does `credential=`: a Python task runs no coding agent, so
+        it has no credential (unless its function has a parameter of that name)."""
+        self._check_call(unit, kwargs)
+        words = {
+            "key": _checked_key(self.kind, key),
+            "after": _checked_after(self.kind, after),
+            "priority": _checked_priority(self.kind, priority),
+        }
+        return current_graph().add(self, unit=unit, params=kwargs, **words)
+
+    def _check_call(self, unit: str, kwargs: dict[str, Any]) -> None:
+        """TypeError when the function could not be called with `kwargs` (and the unit, for a
+        `unit` parameter), as `invoke` would call it."""
+        try:
+            signature = inspect.signature(self.fn)
+        except (TypeError, ValueError):  # a callable with no signature to read
+            return
+        given = {**kwargs, "unit": unit} if unit and "unit" not in kwargs and "unit" in signature.parameters else kwargs
+        try:
+            signature.bind(**given)
+        except TypeError as exc:
+            if "'credential'" in str(exc):
+                raise TypeError(
+                    f"{self.kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
+                    "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
+                ) from None
+            raise TypeError(f"{self.kind}(...): the function cannot take this call: {exc} (contraagent docs tasks, Python tasks)") from None
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the
-        function's source (its bytecode when it has none), its output schema and its
-        validators."""
+        function's source (its bytecode when it has none), its output schema, its
+        validators and the name of its `outside_state` function."""
         fn = inspect.unwrap(self.fn)
         try:
             source = inspect.getsource(fn)
@@ -703,6 +849,7 @@ class PythonTask[Out]:
                 "source": source,
                 "output": _schema(self.output_schema) if self.output_schema is not None else None,
                 "validators": [_validator_identity(v) for v in self.validators],
+                **({"outside_state": _function_name(self.outside_state)} if self.outside_state is not None else {}),
             }
         )
 
@@ -719,6 +866,8 @@ class PythonTask[Out]:
         if self.retries:
             body["retries"] = self.retries
             body["retry_on"] = [_class_name(c) for c in self.retry_on]
+        if self.outside_state is not None:
+            body["outside_state"] = _function_name(self.outside_state)
         try:
             try:  # annotations as written (`str`, not `'str'` under `from __future__ import annotations`)
                 sig = inspect.signature(fn, eval_str=True)
@@ -860,6 +1009,7 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]: ...
 
 
@@ -874,9 +1024,10 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
-    name). Its return annotation is its output: a pydantic model (the schema),
+    name; no `*`, `?` or `[`, as for `agent_task`). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). A function that could do
     only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
     `value` is its output as usual, the task finishes ok with stop `partial`, and a resume
@@ -884,21 +1035,26 @@ def python_task(
     `agent_task`: the names each of its tasks holds while it runs. `rerun_on_resume`, as for
     `agent_task`: a resume runs its tasks again (a step that publishes the work's state).
     `output_name`, as for `agent_task`: the output file's path relative to `<run>/out/`
-    (default `{kind}/{unit}.json`).
+    (default `{kind}/{unit}.json`). `outside_state`, as for `agent_task`: a function that
+    returns the state the function reads beside its arguments (a digest of a state file the
+    pipeline keeps, of files another process wrote), which its fingerprint covers, so a
+    resume runs the task again when it changed.
 
     `retries`: the fresh attempts a task may make after its first, each after an attempt
     that raised an instance of a class in `retry_on` (a tuple of exception classes,
     `(ConnectionError, TimeoutError)`); any other exception fails the task at once, and so
     do an off-contract input (`invalid_input`) and output (`invalid_output`). Each attempt is
     a journal row of its own. The two go together: `retries` above 0 with no `retry_on`, or
-    `retry_on` with `retries=0`, raises here. A function that needs a service restores it
+    `retry_on` with `retries=0`, raises here. A function that needs a server restores it
     itself at its start, so a fresh attempt finds it running."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
         owner = f"python_task({kind!r})"
+        _check_kind(owner, kind)
         checked = _checked_claims(owner, claims)
         tries, on = checked_retries(owner, retries, retry_on)
+        _check_outside_state(owner, outside_state, rerun_on_resume)
         if output_name is not None:
             _check_output_name(owner, output_name)
         try:
@@ -910,16 +1066,18 @@ def python_task(
                 f"{owner}: the function has a parameter named {', '.join(taken)}; "
                 f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the parameter"
             )
+        schema = _output_schema_of(f)
         return PythonTask(
             fn=f,
             name=kind,
-            output_schema=_output_schema_of(f),
+            output_schema=schema,
             validators=tuple(validators),
             claims=checked,
             rerun_on_resume=bool(rerun_on_resume),
             retries=tries,
             retry_on=on,
-            output_name=output_name or DEFAULT_OUTPUT_NAME,
+            output_name=output_name or ("{kind}/{unit}.jsonl" if is_rows(schema) else DEFAULT_OUTPUT_NAME),
+            outside_state=outside_state,
         )
 
     return wrap(fn) if fn is not None else wrap
@@ -941,6 +1099,9 @@ def _output_schema_of(fn: Callable[..., Any]) -> type[BaseModel] | None:
     ann = _without_partial(ann)
     if ann is None or ann is type(None):
         return None
+    row = rows_model(ann)
+    if row is not None:
+        return rows_file(row)
     if isinstance(ann, type) and issubclass(ann, BaseModel):
         return ann
     return RootModel[ann]
@@ -990,6 +1151,26 @@ def _type_name(t: type) -> str:
 
 #: The keywords a task call takes itself, so never a parameter of the task.
 RESERVED_PARAMS = frozenset({"key", "after", "priority"})
+#: The keywords an agent task call takes itself: those of every task call, and `credential`.
+AGENT_CALL_WORDS = RESERVED_PARAMS | {"credential"}
+
+
+def _checked_key(kind: str, key: Any) -> str | None:
+    """A task call's `key`: a string, or None (or empty): the kind and unit make it."""
+    if key is not None and not isinstance(key, str):
+        raise TypeError(f"{kind}(...): key must be a string (or None), not {key!r}")
+    return key
+
+
+def _checked_after(kind: str, after: Any) -> tuple[Pending[Any] | str, ...]:
+    """A task call's `after`: a list of tasks, each a `Pending` or a task's key."""
+    if isinstance(after, (str, bytes, Pending)) or not isinstance(after, Iterable):
+        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {after!r}")
+    items = tuple(after)
+    odd = [a for a in items if not isinstance(a, Pending) and not (isinstance(a, str) and a)]
+    if odd:
+        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {odd[0]!r} in it")
+    return items
 
 
 def _checked_priority(kind: str, priority: Any) -> float:
@@ -997,6 +1178,15 @@ def _checked_priority(kind: str, priority: Any) -> float:
     if isinstance(priority, bool) or not isinstance(priority, (int, float)) or not math.isfinite(priority):
         raise TypeError(f"{kind}(...): priority must be a finite number, not {priority!r}")
     return float(priority)
+
+
+def _checked_credential(kind: str, credential: Any) -> str:
+    """An agent task call's `credential`: None, or the name of a `[credentials.<name>]`."""
+    if credential is None:
+        return ""
+    if not isinstance(credential, str) or not credential.strip() or credential != credential.strip():
+        raise TypeError(f"{kind}(...): credential must name a [credentials.<name>] (or be None), not {credential!r}")
+    return credential
 
 
 def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
@@ -1022,6 +1212,12 @@ def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
     return out
 
 
+def _check_kind(owner: str, kind: object) -> None:
+    """A kind name holds none of the characters of a pattern of kinds."""
+    if isinstance(kind, str) and GLOB_CHARACTERS & set(kind):
+        raise TypeError(f"{owner}: a kind holds no *, ? or [ (a pattern of kinds, as --execute takes, uses them)")
+
+
 def _check_output_name(owner: str, template: Any) -> None:
     """`output_name`: a relative path under `<run>/out/` naming only `{unit}`, `{key}` and
     `{kind}`, with no `..`, `.` or empty segment."""
@@ -1045,11 +1241,32 @@ def _check_output_name(owner: str, template: Any) -> None:
         raise ValueError(f"{owner}: output_name {template!r} has a {segment} segment; it is a path inside the run's out/")
 
 
+def _function_name(fn: Callable[..., Any]) -> str:
+    """A function's `module.qualname`, as a definition names it."""
+    fn = inspect.unwrap(fn)
+    name = getattr(fn, "__qualname__", None) or type(fn).__qualname__
+    return f"{getattr(fn, '__module__', '') or ''}.{name}".lstrip(".")
+
+
+def _check_outside_state(owner: str, outside_state: Any, rerun_on_resume: bool) -> None:
+    """`outside_state`: None, or a function; not beside `rerun_on_resume`, which runs every
+    task of the kind again on a resume whatever it returns."""
+    if outside_state is None:
+        return
+    if not callable(outside_state):
+        raise TypeError(f"{owner}: outside_state must be a function of (unit, params), not {outside_state!r}")
+    if rerun_on_resume:
+        raise TypeError(
+            f"{owner}: rerun_on_resume runs every task of it again on a resume, so outside_state changes nothing; drop one of them"
+        )
+
+
 def _check_changes_pattern(kind: str, pattern: str) -> None:
     """A `changes` pattern: relative, inside the working directory, naming only `{unit}`,
-    `{key}` and `{kind}`."""
-    if not isinstance(pattern, str) or not pattern:
+    `{key}` and `{kind}`; after a leading `!` for one that leaves paths out."""
+    if not isinstance(pattern, str) or not pattern.removeprefix("!"):
         raise TypeError(f"agent_task({kind!r}): changes holds {pattern!r}, not a pattern")
+    pattern = pattern.removeprefix("!")  # one that leaves paths out follows the same rules
     try:
         fields = {f for _, f, _, _ in string.Formatter().parse(pattern) if f is not None}
     except ValueError as exc:

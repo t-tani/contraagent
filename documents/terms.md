@@ -1,0 +1,1 @@
+The terms of the service.

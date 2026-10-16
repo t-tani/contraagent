@@ -45,7 +45,9 @@ for another port).
    arguments `check` took (`--run-id`, `--resume`
    to continue one), or `Pipeline(config).run(flow, ...)` from a program for what a
    command line cannot pass: a journal column (`row_extras`), a `quota_rule`, scopes,
-   enrichers, its own backends, `env` (`examples/runner/run.py` lists them). The person
+   enrichers, its own backends, `env`, `services`, `mcp_servers`
+   (`examples/runner/run.py` lists them). A check of such a pipeline is
+   `Pipeline(config, ...).check(...)` from a program too. The person
    watches it in the monitor. → [Tasks](tasks.md), [The monitor](monitor.md)
 
 ## Decisions
@@ -53,7 +55,9 @@ for another port).
 | Question | Answer |
 |---|---|
 | Agent task or Python task? | Python when code can do it deterministically (preparing inputs, merging results); an agent task for reading, judging, writing. |
-| Output: a model or `str`? | A model for anything a task or a program reads next; `str` for a document. |
+| Output: a model, `str` or rows? | A model for anything a task or a program reads next; `str` for a document; `Rows[Row]` for a list that grows as the agent works, one row per line. → [Contracts](contracts.md#rows) |
+| A long task that may run out of time? | `partial_on=["timeout", "stalled"]` keeps what it wrote when that passes its checks, as a partial result. → [Contracts](contracts.md#a-launch-stopped-for-its-time) |
+| A server that several tasks use? | A service that a claim name stands for (`Pipeline(services=)`); the runner starts and stops it. → [Tasks](tasks.md#services-a-server-that-the-tasks-of-a-claim-share) |
 | A rule the schema cannot express? | A validator; a `CommandValidator` when the agent should also run it before it stops. → [Contracts](contracts.md) |
 | A rule about the output and the input together? | A validator that takes `params` (or a `CommandValidator` given `{call}`). → [Contracts](contracts.md) |
 | Order without passing data? | `after=` on the later task. |
@@ -96,11 +100,11 @@ for another port).
 - On macOS and Windows some things differ from Linux
   ([Operating systems](#operating-systems)).
 - The coding agents differ in what they enforce, and [Coding agents](agents.md)
-  has a row for each difference. In short: only Claude Code and Codex run a stop
-  hook that continues the session, so on omp, opencode and pi the runner's check
-  and a correction round hold the output to its contract; Codex runs no light
+  has a row for each difference. In short: Claude Code, Codex and omp run a stop
+  hook that continues the session, so on opencode and pi the runner's check and a
+  correction round alone hold the output to its contract; Codex runs no light
   launch and enforces no `max_budget_usd`; only Claude Code and opencode enforce
-  `context_budget`; omp and pi do not enforce `max_turns`.
+  `context_budget`; pi does not enforce `max_turns`.
 - A credential rests on a quota only where its coding agent reports quota
   readings, or contraagent reads them: Claude Code, omp, Codex with a ChatGPT
   login, and opencode and pi for an `opencode-go` model, through the OpenCode Go

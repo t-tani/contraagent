@@ -13,7 +13,9 @@ It reads `runs/<id>/` and shows, live, one tab each:
   runs), the scheduled tasks as a layered graph, totals, then where the tokens,
   the cost and the subscription went (by kind, and each model's share of the
   agent sessions by cost, tokens, time or sessions; a failover's hops count on
-  their own models), and a timeline. Each card is as wide as its content needs;
+  their own models), the [services](tasks.md#services-a-server-that-the-tasks-of-a-claim-share)
+  of the run (each start with the task that started it, its address and its stop,
+  from `services.jsonl`), and a timeline. Each card is as wide as its content needs;
   the graph, the totals and the timeline take the whole width;
 - **Tasks** and **History**: every task (`kind · unit`) with its status, and
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
@@ -22,12 +24,17 @@ It reads `runs/<id>/` and shows, live, one tab each:
   tasks, and a task that never ran is one too. The journal columns a pipeline
   adds (`row_extras`) are columns of the history under their own names;
 - **Outputs**: every checked file (`OutputContract`, `InputContract`), field
-  by field against the file;
+  by field against the file; an output of [rows](contracts.md#rows) by the fields
+  of its row's model, with its count of rows and its lines;
 - **Definitions**: each kind's interface and its plugin's files;
 - **Processes**: the agent sessions and Python tasks running, and the process tree;
 - **Task detail**: one task's transcript, one button per agent session
   (attempt, correction, model switch), tailed live, next to its input, output
-  and definition. Its input is file by file: each file the task reads, with the
+  and definition. Its header gives its status, with the reason of a partial task
+  (`Partly done: timed out` for an agent task whose launch was stopped, see
+  [Contracts](contracts.md#a-launch-stopped-for-its-time)), and the files each
+  attempt changed, those a failed attempt created marked as removed or as kept
+  (`keep_failed_changes`). Its input is file by file: each file the task reads, with the
   earlier task whose output it is (or that it was there before the run), then
   the earlier tasks it waits for, each with its other output files. A resumed
   run numbers a task's attempts from 1 again, so an attempt of a later run start
@@ -149,7 +156,8 @@ return to it. The monitor speaks English and Japanese.
 
 The monitor is local and read-only, but it serves agent transcripts: it sends no
 CORS headers unless origins are opted in (`--cors-origin`), and answers only
-requests whose `Host` names this machine.
+requests whose `Host` names this machine (or a name given with `--allow-host`, see
+[Behind a reverse proxy](#behind-a-reverse-proxy)).
 
 It reads a run's records only through a run source and liveness
 (`contraagent.monitor.RunSource`, `contraagent.monitor.Liveness`): by default the runs
@@ -170,9 +178,11 @@ status), `columns` (vertical bars, `stacked` or side by side), `lines`, a
 `heatmap` (a number per row and column, in shades of one colour), a
 `status_grid` (a state per row and column, each coloured by its tone and named
 by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
-what a part shows, how to read a number; any markup in it is shown as text), and
-`blocks` of them one under another, each with an optional `title` and folded
-when `collapsed`. A tone is one of `failed`, `attention`, `done`, `running`,
+what a part shows, how to read a number; any markup in it is shown as text),
+`code` (a text highlighted by its `language`, with line numbers; see below), a
+`tree` (nodes the reader folds and opens, such as files and directories), and
+`blocks` of them one under another, each with an optional `title`, folded
+when `collapsed`, and an optional `anchor` that a tree node's link leads to. A tone is one of `failed`, `attention`, `done`, `running`,
 `muted` and `neutral`. The models are in `contraagent.monitor`
 (`PanelBody`); a panel returns one, or a dict with its `type`. Any other dict is
 shown as a JSON tree. A typed body that does not validate (an unknown tone
@@ -224,6 +234,34 @@ output of its `write_note` task, read with `output(key)`:
 From Python, `Monitor(panels=...)`:
 
 ::code{file="examples/demo/run.py" from="        from contraagent.monitor import" to="        threading.Thread("}
+
+### Code and files
+
+A `code` body is a text shown as code (`CodeBody`). `language` is one of
+`LANGUAGES` (`python`, `json`, `javascript`, `typescript`, `c`, `cpp`, `java`,
+`go`, `rust`, `shell`, `toml`, `yaml`, `sql`, `xml`, `diff`) or a file extension
+such as `py`; any other is shown as plain text. `start` is the number of the first
+line, `highlight` marks lines in those numbers (`[7, [10, 14]]`: line 7 and lines 10
+to 14), `path` names the file over it, and `wrap` wraps long lines instead of
+scrolling them sideways. The monitor shows the first `CODE_LINES` lines (5,000) and
+at most `CODE_CHARACTERS` characters (500,000), says how many lines it left out,
+and its Copy button copies the whole text.
+
+A `tree` body is a list of nodes (`TreeNode`), each with a `name` and its
+`children`; the reader folds and opens them with the mouse or the arrow keys. A
+node's `icon` is `directory` or `file` (by default: a directory when it has
+children), its `badge` a word beside its name coloured by its `tone`, and its `id`
+the names from the top joined by `/` unless it has one of its own. A node either
+holds `code`, shown beside the tree while the node is selected, or a `link`
+(`TreeLink`) to a run panel (`panel`), a task (`task`, its key), each in `run` when
+it is not the run shown (a trends panel names it), or to a body of the same panel
+by its `anchor`. `selected` names the node selected first; by default it is the
+first node with code. The texts come with the tree, so selecting a file sends no
+request and works in an export too. The live feed sends the whole body again
+each time it changes, so a tree of large files is best kept in a panel of its own.
+A run's output files, one directory per kind:
+
+::code{file="examples/panels/files.py" from="def files(" to="#: What"}
 
 ## Over many runs: trends
 
@@ -277,6 +315,62 @@ back the trends it gave before. Thirty days of hourly runs (720 runs, 300,000
 attempts) are summed in about 0.2 s from memory and 1 s from their `trends.json`;
 reading their logs the first time takes about half a minute
 (`uv run pytest -m perf` measures it).
+
+## Behind a reverse proxy
+
+A reverse proxy can serve the monitor on a site that serves other paths too, such as
+`https://example.com/monitor/`. This block of an nginx `server` does it for a monitor
+on the same host:
+
+::code{file="examples/proxy/nginx.conf" from="location /monitor/"}
+
+The proxy needs three things from its configuration. Other proxies have the same
+settings under other names.
+
+The live feeds (`/events` and `/events/stream`) are server-sent events, so the proxy
+must pass each event on as it arrives: `proxy_buffering off` in nginx. A feed stays
+open while the reader watches; when nothing changes, the monitor sends a comment every
+15 seconds, so the proxy's read timeout must be longer than that (`proxy_read_timeout
+1h` in the example).
+
+The monitor answers a request only when its `Host` header names a host it answers,
+so that a page on another site cannot read it through DNS rebinding. It compares the
+host name in the header, without the port, with `localhost`, `127.0.0.1`, `[::1]`,
+the `--host` address (unless it is `0.0.0.0` or `::`, which name no host), and each
+`--allow-host` name. An `--allow-host` name such as `*.example.com` takes every name
+that ends in `.example.com`, and `*` takes every name, which turns the check off. Any
+other name gets the answer 400 "Invalid host header". A proxy that sends the address
+it connects to, as nginx does by default for `proxy_pass http://127.0.0.1:8787/`,
+passes the check. A proxy that passes the browser's own name
+(`proxy_set_header Host $host`) needs that name given: `--allow-host example.com`. A
+hub checks `Host` the same way for its monitor and `/login`, and not for `/ingest/`
+or `/healthz`.
+
+The proxy takes the path off before it passes a request on, and `--base-path` tells
+the monitor what that path was. The `/` at the end of `proxy_pass
+http://127.0.0.1:8787/` makes nginx do it: `/monitor/api/runs` reaches the monitor as
+`/api/runs`. The monitor answers only the paths without the base path: a request that
+reaches it as `/monitor/api/runs` gets 404. So a proxy that passes the path on as it
+is fails at the first request of the page, and each resource of the monitor has one
+URL. With `--base-path /monitor`, the page the monitor serves names the path
+in every URL it reads: `<ca-monitor base-url="/monitor">` for the API and the live
+feeds, and `/monitor/app.js` and `/monitor/favicon.svg` for its script and icons, so
+no request of the page leaves `/monitor/`. The API documentation (`--docs`) and the
+`servers` of the OpenAPI document at `/api/openapi.json` name it too. The value is a
+path that starts with `/`, made of letters, digits, `.`, `_`, `~`, `-` and `%XX`
+between its `/`; a `/` at its end is dropped, and any other value ends the command
+with exit status 2 and says what is wrong. `contraagent hub --base-path` does the
+same for a hub, whose `/login` then redirects to `/monitor/` and sets its cookie for
+`/monitor` only. Without `--base-path`, the page is served as it is built, its URLs
+relative to the page and its API on the page's origin. `create_app` and `serve` in
+`contraagent.monitor` take `base_path=` the same way.
+
+The monitor has no login of its own: a proxy that serves it to other people decides
+who may read it, with its own authentication, or it serves a hub with a read token
+([the hub](hub.md#start-a-hub)).
+
+An export needs no base path: its page reads its own files and `data/` by URLs
+relative to itself, so it works under any path of a static site.
 
 ## Without a server: an export
 

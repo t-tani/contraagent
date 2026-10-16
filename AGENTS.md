@@ -115,9 +115,9 @@ through machine translation.
   rules in `changelog.d/README.md`); towncrier writes `CHANGELOG.md` at a release.
   `uv run towncrier check --compare-with origin/main` checks a branch.
 - A change reaches `main` through a pull request: push a branch and open one. CI runs
-  on the pull request, and its jobs must pass before the merge, a merge commit. Nobody
-  pushes to `main` or rewrites it. A pull request's description follows the same style
-  as a commit message.
+  on the pull request only, and its jobs must pass, on a branch up to date with
+  `main`, before the merge, a merge commit. Nobody pushes to `main` or rewrites it. A
+  pull request's description follows the same style as a commit message.
 - Commit messages follow Google's CL description style: a short imperative first
   line, a blank line, then a body that says what changed and why, wrapped at about
   72 columns. No attribution trailers (`Co-Authored-By`, session links), no model

@@ -153,6 +153,35 @@ Code task stays on its inputs; a task that searches removes them from `deny`.
 The queries a launch made are in its journal row (`web_queries`), for every
 coding agent.
 
+## MCP servers built for each task
+
+A plugin's `.mcp.json` gives every task of its kind the same MCP servers. A server
+that needs something of the task, such as the folder it serves or a unit's own
+address, is built by a function the pipeline is given: `Pipeline(mcp_servers=)`.
+The function takes the task, its params as its call file holds them, and its
+plugin's servers by name, and returns the servers the coding agent gets, which
+replace the plugin's. To add a server, return the plugin's servers with it; to
+keep the plugin's as they are, return None; to give none, return `{}`. The
+docstring of `contraagent.McpServers` states the form of a server.
+
+::code{file="examples/mcp/flow.py" from="answer = agent_task(" to="def ask_all("}
+
+The function is called before each launch of a task, but not for a light launch,
+which loads no MCP server. Every coding agent takes the servers it returns as it
+takes a plugin's `.mcp.json` ([Coding agents](agents.md)), and the user's and the
+project's MCP servers stay out as before (the table above). What it returns is
+written to a file in an owner-only temporary directory, not in the run directory,
+since a server's arguments or environment may hold a secret; the file is removed
+when the process ends. A function that raises, or returns something that is not a
+table of servers each with a `command` or a `url`, ends the launch as
+`launch_failed`. `Pipeline.check` calls it for each task the flow creates before its
+first wait and reports the same.
+
+A function is not an argument of the command line, so a pipeline with one is checked
+and run from a program, `Pipeline(config, mcp_servers=...).check(...)` and `.run(...)`
+(`examples/runner/run.py` is such a program); `contraagent check` and
+`contraagent run` build no MCP servers of the task's own.
+
 ## Hooks
 
 Hooks are declared once, agent-neutrally, and rendered into each coding agent's
@@ -164,11 +193,11 @@ own hook system, so they run inside the agent:
 |---|---|---|---|---|
 | `pre_tool` | `PreToolUse`; exit 2 blocks | `PreToolUse`; exit 2 blocks | `tool_call` event, returns `{block, reason}` | `tool.execute.before`; exit 2 blocks, the reason is the error the agent sees |
 | `post_tool` | `PostToolUse`; exit 2 sends the script's words to the agent | `PostToolUse`; exit 2 sends the script's words to the agent | `tool_result` event; exit 2 adds the script's words to the result the agent sees | `tool.execute.after`; exit 2 adds the script's words to the tool's output |
-| `stop` | the agent checks its own file and carries on in the same turn | `Stop`; as on Claude Code | none: `omp -p` and `pi -p` cannot continue a session from it; the runner's check resumes the session instead | none, as on omp: `opencode run` ends once the session is idle |
+| `stop` | the agent checks its own file and carries on in the same turn | `Stop`; as on Claude Code | omp: the `session_stop` event runs the stop hooks of `omp/hooks.json`, and one that exits 2 continues the session, as on Claude Code; pi: none, `pi -p` cannot continue a session from it, and the runner's check resumes the session instead | none, as on pi: `opencode run` ends once the session is idle |
 
 On every agent, a `post_tool` script that exits 2 has the agent fix what it says
-in the same session, and on Claude Code and Codex a `stop` hook that exits 2 does
-the same (checked live on each).
+in the same session, and on Claude Code, Codex and omp a `stop` hook that exits 2
+does the same (checked live on each).
 
 Codex reads hooks in Claude Code's format, from each layer of its config. The Codex
 backend passes `codex/hooks.json` as the launch's config (`-c hooks=...`), with

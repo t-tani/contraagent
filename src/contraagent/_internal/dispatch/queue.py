@@ -63,7 +63,10 @@ may be queued again (a re-dispatch after a no-progress attempt). `Task.after`
 reads the cumulative done-by-key record, because a journal records keys and a
 dependency means "this work is done", not "this particular launch finished".
 `skip(task)` (resume) is asked once per queued task; a task it accepts finishes
-as `skipped` without launching.
+as `skipped` without launching. A task whose fingerprint is complete only when it
+starts (`Task.fingerprint_at_start`) is asked when it is about to start, its
+dependencies done, after the runner gave the task as it starts (`.starting(task)`,
+below); a retry of it is not asked again.
 
 Every task the queue accepts finishes exactly once, through `follow_up`: with
 its last attempt's result, as `skipped`, or as `deferred` (not launched by the
@@ -88,6 +91,9 @@ The queue records nothing itself. It reports through callbacks:
 and `.run(task)`); nothing here imports a concrete runner. A runner may also
 say why a task cannot launch now (`.deferral(task)`, a `Deferral` or None): the
 queue asks it just before it would start the task, and defers the task instead.
+For a task with `fingerprint_at_start`, the queue then asks the runner for the task
+as it starts (`.starting(task)`, the same task with its fingerprint completed) and
+starts, or skips, that one.
 A runner that finds the same once the task has started returns a `deferred`
 result, finished as a deferral too. A deferral is reported with its reason and its
 cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`).
@@ -180,6 +186,16 @@ class ClaimCapacity(Protocol):
 def _is_pattern(name: str) -> bool:
     """A `claim_capacity` key with an `fnmatch` wildcard."""
     return any(ch in name for ch in "*?[")
+
+
+def claim_entry[T](entries: Mapping[str, T], name: str) -> T | None:
+    """The entry of claim name `name` in `entries`, keyed by a name or an `fnmatch` pattern
+    (`claim_capacity`, `Pipeline(services=)`): its own, else that of the longest pattern
+    that matches it (of two as long, the first given); None when none does."""
+    if name in entries:
+        return entries[name]
+    patterns = sorted((k for k in entries if _is_pattern(k)), key=len, reverse=True)
+    return next((entries[p] for p in patterns if fnmatch.fnmatchcase(name, p)), None)
 
 
 class RunnerConfig(Protocol):
@@ -312,7 +328,7 @@ class WorkQueue:
             return False
         self._inflight_keys.add(task.key)
         self.on_event("queued", task)
-        if self._skip is not None and self._skip(task):
+        if self._skip is not None and not task.fingerprint_at_start and self._skip(task):
             self._settle(TaskResult.skipped(task))
             return True
         self._queued.append(task)
@@ -535,6 +551,11 @@ class WorkQueue:
                 continue
             self._queued.remove(task)
             self._ready_since.pop(task.id, None)
+            if task.fingerprint_at_start:
+                task = self._starting(task)
+                if self._skip is not None and task.id not in self._attempt and self._skip(task):
+                    self._settle(TaskResult.skipped(task))
+                    continue
             attempt = self._attempt.get(task.id, 0) + 1
             self._attempt[task.id] = attempt
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
@@ -590,6 +611,18 @@ class WorkQueue:
         except Exception as exc:  # a broken check must not stop the queue: launch, and say so
             self.on_event("note", task, deferral_failed=repr(exc)[:200])
             return None
+
+    def _starting(self, task: Task) -> Task:
+        """The task as it starts, from the runner (`starting`), if it gives one: its
+        fingerprint completed. One that raises leaves the task as it was, and says so."""
+        ask = getattr(self.runner, "starting", None)
+        if ask is None:
+            return task
+        try:
+            return ask(task)
+        except Exception as exc:  # a broken hook must not stop the queue
+            self.on_event("note", task, starting_failed=repr(exc)[:200])
+            return task
 
     def _on_done(self, task: Task, fut: Future) -> None:
         try:

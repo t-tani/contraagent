@@ -10,7 +10,7 @@ import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel,
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
-import { type Tone } from '../../lib/tone.js';
+import { isStop, type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
 import '@contraagent/elements/json-tree/define';
 import { tagChips, type TranscriptTag } from '@contraagent/elements/transcript';
@@ -48,7 +48,8 @@ function verdict(c: TaskContext): [text: string, tone: Tone] {
       return [cause ? msg(str`Not started: ${cause}`) : msg('Not started'), 'attention'];
     }
     case 'partial': {
-      const why = runRelative(last?.reason, c.run);
+      // An agent task's partial reason is the stop its launch ended on (`partial_on`): said in words.
+      const why = last?.reason && isStop(last.reason) ? stopLabel(last.reason) : runRelative(last?.reason, c.run);
       return [why ? msg(str`Partly done: ${why}`) : msg('Partly done'), 'attention'];
     }
     case 'failed': {
@@ -134,6 +135,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
               </div>`
             : nothing}
           ${node?.priority ? html`<div class="meta" title=${priorityTip()}>${priorityText(node.priority)}</div>` : nothing}
+          ${node?.rerun ? html`<div class="meta">${msg(str`Ran again after a resume: ${node.rerun}`)}</div>` : nothing}
           ${session
             ? html`<div class="whos">
                 ${tagChips([...whoTags(who), ...identityTags(tries)])}
@@ -212,7 +214,9 @@ function changesFold(tries: JournalRow[]) {
     if (!c) return [];
     const at = withChanges > 1 ? (names[i] ?? '') : '';
     const gone = new Set(c.removed);
-    const of = (paths: string[] | undefined, kind: ChangeKind) => (paths ?? []).map((p) => facts(at, p, changeLabel(gone.has(p) ? 'removed' : kind)));
+    const kept = new Set(c.kept);
+    const after = (p: string, kind: ChangeKind): ChangeKind => (gone.has(p) ? 'removed' : kept.has(p) ? 'kept' : kind);
+    const of = (paths: string[] | undefined, kind: ChangeKind) => (paths ?? []).map((p) => facts(at, p, changeLabel(after(p, kind))));
     return [...of(c.created, 'created'), ...of(c.modified, 'modified'), ...of(c.deleted, 'deleted')];
   });
   if (!withChanges) return nothing;

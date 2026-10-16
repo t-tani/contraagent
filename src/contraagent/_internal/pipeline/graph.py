@@ -27,14 +27,21 @@ is numbered:
   file, or a task given a file another task writes (but by `output_of`), raise
   `ValueError` when the flow reaches the second (`layout`, `add`);
 * each frame of its flow path carries the loops around its call site with
-  their passes (`loops.py`); a pass of a `while` loop past `max_passes` raises
+  their passes (`loops.py`); a pass of a `while` loop past its bound (its
+  function's `@max_passes(n)`, else the run's `max_passes`) raises
   `TooManyPasses` at the task call, and at the `yield` of a child flow call (a
   `for` loop ends with its iterable and has no limit);
 * its fingerprint is a digest of its kind, unit, key and params (a `Pending`
   among them standing for its key), of its definition (`AgentTask.digest`,
   `PythonTask.digest`), and of each task it waits for: the content of its
   output file when the flow received that output and passed it on, else its
-  fingerprint.
+  fingerprint;
+* a task whose declaration gives `outside_state`, or that waits for such a task without
+  having received its output, has a fingerprint that is complete only when it is about to
+  start (`Task.fingerprint_at_start`): `starting` calls the function then, with the task's
+  params resolved, and works out its fingerprint again, with the fingerprints the tasks it
+  waits for started with; the SHA-256 of the JSON of what the function returned is part of
+  it. A task whose function raised or returned what is not JSON is refused (`refusal`).
 """
 
 from __future__ import annotations
@@ -45,6 +52,7 @@ import glob
 import hashlib
 import inspect
 import json
+import logging
 import os
 import re
 import string
@@ -58,6 +66,7 @@ from pydantic import BaseModel, RootModel
 from pydantic_core import to_jsonable_python
 
 from contraagent._internal.contracts.contract import InputContract, OutputContract, check_file
+from contraagent._internal.contracts.rows import is_rows, row_of, rows_text
 from contraagent._internal.dispatch.flow import TaskFailed, result_or_raise
 from contraagent._internal.dispatch.python_task import PythonTaskPayload
 from contraagent._internal.dispatch.records import DeferralCause, Frame
@@ -75,12 +84,14 @@ from contraagent._internal.dispatch.task import (
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.pipeline import origin as origins
-from contraagent._internal.pipeline.loops import LoopCounter, counting, is_while
+from contraagent._internal.pipeline.loops import LoopCounter, bound, counting, is_while
 
 if TYPE_CHECKING:
     from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 
 Out = TypeVar("Out")
+
+_logger = logging.getLogger(__name__)
 
 #: How many passes a `while` loop of flow code may make, by default.
 MAX_PASSES = 10
@@ -89,8 +100,8 @@ _current: ContextVar[Graph | None] = ContextVar("contraagent_graph", default=Non
 
 
 class TooManyPasses(ContraagentError):
-    """A `while` loop of flow code went past `max_passes` passes: it created a task, or yielded a
-    child flow call, in a later pass."""
+    """A `while` loop of flow code went past its bound (its function's `@max_passes(n)`, else the
+    run's `max_passes`): it created a task, or yielded a child flow call, in a later pass."""
 
 
 class TextOutput(str):
@@ -158,8 +169,8 @@ class Pending[Out]:
 
     @property
     def output(self) -> Out:
-        """The checked output: the schema instance, the text (a `TextOutput`), or the
-        Python task's return value."""
+        """The checked output: the schema instance, the text (a `TextOutput`), the rows (a
+        `Rows`, a list), or the Python task's return value."""
         if self._value is _UNSET:
             node = self._node
             if node.output_path is None:
@@ -195,8 +206,18 @@ class Node:
     claims: tuple[str, ...] = ()
     #: Its task call's `priority`: a tie-breaker in the queue, not part of its fingerprint.
     priority: float = 0.0
+    #: Its task call's `credential`; empty: its kind's. Not part of its fingerprint.
+    credential: str = ""
     origin: Origin | None = None
     fingerprint: str = ""
+    #: The keys of the tasks it waits for whose outputs the flow received and passed on.
+    received: frozenset[str] = frozenset()
+    #: Its fingerprint is complete only when it is about to start (`Task.fingerprint_at_start`).
+    at_start: bool = False
+    #: The SHA-256 of its outside state when it last started; empty before, or when it declares none.
+    outside: str = ""
+    #: Why its outside state could not be worked out when it last started; empty when it could.
+    outside_error: str = ""
     task: Task | None = field(default=None, repr=False)
 
     @property
@@ -266,6 +287,11 @@ class Graph:
         self.results: dict[str, TaskResult] = {}
         self.driver: FlowDriver | None = None
         self.new_kind: Callable[[Any], None] | None = None
+        #: Why a task of a kind cannot run as the credential its task call names (empty: it
+        #: can); None while the kinds are not routed yet.
+        self.check_credential: Callable[[str, str], list[str]] | None = None
+        #: The run-wide override's credential (`Overrides.credential`): it outranks a task call's.
+        self.credential_override = ""
         self.tail: Callable[[Task], float | None] | None = None
         self.stub: Any = None
         self.run_id = ""
@@ -340,6 +366,7 @@ class Graph:
         after: Sequence[Pending[Any] | str],
         params: dict[str, Any],
         priority: float = 0.0,
+        credential: str = "",
     ) -> Pending[Any]:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
@@ -357,6 +384,10 @@ class Graph:
         self.check_passes(frames, base, call_id)
         self.declare(spec)
         self.layout(spec)
+        if credential and self.check_credential is not None:
+            problems = self.check_credential(spec.kind, credential)
+            if problems:
+                raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
         claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
         out, writer = None, None
         if _writes_output(spec):
@@ -395,8 +426,13 @@ class Graph:
             changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
             claims=claims,
             priority=priority,
+            credential=credential,
+            received=frozenset(received),
         )
-        node.fingerprint = self._fingerprint(node, received)
+        node.at_start = getattr(spec, "outside_state", None) is not None or any(
+            (up := self._by_key.get(k)) is not None and up.at_start and k not in received for k in node.after
+        )
+        node.fingerprint = self._fingerprint(node)
         self.nodes.append(node)
         self._by_key[key] = node
         if out is not None and getattr(spec, "output_of", None) is None:
@@ -415,6 +451,34 @@ class Graph:
         """The tasks of the nodes added since the last call: what is to be queued."""
         new, self._taken = self.nodes[self._taken :], len(self.nodes)
         return [self.task_of(n) for n in new]
+
+    def starting(self, task: Task) -> Task:
+        """`task` as it is about to start, the tasks it waits for finished: for one whose
+        fingerprint is complete only then (`Task.fingerprint_at_start`), its outside state
+        worked out now and its fingerprint again, with the fingerprints the tasks it waits for
+        started with. Any other task as it is."""
+        node = self._by_key.get(task.key)
+        if node is None or not node.at_start:
+            return task
+        node.outside, node.outside_error = "", ""
+        fn = getattr(node.spec, "outside_state", None)
+        if fn is not None:
+            try:
+                params = node.resolved_params()
+            except Exception:  # an input that is not there: the input check refuses the task
+                params = None
+            if params is not None:
+                node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, params)
+        node.fingerprint = self._fingerprint(node)
+        new = replace(task, fingerprint=node.fingerprint, outside=node.outside)
+        node.task = new
+        return new
+
+    def refusal(self, task: Task) -> str:
+        """Why `task` cannot run: its outside state could not be worked out when it was about
+        to start (`starting`); empty when it could."""
+        node = self._by_key.get(task.key)
+        return node.outside_error if node is not None else ""
 
     def input_deferral(self, task: Task) -> Deferral | None:
         """Why `task` is not launched: an earlier task whose output it reads was deferred
@@ -484,15 +548,25 @@ class Graph:
             self.flow_call_ended(call)
 
     def check_passes(self, frames: tuple[Frame, ...], what: str, call_id: str) -> None:
-        """`TooManyPasses` when a `while` loop of `frames` is past `max_passes`. A `for` loop
-        ends with its iterable and has no limit."""
+        """`TooManyPasses` when a `while` loop of `frames` is past its bound: its function's
+        `@max_passes(n)`, else the run's `max_passes`. A `for` loop ends with its iterable
+        and has no limit."""
         for frame in frames:
             for loop in frame.loops:
-                if loop.pass_ is not None and loop.pass_ > self.max_passes and is_while(frame.file, loop.line):
+                if loop.pass_ is None or not is_while(frame.file, loop.line):
+                    continue
+                own = bound(frame.file, loop.line)
+                limit = own if own is not None else self.max_passes
+                if loop.pass_ > limit:
+                    whose = f"max_passes={limit} of {frame.function}" if own is not None else f"max_passes={limit}"
+                    further = (
+                        f"a larger @max_passes(n) on {frame.function}"
+                        if own is not None
+                        else f"@max_passes(n) on {frame.function}, Pipeline(max_passes=) or [defaults] max_passes"
+                    )
                     raise TooManyPasses(
-                        f"{what}: pass {loop.pass_} of the loop at {frame.file}:{loop.line} is more than "
-                        f"max_passes={self.max_passes} (flow call {call_id}); a `while` loop meant to go further takes "
-                        "Pipeline(max_passes=) or [defaults] max_passes"
+                        f"{what}: pass {loop.pass_} of the loop at {frame.file}:{loop.line} is more than {whose} "
+                        f"(flow call {call_id}); a `while` loop meant to go further takes {further}"
                     )
 
     # --- internals ---------------------------------------------------------------
@@ -564,10 +638,13 @@ class Graph:
             return pairs if any(pairs[k] is not value[k] for k in value) else value
         return value
 
-    def _fingerprint(self, node: Node, received: set[str]) -> str:
+    def _fingerprint(self, node: Node) -> str:
         """See the module docstring. A received output stands for itself (its file's
         content), so an upstream task that ran again and wrote the same output leaves this
-        fingerprint as it was."""
+        fingerprint as it was. A task that declares outside state has it in its fingerprint
+        once it is worked out (`starting`): before, and when it could not be, the fingerprint
+        matches no journal row."""
+        received = node.received
         spec = node.spec
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
@@ -586,8 +663,22 @@ class Graph:
             "params": to_jsonable_python(_keys_for_pendings(node.params), fallback=repr),
             "after": after,
         }
+        if getattr(spec, "outside_state", None) is not None:
+            body["outside"] = node.outside
         text = json.dumps(body, sort_keys=True, ensure_ascii=False, default=repr)
         return hashlib.sha256(text.encode()).hexdigest()
+
+    def _credential_of(self, node: Node) -> str:
+        """The credential the task call's tasks run as: its own, unless the run-wide override
+        outranks it (logged)."""
+        if node.credential and self.credential_override:
+            if node.credential != self.credential_override:
+                _logger.warning(
+                    f"[route] {node.key}: runs as {self.credential_override}, the override's credential, "
+                    f"not {node.credential}, its task call's"
+                )
+            return ""
+        return node.credential
 
     def _task(self, node: Node) -> Task:
         task = Task(
@@ -598,8 +689,11 @@ class Graph:
             params={k: v for k, v in node.params.items() if isinstance(v, (str, int, float, bool))},
             origin=node.origin,
             fingerprint=node.fingerprint,
+            fingerprint_at_start=node.at_start,
+            outside=node.outside,
             claims=node.claims,
             priority=node.priority,
+            credential=self._credential_of(node),
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,
@@ -616,8 +710,9 @@ class Graph:
             if self.stub is not None and self.stub.plays(node.spec.kind):
                 params = node.resolved_params()
                 node.spec.arguments(node.unit, params)  # a stub run refuses what a run refuses
-                json_schema = schema.model_json_schema() if node.output_path is not None and schema is not None else None
-                has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema)
+                rows = is_rows(schema)
+                json_schema = row_of(schema).model_json_schema() if node.output_path is not None and schema is not None else None
+                has_output, value = self.stub.play_python(self.run_id, node.key, node.spec.kind, node.unit, params, json_schema, rows=rows)
                 if not has_output:
                     return None
             else:
@@ -629,7 +724,8 @@ class Graph:
                 return partial
             doc = value if isinstance(value, schema) else schema.model_validate(value)
             node.output_path.parent.mkdir(parents=True, exist_ok=True)
-            node.output_path.write_text(doc.model_dump_json(indent=2), encoding="utf-8", newline="\n")
+            text = rows_text(doc.root) if is_rows(schema) else doc.model_dump_json(indent=2)  # pyright: ignore[reportAttributeAccessIssue]
+            node.output_path.write_text(text, encoding="utf-8", newline="\n")
             return partial
 
         return dataclasses.replace(
@@ -716,6 +812,23 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
         if isinstance(v, bool) or not isinstance(v, (str, int, float)):
             raise TypeError(f"{kind}(): claim {template!r} names params.{name}, which holds {v!r}; a claim takes strings and numbers")
     return [str(v) for v in items]
+
+
+def _outside_digest(kind: str, fn: Callable[..., Any], unit: str, params: dict[str, Any]) -> tuple[str, str]:
+    """(the SHA-256 of the JSON of what `fn(unit, params)` returns, why it could not be worked
+    out): one of the two is empty."""
+    try:
+        value = fn(unit, params)
+    except Exception as exc:
+        return "", f"{kind}: outside_state raised {type(exc).__name__}: {exc}"
+    try:
+        text = json.dumps(to_jsonable_python(value), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        return "", (
+            f"{kind}: outside_state returned {type(value).__name__}, which is not JSON; "
+            "return a string, a number, a list or a dict of them, or a pydantic model"
+        )
+    return hashlib.sha256(text.encode()).hexdigest(), ""
 
 
 def _file_digest(path: Path) -> str:

@@ -31,6 +31,7 @@ from pathlib import Path
 import contraagent
 from contraagent._internal.cli import main as cli
 from contraagent._internal.runs.layout import file_name
+from contraagent.docs.examples.panels.files import PANELS
 from contraagent.monitor import Monitor
 
 HERE = Path(__file__).resolve().parents[1]
@@ -66,7 +67,7 @@ def main() -> None:
             text = text.replace(str(installed), "/site-packages")
             return text.replace(home, "/site-packages") if home else text
 
-        mon = Monitor(Path(tmp) / "demo-runs")
+        mon = Monitor(Path(tmp) / "demo-runs", panels=PANELS)
         run = "docs"
         data = {
             "run": run,
@@ -74,6 +75,7 @@ def main() -> None:
             "plan": mon.plan(run),
             "outputs": mon.outputs(run),
             "transcript": mon.stream(run, TRANSCRIPT, 0)[0]["events"],
+            "panelBody": mon.panel("files", run),
         }
         OUT.write_text(clean(json.dumps(data, indent=1, ensure_ascii=False, default=str)) + "\n", encoding="utf-8", newline="\n")
 

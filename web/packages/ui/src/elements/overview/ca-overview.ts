@@ -38,6 +38,7 @@ import './ca-kpis.js';
 import './ca-spend-breakdown.js';
 import './ca-model-usage.js';
 import './ca-quota.js';
+import './ca-services.js';
 import './ca-pipeline-graph.js';
 import './ca-run-driver.js';
 import './ca-timeline.js';
@@ -86,7 +87,7 @@ function peek(v: unknown): string {
  * Sends `ca-open-task` and `ca-navigate`.
  *
  * @fires ca-navigate - `{tab, stop?}`: a link to another tab or a panel; `{layer, unit, sel}`: a layer of the pipeline graph, or what is selected in it
- * @fires ca-open-task - `{key, view?}`: a task with a problem was clicked
+ * @fires ca-open-task - `{key, view?}`: a task with a problem, or the task that started a service, was clicked
  */
 @customElement('ca-overview')
 @localized()
@@ -246,6 +247,12 @@ export class CaOverview extends LitElement {
               <h3 title=${msg('Account-wide | read at each agent session start')}>
                 ${msg('Subscription usage')}<span class="r">${msg('Per account, first → last reading')}</span></h3>
               <ca-quota .journal=${s.journal} .caps=${s.plan.quota_caps ?? []} .rests=${s.plan.rests ?? []} .rule=${s.plan.quota_rule ?? ''} ?live=${live}></ca-quota>
+            </section>`
+          : nothing}
+        ${s.plan.services?.length
+          ? html`<section class="panel enter">
+              <h3 title=${msg('A long-lived helper that the tasks holding one lock share (services.jsonl)')}>${msg('Services')}</h3>
+              <ca-services .services=${s.plan.services} .nodes=${s.plan.nodes} ?live=${live}></ca-services>
             </section>`
           : nothing}
         ${s.cursor

@@ -19,6 +19,9 @@ export function typeOk(t: string, v: unknown): boolean {
 /** A `RootModel[str]`-style schema: the model wraps one value of the given type. */
 export const rootOf = (name: string): string | null => /^RootModel\[(.+)\]$/.exec(name)?.[1] ?? null;
 
+/** A rows schema (`Rows[Finding]`): the model of one line. */
+export const rowOf = (name: string): string | null => /^Rows\[(.+)\]$/.exec(name)?.[1] ?? null;
+
 /** The file as a JSON object, or null (no file, not JSON, or another JSON value). */
 export function contentObject(o: ContractSpec): Record<string, unknown> | null {
   const c = o.file.content;

@@ -129,6 +129,10 @@ def test_a_python_task_of_a_kind_executed_runs_its_function(tmp_path):
     played = replay(tmp_path, execute=["count"])
     assert played.ok, played.failed
     assert ran == ["count"] and played.value == 2
+    ran.clear()
+    every = replay(tmp_path, name="every", execute=["*"])
+    assert every.ok, every.failed
+    assert ran == ["count"] and every.value == 2  # every Python task's function, the agent tasks played
 
 
 calls: list[int] = []
@@ -233,6 +237,7 @@ def test_the_cli_records_and_replays(tmp_path, monkeypatch, capsys):
     assert main([*args, "--replay", "rec", "--stub"]) == 2
     assert main([*args, "--replay", "rec", "--record", "rec2"]) == 2
     assert main([*args, "--replay", "rec", "--execute", "count", "--run-id", "executed"]) == 0
+    assert main([*args, "--replay", "rec", "--execute", "*", "--run-id", "every"]) == 0
     assert main([*args, "--execute", "count"]) == 2
     assert main([*args, "--record-missing"]) == 2
     assert main([*args, "--replay", "rec", "--record-missing", "--stub"]) == 2

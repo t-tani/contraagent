@@ -16,7 +16,7 @@ effort = "medium"                   # checked against the agent's CLI (Backend.e
 credential = "personal"             # without it: "ambient", the host's own setup
 # model = "claude-sonnet-5-5"       # without it: the agent's default model
 # model_failover = false            # hand same-agent fallback models to the CLI's own flag
-# max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=))
+# max_passes = 10                   # passes each `while` loop of flow code may make (Pipeline(max_passes=)); a function's @max_passes(n) outranks it
 # context_warn_pct = 80             # context_warn_pct of every kind with a context_budget and none of its own
 # preflight = "stop"                # probe every route first; a kind with no route left: "substitute" or "stop"; "off" (default)
 
@@ -54,10 +54,14 @@ stall_s = 300                       # stop a launch whose transcript is silent t
 context_budget = 150000             # stop a launch once one call's input passes this many tokens
 context_warn_pct = 80               # warn (journal context_warned, a log line) once a launch's peak context passes 80% of context_budget; it still runs
 max_denials = 5                     # stop a launch after this many permission denials
+# What a launch stopped for its time wrote is a partial result when it passes its checks.
+partial_on = ["timeout", "stalled"]  # stops after which the output is kept; outranks agent_task(..., partial_on=)
+max_corrections = 2                 # correction rounds after the first, 0 to 20 (default 3): an output that fails its checks goes back to the session with the errors
 # Scheduling and retries.
 max_concurrent = 2                  # tasks of this kind at once (the run's own cap still applies)
 retries = 2                         # fresh-session attempts after the first, each after one that made no progress
 retry_backoff_base = 2.0            # seconds, doubled per attempt
+# keep_failed_changes = false       # leave the files a failed attempt created under its changes= patterns in place
 
 [tasks.analyze]                     # agent_task("analyze", ..., requires=["zdr"])
 credential = "zdr"                  # must carry every trait the task requires

@@ -171,14 +171,14 @@ test.describe('analyse: nested flow calls and loops', () => {
     await expect(graph(page).locator('.cluster .cluster .hd .spread')).toHaveText('1 pass: 7 | 2 passes: 1');
     await graph(page).locator('.cluster .cluster > .hd .name').dblclick();
     // Each loop is named by where it is: the outer one and the one inside it are told apart.
-    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file', 'Loop at flow.py:126', 'Loop at flow.py:129']);
+    expect(await crumbTexts(page)).toEqual(['Pipeline', 'analyse', 'analyse_bundle', 'analyse_file', 'Loop at flow.py:128', 'Loop at flow.py:131']);
     const matrix = graph(page).locator('table.matrix');
     // Each column names its node, after the mark of who runs it.
     await expect(matrix.locator('thead th.nh')).toHaveText([/verify$/, /refine$/, /verify$/]);
     await expect(matrix.locator('thead th.nh').first()).toHaveAttribute('aria-label', 'verify | Python task');
     await expect(matrix.locator('tbody tr', { hasText: 'east-0-id' }).locator('.mark')).toHaveCount(3);
     // The outer loop's passes: its own node, then the nested loop's passes inside each pass.
-    await crumbs(page).locator('button', { hasText: 'Loop at flow.py:126' }).click();
+    await crumbs(page).locator('button', { hasText: 'Loop at flow.py:128' }).click();
     await expect(matrix.locator('thead th.group').first()).toHaveText('Pass 1');
     await expect(matrix.locator('thead th.group.code')).toHaveCount(2);
     await expect(matrix.locator('thead th.nh').first()).toHaveText(/propose$/);

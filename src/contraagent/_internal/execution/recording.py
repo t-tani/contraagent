@@ -44,7 +44,7 @@ task's recording in place of a launch, or of a Python task's function: attempt 1
 entry, attempt 2 the second, past the last the last again. It writes the recorded outputs
 and changed files into place, deletes the recorded deletions, appends the recorded
 transcript, and returns the recorded result with no cost and no tokens: nothing was spent
-in this run. A Python task of a kind in `execute` runs its function instead. A played
+in this run. A Python task of a kind `execute` matches runs its function instead. A played
 attempt's result says `replayed` (`TaskResult.replayed`, the journal row's `replayed`).
 
 With `record_missing` (`Pipeline(replay=, record_missing=True)`, `--record-missing`), a
@@ -56,7 +56,14 @@ that no task of this run has played. A task
 with no recording ends `error` after one attempt: `no recording for <key>`; so does a task
 whose recording holds a file by hash only, its reason naming the file. With `record_missing`
 such a recording counts as missing. A recording made with another
-fingerprint is played all the same; the result's reason says so.
+fingerprint is played all the same; the result's reason says so, and names another outside
+state (`outside_state=`): a replay calls the function in its own working directory.
+
+An **imported recording** (`recording_import.import_recording`) was written from the run
+directory of a run that was not recorded; its entry names that run (`imported`). It is
+played only for a task of its own key and of the fingerprint each attempt holds: for
+another, the task ends `error` with a reason that names it, as a file kept by hash does,
+and with `record_missing` it counts as missing. A `~n` key never plays one of its base.
 """
 
 from __future__ import annotations
@@ -78,9 +85,9 @@ from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
-from contraagent._internal.execution.changes import compare, scan, scan_tree
+from contraagent._internal.execution.changes import compare, excluded, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
 from contraagent._internal.platform import envvars
 from contraagent._internal.runs import layout
@@ -212,7 +219,7 @@ class Recorder:
         self._patterns = patterns
         self._tree: dict[str, tuple[int, int]] | None = None
         self._declared: set[str] = set()  # paths relative to cwd: outputs, and what changes= saw
-        self._declared_patterns: set[str] = set()
+        self._declared_patterns: set[tuple[str, ...]] = set()  # one task's patterns each: a `!` holds for its own
         self.max_file_mb = max_file_mb
         self._log = log or (lambda line: None)
         self._files = 0
@@ -340,7 +347,8 @@ class Recorder:
                 if rel is not None:
                     self._declared.add(rel)
             self._declared.update(seen)
-            self._declared_patterns.update(patterns)
+            if patterns:
+                self._declared_patterns.add(tuple(patterns))
 
     def _relative(self, path: Path) -> str | None:
         try:
@@ -367,11 +375,13 @@ class Recorder:
             return []
         cwd = self._cwd.resolve()
         found = compare(self._tree, scan_tree(cwd, self._skip()))
-        covered, dirs = scan(cwd, sorted(self._declared_patterns))
+        scans = [(group, *scan(cwd, group)) for group in sorted(self._declared_patterns)]
 
         def declared(rel: str) -> bool:
             parents = [p.as_posix() for p in Path(rel).parents][:-1]
-            return rel in self._declared or rel in covered or any(p in dirs for p in parents)
+            return rel in self._declared or any(
+                rel in covered or (any(p in dirs for p in parents) and not excluded(group, rel)) for group, covered, dirs in scans
+            )
 
         body = {
             "run": self._run_id,
@@ -430,10 +440,7 @@ class Recorder:
 
     def _attempt_dir(self, task: Task) -> tuple[str, Path]:
         """A fresh folder for one attempt's files: its name and its path."""
-        token = f"{task.attempt + 1}-{secrets.token_hex(4)}"
-        files = self.directory / layout.file_name(kind_name(task.kind)) / layout.file_name(task.key) / token
-        files.mkdir(parents=True, exist_ok=True)
-        return token, files
+        return attempt_folder(self.directory, kind_name(task.kind), task.key, task.attempt + 1)
 
     def _facts(self, task: Task, token: str, result: TaskResult) -> dict[str, Any]:
         return {
@@ -442,6 +449,7 @@ class Recorder:
             "run": self._run_id,
             "recorded_at": now_iso(),
             "fingerprint": task.fingerprint,
+            **({"outside": task.outside} if task.outside else {}),
             "ok": result.ok,
             "stop": result.stop,
             "reason": result.reason,
@@ -450,9 +458,7 @@ class Recorder:
     def _keep(self, task: Task, executor: str, attempt: dict[str, Any]) -> None:
         """Add `attempt` to the task's recording (its first attempt in this run replaces it)."""
         kind = kind_name(task.kind)
-        home = self.directory / layout.file_name(kind)
-        entry_file = home / f"{layout.file_name(task.key)}.json"
-        folder = home / layout.file_name(task.key)
+        entry_file, _ = entry_paths(self.directory, kind, task.key)
         with self._lock:
             earlier: list[dict[str, Any]] = []
             if task.attempt > 0:
@@ -460,20 +466,40 @@ class Recorder:
                     earlier = json.loads(entry_file.read_text(encoding="utf-8")).get("attempts", [])
                 except (OSError, ValueError):
                     earlier = []
-            body = {
-                "version": VERSION,
-                "key": task.key,
-                "kind": kind,
-                "executor": executor,
-                "unit": task.declared_unit,
-                "attempts": [*earlier, attempt],
-            }
-            write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
-            # The attempts the entry no longer names: an earlier run's recording of this key.
-            named = {a.get("files") for a in body["attempts"]}
-            for old in folder.iterdir():
-                if old.is_dir() and old.name not in named:
-                    shutil.rmtree(old, ignore_errors=True)
+            write_entry(self.directory, kind, task.key, executor, task.declared_unit, [*earlier, attempt])
+
+
+def entry_paths(directory: Path, kind: str, key: str) -> tuple[Path, Path]:
+    """Where task `key`'s recording is in `directory`: its entry file and the folder of its attempts' files."""
+    home = directory / layout.file_name(kind)
+    return home / f"{layout.file_name(key)}.json", home / layout.file_name(key)
+
+
+def attempt_folder(directory: Path, kind: str, key: str, attempt: int) -> tuple[str, Path]:
+    """A fresh folder for the files of attempt `attempt` (from 1) of task `key`: its name and its path."""
+    token = f"{attempt}-{secrets.token_hex(4)}"
+    files = entry_paths(directory, kind, key)[1] / token
+    files.mkdir(parents=True, exist_ok=True)
+    return token, files
+
+
+def write_entry(
+    directory: Path, kind: str, key: str, executor: str, unit: str, attempts: list[dict[str, Any]], imported: dict[str, Any] | None = None
+) -> Path:
+    """Replace task `key`'s recording with `attempts`, then remove the folders of attempts it
+    no longer names: an earlier recording of this key. `imported`: where an imported
+    recording came from (`import_recording`). The entry file."""
+    entry_file, folder = entry_paths(directory, kind, key)
+    body: dict[str, Any] = {"version": VERSION, "key": key, "kind": kind, "executor": executor, "unit": unit}
+    if imported is not None:
+        body["imported"] = imported
+    body["attempts"] = attempts
+    write_document(entry_file, json.dumps(body, ensure_ascii=False, indent=2, default=str) + "\n")
+    named = {a.get("files") for a in attempts}
+    for old in folder.iterdir() if folder.is_dir() else ():
+        if old.is_dir() and old.name not in named:
+            shutil.rmtree(old, ignore_errors=True)
+    return entry_file
 
 
 @dataclass
@@ -495,7 +521,8 @@ class Replay:
     It is the `ResultEnricher` that tells its agents which task each launch is: give it
     to the runner's enrichers, and its `backends()` as the runner's backends. Bind it to a
     run's output contracts and working directory with `start` before the run.
-    `execute`: the Python task kinds whose functions run instead of being played.
+    `execute`: the Python task kinds whose functions run instead of being played, by name or
+    `fnmatch` pattern (`("*",)`: every Python task's).
     `record_missing`: a task with no recording launches on the coding agents given to
     `backends(real=)`, or runs its function, instead of ending `error`; the directory may
     be empty, or not exist yet.
@@ -551,6 +578,15 @@ class Replay:
             playing = self._playing.get(key)
         return not self.record_missing or (playing is not None and playing.key is not None)
 
+    def plays_task(self, task: Task) -> bool:
+        """Whether this run plays `task`: no function of its runs and no coding agent
+        launches for it. False for a Python task of a kind it executes, and, with
+        `record_missing`, for a task with no recording it can play (chosen now, as its
+        first attempt would)."""
+        if task.fn is not None and kind_matches(task.kind, self.execute):
+            return False
+        return not self.record_missing or self._take(task).key is not None
+
     # --- ResultEnricher ------------------------------------------------------
 
     def snapshot(self, task: Task) -> None:
@@ -576,8 +612,18 @@ class Replay:
             return playing
 
     def _blocked(self, task: Task, key: str) -> str:
-        """Why the recording `key` cannot be played for `task`: a file it keeps by hash only."""
+        """Why the recording `key` cannot be played for `task`: an imported recording of
+        another fingerprint, or a file it keeps by hash only."""
         body, _ = self.recordings[key]
+        imported = body.get("imported")
+        if isinstance(imported, dict) and task.fingerprint:
+            for attempt in body.get("attempts") or ():
+                if attempt.get("fingerprint") != task.fingerprint:
+                    return (
+                        f"the recording of {key} was imported from run {imported.get('run') or '?'} with another fingerprint "
+                        f"({str(attempt.get('fingerprint') or '')[:12]}, task {task.fingerprint[:12]}): the task's definition "
+                        "or inputs changed since; import a run of this definition, or use --record-missing"
+                    )
         for attempt in body.get("attempts") or ():
             for kept in attempt.get("by_hash") or ():
                 kind = kind_name(task.kind)
@@ -605,13 +651,17 @@ class Replay:
 
     def _choose(self, key: str) -> str | None:
         """The key's own recording; for a `~n` key with none, the first recording of its base
-        after `~n` that no task has played."""
+        after `~n` that no task has played and that was not imported (an imported recording
+        plays only for its own key)."""
         if key in self.recordings:
             return key
         base, n = base_key(key)
         if n == 1:
             return None
-        later = sorted((k for k in self.recordings if base_key(k)[0] == base and base_key(k)[1] > n), key=lambda k: base_key(k)[1])
+        later = sorted(
+            (k for k in self.recordings if base_key(k)[0] == base and base_key(k)[1] > n and "imported" not in self.recordings[k][0]),
+            key=lambda k: base_key(k)[1],
+        )
         return next((k for k in later if k not in self._played), None)
 
     # --- playing ---------------------------------------------------------------
@@ -621,10 +671,10 @@ class Replay:
     ) -> tuple[TaskResult, bool] | None:
         """A Python task's recorded call for its attempt, its output files written into place
         and its pipeline log rows and documents into `run_dir`'s `pipeline/`, and whether that
-        call raised an exception of its `retry_on`; None for a kind in `execute`, whose function
-        runs, and for a task with no recording with `record_missing`. A task with no recording
+        call raised an exception of its `retry_on`; None for a kind `execute` matches, whose
+        function runs, and for a task with no recording with `record_missing`. A task with no recording
         ends `error` otherwise, not retried."""
-        if kind_name(task.kind) in self.execute:
+        if kind_matches(task.kind, self.execute):
             return None
         started = time.monotonic()
         playing = self._take(task)
@@ -671,6 +721,8 @@ class Replay:
             notes.append(f"played the recording of {playing.key}")
         if attempt.get("fingerprint") and task.fingerprint and attempt["fingerprint"] != task.fingerprint:
             notes.append(f"the recording has another fingerprint ({attempt['fingerprint'][:12]}, task {task.fingerprint[:12]})")
+        if attempt.get("outside") and task.outside and attempt["outside"] != task.outside:
+            notes.append("the recording was made with another outside state")
         return notes
 
     def play(self, launch: Launch, agent: str) -> LaunchResult:
