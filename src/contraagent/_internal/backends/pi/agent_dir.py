@@ -45,7 +45,7 @@ LINKED = ("models-store.json", "bin")
 def default_source(env: dict[str, str]) -> Path:
     """The agent directory pi itself would use under `env`."""
     named = env.get("PI_CODING_AGENT_DIR")
-    return Path(os.path.expanduser(named)) if named else Path.home() / ".pi" / "agent"
+    return Path(named).expanduser() if named else Path.home() / ".pi" / "agent"
 
 
 def default_root(env: dict[str, str]) -> Path:

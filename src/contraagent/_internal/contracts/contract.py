@@ -351,7 +351,7 @@ def correction_prompt(contracts: Sequence[OutputContract], checks: Sequence[Chec
             continue
         errors = chk.errors[:_MAX_ERRORS]
         more = len(chk.errors) - len(errors)
-        parts.append("## Your final message\nErrors:" if c.from_message else f"## {chk.path}\nErrors:")
+        parts.append("## Your final message\nErrors:" if c.from_message else f"## {chk.path.as_posix()}\nErrors:")
         parts += [f"- {e}" for e in errors]
         if more > 0:
             parts.append(f"- … and {more} more")

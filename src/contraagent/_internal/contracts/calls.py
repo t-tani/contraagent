@@ -132,7 +132,7 @@ def call_prompt(call_path: Path, call: CallFile, instructions: str = "") -> str:
     lines = [
         f"Task call: `{call.kind}`{unit}.",
         "",
-        f"The call file `{call_path}` holds your parameters (`params`) and the output "
+        f"The call file `{call_path.as_posix()}` holds your parameters (`params`) and the output "
         "you must leave behind (`output`). Read it first, then carry out the task as "
         "your instructions describe.",
     ]

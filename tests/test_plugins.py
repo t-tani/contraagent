@@ -182,7 +182,7 @@ def test_a_skill_plugin_is_loaded_after_the_tasks_own(plugin, tmp_path):
     assert adapter.settings_path(task) == str(plugin.resolve() / "settings.json")  # the task's own plugin's only
     assert adapter.mcp_config_path(task) is None
     definition = adapter.definition(task)
-    assert definition["plugin_dirs"] == [str(plugin.resolve()), str(common.resolve())]
+    assert definition["plugin_dirs"] == [plugin.resolve().as_posix(), common.resolve().as_posix()]
     assert {"path": "common/skills/house-style/SKILL.md", "part": "skill"}.items() <= next(
         f for f in definition["files"] if f["path"].startswith("common/")
     ).items()

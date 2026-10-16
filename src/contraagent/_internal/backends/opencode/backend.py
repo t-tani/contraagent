@@ -98,6 +98,7 @@ def _patterns(key: str, pattern: str, cwd: Path) -> list[str]:
             path = Path(pattern).expanduser()
         else:
             path = cwd.resolve() / pattern.lstrip("/").removeprefix("./")
+        # os.path, not pathlib: `relpath` and `abspath` fold `..` without following a link.
         try:
             return [Path(os.path.relpath(path, worktree(cwd))).as_posix()]
         except ValueError:  # on another drive (Windows): no relative path reaches it
