@@ -169,9 +169,10 @@ class Task:
     payload: Any = None
     origin: Origin | None = None
     fingerprint: str = ""
+    base_kind: str = ""
+    # Fields new since 0.1.0 come last, so a positional argument keeps its place.
     fingerprint_at_start: bool = False
     outside: str = ""
-    base_kind: str = ""
     credential: str = ""
 
     def __post_init__(self) -> None:
@@ -277,7 +278,6 @@ class TaskResult:
     hops: tuple[Hop, ...] = ()
     rounds: int | None = None
     round_errors: tuple[tuple[str, ...], ...] = ()
-    max_corrections: int | None = None
     changes: Changes | None = None
     # Not in `hops`: no launch.
     skipped_hops: tuple[SkippedHop, ...] = ()
@@ -286,6 +286,8 @@ class TaskResult:
     retryable: bool = True
     replayed: bool = False
     payload: Any = None
+    # Fields new since 0.1.0 come last, so a positional argument keeps its place.
+    max_corrections: int | None = None
 
     @classmethod
     def skipped(cls, task: Task) -> TaskResult:
