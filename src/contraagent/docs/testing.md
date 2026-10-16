@@ -229,6 +229,57 @@ empty. Such a run can spend tokens, so it is not a stub run (`run.json` `stub` i
 each attempt that played a recording says so in its journal row (`replayed`). `--preflight`
 and `backends=` apply to the launches it makes; `--stub` and `--record` are refused.
 
+### Import a run that was not recorded
+
+A run without `--record` still keeps most of what a recording holds: its journal, its
+contract records, its launches, its transcripts and its output files. `contraagent
+recording import RUN_DIR DIR` (`contraagent.import_recording(run_dir, directory)`) writes
+a recording of each task that run finished into `DIR`, as if the run had been recorded,
+so a replay plays the run's real outputs without running it again:
+
+```
+demo="$(contraagent docs --path)/examples/demo"
+contraagent run "$demo/tasks.py:docs" --stub --kwargs '{"units": ["alpha"]}'
+contraagent recording import runs/docs-stub recordings/
+contraagent run "$demo/tasks.py:docs" --replay recordings/ --kwargs '{"units": ["alpha"]}'
+```
+
+```
+✓ 6 tasks imported from runs/docs-stub into recordings
+```
+
+Each task whose last attempt finished ok, or `partial`, is imported as one attempt; a
+replay plays it on the task's first attempt. An agent task brings its output files, the
+whole final message beside an unwrapped output, the files its `changes=` patterns saw
+created or modified, the paths they saw deleted, and the facts of its last launch. Its
+transcript comes too when the journal holds a single attempt of the task; a replay does
+not need one. A Python task brings its output file, which is the return value the flow
+received (a task that returns None has none). The rows and documents its call wrote with
+`contraagent.log` and `contraagent.save` are not imported, since the run's `pipeline/`
+does not say which call wrote them; run its kind with `--execute` when a panel needs them.
+The files are taken as they are now, so import a run that has ended and whose files
+nobody has changed since. Recordings of other keys in `DIR` stay, and the import writes
+no `undeclared.json`, since it did not see the working directory change.
+
+The import reports each task it leaves out. A task whose last attempt did not finish ok
+is listed as not finished: a replay of it, with no recording, ends `error` too, or
+launches with `--record-missing`. A task that finished is skipped, with the reason, when
+its journal row holds no fingerprint, when one of its files is missing, when a later task
+of the run wrote the same file again (the file then holds that task's contents), or
+when a file is over the cap (`--record-max-file-mb N`, default 4). A run of a run format
+this release does not read is refused (`RecordingError`). The command exits 1 when it
+skips a task that finished, or imports none.
+
+An imported recording names the run it came from (its entry's `imported`: `run`,
+`run_uid`, `imported_at`) and keeps the fingerprint the journal recorded. A replay plays it
+only for a task of the same key and the same fingerprint. When the task's definition,
+params or inputs have changed since that run, the task ends `error` with the reason `the
+recording of <key> was imported from run <run> with another fingerprint`, or, with
+`--record-missing`, launches and is recorded again. An imported recording is never
+played for a `~n` key of its base. A recording that a recording run wrote is played for
+another fingerprint, as above; an imported one is not, since nothing observed the
+task as it ran then.
+
 ## Test: the stub agent
 
 `contraagent.testing.StubAgent` is a coding agent for tests. It reads its call

@@ -33,6 +33,7 @@ from contraagent._internal.errors import ContraagentDeprecationWarning, Contraag
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.pipeline_files import NoCurrentRun, log, pipeline_table, save
 from contraagent._internal.execution.recording import RecordingError
+from contraagent._internal.execution.recording_import import RecordingImport, import_recording
 from contraagent._internal.execution.run import RunExists, RunFormatError, RunLocked
 from contraagent._internal.execution.services import Service, service_address
 from contraagent._internal.pipeline.check import CheckReport
@@ -76,6 +77,7 @@ __all__ = [
     "PythonTask",
     "QuotaRule",
     "RecordingError",
+    "RecordingImport",
     "ResultEnricher",
     "RoutingError",
     "Rows",
@@ -96,6 +98,7 @@ __all__ = [
     "TooManyPasses",
     "Validator",
     "agent_task",
+    "import_recording",
     "log",
     "max_passes",
     "pipeline_table",
