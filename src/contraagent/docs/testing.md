@@ -43,7 +43,7 @@ Run it after every change to tasks, plugins or the config.
 ## Stub run: the whole flow on examples, nothing called
 
 ```
-contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch | --execute-all]
+contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
 ```
 
 With `--config`, its `[route]` lines name the routes a real run takes; without it,
@@ -55,10 +55,12 @@ model is called, no Python task's function runs, and the flow goes on to its end
 those outputs, so the run lists every task the flow creates on that path
 (`kind · unit`, how it ended, and the flow path that created it). `--execute <kind>`
 runs that Python task kind's function instead (a read-only step whose real output
-the flow needs); give it once per kind. `--execute-all` runs the function of every
-Python task, so the stub agent plays the agent tasks only: the pipeline's own code
-runs for real, and no model is called. It is not taken with `--execute`. The run id is `<flow>-stub`, and the monitor marks the run "stub
-agent".
+the flow needs); give it once per kind, or give an `fnmatch` pattern of kinds
+(`--execute 'fetch_*'`). `--execute '*'` runs the function of every Python task, so
+the stub agent plays the agent tasks only: the pipeline's own code runs for real, and
+no model is called. Quote a pattern, so that the shell does not expand it. A kind name
+holds no `*`, `?` or `[`, so a pattern never reads as a kind. The run id is
+`<flow>-stub`, and the monitor marks the run "stub agent".
 
 The example follows one rule, at every part of the output's JSON Schema: the first
 entry of that part's `examples`, else the smallest value that part accepts (required
@@ -124,7 +126,7 @@ in a stub run too. Put side effects in Python tasks. In Python,
 `Pipeline(stub=StubAgent(script, default=writes_example(), execute=[...]))`
 scripts the replies of both kinds of task, as a test does (the
 `contraagent.testing` module docstring lists the replies);
-`StubAgent(default=writes_example(), execute_all=True)` is `--execute-all`.
+`StubAgent(default=writes_example(), execute=["*"])` is `--execute '*'`.
 
 ## Record once, replay in CI
 
@@ -170,8 +172,8 @@ running in CI, since its output is replayed. A [service](tasks.md#services-a-ser
 of `Pipeline(services=)` starts only for a task that really runs: a replay starts
 none for a task it plays, and starts one for a Python task whose function it runs.
 `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
-Python task kind's function instead, and `--execute-all` (`Pipeline(replay=DIR,
-execute_all=True)`) every Python task's, as in a stub run: the pipeline's own code under
+Python task kind's function instead, and `--execute '*'` (`Pipeline(replay=DIR,
+execute=["*"])`) every Python task's, as in a stub run: the pipeline's own code under
 test. So a replay in CI follows the flow down the path the real outputs led to, with
 nothing spent.
 

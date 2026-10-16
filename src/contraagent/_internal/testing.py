@@ -26,6 +26,7 @@ from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.contracts.rows import rows_text
 from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.dispatch.task import kind_matches
 from contraagent._internal.dispatch.templates import fill_example
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.preflight import PROBE_PROMPT
@@ -158,8 +159,8 @@ class StubAgent(Backend):
     `script`: task key or kind -> reply (the kinds of reply: `contraagent.testing`'s module docstring). `default`: the
     reply of a task with none scripted (`writes_example()` in `contraagent run --stub`).
     `execute`: in a stub run, the Python task kinds whose functions run instead of
-    being played; `execute_all`: every Python task's function runs (not with `execute`),
-    and the stub agent plays the agent tasks only. `delay_s`: a pause per launch, for watching a stub run in the monitor.
+    being played, by name or `fnmatch` pattern (`("*",)`: every Python task's, and the stub
+    agent plays the agent tasks only). `delay_s`: a pause per launch, for watching a stub run in the monitor.
     """
 
     name = "stub"
@@ -179,16 +180,12 @@ class StubAgent(Backend):
         *,
         default: Any = _UNSET,
         execute: Iterable[str] = (),
-        execute_all: bool = False,
         delay_s: float = 0.0,
     ) -> None:
         super().__init__(base_env={})
         self.script: dict[str, Any] = dict(script or {})
         self.default = default
         self.execute: frozenset[str] = frozenset(execute)
-        if execute_all and self.execute:
-            raise TypeError("StubAgent: execute_all runs every Python task's function; drop execute=, or execute_all")
-        self.execute_all: bool = bool(execute_all)
         self.delay_s = delay_s
         #: Every launch, in the order they arrived.
         self.launches: list[StubLaunch] = []
@@ -379,7 +376,7 @@ class StubAgent(Backend):
 
     def plays(self, kind: str) -> bool:
         """Whether a stub run plays a Python task of `kind` (rather than running its function)."""
-        return not self.execute_all and kind not in self.execute
+        return not kind_matches(kind, self.execute)
 
     def play_python(
         self,

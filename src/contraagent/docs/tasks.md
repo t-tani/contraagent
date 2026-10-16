@@ -547,8 +547,7 @@ Python task that calls `service_address` in such a run raises `KeyError`, which 
 that the pipeline defines no service of that name.
 
 A stub run and a replay start a service only for a task that really runs: a Python
-task whose function runs (a kind given to `execute`, or every kind with
-`execute_all`), and an agent task that launches a coding agent (a task with no
+task whose function runs (a kind that `execute` matches), and an agent task that launches a coding agent (a task with no
 recording, under `record_missing`). A task they play holds no service: no service
 starts for it, and its launch has no `CONTRAAGENT_SERVICE_<NAME>` variable, so a
 stub's reply finds none. A scope ("Around each attempt", below) suits a helper of one
@@ -689,8 +688,8 @@ without a suffix. They write into the current run: in flow code, the run
 thread the queue runs it. Anywhere else they raise `NoCurrentRun`. A relay ships them
 to a hub with the rest of the run, and a panel reads them back wherever the monitor
 reads runs ([the monitor](monitor.md)). In a stub run a Python task the stub agent
-plays does not run, so it logs nothing (the kinds of `--execute`, or every kind with
-`--execute-all`, run and log); flow code runs as in any run.
+plays does not run, so it logs nothing (the kinds that `--execute` matches run and
+log); flow code runs as in any run.
 
 In the same places, `contraagent.pipeline_table(name)` reads the pipeline's own
 settings: the **pipeline table** `[pipeline.<name>]` of the config file the run was

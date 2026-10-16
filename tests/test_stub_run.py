@@ -125,32 +125,45 @@ def test_a_stub_run_executes_the_kinds_named_and_scripts_both_executors(tmp_path
     assert [t.key for t in stub.played] == ["python:publish"]
 
 
-def test_a_stub_run_executes_every_python_task_with_execute_all(tmp_path):
+def test_a_stub_run_executes_every_python_task_with_a_star(tmp_path):
     calls.clear()
-    stub = StubAgent(default=writes_example(), execute_all=True)
+    stub = StubAgent(default=writes_example(), execute=["*"])
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(flow, units=["a", "b"])
     assert report.ok, report.failed
     assert sorted(calls) == ["fetch a", "fetch b", "publish"]
     assert stub.played == []
     assert sorted(launch.key for launch in stub.launches) == ["find-a", "find-b"]  # the agent tasks are still played
-    with pytest.raises(TypeError, match="drop execute=, or execute_all"):
-        StubAgent(execute=["fetch"], execute_all=True)
-    with pytest.raises(TypeError, match="execute_all= is for a replay"):
-        Pipeline(execute_all=True)
+    with pytest.raises(TypeError, match="execute= is for a replay"):
+        Pipeline(execute=["*"])
 
 
-def test_the_cli_executes_every_python_task_with_execute_all(tmp_path, monkeypatch, capsys):
+def test_a_stub_run_executes_the_kinds_a_pattern_matches(tmp_path):
+    calls.clear()
+    stub = StubAgent(default=writes_example(), execute=["fe*"])
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(flow, units=["a", "b"])
+    assert report.ok, report.failed
+    assert sorted(calls) == ["fetch a", "fetch b"]
+    assert [t.key for t in stub.played] == ["python:publish"]
+
+
+def test_a_kind_name_holds_no_pattern_character():
+    for name in ("fetch*", "fetch?", "fetch[1]"):
+        with pytest.raises(TypeError, match=r"holds no \*, \? or \["):
+            agent_task(name, instructions="Write it.")
+        with pytest.raises(TypeError, match=r"holds no \*, \? or \["):
+            python_task(name=name)(lambda unit: None)
+
+
+def test_the_cli_executes_every_python_task_with_a_star(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
     stem = Path(__file__).stem
     monkeypatch.delitem(sys.modules, stem, raising=False)  # the CLI loads this file anew under its name; put back after
     args = ["run", f"{__file__}:flow", "--kwargs", '{"units": ["a"]}', "--runs-dir", str(tmp_path)]
-    assert main([*args, "--stub", "--execute-all"]) == 0, capsys.readouterr().out
+    assert main([*args, "--stub", "--execute", "*"]) == 0, capsys.readouterr().out
     assert sorted(sys.modules[stem].calls) == ["fetch a", "publish"]
-    assert main([*args, "--execute-all"]) == 2
-    assert "--execute-all: only with --stub or --replay" in capsys.readouterr().err
-    with pytest.raises(SystemExit):  # one or the other
-        main([*args, "--stub", "--execute-all", "--execute", "fetch"])
+    assert main([*args, "--execute", "*"]) == 2
+    assert "--execute: only with --stub or --replay" in capsys.readouterr().err
 
 
 def test_a_python_reply_that_fails_raises_in_the_task(tmp_path):

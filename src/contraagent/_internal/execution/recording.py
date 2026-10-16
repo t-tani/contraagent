@@ -44,7 +44,7 @@ task's recording in place of a launch, or of a Python task's function: attempt 1
 entry, attempt 2 the second, past the last the last again. It writes the recorded outputs
 and changed files into place, deletes the recorded deletions, appends the recorded
 transcript, and returns the recorded result with no cost and no tokens: nothing was spent
-in this run. A Python task of a kind in `execute` runs its function instead. A played
+in this run. A Python task of a kind `execute` matches runs its function instead. A played
 attempt's result says `replayed` (`TaskResult.replayed`, the journal row's `replayed`).
 
 With `record_missing` (`Pipeline(replay=, record_missing=True)`, `--record-missing`), a
@@ -85,7 +85,7 @@ from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_name
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution.changes import compare, excluded, scan, scan_tree
 from contraagent._internal.execution.pipeline_files import Written, write_captured
@@ -521,21 +521,16 @@ class Replay:
     It is the `ResultEnricher` that tells its agents which task each launch is: give it
     to the runner's enrichers, and its `backends()` as the runner's backends. Bind it to a
     run's output contracts and working directory with `start` before the run.
-    `execute`: the Python task kinds whose functions run instead of being played;
-    `execute_all`: every Python task's function runs (not with `execute`).
+    `execute`: the Python task kinds whose functions run instead of being played, by name or
+    `fnmatch` pattern (`("*",)`: every Python task's).
     `record_missing`: a task with no recording launches on the coding agents given to
     `backends(real=)`, or runs its function, instead of ending `error`; the directory may
     be empty, or not exist yet.
     """
 
-    def __init__(
-        self, directory: str | Path, *, execute: Iterable[str] = (), execute_all: bool = False, record_missing: bool = False
-    ) -> None:
+    def __init__(self, directory: str | Path, *, execute: Iterable[str] = (), record_missing: bool = False) -> None:
         self.directory: Path = Path(directory)
         self.execute: frozenset[str] = frozenset(execute)
-        if execute_all and self.execute:
-            raise TypeError("replay: execute_all runs every Python task's function; drop execute=, or execute_all")
-        self.execute_all: bool = bool(execute_all)
         self.record_missing = record_missing
         if record_missing:
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -588,7 +583,7 @@ class Replay:
         launches for it. False for a Python task of a kind it executes, and, with
         `record_missing`, for a task with no recording it can play (chosen now, as its
         first attempt would)."""
-        if task.fn is not None and (self.execute_all or kind_name(task.kind) in self.execute):
+        if task.fn is not None and kind_matches(task.kind, self.execute):
             return False
         return not self.record_missing or self._take(task).key is not None
 
@@ -676,11 +671,10 @@ class Replay:
     ) -> tuple[TaskResult, bool] | None:
         """A Python task's recorded call for its attempt, its output files written into place
         and its pipeline log rows and documents into `run_dir`'s `pipeline/`, and whether that
-        call raised an exception of its `retry_on`; None for a kind in `execute` (any kind with
-        `execute_all`), whose function
-        runs, and for a task with no recording with `record_missing`. A task with no recording
+        call raised an exception of its `retry_on`; None for a kind `execute` matches, whose
+        function runs, and for a task with no recording with `record_missing`. A task with no recording
         ends `error` otherwise, not retried."""
-        if self.execute_all or kind_name(task.kind) in self.execute:
+        if kind_matches(task.kind, self.execute):
             return None
         started = time.monotonic()
         playing = self._take(task)

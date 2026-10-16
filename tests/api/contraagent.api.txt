@@ -260,7 +260,6 @@ class Pipeline
         record: str | Path | None = None,
         replay: str | Path | None = None,
         execute: Sequence[str] = (),
-        execute_all: bool = False,
         record_missing: bool = False,
         record_max_file_mb: float | None = None,
         deadline_s: float | None = None,
@@ -3457,7 +3456,6 @@ class StubAgent(Backend)
         *,
         default: Any = _UNSET,
         execute: Iterable[str] = (),
-        execute_all: bool = False,
         delay_s: float = 0.0,
     ) -> None
     def argv(self, launch: Launch) -> list[str]
@@ -3475,7 +3473,6 @@ class StubAgent(Backend)
     delay_s
     def env(self, launch: Launch) -> dict[str, str]
     execute: frozenset[str]
-    execute_all: bool
     launches: list[StubLaunch]
     def launches_of(self, key: str, run: str | None = None) -> list[StubLaunch]
     light_launch = True

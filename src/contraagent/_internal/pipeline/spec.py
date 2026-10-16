@@ -33,7 +33,7 @@ from contraagent._internal.contracts.pointers import schema_error, syntax_error
 from contraagent._internal.contracts.rows import is_rows, rows_file, rows_model
 from contraagent._internal.contracts.validators import Validator, validator_name
 from contraagent._internal.dispatch.python_task import InvalidInput, checked_retries
-from contraagent._internal.dispatch.task import Partial
+from contraagent._internal.dispatch.task import GLOB_CHARACTERS, Partial
 from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.pipeline.graph import Pending, current_graph
 from contraagent._internal.plugins import Plugin, PluginError
@@ -381,6 +381,8 @@ def agent_task[Out](
 ) -> AgentTask[Out] | Mapping[str, AgentTask[Out]]:
     """Declare an agent task.
 
+    `kind`: the name of its class of work; it holds no `*`, `?` or `[`, which a pattern of
+    kinds uses (`contraagent run --stub --execute PATTERN`).
     `plugin`: the directory that implements it (`contraagent plugin new`), relative
     to the file that declares the task. Its role (`agents/<role>.md`) is the
     procedure; `role` picks one when the plugin has several.
@@ -514,6 +516,7 @@ def agent_task[Out](
     """
     # The task table keys, as given (`TASK_KEYS`: a test holds them equal to these parameters).
     given = locals()
+    _check_kind(f"agent_task({kind!r})", kind)
     table = {key: _table_value(given[key]) for key in TASK_KEYS if given[key] is not None}
     base = _caller_dir()
     if implementations is not None:
@@ -1024,7 +1027,7 @@ def python_task(
     outside_state: OutsideState | None = None,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]:
     """Turn a function into a Python task of kind `name` (default: the function's
-    name). Its return annotation is its output: a pydantic model (the schema),
+    name; no `*`, `?` or `[`, as for `agent_task`). Its return annotation is its output: a pydantic model (the schema),
     any JSON-able type (kept as a JSON file), or None (no output). A function that could do
     only part of its work returns `Partial(value, reason=)` (annotated `-> Out | Partial[Out]`):
     `value` is its output as usual, the task finishes ok with stop `partial`, and a resume
@@ -1048,6 +1051,7 @@ def python_task(
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:
         kind = name or f.__name__
         owner = f"python_task({kind!r})"
+        _check_kind(owner, kind)
         checked = _checked_claims(owner, claims)
         tries, on = checked_retries(owner, retries, retry_on)
         _check_outside_state(owner, outside_state, rerun_on_resume)
@@ -1206,6 +1210,12 @@ def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:
             if field not in ("unit", "key", "kind") and not PARAM_FIELD.fullmatch(field):
                 raise ValueError(f"{owner}: claim {claim!r} names {field}; it may name unit, key, kind and params.<name>")
     return out
+
+
+def _check_kind(owner: str, kind: object) -> None:
+    """A kind name holds none of the characters of a pattern of kinds."""
+    if isinstance(kind, str) and GLOB_CHARACTERS & set(kind):
+        raise TypeError(f"{owner}: a kind holds no *, ? or [ (a pattern of kinds, as --execute takes, uses them)")
 
 
 def _check_output_name(owner: str, template: Any) -> None:

@@ -26,6 +26,7 @@ live in `contraagent._internal.dispatch.interceptors`.
 
 from __future__ import annotations
 
+import fnmatch
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -45,6 +46,17 @@ def kind_name(kind) -> str:
     compare equal to their values.
     """
     return str(getattr(kind, "value", kind))
+
+
+#: The characters of an `fnmatch` pattern, which a kind name does not hold.
+GLOB_CHARACTERS = frozenset("*?[")
+
+
+def kind_matches(kind, patterns: frozenset[str]) -> bool:
+    """Whether `kind` is matched by one of `patterns` (kind names or `fnmatch` patterns of
+    them, `*` for every kind): what a stub run or a replay executes (`--execute`)."""
+    name = kind_name(kind)
+    return name in patterns or any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 
 @dataclass(frozen=True)

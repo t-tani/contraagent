@@ -45,8 +45,8 @@ none, its launch ends `error` and says so.
 A **stub run** (`Pipeline(stub=StubAgent(...))`, `contraagent run --stub`) plays the
 Python tasks too: a Python task's function does not run, and its reply is its
 return value (`writes_nothing()`: no output; `fails()`: it raises), from the same
-script; a callable reply is given a `StubTask`. The kinds in `execute` run their
-functions as in any run, and with `execute_all=True` every Python task does. Flow code runs in a stub run as in any run.
+script; a callable reply is given a `StubTask`. The kinds in `execute` (names or
+`fnmatch` patterns, `"*"` for every kind) run their functions as in any run. Flow code runs in a stub run as in any run.
 
 A preflight's probe (`Pipeline(preflight=)`) completes on every route the stub plays; a
 route the stub's `catalogue()` does not list is dropped as it is for a coding agent.
