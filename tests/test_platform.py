@@ -123,6 +123,9 @@ def test_a_posix_group_stops_with_its_children(how):
     assert not processes.alive(child)
     g.release(proc)
     proc.stdout.close()
+    # A dead child stays in the group as a zombie until its new parent reaps it.
+    while g.terminate(proc) and time.monotonic() < deadline:
+        time.sleep(0.05)
     assert not g.terminate(proc)  # no group left
 
 
