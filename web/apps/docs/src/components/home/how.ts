@@ -2,9 +2,9 @@
 // the CLI's own output (run here, on the demo pipeline of the package's examples),
 // the code of that pipeline quoted from the file, and the demo run's figures.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { cpSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join, resolve, sep } from 'node:path';
 import type { JournalRow } from '@contraagent/api';
 import fixture from '../../fixtures/demo-run.json';
 import { REPO, repoFile } from '../../lib/repo';
@@ -16,11 +16,34 @@ const DEMO = resolve(REPO, 'src/contraagent/docs/examples/demo');
 /** The demo's flow arguments, as the scene's commands give them. */
 export const KWARGS = '{"units": ["alpha", "beta"]}';
 
-/** A command of the CLI in `cwd` (the demo's directory), and what it printed, whatever its exit status. */
+/**
+ * `text` as a reader sees it in their own project: the project's directory (`dir`, where the
+ * command ran; the demo's, or the copy of it in the system's temporary files) is where they
+ * are, so a path under it is printed relative to it (`tasks.py:131`), and the directory itself
+ * as `.`. The CLI prints some paths absolute (a traceback's file); this is the only change made
+ * to its output.
+ */
+function inProject(text: string, dir: string): string {
+  let out = text;
+  for (const d of new Set([dir, realpathSync(dir)])) out = out.split(d + sep).join('').split(d).join('.');
+  return out;
+}
+
+/** The directories of this build that no output on the page may name. */
+const PRIVATE = [...new Set([REPO, tmpdir(), realpathSync(tmpdir()), homedir()])];
+
+/** `text`, after it was checked to name none of this build's directories; the build stops if it does. */
+function published(what: string, text: string): string {
+  const named = PRIVATE.find((d) => text.includes(d));
+  if (named) throw new Error(`the landing page's ${what} names ${named}, a directory of this build:\n${text}`);
+  return text;
+}
+
+/** A command of the CLI in `cwd` (the demo's directory), and what it printed, whatever its exit status, its paths in the project. */
 function cli(args: string[], cwd = DEMO): string {
   const r = spawnSync('uv', ['run', '--quiet', '--project', REPO, ...args], { cwd, encoding: 'utf8' });
   if (r.error) throw r.error;
-  return `${r.stdout}${r.stderr}`.trimEnd();
+  return inProject(`${r.stdout}${r.stderr}`.trimEnd(), cwd);
 }
 
 /** The mistakes the scene's agent makes on its first try, in a copy of the demo: the units as one string, a kind's name misspelt in the config. */
@@ -37,7 +60,9 @@ function brokenCheck(): string {
   if (!text.includes(SLIP.from)) throw new Error(`demo pipeline.toml has no ${SLIP.from}`);
   writeFileSync(toml, text.replace(SLIP.from, SLIP.to));
   const out = cli(['contraagent', 'check', 'tasks.py:docs', '--config', 'pipeline.toml', '--stub', '--kwargs', SLIP.kwargs], dir);
-  if (!/error:/.test(out) || !/warning:/.test(out)) throw new Error(`the broken copy's check did not report an error and a warning:\n${out}`);
+  // Its shape, not its wording: more than one problem reported, and the first line says the check failed (✓ is a pass).
+  const problems = out.split('\n').filter((l) => /^\s+(error|warning)\b/i.test(l));
+  if (problems.length < 2 || /^✓/.test(out)) throw new Error(`the broken copy's check did not report two problems:\n${out}`);
   return out;
 }
 
@@ -87,7 +112,7 @@ export function how(): How {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const tests = run
+  const tests = inProject(run, DEMO)
     .split('\n')
     .filter((l) => /^test_demo\.py::\S+ (PASSED|FAILED)/.test(l) || /^=+ \d+ (passed|failed)/.test(l))
     .map((l) => l.replace(/\s+\[\s*\d+%\]$/, '').replace(/^=+ | =+$/g, ''));
@@ -99,13 +124,17 @@ export function how(): How {
   const docs = cli(['contraagent', 'docs']);
   const topics = [...docs.matchAll(/^- \[([^\]]+)\]\(/gm)].map((m) => m[1]);
   if (topics.length < 5) throw new Error('`contraagent docs` lists no topics');
+  const pointer = cli(['contraagent', 'docs', '--pointer']);
+  if (!pointer.includes('contraagent docs')) throw new Error(`\`contraagent docs --pointer\` names no \`contraagent docs\`:\n${pointer}`);
+  const check = cli(['contraagent', 'check', 'tasks.py:docs', '--config', 'pipeline.toml', '--stub', '--kwargs', KWARGS]);
+  if (!/^✓/.test(check)) throw new Error(`the demo's check did not pass:\n${check}`);
   return {
-    version: cli(['contraagent', '--version']),
-    topics,
-    slip: { ...SLIP, output: brokenCheck() },
-    pointer: cli(['contraagent', 'docs', '--pointer']),
-    check: cli(['contraagent', 'check', 'tasks.py:docs', '--config', 'pipeline.toml', '--stub', '--kwargs', KWARGS]),
-    tests,
+    version: published('version', cli(['contraagent', '--version'])),
+    topics: topics.map((t) => published('topics of contraagent docs', t)),
+    slip: { ...SLIP, output: published('first check', brokenCheck()) },
+    pointer: published('pointer', pointer),
+    check: published('check', check),
+    tests: tests.map((t) => published('tests', t)),
     code: quoted.map((l, i) => ({ n: l.n, html: html[i] })),
     marks: [...last.values()].map((r) => ({ agent: r.executor === 'agent', corrected: (r.rounds ?? 1) > 1, switched: (r.hops ?? []).length > 1 })),
     done: fixture.plan.nodes.filter((n) => n.state === 'done').length,
