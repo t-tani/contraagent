@@ -181,7 +181,6 @@ class Pipeline:
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
         services: Mapping[str, Service] | None = None,
-        service_idle_s: float | None = None,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
         `[credentials.<name>]`); None runs on each task's declared defaults.
@@ -279,9 +278,7 @@ class Pipeline:
         claims the name, with stop `launch_failed`. `services.jsonl` records each start and
         stop. A stub run or a replay starts none for a task it plays: only a Python task
         whose function runs, or an agent task that launches a coding agent, holds its
-        services. `service_idle_s`: stop a service once no task has held it for that many
-        seconds (0: as soon as the last one ends), and start it again for the next task
-        that claims its name; None keeps every service running until the run ends."""
+        services."""
         if config is None:
             config = PipelineConfig()
         elif not isinstance(config, PipelineConfig):
@@ -345,13 +342,6 @@ class Pipeline:
         capacity = {**config.claim_capacity([]), **given}
         #: The service each claim name or pattern stands for (`Service`).
         self.services: dict[str, Service] = _checked_services(services)
-        if service_idle_s is not None and (
-            isinstance(service_idle_s, bool) or not isinstance(service_idle_s, (int, float)) or service_idle_s < 0
-        ):
-            raise ValueError(
-                f"Pipeline: service_idle_s={service_idle_s!r} is not a non-negative number of seconds (None: until the run ends)"
-            )
-        self.service_idle_s: float | None = service_idle_s
         #: What the run's `WorkQueue` is given beside its runner (`Run.queue`).
         self.queue_options: dict[str, Any] = dict(
             deadline_s=deadline_s,
@@ -435,7 +425,6 @@ class Pipeline:
             services = Services(
                 self.services,
                 run.dir,
-                idle_s=self.service_idle_s,
                 log=lambda line, warning: run.progress(line, warning=warning),
                 plays=self._plays,
             )

@@ -169,7 +169,7 @@ def test_a_stop_that_raises_is_recorded_and_the_service_counts_as_stopped(tmp_pa
     assert any("[service] index: its stop raised RuntimeError: still busy" in line for line in lines)
 
 
-def test_service_idle_s_stops_an_idle_service_and_the_next_claim_starts_it_again(tmp_path):
+def test_a_service_no_task_holds_between_two_tasks_stays_up_until_the_run_ends(tmp_path):
     server = Server()
 
     @python_task(claims=["index"])
@@ -180,24 +180,7 @@ def test_service_idle_s_stops_an_idle_service_and_the_next_claim_starts_it_again
         yield look("a")
         yield look("b")
 
-    report = pipeline(tmp_path, services={"index": server}, service_idle_s=0).run(flow)
-    assert report.ok, report.failed
-    assert server.calls == [("start", "index"), ("stop", "index")] * 2
-    assert [(e["event"], e.get("cause")) for e in events(report)] == [("start", None), ("stop", "idle")] * 2
-
-
-def test_an_idle_timer_that_a_new_claim_cancels_keeps_the_service_up(tmp_path):
-    server = Server()
-
-    @python_task(claims=["index"])
-    def look(unit: str) -> Found:
-        return Found(address=service_address("index") or "")
-
-    def flow():
-        yield look("a")
-        yield look("b")
-
-    report = pipeline(tmp_path, services={"index": server}, service_idle_s=30).run(flow)
+    report = pipeline(tmp_path, services={"index": server}).run(flow)
     assert report.ok, report.failed
     assert server.calls == [("start", "index"), ("stop", "index")]
     assert events(report)[-1]["cause"] == "run_end"
@@ -314,8 +297,6 @@ def test_services_are_checked_as_the_pipeline_is_made(tmp_path):
         Pipeline(None, services={"index": "http://localhost"})  # type: ignore[dict-item]
     with pytest.raises(ValueError, match="is not a claim name"):
         Pipeline(None, services={"": Server()})
-    with pytest.raises(ValueError, match="service_idle_s=-1"):
-        Pipeline(None, service_idle_s=-1)
 
 
 def test_check_names_a_service_no_task_claims(tmp_path):
@@ -351,14 +332,11 @@ def test_the_monitor_shows_each_start_of_a_service_with_its_stop(tmp_path):
         yield look("a")
         yield look("b")
 
-    report = pipeline(tmp_path, services={"index": server}, service_idle_s=0).run(flow)
+    report = pipeline(tmp_path, services={"index": server}).run(flow)
     assert report.ok
     plan = Monitor(tmp_path / "runs").plan(report.run_id)
     spans = plan["services"]
-    assert [(s["name"], s["address"], s["stop_cause"]) for s in spans] == [
-        ("index", "http://index.local:1", "idle"),
-        ("index", "http://index.local:3", "idle"),
-    ]
+    assert [(s["name"], s["address"], s["stop_cause"]) for s in spans] == [("index", "http://index.local:1", "run_end")]
     assert all(s["stopped_at"] >= s["started_at"] and s["key"].startswith("python:look-") for s in spans)
 
     failed = pipeline(tmp_path, services={"index": Server(fail_start=OSError("no"))}).run(lambda: look("c"), run_id="failed")

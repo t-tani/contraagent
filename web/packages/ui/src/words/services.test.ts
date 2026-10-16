@@ -20,8 +20,8 @@ describe('serviceState', () => {
 
 describe('serviceFacts', () => {
   it('names when it started and stopped, and why', () => {
-    expect(serviceFacts(span({ stopped_at: STOP, stop_cause: 'idle' }))).toBe(
-      `Started ${localTime(START)} in 1.2s | Stopped ${localTime(STOP)} | No task held it`,
+    expect(serviceFacts(span({ stopped_at: STOP, stop_cause: 'run_end' }))).toBe(
+      `Started ${localTime(START)} in 1.2s | Stopped ${localTime(STOP)} | The run ended`,
     );
     expect(serviceFacts(span({ stopped_at: STOP, stop_cause: 'interrupted', stop_error: 'RuntimeError: busy' }))).toBe(
       `Started ${localTime(START)} in 1.2s | Stopped ${localTime(STOP)} | The run was stopped by a signal | Stop failed | RuntimeError: busy`,

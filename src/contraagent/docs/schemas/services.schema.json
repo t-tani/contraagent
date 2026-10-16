@@ -52,7 +52,6 @@
       "anyOf": [
         {
           "enum": [
-            "idle",
             "run_end",
             "interrupted"
           ],

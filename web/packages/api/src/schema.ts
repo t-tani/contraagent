@@ -2308,8 +2308,7 @@ export type components = {
         };
         /**
          * ServiceSpan
-         * @description One start of the service a claim name stands for (`services.jsonl`), with its stop:
-         *     a service that stopped when idle and started again has a span for each start.
+         * @description One start of the service a claim name stands for (`services.jsonl`), with its stop.
          */
         ServiceSpan: {
             /**
@@ -2355,7 +2354,7 @@ export type components = {
              * Stop Cause
              * @description why it stopped; null while it is up
              */
-            stop_cause?: ("idle" | "run_end" | "interrupted") | null;
+            stop_cause?: ("run_end" | "interrupted") | null;
             /**
              * Stop Error
              * @description the exception its stop raised; empty when the stop went well

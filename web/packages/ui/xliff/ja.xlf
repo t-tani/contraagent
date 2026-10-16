@@ -3099,10 +3099,6 @@
   <source>No services</source>
   <target>サービスなし</target>
 </trans-unit>
-<trans-unit id="s84b40036b7da0073">
-  <source>No task held it</source>
-  <target>保持するタスクがなかった</target>
-</trans-unit>
 <trans-unit id="s5144d023ec192e11">
   <source>The run ended</source>
   <target>実行が終了した</target>

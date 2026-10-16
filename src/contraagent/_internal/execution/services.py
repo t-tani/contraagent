@@ -11,9 +11,7 @@ service while it runs:
   before the task's first attempt; a task that claims it while it starts waits for
   that start. How many tasks hold the name at once is its claim capacity, as for any
   claim: they all share the one service;
-* the service runs until the run ends; with `idle_s` it stops once no task has
-  held it for `idle_s` seconds, and the next task that claims the name starts it
-  again;
+* the service runs until the run ends;
 * a start that raises fails the task that started it and every task that claims the
   name after it in the run, each with stop `launch_failed` and the start's exception
   as its reason; the run goes on. A resumed run tries the start again;
@@ -132,14 +130,12 @@ class _State:
     context: AbstractContextManager[str | None] | None = None
     address: str | None = None
     failed: str = ""  # why its start failed: it is not tried again in this run
-    timer: threading.Timer | None = None
     started: int = 0  # the order of its last start, for the run's end
 
 
 class Services:
     """The services of one run, by the claim name or pattern each stands for. `run_dir`:
-    where `services.jsonl` is written; `idle_s`: how long a service no task holds stays
-    up (None: until the run ends); `log`: a progress line, and whether it is a warning;
+    where `services.jsonl` is written; `log`: a progress line, and whether it is a warning;
     `plays(task)`: whether the run plays `task` (a stub run, a replay), so that it holds
     no service."""
 
@@ -148,14 +144,12 @@ class Services:
         services: Mapping[str, Service],
         run_dir: Path,
         *,
-        idle_s: float | None = None,
         log: Callable[[str, bool], None] | None = None,
         plays: Callable[[Task], bool] | None = None,
     ) -> None:
         self._services = dict(services)
         self._plays = plays or (lambda task: False)
         self._file = run_dir / layout.SERVICES
-        self._idle_s = idle_s
         self._log = log or (lambda line, warning: None)
         self._states: dict[str, _State] = {}
         self._lock = threading.Lock()
@@ -207,7 +201,6 @@ class Services:
             states = sorted(self._states.items(), key=lambda item: -item[1].started)
         for name, state in states:
             with state.lock:
-                self._cancel(state)
                 if state.context is not None:
                     self._stop(name, state, cause)
 
@@ -233,7 +226,6 @@ class Services:
                 raise ServiceFailed(state.failed)
             if self._closed:
                 raise ServiceFailed(f"service {name!r} did not start: the run is ending")
-            self._cancel(state)
             if state.context is None:
                 self._start(name, state, task)
             state.holders += 1
@@ -264,28 +256,6 @@ class Services:
         state = self._state(name)
         with state.lock:
             state.holders -= 1
-            if state.holders > 0 or state.context is None or self._idle_s is None:
-                return
-            if self._idle_s <= 0:
-                self._stop(name, state, "idle")
-                return
-            timer = threading.Timer(self._idle_s, self._idle, (name, state))
-            timer.daemon = True
-            state.timer = timer
-            timer.start()
-
-    def _idle(self, name: str, state: _State) -> None:
-        with state.lock:
-            if state.timer is not threading.current_thread():
-                return  # a task claimed it again in the meantime
-            state.timer = None
-            if state.holders == 0 and state.context is not None:
-                self._stop(name, state, "idle")
-
-    def _cancel(self, state: _State) -> None:
-        if state.timer is not None:
-            state.timer.cancel()
-            state.timer = None
 
     def _stop(self, name: str, state: _State, cause: ServiceStopCause) -> None:
         context, state.context, state.address = state.context, None, None

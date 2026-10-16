@@ -520,10 +520,7 @@ the variable's name in the task's params.
 
 The run's end stops every service still running, the last started first: a run that
 returns, a run that raises, and a run stopped by Ctrl-C or SIGTERM. A process killed
-outright (SIGKILL) runs no stop. `Pipeline(service_idle_s=)` stops a service once no task has
-held it for that many seconds (0: as soon as the last one ends), and the next task
-that claims the name starts it again; leave it unset for a service that is slow to
-start, so that the waits of a flow between its tasks do not start it again and again.
+outright (SIGKILL) runs no stop.
 
 A start that raises fails the task that started it, and every task that claims the
 name later in the run, with stop `launch_failed` and the start's exception as the
@@ -534,7 +531,7 @@ tasks that run again; a task the resume skips starts nothing. A stop that raises
 recorded with its exception, and the service counts as stopped.
 
 `services.jsonl` records each start (the task that started it, its address, how long
-it took, or the exception) and each stop (why: `idle`, `run_end` or `interrupted`),
+it took, or the exception) and each stop (why: `run_end` or `interrupted`),
 and the monitor shows each start of a service with its stop (`Plan.services`).
 `Pipeline.check` warns about a service that no task of the run claims, and fails
 a task that claims two services whose names give one variable.

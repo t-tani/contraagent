@@ -420,8 +420,7 @@ class CredentialRest(Rest):
 
 
 class ServiceSpan(Closed):
-    """One start of the service a claim name stands for (`services.jsonl`), with its stop:
-    a service that stopped when idle and started again has a span for each start."""
+    """One start of the service a claim name stands for (`services.jsonl`), with its stop."""
 
     name: str = Field(description="the claim name the service stands for")
     started_at: str = Field(description="when its start ended, ISO 8601")

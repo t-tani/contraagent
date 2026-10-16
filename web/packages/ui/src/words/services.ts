@@ -31,8 +31,6 @@ export function serviceStateLabel(state: ServiceState): string {
 /** Why a service stopped, in words; '' while it runs. */
 export function stopCauseLabel(cause: ServiceSpan['stop_cause']): string {
   switch (cause) {
-    case 'idle':
-      return msg('No task held it');
     case 'run_end':
       return msg('The run ended');
     case 'interrupted':

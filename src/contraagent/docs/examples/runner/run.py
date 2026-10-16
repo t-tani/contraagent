@@ -8,7 +8,7 @@ model override, the run id, `--resume`, the runs directory, the preflight policy
 the stub, record and replay options. A function or an object cannot be given on a
 command line, so these `Pipeline` arguments need a program: `row_extras` (a journal
 column of the pipeline's own), `quota_rule`, `scopes`, `enrichers`, `backends`, `env`,
-`services` and `service_idle_s`, `mcp_servers`, `log`, a credential override (`Overrides(credential=)`), `max_concurrent`, `cwd`,
+`services`, `mcp_servers`, `log`, a credential override (`Overrides(credential=)`), `max_concurrent`, `cwd`,
 `keep_transcripts` and the queue's options (`deadline_s`, ...).
 """
 

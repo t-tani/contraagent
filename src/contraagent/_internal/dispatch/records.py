@@ -382,9 +382,9 @@ class TimeBoxRecord(BaseModel):
 
 # --- service -----------------------------------------------------------------
 
-#: Why a service stopped: no task held it for `service_idle_s` (`idle`), the run ended
-#: (`run_end`), or the run was stopped by a signal (`interrupted`).
-ServiceStopCause = Literal["idle", "run_end", "interrupted"]
+#: Why a service stopped: the run ended (`run_end`), or the run was stopped by a signal
+#: (`interrupted`).
+ServiceStopCause = Literal["run_end", "interrupted"]
 
 
 class ServiceEvent(BaseModel):

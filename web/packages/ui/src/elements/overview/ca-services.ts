@@ -14,8 +14,7 @@ const TONE: Record<ServiceState, Tone> = { running: 'running', stopped: 'done', 
 /**
  * The run's services (`Plan.services`): each start of the long-lived helper a claim
  * name stands for, one per row, with its state, its claim name, its address, when it
- * started and stopped and why, and the task whose claim started it. A service that
- * stopped when idle and started again has a row for each start.
+ * started and stopped and why, and the task whose claim started it.
  *
  * @fires ca-open-task - the task chip of the task that started a service was clicked
  */
