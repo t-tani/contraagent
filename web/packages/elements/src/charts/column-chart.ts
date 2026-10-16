@@ -19,9 +19,6 @@ export function barPath(x: number, y: number, w: number, h: number, round: boole
   return `M${x},${y + h}V${y + r}${r ? `Q${x},${y} ${x + r},${y}` : ''}H${x + w - r}${r ? `Q${x + w},${y} ${x + w},${y + r}` : ''}V${y + h}Z`;
 }
 
-/** A label's width in px at the axis' size, near enough to space the labels. */
-export const textWidth = (s: string): number => s.length * 6.4 + 6;
-
 /**
  * Vertical bars, one group per label of `x`: a bar per series side by side, or with
  * `stacked`, the series of a label on one bar. Six series take the series colours in
@@ -71,7 +68,7 @@ export class CaeColumnChart extends ChartElement {
     const values = d.flatMap((s) => s.values.filter((v): v is number => v !== null && v !== undefined));
     const high = this.stacked ? Math.max(0, ...this.x.map((_, j) => this.total(j))) : Math.max(0, ...values);
     const axis = niceAxis(Math.min(0, ...values), high);
-    const left = Math.max(...axis.ticks.map((t) => textWidth(this.format(t)))) + 4;
+    const left = Math.max(...axis.ticks.map((t) => this.labelWidth(this.format(t)))) + 4;
     const w = this.plotWidth;
     const h = this.height;
     const pw = w - left - M.right;
@@ -79,7 +76,7 @@ export class CaeColumnChart extends ChartElement {
     const y = (v: number) => M.top + ph - ((v - axis.min) / (axis.max - axis.min)) * ph;
     const band = pw / n;
     const barW = Math.max(2, Math.min(40, band * (this.stacked || d.length === 1 ? 0.62 : 0.8)));
-    const stride = labelStride(n, pw, Math.max(...this.x.map(textWidth)) + LABEL_GAP);
+    const stride = labelStride(n, pw, Math.max(...this.x.map((s) => this.labelWidth(s))) + LABEL_GAP);
     const bars: TemplateResult[] = [];
     for (let j = 0; j < n; j++) {
       const x0 = left + j * band + (band - barW) / 2;

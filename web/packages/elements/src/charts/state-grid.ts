@@ -3,7 +3,6 @@ import { property } from 'lit/decorators.js';
 import type { Tone } from '../core/tone.js';
 import type { LegendItem } from '../primitives/legend.js';
 import { ChartElement } from './base.js';
-import { textWidth } from './column-chart.js';
 import { LABEL_GAP, labelStride } from './scale.js';
 
 /** One cell of a state grid: its state in words, the tone that colours it, and a fact of its own for the tooltip. */
@@ -150,12 +149,12 @@ export class CaeStateGrid extends ChartElement {
   protected plot(): TemplateResult {
     const nx = this.x.length;
     const ny = this.y.length;
-    const left = Math.max(...this.y.map(textWidth)) + 2;
+    const left = Math.max(...this.y.map((s) => this.labelWidth(s))) + 2;
     const w = this.plotWidth;
     const pw = w - left - M.right;
     const cw = pw / nx;
     const h = M.top + ny * CELL_H + M.bottom;
-    const stride = labelStride(nx, pw, Math.max(...this.x.map(textWidth)) + LABEL_GAP);
+    const stride = labelStride(nx, pw, Math.max(...this.x.map((s) => this.labelWidth(s))) + LABEL_GAP);
     const a = this.active;
     const marked = cw - GAP >= MARK_MIN;
     const textures = texturesOf(statesOf(this.cells));

@@ -8,6 +8,28 @@ import { base } from '../styles/index.js';
 import { plainNumber } from './scale.js';
 import { DEFAULT_CHART_STRINGS, type ChartStrings, type ValueText } from './types.js';
 
+/** The size of the axis labels, in px. */
+const AXIS_PX = 10.5;
+/** The room beside a label, in px, so that labels side by side do not touch. */
+const LABEL_ROOM = 6;
+
+let measurer: CanvasRenderingContext2D | null | undefined;
+const measured = new Map<string, number>();
+
+/** `text`'s width in px in the CSS font `font`; where there is no canvas to measure it, an estimate. */
+function measureText(text: string, font: string): number {
+  measurer ??= typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+  if (!measurer) return text.length * AXIS_PX * 0.62;
+  const key = `${font}\n${text}`;
+  let w = measured.get(key);
+  if (w === undefined) {
+    measurer.font = font;
+    w = measurer.measureText(text).width;
+    measured.set(key, w);
+  }
+  return w;
+}
+
 export abstract class ChartElement extends LitElement {
   static override styles = [
     base,
@@ -23,7 +45,7 @@ export abstract class ChartElement extends LitElement {
       .plot { position: relative; outline-offset: 2px; }
       .plot:focus-visible { outline: 2px solid var(--accent); border-radius: var(--radius-sm); }
       svg { display: block; overflow: visible; }
-      .axis { font-size: 10.5px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+      .axis { font-size: ${AXIS_PX}px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
       .grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
       .base { stroke: var(--line2); stroke-width: 1; shape-rendering: crispEdges; }
       .hit { fill: transparent; }
@@ -76,11 +98,25 @@ export abstract class ChartElement extends LitElement {
       if (w && Math.abs(w - this.width) >= 1) this.width = w;
     });
     this.resized.observe(this);
+    document.fonts?.addEventListener('loadingdone', this.fontsLoaded);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.resized?.disconnect();
+    document.fonts?.removeEventListener('loadingdone', this.fontsLoaded);
+  }
+
+  /** A font that loads late changes the labels' widths: they are measured again. */
+  private readonly fontsLoaded = (): void => {
+    measured.clear();
+    this.requestUpdate();
+  };
+
+  /** An axis label's width in px, as the chart draws it, with room beside it: measured in the chart's font. */
+  protected labelWidth(text: string): number {
+    const cs = getComputedStyle(this);
+    return Math.ceil(measureText(text, `${cs.fontStyle} ${cs.fontWeight} ${AXIS_PX}px ${cs.fontFamily}`)) + LABEL_ROOM;
   }
 
   protected override firstUpdated(): void {
