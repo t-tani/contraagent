@@ -1777,6 +1777,12 @@ export type components = {
              */
             priority?: number;
             /**
+             * Credential
+             * @description the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it
+             * @default
+             */
+            credential?: string;
+            /**
              * Executor
              * @default agent
              * @enum {string}

@@ -183,6 +183,33 @@ def test_a_refusal_moves_only_that_task_along_the_security_chain(tmp_path):
     assert [launch.model for launch in agent.launches_of("audit-auth")] == ["claude-opus-5-5"]
 
 
+def test_the_credentials_example_runs_the_restricted_document_as_its_call_s_credential(tmp_path, capsys):
+    """The routing topic's example: the document in `RESTRICTED` runs as `company` on the
+    primary and, after a 429, on the failover hop; the other runs as the kind's `team`."""
+    from contraagent import Pipeline
+    from contraagent.docs.examples.credentials import flow
+    from contraagent.testing import StubAgent, rate_limited
+
+    path, config = EXAMPLES / "credentials" / "flow.py", EXAMPLES / "credentials" / "pipeline.toml"
+    assert (
+        main(["check", f"{path}:summarize_all", "--config", str(config), "--stub", "--kwargs", '{"documents": ["plan", "contract"]}']) == 0
+    )
+    assert "summarize: claude/claude-opus-5-5" in capsys.readouterr().out
+    summary = {"text": "a summary"}
+    agent = StubAgent(
+        {"summarize-contract": lambda launch: rate_limited() if launch.model == "claude-opus-5-5" else summary, "summarize": summary}
+    )
+    pipeline = Pipeline(config, runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path)
+    report = pipeline.run(flow.summarize_all, documents=["plan", "contract"])
+    assert report.ok, report.failed
+    rows = {r["key"]: r for r in map(json.loads, (report.run_dir / "journal.jsonl").read_text(encoding="utf-8").splitlines())}
+    assert [(h["model"], h["credential"]) for h in rows["summarize-contract"]["hops"]] == [
+        ("claude-opus-5-5", "company"),
+        ("claude-sonnet-5-5", "company"),
+    ]
+    assert [(h["model"], h["credential"]) for h in rows["summarize-plan"]["hops"]] == [("claude-opus-5-5", "team")]
+
+
 def test_the_demo_plugin_is_clean():
     assert Plugin.load(EXAMPLES / "demo" / "plugins" / "docs").lint() == []
 

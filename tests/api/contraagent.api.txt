@@ -34,6 +34,7 @@ class AgentTask[Out]
         key: str | None = None,
         after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
+        credential: str | None = None,
         **params: Any,
     ) -> Pending[Out]
     base_kind: str = ''
@@ -439,11 +440,13 @@ class Task
         origin: Origin | None = None,
         fingerprint: str = '',
         base_kind: str = '',
+        credential: str = '',
     ) -> None
     after: tuple[str, ...] = ()
     attempt: int = 0
     base_kind: str = ''
     claims: tuple[str, ...] = ()
+    credential: str = ''
     @property declared_unit: str
     estimate_s: float | None = None
     @property executor: Executor
@@ -1946,6 +1949,7 @@ class Router
     max_probe_interval_s
     def next_route_after(self, route: Route) -> Route | None
     def now(self) -> float
+    def on_credential(self, credential: str) -> Router
     def other_agents_after(self, route: Route) -> list[Route]
     def pick(self) -> Route | None
     primary
@@ -1982,6 +1986,7 @@ class RoutingPlan
         budgets_required: bool = True,
         all_kinds: bool = True,
     ) -> RoutingPlan
+    def call_problems(self, kind: str, credential: str) -> list[str]
     config: PipelineConfig
     configs: dict[str, KindConfig] = field(default_factory=dict)
     credentials: dict[str, Credential] = field(default_factory=dict)
@@ -2936,6 +2941,7 @@ class PlanNode(PlanRow)
     base_kind: str = Field('', description="an implementation kind's base kind (`agent_task(implementations=)`), its group unless `groups` lists it; else empty")
     claims: list[str] = Field(default_factory=list, description="the names it holds while it runs, its kind's `claims` filled in")
     created_from: list[str] = Field(default_factory=list, description='keys whose results its flow call had received when it created it')
+    credential: str = Field('', description='the credential its task call names (`credential=`), which every route of its kind ran it as; empty when it names none, or a run-wide override outranks it')
     deferred: str = Field('', description='why the queue deferred it, never launched (`deferred.jsonl`): a deadline, a resting credential; empty when it was not')
     deferred_cause: DeferralCause | None = Field(None, description='the same as data; null when it was not deferred, or the run recorded no cause')
     executor: Executor = 'agent'

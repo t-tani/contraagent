@@ -182,6 +182,9 @@ class AgentRunner:
         # The account each coding agent bills as each credential for a model, asked once a run.
         self._accounts: dict[tuple[str, str, str], str] = {}
         self._accounts_lock = threading.Lock()
+        # (kind, a task call's credential) -> (the kind's router it was made from, its own router).
+        self._call_routers: dict[tuple[str, str], tuple[Router | None, Router | None]] = {}
+        self._call_routers_lock = threading.Lock()
 
     # --- configuration -----------------------------------------------------
 
@@ -191,14 +194,26 @@ class AgentRunner:
         rc = self.configs.get(task.kind)
         if rc is None:
             raise KeyError(f"no [tasks.{kind_name(task.kind)}] in the config: every kind needs agent/model routing and budgets")
-        return rc
+        return replace(rc, credential=task.credential) if task.credential and task.credential != rc.credential else rc
 
     def _keeps_failed_changes(self, task: Task) -> bool:
         rc = self.configs.get(task.kind)
         return rc is not None and rc.keep_failed_changes
 
     def router_for(self, task: Task) -> Router | None:
-        return self.routers.get(task.kind)
+        """The kind's failover breaker; for a task whose call names a credential
+        (`Task.credential`), one of the kind and that credential, over the kind's routes each
+        on it (`Router.on_credential`), made once a run. None: the task has a single route."""
+        router = self.routers.get(task.kind)
+        if router is None or not task.credential or all(r.credential == task.credential for r in router.routes):
+            return router
+        with self._call_routers_lock:
+            base, own = self._call_routers.get((task.kind, task.credential), (None, None))
+            if base is not router:  # a kind routed again (`Pipeline`) gets a breaker of its new chain
+                own = router.on_credential(task.credential)
+                own = own if len(own.routes) > 1 else None
+                self._call_routers[(task.kind, task.credential)] = (router, own)
+            return own
 
     def backend_for_route(self, task: Task, route: Route | None) -> Backend:
         """The coding agent for this task on `route` (None: the kind's own).

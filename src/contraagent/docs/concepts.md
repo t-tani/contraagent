@@ -85,7 +85,7 @@ named for whoever works on contraagent itself.
 | **route** | one entry of a kind's failover chain: a coding agent, a model and a credential, labeled by its place in the chain (`hop 2/3 omp/m2`) | `Route`, `Router`; journal `route` (the last hop's) |
 | **hop** | one launch of an attempt on one route; an attempt that fails over has one hop per route it launched on | `Hop`: `TaskResult.hops`, journal `hops` |
 | **budget** | the turn, time, cost, context and stall caps of a launch | `max_turns`, `timeout_s`, `context_budget`, ...; `Limits`, `Launch.limits` |
-| **credential** | the identity (and so the account) an agent's API calls are billed to | `[credentials.<name>]`, `Credential` (each kind of credential a subclass), `Launch.credential` |
+| **credential** | the identity (and so the account) an agent's API calls are billed to | `[credentials.<name>]`, `Credential` (each kind of credential a subclass), `Launch.credential`; for one task, its call's `credential=` (`Task.credential`, plan `credential`) |
 | **trait** | a label on a credential that a task may require (`zdr`) | `traits`, `agent_task(requires=)` |
 | **pool** / **gateway** | several credentials used as one / your own endpoint (LiteLLM, a proxy) | `Pool`, `Gateway` |
 | **ambient** | the built-in credential: the host's own setup, untouched | `AMBIENT` |

@@ -45,7 +45,7 @@ from contraagent._internal.pipeline.check import CheckReport, check_flow
 from contraagent._internal.pipeline.graph import MAX_PASSES, Graph
 from contraagent._internal.pipeline.reach import reachable
 from contraagent._internal.routing.config import ConfigError, PerTask, PipelineConfig
-from contraagent._internal.routing.plan import Overrides, RoutingPlan, check_task_tables
+from contraagent._internal.routing.plan import Overrides, RoutingError, RoutingPlan, call_credential_problems, check_task_tables
 from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent._internal.routing.quota import QuotaRule
 from contraagent._internal.runs.names import portable
@@ -376,7 +376,8 @@ class Pipeline:
         * a kind that keeps a failed attempt's files (`keep_failed_changes`) declares
           `changes` patterns;
         * routing: the config against those kinds (budgets, efforts, failover chains,
-          credentials and the traits tasks require), the coding agents' programs on
+          credentials and the traits tasks require; the credential each task created
+          names in its call, `credential=`), the coding agents' programs on
           PATH, and each model against the list its coding agent keeps locally
           (`Backend.catalogue`, e.g. `omp models --json`).
 
@@ -430,6 +431,7 @@ class Pipeline:
             graph = Graph(run_dir / "out", max_passes=self.max_passes)
             graph.tail = run.estimator().tail
             graph.stub, graph.run_id = self.stub, run.run_id
+            graph.credential_override = self.overrides.credential
             adapter = SpecAdapter(run.run_id, run_dir, self.cwd, mcp_servers=self.mcp_servers)
             recorder = None
             into = self.record or (self.replay.directory if self.replay is not None and self.replay.record_missing else None)
@@ -482,6 +484,15 @@ class Pipeline:
                         light=[kind for kind, spec in specs.items() if spec.light],
                         all_kinds=not driven,
                     )
+                    # The task calls so far that name a credential, refused before anything launches.
+                    refused = [
+                        f"{node.key}: credential={node.credential!r}: {problem}"
+                        for node in graph.nodes
+                        if node.credential
+                        for problem in plan.call_problems(node.spec.kind, node.credential)
+                    ]
+                    if refused:
+                        raise RoutingError(*refused)
                     try:
                         preflight = plan.preflight(self.preflight)
                     except PreflightStopped as exc:
@@ -517,6 +528,9 @@ class Pipeline:
                         enrichers=enrichers,
                     )
                     graph.new_kind = lambda spec: self._route(spec, runner)
+                    graph.check_credential = lambda kind, credential: call_credential_problems(
+                        runner.configs[kind], runner.routers.get(kind), credential, plan.credentials, self.backends, self.overrides
+                    )
                     queue = run.queue(
                         _InputsFirst(
                             graph,

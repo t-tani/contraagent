@@ -146,7 +146,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_services(pipeline.services, graph, [*specs.values(), *found], report)
-    _check_routing(pipeline, agent_specs, report)
+    _check_routing(pipeline, agent_specs, report, [n for n in graph.nodes if n.credential])
     return report
 
 
@@ -419,7 +419,9 @@ def _plugin_errors(specs: dict[str, Any]) -> list[str]:
     return errs
 
 
-def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport) -> None:
+def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckReport, calls: list[Node]) -> None:
+    """The routing plan of `specs`, and the credential each of `calls` names (a task call's
+    `credential=`): one that does not exist, or that a route of its kind cannot carry."""
     if not specs:
         return
     with _warnings_of("contraagent") as warnings:
@@ -444,6 +446,8 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    refused = [f"routing: {n.key}: credential={n.credential!r}: {p}" for n in calls for p in plan.call_problems(n.spec.kind, n.credential)]
+    report.add("routing", refused)
     report.add("contracts", _partial_errors(specs, plan))
     report.add(
         "tasks",
