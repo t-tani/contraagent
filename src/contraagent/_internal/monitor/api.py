@@ -497,6 +497,7 @@ class ContractSpec(Open):
 
     io: Literal["output", "input"]
     path: str
+    producer: str | None = Field(None, description="input: the key of the task whose output it is")
     schema_name: str
     schema_ref: str = ""
     fresh: bool | None = None
@@ -519,7 +520,10 @@ class ContractRecord(Open):
     kind: str = ""
     unit: str = ""
     executor: Executor = "agent"
-    params: dict[str, str | int | float | bool] = Field(default_factory=dict, description="the task's scalar params")
+    params: dict[str, str | int | float | bool] = Field(
+        default_factory=dict,
+        description="the task's params that are strings, numbers or booleans; an earlier task's output is one of `inputs`",
+    )
     outputs: list[ContractSpec] = Field(default_factory=list)
     inputs: list[ContractSpec] = Field(default_factory=list)
 

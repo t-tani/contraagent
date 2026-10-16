@@ -41,8 +41,11 @@ Run it after every change to tasks, plugins or the config.
 ## Stub run: the whole flow on examples, nothing called
 
 ```
-contraagent run tasks.py:<flow> --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
+contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
 ```
+
+With `--config`, its `[route]` lines name the routes a real run takes; without it,
+each kind's declared defaults.
 
 A stub run goes past the first wait. The stub agent plays every task: an agent
 task's output, and a Python task's return value, is its output's **example**. No
@@ -66,12 +69,18 @@ demo's `Note`); a plain `str` output is `stub`. `contraagent check` reports an
 example that does not pass its own model.
 
 Give each output model an example that passes its validators, and a stub run goes
-through the whole flow. Examples that agree with each other pass the validators
-that compare an output with its params: the demo's summary names the unit of the
-prepared example, and its note names the summary's unit:
+through the whole flow. In each string of an example the stub writes, `{unit}`,
+`{key}`, `{kind}` and `{params.<name>}` are the task call's, as in a claim, when the
+value is a string or a number; any other field stays as written. So one example
+passes a validator that compares an output with a param set per unit:
+`{"module": "{params.module}"}` is `"bank"` for the call `review("bank", module="bank")`.
+A coding agent reads the example as written, in the output's schema. Examples that
+agree with each other pass too: the demo's summary names the unit of the prepared
+example, and its note names the summary's unit:
 
 ```
-contraagent run "$(contraagent docs --path)/examples/demo/tasks.py:docs" --stub --kwargs '{"units": ["alpha", "beta"]}'
+demo="$(contraagent docs --path)/examples/demo"
+contraagent run "$demo/tasks.py:docs" --config "$demo/pipeline.toml" --stub --kwargs '{"units": ["alpha", "beta"]}'
 ```
 
 ```
@@ -242,7 +251,8 @@ call file and the launch itself (its budget, environment and plugin).
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_flow_checks_clean" to="def test_the_report_covers"}
 
-What a flow returns is `RunReport.value`: a generator flow's return value, or
-the output of the task a flow that does not yield returns (its `Pending`):
+What a flow returns is `RunReport.value`, as the flow returned it: a generator
+flow's return value, or, for a flow that does not yield and returns a task call,
+that task's `Pending` (its output is `report.value.output`):
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_report_covers"}

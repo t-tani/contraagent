@@ -71,6 +71,7 @@ from contraagent._internal.dispatch.task import (
     Task,
     TaskResult,
 )
+from contraagent._internal.dispatch.templates import PARAM_FIELD
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.pipeline import origin as origins
 from contraagent._internal.pipeline.loops import LoopCounter, counting, is_while
@@ -149,6 +150,11 @@ class Pending[Out]:
     def ok(self) -> bool:
         return self.result is not None and self.result.ok
 
+    def _failure(self) -> str:
+        """The stop of the task when it finished and did not succeed, else ''."""
+        result = self.result
+        return result.stop if result is not None and not result.ok else ""
+
     @property
     def output(self) -> Out:
         """The checked output: the schema instance, the text (a `TextOutput`), or the
@@ -201,8 +207,13 @@ class Node:
         return {k: _resolve(v) for k, v in self.params.items()}
 
     def input_contracts(self) -> list[InputContract]:
-        """The upstream outputs this task reads: missing or off-contract refuses it."""
-        return [InputContract(p.path, p._node.output_schema, producer=p.key) for p in self.upstream if p.path is not None]
+        """The upstream outputs this task reads: missing, off-contract, or written by a task
+        that did not succeed refuses it."""
+        return [
+            InputContract(p.path, p._node.output_schema, producer=p.key, producer_failure=p._failure)
+            for p in self.upstream
+            if p.path is not None
+        ]
 
     def output_contracts(self, params: Callable[[], dict[str, Any]] | None = None, call: Path | None = None) -> list[OutputContract]:
         """Its output contract; `params` and `call` reach the validators that take them."""
@@ -632,10 +643,6 @@ class Graph:
         )
 
 
-#: A claim's `{params.<name>}` field.
-CLAIM_PARAM = re.compile(r"params\.([A-Za-z_][A-Za-z0-9_]*)")
-
-
 def kind_clash(a: Any, b: Any) -> str | None:
     """Why two task declarations cannot be in one run, or None: the kind of one is the base
     kind of the other (`agent_task(implementations=)`), or both have one kind and are not
@@ -691,7 +698,7 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
         return [unit]
     if field_name in ("key", "kind"):
         return [key if field_name == "key" else kind]
-    m = CLAIM_PARAM.fullmatch(field_name)
+    m = PARAM_FIELD.fullmatch(field_name)
     if m is None:  # the declaration admits no other field (`spec._checked_claims`)
         raise ValueError(f"{kind}(): claim {template!r} names {field_name}; it may name unit, key, kind and params.<name>")
     name = m.group(1)

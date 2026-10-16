@@ -313,21 +313,28 @@ class Backend(abc.ABC):
 
     def run_catalogue(self, *args: str, env: dict[str, str] | None = None) -> str | None:
         """What `<binary> <args>` prints when it lists the agent's models, within
-        `catalogue_timeout_s`; None when the binary is missing, fails or takes longer."""
+        `catalogue_timeout_s`; None when the binary is missing, fails or takes longer.
+        Its output goes to a file, not a pipe: a CLI that exits before a pipe drains (opencode,
+        whose list is longer than a pipe holds, under load) would leave a list cut short,
+        read as models that are not there."""
         if not shutil.which(self.binary, path=self.base_path()):
             return None
-        try:
-            proc = subprocess.run(
-                [self.binary, *args],
-                capture_output=True,
-                text=True,
-                timeout=self.catalogue_timeout_s,
-                env={**self._base_env, **(env or {}), "NO_COLOR": "1"},
-                stdin=subprocess.DEVNULL,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-        return proc.stdout if proc.returncode == 0 else None
+        with tempfile.TemporaryFile() as out:
+            try:
+                proc = subprocess.run(
+                    [self.binary, *args],
+                    stdout=out,
+                    stderr=subprocess.DEVNULL,
+                    timeout=self.catalogue_timeout_s,
+                    env={**self._base_env, **(env or {}), "NO_COLOR": "1"},
+                    stdin=subprocess.DEVNULL,
+                )
+            except (OSError, subprocess.SubprocessError):
+                return None
+            if proc.returncode != 0:
+                return None
+            out.seek(0)
+            return out.read().decode("utf-8", "replace")
 
     # --- scratch directories ------------------------------------------------
 

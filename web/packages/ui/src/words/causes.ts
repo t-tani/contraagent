@@ -26,9 +26,12 @@ export interface InputSource {
 /**
  * Why an input stopped a task, in one phrase that starts in lower case:
  * `input out/review/zeta.json is missing because review · zeta failed`,
- * `input out/a.json failed checks`. `path` is already shown run-relative.
+ * `input out/a.json failed checks`, `input out/review/zeta.json is the output of
+ * failed task review · zeta`. `path` is already shown run-relative.
  */
 export function inputCause(path: string, problem: InputProblem['problem'], from?: InputSource): string {
+  if (problem === 'failed')
+    return from ? msg(str`input ${path} is the output of failed task ${from.name}`) : msg(str`input ${path} is the output of a failed task`);
   if (problem === 'checks') return from ? msg(str`input ${path} from ${from.name} failed checks`) : msg(str`input ${path} failed checks`);
   if (!from) return msg(str`input ${path} is missing`);
   if (from.outcome === 'failed') return msg(str`input ${path} is missing because ${from.name} failed`);

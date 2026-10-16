@@ -52,6 +52,12 @@ from contraagent._internal.routing.quota import QuotaRule
 class RunReport:
     """What a `Pipeline.run` did. The flow's `Pending` values read their outputs from it too.
 
+    `run_id` and `run_dir`: the run and its directory. `results`: each task's final
+    `TaskResult`, by key. `value`: what the flow returned, as it returned it: a generator
+    flow's return value, or, for a flow that does not yield, its return value, a task
+    call's `Pending` included (its output is `value.output`); None when the flow raised.
+    `flow_errors`: the top flow calls that raised after their first task was queued.
+
     `summary` is the queue's (`wall_s`, `finished`, `ok`, `by_stop`, `by_kind`,
     `deferred`) plus the attempts this call journaled (`attempt_totals`). A `partial`
     result is ok, so `ok` holds with one; `partial` lists them (`by_stop` counts them).
@@ -66,7 +72,8 @@ class RunReport:
     run_dir: Path
     results: dict[str, TaskResult]
     summary: dict[str, Any] = field(default_factory=dict)
-    #: What the flow returned: a `Pending` in it reads its task's checked output (`.output`).
+    #: What the flow returned, as it returned it: a `Pending` in it reads its task's checked
+    #: output (`.output`).
     value: Any = None
     #: The top flow calls that raised after their first task was queued; `.error` is the
     #: exception (recorded in `flow_calls.jsonl` too).

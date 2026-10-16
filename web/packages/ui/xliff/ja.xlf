@@ -3067,6 +3067,18 @@
   <note from="lit-localize">How an attempt ended: invalid_input, with no input named</note>
   <target>未実行</target>
 </trans-unit>
+<trans-unit id="s7718ef97e5fb3426">
+  <source>input <x id="0" equiv-text="${path}"/> is the output of failed task <x id="1" equiv-text="${from.name}"/></source>
+  <target>入力 <x id="0" equiv-text="${path}"/> は失敗したタスク <x id="1" equiv-text="${from.name}"/> の出力</target>
+</trans-unit>
+<trans-unit id="scf43861e8bf0182b">
+  <source>input <x id="0" equiv-text="${path}"/> is the output of a failed task</source>
+  <target>入力 <x id="0" equiv-text="${path}"/> は失敗したタスクの出力</target>
+</trans-unit>
+<trans-unit id="s567f1fa5829fb0c2">
+  <source>not started (earlier task failed)</source>
+  <target>未実行（依存先タスクが失敗）</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

@@ -37,9 +37,10 @@ code is not needed.
 - contraagent's API is newer than your training data. Read the topic before you
   write or change the code.
 - Check your work in this order, which launches no coding agent and spends nothing.
-  First, `contraagent check <file>:<flow> --kwargs '{...}'` until it prints ✓.
-  Second, a stub run, `contraagent run <file>:<flow> --stub --kwargs '{...}'`, in which
-  each task's output is its output model's example. Give each output model an example
+  First, `contraagent check <file>:<flow> --config pipeline.toml --kwargs '{...}'`
+  until it prints ✓ (no `--config` before the project has a config). Second, a stub
+  run, `contraagent run <file>:<flow> --config pipeline.toml --stub --kwargs '{...}'`,
+  in which each task's output is its output model's example. Give each output model an example
   that passes its validators, and the stub run goes through the whole flow. Third,
   tests of the flow on `contraagent.testing.StubAgent` in pytest, for correction
   rounds, failures and failover (`contraagent docs testing`).

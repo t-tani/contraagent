@@ -254,3 +254,45 @@ def test_a_text_output_writes_its_example(tmp_path):
     report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(lambda: noted("a"), run_id="n")
     assert report.ok, report.failed
     assert (report.run_dir / "out" / "noted" / "a.md").read_text() == "# a note\n"
+
+
+class ModuleReview(BaseModel):
+    """An example that names the task call's own unit and params."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"module": "{params.module}", "lines": ["{unit}: {params.path}"], "note": "{params.missing} {x}"}]}
+    )
+
+    module: str
+    lines: list[str]
+    note: str
+
+
+def names_its_module(path, review: ModuleReview, *, params: dict) -> list[str]:
+    return [] if review.module == params["module"] else [f"module: {params['module']!r} expected, got {review.module!r}"]
+
+
+reviewed = agent_task(
+    "reviewed", instructions="Review a module.", output=ModuleReview, validators=[names_its_module], max_turns=5, timeout_s=60
+)
+
+
+@python_task
+def tally(module: str) -> ModuleReview:
+    raise AssertionError("played, not run")
+
+
+def test_an_example_names_each_task_call_s_unit_and_params(tmp_path):
+    def flow(modules: list[str]):
+        for m in modules:
+            reviewed(m, module=m, path=f"src/{m}.py")
+            tally(m, module=m)
+
+    stub = StubAgent(default=writes_example())
+    report = Pipeline(PipelineConfig({}), runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub).run(flow, modules=["bank", "retry"])
+    assert report.ok, report.failed  # one example passes the validator of every unit
+    out = json.loads((report.run_dir / "out" / "reviewed" / "retry.json").read_text())
+    # A field the call does not give, and other text in braces, stay as written.
+    assert out == {"module": "retry", "lines": ["retry: src/retry.py"], "note": "{params.missing} {x}"}
+    played = json.loads((report.run_dir / "out" / "tally" / "bank.json").read_text())
+    assert played["module"] == "bank"

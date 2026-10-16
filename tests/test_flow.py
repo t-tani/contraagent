@@ -155,6 +155,48 @@ def test_a_failed_upstream_refuses_its_consumers_before_launch(tmp_path, plugin_
     assert all(launch.kind == "summarize" for launch in agent.launches)  # review never launched
 
 
+def test_the_value_of_a_flow_that_does_not_yield_is_what_it_returned(tmp_path, plugin_dir):
+    summarize, _ = declare(plugin_dir)
+    rep = pipeline(tmp_path, stub()).run(lambda: summarize("u", path="x"))
+    assert rep.value.key == "summarize-u"  # the Pending itself
+    assert rep.value.output == Summary(unit="u", summary="s", points=["a", "b"])
+
+
+def _one_point(path, s: Summary):
+    return None if len(s.points) > 1 else "points: give at least two"
+
+
+@pytest.mark.parametrize("yields", [False, True])
+def test_an_output_its_validators_rejected_refuses_every_task_that_reads_it(tmp_path, plugin_dir, yields):
+    # The file the rounds left behind meets its schema; only a validator rejected it.
+    summarize, review = declare(plugin_dir, retries=0, validators=[_one_point])
+    ran = []
+
+    @python_task
+    def count(summaries: dict[str, Summary]) -> int:
+        ran.append(summaries)
+        return len(summaries)
+
+    agent = StubAgent({"summarize": {"unit": "u", "summary": "s", "points": ["a"]}, "review": good_answer})
+
+    def flow():
+        s = summarize("u", path="x")
+        if yields:
+            try:
+                yield s
+            except Exception:
+                pass
+        review("u", summary=s)
+        count(summaries={"u": s})
+
+    rep = pipeline(tmp_path, agent, overrides=Overrides(agent="omp")).run(flow)
+    stops = {k: r.stop for k, r in rep.results.items()}
+    assert stops == {"summarize-u": "invalid_output", "review-u": "invalid_input", "python:count": "invalid_input"}
+    assert ran == [] and all(launch.kind == "summarize" for launch in agent.launches)
+    assert rep.results["review-u"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
+    assert rep.results["python:count"].reason.startswith("invalid input: input from summarize-u ended invalid_output: ")
+
+
 def test_resume_skips_finished_work_and_still_reads_its_output(tmp_path, plugin_dir):
     summarize, review = declare(plugin_dir)
     handles = {}

@@ -97,7 +97,7 @@ these steps, which launch no coding agent and spend nothing:
 
 1. `contraagent check tasks.py:<flow> --config pipeline.toml --kwargs '{...}'`, until
    it prints ✓. Each problem names the topic that explains it.
-2. `contraagent run tasks.py:<flow> --stub --kwargs '{...}'`, a stub run of the whole
+2. `contraagent run tasks.py:<flow> --config pipeline.toml --stub --kwargs '{...}'`, a stub run of the whole
    flow, in which each task's output is its output model's example. It lists the
    tasks that the flow created. Give each output model an example that passes its
    validators; the run's last line names a validator that rejects one.
