@@ -6,7 +6,10 @@
 // lit. One clock drives it all (requestAnimationFrame); it starts when the window is
 // on screen as a whole, settled (./scene.css), or on a narrow screen when the replay
 // reaches the upper half of the screen; it stops while it is off screen, and rests on
-// the last frame.
+// the last frame. On a narrow screen the window shows one panel at a time, chosen by
+// its tabs: the code while it appears, then the panel of each moment of the run as it
+// comes (the graph, or the transcript of a correction), each for a while at least;
+// once the reader picks a tab, that panel stays.
 import type { FlowCallNode, JournalRow, Plan, PlanNode, TaskState } from '@contraagent/api';
 import { adoptThemes } from '@contraagent/elements/themes';
 import '@contraagent/ui/kpis';
@@ -26,6 +29,10 @@ const FRAME_MS = 90;
 const TRANSCRIPT_MS = 250;
 /** After the reader scrolls the code's pane, it stays where they left it this long (ms). */
 const READER_MS = 4000;
+/** A panel the run's moments chose stays at least this long before the next moment's (ms). */
+const DWELL_MS = 3200;
+/** The panels a narrow screen shows one at a time (RunReplay.astro). */
+type Panel = 'code' | 'graph' | 'transcript';
 /** No journal rows: the same array each time, so the transcript is not drawn again for it. */
 const NO_ROWS: JournalRow[] = [];
 
@@ -57,6 +64,17 @@ class Replay {
   private readonly spans = new Map<string, Span[]>();
   private readonly codeMs: number;
   private readonly runMs: number;
+  private readonly tabs: HTMLButtonElement[];
+  private readonly panes: HTMLElement[];
+  private readonly ticker: HTMLElement;
+  private readonly tickerAt: HTMLElement;
+  /**
+   * The panel and the caption of each part of the replay: when it comes (`at`, replay
+   * time in ms), and when the tabs show it while they follow the run (`shown`: a panel
+   * stays a while before the next).
+   */
+  private readonly cues: { at: number; shown: number; panel: Panel; clock: string; text: string; spot?: string }[];
+  private caption = '';
 
   /** The replay's own time (ms), and the frame it was last advanced on. */
   private t = 0;
@@ -74,6 +92,10 @@ class Replay {
   /** The lines the code's pane last followed, and when the reader last scrolled it. */
   private followed = '';
   private readerAt = -Infinity;
+  /** The panel shown on a narrow screen, and whether the reader chose it (then the tabs no longer follow the run). */
+  private panel: Panel = 'code';
+  private chosen = false;
+  private tabbed = false;
 
   constructor(root: HTMLElement, data: Timeline) {
     this.root = root;
@@ -109,6 +131,90 @@ class Replay {
     this.graph.run = data.run;
     this.transcript.run = data.run;
     this.button.addEventListener('click', () => this.toggle());
+
+    this.tabs = [...root.querySelectorAll<HTMLButtonElement>('.rr-tabs [role="tab"]')];
+    this.panes = [...root.querySelectorAll<HTMLElement>('.rr-pane[data-panel]')];
+    this.ticker = q('.rr-ticker');
+    this.tickerAt = q('.rr-ticker-at');
+    const runAt = (at: number): number => this.codeMs + GRAPH_MS + (at * 1000) / SPEED;
+    this.cues = [
+      { at: 0, shown: 0, panel: 'code', clock: '', text: 'The run has not started.' },
+      { at: this.codeMs, shown: this.codeMs, panel: 'graph', clock: clock(0), text: `Run ${data.run} started.` },
+    ];
+    for (const m of data.moments) {
+      const at = runAt(m.at);
+      const shown = Math.min(this.total, Math.max(at, this.cues.at(-1)!.shown + DWELL_MS));
+      this.cues.push({ at, shown, panel: m.shows, clock: clock(m.at), text: m.text, spot: m.spot });
+    }
+    for (const tab of this.tabs) {
+      tab.addEventListener('click', () => this.choose(tab.dataset['panel'] as Panel));
+      tab.addEventListener('keydown', (e) => {
+        const i = this.tabs.indexOf(tab);
+        const n = this.tabs.length;
+        const to = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i + n - 1) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+        if (to < 0) return;
+        e.preventDefault();
+        this.tabs[to].focus();
+        this.choose(this.tabs[to].dataset['panel'] as Panel);
+      });
+    }
+    const narrow = matchMedia('(max-width: 49.99rem)');
+    const more = root.querySelector<HTMLDetailsElement>('.rr-more');
+    this.setTabbed(narrow.matches);
+    narrow.addEventListener('change', () => {
+      this.setTabbed(narrow.matches);
+      if (more) more.open = !narrow.matches;
+    });
+  }
+
+  /**
+   * The tabs on a narrow screen, or every panel at once on a wide one: the roles of a
+   * tab list are on the panels only while there are tabs.
+   */
+  private setTabbed(on: boolean): void {
+    this.tabbed = on;
+    this.root.classList.toggle('rr-tabbed', on);
+    for (const p of this.panes) {
+      if (on) {
+        p.setAttribute('role', 'tabpanel');
+        p.setAttribute('aria-labelledby', `rr-tab-${p.dataset['panel']}`);
+      } else {
+        p.removeAttribute('role');
+        p.removeAttribute('aria-labelledby');
+      }
+    }
+    // The numbers scroll sideways in one row: a region the keyboard reaches.
+    const strip = this.kpis.parentElement!;
+    if (on) {
+      strip.setAttribute('role', 'region');
+      strip.setAttribute('aria-label', 'The run in numbers');
+      strip.tabIndex = 0;
+    } else {
+      strip.removeAttribute('role');
+      strip.removeAttribute('aria-label');
+      strip.removeAttribute('tabindex');
+    }
+    this.show(this.panel);
+  }
+
+  /** The reader's tab: its panel stays. The graph or the transcript before the run plays starts the run at once. */
+  private choose(panel: Panel): void {
+    this.chosen = true;
+    if (panel !== 'code' && this.t < this.codeMs) {
+      this.t = this.codeMs;
+      this.draw(true);
+    }
+    this.show(panel);
+  }
+
+  private show(panel: Panel): void {
+    this.panel = panel;
+    for (const tab of this.tabs) {
+      const on = tab.dataset['panel'] === panel;
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+    }
+    for (const p of this.panes) p.classList.toggle('rr-shown', p.dataset['panel'] === panel);
   }
 
   private get total(): number {
@@ -150,6 +256,7 @@ class Replay {
       this.pushed = '';
       this.tPushed = '';
       this.followed = '';
+      this.chosen = false;
       this.root.classList.remove('rr-ended');
       this.paused = false;
     } else this.paused = !this.paused;
@@ -246,7 +353,7 @@ class Replay {
 
     const into = s - this.data.t0;
     const phase = t < this.codeMs + GRAPH_MS ? 'not started' : ended ? 'finished' : 'running';
-    this.status.textContent = `Run ${this.data.run} | ${phase} | ${done} of ${plan.nodes.length} done | ${clock(Math.max(0, into))}`;
+    this.status.lastElementChild!.textContent = `${phase} | ${done} of ${plan.nodes.length} done | ${clock(Math.max(0, into))}`;
     this.root.dataset['phase'] = phase;
 
     for (const m of this.moments) {
@@ -258,8 +365,29 @@ class Replay {
     const latest = past.at(-1)?.querySelector('.rr-text')?.textContent ?? '';
     if (this.said.textContent !== latest) this.said.textContent = latest;
 
-    // The transcript of the latest corrected task to start.
-    const spot = [...this.data.spots].reverse().find((x) => x.from <= s) ?? this.data.spots[0];
+    // A narrow screen: the panel of the part of the run the tabs follow, and its caption
+    // under the panel; once the reader picks a tab, the latest part's caption.
+    const following = this.tabbed && !this.chosen;
+    const cue = (following ? this.cues.findLast((c) => c.shown <= t) : this.cues.findLast((c) => c.at <= t)) ?? this.cues[0];
+    if (following && cue.panel !== this.panel) this.show(cue.panel);
+    const caption = `${cue.clock}|${cue.text}`;
+    if (caption !== this.caption) {
+      this.caption = caption;
+      this.tickerAt.textContent = cue.clock;
+      this.ticker.lastElementChild!.textContent = cue.text;
+      this.ticker.classList.remove('rr-tick');
+      if (!force) {
+        void this.ticker.offsetWidth;
+        this.ticker.classList.add('rr-tick');
+      }
+    }
+
+    // Once a task's correction round has started, its transcript, until the next one's: the moment the caption names.
+    const newest = (at: (x: Timeline['spots'][number]) => number) =>
+      this.data.spots.filter((x) => at(x) <= s).reduce<Timeline['spots'][number] | undefined>((a, b) => (a && at(a) >= at(b) ? a : b), undefined);
+    // While the tabs follow the run, the transcript of the correction its caption names (the caption may come later than the run).
+    const named = following ? this.data.spots.find((x) => x.key === cue.spot) : undefined;
+    const spot = named ?? newest((x) => x.corrected) ?? newest((x) => x.from) ?? this.data.spots[0];
     const started = s >= this.data.t0;
     // A prefix of the same events: the transcript appends the new ones (ca-transcript).
     const upTo = started ? spot.times.findIndex((at) => at > s) : 0;

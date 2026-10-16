@@ -13,11 +13,15 @@ const STREAMS = 'web/apps/docs/public/demo/data/runs/docs/streams';
 /** A quoted line of code: its line number in the file and its HTML ('' for a gap between quotes). */
 export interface CodeLine { n: number; html: string }
 
-/** A task whose transcript the replay shows while it runs. */
-export interface Spot { key: string; name: string; from: number; to: number; events: TranscriptEvent[]; times: number[]; rows: JournalRow[] }
+/** A task whose transcript the replay shows while it runs, and when its correction round started (`corrected`). */
+export interface Spot { key: string; name: string; from: number; to: number; corrected: number; events: TranscriptEvent[]; times: number[]; rows: JournalRow[] }
 
-/** A moment of the run, at a time of the run (seconds from its start). */
-export interface Moment { at: number; text: string }
+/**
+ * A moment of the run, at a time of the run (seconds from its start), and the panel
+ * of the replay that shows it: a correction in the transcript (of the task `spot`, a
+ * Spot's key), the rest in the graph.
+ */
+export interface Moment { at: number; text: string; shows: 'graph' | 'transcript'; spot?: string }
 
 export interface Timeline {
   run: string;
@@ -80,7 +84,8 @@ function spot(journal: JournalRow[], key: string): Spot {
     const span = (next ? next.i : events.length) - here.i;
     return here.ts + ((end - here.ts) * (i - here.i)) / Math.max(1, span);
   });
-  return { key, name: name(row), from: times[0], to, events, times, rows };
+  const second = events.findIndex((e, i) => i > 0 && e.type === 'launch');
+  return { key, name: name(row), from: times[0], to, corrected: second < 0 ? to : times[second], events, times, rows };
 }
 
 /** The check a round error names ("<path>: [check] message"). */
@@ -98,10 +103,9 @@ export function timeline(): Timeline {
   const moments: Moment[] = [];
   for (const s of spots) {
     const row = s.rows.at(-1)!;
-    const second = s.events.findIndex((e, i) => i > 0 && e.type === 'launch');
     const checks = (row.round_errors?.[0] ?? []).map(check);
     const failed = checks.length === 1 ? `failed the check ${checks[0]}` : `failed the checks ${checks.slice(0, -1).join(', ')} and ${checks.at(-1)}`;
-    moments.push({ at: s.times[second] - t0, text: `${s.name} ${failed}. The same agent session corrected it.` });
+    moments.push({ at: s.corrected - t0, text: `${s.name} ${failed}. The same agent session corrected it.`, shows: 'transcript', spot: s.key });
   }
   // A model switch: the first hop's stop, then the hop that finished.
   for (const r of journal.filter((r) => (r.hops ?? []).length > 1)) {
@@ -110,6 +114,7 @@ export function timeline(): Timeline {
     moments.push({
       at: epoch(r.ts) - (r.wall_s ?? 0) + (first.wall_s ?? 0) - t0,
       text: `${name(r)} ${first.stop === 'rate_limited' ? 'was rate limited' : `stopped (${first.stop})`} on ${first.model}. A model switch ran it on ${last.model}.`,
+      shows: 'graph',
     });
   }
   // A loop's second pass: the first task created in it.
@@ -121,6 +126,7 @@ export function timeline(): Timeline {
     moments.push({
       at: epoch(revise?.ts ?? first.ts) - t0,
       text: `The review of ${units.join(', ')} did not approve its summary. The loop ran a second pass for ${units.join(', ')}.`,
+      shows: 'graph',
     });
   }
   const done = plan.nodes.filter((n) => n.state === 'done').length;
@@ -129,6 +135,7 @@ export function timeline(): Timeline {
   moments.push({
     at: t1 - t0,
     text: `${done} of ${plan.nodes.length} tasks done. ${tally['valid']} of ${outputs} outputs passed their checks.`,
+    shows: 'graph',
   });
   moments.sort((a, b) => a.at - b.at);
 

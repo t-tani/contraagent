@@ -269,3 +269,129 @@
   }
   .how-pin { isolation: isolate; }
 }
+
+/* The button that shows a cut output in full, and the carousel's controls: a narrow screen's. */
+.how-more { display: none; }
+.how-nav[hidden] { display: none; }
+
+/*
+ * A narrow screen, once ./how-carousel.ts has made the carousel (.how-carousel): the
+ * steps are cards side by side, from edge to edge of the screen, one in the middle
+ * and the next one showing at the side; they scroll one at a time (scroll snap).
+ * The agent's loop above them lights up to the card on screen; under them, a button
+ * to the step before and after, a dot for each step and the step's number. A long
+ * output is cut to its first lines and fades out, with a button that shows it whole.
+ */
+@media (max-width: 49.99rem) {
+  /* A cut output's height: about ten lines of it. */
+  .how { --how-cut: 13.5rem; margin: 2.5rem 0 1.5rem; }
+  .how-title { font-size: 1.55rem; }
+  .how-lede { margin-top: 0.7rem; font-size: var(--sl-text-sm); }
+
+  .how-carousel .how-loop { margin-top: 0.9rem; gap: 0.3rem; }
+  .how-carousel .how-loop-step { padding: 0.25rem 0.55rem; }
+  .how-carousel .how-loop-step + .how-loop-step { margin-left: 0.45rem; }
+  .how-carousel .how-loop-step::before { transition: opacity 0.3s ease; }
+  .how-carousel .how-loop-step:not(.is-on)::before { opacity: 0; }
+
+  /* Each card as tall as it needs; the list as tall as the card on screen (./how-carousel.ts), the others cut at its foot. */
+  .how-carousel .how-steps {
+    display: flex;
+    align-items: flex-start;
+    box-sizing: content-box;
+    height: var(--how-h, auto);
+    overflow-y: hidden;
+    transition: height 0.3s ease;
+    gap: 0.75rem;
+    margin: 1rem calc(-1 * var(--sl-content-pad-x, 1rem)) 0;
+    padding: 0.25rem var(--sl-content-pad-x, 1rem) 0.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--sl-content-pad-x, 1rem);
+    scrollbar-width: none;
+  }
+  .how-carousel .how-steps::-webkit-scrollbar { display: none; }
+  .how-carousel .how-rail { display: none; }
+  .how-carousel .how-step {
+    flex: 0 0 min(86%, 24rem);
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    column-gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 16px;
+    border: 1px solid var(--sl-color-gray-5);
+    background:
+      radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--sl-color-accent) 9%, transparent), transparent 60%),
+      var(--sl-color-black);
+    transition: border-color 0.3s ease;
+  }
+  .how-carousel .how-step.is-current { border-color: color-mix(in srgb, var(--sl-color-accent) 45%, var(--sl-color-gray-5)); }
+  .how-carousel .how-glow { display: none; }
+  .how-carousel .how-stage { grid-column: 1 / -1; margin-top: 0.85rem; padding: 0.75rem 0.85rem; }
+  .how-carousel .how-stage.is-cut {
+    max-height: var(--how-cut);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(#000 calc(100% - 3.5rem), transparent);
+    mask-image: linear-gradient(#000 calc(100% - 3.5rem), transparent);
+  }
+  .how-carousel .how-more {
+    grid-column: 1 / -1;
+    display: block;
+    justify-self: start;
+    min-height: 44px;
+    margin: 0.35rem 0 -0.4rem;
+    padding: 0 0.25rem;
+    border: 0;
+    background: none;
+    font: 600 var(--sl-text-sm) / 1 var(--sl-font, var(--sl-font-system));
+    color: var(--sl-color-text-accent);
+    cursor: pointer;
+  }
+  .how-carousel .how-more[hidden] { display: none; }
+  .how-more:focus-visible, .how-go:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 2px; border-radius: 8px; }
+
+  .how-nav {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-areas: 'prev dots next' 'prev at next';
+    align-items: center;
+    column-gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .how-go {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+    cursor: pointer;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+  }
+  .how-go[data-go='-1'] { grid-area: prev; }
+  .how-go[data-go='1'] { grid-area: next; }
+  .how-go:hover { border-color: var(--sl-color-accent); }
+  .how-go[aria-disabled='true'] { opacity: 0.35; cursor: default; }
+  .how-dots { grid-area: dots; display: flex; justify-content: center; gap: 6px; }
+  .how-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--sl-color-gray-5); transition: width 0.3s ease, background-color 0.3s ease; }
+  .how-dot.is-on { width: 20px; background: var(--sl-color-accent); }
+  .how-at {
+    grid-area: at;
+    margin: 0.35rem 0 0;
+    text-align: center;
+    font-size: var(--sl-text-xs);
+    line-height: 1.35;
+    color: var(--sl-color-gray-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+.how-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 49.99rem) and (prefers-reduced-motion: reduce) {
+  .how-carousel .how-steps, .how-carousel .how-step, .how-carousel .how-loop-step::before, .how-dot, .how-go { transition: none; }
+}

@@ -413,8 +413,27 @@
   to { opacity: 1; transform: none; }
 }
 
+/* A narrow screen: the first screen tighter, its words first, then the card of the five agents, compact. */
+@media (max-width: 49.99rem) {
+  .ca-hero { min-height: 0; padding: 1.75rem 0 4rem; }
+  /* One column no wider than the screen: the card's command scrolls in it, the page does not. */
+  .ca-hero-inner { grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+  .ca-eyebrow { margin-bottom: 1rem; font-size: 0.75rem; }
+  .sl-markdown-content .ca-display, .ca-display { font-size: clamp(2.1rem, 1.2rem + 4vw, 2.6rem); line-height: 1.05; }
+  .ca-sub { margin-top: 1rem; font-size: 1rem; }
+  .ca-actions { margin-top: 1.4rem; }
+  .ca-primary { min-height: 44px; box-sizing: border-box; }
+  .ca-secondary { display: inline-flex; align-items: center; min-height: 44px; padding-bottom: 0; border-bottom: 0; text-decoration: underline; text-decoration-color: var(--hero-glass-line); text-underline-offset: 4px; }
+  .ca-copy { min-height: 36px; }
+  .ca-agents-card { padding: 1rem 1rem 0.75rem; border-radius: 16px; }
+  .ca-card-title { margin-bottom: 0.65rem; }
+  .ca-card-cmd { padding: 0.65rem 0.8rem; font-size: 0.75rem; }
+  .ca-agent-list { margin-top: 0.5rem; }
+  .ca-agent { padding: 0.3rem 0.6rem; }
+  .ca-down { bottom: 0.75rem; min-height: 44px; }
+}
+
 @media (max-width: 40rem) {
-  .ca-hero { padding-top: 2rem; }
   .ca-agent { grid-template-columns: 0.6rem 4.6rem minmax(0, 1fr); }
   .ca-agent-run { display: none; }
   .ca-install { display: flex; }
