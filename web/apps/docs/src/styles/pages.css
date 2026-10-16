@@ -1,0 +1,149 @@
+/* The documentation pages on a phone: every page but the landing page, which styles itself (the header
+   and the menus are every page's, the landing page's too).
+
+   One layout for narrow screens (below 50rem, where Starlight puts the sidebar behind the menu button):
+   - Prose stays inside the page's side room; what is wider than prose (a code block, a live element's
+     frame) runs from edge to edge of the screen, and a code block scrolls sideways inside itself,
+     with a shadow on the side where more of it is.
+   - A table of records (three columns or more, and the generated references) is one card per row: the
+     row's first cell is the card's title, each other cell follows with its column's name before it
+     (`data-label`), and a cell without a name is the card's text. A table of two columns stays a table,
+     and scrolls inside itself, with the same shadows, when it is wider than the page.
+   - Whatever is tapped is at least 44px tall and wide, and no text is smaller than 14px.
+   e2e/mobile.spec.ts checks each of these on every page. */
+
+/* The frame of a live element (Demo.astro): its height and the most a long list grows to, as it says. */
+.ca-demo-frame { --ca-demo-fit: var(--ca-demo-height); }
+.ca-demo-frame[data-scroll='y'] { max-height: var(--ca-demo-max); }
+/* The long description above an element in the gallery: folded to four lines on a phone (Demo.astro). */
+.ca-describe-more { display: none; }
+
+@media (max-width: 50rem) {
+  :root {
+    /* Inline code as large as the smallest text. */
+    --sl-text-code-sm: var(--sl-text-sm);
+    --sl-menu-button-size: 2.75rem;
+  }
+
+  /* The header and the menus: 44px to tap. */
+  .site-title { min-height: 2.75rem; }
+  .sl-menu-button { align-items: center; justify-content: center; }
+  site-search button[data-open-modal] { min-width: 2.75rem; min-height: 2.75rem; justify-content: center; }
+  mobile-starlight-toc summary { font-size: var(--sl-text-sm); }
+  mobile-starlight-toc .isMobile a { min-height: 2.75rem; align-items: center; }
+  #starlight__sidebar a,
+  #starlight__sidebar summary { min-height: 2.75rem; display: flex; align-items: center; }
+  #starlight__sidebar summary { justify-content: space-between; }
+  /* A heading's link to itself: Starlight widens where it is tapped with its ::after; to 44px here. */
+  .sl-markdown-content .sl-anchor-link::after { inset: -0.5rem -0.625rem; }
+
+  /* The side room is on each block of prose, not on the page, so that a code block, a live element and
+     a folded source run from edge to edge without sticking out of what holds them. */
+  :root:not([data-has-hero]) .content-panel { padding-inline: 0; }
+  :root:not([data-has-hero]) .sl-container > :not(.sl-markdown-content),
+  :root:not([data-has-hero]) .sl-markdown-content > :not(.expressive-code, .ca-demo, .ca-live, .ca-source),
+  .ca-live > :not(.ca-demo),
+  .ca-source > summary { margin-inline: var(--sl-content-pad-x); }
+
+  /* Code blocks: edge to edge, scrolling inside themselves. */
+  .sl-markdown-content .expressive-code .frame pre { border-inline-width: 0; border-radius: 0; }
+  /* A file's name above its code: whole, over as many lines as it needs. */
+  .sl-markdown-content .expressive-code .frame.has-title .header { padding-inline: var(--sl-content-pad-x); }
+  .sl-markdown-content .expressive-code .frame.has-title .title { white-space: normal; overflow-wrap: anywhere; }
+  .sl-markdown-content .expressive-code .copy button { width: 2.75rem; height: 2.75rem; }
+  .sl-markdown-content .expressive-code .copy button::after { margin: 0.6rem; }
+
+  /* Scroll shadows on what scrolls sideways: a cover in the box's own colour that scrolls with the content,
+     over a shadow that stays at the edge; where there is nothing more to scroll to, the cover hides it. */
+  .sl-markdown-content .expressive-code .frame pre { --ca-cover: var(--code-background); }
+  .sl-markdown-content table:not(.ca-cards, :where(.not-content *)) { --ca-cover: var(--sl-color-bg); }
+  .sl-markdown-content .expressive-code .frame pre,
+  .sl-markdown-content table:not(.ca-cards, :where(.not-content *)) {
+    /* The text's colour, faint: a shadow on a light page, a glow on a dark one. */
+    --ca-shade: color-mix(in srgb, var(--sl-color-white) 22%, transparent);
+    background:
+      linear-gradient(to right, var(--ca-cover) 40%, transparent) left / 2rem 100% no-repeat local,
+      linear-gradient(to left, var(--ca-cover) 40%, transparent) right / 2rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, var(--ca-shade), transparent) left / 0.75rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, var(--ca-shade), transparent) right / 0.75rem 100% no-repeat scroll,
+      var(--ca-cover);
+  }
+
+  /* A table of records: one card per row. */
+  .sl-markdown-content table.ca-cards { display: block; overflow: visible; border: 0; line-height: 1.6; }
+  .sl-markdown-content table.ca-cards thead { display: none; }
+  .sl-markdown-content table.ca-cards tbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  .sl-markdown-content table.ca-cards tr {
+    display: block;
+    margin: 0;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--sl-color-bg);
+  }
+  .sl-markdown-content table.ca-cards td { display: block; border: 0; padding: 0; overflow-wrap: anywhere; }
+  .sl-markdown-content table.ca-cards td:empty { display: none; }
+  .sl-markdown-content table.ca-cards td:first-child { font-weight: 600; color: var(--sl-color-white); }
+  .sl-markdown-content table.ca-cards td + td { margin-top: 0.375rem; }
+  .sl-markdown-content table.ca-cards td[data-label]::before {
+    content: attr(data-label);
+    margin-inline-end: 0.5rem;
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    color: var(--sl-color-gray-3);
+  }
+  /* The theme properties: a theme's value per cell, two themes to a line. */
+  .sl-markdown-content table.ca-tokens tr { display: grid; grid-template-columns: 1fr 1fr; gap: 0.375rem 1rem; }
+  .sl-markdown-content table.ca-tokens td + td { margin-top: 0; }
+  .sl-markdown-content table.ca-tokens td:is(:first-child, :nth-child(2), [colspan]) { grid-column: 1 / -1; }
+  .sl-markdown-content table.ca-tokens td[data-label]:not([colspan])::before { display: block; margin: 0; }
+
+  /* The element references: the index of tags, a chip each, 44px to tap. */
+  .sl-markdown-content .ca-tag-index { gap: 0.5rem; }
+  .sl-markdown-content .ca-tag-index li + li { margin-top: 0; }
+  .sl-markdown-content .ca-tag-index a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding-inline: 0.75rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg-inline-code);
+    text-decoration: none;
+  }
+  .sl-markdown-content .ca-tag-index a code { padding: 0; background: none; }
+  .ca-ref-element { margin-top: 2rem; }
+
+  /* A live element: its frame edge to edge; a whole page in it as tall as the screen allows, a long list
+     shorter than the screen. */
+  .ca-demo-frame { border-inline-width: 0; border-radius: 0; padding: 12px; }
+  .ca-demo-frame[data-page] { padding: 0; }
+  .ca-demo-frame { --ca-demo-fit: min(var(--ca-demo-height), calc(100svh - 12rem)); }
+  .ca-demo-frame[data-scroll='y'] { max-height: min(var(--ca-demo-max), 70svh); }
+  .ca-demo figcaption,
+  .ca-demo[data-last-event]::after { padding-inline: var(--sl-content-pad-x); }
+  .ca-demo[data-last-event]::after { font-size: var(--sl-text-sm); overflow-wrap: anywhere; }
+  .ca-demo figcaption a,
+  .ca-live-links a { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; }
+  .ca-source summary { padding-block: 0.625rem; }
+  .ca-source summary code { overflow-wrap: anywhere; }
+  .ca-live-links { gap: 0 1.25rem; margin-top: 0.25rem; }
+  /* The links under a live element follow it closely. */
+  .ca-demo:is(:has(+ .ca-live-links), :has(+ script + .ca-live-links)) { margin-bottom: 0; }
+  .ca-describe { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+  .ca-describe.ca-describe-open { display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
+  .ca-describe-more {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-top: 0.25rem;
+    padding: 0 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    background: none;
+    color: var(--sl-color-text-accent);
+    font: inherit;
+    font-size: var(--sl-text-sm);
+    cursor: pointer;
+  }
+}

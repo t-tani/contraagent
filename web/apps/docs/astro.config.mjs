@@ -2,12 +2,16 @@
 import { fileURLToPath } from 'node:url';
 import starlight from '@astrojs/starlight';
 import { defineConfig, passthroughImageService } from 'astro/config';
+import { satteri } from '@astrojs/markdown-satteri';
+import { tableCards } from './src/lib/table-cards.mjs';
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url));
 
 export default defineConfig({
   // No raster images to optimise: skip sharp and its install script.
   image: { service: passthroughImageService() },
+  // A Markdown table of three columns or more: one card per row on a phone (src/styles/pages.css).
+  markdown: { processor: satteri({ hastPlugins: [tableCards] }) },
   vite: {
     // Workspace packages from their TypeScript sources; pages quote files across the repository.
     resolve: { conditions: ['source'] },
@@ -33,7 +37,7 @@ export default defineConfig({
       // A live demo can show @contraagent/elements' example of a theme of one's own.
       // The landing page's first screen (the only page with a `hero`).
       components: { Hero: './src/components/home/Hero.astro' },
-      customCss: ['./src/styles/site.css', '../../packages/elements/docs/examples/theme.css'],
+      customCss: ['./src/styles/site.css', './src/styles/pages.css', '../../packages/elements/docs/examples/theme.css'],
       // python/ and node/ are collected from the packages (scripts/collect.py).
       sidebar: [
         { label: 'Python package: contraagent', collapsed: true, items: [{ autogenerate: { directory: 'python' } }] },
