@@ -33,6 +33,7 @@ agent itself is started as before, so its pid and exit status are its own.
 
 from __future__ import annotations
 
+import atexit
 import os
 import socket
 import subprocess
@@ -133,11 +134,30 @@ def _tell_watchdog(line: str) -> None:
                     start_new_session=True,  # POSIX only: Windows needs no watchdog
                 )
                 theirs.close()
+                if _watch_pid == 0:
+                    atexit.register(_release_watchdog)
                 _watch, _watch_pid = ours, os.getpid()
             # MSG_NOSIGNAL: a watchdog that is gone is an error here, never a SIGPIPE
             # (the command line restores SIGPIPE's default, which would end the run).
             _watch.sendall(f"{line}\n".encode(), getattr(socket, "MSG_NOSIGNAL", 0))
         except OSError:
+            pass
+
+
+def _release_watchdog() -> None:
+    """At the interpreter's exit with no agent listed, end the watchdog: closing the socket
+    is its end of file, and with no group to stop it exits at once. With agents still
+    listed it stays, to stop them once this interpreter is gone."""
+    global _watchdog, _watch
+    with _lock:
+        if _watch is None or _watch_pid != os.getpid() or _live:
+            return
+        watch, watchdog, _watch, _watchdog = _watch, _watchdog, None, None
+    watch.close()
+    if watchdog is not None:
+        try:
+            watchdog.wait(timeout=5.0)
+        except subprocess.TimeoutExpired:
             pass
 
 
