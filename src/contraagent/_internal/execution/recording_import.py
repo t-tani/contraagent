@@ -34,7 +34,7 @@ whose last attempt did not finish ok (a replay of it, with no recording, ends `e
 or launches with `--record-missing`); a task whose journal row holds no fingerprint; one
 whose output file, or a file its patterns saw change, is missing now; one whose output was
 written again by a later task of the run (what the file holds now is that task's, not
-this one's); and one with a file over the cap (`max_file_mb`, as a recording's), which a
+this one's); and one with a file over the cap (`record_max_file_mb`, as a recording's), which a
 replay could not play. A run of a run format this release does not read is refused whole
 (`RecordingError`).
 
@@ -146,16 +146,16 @@ def _changes(row: Mapping[str, Any]) -> tuple[list[str], list[str]]:
     return written, list(changes.get("deleted") or ())
 
 
-def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb: float = MAX_FILE_MB) -> RecordingImport:
+def import_recording(run_dir: str | Path, directory: str | Path, *, record_max_file_mb: float = MAX_FILE_MB) -> RecordingImport:
     """Write a recording of each task of the run in `run_dir` that finished ok (or
     `partial`) into the recordings directory `directory`, as if the run had recorded it
     (`Pipeline(record=)`), so a replay of the same flow plays it with nothing launched.
 
     The recording of each key it imports replaces the one `directory` held; the other
-    recordings stay. A task with a file over `max_file_mb` (default 4 MB) is not imported. A task is
-    imported as one attempt, its output files and changed files as they are now; a replay
-    plays it only for a task of the fingerprint the run recorded. `contraagent docs testing`
-    lists what is imported and what is not.
+    recordings stay. A task with a file over `record_max_file_mb` (default 4 MB) is not
+    imported. A task is imported as one attempt, its output files and changed files as they
+    are now; a replay plays it only for a task of the fingerprint the run recorded.
+    `contraagent docs testing` lists what is imported and what is not.
 
     `RecordingError` when `run_dir` holds no run (no `run.json` or no journal row) or a run
     of a run format this release does not read.
@@ -178,7 +178,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
     run_id = str(info.get("run_id") or run_dir.name)
     imported_from = {"run": run_id, "run_uid": str(info.get("run_uid") or ""), "imported_at": now_iso()}
     launches = {str(r.get("label")): r for r in read_rows(run_dir / layout.LAUNCHES)}
-    cap = max_file_mb * _MB
+    cap = record_max_file_mb * _MB
 
     attempts: dict[str, int] = {}
     last: dict[str, tuple[int, dict[str, Any]]] = {}
@@ -230,7 +230,7 @@ def import_recording(run_dir: str | Path, directory: str | Path, *, max_file_mb:
             elif again:
                 why = f"{shown} was written again by {again[0]} after it"
             elif size > cap:
-                why = f"{shown} ({megabytes(size)}) is over the {max_file_mb:g} MB cap of a recording"
+                why = f"{shown} ({megabytes(size)}) is over the {record_max_file_mb:g} MB cap of a recording"
             if why:
                 break
         if why:

@@ -195,7 +195,7 @@ def _recording(args) -> int:
 
     cap = args.record_max_file_mb if args.record_max_file_mb is not None else MAX_FILE_MB
     try:
-        report = import_recording(args.run_dir, args.directory, max_file_mb=cap)
+        report = import_recording(args.run_dir, args.directory, record_max_file_mb=cap)
     except RecordingError as exc:
         print(f"✗ {exc}")
         return 1

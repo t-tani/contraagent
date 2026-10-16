@@ -198,7 +198,7 @@ def test_a_run_that_cannot_be_read_is_refused(tmp_path):
 
 def test_a_file_over_the_cap_leaves_its_task_unimported(tmp_path):
     live = stub_run(tmp_path, flow_=lambda units: write(units[0]), agent=stub(write={"title": "x" * 2048}))
-    report = import_recording(live.run_dir, tmp_path / "rec", max_file_mb=0.001)
+    report = import_recording(live.run_dir, tmp_path / "rec", record_max_file_mb=0.001)
     assert "is over the 0.001 MB cap" in report.not_imported["write-alpha"]
 
 

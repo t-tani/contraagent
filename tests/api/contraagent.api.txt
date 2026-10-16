@@ -725,7 +725,7 @@ def import_recording(
     run_dir: str | Path,
     directory: str | Path,
     *,
-    max_file_mb: float = MAX_FILE_MB,
+    record_max_file_mb: float = MAX_FILE_MB,
 ) -> RecordingImport
 
 def log(name: str, row: Mapping[str, Any] | BaseModel) -> None
