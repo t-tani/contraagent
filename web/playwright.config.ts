@@ -12,7 +12,7 @@ const PORT = Number(process.env["E2E_PORT"] ?? 18793);
 /** The hub's port; hub.spec.ts reads it from `E2E_HUB_PORT` too. */
 const HUB_PORT = Number(process.env["E2E_HUB_PORT"] ?? 18794);
 /** The port of the monitor under a base path; base-path.spec.ts reads it from `E2E_BASE_PATH_PORT` too. */
-const BASE_PATH_PORT = Number(process.env["E2E_BASE_PATH_PORT"] ?? 18796);
+const BASE_PATH_PORT = Number(process.env["E2E_BASE_PATH_PORT"] ?? 18797);
 
 export default defineConfig({
   testDir: 'e2e',

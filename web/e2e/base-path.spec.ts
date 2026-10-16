@@ -8,7 +8,7 @@ import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test } from '@playwright/test';
 
-const MONITOR_PORT = Number(process.env['E2E_BASE_PATH_PORT'] ?? 18796);
+const MONITOR_PORT = Number(process.env['E2E_BASE_PATH_PORT'] ?? 18797);
 const BASE = '/monitor';
 
 let proxy: Server;
