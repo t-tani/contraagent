@@ -158,6 +158,25 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     sys.modules.pop("tasks", None)
 
 
+def test_a_flow_module_that_prints_when_imported_passes_the_output_import_check(tmp_path, plugin_dir, capsys, monkeypatch):
+    (tmp_path / "loud_tasks.py").write_text(
+        "print('loading the tasks')\n"
+        "from pydantic import BaseModel\n"
+        "from contraagent import agent_task\n"
+        "class Summary(BaseModel):\n    points: list[str]\n"
+        "summarize = agent_task('summarize', plugin='plugins/summarize', output=Summary, max_turns=5, timeout_s=60)\n"
+        "def flow():\n    summarize('a')\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert main(["check", "loud_tasks.py:flow", "--stub"]) == 0
+    out = capsys.readouterr().out
+    assert "✓ 1 task, 1 kind: summarize 1" in out and "not checked" not in out
+    sys.modules.pop("loud_tasks", None)
+
+
 def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
     review = agent_task("review", plugin=plugin_dir, output=Summary)  # no budget

@@ -379,29 +379,33 @@ def _has_examples(node: Any) -> bool:
 
 _IMPORT_PROBE = """
 import json, sys
+from pathlib import Path
 from contraagent._internal.contracts.calls import SchemaRef, import_schema
 out = {}
 for kind, ref in json.loads(sys.stdin.read()).items():
     if import_schema(SchemaRef(**ref)) is None:
         out[kind] = f"output {ref['module']}.{ref['qualname']} cannot be imported from {ref['search_path']} by the in-session hook"
-print(json.dumps(out))
+Path(sys.argv[1]).write_text(json.dumps(out), encoding="utf-8")
 """
 
 
 def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """What the hook (`contraagent call validate`, same interpreter) would fail to import."""
+    """What the hook (`contraagent call validate`, same interpreter) would fail to import.
+    The probe writes its answer to a file, since a module it imports may print."""
     try:
-        proc = subprocess.run(
-            [sys.executable, "-c", _IMPORT_PROBE],
-            input=json.dumps(refs),
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return json.loads(proc.stdout)
+        with tempfile.TemporaryDirectory(prefix="probe-", dir=temp_root()) as tmp:
+            answer = Path(tmp) / "answer.json"
+            subprocess.run(
+                [sys.executable, "-c", _IMPORT_PROBE, str(answer)],
+                input=json.dumps(refs),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return json.loads(answer.read_text(encoding="utf-8"))
     except (subprocess.SubprocessError, ValueError, OSError) as exc:
         return {kind: f"output import not checked: {exc}" for kind in refs}
 
