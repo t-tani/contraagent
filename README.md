@@ -207,7 +207,7 @@ events are what each coding agent reports in its own output, plus that process t
 They are not a kernel-level capture of every file or network access. The topic
 [The monitor](src/contraagent/docs/monitor.md) describes every view, and the
 documentation site's
-[element gallery](web/apps/docs/src/content/docs/elements.mdx) shows each of them
+[element gallery](https://t-tani.github.io/contraagent/elements/) shows each of them
 live with the demo run.
 
 <img src="docs/assets/readme/task-detail.png" width="880" alt="Task detail of write_note · alpha, done after 1 correction: the first agent session's transcript, and the two checks its output failed">
@@ -365,7 +365,8 @@ This repository holds four packages, and each has its own documentation.
 | `@contraagent/elements` (npm) | generic web components (`cae-*`), themes and design tokens, with no contraagent data | [web/packages/elements/](web/packages/elements/README.md) |
 | `@contraagent/api` (npm) | the typed client for the monitor's API | [web/packages/api/](web/packages/api/README.md) |
 
-`pnpm run docs` in `web/` serves the documentation site, which renders all four. The npm
+[The documentation site](https://t-tani.github.io/contraagent/) renders all four, and `pnpm run docs` in `web/`
+serves it from this checkout. The npm
 packages are not published to the npm registry. `pnpm tarballs` in `web/` packs them
 so that you can install them from this checkout, and `pnpm --dir web screenshots`
 makes the screenshots in this README.

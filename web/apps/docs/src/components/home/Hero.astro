@@ -5,6 +5,7 @@
 // while the replay below rises over it (./scene.css); ./hero.ts copies the
 // install command and steps through the coding agents.
 import './scene.css';
+import { withBase } from '../../lib/base';
 
 const { data } = Astro.locals.starlightRoute.entry;
 const { tagline = '' } = data.hero ?? {};
@@ -37,11 +38,11 @@ const RUN = ['contraagent run tasks.py:docs', `--kwargs '{"units": ["alpha"]}'`]
         </h1>
         <p class="ca-sub">{tagline}</p>
         <div class="ca-actions">
-          <a class="ca-primary" href="/python/tutorial/">
+          <a class="ca-primary" href={withBase('/python/tutorial/')}>
             Get started
             <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M3 8h9M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </a>
-          <a class="ca-secondary" href="/python/">Read the docs</a>
+          <a class="ca-secondary" href={withBase('/python/')}>Read the docs</a>
         </div>
         <div class="ca-install">
           <code><span class="ca-prompt" aria-hidden="true">$</span> {INSTALL}</code>

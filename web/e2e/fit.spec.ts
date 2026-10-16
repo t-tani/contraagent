@@ -14,10 +14,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clips, overflows, settle } from './fit.js';
+import { DOCS } from './docs-site.js';
 
 const WIDTHS = [360, 600, 900, 1280];
 const HUB = `http://127.0.0.1:${Number(process.env['E2E_HUB_PORT'] ?? 18794)}`;
-const DOCS = `http://127.0.0.1:${Number(process.env['E2E_DOCS_PORT'] ?? 18795)}`;
 
 /** The monitor's places to check: each tab of a run, the task detail's views, the trends page. */
 const PLACES = [

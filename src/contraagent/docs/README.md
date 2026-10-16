@@ -118,7 +118,7 @@ block for the instruction file that a coding agent reads, and the person who use
 the agent adds it there (`contraagent docs --pointer >> AGENTS.md`; Claude Code
 reads `CLAUDE.md`).
 A `::code` line in these files quotes a file of the package; `contraagent docs`
-and the documentation site print the quoted lines in place.
+and the [documentation site](https://t-tani.github.io/contraagent/) print the quoted lines in place.
 
 - [Tutorial: your first pipeline](tutorial.md): a pipeline from an empty directory, step by step: models, an agent task and its plugin, a flow, a stub run, a run on a coding agent, a test.
 - [Guide](guide.md): building a pipeline: the steps, the decisions, the pitfalls.

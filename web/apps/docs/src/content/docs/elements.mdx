@@ -6,6 +6,7 @@ description: "Every element of the web packages, live: the views of @contraagent
 import Demo from '../../components/Demo.astro';
 import Example from '../../components/Example.astro';
 import ElementLinks from '../../components/ElementLinks.astro';
+import { withBase } from '../../lib/base';
 
 Every element on this page is live. The views of `@contraagent/ui` show the
 demo pipeline's run (`<ca-monitor>` reads an export of it); the generic elements of `@contraagent/elements` show the
@@ -15,13 +16,13 @@ hand-written data of their examples. What an element sends shows under it.
 
 ### `<ca-monitor>`
 
-<Demo tag="ca-monitor" props={{}} attrs={{ export: '/demo/data/', history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" page full="/demo/monitor/" describe />
-<ElementLinks tags={['ca-monitor']} links={[{ href: '/node/ui/embed/', label: 'Embed the monitor' }]} />
+<Demo tag="ca-monitor" props={{}} attrs={{ export: withBase('/demo/data/'), history: 'memory', shortcuts: 'element', theme: 'contraagent-light' }} theme="contraagent-light" height="720px" page full={withBase('/demo/monitor/')} describe />
+<ElementLinks tags={['ca-monitor']} links={[{ href: withBase('/node/ui/embed/'), label: 'Embed the monitor' }]} />
 
 ### `<ca-pipeline-graph>`
 
 <Demo tag="ca-pipeline-graph" props={{ plan: 'plan', journal: 'journal', run: 'run' }} describe />
-<ElementLinks tags={['ca-pipeline-graph']} links={[{ href: '/node/ui/events/', label: 'Events and the view route' }]} />
+<ElementLinks tags={['ca-pipeline-graph']} links={[{ href: withBase('/node/ui/events/'), label: 'Events and the view route' }]} />
 
 ### `<ca-transcript>`
 
@@ -46,12 +47,12 @@ hand-written data of their examples. What an element sends shows under it.
 ### `<ca-kpis>`
 
 <Demo tag="ca-kpis" props={{ journal: 'journal' }} describe />
-<ElementLinks tags={['ca-kpis']} links={[{ href: '/node/ui/theming/', label: 'The same element in other themes' }]} />
+<ElementLinks tags={['ca-kpis']} links={[{ href: withBase('/node/ui/theming/'), label: 'The same element in other themes' }]} />
 
 ### `<ca-journal-table>`
 
 <Demo tag="ca-journal-table" props={{ rows: 'journal', plan: 'plan' }} scroll="640px" describe />
-<ElementLinks tags={['ca-journal-table']} links={[{ href: '/node/ui/live-data/', label: 'Live data' }]} />
+<ElementLinks tags={['ca-journal-table']} links={[{ href: withBase('/node/ui/live-data/'), label: 'Live data' }]} />
 
 ### `<ca-task-table>`
 
@@ -71,54 +72,54 @@ A CI pipeline's page built from the elements below: a theme switch, stat
 tiles, a sortable table and a layered graph with a detail panel.
 
 <Example name="ci-pipeline" page source="details" />
-<ElementLinks tags={['cae-segmented', 'cae-stat-tiles', 'cae-data-table', 'cae-layered-graph']} links={[{ href: '/node/elements/page/', label: 'Building a page' }]} />
+<ElementLinks tags={['cae-segmented', 'cae-stat-tiles', 'cae-data-table', 'cae-layered-graph']} links={[{ href: withBase('/node/elements/page/'), label: 'Building a page' }]} />
 
 ### `<cae-data-table>`
 
 <Example name="data-table" source="details" />
-<ElementLinks tags={['cae-data-table']} links={[{ href: '/node/elements/data-table/', label: 'Data table' }]} />
+<ElementLinks tags={['cae-data-table']} links={[{ href: withBase('/node/elements/data-table/'), label: 'Data table' }]} />
 
 ### `<cae-layered-graph>`
 
 <Example name="graph" source="details" />
-<ElementLinks tags={['cae-layered-graph']} links={[{ href: '/node/elements/graph/', label: 'Layered graph' }]} />
+<ElementLinks tags={['cae-layered-graph']} links={[{ href: withBase('/node/elements/graph/'), label: 'Layered graph' }]} />
 
 ### `<cae-mark-matrix>`
 
 <Example name="matrix" source="details" />
-<ElementLinks tags={['cae-mark-matrix']} links={[{ href: '/node/elements/matrix/', label: 'Mark matrix' }]} />
+<ElementLinks tags={['cae-mark-matrix']} links={[{ href: withBase('/node/elements/matrix/'), label: 'Mark matrix' }]} />
 
 ### `<cae-stat-tiles>`
 
 <Example name="tiles" source="details" />
-<ElementLinks tags={['cae-stat-tiles']} links={[{ href: '/node/elements/tiles/', label: 'Stat tiles' }]} />
+<ElementLinks tags={['cae-stat-tiles']} links={[{ href: withBase('/node/elements/tiles/'), label: 'Stat tiles' }]} />
 
 ### `<cae-lanes>`
 
 <Example name="lanes" source="details" />
-<ElementLinks tags={['cae-lanes']} links={[{ href: '/node/elements/lanes/', label: 'Lanes' }]} />
+<ElementLinks tags={['cae-lanes']} links={[{ href: withBase('/node/elements/lanes/'), label: 'Lanes' }]} />
 
 ### Charts
 
 <Example name="charts" source="details" />
-<ElementLinks tags={['cae-column-chart', 'cae-line-chart', 'cae-heatmap', 'cae-bar-chart']} links={[{ href: '/node/elements/charts/', label: 'Charts' }]} />
+<ElementLinks tags={['cae-column-chart', 'cae-line-chart', 'cae-heatmap', 'cae-bar-chart']} links={[{ href: withBase('/node/elements/charts/'), label: 'Charts' }]} />
 
 ### `<cae-check-table>`
 
 <Example name="check-table" source="details" />
-<ElementLinks tags={['cae-check-table']} links={[{ href: '/node/elements/check-table/', label: 'Check table' }]} />
+<ElementLinks tags={['cae-check-table']} links={[{ href: withBase('/node/elements/check-table/'), label: 'Check table' }]} />
 
 ### `<cae-transcript>`
 
 <Example name="transcript" source="details" />
-<ElementLinks tags={['cae-transcript']} links={[{ href: '/node/elements/transcript/', label: 'Transcript' }]} />
+<ElementLinks tags={['cae-transcript']} links={[{ href: withBase('/node/elements/transcript/'), label: 'Transcript' }]} />
 
 ### `<cae-segmented>`
 
 <Example name="segmented" source="details" />
-<ElementLinks tags={['cae-segmented']} links={[{ href: '/node/elements/primitives/', label: 'Primitives' }]} />
+<ElementLinks tags={['cae-segmented']} links={[{ href: withBase('/node/elements/primitives/'), label: 'Primitives' }]} />
 
 ### Status pills
 
 <Example name="status" source="details" />
-<ElementLinks tags={[]} links={[{ href: '/node/elements/primitives/', label: 'Primitives' }]} />
+<ElementLinks tags={[]} links={[{ href: withBase('/node/elements/primitives/'), label: 'Primitives' }]} />

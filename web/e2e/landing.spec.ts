@@ -21,8 +21,7 @@
 // whose long outputs open in full; and its controls are at least 44 px high.
 import { expect, firefox, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { clips, overflows, settle } from './fit.js';
-
-const DOCS = `http://127.0.0.1:${Number(process.env['E2E_DOCS_PORT'] ?? 18795)}`;
+import { DOCS } from './docs-site.js';
 
 /** Fractions of the scroll from just before the scene to just after it. */
 const ALONG = [0, 0.1, 0.22, 0.35, 0.5, 0.62, 0.75, 0.88, 1];

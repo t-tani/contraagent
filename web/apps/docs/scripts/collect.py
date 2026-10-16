@@ -6,7 +6,8 @@ Writes every page an index lists into src/content/docs/<section>/ (not
 committed): the title from the page's heading, the order and description from
 its index, each `::code{...}` expanded by `contraagent._internal.docs.expand` (the one
 implementation `contraagent docs` uses too), each link pointed at the page it
-names. A quote, a link or an image that does not resolve stops it, and so does
+names, relative to the page that links (the site is served under a base path,
+site.ts). A quote, a link or an image that does not resolve stops it, and so does
 an HTML tag in a page's prose (outside code), which the site would render.
 
 A paragraph under a line `<!-- not on the site -->` is for readers of the
@@ -32,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -221,7 +223,7 @@ def render(source: Path, page: dict, pages: dict[Path, dict]) -> str:
             continue
         for m in IMAGE.finditer(line):
             image(source, m[2], page)
-        out.append(LINK.sub(lambda m: f"]({link(source, m[1], pages)})", line))
+        out.append(LINK.sub(lambda m: f"]({link(source, page, m[1], pages)})", line))
     placed.pop("", None)
     if placed:
         raise SystemExit(f"collect.py: LIVE[{page['key']}] puts a live element at {', '.join(placed)}, no image of the page")
@@ -334,17 +336,20 @@ def image(source: Path, target: str, page: dict) -> None:
     shutil.copyfile(file, dest)
 
 
-def link(source: Path, target: str, pages: dict[Path, dict]) -> str:
-    """A link to another page of the documentation becomes that page's URL."""
-    if re.match(r"([a-z]+:|#|/)", target):
+def link(source: Path, page: dict, target: str, pages: dict[Path, dict]) -> str:
+    """A link to another page of the documentation becomes that page's URL, relative to `page`'s."""
+    if target.startswith("/"):
+        raise SystemExit(f"{source.relative_to(ROOT)}: the link to {target} is not relative to the page")
+    if re.match(r"([a-z]+:|#)", target):
         return target
     path, _, anchor = target.partition("#")
     if Path(path).suffix.lower() in IMAGE_SUFFIXES:
         return target  # an image, copied beside the page by `image`
-    page = pages.get((source.parent / path).resolve())
-    if page is None:
+    found = pages.get((source.parent / path).resolve())
+    if found is None:
         raise SystemExit(f"{source.relative_to(ROOT)}: the link to {target} names no page of the documentation")
-    return page["url"] + (f"#{anchor}" if anchor else "")
+    rel = posixpath.relpath(found["url"], page["url"])
+    return ("./" if rel == "." else f"{rel}/") + (f"#{anchor}" if anchor else "")
 
 
 def check_live(keys: set[str]) -> None:

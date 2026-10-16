@@ -1,6 +1,7 @@
 // The elements of the two web packages, from the custom elements manifests their
 // builds write (custom-elements.json), and where the site documents each one.
 import { repoJson } from './repo';
+import { withBase } from './base';
 
 export interface Member { kind: string; name: string; privacy?: string; static?: boolean; type?: { text: string }; description?: string; attribute?: string; default?: string; readonly?: boolean }
 export interface Ev { name: string; description?: string }
@@ -30,7 +31,7 @@ export function elementsOf(pkg: PackageKey): Decl[] {
 export const packageOf = (tag: string): PackageKey => (tag.startsWith('cae-') ? 'elements' : 'ui');
 
 /** An element's entry in the reference. */
-export const referenceUrl = (tag: string): string => `${PACKAGES[packageOf(tag)].reference}#${tag}`;
+export const referenceUrl = (tag: string): string => withBase(`${PACKAGES[packageOf(tag)].reference}#${tag}`);
 
 /** The elements the gallery (src/content/docs/elements.mdx) shows under a heading of their tag. */
 export const GALLERY = new Set([

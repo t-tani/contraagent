@@ -5,6 +5,7 @@
 import { getCollection } from 'astro:content';
 import { GALLERY, PACKAGES, elementsOf, type Decl, type PackageKey } from '../lib/elements';
 import { inlineMd as md } from '../lib/repo';
+import { withBase } from '../lib/base';
 
 interface Props { pkg: PackageKey }
 const { pkg } = Astro.props;
@@ -14,7 +15,7 @@ const elements = elementsOf(pkg);
 const shownIn = new Map<string, { href: string; title: string }[]>();
 for (const entry of await getCollection('docs')) {
   for (const tag of new Set((entry.data.live ?? []).flatMap((f) => f.tags))) {
-    const page = { href: `/${entry.id.replace(/\/?index$/, '')}/`, title: entry.data.title };
+    const page = { href: withBase(`/${entry.id.replace(/\/?index$/, '')}/`), title: entry.data.title };
     shownIn.set(tag, [...(shownIn.get(tag) ?? []), page]);
   }
 }
@@ -55,7 +56,7 @@ const props = (d: Decl) =>
         {GALLERY.has(d.tagName!) && (
           <>
             {' | '}
-            Live: <a href={`/elements/#${d.tagName}`}>Element gallery</a>
+            Live: <a href={withBase(`/elements/#${d.tagName}`)}>Element gallery</a>
           </>
         )}
       </p>

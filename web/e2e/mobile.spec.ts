@@ -15,8 +15,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { overflows, settle } from './fit.js';
+import { DOCS } from './docs-site.js';
 
-const DOCS = `http://127.0.0.1:${Number(process.env['E2E_DOCS_PORT'] ?? 18795)}`;
 const PHONES = [
   { width: 360, height: 740, colorScheme: 'light' },
   { width: 390, height: 844, colorScheme: 'dark' },

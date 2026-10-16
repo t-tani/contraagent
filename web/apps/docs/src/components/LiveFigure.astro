@@ -5,6 +5,7 @@
 import Demo from './Demo.astro';
 import ElementLinks from './ElementLinks.astro';
 import Example from './Example.astro';
+import { withBase } from '../lib/base';
 
 interface Figure {
   demo?: string;
@@ -22,12 +23,15 @@ interface Figure {
 }
 interface Props { figure: Figure }
 const { figure: f } = Astro.props;
+// The front matter names the demo's page and export by their paths from the site's root.
+const attrs = f.attrs?.['export'] ? { ...f.attrs, export: withBase(f.attrs['export']) } : f.attrs;
+const full = f.full && withBase(f.full);
 ---
 
 <div class="ca-live not-content">
   {
     f.demo ? (
-      <Demo tag={f.demo} props={f.props ?? {}} attrs={f.attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} full={f.full} />
+      <Demo tag={f.demo} props={f.props ?? {}} attrs={attrs} height={f.height} page={f.page} scroll={f.scroll} theme={f.theme} custom={f.custom} caption={f.caption} full={full} />
     ) : (
       <Example name={f.example!} page={f.page} theme={f.theme} custom={f.custom} caption={f.caption} source="none" />
     )
