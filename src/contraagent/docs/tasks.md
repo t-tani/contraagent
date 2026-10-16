@@ -499,10 +499,15 @@ A service is a function, so it is not an argument of the command line: a pipelin
 with services is checked and run from a program, `Pipeline(config, services=...)`
 with `.check(...)` and `.run(...)` (the example's `pipeline()`; `examples/runner/run.py`
 is such a program). `contraagent check` and `contraagent run` know no service, and a
-Python task that calls `service_address` in such a run raises `KeyError`.
+Python task that calls `service_address` in such a run raises `KeyError`, which says
+that the pipeline defines no service of that name.
 
-A stub run and a replay start services as any run does, for each task that claims
-them, played or executed, since the Python tasks they execute may need them. A scope ("Around each attempt", below) suits a helper of one
+A stub run and a replay start a service only for a task that really runs: a Python
+task whose function runs (a kind given to `execute`, or every kind with
+`execute_all`), and an agent task that launches a coding agent (a task with no
+recording, under `record_missing`). A task they play holds no service: no service
+starts for it, and its launch has no `CONTRAAGENT_SERVICE_<NAME>` variable, so a
+stub's reply finds none. A scope ("Around each attempt", below) suits a helper of one
 attempt; a service suits one that the tasks of a claim share.
 
 ## Files a task changes

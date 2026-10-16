@@ -165,8 +165,9 @@ outputs and files into place, deletes the recorded deletions and adds the record
 transcript; its output checks and the journal run as in any run, and it reports no cost
 and no tokens. A Python task that calls a server (a local index server) needs nothing
 running in CI, since its output is replayed. A [service](tasks.md#services-a-server-that-the-tasks-of-a-claim-share)
-of `Pipeline(services=)` is different: a replay starts it for each task that claims
-it, as any run does, played or not. `--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
+of `Pipeline(services=)` starts only for a task that really runs: a replay starts
+none for a task it plays, and starts one for a Python task whose function it runs.
+`--execute KIND` (`Pipeline(replay=DIR, execute=["KIND"])`) runs that
 Python task kind's function instead, and `--execute-all` (`Pipeline(replay=DIR,
 execute_all=True)`) every Python task's, as in a stub run: the pipeline's own code under
 test. So a replay in CI follows the flow down the path the real outputs led to, with
