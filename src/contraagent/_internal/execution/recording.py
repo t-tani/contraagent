@@ -56,7 +56,8 @@ that no task of this run has played. A task
 with no recording ends `error` after one attempt: `no recording for <key>`; so does a task
 whose recording holds a file by hash only, its reason naming the file. With `record_missing`
 such a recording counts as missing. A recording made with another
-fingerprint is played all the same; the result's reason says so.
+fingerprint is played all the same; the result's reason says so, and names another outside
+state (`outside_state=`): a replay calls the function in its own working directory.
 """
 
 from __future__ import annotations
@@ -445,6 +446,7 @@ class Recorder:
             "run": self._run_id,
             "recorded_at": now_iso(),
             "fingerprint": task.fingerprint,
+            **({"outside": task.outside} if task.outside else {}),
             "ok": result.ok,
             "stop": result.stop,
             "reason": result.reason,
@@ -681,6 +683,8 @@ class Replay:
             notes.append(f"played the recording of {playing.key}")
         if attempt.get("fingerprint") and task.fingerprint and attempt["fingerprint"] != task.fingerprint:
             notes.append(f"the recording has another fingerprint ({attempt['fingerprint'][:12]}, task {task.fingerprint[:12]})")
+        if attempt.get("outside") and task.outside and attempt["outside"] != task.outside:
+            notes.append("the recording was made with another outside state")
         return notes
 
     def play(self, launch: Launch, agent: str) -> LaunchResult:

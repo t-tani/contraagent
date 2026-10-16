@@ -2714,6 +2714,16 @@
             "title": "Fingerprint",
             "default": ""
           },
+          "outside": {
+            "type": "string",
+            "title": "Outside",
+            "default": ""
+          },
+          "rerun": {
+            "type": "string",
+            "title": "Rerun",
+            "default": ""
+          },
           "flow_call": {
             "anyOf": [
               {
@@ -3795,6 +3805,12 @@
               }
             ],
             "description": "the same as data; null when it was not deferred, or the run recorded no cause"
+          },
+          "rerun": {
+            "type": "string",
+            "title": "Rerun",
+            "description": "why a resume ran it again although an earlier attempt of the run had finished it (its outside state changed, ...), from its last journal row; empty when no earlier attempt had",
+            "default": ""
           }
         },
         "additionalProperties": true,

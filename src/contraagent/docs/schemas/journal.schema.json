@@ -744,6 +744,16 @@
       "title": "Fingerprint",
       "type": "string"
     },
+    "outside": {
+      "default": "",
+      "title": "Outside",
+      "type": "string"
+    },
+    "rerun": {
+      "default": "",
+      "title": "Rerun",
+      "type": "string"
+    },
     "flow_call": {
       "anyOf": [
         {

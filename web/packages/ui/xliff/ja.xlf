@@ -3151,6 +3151,10 @@
   <source>created, kept after the failed attempt</source>
   <target>作成、試行の失敗後も保持</target>
 </trans-unit>
+<trans-unit id="s4f0b2143a5fc9bf2">
+  <source>Ran again after a resume: <x id="0" equiv-text="${node.rerun}"/></source>
+  <target>再開後に再実行: <x id="0" equiv-text="${node.rerun}"/></target>
+</trans-unit>
 </body>
 </file>
 </xliff>

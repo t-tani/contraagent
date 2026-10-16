@@ -33,7 +33,7 @@ from contraagent._internal.backends import Backend, create_backend, known_agents
 from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
-from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult
+from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_INVALID_INPUT, STOP_PARTIAL, Deferral, Task, TaskResult
 from contraagent._internal.execution.adapter import McpServers
 from contraagent._internal.execution.python_tasks import recording
 from contraagent._internal.execution.recording import MAX_FILE_MB, Recorder, Replay
@@ -105,10 +105,14 @@ class RunReport:
 
 class _InputsFirst:
     """The queue's runner: `runner`, but a task that reads the output of a deferred task is
-    deferred too (`Graph.input_deferral`), not refused for its missing input."""
+    deferred too (`Graph.input_deferral`), not refused for its missing input; a task whose
+    fingerprint is complete only when it starts is given as it starts by the graph
+    (`Graph.starting`), and one whose outside state could not be worked out then is refused
+    (`invalid_input`), its agent task's result journaled by `on_refused` (a Python task's is
+    journaled by the queue)."""
 
-    def __init__(self, graph: Graph, runner: Any) -> None:
-        self._graph, self._runner = graph, runner
+    def __init__(self, graph: Graph, runner: Any, on_refused: Callable[[TaskResult], None]) -> None:
+        self._graph, self._runner, self._on_refused = graph, runner, on_refused
 
     def config(self, task: Task) -> Any:
         return self._runner.config(task)
@@ -116,7 +120,16 @@ class _InputsFirst:
     def deferral(self, task: Task) -> Deferral | None:
         return self._graph.input_deferral(task) or self._runner.deferral(task)
 
+    def starting(self, task: Task) -> Task:
+        return self._graph.starting(task)
+
     def run(self, task: Task) -> TaskResult:
+        why = self._graph.refusal(task)
+        if why:
+            refused = TaskResult(task=task, ok=False, stop=STOP_INVALID_INPUT, reason=why[:300], rounds=0)
+            if task.fn is None:
+                self._on_refused(refused)
+            return refused
         return self._runner.run(task)
 
 
@@ -373,6 +386,8 @@ class Pipeline:
         * each plugin a task loads, its own and those of `skills_from`: `plugin lint`;
         * `mcp_servers`, called for each agent task created whose params are known (none
           waits for another task's output): it raises nothing and returns servers;
+        * `outside_state`, called for each task created whose params are known, as a run
+          calls it when the task starts: it raises nothing and returns a JSON value;
         * a kind that keeps a failed attempt's files (`keep_failed_changes`) declares
           `changes` patterns;
         * routing: the config against those kinds (budgets, efforts, failover chains,
@@ -548,6 +563,7 @@ class Pipeline:
                                 # A Python task's result is journaled by the queue, an agent task's here.
                                 on_failed=lambda result: run.record_attempt(result) if result.task.fn is None else None,
                             ),
+                            on_refused=run.record_attempt,
                         ),
                         follow_up=follow_up,
                         resume=resume,

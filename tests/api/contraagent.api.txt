@@ -26,6 +26,7 @@ class AgentTask[Out]
         preserve: tuple[str, ...] = (),
         output_of: AgentTask[Any] | PythonTask[Any] | None = None,
         base_kind: str = '',
+        outside_state: OutsideState | None = None,
     ) -> None
     def __call__(
         self,
@@ -54,6 +55,7 @@ class AgentTask[Out]
     output_name: str
     output_of: AgentTask[Any] | PythonTask[Any] | None = None
     @property output_schema: type[BaseModel] | None
+    outside_state: OutsideState | None = None
     params: type[BaseModel] | None
     plugin: Plugin | None
     @property plugins: tuple[Plugin, ...]
@@ -200,6 +202,9 @@ class OtherModel(BaseModel)
     output: int = 0
     def plus(self, other: OtherModel) -> OtherModel
 
+class OutsideState(Protocol)
+    def __call__(self, unit: str, params: dict[str, Any], /) -> Any
+
 @dataclass(frozen=True)
 class Overrides
     def __init__(self, agent: str = '', model: str = '', effort: str = '', credential: str = '') -> None
@@ -338,6 +343,7 @@ class PythonTask[Out]
         retries: int = 0,
         retry_on: tuple[type[Exception], ...] = (),
         output_name: str = DEFAULT_OUTPUT_NAME,
+        outside_state: OutsideState | None = None,
     ) -> None
     def __call__(
         self,
@@ -360,6 +366,7 @@ class PythonTask[Out]
     output_format = 'json'
     output_name: str = DEFAULT_OUTPUT_NAME
     output_schema: type[BaseModel] | None
+    outside_state: OutsideState | None = None
     rerun_on_resume: bool = False
     retries: int = 0
     retry_on: tuple[type[Exception], ...] = ()
@@ -439,6 +446,8 @@ class Task
         payload: Any = None,
         origin: Origin | None = None,
         fingerprint: str = '',
+        fingerprint_at_start: bool = False,
+        outside: str = '',
         base_kind: str = '',
         credential: str = '',
     ) -> None
@@ -451,11 +460,13 @@ class Task
     estimate_s: float | None = None
     @property executor: Executor
     fingerprint: str = ''
+    fingerprint_at_start: bool = False
     fn: Callable[[], object] | None = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     key: str = ''
     kind: str
     origin: Origin | None = None
+    outside: str = ''
     params: dict[str, Any] = field(default_factory=dict)
     payload: Any = None
     priority: float = 0.0
@@ -584,6 +595,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -627,6 +639,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path],
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -669,6 +682,7 @@ def agent_task(
     preserve: Sequence[str] = (),
     output_of: AgentTask[Any] | PythonTask[Any] | None = None,
     implementations: Mapping[str, str | Path] | None = None,
+    outside_state: OutsideState | None = None,
     agent: str | None = None,
     model: str | None = None,
     effort: str | None = None,
@@ -709,6 +723,7 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> Callable[[Callable[..., Out]], PythonTask[Out]]
 def python_task(
     fn: Callable[..., Any] | None = None,
@@ -721,6 +736,7 @@ def python_task(
     retries: int = 0,
     retry_on: tuple[type[Exception], ...] = (),
     output_name: str | None = None,
+    outside_state: OutsideState | None = None,
 ) -> PythonTask[Any] | Callable[[Callable[..., Any]], PythonTask[Any]]
 
 def save(name: str, value: Any) -> None
@@ -2803,9 +2819,11 @@ class JournalRow(BaseModel)
     model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow')
     ok: bool
+    outside: str = ''
     quota: list[QuotaReading] = Field(default_factory=list)
     reason: str = ''
     replayed: bool = False
+    rerun: str = ''
     round_errors: list[list[str]] = Field(default_factory=list)
     rounds: int | None = None
     route: str = ''
@@ -2955,6 +2973,7 @@ class PlanNode(PlanRow)
     level: int = Field(description='depth in the dependency graph, 0 for a task that waits for nothing')
     model_config: ConfigDict = ConfigDict(extra='allow', serialize_by_alias=True)
     priority: float = Field(0.0, description="its task call's `priority`: a tie-breaker in the queue, higher first")
+    rerun: str = Field('', description='why a resume ran it again although an earlier attempt of the run had finished it (its outside state changed, ...), from its last journal row; empty when no earlier attempt had')
     route: str = ''
     state: TaskState
     stop: str = ''

@@ -37,6 +37,9 @@ class Journal:
         self.run_group = run_group
         self._unit_of = unit_of
         self._row_extras = row_extras
+        #: Why a resume runs each task again that an earlier attempt finished, by key
+        #: (`resume_skip`): the `rerun` of each of its rows.
+        self.reruns: dict[str, str] = {}
 
     def row(self, result: TaskResult) -> JournalRow:
         """The journal row for one finished attempt."""
@@ -77,6 +80,8 @@ class Journal:
             context_budget=getattr(o, "context_budget", None),
             context_warned=bool(getattr(o, "context_warned", False)),
             fingerprint=task.fingerprint,
+            outside=task.outside,
+            rerun=self.reruns.get(task.key, ""),
             flow_call=task.origin.flow_call if task.origin is not None else None,
             replayed=result.replayed,
             **(self._row_extras(result) if self._row_extras else {}),

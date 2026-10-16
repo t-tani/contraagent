@@ -143,6 +143,7 @@ def check_flow(pipeline: Pipeline, flow: Callable[..., Any], args: tuple, kwargs
     report.add("tasks", [f"{n.key}: after={dep!r} names no task of this run" for n in graph.nodes for dep in n.after if dep not in keys])
     agent_specs = {kind: spec for kind, spec in specs.items() if spec.executor == "agent"}
     report.add("tasks", [e for n in graph.nodes if n.spec.executor == "agent" for e in _param_errors(n)])
+    report.add("tasks", _outside_state_errors(graph))
     report.add("contracts", _schema_errors(agent_specs) + _example_errors(specs) + _validator_errors(list(specs.values())))
     report.add("plugins", _plugin_errors(agent_specs) + _mcp_errors(pipeline, graph, Path(tmp)))
     _check_services(pipeline.services, graph, [*specs.values(), *found], report)
@@ -268,6 +269,20 @@ def _param_errors(node: Node) -> list[str]:
             errs += [f"{node.key}: param {name}: {e['msg']}" for e in exc.errors()]
         except Exception as exc:  # not JSON-able, or an annotation TypeAdapter cannot take
             errs.append(f"{node.key}: param {name}: {exc}")
+    return errs
+
+
+def _outside_state_errors(graph: Graph) -> list[str]:
+    """Each created task's `outside_state`, called as the run will call it when the task
+    starts, for the tasks whose params are known now (none waits for another task's output):
+    what it raises, or a value that is not JSON (`Graph.starting`)."""
+    errs: list[str] = []
+    for node in graph.nodes:
+        if getattr(node.spec, "outside_state", None) is None or any(_holds_pending(v) for v in node.params.values()):
+            continue
+        task = graph.starting(graph.task_of(node))
+        if why := graph.refusal(task):
+            errs.append(f"{node.key}: {why}")
     return errs
 
 

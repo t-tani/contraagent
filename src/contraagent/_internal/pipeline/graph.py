@@ -35,7 +35,13 @@ is numbered:
   among them standing for its key), of its definition (`AgentTask.digest`,
   `PythonTask.digest`), and of each task it waits for: the content of its
   output file when the flow received that output and passed it on, else its
-  fingerprint.
+  fingerprint;
+* a task whose declaration gives `outside_state`, or that waits for such a task without
+  having received its output, has a fingerprint that is complete only when it is about to
+  start (`Task.fingerprint_at_start`): `starting` calls the function then, with the task's
+  params resolved, and works out its fingerprint again, with the fingerprints the tasks it
+  waits for started with; the SHA-256 of the JSON of what the function returned is part of
+  it. A task whose function raised or returned what is not JSON is refused (`refusal`).
 """
 
 from __future__ import annotations
@@ -204,6 +210,14 @@ class Node:
     credential: str = ""
     origin: Origin | None = None
     fingerprint: str = ""
+    #: The keys of the tasks it waits for whose outputs the flow received and passed on.
+    received: frozenset[str] = frozenset()
+    #: Its fingerprint is complete only when it is about to start (`Task.fingerprint_at_start`).
+    at_start: bool = False
+    #: The SHA-256 of its outside state when it last started; empty before, or when it declares none.
+    outside: str = ""
+    #: Why its outside state could not be worked out when it last started; empty when it could.
+    outside_error: str = ""
     task: Task | None = field(default=None, repr=False)
 
     @property
@@ -413,8 +427,12 @@ class Graph:
             claims=claims,
             priority=priority,
             credential=credential,
+            received=frozenset(received),
         )
-        node.fingerprint = self._fingerprint(node, received)
+        node.at_start = getattr(spec, "outside_state", None) is not None or any(
+            (up := self._by_key.get(k)) is not None and up.at_start and k not in received for k in node.after
+        )
+        node.fingerprint = self._fingerprint(node)
         self.nodes.append(node)
         self._by_key[key] = node
         if out is not None and getattr(spec, "output_of", None) is None:
@@ -433,6 +451,34 @@ class Graph:
         """The tasks of the nodes added since the last call: what is to be queued."""
         new, self._taken = self.nodes[self._taken :], len(self.nodes)
         return [self.task_of(n) for n in new]
+
+    def starting(self, task: Task) -> Task:
+        """`task` as it is about to start, the tasks it waits for finished: for one whose
+        fingerprint is complete only then (`Task.fingerprint_at_start`), its outside state
+        worked out now and its fingerprint again, with the fingerprints the tasks it waits for
+        started with. Any other task as it is."""
+        node = self._by_key.get(task.key)
+        if node is None or not node.at_start:
+            return task
+        node.outside, node.outside_error = "", ""
+        fn = getattr(node.spec, "outside_state", None)
+        if fn is not None:
+            try:
+                params = node.resolved_params()
+            except Exception:  # an input that is not there: the input check refuses the task
+                params = None
+            if params is not None:
+                node.outside, node.outside_error = _outside_digest(node.spec.kind, fn, node.unit, params)
+        node.fingerprint = self._fingerprint(node)
+        new = replace(task, fingerprint=node.fingerprint, outside=node.outside)
+        node.task = new
+        return new
+
+    def refusal(self, task: Task) -> str:
+        """Why `task` cannot run: its outside state could not be worked out when it was about
+        to start (`starting`); empty when it could."""
+        node = self._by_key.get(task.key)
+        return node.outside_error if node is not None else ""
 
     def input_deferral(self, task: Task) -> Deferral | None:
         """Why `task` is not launched: an earlier task whose output it reads was deferred
@@ -592,10 +638,13 @@ class Graph:
             return pairs if any(pairs[k] is not value[k] for k in value) else value
         return value
 
-    def _fingerprint(self, node: Node, received: set[str]) -> str:
+    def _fingerprint(self, node: Node) -> str:
         """See the module docstring. A received output stands for itself (its file's
         content), so an upstream task that ran again and wrote the same output leaves this
-        fingerprint as it was."""
+        fingerprint as it was. A task that declares outside state has it in its fingerprint
+        once it is worked out (`starting`): before, and when it could not be, the fingerprint
+        matches no journal row."""
+        received = node.received
         spec = node.spec
         if id(spec) not in self._digests:
             self._digests[id(spec)] = spec.digest()
@@ -614,6 +663,8 @@ class Graph:
             "params": to_jsonable_python(_keys_for_pendings(node.params), fallback=repr),
             "after": after,
         }
+        if getattr(spec, "outside_state", None) is not None:
+            body["outside"] = node.outside
         text = json.dumps(body, sort_keys=True, ensure_ascii=False, default=repr)
         return hashlib.sha256(text.encode()).hexdigest()
 
@@ -638,6 +689,8 @@ class Graph:
             params={k: v for k, v in node.params.items() if isinstance(v, (str, int, float, bool))},
             origin=node.origin,
             fingerprint=node.fingerprint,
+            fingerprint_at_start=node.at_start,
+            outside=node.outside,
             claims=node.claims,
             priority=node.priority,
             credential=self._credential_of(node),
@@ -759,6 +812,23 @@ def _claim_values(kind: str, template: str, field_name: str, unit: str, key: str
         if isinstance(v, bool) or not isinstance(v, (str, int, float)):
             raise TypeError(f"{kind}(): claim {template!r} names params.{name}, which holds {v!r}; a claim takes strings and numbers")
     return [str(v) for v in items]
+
+
+def _outside_digest(kind: str, fn: Callable[..., Any], unit: str, params: dict[str, Any]) -> tuple[str, str]:
+    """(the SHA-256 of the JSON of what `fn(unit, params)` returns, why it could not be worked
+    out): one of the two is empty."""
+    try:
+        value = fn(unit, params)
+    except Exception as exc:
+        return "", f"{kind}: outside_state raised {type(exc).__name__}: {exc}"
+    try:
+        text = json.dumps(to_jsonable_python(value), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        return "", (
+            f"{kind}: outside_state returned {type(value).__name__}, which is not JSON; "
+            "return a string, a number, a list or a dict of them, or a pydantic model"
+        )
+    return hashlib.sha256(text.encode()).hexdigest(), ""
 
 
 def _file_digest(path: Path) -> str:

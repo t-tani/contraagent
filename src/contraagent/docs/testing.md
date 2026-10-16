@@ -179,7 +179,8 @@ after one attempt; a key minted with `~n` that has
 none of its own plays the first recording of its base key after it that no task has
 played. A recording made by another definition of the task (another fingerprint) is
 played all the same, and the task's reason says so: record again when the change
-matters. A replay walks no failover hop and is not combined with `--stub` or `--record`. A recording
+matters. A task's outside state (`outside_state=`) is worked out in the replay's own
+working directory; a recording made with another one is played the same way. A replay walks no failover hop and is not combined with `--stub` or `--record`. A recording
 directory holds:
 
 ```
