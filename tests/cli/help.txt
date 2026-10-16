@@ -25,8 +25,8 @@ error; `contraagent <command> --help` says what each command's means
 
 $ contraagent monitor --help
 usage: contraagent monitor [-h] [--runs-dir RUNS_DIR] [--host HOST] [--port PORT]
-                           [--allow-host NAME] [--cors-origin ORIGIN] [--title TITLE]
-                           [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
+                           [--allow-host NAME] [--cors-origin ORIGIN] [--base-path PATH]
+                           [--title TITLE] [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
                            [--groups MODULE:ATTR] [--task-detail MODULE:ATTR] [--docs]
                            [--openapi [PATH]]
                            {export} ...
@@ -42,6 +42,9 @@ options:
                         localhost, 127.0.0.1, [::1] and the --host address)
   --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
                         http://localhost:5173 for a UI dev server
+  --base-path PATH      the path a reverse proxy serves the monitor under, e.g. /monitor: the page
+                        names it in every URL it reads; the proxy takes it off before it passes a
+                        request on (default: none, the monitor is at /)
   --title TITLE
   --stream-format AGENT=FORMAT
                         render a custom coding agent's transcript as a built-in format (claude,
@@ -124,8 +127,9 @@ usage: contraagent hub [-h] [--store memory|postgres://...]
                        [--blobs memory|dir:PATH|s3://BUCKET/PREFIX] [--streams-dir PATH]
                        [--segments DIR|s3://BUCKET/PREFIX] [--ttl TTL] [--ingest-token-file FILE]
                        [--read-token-file FILE] [--host HOST] [--port PORT] [--allow-host NAME]
-                       [--cors-origin ORIGIN] [--title TITLE] [--max-blob-mb MAX_BLOB_MB]
-                       [--retain-days N] [--prune-every HOURS] [--openapi [PATH]]
+                       [--cors-origin ORIGIN] [--base-path PATH] [--title TITLE]
+                       [--max-blob-mb MAX_BLOB_MB] [--retain-days N] [--prune-every HOURS]
+                       [--openapi [PATH]]
                        {prune} ...
 
 Receive every host's runs from `contraagent relay` and serve their monitor. Tokens are read from
@@ -156,6 +160,9 @@ options:
                         localhost, 127.0.0.1, [::1] and the --host address)
   --cors-origin ORIGIN  let a page from this origin read the monitor API, e.g.
                         http://localhost:5173 for a UI dev server
+  --base-path PATH      the path a reverse proxy serves the monitor under, e.g. /monitor: the page
+                        names it in every URL it reads; the proxy takes it off before it passes a
+                        request on (default: none, the monitor is at /)
   --title TITLE
   --max-blob-mb MAX_BLOB_MB
                         the largest blob taken, in MiB (default: 256)

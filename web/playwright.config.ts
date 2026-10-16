@@ -1,6 +1,7 @@
 // End-to-end: the built page (src/contraagent/_internal/monitor/static), served by the
 // real Python monitor over the demo pipeline's runs, and by a hub over the same
-// runs shipped from two hosts (e2e/hub.py; hub.spec.ts); and the documentation
+// runs shipped from two hosts (e2e/hub.py; hub.spec.ts), and by a monitor served under
+// a base path behind a proxy (base-path.spec.ts); and the documentation
 // site as built, under its base path, for its pages, links and live elements
 // (landing.spec.ts, mobile.spec.ts, fit.spec.ts, docs-links.spec.ts). Run `pnpm build` first
 // (`pnpm e2e` does both).
@@ -10,6 +11,8 @@ import { DOCS, DOCS_PORT } from './e2e/docs-site.js';
 const PORT = Number(process.env["E2E_PORT"] ?? 18793);
 /** The hub's port; hub.spec.ts reads it from `E2E_HUB_PORT` too. */
 const HUB_PORT = Number(process.env["E2E_HUB_PORT"] ?? 18794);
+/** The port of the monitor under a base path; base-path.spec.ts reads it from `E2E_BASE_PATH_PORT` too. */
+const BASE_PATH_PORT = Number(process.env["E2E_BASE_PATH_PORT"] ?? 18796);
 
 export default defineConfig({
   testDir: 'e2e',
@@ -25,6 +28,13 @@ export default defineConfig({
       command: `uv run contraagent monitor --runs-dir web/e2e/.runs/demo-runs --port ${PORT}`,
       cwd: '..',
       url: `http://127.0.0.1:${PORT}/api/info`,
+      reuseExistingServer: false,
+    },
+    {
+      // The same runs under /monitor, reached through the proxy base-path.spec.ts starts.
+      command: `uv run contraagent monitor --runs-dir web/e2e/.runs/demo-runs --port ${BASE_PATH_PORT} --base-path /monitor`,
+      cwd: '..',
+      url: `http://127.0.0.1:${BASE_PATH_PORT}/api/info`,
       reuseExistingServer: false,
     },
     {

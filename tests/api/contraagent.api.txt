@@ -2550,6 +2550,7 @@ def create_app(
     allowed_hosts: Iterable[str] = (),
     cors_origins: Iterable[str] = (),
     docs: bool = False,
+    base_path: str = '',
 ) -> FastAPI
 
 def export(
@@ -2573,6 +2574,7 @@ def serve(
     allowed_hosts: Iterable[str] = (),
     cors_origins: Iterable[str] = (),
     docs: bool = False,
+    base_path: str = '',
 ) -> None
 
 ## contraagent.monitor.api

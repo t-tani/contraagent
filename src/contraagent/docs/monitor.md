@@ -149,7 +149,8 @@ return to it. The monitor speaks English and Japanese.
 
 The monitor is local and read-only, but it serves agent transcripts: it sends no
 CORS headers unless origins are opted in (`--cors-origin`), and answers only
-requests whose `Host` names this machine.
+requests whose `Host` names this machine (or a name given with `--allow-host`, see
+[Behind a reverse proxy](#behind-a-reverse-proxy)).
 
 It reads a run's records only through a run source and liveness
 (`contraagent.monitor.RunSource`, `contraagent.monitor.Liveness`): by default the runs
@@ -277,6 +278,55 @@ back the trends it gave before. Thirty days of hourly runs (720 runs, 300,000
 attempts) are summed in about 0.2 s from memory and 1 s from their `trends.json`;
 reading their logs the first time takes about half a minute
 (`uv run pytest -m perf` measures it).
+
+## Behind a reverse proxy
+
+A reverse proxy can serve the monitor on a site that serves other paths too, such as
+`https://example.com/monitor/`. This block of an nginx `server` does it for a monitor
+on the same host:
+
+::code{file="examples/proxy/nginx.conf" from="location /monitor/"}
+
+The proxy needs three things from its configuration. Other proxies have the same
+settings under other names.
+
+The live feeds (`/events` and `/events/stream`) are server-sent events, so the proxy
+must pass each event on as it arrives: `proxy_buffering off` in nginx. A feed stays
+open while the reader watches; when nothing changes, the monitor sends a comment every
+15 seconds, so the proxy's read timeout must be longer than that (`proxy_read_timeout
+1h` in the example).
+
+The monitor answers a request only when its `Host` header names a host it answers,
+so that a page on another site cannot read it through DNS rebinding. It compares the
+host name in the header, without the port, with `localhost`, `127.0.0.1`, `[::1]`,
+the `--host` address (unless it is `0.0.0.0` or `::`, which name no host), and each
+`--allow-host` name. An `--allow-host` name such as `*.example.com` takes every name
+that ends in `.example.com`, and `*` takes every name, which turns the check off. Any
+other name gets the answer 400 "Invalid host header". A proxy that sends the address
+it connects to, as nginx does by default for `proxy_pass http://127.0.0.1:8787/`,
+passes the check. A proxy that passes the browser's own name
+(`proxy_set_header Host $host`) needs that name given: `--allow-host example.com`. A
+hub checks `Host` the same way for its monitor and `/login`, and not for `/ingest/`
+or `/healthz`.
+
+The proxy takes the path off before it passes a request on, and `--base-path` tells
+the monitor what that path was. The `/` at the end of `proxy_pass
+http://127.0.0.1:8787/` makes nginx do it: `/monitor/api/runs` reaches the monitor as
+`/api/runs`. With `--base-path /monitor`, the page the monitor serves names the path
+in every URL it reads: `<ca-monitor base-url="/monitor">` for the API and the live
+feeds, and `/monitor/app.js` and `/monitor/favicon.svg` for its script and icons, so
+no request of the page leaves `/monitor/`. The API documentation (`--docs`) and the
+`servers` of the OpenAPI document at `/api/openapi.json` name it too. The value is a
+path that starts with `/`, made of letters, digits, `.`, `_`, `~`, `-` and `%XX`
+between its `/`; a `/` at its end is dropped, and any other value ends the command
+with exit status 2 and says what is wrong. `contraagent hub --base-path` does the
+same for a hub, whose `/login` then redirects to `/monitor/` and sets its cookie for
+`/monitor` only. Without `--base-path`, the page is served as it is built, its URLs
+relative to the page and its API on the page's origin. `create_app` and `serve` in
+`contraagent.monitor` take `base_path=` the same way.
+
+An export needs no base path: its page reads its own files and `data/` by URLs
+relative to itself, so it works under any path of a static site.
 
 ## Without a server: an export
 

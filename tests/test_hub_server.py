@@ -310,6 +310,31 @@ def test_login_sets_the_cookie_after_which_routes_and_feeds_work():
     assert status == 401
 
 
+def test_under_a_base_path_login_redirects_to_its_page_and_scopes_the_cookie():
+    _, c = make(base_path="/monitor/")
+    r = c.get(f"/login?token={READ}", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/monitor/"
+    assert "; Path=/monitor;" in r.headers["set-cookie"]
+    # a browser sends it to /monitor/..., which reaches the hub as /... once the proxy took the base path off
+    cookie = {"Cookie": f"{server.COOKIE}={r.cookies[server.COOKIE]}"}
+    c.cookies.clear()
+    assert c.get("/api/runs", headers=cookie).status_code == 200
+    page = c.get("/", headers=cookie)
+    assert '<ca-monitor base-url="/monitor"></ca-monitor>' in page.text and 'src="/monitor/app.js"' in page.text
+    assert c.post(INGEST_RECORDS, content=records(["a"]), headers=AUTH).status_code == 200  # ingest stays at /
+    _, open_hub = make(read_token=None, base_path="/monitor")
+    assert open_hub.get("/login", follow_redirects=False).headers["location"] == "/monitor/"
+
+
+def test_the_hub_refuses_a_base_path_that_is_not_a_path(capsys):
+    with pytest.raises(ValueError, match="starts with /"):
+        make(base_path="monitor")
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["hub", "--ingest-token-file", "tokens", "--base-path", "https://example.com/monitor"])
+    assert exc.value.code == 2
+    assert "argument --base-path" in capsys.readouterr().err
+
+
 def test_the_read_token_does_not_allow_ingest_and_no_read_token_opens_the_monitor():
     _, c = make()
     c.get(f"/login?token={READ}")
