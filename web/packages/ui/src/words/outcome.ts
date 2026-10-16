@@ -1,6 +1,6 @@
 // A task's outcome in words: its status, a count of tasks in a state, a plan
 // state. The code's terms (`recovered`, `blocked`) stay in the data and in
-// tooltips; the words are the reader's (AGENTS.md "Words the UI shows").
+// tooltips; the words are the reader's (packages/ui/WORDS.md).
 import { planOutcome, type Outcome, type PlanNode } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 

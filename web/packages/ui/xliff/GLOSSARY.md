@@ -1,6 +1,6 @@
 # Japanese terms
 
-One word, one meaning, as in AGENTS.md: each term below is translated the same
+One word, one meaning, as in the root AGENTS.md: each term below is translated the same
 way everywhere. Identifiers stay as they are: code names (`OutputContract`,
 `max_concurrent`, `Task.kind`), file names, and data the run wrote (kind and
 unit names, stop values such as `completed`, model and role names).
@@ -74,7 +74,7 @@ label for a screen reader, "Views"): ビュー.
 
 ## Words the UI shows for run data
 
-The UI names run data in the reader's terms (AGENTS.md, "Words the UI shows");
+The UI names run data in the reader's terms (`packages/ui/WORDS.md`);
 these are their Japanese forms. They take precedence over the code terms above
 wherever the UI shows a state or a count to the reader.
 
@@ -200,7 +200,7 @@ wherever the UI shows a state or a count to the reader.
 
 ## Style
 
-**Separators and symbols** are the same in every language (AGENTS.md, "Form"):
+**Separators and symbols** are the same in every language (`web/AGENTS.md`, "Text the UI shows"):
 `·` only inside a task's name (「review · gamma」); facts in one row are
 separated by 「 | 」; 「→」 only for "changed to" or "then", never a link or a
 button; ✓ ✕ ◌ only, always next to a word.

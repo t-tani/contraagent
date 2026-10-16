@@ -182,7 +182,7 @@ known-first-party = ["contraagent"]
 ban-relative-imports = "all"
 
 # `uv run lint-imports` (and tests/test_layers.py) checks the layers of AGENTS.md
-# ("Public modules and layers") and of the `src/contraagent/_internal/__init__.py` docstring.
+# ("Public API and layers") and of the `src/contraagent/_internal/__init__.py` docstring.
 # The tests are not in the graph: they test `_internal` directly.
 [tool.importlinter]
 root_packages = ["contraagent", "contraagent.docs"]   # contraagent.docs: a namespace package, the examples in it

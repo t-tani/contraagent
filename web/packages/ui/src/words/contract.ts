@@ -1,5 +1,5 @@
 // A contract file's status and its causes, in words (the UI says "checked
-// file"; AGENTS.md "Words the UI shows").
+// file"; packages/ui/WORDS.md).
 import { inputProblems, runRelative, type ContractSpec, type ContractStatus, type Outcome } from '@contraagent/api';
 import { msg, str } from '@lit/localize';
 import { inputCause } from './causes.js';
