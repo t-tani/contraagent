@@ -338,7 +338,9 @@ def test_hundreds_of_runs_are_summed_quickly_and_read_back_without_their_logs(tm
     period = Period.parse("2026-10-01", "2026-10-14", "UTC")
     t0 = time.perf_counter()
     v = Monitor(root).trends(period)
-    assert time.perf_counter() - t0 < 10
+    # Under a second here; a busy Windows runner took 17.5 s. The limit catches a slowdown
+    # of tens of times, not the speed of one machine.
+    assert time.perf_counter() - t0 < 40
     assert v["totals"]["attempts"] == 6000 and len(v["runs"]) == 300
 
     def no_logs(source, run):
