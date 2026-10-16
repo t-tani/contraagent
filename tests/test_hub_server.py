@@ -319,6 +319,7 @@ def test_under_a_base_path_login_redirects_to_its_page_and_scopes_the_cookie():
     cookie = {"Cookie": f"{server.COOKIE}={r.cookies[server.COOKIE]}"}
     c.cookies.clear()
     assert c.get("/api/runs", headers=cookie).status_code == 200
+    assert c.get("/monitor/api/runs", headers=cookie).status_code == 404  # only once the proxy took it off
     page = c.get("/", headers=cookie)
     assert '<ca-monitor base-url="/monitor"></ca-monitor>' in page.text and 'src="/monitor/app.js"' in page.text
     assert c.post(INGEST_RECORDS, content=records(["a"]), headers=AUTH).status_code == 200  # ingest stays at /

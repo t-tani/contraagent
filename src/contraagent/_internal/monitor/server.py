@@ -63,6 +63,7 @@ try:
     from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.middleware.trustedhost import TrustedHostMiddleware
+    from fastapi.openapi.docs import get_swagger_ui_html
     from fastapi.openapi.utils import get_openapi
     from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
     from sse_starlette.sse import EventSourceResponse
@@ -301,9 +302,11 @@ def create_app(
     dev server) read the API; `docs` serves the interactive API docs at
     `/api/docs`. `base_path` is the path a reverse proxy serves the monitor under
     (`/monitor`): the page names it in every URL it reads (`<ca-monitor base-url>`, its
-    scripts and icons), and the API docs in theirs. The app still answers at `/`: the
-    proxy takes the base path off before it passes a request on. A value that is not
-    such a path raises `ValueError`.
+    scripts and icons), and the API docs in theirs (the OpenAPI document's `servers`).
+    The app answers at `/` only: the proxy takes the base path off before it passes a
+    request on, and a request that still carries it (`/monitor/api/runs`) gets 404, so a
+    proxy that does not take it off fails at its first request instead of half working.
+    A value that is not such a path raises `ValueError`.
     """
     require_extra()
     base = _base_path(base_path)
@@ -312,10 +315,17 @@ def create_app(
         version=api.API_VERSION,
         description="Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
         openapi_url="/api/openapi.json",
-        docs_url="/api/docs" if docs else None,
+        docs_url=None,
         redoc_url=None,
-        root_path=base,
+        # Not `root_path`: Starlette would answer `/monitor/api/runs` beside `/api/runs`.
+        servers=[{"url": base}] if base else None,
     )
+    if docs:
+
+        @app.get("/api/docs", include_in_schema=False)
+        def api_docs() -> HTMLResponse:
+            return get_swagger_ui_html(openapi_url=f"{base}/api/openapi.json", title=f"{OPENAPI_TITLE} - Swagger UI")
+
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=[*LOCAL_HOSTS, *allowed_hosts])
     origins = list(cors_origins)
     if origins:
@@ -505,7 +515,7 @@ def create_app(
 def _openapi(app: FastAPI) -> dict:
     """FastAPI's document plus the SSE message models, which no JSON endpoint
     references: each feed's `text/event-stream` response points at them."""
-    doc = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes)
+    doc = get_openapi(title=app.title, version=app.version, description=app.description, routes=app.routes, servers=app.servers or None)
     schemas = doc.setdefault("components", {}).setdefault("schemas", {})
     ref = "#/components/schemas/{model}"
     for name, adapter, title in (

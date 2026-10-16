@@ -319,7 +319,10 @@ or `/healthz`.
 The proxy takes the path off before it passes a request on, and `--base-path` tells
 the monitor what that path was. The `/` at the end of `proxy_pass
 http://127.0.0.1:8787/` makes nginx do it: `/monitor/api/runs` reaches the monitor as
-`/api/runs`. With `--base-path /monitor`, the page the monitor serves names the path
+`/api/runs`. The monitor answers only the paths without the base path: a request that
+reaches it as `/monitor/api/runs` gets 404. So a proxy that passes the path on as it
+is fails at the first request of the page, and each resource of the monitor has one
+URL. With `--base-path /monitor`, the page the monitor serves names the path
 in every URL it reads: `<ca-monitor base-url="/monitor">` for the API and the live
 feeds, and `/monitor/app.js` and `/monitor/favicon.svg` for its script and icons, so
 no request of the page leaves `/monitor/`. The API documentation (`--docs`) and the
