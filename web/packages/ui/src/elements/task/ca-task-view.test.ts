@@ -101,10 +101,10 @@ describe('ca-task-view', () => {
           spec('/r/out/scan/a.jsonl', {
             format: 'jsonl', schema_name: 'Rows[Finding]',
             fields: [{ name: 'line', type: 'integer', required: true }],
-            file: { exists: true, content: [{ line: 1 }, { line: 2 }], size: 24, mtime: null, truncated: false },
+            file: { exists: true, content: [{ line: 1 }, { line: 2 }], size: 24, truncated: false },
           }),
         ],
-      } as unknown as TaskDetail['io'],
+      },
     };
     const { client } = fakeClient({ 'scan-a': stopped });
     const el = await view({ client, taskKey: 'scan-a' });
@@ -112,7 +112,7 @@ describe('ca-task-view', () => {
     el.view = 'output';
     await el.updateComplete;
     await settle();
-    const pane = text(root(el).querySelector('.pane') ?? root(el));
+    const pane = text(root(el).querySelector('.pane'));
     expect(pane).toContain('JSON Lines, one object of schema Finding per line');
     expect(pane).toContain('2 rows');
     el.remove();
