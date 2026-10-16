@@ -40,7 +40,11 @@ to anyone who reaches the port.
 
 A hub [behind a reverse proxy](monitor.md#behind-a-reverse-proxy), under a path of a
 site, takes `--base-path` as one monitor does, and its `/login` then redirects to that
-path.
+path. A relay names such a hub by the address the proxy serves it at, the path
+included (`--hub https://example.com/monitor`). The relay sends the files its runs
+name, each up to the hub's `--max-blob-mb` (256 MiB by default), so the proxy must
+take request bodies that large: nginx refuses one over 1 MiB unless
+`client_max_body_size` says more.
 
 ## Start a relay on each host
 

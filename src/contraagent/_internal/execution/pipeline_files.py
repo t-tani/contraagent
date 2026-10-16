@@ -131,7 +131,7 @@ def pipeline_table(name: str) -> dict[str, Any]:
     table, the pipeline's own settings, as parsed (`PipelineConfig.table`). Empty when the
     file has none, or the run has no config file. In flow code a check builds
     (`Pipeline.check`, `contraagent check`), the table of the config the check is given,
-    as the run would read it. NoCurrentRun outside a run."""
+    as the run would read it. NoCurrentRun outside a run and a check."""
     config = _current_run("pipeline_table").config
     return config.table(name) if config is not None else {}
 
@@ -150,8 +150,10 @@ def log(name: str, row: Mapping[str, Any] | BaseModel) -> None:
     pipeline log `name` of the current run, `runs/<id>/pipeline/<name>.jsonl`.
 
     `name` is a plain name without a suffix (`"notes"`; ValueError otherwise). Lines are
-    never rewritten; a resumed run appends to the same log. NoCurrentRun outside a run,
-    TypeError for a row that is not a JSON object."""
+    never rewritten; a resumed run appends to the same log. In flow code a check builds,
+    the log goes into the check's temporary directory, which the check removes.
+    NoCurrentRun outside a run and a check, TypeError for a row that is not a JSON
+    object."""
     run_dir = _run_dir("log")
     layout.pipeline_log(name)
     if not isinstance(row, (Mapping, BaseModel)):
@@ -168,8 +170,10 @@ def save(name: str, value: Any) -> None:
     `name` of the current run, `runs/<id>/pipeline/<name>.json`, replacing what it held
     (atomically: a reader sees the old document or the new one).
 
-    `name` is a plain name without a suffix (`"summary"`; ValueError otherwise).
-    NoCurrentRun outside a run, TypeError for a value that is not JSON."""
+    `name` is a plain name without a suffix (`"summary"`; ValueError otherwise). In flow
+    code a check builds, the document goes into the check's temporary directory, which
+    the check removes. NoCurrentRun outside a run and a check, TypeError for a value that
+    is not JSON."""
     run_dir = _run_dir("save")
     layout.pipeline_document(name)
     text = _json(value, f"pipeline document {name!r}")

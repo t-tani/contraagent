@@ -22,7 +22,8 @@ the items of a long analysis. `output=Rows[Finding]` declares a JSON Lines file
 whose every line is one `Finding`, a **row**. The prompt asks the agent to add
 each row to the file as soon as it has it, one line at a time, and the call file
 says the format (`output.format` is `jsonl`, and `output.json_schema` is the
-schema of one row). The file is `{kind}/{unit}.jsonl` by default.
+schema of one row). The file is `{kind}/{unit}.jsonl` by default (`{kind}/{kind}.jsonl`
+for a task with no unit).
 
 ::code{file="examples/rows/flow.py" from="class Finding(" to="@python_task"}
 
@@ -52,11 +53,13 @@ after which it is kept: `agent_task(partial_on=["timeout", "stalled"])`, or
 After such a stop, the output is checked as after any round: it must exist, be
 written by this attempt (a file from an earlier run does not count), and pass its
 schema and every validator. When it passes, the task's result is **partial**, as
-when a Python task returns `Partial`: ok, stop `partial`, its reason the launch's
+when a Python task returns `Partial` ([Partial results](tasks.md#partial-results)): ok, stop `partial`, its reason the launch's
 stop (`timeout`, `stalled`), and the flow receives the output. The hop keeps the
 launch's own stop. A resume runs the task again, with the tasks that wait for it.
 When the output fails, the task fails on the stop as before; a stopped launch is
-never sent a correction round.
+never sent a correction round. A test plays such a launch on the stub agent with
+`writes(value, stop=Stop.TIMEOUT)` (`Stop` from `contraagent.backends`;
+[Checking and testing](testing.md)).
 
 With rows, the rows written so far are the output. A last line with no newline
 after it that is not valid JSON was being written when the launch was stopped:

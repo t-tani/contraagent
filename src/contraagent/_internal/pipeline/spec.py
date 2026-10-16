@@ -976,7 +976,7 @@ def python_task(
     `(ConnectionError, TimeoutError)`); any other exception fails the task at once, and so
     do an off-contract input (`invalid_input`) and output (`invalid_output`). Each attempt is
     a journal row of its own. The two go together: `retries` above 0 with no `retry_on`, or
-    `retry_on` with `retries=0`, raises here. A function that needs a service restores it
+    `retry_on` with `retries=0`, raises here. A function that needs a server restores it
     itself at its start, so a fresh attempt finds it running."""
 
     def wrap(f: Callable[..., Out]) -> PythonTask[Out]:

@@ -81,7 +81,7 @@ wherever the UI shows a state or a count to the reader.
 | English (UI) | 日本語 |
 |---|---|
 | done / done after retrying | 完了 / リトライ後に完了 |
-| partly done (a task or attempt whose output is a placeholder: partial; neither done nor failed) | 一部のみ完了（「部分的に完了」「一部完了」は使わない） |
+| partly done (a task or attempt whose output is only part of the work: a placeholder, or what a launch stopped for its time wrote; partial; neither done nor failed) | 一部のみ完了（「部分的に完了」「一部完了」は使わない） |
 | failed / not started | 失敗 / 未実行（文の中では「実行されていません」「実行されなかった」） |
 | waiting / running / skipped | 待機中 / 実行中 / スキップ |
 | status (a task's outcome: done, failed, not started, ...) | 状態 |
@@ -95,6 +95,7 @@ wherever the UI shows a state or a count to the reader.
 | Done / Tasks done / Done 97% / Attempts not done (the trends' counts of attempts and tasks) | 完了 / 完了したタスク / 完了 97% / 完了しなかった試行 |
 | Totals of the runs in a period (the trends page's tooltip) | 期間内の実行の合計 |
 | checked file / failed checks / passed (a checked file only; attempts and tasks are done: 完了) | 検証対象のファイル / 検証エラー / OK |
+| JSON Lines / N rows (an output of rows: one JSON object of the row's schema per line) | JSON Lines / N 行 |
 | time | 所要時間 |
 | agent session | エージェントのセッション |
 | running at once | 同時実行 |
@@ -124,7 +125,7 @@ wherever the UI shows a state or a count to the reader.
 | web searches (the queries of the coding agent's web search tool) | Web 検索 |
 | query (what a web search searched for) | 検索語 |
 | results (the pages a web search returned; not a task's outcome) | 検索結果 |
-| changed files (`changes`: what an attempt did under the task's patterns) | 変更したファイル |
+| changed files (`changes`: what an attempt did under the task's patterns); removed / kept after the failed attempt | 変更したファイル; 試行の失敗後に削除 / 試行の失敗後も保持 |
 | created / modified / deleted (a changed file) | 作成 / 変更 / 削除 |
 | page (the web page a web fetch read) | ページ |
 | unrecognized events (`unread_events`: event types from a coding agent that this contraagent does not recognize) | 未対応のイベント |

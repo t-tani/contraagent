@@ -97,7 +97,7 @@ through the monitor's API, which is public.
 | `services.jsonl` | each start and stop of a service | yes: `services.schema.json` |
 | `cursor.json` | a resume cursor (`CursorStore`), when a pipeline keeps one | yes: `cursor.schema.json` |
 | `calls/<key>.json` | the call file an agent task's launch was given | yes: the model `contraagent.backends.CallFile` |
-| `out/` | the tasks' outputs, at the paths their kinds' `output_name` gives | yes: each one's schema is its task's output |
+| `out/` | the tasks' outputs, at the paths their kinds' `output_name` gives | yes: each one's schema is its task's output; for rows, each line's is the row's model |
 | `out/<...>.message.txt` | the whole final message beside an output taken out of it (`unwrap`) | yes: plain text |
 | `pipeline/<name>.jsonl`, `pipeline/<name>.json` | the pipeline's own log and document (`contraagent.log`, `contraagent.save`) | yes: the rows and the values the pipeline wrote |
 | `contracts/<key>.json`, `definitions/<kind>.json` | what each task and each kind declared | run format only |

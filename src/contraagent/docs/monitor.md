@@ -13,7 +13,9 @@ It reads `runs/<id>/` and shows, live, one tab each:
   runs), the scheduled tasks as a layered graph, totals, then where the tokens,
   the cost and the subscription went (by kind, and each model's share of the
   agent sessions by cost, tokens, time or sessions; a failover's hops count on
-  their own models), and a timeline. Each card is as wide as its content needs;
+  their own models), the [services](tasks.md#services-a-server-that-the-tasks-of-a-claim-share)
+  of the run (each start with the task that started it, its address and its stop,
+  from `services.jsonl`), and a timeline. Each card is as wide as its content needs;
   the graph, the totals and the timeline take the whole width;
 - **Tasks** and **History**: every task (`kind · unit`) with its status, and
   every finished attempt with its outcome (`journal.jsonl`). A task is one task
@@ -22,12 +24,17 @@ It reads `runs/<id>/` and shows, live, one tab each:
   tasks, and a task that never ran is one too. The journal columns a pipeline
   adds (`row_extras`) are columns of the history under their own names;
 - **Outputs**: every checked file (`OutputContract`, `InputContract`), field
-  by field against the file;
+  by field against the file; an output of [rows](contracts.md#rows) by the fields
+  of its row's model, with its count of rows and its lines;
 - **Definitions**: each kind's interface and its plugin's files;
 - **Processes**: the agent sessions and Python tasks running, and the process tree;
 - **Task detail**: one task's transcript, one button per agent session
   (attempt, correction, model switch), tailed live, next to its input, output
-  and definition. Its input is file by file: each file the task reads, with the
+  and definition. Its header gives its status, with the reason of a partial task
+  (`Partly done: timed out` for an agent task whose launch was stopped, see
+  [Contracts](contracts.md#a-launch-stopped-for-its-time)), and the files each
+  attempt changed, those a failed attempt created marked as removed or as kept
+  (`keep_failed_changes`). Its input is file by file: each file the task reads, with the
   earlier task whose output it is (or that it was there before the run), then
   the earlier tasks it waits for, each with its other output files. A resumed
   run numbers a task's attempts from 1 again, so an attempt of a later run start
@@ -324,6 +331,10 @@ same for a hub, whose `/login` then redirects to `/monitor/` and sets its cookie
 `/monitor` only. Without `--base-path`, the page is served as it is built, its URLs
 relative to the page and its API on the page's origin. `create_app` and `serve` in
 `contraagent.monitor` take `base_path=` the same way.
+
+The monitor has no login of its own: a proxy that serves it to other people decides
+who may read it, with its own authentication, or it serves a hub with a read token
+([the hub](hub.md#start-a-hub)).
 
 An export needs no base path: its page reads its own files and `data/` by URLs
 relative to itself, so it works under any path of a static site.
