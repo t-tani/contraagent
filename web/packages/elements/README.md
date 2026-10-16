@@ -70,4 +70,4 @@ pnpm add <checkout>/web/tarballs/contraagent-elements-*.tgz
 Every element's properties, events and parts are in `custom-elements.json`,
 generated from the sources with the package.
 
-A `::code` line quotes a file of the package; the documentation site (`pnpm run docs` in `web/`) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.
+A `::code` line quotes a file of the package; the [documentation site](https://t-tani.github.io/contraagent/) shows the quoted lines in place. The same declarations, with their comments, are in `dist/**/*.d.ts`.

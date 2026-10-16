@@ -32,6 +32,7 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/t-tani"
 Source = "https://github.com/t-tani"
+Documentation = "https://t-tani.github.io/contraagent/"
 
 [project.optional-dependencies]
 monitor = ["fastapi>=0.110", "uvicorn>=0.29", "sse-starlette>=3.0"]
