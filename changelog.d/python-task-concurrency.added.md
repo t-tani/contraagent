@@ -1,5 +1,0 @@
-`contraagent check` and a run warn about a `[tasks.<kind>]` table that names a Python task
-kind: a task table configures agent tasks only, so its `max_concurrent` bounds no Python
-task. The tasks topic has a new section, "Concurrency", on what limits how many tasks run
-at once (the run's slots, a kind's `max_concurrent`, claims) and on how a claim keeps long
-Python tasks from taking the slots of the agent tasks.
