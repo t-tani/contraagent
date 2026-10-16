@@ -1,1 +1,0 @@
-**`<ca-kpis>` exports its tiles' parts.** A page styles the tiles of `<ca-kpis>` as `ca-kpis::part(tile)` (and `tiles`, `label`, `value`, `sub`, `action`, the parts of `<cae-stat-tiles>`). A height set on `<ca-pipeline-graph>`, or given it by a flex or grid container, is the graph's: its drawing fits in it.

@@ -1,1 +1,0 @@
-- `contraagent monitor` and `contraagent hub` print their address only once the port is bound; a port in use ends the command with exit 2 and a one-line message naming `--port`.

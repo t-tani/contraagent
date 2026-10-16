@@ -1,1 +1,0 @@
-`@contraagent/ui` documents the `export` attribute of `<ca-monitor>`; `@contraagent/api` documents the `partial` outcome, `createExportClient` and `openExportFeed`; `@contraagent/elements` lists its `charts` subpaths.

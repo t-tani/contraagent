@@ -1,1 +1,0 @@
-- `contraagent monitor --stream-format` lists every built-in stream format in its help.

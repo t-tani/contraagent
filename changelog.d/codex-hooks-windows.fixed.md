@@ -1,1 +1,0 @@
-A plugin's hooks run on Codex on Windows. Codex runs a hook's command there under PowerShell, not `sh`, and names the hooks of its `-c` values by `C:\<session-flags>\config.toml`; a launch now hands each command to the bash of Git for Windows from PowerShell, trusts it under that name, and passes no plugin hooks when there is no such bash.

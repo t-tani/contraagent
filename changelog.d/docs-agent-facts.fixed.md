@@ -1,1 +1,0 @@
-Documentation: the stop hook continues a session on Claude Code and Codex only; opencode and pi read OpenCode Go quota; pi is in the lists of light launch, `max_budget_usd`, plugin layout and roles; the fingerprint covers the skills of a task's plugins.

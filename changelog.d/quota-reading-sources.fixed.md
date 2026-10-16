@@ -1,1 +1,0 @@
-- `QuotaReading` documents every source of a reading: Claude Code, Codex, omp, and OpenCode Go for opencode and pi.

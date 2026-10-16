@@ -5,6 +5,7 @@
 //   - holds no image: the screenshots in a package's docs/images/ are for
 //     readers of the repository (`"!docs/images"`), and the documentation site
 //     shows each element live;
+//   - holds no test or test snapshot (`"!src/**/*.test.ts"`, `"!src/**/__snapshots__"`);
 //   - depends on no `file:` or `workspace:` path, and on the other two packages
 //     at exactly its own version (the three versions move together);
 //   - has no `source` export condition, which serves the workspace only.
@@ -15,6 +16,8 @@ import { basename, join } from 'node:path';
 import { pack } from './tarballs.mjs';
 
 const IMAGE = /\.(png|webp|jpe?g|gif|svg|avif|ico)$/i;
+/** A test or a test's snapshot: the repository's, not the package's. */
+const TEST = /\.test\.[cm]?[jt]s$|\/__snapshots__\//;
 const FIELDS = ['dependencies', 'peerDependencies', 'optionalDependencies'];
 
 const tar = (args) => {
@@ -40,6 +43,8 @@ try {
     const files = tar(['-tzf', file]).split('\n').filter((p) => p && !p.endsWith('/'));
     const images = files.filter((p) => IMAGE.test(p));
     if (images.length) problems.push(`${images.length} images: ${images.slice(0, 5).join(', ')}${images.length > 5 ? ', ...' : ''}`);
+    const tests = files.filter((p) => TEST.test(p));
+    if (tests.length) problems.push(`${tests.length} test files: ${tests.slice(0, 5).join(', ')}${tests.length > 5 ? ', ...' : ''}`);
     for (const field of FIELDS) {
       for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
         if (/^(file|workspace|link):/.test(spec)) problems.push(`${field}.${name} is ${spec}`);
@@ -53,7 +58,7 @@ try {
       console.log(`✕ ${manifest.name} (${basename(file)}): ${problems.join('; ')}`);
       failed = true;
     } else {
-      console.log(`✓ ${manifest.name}: ${files.length} files, ${kB} packed, no images, registry dependencies`);
+      console.log(`✓ ${manifest.name}: ${files.length} files, ${kB} packed, no images or tests, registry dependencies`);
     }
   });
 } finally {

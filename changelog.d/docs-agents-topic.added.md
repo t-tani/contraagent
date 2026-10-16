@@ -1,1 +1,0 @@
-A documentation topic, `contraagent docs agents`: what each of the five coding agents does (stop hooks, light launch, budgets, quota readings, tool denial), checked against the code by the tests, and how to add another coding agent.

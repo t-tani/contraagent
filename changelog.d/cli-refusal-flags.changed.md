@@ -1,1 +1,0 @@
-- `contraagent run` refuses a run id that holds a run in its own words: `--resume` and `--run-id`; `RunExists` carries `run_dir` and `rows`.

@@ -1,3 +1,0 @@
-- `<cae-layered-graph>`'s table view is as wide as the element, not at least 64rem: its columns take the width of their content, a relation keeps room for a name or two, and a table wider than the element scrolls across inside its frame.
-- In `<ca-task-view>`, a screen reader's text inside a pane scrolls with the pane instead of reaching past the view's end.
-- The documentation site's live elements are each in one frame as tall as what it shows, with the same room on every side, on the theme's well: no fixed height that cuts an element off or leaves an empty area, and no panel in a panel. The monitor and a page built of the elements fill their frame; a long list scrolls inside a frame of at most 640 px.

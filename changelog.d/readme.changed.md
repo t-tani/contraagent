@@ -1,1 +1,0 @@
-The package page (`contraagent docs`, and the PyPI description) opens with what sets contraagent apart: the coding agents themselves, their own extensions, a clean context per task, contracts, failover and quotas, deadlines and resume, checks with nothing spent, the monitor, and documentation a coding agent can read.
