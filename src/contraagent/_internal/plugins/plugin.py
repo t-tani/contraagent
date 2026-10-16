@@ -104,11 +104,11 @@ class Plugin:
         """`role`, checked; or the plugin's only role when none is named."""
         if role is None:
             if len(self.roles) > 1:
-                raise PluginError(f"{self.root}: defines roles {', '.join(self.roles)}; name one (role=...)")
+                raise PluginError(f"{self.root.as_posix()}: defines roles {', '.join(self.roles)}; name one (role=...)")
             return self.roles[0] if self.roles else None
         if role not in self.roles:
             raise PluginError(
-                f"{self.root}: no role {role!r} (agents/{role}.md){did_you_mean(role, self.roles)}; "
+                f"{self.root.as_posix()}: no role {role!r} (agents/{role}.md){did_you_mean(role, self.roles)}; "
                 f"it defines: {', '.join(self.roles) or 'none'}"
             )
         return role

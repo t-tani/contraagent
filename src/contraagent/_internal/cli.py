@@ -443,7 +443,7 @@ def _plugin(args) -> int:
                 errs = Plugin.load(r).lint()
             except PluginError as exc:
                 errs = [str(exc)]
-            print(f"{'✗' if errs else '✓'} {r}")
+            print(f"{'✗' if errs else '✓'} {r.as_posix()}")
             for e in errs:
                 print(f"    {e}")
             bad += bool(errs)
