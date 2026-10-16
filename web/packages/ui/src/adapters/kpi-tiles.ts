@@ -91,7 +91,7 @@ function notStartedCauses(outcomes: Iterable<TaskOutcome>): string[] {
     const ps = last?.stop === 'invalid_input' ? inputProblems(last.reason) : [];
     if (ps.some((p) => p.problem === 'missing')) missing = true;
     if (ps.some((p) => p.problem === 'checks')) checks = true;
-    if (!ps.length && t.cause) earlier = true;
+    if (ps.some((p) => p.problem === 'failed') || (!ps.length && t.cause)) earlier = true;
   }
   return factList(earlier ? msg('Earlier task failed') : '', missing ? msg('Input missing') : '', checks ? msg('Input failed checks') : '');
 }

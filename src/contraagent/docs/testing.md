@@ -242,7 +242,8 @@ call file and the launch itself (its budget, environment and plugin).
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_flow_checks_clean" to="def test_the_report_covers"}
 
-What a flow returns is `RunReport.value`: a generator flow's return value, or
-the output of the task a flow that does not yield returns (its `Pending`):
+What a flow returns is `RunReport.value`, as the flow returned it: a generator
+flow's return value, or, for a flow that does not yield and returns a task call,
+that task's `Pending` (its output is `report.value.output`):
 
 ::code{file="examples/demo/test_demo.py" from="def test_the_report_covers"}

@@ -188,4 +188,7 @@ runs it before it stops:
 
 A task that receives another task's result (a `Pending`) reads that task's file
 as an **input contract**: checked before launch, and a task whose input fails is
-refused (`invalid_input`) rather than run on nothing.
+refused (`invalid_input`) rather than run on nothing. An input fails when its file is
+missing or off its schema, or when the task that wrote it did not succeed: an output its
+validators rejected (`invalid_output`) meets its schema and is still refused, its reason
+`input from <key> ended <stop>`. A `partial` result succeeded: its output is read.

@@ -184,10 +184,14 @@ class InputContract(_FileContract):
     With `required` False a missing file is fine (a file the task itself
     creates); a file that is present must still satisfy the schema.
     `producer` is the key of the task that writes it, named when it is missing.
+    `producer_failure()` is the stop of that task when it finished and did not succeed
+    (`invalid_output`, `error`, ...), else '': a file a failed task left behind is
+    refused as an input even when it meets its schema.
     """
 
     required: bool = True
     producer: str = ""
+    producer_failure: Callable[[], str] | None = field(default=None, compare=False)
 
 
 def check_input(contract: InputContract, cwd: Path) -> list[str]:
@@ -197,6 +201,9 @@ def check_input(contract: InputContract, cwd: Path) -> list[str]:
         if not contract.required:
             return []
         return [f"input from {contract.producer} is missing: {path}" if contract.producer else f"{path}: required input is missing"]
+    failure = contract.producer_failure() if contract.producer_failure is not None else ""
+    if failure:
+        return [f"input from {contract.producer} ended {failure}: {path}"]
     try:
         text = path.read_text(encoding="utf-8")
         if contract.schema is not None:

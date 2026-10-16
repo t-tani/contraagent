@@ -147,6 +147,23 @@ def test_opencode_s_catalogue_waits_its_own_time_limit(tmp_path):
     assert backend.read_models() is None
 
 
+#: opencode under load: on a pipe its list comes out cut short (it exits before the pipe
+#: drains), to a file in full.
+OPENCODE_CUT_ON_A_PIPE = r"""
+import os, stat, sys
+if sys.argv[1:2] == ["models"]:
+    lines = [f"opencode/m{i}" for i in range(50)] + [f"opencode-go/m{i}" for i in range(30)]
+    whole = stat.S_ISREG(os.fstat(1).st_mode)
+    print("\n".join(lines if whole else lines[:60]))
+"""
+
+
+def test_opencode_s_catalogue_is_read_whole_when_a_pipe_would_cut_it(tmp_path):
+    backend = OpencodeBackend(base_env=path_of(fake_cli(tmp_path, "opencode", OPENCODE_CUT_ON_A_PIPE)))
+    listed = backend.catalogue()
+    assert listed is not None and "opencode-go/m29" in listed and len(listed) == 80
+
+
 def test_opencode_s_quota_refusal_carries_its_cool_off():
     reader = EventReader("opencode-go/m")
     reader.feed({"type": "error", "error": {"name": "APIError", "data": {"message": "Go usage limit exceeded retry-after-ms=313534000"}}})

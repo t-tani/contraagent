@@ -25,7 +25,8 @@ function knownStopLabel(stop: Stop, reason?: string | null): string {
       const kinds = new Set(inputProblems(reason).map((p) => p.problem));
       if (kinds.size === 1 && kinds.has('missing')) return msg('not started (input missing)');
       if (kinds.size === 1 && kinds.has('checks')) return msg('not started (input failed checks)');
-      if (kinds.size === 2) return msg('not started (input missing and input failed checks)');
+      if (kinds.size === 1 && kinds.has('failed')) return msg('not started (earlier task failed)');
+      if (kinds.size === 2 && kinds.has('missing') && kinds.has('checks')) return msg('not started (input missing and input failed checks)');
       return msg('not started', { id: 'stop-invalid-input', desc: 'How an attempt ended: invalid_input, with no input named' });
     }
     case 'invalid_output':

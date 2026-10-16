@@ -149,6 +149,11 @@ class Pending[Out]:
     def ok(self) -> bool:
         return self.result is not None and self.result.ok
 
+    def _failure(self) -> str:
+        """The stop of the task when it finished and did not succeed, else ''."""
+        result = self.result
+        return result.stop if result is not None and not result.ok else ""
+
     @property
     def output(self) -> Out:
         """The checked output: the schema instance, the text (a `TextOutput`), or the
@@ -201,8 +206,13 @@ class Node:
         return {k: _resolve(v) for k, v in self.params.items()}
 
     def input_contracts(self) -> list[InputContract]:
-        """The upstream outputs this task reads: missing or off-contract refuses it."""
-        return [InputContract(p.path, p._node.output_schema, producer=p.key) for p in self.upstream if p.path is not None]
+        """The upstream outputs this task reads: missing, off-contract, or written by a task
+        that did not succeed refuses it."""
+        return [
+            InputContract(p.path, p._node.output_schema, producer=p.key, producer_failure=p._failure)
+            for p in self.upstream
+            if p.path is not None
+        ]
 
     def output_contracts(self, params: Callable[[], dict[str, Any]] | None = None, call: Path | None = None) -> list[OutputContract]:
         """Its output contract; `params` and `call` reach the validators that take them."""
