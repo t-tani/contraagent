@@ -9,6 +9,8 @@ const clock = (s: number): string => `${Math.floor(s / 60)}:${String(Math.round(
 const done = plan.nodes.filter((n) => n.state === 'done').length;
 const file = TASKS.split('/').slice(-3).join('/');
 const last = moments.at(-1);
+/** The lines tasks were created on: only these have a count of running tasks (./replay.ts writes it). */
+const taskLines = new Set(plan.nodes.map((n) => n.flow?.at(-1)?.line ?? 0));
 /** The panels a narrow screen shows one at a time; the numbers stay under them. */
 const TABS = [
   { id: 'code', name: 'Code' },
@@ -43,7 +45,7 @@ const TABS = [
         <div class="rr-pre" role="region" tabindex="0" data-scroll="x" aria-label={`Lines of ${file}`}>{
           lines.map((l) =>
             l.n ? (
-              <div class="rr-line" data-n={l.n}><span class="rr-n" aria-hidden="true">{l.n}</span><code set:html={l.html || ' '} /><span class="rr-badge" aria-hidden="true" /></div>
+              <div class="rr-line" data-n={l.n}><span class="rr-n" aria-hidden="true">{l.n}</span><code set:html={l.html || ' '} />{taskLines.has(l.n) && <span class="rr-badge" aria-hidden="true" />}</div>
             ) : (
               <div class="rr-line rr-gap" aria-hidden="true"><span class="rr-n">⋮</span><code> </code></div>
             ),
@@ -273,12 +275,20 @@ const TABS = [
     flex: 1;
   }
   .rr-pre:focus-visible { outline: var(--ca-focus-width) solid var(--ca-focus); outline-offset: -2px; }
+  /*
+   * A line is as wide as its code, and at least as wide as the pane. A line tasks are
+   * created on ends with the count of those running: at the pane's right edge, or after
+   * the code when the code reaches it, never over the code.
+   */
   .rr-line {
     position: relative;
     display: grid;
-    grid-template-columns: 3.2rem max-content;
+    grid-template-columns: 3.2rem max-content 1fr;
     align-items: baseline;
-    padding-right: 14px;
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
+    padding-right: 10px;
     transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
   .rr-line::before {
@@ -297,17 +307,17 @@ const TABS = [
   .rr-gap .rr-n { opacity: 0.5; }
   .rr-line code { background: none; padding: 0; font: inherit; color: inherit; white-space: pre; }
   .rr-badge {
-    position: absolute;
-    right: 10px;
+    justify-self: end;
+    align-self: center;
+    margin-left: 12px;
     /* One width for every count: the pill does not move as its text changes. */
     min-width: 5.4rem;
     box-sizing: border-box;
     text-align: center;
-    top: 50%;
-    transform: translateY(-50%);
     padding: 0 7px;
     border-radius: 999px;
-    font: 600 10.5px/1.7 var(--sl-font, var(--sl-font-system));
+    /* No taller than a line of code: a line with a count is as tall as the others. */
+    font: 600 10.5px/1.6 var(--sl-font, var(--sl-font-system));
     color: var(--ca-status-running);
     background: color-mix(in srgb, var(--ca-status-running) 14%, var(--ca-bg));
     border: 1px solid color-mix(in srgb, var(--ca-status-running) 45%, transparent);
@@ -340,12 +350,13 @@ const TABS = [
    * A wide screen: the whole window in one screen, under the site's header. It is
    * wider than the page's column (up to 90rem), and as tall as the screen less the
    * header and a margin. The code and the transcript side by side, each scrolling in
-   * its own pane; under them a band: the graph, its drawing fitted in it, and the
-   * numbers, two columns of tiles (each its label and its value). The window is a
-   * container: the band's height is a share of the window's, and more where the
-   * tiles' labels wrap in a wider font (the graph fits whatever height the band has);
-   * a window narrower than 72rem has the graph across it and the tiles in two rows
-   * under it.
+   * its own pane, the code's as wide as its lines (up to 46rem); under them a band:
+   * the graph, its drawing fitted in it, and the numbers, a narrow column of two
+   * columns of tiles (each its label and its value), so that the graph has most of the
+   * window's width. The window is a container: the band's height is a share of the
+   * window's, and more where the tiles' labels wrap in a wider font (the graph fits
+   * whatever height the band has); a window narrower than 72rem has the graph across
+   * it and the tiles in two rows under it.
    */
   @media (min-width: 50rem) {
     .rr-window {
@@ -361,7 +372,7 @@ const TABS = [
     .rr-grid {
       flex: 1;
       min-height: 0;
-      grid-template-columns: minmax(0, 37.5rem) minmax(0, 1fr) 18.5rem;
+      grid-template-columns: fit-content(46rem) minmax(0, 1fr) 14.5rem;
       grid-template-rows: minmax(0, 1fr) minmax(clamp(22rem, 48cqh, 30rem), auto);
       grid-template-areas: 'code transcript transcript' 'graph graph kpis';
     }
@@ -386,15 +397,15 @@ const TABS = [
     .rr-graph .rr-head { position: absolute; top: 0; right: 0; z-index: 1; padding-top: 12px; }
     .rr-graph .rr-head-tag { margin-left: 0; }
 
-    .rr-kpis .rr-body { padding: 6px 14px 10px; }
-    .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-    .rr-kpis ca-kpis::part(tile) { padding: 6px 10px 7px; border-radius: 9px; }
-    .rr-kpis ca-kpis::part(value) { font-size: 20px; margin-top: 2px; }
+    .rr-kpis .rr-body { padding: 6px 12px 10px; }
+    .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+    .rr-kpis ca-kpis::part(tile) { padding: 5px 8px 6px; border-radius: 9px; }
+    .rr-kpis ca-kpis::part(value) { font-size: 17px; margin-top: 1px; }
     .rr-kpis ca-kpis::part(sub), .rr-kpis ca-kpis::part(action) { display: none; }
 
     @container rr-window (max-width: 72rem) {
       .rr-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-columns: fit-content(56%) minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) clamp(13rem, 44cqh, 24rem) auto;
         grid-template-areas: 'code transcript' 'graph graph' 'kpis kpis';
       }
@@ -403,7 +414,8 @@ const TABS = [
       .rr-kpis .rr-head { flex: none; flex-direction: column; align-items: flex-start; gap: 2px; width: 6.5rem; padding: 0 0 0 14px; }
       .rr-kpis .rr-head-tag { margin-left: 0; }
       .rr-kpis .rr-body { flex: 1; min-width: 0; padding: 8px 14px 8px 4px; }
-      .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .rr-kpis ca-kpis::part(tiles) { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+      .rr-kpis ca-kpis::part(value) { font-size: 20px; }
     }
   }
 
@@ -436,7 +448,7 @@ const TABS = [
     .rr-status { white-space: normal; }
     .rr-badge { display: none; }
     .rr-pre { font-size: 11.5px; }
-    .rr-line { grid-template-columns: 2.4rem max-content; }
+    .rr-line { grid-template-columns: 2.4rem max-content 1fr; }
     .rr-n { padding-right: 0.6rem; }
     .rr-transcript .rr-body { height: 18rem; }
     .rr-graph .rr-body { min-height: 20rem; }
@@ -512,8 +524,14 @@ const TABS = [
       -webkit-mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
       mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
     }
-    .rr-tabbed .rr-graph .rr-body { overflow-y: auto; overscroll-behavior: contain; }
-    .rr-tabbed .rr-graph ca-pipeline-graph { flex: 1; min-height: 0; }
+    /* The graph as tall as its drawing at the pane's width, at the scale the width allows: the pane scrolls. */
+    .rr-tabbed .rr-graph .rr-body {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+      mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+    }
+    .rr-tabbed .rr-graph ca-pipeline-graph { flex: none; }
     .rr-tabbed .rr-transcript .rr-body { overflow: hidden; }
 
     /* The numbers: one row of tiles, under the panel. */
