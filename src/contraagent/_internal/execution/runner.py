@@ -31,7 +31,7 @@ from contraagent._internal.backends.base import Backend
 from contraagent._internal.backends.credentials import AMBIENT, Credential, Pool
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.backends.process import signal_of
-from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_until_valid
+from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_checked
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
 from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult, kind_name
@@ -582,7 +582,7 @@ class AgentRunner:
     def _run_as(self, task: Task, route: Route | None, credential: Credential) -> TaskResult:
         """One launch on one route as one credential. `ok`/`stop` come straight from the
         backend's `LaunchResult`, but for a launch stopped on one of its kind's `partial_on`
-        whose outputs passed every check (`LaunchResult.partial`): ok, stop `partial`, its
+        whose outputs passed every check (`CheckedLaunch.partial`): ok, stop `partial`, its
         reason the launch's stop (`timeout`, `stalled`). A domain's own progress verdict is a
         `ResultEnricher`'s job."""
         backend = self.backend_for_route(task, route)
@@ -591,10 +591,9 @@ class AgentRunner:
         # With declared outputs the launch is resumed until every one holds,
         # or the kind's `max_corrections` are spent (then INVALID_OUTPUT, not ok).
         kc = self.config(task)
-        if contracts:
-            launch_result = run_until_valid(backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops)
-        else:
-            launch_result = backend.run(launch)
+        checked = run_checked(backend, launch, contracts, kc.max_corrections, partial_on=kc.partial_stops)
+        launch_result = checked.result
+        max_corrections = kc.max_corrections if contracts else None
         for i, reading in enumerate(launch_result.quota):  # whose account each quota reading is
             reading = launch_result.quota[i] = reading.model_copy(
                 update={
@@ -616,10 +615,10 @@ class AgentRunner:
         # A signal-terminated process (exit code 128+N) is almost always
         # external (teardown, an interrupted run), not the task's own logic.
         sig = signal_of(launch_result.exit_code)
-        if sig is not None and not launch_result.partial:
+        if sig is not None and not checked.partial:
             note = f"terminated by {signal.Signals(sig).name}"
             reason = f"{note}: {reason}" if reason else note
-        if launch_result.partial:
+        if checked.partial:
             # Stopped for its time, and what it wrote passed every check: kept, as a partial result.
             return TaskResult(
                 task=task,
@@ -630,6 +629,7 @@ class AgentRunner:
                 reason=launch_result.stop.value,
                 rounds=launch_result.rounds,
                 round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+                max_corrections=max_corrections,
             )
         return TaskResult(
             task=task,
@@ -640,6 +640,7 @@ class AgentRunner:
             reason=reason,
             rounds=launch_result.rounds,
             round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+            max_corrections=max_corrections,
             retryable=launch_result.retryable,
         )
 

@@ -19,9 +19,9 @@ Only a launch that ran to the end is sent back. A timeout, a 429 or an
 auth failure is not a formatting problem, and resuming into it would
 spend a launch to learn the same thing; those results return as they
 are, with the contract errors attached, for the caller's own handling
-(the Router's failover, for one). A launch stopped on one of the stops a caller
-names (`partial_on`: its time limit, a stall) whose outputs pass every check
-returns with `LaunchResult.partial` set: what it wrote is kept.
+(the Router's failover, for one). The agent runner calls `run_checked`, which also
+says whether the outputs of a launch that did not end ok are kept: it stopped on one of
+its kind's `partial_on` stops (its time limit, a stall).
 
 A rows output (`rows.RowsFile`) is a JSON Lines file checked line by line
 (`parse_rows`): each error names its line, and the rows are a `Rows`, a list.
@@ -537,49 +537,69 @@ def run_until_valid(
     launch: Launch,
     contracts: Sequence[OutputContract],
     max_corrections: int = DEFAULT_MAX_CORRECTIONS,
-    *,
-    partial_on: Collection[Stop] = (),
 ) -> LaunchResult:
     """Run `launch`, then resume its session until every contract holds.
 
     Returns the last round's `LaunchResult` with spend (wall, cost, usage,
     tool use, turns) over all rounds (`fold_spend`: a coding agent that reports a
     resumed session's cost so far is not counted twice), `round_costs` each
-    round's own cost, `rounds` set to the number of launches,
-    `round_errors` holding each failed round's errors and `max_corrections` set to the
-    argument. `max_corrections`: the correction rounds after the first launch
-    (`KindConfig.max_corrections`; 0, none). A run that exhausts them, or whose session
-    cannot be resumed,
+    round's own cost, `rounds` set to the number of launches and
+    `round_errors` holding each failed round's errors. `max_corrections`: the correction
+    rounds after the first launch (`KindConfig.max_corrections`; 0, none). A run that
+    exhausts them, or whose session cannot be resumed,
     ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
     its own stop. Each check compares a file with the file as it was before the
     first round (`OutputContract.before`); a result that is not ok puts back a file
     that held parts to keep (`preserve`), so the next attempt starts from them.
+    """
+    return run_checked(backend, launch, contracts, max_corrections).result
+
+
+@dataclass(frozen=True)
+class CheckedLaunch:
+    """What `run_checked` made of a launch: its `result` (as `run_until_valid` returns it),
+    and `partial`, True when what it wrote is kept although it is not ok (it stopped on one
+    of `partial_on`, and every output passed its checks)."""
+
+    result: LaunchResult
+    partial: bool = False
+
+
+def run_checked(
+    backend: Backend,
+    launch: Launch,
+    contracts: Sequence[OutputContract],
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS,
+    *,
+    partial_on: Collection[Stop] = (),
+) -> CheckedLaunch:
+    """`run_until_valid`, with the agent runner's verdicts beside the result.
 
     `partial_on`: stops after which what the launch wrote is kept (`agent_task(partial_on=)`).
     A round that ends on one of them is checked as any other, after the unfinished last
     line of a rows file is cut off (`rows.drop_unfinished`); when every output
-    passes, the result is returned with its stop and `partial` set, and its files stay as
+    passes, the result keeps its stop, `partial` is set, and its files stay as
     they are. It is not resumed either way.
     """
     if not contracts:
-        return backend.run(launch)
+        return CheckedLaunch(backend.run(launch))
     resumable = backend.resumable(launch)
     # Whatever was kept only for resuming goes with the run: a session dir
     # made here (omp), a transcript persisted here (claude). A session dir
     # or persistence the caller asked for is the caller's to keep.
     scratch = resumable.session_dir if resumable.session_dir != launch.session_dir else None
-    result: LaunchResult | None = None
+    checked: CheckedLaunch | None = None
     before = {c.resolve(launch.cwd): c.before(launch.cwd) for c in contracts}
     try:
-        result = _loop(backend, resumable, contracts, max_corrections, before, frozenset(partial_on))
-        if not (result.ok or result.partial):
+        checked = _loop(backend, resumable, contracts, max_corrections, before, frozenset(partial_on))
+        if not (checked.result.ok or checked.partial):
             for path, was in before.items():
                 was.restore(path)
-        return result
+        return checked
     finally:
         if scratch is not None:
             shutil.rmtree(scratch, ignore_errors=True)
-        sid = (result.session_id if result else "") or launch.session_id or ""
+        sid = (checked.result.session_id if checked else "") or launch.session_id or ""
         if sid:
             backend.discard_session(launch, sid)
 
@@ -591,7 +611,7 @@ def _loop(
     max_corrections: int,
     before: Mapping[Path, Before],
     partial_on: frozenset[Stop] = frozenset(),
-) -> LaunchResult:
+) -> CheckedLaunch:
     total: LaunchResult | None = None
     rounds = 0
     found: list[list[str]] = []  # each failed round's errors
@@ -623,17 +643,15 @@ def _loop(
         found += [errors] if errors else []
         total.rounds = rounds
         total.round_errors = list(found)
-        total.max_corrections = max_corrections
         if not errors:
             if total.hollow and any(c.from_message for c in contracts):
                 # The final message is the output, and it passed its checks: text that reads
                 # like a tool call is part of the answer, not a sign of a hollow launch.
                 total.hollow = False
                 total.ok = total.stop is Stop.COMPLETED
-            total.partial = stopped
-            return total
+            return CheckedLaunch(total, partial=stopped)
         if total.stop is not Stop.COMPLETED:
-            return total
+            return CheckedLaunch(total)
         nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if rounds <= max_corrections else None
         if nxt is not None:
             more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
@@ -641,7 +659,7 @@ def _loop(
         if nxt is None:
             total.stop = Stop.INVALID_OUTPUT
             total.ok = False
-            return total
+            return CheckedLaunch(total)
         launch = nxt
 
 

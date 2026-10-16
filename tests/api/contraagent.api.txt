@@ -513,6 +513,7 @@ class TaskResult
         hops: tuple[Hop, ...] = (),
         rounds: int | None = None,
         round_errors: tuple[tuple[str, ...], ...] = (),
+        max_corrections: int | None = None,
         changes: Changes | None = None,
         skipped_hops: tuple[SkippedHop, ...] = (),
         cause: DeferralCause | None = None,
@@ -530,6 +531,7 @@ class TaskResult
     @classmethod
     def launch_failed(cls, task: Task, reason: str) -> TaskResult
     launch_result: Any = None
+    max_corrections: int | None = None
     notes: dict[str, Any] = field(default_factory=dict)
     ok: bool
     payload: Any = None
@@ -1351,8 +1353,6 @@ class LaunchResult
         context_warned: bool = False,
         context_window: int | None = None,
         retryable: bool = True,
-        partial: bool = False,
-        max_corrections: int | None = None,
     ) -> None
     agent: str = ''
     api_key_source: str = ''
@@ -1374,12 +1374,10 @@ class LaunchResult
     init_model: str = ''
     init_tools: int = 0
     label: str
-    max_corrections: int | None = None
     model: str = ''
     num_turns: int | None = None
     ok: bool = False
     other_models: dict[str, OtherModel] = field(default_factory=dict)
-    partial: bool = False
     @property peak_context: int | None
     permission_denials: list[dict[str, Any]] = field(default_factory=list)
     quota: list[QuotaReading] = field(default_factory=list)
@@ -2230,8 +2228,6 @@ def run_until_valid(
     launch: Launch,
     contracts: Sequence[OutputContract],
     max_corrections: int = DEFAULT_MAX_CORRECTIONS,
-    *,
-    partial_on: Collection[Stop] = (),
 ) -> LaunchResult
 
 ## contraagent.plugins

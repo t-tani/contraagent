@@ -26,7 +26,7 @@ def run(tmp_path, task, config: dict | None = None):
     (launch,) = [json.loads(line) for line in (report.run_dir / "launches.jsonl").read_text().splitlines()]
     assert row["stop"] == "invalid_output"
     assert len([s for s in stub.launches if s.resumed]) == row["rounds"] - 1
-    assert launch["max_corrections"] == row["max_corrections"]
+    assert "max_corrections" not in launch  # the journal row records it
     return row["rounds"], row["max_corrections"]
 
 

@@ -69,7 +69,7 @@ class KindConfig:
 
     @property
     def partial_stops(self) -> frozenset[Stop]:
-        """`partial_on` as stops (`run_until_valid(partial_on=)`)."""
+        """`partial_on` as stops (`run_checked(partial_on=)`)."""
         return frozenset(Stop(s) for s in self.partial_on)
 
     @classmethod

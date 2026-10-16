@@ -204,7 +204,6 @@ class LaunchRow(BaseModel):
     rounds: int | None
     round_errors: list[list[str]]
     round_costs: list[float | None]
-    max_corrections: int | None = Field(None, description="the correction rounds its kind allowed after the first")
     unwrapped: bool
     hook_errors: list[list[str]]
     context_budget: int | None
