@@ -505,6 +505,61 @@ A stub run and a replay start services as any run does, for each task that claim
 them, played or executed, since the Python tasks they execute may need them. A scope ("Around each attempt", below) suits a helper of one
 attempt; a service suits one that the tasks of a claim share.
 
+## Concurrency: how many tasks run at once
+
+Every task of a run runs in a thread of the run's process. An agent task's thread
+waits on its coding agent's process, which mostly waits on a remote model; a Python
+task's thread calls its function. A task whose dependencies are done starts once
+three limits all have room, and the queue then starts the first such task in its
+order:
+
+- The run's slots: `Pipeline(max_concurrent=)`, 4 by default, is how many tasks run
+  at once. Every running task takes a slot, an agent task or a Python task alike.
+  Two `rate_limited` ends in a row halve the slots for `throttle_s`.
+- Its kind's limit: `max_concurrent` of an agent task kind, in `agent_task(...)` or
+  `[tasks.<kind>]`, is how many tasks of that kind run at once. A Python task kind
+  has no such limit, and a task table is not read for it.
+- Its claims: each name it claims has room under its claim capacity ("Claims",
+  above). Claims hold for agent tasks and Python tasks alike.
+
+A task that cannot start does not hold back the tasks after it: while a long
+computation waits for room on its claim, an agent task later in the order takes a
+free slot.
+
+A long computation in a Python task holds its slot for as long as it computes. With
+4 slots and nothing else to stop them, four such tasks keep every agent task
+waiting, although the agent tasks need little of this host. Give the computations
+a bound of their own with a claim: each of them claims one name, its claim capacity
+is how many compute at once, and `max_concurrent` is that number plus the agent
+tasks that should run beside them. The agent tasks then always have their slots,
+and take the others too while nothing computes.
+
+::code{file="examples/concurrency/flow.py" from="#: Two measurements" to="class Stats("}
+
+::code{file="examples/concurrency/flow.py" from="@python_task" to="summarize = agent_task("}
+
+::code{file="examples/concurrency/flow.py" from="def pipeline("}
+
+The capacity may instead be a share of the host, a `PerTask` (`{"local":
+PerTask(cores=1)}`): as many compute at once as the usable cores hold. Choose
+`max_concurrent` above the most that capacity gives, so that slots stay for the agent
+tasks. To keep the agent tasks themselves at a number (a provider's rate limit), every
+agent task kind claims one more name, with that number as its capacity; a kind's
+`max_concurrent` bounds one kind only.
+
+A Python task runs in this process, under its interpreter lock: while a function
+computes in pure Python, the other threads of the run, the queue's own included, run
+only in turns with it. A computation that takes long belongs in a child process
+(`subprocess.run`, `concurrent.futures.ProcessPoolExecutor`) or in a library that
+releases the lock while it computes; the task's thread then waits, as an agent task's
+does. The example's `measure` runs its computation in a child process.
+
+`run.json` records the run's slots (`max_workers`), and the monitor shows them beside
+the running tasks; the plan records each task's claims. `Pipeline.check` warns about a
+`[tasks.<kind>]` table that names a Python task kind, whose `max_concurrent` would
+bound nothing. `contraagent run` does not take `max_concurrent`: a program gives it
+("The flow", above), and `[defaults.claim_capacity]` gives the capacities.
+
 ## Files a task changes
 
 An agent task whose work is files in the working tree, beside its output,

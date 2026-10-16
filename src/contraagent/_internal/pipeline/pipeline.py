@@ -473,6 +473,8 @@ class Pipeline:
                         for spec in reachable(flow, *args, *kwargs.values()):
                             graph.reached(spec)
                     specs = graph.agent_specs()
+                    if not driven:  # a generator flow's kinds are known at its end (below)
+                        _check_tables(self.config, specs, graph)
                     plan = RoutingPlan.build(
                         self.config,
                         list(specs),
@@ -482,7 +484,7 @@ class Pipeline:
                         bases={kind: spec.base_kind for kind, spec in specs.items() if spec.base_kind},
                         requirements={kind: spec.requires for kind, spec in specs.items()},
                         light=[kind for kind, spec in specs.items() if spec.light],
-                        all_kinds=not driven,
+                        all_kinds=False,
                     )
                     # The task calls so far that name a credential, refused before anything launches.
                     refused = [
@@ -565,7 +567,7 @@ class Pipeline:
                         driver.finish()
             if driven:
                 specs = graph.agent_specs()
-                check_task_tables(self.config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()})
+                _check_tables(self.config, specs, graph)
                 top = driver.calls.get("0")
                 value = top.value if top is not None and top.state == "returned" else None
             summary.update(attempt_totals(run.rows()[journaled:]))
@@ -598,6 +600,13 @@ class Pipeline:
         runner.configs = {**runner.configs, **plan.configs}
         if self.replay is None or self.replay.record_missing:
             runner.routers.update(plan.routers)
+
+
+def _check_tables(config: PipelineConfig, specs: Mapping[str, Any], graph: Graph) -> None:
+    """Log each `[tasks.<name>]` table that names no agent kind of the run (`check_task_tables`),
+    one that names a Python task kind of the run as such."""
+    python = {node.spec.kind for node in graph.nodes if node.spec.executor == "python"}
+    check_task_tables(config.task_tables([]), specs, {kind: spec.base_kind for kind, spec in specs.items()}, python=python)
 
 
 def _checked_services(services: Mapping[str, Service] | None) -> dict[str, Service]:

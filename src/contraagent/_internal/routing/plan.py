@@ -107,15 +107,24 @@ def effort_problem(kinds: list[str], agent: str, effort: str) -> str | None:
     )
 
 
-def check_task_tables(tables: Mapping[str, dict[str, Any]], kinds: Iterable[Any], bases: Mapping[str, str] | None = None) -> list[str]:
+def check_task_tables(
+    tables: Mapping[str, dict[str, Any]], kinds: Iterable[Any], bases: Mapping[str, str] | None = None, python: Iterable[str] = ()
+) -> list[str]:
     """`[tasks.<name>]` tables naming no kind of this run, nor the base kind of one
-    (`bases`, as `RoutingPlan.build` takes them), said out loud.
+    (`bases`, as `RoutingPlan.build` takes them), said out loud. A table naming one of the
+    run's Python task kinds (`python`) is said out loud as such: a task table configures
+    agent tasks, so its `max_concurrent` bounds no Python task.
 
     Not an error: one config file often serves several flows. But a table nothing
     reads is also what a typo looks like, so each one is logged as a warning.
     """
     known = {kind_name(k) for k in kinds} | {b for b in (bases or {}).values() if b}
-    unknown = sorted(set(tables) - known)
+    for name in sorted(set(tables) & (set(python) - known)):
+        _logger.warning(
+            f"[config] [tasks.{name}] names a Python task, and a task table configures agent tasks only; ignored. "
+            "Bound Python tasks with a claim and its claim_capacity (contraagent docs tasks, Concurrency)"
+        )
+    unknown = sorted(set(tables) - known - set(python))
     for name in unknown:
         guess = did_you_mean(name, known) or " (a typo?)"
         _logger.warning(f"[config] [tasks.{name}] is not a kind of this run (kinds: {', '.join(sorted(known))}); ignored{guess}")

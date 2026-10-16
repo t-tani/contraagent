@@ -76,6 +76,12 @@ the next attempt to start from
 ([Files a task changes](tasks.md#files-a-task-changes)). A kind with no `changes`
 patterns cannot keep them, and `contraagent check` reports a table that sets it.
 
+`max_concurrent` (in a task table or `agent_task(...)`) is how many tasks of a kind
+run at once. The run's own limits sit beside it, and
+[Concurrency](tasks.md#concurrency-how-many-tasks-run-at-once) says how they work
+together: the run's slots, a kind's limit and the claims, and how a claim keeps long
+Python tasks from taking the agent tasks' slots.
+
 `disallowed_tools` (in a task table or `agent_task(...)`) lists tools a kind's
 launches may not use, in Claude Code's names: a whole tool (`WebFetch`) or a
 tool with a pattern of what it is given (`Bash(rm:*)`). It narrows what the
