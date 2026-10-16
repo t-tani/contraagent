@@ -19,6 +19,17 @@ trusted (checked against codex-cli 0.162.1, `codex-rs/hooks/src/engine/discovery
   (`hook_hash`): `event_name`, the group's `matcher` (none for `Stop`) and its one handler
   with its `timeout` filled in (600 seconds when unset) and `async`.
 
+On Windows the key's source is `C:\\<session-flags>\\config.toml` (the same path, resolved
+against `C:\\`), and Codex runs a hook's command under the session's shell, not `sh`:
+PowerShell (`pwsh`, else Windows PowerShell) with `-NoProfile -Command`, cmd.exe only where
+there is no PowerShell (`build_hooks_config` in `codex-rs/core/src/session/mod.rs`,
+`default_user_shell` in `codex-rs/shell-command/src/shell_detect.rs`, `build_command` in
+`codex-rs/hooks/src/engine/command_runner.rs`). A rendered command is a bash command line,
+so there it is wrapped into a PowerShell one that runs it under the bash every hook script
+runs under (`commands.bash`, the bash of Git for Windows; `windows_command`); the hash is
+taken of the wrapped command, as Codex takes it. Without that bash, a plugin's hooks are not
+passed at all.
+
 The same `hooks.state` table of the session's flags turns the user's own hooks off: every
 key the user's `config.toml` trusts gets `enabled = false` (Codex merges the states of the
 user's layer and the flags' field by field, later wins). A hook nobody trusts never runs,
@@ -29,14 +40,31 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shlex
+import sys
 import tomllib
 from pathlib import Path
+
+from contraagent._internal.platform.commands import commands
 
 #: Where a plugin's hooks are, rendered for Codex (`contraagent plugin render`).
 HOOKS_FILE = "codex/hooks.json"
 #: The source Codex names the hooks of `-c` values by in a hook's key.
 SESSION_FLAGS_SOURCE = "/<session-flags>/config.toml"
+#: The same source on Windows (`synthetic_layer_path`, resolved against `C:\`).
+WINDOWS_SESSION_FLAGS_SOURCE = "C:\\<session-flags>\\config.toml"
+#: Whether Codex runs its hooks as on Windows (`windows_command`).
+WINDOWS = sys.platform == "win32"
+#: The variable a Windows hook hands its bash command line to bash in (`windows_command`).
+COMMAND_VARIABLE = "CONTRAAGENT_HOOK"
+#: What bash runs on Windows: the command line in `COMMAND_VARIABLE`, as `eval "$..."` would,
+#: but written without a double quote, which Windows PowerShell does not pass on to a program
+#: intact. With field splitting and globbing off, the variable expands to one word; both are
+#: turned on again before the command line runs.
+BASH_EVAL = f"IFS=;set -f;eval set +f\\;unset IFS\\;${COMMAND_VARIABLE}"
+#: The characters PowerShell reads as a single quote; each is doubled inside a quoted string.
+_PS_QUOTES = re.compile("(['\u2018\u2019\u201a\u201b])")
 #: Codex's events, as `hooks.json` names them, by the name in a hook's key.
 EVENT_KEYS = {
     "PreToolUse": "pre_tool_use",
@@ -72,10 +100,41 @@ def trusted_hash(event: str, matcher: str | None, handler: dict) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def powershell_quote(text: str) -> str:
+    """`text` as a single-quoted PowerShell string, which PowerShell reads as it is."""
+    return "'" + _PS_QUOTES.sub(r"\1\1", text) + "'"
+
+
+def windows_command(command: str, bash: str) -> str:
+    """The PowerShell command line that Codex runs on Windows for the bash command line
+    `command`: `command` handed to `bash` in `COMMAND_VARIABLE` (an argument would lose its
+    double quotes on the way through Windows PowerShell), and bash's exit status returned as
+    its own (PowerShell returns 1 for any failure, while 2 is a hook's objection)."""
+    return (
+        f"$env:{COMMAND_VARIABLE}={powershell_quote(command)}; "
+        f"& {powershell_quote(bash)} -c {powershell_quote(BASH_EVAL)}; exit $LASTEXITCODE"
+    )
+
+
+def session_flags_source() -> str:
+    """The source Codex names the hooks of `-c` values by, on this OS."""
+    return WINDOWS_SESSION_FLAGS_SOURCE if WINDOWS else SESSION_FLAGS_SOURCE
+
+
 def plugin_hooks(plugin_dirs: tuple[str, ...] | list[str], home: str) -> dict[str, list[dict]]:
     """The rendered hooks of the launch's plugins, by Codex event, in order: each plugin's
     `${CLAUDE_PLUGIN_ROOT}` replaced by its directory (as Codex does for a plugin's own
-    hooks), and each command run with the user's `HOME` (Codex itself runs with one of its own)."""
+    hooks), and each command run with the user's `HOME` (Codex itself runs with one of its own).
+    On Windows each runs under the bash of Git for Windows (`windows_command`); without that
+    bash there are none."""
+    bash = commands.bash() if WINDOWS else None
+    if WINDOWS and bash is None:
+        return {}
+
+    def render(command: str, root: Path) -> str:
+        line = f"HOME={shlex.quote(home)} " + command.replace(PLUGIN_ROOT, str(root))
+        return windows_command(line, bash) if bash is not None else line
+
     out: dict[str, list[dict]] = {}
     for plug in plugin_dirs:
         root = Path(plug).resolve()
@@ -90,7 +149,7 @@ def plugin_hooks(plugin_dirs: tuple[str, ...] | list[str], home: str) -> dict[st
                 handlers = [
                     {
                         "type": "command",
-                        "command": f"HOME={shlex.quote(home)} " + str(h["command"]).replace(PLUGIN_ROOT, str(root)),
+                        "command": render(str(h["command"]), root),
                         **({"timeout": h["timeout"]} if isinstance(h.get("timeout"), int) else {}),
                     }
                     for h in group.get("hooks") or []
@@ -120,9 +179,10 @@ def hooks_config(plugin_dirs: tuple[str, ...] | list[str], home: str, user_confi
     if not events:
         return None
     state: dict[str, dict] = {key: {"enabled": False} for key in trusted_keys(user_config)}
+    source = session_flags_source()
     for event, groups in events.items():
         for g, group in enumerate(groups):
             for h, handler in enumerate(group["hooks"]):
-                key = f"{SESSION_FLAGS_SOURCE}:{EVENT_KEYS[event]}:{g}:{h}"
+                key = f"{source}:{EVENT_KEYS[event]}:{g}:{h}"
                 state[key] = {"enabled": True, "trusted_hash": trusted_hash(event, group.get("matcher"), handler)}
     return {**events, "state": state}
