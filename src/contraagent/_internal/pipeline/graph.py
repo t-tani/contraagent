@@ -45,6 +45,7 @@ import glob
 import hashlib
 import inspect
 import json
+import logging
 import os
 import re
 import string
@@ -82,6 +83,8 @@ if TYPE_CHECKING:
     from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 
 Out = TypeVar("Out")
+
+_logger = logging.getLogger(__name__)
 
 #: How many passes a `while` loop of flow code may make, by default.
 MAX_PASSES = 10
@@ -196,6 +199,8 @@ class Node:
     claims: tuple[str, ...] = ()
     #: Its task call's `priority`: a tie-breaker in the queue, not part of its fingerprint.
     priority: float = 0.0
+    #: Its task call's `credential`; empty: its kind's. Not part of its fingerprint.
+    credential: str = ""
     origin: Origin | None = None
     fingerprint: str = ""
     task: Task | None = field(default=None, repr=False)
@@ -267,6 +272,11 @@ class Graph:
         self.results: dict[str, TaskResult] = {}
         self.driver: FlowDriver | None = None
         self.new_kind: Callable[[Any], None] | None = None
+        #: Why a task of a kind cannot run as the credential its task call names (empty: it
+        #: can); None while the kinds are not routed yet.
+        self.check_credential: Callable[[str, str], list[str]] | None = None
+        #: The run-wide override's credential (`Overrides.credential`): it outranks a task call's.
+        self.credential_override = ""
         self.tail: Callable[[Task], float | None] | None = None
         self.stub: Any = None
         self.run_id = ""
@@ -341,6 +351,7 @@ class Graph:
         after: Sequence[Pending[Any] | str],
         params: dict[str, Any],
         priority: float = 0.0,
+        credential: str = "",
     ) -> Pending[Any]:
         call = self.driver.current if self.driver is not None else None
         call_id = call.id if call is not None else "0"
@@ -358,6 +369,10 @@ class Graph:
         self.check_passes(frames, base, call_id)
         self.declare(spec)
         self.layout(spec)
+        if credential and self.check_credential is not None:
+            problems = self.check_credential(spec.kind, credential)
+            if problems:
+                raise ValueError(f"{key}: credential={credential!r}: {'; '.join(problems)}")
         claims = _expand_claims(spec, unit, key, params)  # before the key is taken: a raise leaves no gap in ~n
         out, writer = None, None
         if _writes_output(spec):
@@ -396,6 +411,7 @@ class Graph:
             changes=tuple(p.format(**filled) for p in getattr(spec, "changes", ())),
             claims=claims,
             priority=priority,
+            credential=credential,
         )
         node.fingerprint = self._fingerprint(node, received)
         self.nodes.append(node)
@@ -590,6 +606,18 @@ class Graph:
         text = json.dumps(body, sort_keys=True, ensure_ascii=False, default=repr)
         return hashlib.sha256(text.encode()).hexdigest()
 
+    def _credential_of(self, node: Node) -> str:
+        """The credential the task call's tasks run as: its own, unless the run-wide override
+        outranks it (logged)."""
+        if node.credential and self.credential_override:
+            if node.credential != self.credential_override:
+                _logger.warning(
+                    f"[route] {node.key}: runs as {self.credential_override}, the override's credential, "
+                    f"not {node.credential}, its task call's"
+                )
+            return ""
+        return node.credential
+
     def _task(self, node: Node) -> Task:
         task = Task(
             kind=node.spec.kind,
@@ -601,6 +629,7 @@ class Graph:
             fingerprint=node.fingerprint,
             claims=node.claims,
             priority=node.priority,
+            credential=self._credential_of(node),
             rerun_on_resume=getattr(node.spec, "rerun_on_resume", False),
             base_kind=getattr(node.spec, "base_kind", ""),
             payload=node,

@@ -34,7 +34,7 @@ from contraagent._internal.routing.kind_config import (
     missing_budgets,
     with_context_warn,
 )
-from contraagent._internal.routing.router import Route, Router, parse_chain
+from contraagent._internal.routing.router import Route, Router, on_credential, parse_chain
 
 if TYPE_CHECKING:
     from contraagent._internal.routing.preflight import PreflightPolicy, PreflightRecord
@@ -296,6 +296,34 @@ def check_credentials(
                 _report(errors, f"{name} hop {i + 1}/{len(routes)} {route}: {problem}")
 
 
+def call_credential_problems(
+    rc: KindConfig,
+    router: Router | None,
+    credential: str,
+    credentials: Mapping[str, Any],
+    backends: Mapping[str, Backend],
+    overrides: Overrides = Overrides(),
+) -> list[str]:
+    """Why a task of config `rc` cannot run as `credential`, the credential its task call
+    names (`AgentTask.__call__`), one message per refused route; empty when it can.
+
+    The call's credential is every route's of the kind (`on_credential`), so each route is
+    checked as `check_credentials` checks a kind's: the credential exists, carries the
+    traits the task requires, and the route's coding agent can use it with its model. An
+    `overrides` credential outranks the call's: then only the name is checked."""
+    if credential not in credentials:
+        return [f"no [credentials.{credential}]{did_you_mean(credential, credentials)}; defined: {', '.join(sorted(credentials))}"]
+    if overrides.credential:
+        return []
+    routes = on_credential(router.routes if router is not None else (Route(rc.agent, rc.model, rc.credential),), credential)
+    out: list[str] = []
+    for i, route in enumerate(routes):
+        problem = _route_problem(rc, route, credentials, backends)
+        if problem:
+            out.append(f"hop {i + 1}/{len(routes)} {route}: {problem}")
+    return out
+
+
 def _route_problem(rc, route: Route, credentials: Mapping[str, Any], backends: Mapping[str, Backend]) -> str | None:
     """Why `route` cannot carry a task of config `rc`, or None."""
     cred = credentials.get(route.credential or rc.credential)
@@ -392,6 +420,13 @@ class RoutingPlan:
         if errors:
             raise RoutingError(*errors)
         return cls(config=config, backends=backends, configs=configs, routers=routers, overrides=overrides, credentials=credentials)
+
+    def call_problems(self, kind: str, credential: str) -> list[str]:
+        """Why a task of `kind` cannot run as `credential`, the credential its task call
+        names; empty when it can (`call_credential_problems`)."""
+        return call_credential_problems(
+            self.configs[kind], self.routers.get(kind), credential, self.credentials, self.backends, self.overrides
+        )
 
     def preflight(self, policy: PreflightPolicy) -> PreflightRecord:
         """Probe every route once, drop the ones that cannot answer, and apply `policy` to

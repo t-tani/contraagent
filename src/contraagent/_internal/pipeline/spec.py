@@ -204,13 +204,27 @@ class AgentTask[Out]:
         key: str | None = None,
         after: Sequence[Pending[Any] | str] = (),
         priority: float = 0.0,
+        credential: str | None = None,
         **params: Any,
     ) -> Pending[Out]:
         """Queue this task for `unit`. `params` may hold `Pending` outputs of other tasks.
-        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter."""
+        `priority` breaks ties in the queue, higher first (`WorkQueue`); it is not a parameter.
+        `credential` names a `[credentials.<name>]` this task runs as on every route of its
+        kind, failover hops included, in place of the kind's; None: the kind's. It outranks
+        the kind's `[tasks.<kind>]` table and its declaration; a run-wide override
+        (`Overrides(credential=)`) outranks it. A credential that does not exist or does not
+        carry the traits the task `requires` is refused before the task launches."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=params)
+        return current_graph().add(
+            self,
+            unit=unit,
+            key=key,
+            after=after,
+            priority=_checked_priority(self.kind, priority),
+            credential=_checked_credential(self.kind, credential),
+            params=params,
+        )
 
 
 @overload
@@ -504,10 +518,10 @@ def agent_task[Out](
         raise TypeError(f"agent_task({kind!r}): output must be a pydantic model, str or Rows[Model], not {output!r}")
     if params is not None and not (isinstance(params, type) and issubclass(params, BaseModel)):
         raise TypeError(f"agent_task({kind!r}): params must be a pydantic model, not {params!r}")
-    if params is not None and (taken := sorted(RESERVED_PARAMS & set(params.model_fields))):
+    if params is not None and (taken := sorted(AGENT_CALL_WORDS & set(params.model_fields))):
         raise TypeError(
             f"agent_task({kind!r}): params {params.__name__} has a field named {', '.join(taken)}; "
-            f"a task call takes {', '.join(sorted(RESERVED_PARAMS))} itself: rename the field"
+            f"an agent task call takes {', '.join(sorted(AGENT_CALL_WORDS))} itself: rename the field"
         )
     if output_from not in ("file", "message"):
         raise TypeError(f'agent_task({kind!r}): output_from must be "file" or "message", not {output_from!r}')
@@ -1047,6 +1061,8 @@ def _type_name(t: type) -> str:
 
 #: The keywords a task call takes itself, so never a parameter of the task.
 RESERVED_PARAMS = frozenset({"key", "after", "priority"})
+#: The keywords an agent task call takes itself: those of every task call, and `credential`.
+AGENT_CALL_WORDS = RESERVED_PARAMS | {"credential"}
 
 
 def _checked_priority(kind: str, priority: Any) -> float:
@@ -1054,6 +1070,15 @@ def _checked_priority(kind: str, priority: Any) -> float:
     if isinstance(priority, bool) or not isinstance(priority, (int, float)) or not math.isfinite(priority):
         raise TypeError(f"{kind}(...): priority must be a finite number, not {priority!r}")
     return float(priority)
+
+
+def _checked_credential(kind: str, credential: Any) -> str:
+    """An agent task call's `credential`: None, or the name of a `[credentials.<name>]`."""
+    if credential is None:
+        return ""
+    if not isinstance(credential, str) or not credential.strip() or credential != credential.strip():
+        raise TypeError(f"{kind}(...): credential must name a [credentials.<name>] (or be None), not {credential!r}")
+    return credential
 
 
 def _checked_claims(owner: str, claims: Sequence[str]) -> tuple[str, ...]:

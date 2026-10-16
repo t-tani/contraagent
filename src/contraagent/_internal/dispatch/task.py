@@ -129,6 +129,9 @@ class Task:
     `base_kind`: for a kind that is one of several implementations of one step, the
     step's kind (`agent_task(implementations=)`); empty for any other. Recorded in
     `plan.jsonl`; nothing here reads it.
+    `credential`: the credential its task call names (a `[credentials.<name>]`), which
+    every route of its kind runs it as; empty: its kind's own. Routing, not work: no part
+    of the fingerprint.
     """
 
     kind: str
@@ -149,6 +152,7 @@ class Task:
     origin: Origin | None = None
     fingerprint: str = ""
     base_kind: str = ""
+    credential: str = ""
 
     def __post_init__(self) -> None:
         # Generic, collision-safe fallbacks -- a domain that always assigns

@@ -29,7 +29,7 @@ them all):
 | `claims` | one task at a time on a name | "Claims", below |
 | `changes` | the files it changes beside its output | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
-| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks | [Routing](routing.md) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
 | `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
 
 ## Python tasks
@@ -116,6 +116,9 @@ reference to the task's future output:
   needs every summary.
 - `after=` orders tasks without passing data.
 - `priority=` breaks ties in the queue, higher first (see below).
+- `credential=` (an agent task's) names the `[credentials.<name>]` that task runs
+  as on every route of its kind, in place of the kind's own; how it ranks, fails
+  over and rests is in [Routing](routing.md#a-task-calls-credential).
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
@@ -269,8 +272,9 @@ first, whatever the priorities; so does a task that has waited past
 then the shortest remaining work) comes before it too. A priority is not part
 of the fingerprint: a resumed run that changes one skips the same tasks.
 `plan.jsonl` records it. A params model with a field named `priority` (or
-`key`, `after`), or a Python task's function with such a parameter, is refused
-where the task is declared: the task call takes these words itself.
+`key`, `after`, and for an agent task `credential`), or a Python task's function
+with such a parameter, is refused where the task is declared: the task call takes
+these words itself.
 
 Each task records where the flow created it (`plan.jsonl`: `flow`,
 `created_from`, `flow_call`), and each flow call its start, with the frames of
