@@ -4,9 +4,11 @@
 # a release's tag, so a push of a tag starts no run of its own here.
 name: CI
 
+# A change reaches main through a pull request, which runs CI once; the push of
+# the merge runs it again on main. A push to any other branch runs nothing.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_call:
 
