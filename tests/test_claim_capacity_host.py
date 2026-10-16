@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from contraagent import ConfigError, PerTask, Pipeline, PipelineConfig, Task, TaskResult, python_task
-from contraagent._internal.platform import procfs
+from contraagent._internal.platform import processes
 from contraagent._internal.routing.capacity import STARTUP_S, HostCapacity, sized
 from contraagent.engine import WorkQueue
 from contraagent.testing import StubAgent
@@ -29,11 +29,10 @@ def host(mem: list, cores: int = 64, clock=None) -> HostCapacity:
 # --- reading the host ----------------------------------------------------------------
 
 
-def test_mem_available_is_read_from_meminfo(tmp_path):
-    (tmp_path / "meminfo").write_text("MemTotal:       16000000 kB\nMemFree:  100 kB\nMemAvailable:    8192000 kB\n")
-    assert procfs.read_mem_available_mb(str(tmp_path)) == 8000
-    assert procfs.read_mem_available_mb(str(tmp_path / "none")) is None  # not Linux
-    assert procfs.usable_cores() >= 1
+def test_the_host_reports_its_free_memory_and_cores():
+    free = processes.mem_available_mb()
+    assert free is not None and 0 < free
+    assert processes.usable_cores() >= 1
 
 
 # --- the capacity -----------------------------------------------------------------------
@@ -185,6 +184,6 @@ def test_a_run_sizes_a_per_task_capacity_by_the_host(tmp_path):
         return (yield [serve(u) for u in "abcd"])
 
     _running[:] = [0, 0]
-    whole = PerTask(cores=procfs.usable_cores())  # one task takes every core
+    whole = PerTask(cores=processes.usable_cores())  # one task takes every core
     p = Pipeline(None, runs_dir=tmp_path, backends=StubAgent().backends(), log=lambda line: None, claim_capacity={"index": whole})
     assert p.run(flow).ok and _running[1] == 1

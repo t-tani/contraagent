@@ -200,7 +200,7 @@
           "type": "null"
         }
       ],
-      "description": "the start time of `pid` in clock ticks after boot (`/proc/<pid>/stat`)",
+      "description": "the start of `pid` as the host's OS records it: on Linux clock ticks after boot (`/proc/<pid>/stat`), on macOS and Windows microseconds after the epoch; compared only for equality on this host, so a recycled pid is not taken for the run's process",
       "title": "Start Ticks"
     },
     "argv": {

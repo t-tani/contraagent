@@ -33,7 +33,7 @@ httpx = pytest.importorskip("httpx")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from contraagent._internal.monitor import server  # noqa: E402
-from contraagent._internal.platform import procfs  # noqa: E402
+from contraagent._internal.platform import processes  # noqa: E402
 from contraagent.monitor import Monitor  # noqa: E402
 from hub_services import (  # noqa: E402
     hub_services,  # noqa: F401  # the fixture that stops the containers
@@ -338,7 +338,7 @@ def _make_live_run(runs: Path, sleeper: subprocess.Popen) -> Path:
     shutil.copytree(src, dst)
     info = json.loads((src / "run.json").read_text())
     info.pop("finished_at", None)
-    info.update(run_id=LIVE, run_uid=uuid.uuid4().hex, pid=sleeper.pid, start_ticks=procfs.pid_start_ticks(sleeper.pid))
+    info.update(run_id=LIVE, run_uid=uuid.uuid4().hex, pid=sleeper.pid, start_ticks=processes.start_ticks(sleeper.pid))
     launch = (src / "streams" / "classify-east-0.stream.jsonl").read_text().splitlines()[0]
     (dst / "streams" / f"{LIVE_KEY}.stream.jsonl").write_text(launch + "\n")
     (dst / "inflight").mkdir(exist_ok=True)

@@ -23,7 +23,6 @@ iterable of names, e.g. an enum class) and an unknown name raises
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import os
 import sys
 from collections.abc import Iterable, Mapping
@@ -32,7 +31,8 @@ from pathlib import Path
 from typing import Any
 
 from contraagent._internal.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
-from contraagent._internal.platform import procfs
+from contraagent._internal.platform import processes
+from contraagent._internal.platform.locks import locks
 from contraagent._internal.runs.files import write_document
 from contraagent._internal.runs.times import now, now_iso
 
@@ -83,15 +83,19 @@ class CursorStore:
 
     @contextlib.contextmanager
     def _locked(self):
-        """An exclusive flock across one read-modify-write, released even if
+        """An exclusive lock (`locks`) across one read-modify-write, released even if
         the holder is killed mid-task."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.path.with_suffix(self.path.suffix + ".lock"), os.O_CREAT | os.O_RDWR, 0o666)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            locks.lock(fd)
+        except BaseException:
+            os.close(fd)
+            raise
+        try:
             yield
         finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            locks.unlock(fd)
             os.close(fd)
 
     def read(self) -> Cursor | None:
@@ -170,7 +174,7 @@ class CursorStore:
             cur = self.load()
             up = cur.units.get(unit) or UnitCursor()
             prior = up.inflight
-            if prior is not None and procfs.pid_identity_ok(prior.pid, prior.start_ticks):
+            if prior is not None and processes.identity_ok(prior.pid, prior.start_ticks):
                 raise RuntimeError(
                     f"{self.run}/{unit}: pid {prior.pid} already has "
                     f"{prior.item_ids} in flight (since {prior.since}); "
@@ -178,7 +182,7 @@ class CursorStore:
                 )
             when = at or now()
             pid = os.getpid()
-            up.inflight = Inflight(item_ids=list(item_ids), since=when, pid=pid, start_ticks=procfs.pid_start_ticks(pid))
+            up.inflight = Inflight(item_ids=list(item_ids), since=when, pid=pid, start_ticks=processes.start_ticks(pid))
             cur.units = {**cur.units, unit: up}
             cur.updated_at = when
             self._save(cur)

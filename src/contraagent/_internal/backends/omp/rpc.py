@@ -33,6 +33,7 @@ from contraagent._internal.backends.omp.wire import TraceReader
 from contraagent._internal.backends.process import LaunchError
 from contraagent._internal.backends.refusal import FAILED_STOPS, Signals
 from contraagent._internal.backends.wire import EventFold, LimitsWatch, positive_int
+from contraagent._internal.platform.groups import groups
 
 #: The id of the post-turn `get_state` request (`OmpRpcBackend._harvest_state`).
 STATE_REQUEST = "harvest-state"
@@ -183,7 +184,7 @@ class OmpRpcBackend(OmpBackend):
                 bufsize=1,
                 cwd=str(launch.cwd),
                 env=env,
-                start_new_session=True,
+                **groups.popen_options(),
             )
         except OSError as exc:
             raise LaunchError(str(exc)) from exc
@@ -201,7 +202,7 @@ class OmpRpcBackend(OmpBackend):
             try:
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                groups.kill(proc)
                 proc.wait()
             live_processes.unregister(proc)
             # The process is gone; its readers are at EOF or take a closed pipe as one.

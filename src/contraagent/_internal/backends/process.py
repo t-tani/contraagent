@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-import select
-import signal
+import queue
 import subprocess
 import threading
 import time
@@ -19,6 +18,7 @@ from typing import Protocol
 from contraagent._internal.backends import live_processes
 from contraagent._internal.backends.launch import STDIN_THRESHOLD, Launch, Stop
 from contraagent._internal.errors import ContraagentError
+from contraagent._internal.platform.groups import groups
 
 # How much of a (possibly very large, stdin-fed) prompt the launch marker
 # records. The monitor renders it collapsed, so a generous cap still reads
@@ -96,23 +96,20 @@ def _drain(pipe, buf: list[str], sink: Sink | None = None, stops: list[Stop] | N
 
 
 def _terminate(proc: subprocess.Popen) -> None:
-    """Stop the whole process group, SIGTERM first, SIGKILL after 10s."""
-    live_processes.unregister(proc)
+    """Stop the whole process group (`groups`): asked first, killed after 10s."""
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except (OSError, ProcessLookupError):
-        return
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            pass
+        if not groups.terminate(proc):
+            return
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            pass  # stuck in the kernel; the caller still gets its result
+            groups.kill(proc)
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass  # stuck in the kernel; the caller still gets its result
+    finally:
+        live_processes.unregister(proc)
 
 
 def write_launch_marker(argv: list[str], launch: Launch) -> None:
@@ -177,7 +174,7 @@ def run_process(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=0,
-            start_new_session=True,
+            **groups.popen_options(),
         )
     except OSError as exc:
         raise LaunchError(str(exc)) from exc
@@ -204,7 +201,9 @@ def _supervise(
     th = threading.Thread(target=_drain, args=(proc.stderr, stderr_buf, stderr_sink, stderr_stops), daemon=True)
     th.start()
     assert proc.stdout is not None
-    fd = proc.stdout.fileno()
+    chunks: queue.Queue[bytes] = queue.Queue()
+    reader = threading.Thread(target=_read_chunks, args=(proc.stdout, chunks), daemon=True)
+    reader.start()
     deadline = started_wall + launch.limits.timeout_s
     stall_s = launch.limits.stall_s
     last_line = started_wall
@@ -217,8 +216,8 @@ def _supervise(
     # tails this file while the agent runs.
     stream = open(launch.stream_path, "ab", buffering=0) if launch.stream_path is not None else None
     try:
-        # Read from the fd directly. Mixing select with buffered readline hides
-        # lines in the reader's own buffer while select reports no data.
+        # A thread reads the pipe (no `select`, which on Windows takes sockets only) and
+        # hands each chunk over as it comes; the wait for one is bounded below.
         while True:
             now = time.monotonic()
             if now >= deadline:
@@ -235,10 +234,10 @@ def _supervise(
             wait = min(deadline - now, 1.0)
             if stall_s:
                 wait = min(wait, max(0.0, last_line + stall_s - now) + 0.01)
-            ready, _, _ = select.select([fd], [], [], wait)
-            if not ready:
+            try:
+                chunk = chunks.get(timeout=wait)
+            except queue.Empty:
                 continue
-            chunk = os.read(fd, 1 << 16)
             if not chunk:
                 break
             last_line = time.monotonic()
@@ -264,16 +263,29 @@ def _supervise(
         if killed is not None or proc.poll() is None:
             _terminate(proc)
     exit_code = proc.returncode
-    th.join(timeout=5)
-    _close_pipes(proc, stderr_read=not th.is_alive())
+    joined_by = time.monotonic() + 5
+    for t in (th, reader):
+        t.join(timeout=max(0.0, joined_by - time.monotonic()))
+    _close_pipes(proc, stdout_read=not reader.is_alive(), stderr_read=not th.is_alive())
     return b"".join(out), "".join(stderr_buf)[-2000:], exit_code, killed
 
 
-def _close_pipes(proc: subprocess.Popen, *, stderr_read: bool) -> None:
+def _read_chunks(pipe, chunks: queue.Queue[bytes]) -> None:
+    """Put each chunk read from `pipe` on `chunks` as it comes, then an empty one at its end."""
+    fd = pipe.fileno()
+    try:
+        while chunk := os.read(fd, 1 << 16):
+            chunks.put(chunk)
+    except (OSError, ValueError):
+        pass
+    chunks.put(b"")
+
+
+def _close_pipes(proc: subprocess.Popen, *, stdout_read: bool, stderr_read: bool) -> None:
     """Close the pipes this process read, so none is left for the garbage collector
-    (a ResourceWarning). stderr only once its reader has finished: a grandchild that
-    keeps it open would otherwise have its reader closed under it."""
-    pipes = [proc.stdout, proc.stdin] + ([proc.stderr] if stderr_read else [])
+    (a ResourceWarning). stdout and stderr only once their readers have finished: a
+    grandchild that keeps one open would otherwise have its reader closed under it."""
+    pipes = [proc.stdin] + ([proc.stdout] if stdout_read else []) + ([proc.stderr] if stderr_read else [])
     for pipe in pipes:
         if pipe is not None:
             try:
