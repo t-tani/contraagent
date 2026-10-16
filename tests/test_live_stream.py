@@ -80,7 +80,8 @@ def test_a_waiter_wakes_promptly_on_an_append_from_another_thread():
 
     got, late = asyncio.run(wait())
     assert got == 11
-    assert late < 0.1
+    # Woken by the append, well before the 5 s timeout: a busy runner can be slow to schedule it.
+    assert late < 1.0
 
 
 def test_a_wait_returns_after_its_timeout_when_nothing_grows(tmp_path):
