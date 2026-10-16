@@ -54,6 +54,17 @@ test('reload and Back restore how far the list was scrolled', async ({ page }) =
   await page.setViewportSize({ width: 1280, height: 420 });
   await tab(page, 'history').click();
   await expect(page.locator('ca-journal-table tbody tr[data-executor="agent"]').first()).toBeVisible();
+  // The rows arrive over the feed: measure once their number has stopped changing.
+  const rows = page.locator('ca-journal-table tbody tr');
+  let count = -1;
+  await expect
+    .poll(async () => {
+      const now = await rows.count();
+      const still = now === count;
+      count = now;
+      return still;
+    }, { intervals: [300] })
+    .toBe(true);
   const max = await main(page).evaluate((m) => m.scrollHeight - m.clientHeight);
   test.skip(max < 120, 'the demo journal is too short to scroll');
   const y = Math.round(max / 2);
