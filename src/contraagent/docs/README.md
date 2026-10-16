@@ -127,6 +127,7 @@ and the documentation site print the quoted lines in place.
 - [Contracts and validators](contracts.md): how outputs are checked and sent back.
 - [Routing and credentials](routing.md): the config file: coding agent, model, budget, failover, identity, quota caps.
 - [Coding agents](agents.md): what each of the five coding agents does and does not do, and how to add another.
+- [Security model](security.md): what a task's session receives, refusals and failover, credentials, what each coding agent enforces, what a run records and who can read it.
 - [Checking and testing](testing.md): `contraagent check`, a stub run of the whole flow on the outputs' examples, and flows tested on a stub agent.
 - [The monitor](monitor.md): the live view of runs, and an export of it that needs no server.
 - [Many hosts: the hub](hub.md): every host's runs in one monitor: `contraagent hub` and `contraagent relay`.
@@ -141,5 +142,5 @@ are generator flows (a review loop per unit; a three-layer nested flow);
 `examples/runner/run.py` runs a flow from a program, with what `contraagent run` cannot pass;
 `examples/reference/pipeline.toml` is every config table and key, annotated. The
 other directories of `examples/` (`before/`, `claims/`, `hub/`, `light/`, `panels/`,
-`partial/`, `preserve/`, `retries/`, `scopes/`, `skills/`, `time_box/`) are each quoted
+`partial/`, `preserve/`, `retries/`, `scopes/`, `security/`, `skills/`, `time_box/`) are each quoted
 by the topic that explains them. The test suite runs them all.
