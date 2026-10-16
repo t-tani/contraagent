@@ -206,7 +206,7 @@ class Walker:
             for name, value in cls.__dict__.get("__annotations__", {}).items():
                 if not name.startswith("_"):
                     self.visit_type(value, globalns, f"{obj.__qualname__}.{name}", localns)
-            for name, member in cls.__dict__.items():
+            for name, member in list(cls.__dict__.items()):
                 if name.startswith("_") and name not in ("__init__", "__call__"):
                     continue
                 if isinstance(member, (classmethod, staticmethod)):
@@ -308,7 +308,7 @@ def _public_members(obj: object) -> Iterator[tuple[str, object]]:
     """An exported object and the functions and properties its class defines, by name."""
     yield "", obj
     if isinstance(obj, type):
-        for name, member in vars(obj).items():
+        for name, member in list(vars(obj).items()):  # help() may add `__annotate_func__` (3.14)
             if name.startswith("_") and name not in ("__init__", "__call__"):
                 continue
             if isinstance(member, (classmethod, staticmethod)):

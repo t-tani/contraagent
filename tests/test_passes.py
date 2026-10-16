@@ -216,7 +216,13 @@ def test_code_with_no_source_falls_back_to_its_backward_jumps():
     exec(compile("def made_while(n):\n    while n:\n        n -= 1\n        yield n\n", "<made_while>", "exec"), scope)
     with loops.counting(counter):
         assert len(list(scope["made_while"](3))) == 3
-    assert not loops.is_while("<made>", 2) and loops.is_while("<made_while>", 3)  # a `for` heads at its FOR_ITER
+    assert not loops.is_while("<made>", 2) and loops.is_while("<made_while>", 2)  # each named by its first line
+    src = "def made_continue(n):\n    while n:\n        n -= 1\n        if n == 2:\n            continue\n        yield n\n"
+    exec(compile(src, "<made_continue>", "exec"), scope)
+    with loops.counting(counter):
+        gen = scope["made_continue"](4)
+        got = [[(loop.line, loop.pass_) for loop in counter.loops(gen.gi_frame)] for _ in gen]
+    assert got == [[(2, 1)], [(2, 3)], [(2, 4)]]  # `continue` goes back to the same loop
 
 
 def test_outside_counting_or_with_no_free_tool_id_a_pass_is_none():

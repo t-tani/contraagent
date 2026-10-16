@@ -15,9 +15,11 @@ with its span; the region that runs once per pass excludes a `for`'s iterable
 bytecode, the instructions a back edge goes to (a loop's **heads**): a `for`'s
 `FOR_ITER`, and a `while`'s first instruction of its test and of its first
 statement. Comprehension code is skipped. Code with no source falls back to the
-bytecode alone: each backward jump target is a loop, named by its line (a `for`
-when the target is a `FOR_ITER`, else a `while`). `is_while(file, line)` says
-which loops are `while` loops: `max_passes` bounds those only.
+bytecode alone: each backward jump target is a loop (a `for` when the target is a
+`FOR_ITER`, else a `while`), named by the target's line; a `while` takes the
+smaller line of its target and of its back jumps, which is its `while` line on
+every Python version. Targets on one line are one loop. `is_while(file, line)`
+says which loops are `while` loops: `max_passes` bounds those only.
 
 **Runtime part** (`LoopCounter`, `counting`). A `sys.monitoring` tool (the
 first free id of 3 and 4, named `contraagent`) receives the `JUMP` events of
@@ -211,19 +213,24 @@ def _from_bytecode(instructions: list[dis.Instruction]) -> _Code:
         p = ins.positions
         last = p.lineno if p is not None and p.lineno is not None else last
         line_at[ins.offset] = last
+    for_heads = {ins.offset for ins in instructions if ins.opname == "FOR_ITER"}
     ends: dict[int, int] = {}
+    lines: dict[int, int] = {}
     for ins in instructions:
         if _backward(ins):
             target = int(ins.argval)
             ends[target] = max(ends.get(target, 0), ins.offset)
+            # A `for` goes back to its FOR_ITER, on its line. A `while` goes back to its
+            # test, or (before 3.14) to its body from a copy of the test: the smaller
+            # line of target and jump is the `while` line in both.
+            here = line_at.get(target, 0)
+            lines[target] = here if target in for_heads else min(lines.get(target, here), line_at.get(ins.offset, here))
     info = _Code()
     for target, end in sorted(ends.items()):
-        line = line_at.get(target, 0)
-        if line in info.ranges:  # two targets on one line: the outer one names it
-            continue
-        info.ranges[line] = (target, end)
+        line = lines[target]
+        a, b = info.ranges.get(line, (target, end))  # targets on one line are one loop
+        info.ranges[line] = (min(a, target), max(b, end))
         info.heads[target] = line
-    for_heads = {ins.offset for ins in instructions if ins.opname == "FOR_ITER"}
     for line, (a, b) in info.ranges.items():
         inner = tuple(m for m, (c, d) in info.ranges.items() if m != line and a <= c and d <= b)
         info.loops[line] = _Loop(line, (0, 0), (0, 0), (), inner, a not in for_heads)
