@@ -20,7 +20,10 @@ A reply is one of:
   quota=QuotaReading(five_hour_pct=80))` also reports a quota reading, as a coding
   agent does, so quota caps and `quota_rule` rest the credential in a test;
 * `writes_smallest()`: the smallest value the output's schema accepts;
-  a schema rule it cannot build (`pattern`) fails the launch and names the rule;
+  a schema rule it cannot build (`pattern`) fails the launch and names the rule. As a
+  task's only reply (not in a list, not from a callable), a value its validators reject
+  ends the task `invalid_output` after one round: no correction round and no retry,
+  which would write the same value;
 * `writes_nothing()`: the launch completes and leaves no file;
 * `fails(stop, reason)`: the launch ends on `stop` (default `error`);
 * `rate_limited(retry_after_s)`: a 429 (a quota refusal, with the cool-off it states), which

@@ -38,7 +38,7 @@ stub agent.
 
 Run it after every change to tasks, plugins or the config.
 
-## Stub run: the whole flow, nothing called
+## Stub run: the flow's wiring, nothing called
 
 ```
 contraagent run tasks.py:<flow> --stub --kwargs '{"units": ["a", "b"]}' [--execute fetch]
@@ -54,14 +54,48 @@ path that created it). `--execute <kind>` runs that Python task kind's function
 instead (a read-only step whose real output the flow needs). The run id is
 `<flow>-stub`, and the monitor marks the run "stub agent".
 
-The outputs are the smallest, so the flow takes the path they lead to: a branch
-on a value it never sees is not taken, a validator that wants more than the
-schema fails its task at once (the stub does not send the same value back), and a rule the stub cannot build (`pattern`) fails the
-task and names the rule. Flow code itself runs as in any run: a side effect in
-the flow's own body happens in a stub run too. Put side effects in Python tasks.
-In Python, `Pipeline(stub=StubAgent(script, default=writes_smallest(),
-execute=[...]))` scripts the replies of both kinds of task, as a test does
-(the `contraagent.testing` module docstring lists the replies).
+So a stub run checks the flow's wiring: which tasks the flow creates, what each
+one is given, and how the flow goes on from their outputs. It does not check
+content. The outputs are the smallest, so the flow takes the path they lead to:
+a branch on a value it never sees is not taken, and a rule the stub cannot build
+(`pattern`) fails the task and names the rule. A validator that needs real
+content (three points, a heading) rejects the smallest output: its task ends
+`invalid_output` after one round, with no correction round and no retry (the
+stub would write the same value again), and the tasks that need its output do
+not run. This is the expected result for such a validator, not a mistake in the
+flow, and the run's last line says so. The demo's `summarize` needs exactly three
+points:
+
+```
+contraagent run "$(contraagent docs --path)/examples/demo/tasks.py:docs" --stub --kwargs '{"units": ["alpha", "beta"]}'
+```
+
+```
+5 tasks created:
+  prepare · alpha | completed | docs > review_loop (line 131)
+  summarize · alpha | invalid_output | docs > review_loop (line 131)
+  prepare · beta | completed | docs > review_loop (line 131)
+  summarize · beta | invalid_output | docs > review_loop (line 131)
+  report | completed | docs (line 147)
+✗ 3/5 tasks done in 0.1s; run in runs/docs-stub
+  summarize-alpha: invalid_output out/summarize/alpha.json: [three_points] points: exactly three expected, got 0
+  summarize-beta: invalid_output out/summarize/beta.json: [three_points] points: exactly three expected, got 0
+2 tasks failed checks on the smallest outputs of the stub agent (summarize: three_points), so the tasks that need their outputs did not run. Test these checks in pytest with StubAgent replies that carry real content: `contraagent docs testing`
+```
+
+The run is not ok, so `contraagent run` exits 1, as for any failed task: the
+flow past those tasks was not run, so its wiring there is not checked. A test on
+the stub agent ([below](#test-the-stub-agent)) gives those tasks replies that pass
+their validators, and the flow runs to its end (the demo's
+`test_the_flow_runs_on_the_stub`). Any other failure in a stub run (an exception
+in the flow, a rule the stub cannot build) is a mistake in the flow or its
+declarations.
+
+Flow code itself runs as in any run: a side effect in the flow's own body happens
+in a stub run too. Put side effects in Python tasks. In Python,
+`Pipeline(stub=StubAgent(script, default=writes_smallest(), execute=[...]))`
+scripts the replies of both kinds of task, as a test does (the
+`contraagent.testing` module docstring lists the replies).
 
 ## Record once, replay in CI
 

@@ -596,6 +596,7 @@ class AgentRunner:
             reason=reason,
             rounds=launch_result.rounds,
             round_errors=tuple(tuple(errors) for errors in launch_result.round_errors),
+            retryable=launch_result.retryable,
         )
 
 

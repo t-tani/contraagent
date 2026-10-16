@@ -1267,6 +1267,7 @@ class LaunchResult
         context_budget: int | None = None,
         context_warned: bool = False,
         context_window: int | None = None,
+        retryable: bool = True,
     ) -> None
     agent: str = ''
     api_key_source: str = ''
@@ -1300,6 +1301,7 @@ class LaunchResult
     def record(self, path: Path) -> None
     result_text: str = ''
     retry_errors: dict[str, int] = field(default_factory=dict)
+    retryable: bool = True
     round_costs: list[float | None] = field(default_factory=list)
     round_errors: list[list[str]] = field(default_factory=list)
     rounds: int | None = None
@@ -3311,6 +3313,7 @@ class StubAgent(Backend)
     played: list[StubTask]
     def plays(self, kind: str) -> bool
     def resumable(self, launch: Launch) -> Launch
+    def resumed(self, launch: Launch, prior: LaunchResult, prompt: str) -> Launch | None
     def run(self, launch: Launch) -> LaunchResult
     script: dict[str, Any]
     @classmethod
