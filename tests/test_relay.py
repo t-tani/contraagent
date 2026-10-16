@@ -8,7 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from contraagent._internal.cli import main as cli_main
@@ -315,10 +315,10 @@ def test_the_progress_file_is_next_to_the_runs_directory(tmp_path):
 
 
 def test_http_client_speaks_the_protocol():
-    seen: list[httpx.Request] = []
+    seen: list[httpx2.Request] = []
     blobs: set[str] = set()
 
-    def handle(request: httpx.Request) -> httpx.Response:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         seen.append(request)
         assert request.headers["authorization"] == "Bearer s3cret"
         path = request.url.path
@@ -327,19 +327,19 @@ def test_http_client_speaks_the_protocol():
             body = gzip.decompress(request.content)
         if path == "/ingest/records":
             batch = RecordBatch.model_validate_json(body)
-            return httpx.Response(200, json={"logs": {c.log: c.offset + len(c.lines) for c in batch.logs}})
+            return httpx2.Response(200, json={"logs": {c.log: c.offset + len(c.lines) for c in batch.logs}})
         if path == "/ingest/heartbeat":
             Heartbeat.model_validate_json(body)
-            return httpx.Response(200, json={"ttl_s": 15})
+            return httpx2.Response(200, json={"ttl_s": 15})
         sha = path.rsplit("/", 1)[1]
         if request.method == "HEAD":
-            return httpx.Response(200 if sha in blobs else 404)
+            return httpx2.Response(200 if sha in blobs else 404)
         if hashlib.sha256(request.content).hexdigest() != sha:
-            return httpx.Response(400, text="content does not hash")
+            return httpx2.Response(400, text="content does not hash")
         blobs.add(sha)
-        return httpx.Response(204)
+        return httpx2.Response(204)
 
-    client = HttpClient("http://hub:8790/", "s3cret", 5, transport=httpx.MockTransport(handle))
+    client = HttpClient("http://hub:8790/", "s3cret", 5, transport=httpx2.MockTransport(handle))
     ref = RunRef(host_id="h", run_id="r", run_uid="u")
     batch = RecordBatch(
         run=ref, logs=[LogChunk(log=layout.JOURNAL, offset=2, lines=["x"])], documents=[DocumentPut(name="run.json", text="{}")]
@@ -358,13 +358,13 @@ def test_http_client_speaks_the_protocol():
 @pytest.mark.parametrize(
     "answer",
     [
-        lambda request: httpx.Response(401, text="bad token"),
-        lambda request: httpx.Response(200, text="not json"),
-        lambda request: (_ for _ in ()).throw(httpx.ConnectError("refused", request=request)),
+        lambda request: httpx2.Response(401, text="bad token"),
+        lambda request: httpx2.Response(200, text="not json"),
+        lambda request: (_ for _ in ()).throw(httpx2.ConnectError("refused", request=request)),
     ],
 )
 def test_http_client_failures_are_hub_unavailable(answer):
-    client = HttpClient("http://hub:8790", "t", transport=httpx.MockTransport(answer))
+    client = HttpClient("http://hub:8790", "t", transport=httpx2.MockTransport(answer))
     with pytest.raises(HubUnavailable):
         client.send_records(RecordBatch(run=RunRef(host_id="h", run_id="r", run_uid="u")))
 
@@ -372,21 +372,21 @@ def test_http_client_failures_are_hub_unavailable(answer):
 def test_main_ships_once_over_http(runs, tmp_path, monkeypatch):
     hub = new_hub()
 
-    def handle(request: httpx.Request) -> httpx.Response:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         assert request.headers["authorization"] == "Bearer tok"
         if request.url.path == "/ingest/records":
             batch = RecordBatch.model_validate_json(gzip.decompress(request.content))
-            return httpx.Response(200, content=hub.records(batch).model_dump_json())
+            return httpx2.Response(200, content=hub.records(batch).model_dump_json())
         sha = request.url.path.rsplit("/", 1)[1]
         if request.method == "HEAD":
-            return httpx.Response(200 if hub.has_blob(sha) else 404)
+            return httpx2.Response(200 if hub.has_blob(sha) else 404)
         hub.put_blob(sha, request.content)
-        return httpx.Response(204)
+        return httpx2.Response(204)
 
     real = HttpClient.__init__
 
     def mocked(self, base_url, token="", timeout=30.0, *, transport=None):
-        real(self, base_url, token, timeout, transport=httpx.MockTransport(handle))
+        real(self, base_url, token, timeout, transport=httpx2.MockTransport(handle))
 
     monkeypatch.setattr(HttpClient, "__init__", mocked)
     monkeypatch.setenv("CONTRAAGENT_HUB_TOKEN", "tok")
@@ -405,7 +405,7 @@ def test_main_needs_a_token(runs, monkeypatch, capsys):
 
 @pytest.mark.parametrize("status", [401, 403])
 def test_a_refused_token_is_an_error_retried_slowly(runs, caplog, status):
-    client = HttpClient("http://hub:8790", "t", transport=httpx.MockTransport(lambda request: httpx.Response(status, text="no")))
+    client = HttpClient("http://hub:8790", "t", transport=httpx2.MockTransport(lambda request: httpx2.Response(status, text="no")))
     with pytest.raises(HubRefused):
         client.send_heartbeat(Heartbeat(host_id="h", sent_at="s", interval_s=3))
     r = relay(client, runs, interval_s=3)

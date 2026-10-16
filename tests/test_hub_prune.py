@@ -8,7 +8,7 @@ and changes nothing; every step can be repeated after a crash.
 import dataclasses
 import hashlib
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -57,8 +57,10 @@ HUBS: dict[str, Callable[[Path], Hub]] = {"memory": _memory, "postgres-s3": _pos
 
 
 @pytest.fixture(params=sorted(HUBS))
-def hub(request, tmp_path) -> Hub:
-    return HUBS[request.param](tmp_path)
+def hub(request, tmp_path) -> Iterator[Hub]:
+    hub = HUBS[request.param](tmp_path)
+    yield hub
+    hub.close()
 
 
 def segmented(hub: Hub) -> SegmentedStreamLogs:

@@ -753,9 +753,7 @@ def run(args: argparse.Namespace) -> int:
     finally:
         if pruner is not None:
             pruner.stop()
-        shutdown = getattr(hub.streams, "shutdown", None)
-        if shutdown is not None:
-            shutdown()
+        hub.close()
     return 0
 
 
@@ -800,8 +798,6 @@ def prune(args: argparse.Namespace) -> int:
     try:
         report = hub.prune(older_than=timedelta(days=days), blob_grace=timedelta(hours=args.blob_grace_hours), dry_run=args.dry_run)
     finally:
-        shutdown = getattr(hub.streams, "shutdown", None)
-        if shutdown is not None:
-            shutdown()
+        hub.close()
     sys.stdout.write(report_json(report) + "\n" if args.json else report_table(report))
     return 0

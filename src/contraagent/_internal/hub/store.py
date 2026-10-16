@@ -112,6 +112,10 @@ class HubStore(Protocol):
         """The SHA-256 of every file ref of every run held, except the runs named in `excluding`."""
         ...
 
+    def close(self) -> None:
+        """Release what the store holds open (connections); the store is not used after."""
+        ...
+
 
 class BlobItem(NamedTuple):
     """One blob as a listing gives it: its SHA-256, its size in bytes, and when it was stored."""
@@ -212,6 +216,9 @@ class MemoryHubStore:
     def put_heartbeat(self, heartbeat: Heartbeat, received_at: str) -> None:
         with self._lock:
             self._heartbeats[heartbeat.host_id] = (heartbeat, received_at)
+
+    def close(self) -> None:
+        pass
 
     def runs(self) -> list[RunRef]:
         with self._lock:

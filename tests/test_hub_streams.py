@@ -4,7 +4,7 @@ implementations under test; another joins by adding a factory."""
 
 import asyncio
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -44,8 +44,12 @@ LOG = layout.stream("summarize-a")
 
 
 @pytest.fixture(params=sorted(STREAMS))
-def streams(request, tmp_path) -> StreamLogs:
-    return STREAMS[request.param](tmp_path)
+def streams(request, tmp_path) -> Iterator[StreamLogs]:
+    streams = STREAMS[request.param](tmp_path)
+    yield streams
+    shutdown = getattr(streams, "shutdown", None)
+    if shutdown is not None:
+        shutdown()
 
 
 def test_append_keeps_each_line_once_and_refuses_gaps(streams):

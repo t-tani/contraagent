@@ -446,7 +446,7 @@ def test_published_classes_keep_their_annotations_and_pickle():
 IMPORT_WITHOUT_EXTRAS = """
 import importlib.util, sys
 sys.path.insert(0, sys.argv[1])
-extras = ("fastapi", "uvicorn", "sse_starlette", "httpx", "psycopg", "boto3", "zstandard")
+extras = ("fastapi", "uvicorn", "sse_starlette", "httpx2", "psycopg", "boto3", "zstandard")
 assert [m for m in extras if importlib.util.find_spec(m)] == [], "not a fresh environment"
 import contraagent, contraagent.config, contraagent.backends, contraagent.engine, contraagent.plugins, contraagent.testing
 import contraagent.monitor, contraagent.monitor.api

@@ -154,6 +154,10 @@ class SegmentIndex(Protocol):
         """Delete the run's rows and its activity, together."""
         ...
 
+    def close(self) -> None:
+        """Release what the index holds open (connections); the index is not used after."""
+        ...
+
 
 class MemorySegmentIndex:
     """`SegmentIndex` in memory. Safe across threads."""
@@ -199,6 +203,9 @@ class MemorySegmentIndex:
             for key in [k for k in self._rows if k[:2] == (name, uid)]:
                 del self._rows[key]
             self._activity.pop((name, uid), None)
+
+    def close(self) -> None:
+        pass
 
 
 # An arbitrary 64-bit key for the advisory lock held while the segment tables are created.
@@ -851,8 +858,9 @@ class SegmentedStreamLogs:
                 self._undropped.notify_all()
 
     def shutdown(self, wait: bool = True) -> None:
-        """Stop the background threads (waiting for running seals with `wait`) and close the
-        open files. The open segments stay on disk, recovered by the next start."""
+        """Stop the background threads (waiting for running seals with `wait`), close the
+        open files and then the index. The open segments stay on disk, recovered by the next
+        start."""
         self._stop.set()
         if self._executor is not None:
             self._executor.shutdown(wait=wait)
@@ -863,6 +871,7 @@ class SegmentedStreamLogs:
             with st.lock:
                 if st.hot is not None:
                     st.hot.stop()
+        self.index.close()
 
     # --- recovery --------------------------------------------------------------------------
 

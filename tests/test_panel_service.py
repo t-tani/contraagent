@@ -131,7 +131,7 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
     """Many requests for a panel that takes seconds (a page refreshing, many trends panels)
     used to take every thread the server answers routes with: the run list waited for them."""
     pytest.importorskip("fastapi")
-    import httpx
+    import httpx2
 
     from contraagent._internal.monitor import server
 
@@ -149,8 +149,8 @@ def test_a_slow_panel_holds_no_other_route_back(tmp_path):
     app = server.create_app(Monitor(tmp_path, panels=panels))
 
     async def scenario() -> tuple[float, list[int]]:
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1", timeout=60) as c:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://127.0.0.1", timeout=60) as c:
             q = "?from=2026-10-13&to=2026-10-15"
             # More requests than the threads that answer the other endpoints (40).
             heavy = [asyncio.create_task(c.get(f"/api/trends/panels/slow{i % 2}{q}")) for i in range(80)]
