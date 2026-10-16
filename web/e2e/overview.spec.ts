@@ -294,13 +294,17 @@ test.describe('the selection’s card', () => {
     const card = cardOf(page);
     await expect(card).toBeVisible();
     const report = graph(page).locator('.node', { has: page.locator('.name', { hasText: 'report' }) });
-    // Measured once it has faded in (it scales from 96%).
+    // The overview's cards above put the frame's lower edge below the window: the drags below start
+    // inside the frame only once it is scrolled into view (a press outside the window reaches nothing).
+    const frame = graph(page).locator('.frame');
+    await frame.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+    // Measured once it has faded in (it scales from 96%) and the scroll has moved it.
     await card.evaluate((e) => Promise.all(e.getAnimations().map((a) => a.finished)));
+    const f = await box(frame);
+    expect(f.y + f.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     const offset = async () => Math.round((await box(card)).x - (await box(report)).x);
     const before = await offset();
     const nodeX = (await box(report)).x;
-    const frame = graph(page).locator('.frame');
-    const f = await box(frame);
     // Drag the graph 60px left: the card moves with it.
     await page.mouse.move(f.x + 40, f.y + f.height - 20);
     await page.mouse.down();
