@@ -5,8 +5,6 @@ The events and the rollout lines are the shapes codex-cli 0.162.1 printed and wr
 
 import json
 import os
-import stat
-import sys
 import tempfile
 from pathlib import Path
 
@@ -16,6 +14,7 @@ from contraagent import CredentialError
 from contraagent._internal.backends.codex.wire import EventReader, normalize_event, read_rollout
 from contraagent.backends import CodexBackend, Launch, Stop, normalize_stream_line
 from contraagent.config import ApiKey, Gateway, Limits, Subscription
+from fake_cli import write_fake_cli
 
 THREAD = "01a13afd-d786-78c2-9439-7b6c086efc20"
 
@@ -74,10 +73,7 @@ with open(d / f"rollout-2026-10-15T00-17-56-{thread}.jsonl", "a") as f:
 @pytest.fixture
 def fake(tmp_path):
     bindir = tmp_path / "bin"
-    bindir.mkdir()
-    script = bindir / "codex"
-    script.write_text(f"#!{sys.executable}\n{CODEX}")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    write_fake_cli(bindir, "codex", CODEX)
     dump = tmp_path / "dump.json"
     base = {
         "PATH": f"{bindir}{os.pathsep}/usr/bin:/bin",

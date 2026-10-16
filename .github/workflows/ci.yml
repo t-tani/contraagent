@@ -1,5 +1,6 @@
-# Lint, type-check and test on every supported Python, plus one run against
-# the lowest versions of the direct dependencies that pyproject.toml allows.
+# Lint, type-check and test on every supported Python on Linux and on one
+# Python on macOS and Windows, plus one run against the lowest versions of the
+# direct dependencies that pyproject.toml allows.
 name: CI
 
 on:
@@ -11,13 +12,21 @@ permissions:
 
 jobs:
   test:
-    name: Python ${{ matrix.python }}
-    runs-on: ubuntu-latest
+    name: Python ${{ matrix.python }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python: ["3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.13"
     steps:
+      # The files as committed: a CRLF checkout on Windows would change bytes the tests compare.
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
@@ -26,7 +35,13 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
-      - run: uv run pyright
+      # Every OS's branches type-check on every runner.
+      - run: uv run pyright --pythonplatform Linux
+      - run: uv run pyright --pythonplatform Darwin
+      - run: uv run pyright --pythonplatform Windows
+      - run: uv run lint-imports
+      # pyproject.toml's addopts leave out the live, e2e and perf tests; the e2e
+      # tests need docker and run on Linux only (`uv run pytest -m e2e`).
       - run: uv run pytest --cov
 
   lowest-direct:

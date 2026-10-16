@@ -2,8 +2,6 @@
 
 import json
 import os
-import stat
-import sys
 import threading
 from pathlib import Path
 
@@ -16,6 +14,7 @@ from contraagent.backends import Backend, CallFile, ClaudeBackend, Launch, Launc
 from contraagent.config import AMBIENT, ApiKey, Limits, Subscription
 from contraagent.engine import RoutingPlan
 from contraagent.plugins import new_plugin
+from fake_cli import write_fake_cli
 
 CONFIG = """
 [defaults]
@@ -111,10 +110,7 @@ print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "re
 @pytest.fixture
 def fake_claude(tmp_path):
     bindir = tmp_path / "bin"
-    bindir.mkdir()
-    script = bindir / "claude"
-    script.write_text(f"#!{sys.executable}\n{FAKE_CLAUDE}")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    write_fake_cli(bindir, "claude", FAKE_CLAUDE)
     return f"{bindir}{os.pathsep}/usr/bin:/bin"
 
 

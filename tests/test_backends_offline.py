@@ -6,13 +6,12 @@ script on PATH standing in for `claude` / `omp` does, without spending a token.
 
 import json
 import os
-import stat
-import sys
 from pathlib import Path
 
 from contraagent._internal.backends.base import temp_root
 from contraagent.backends import ClaudeBackend, Launch, LaunchResult, OmpBackend, OmpRpcBackend, Stop
 from contraagent.config import ApiKey, Limits
+from fake_cli import write_fake_cli
 
 CLAUDE = r"""
 import json, os, sys
@@ -42,10 +41,7 @@ print("Done: wrote the file.")
 
 def fake_cli(tmp_path, name, body):
     bindir = tmp_path / "bin"
-    bindir.mkdir(exist_ok=True)
-    script = bindir / name
-    script.write_text(f"#!{sys.executable}\n{body}")
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    write_fake_cli(bindir, name, body)
     return bindir
 
 

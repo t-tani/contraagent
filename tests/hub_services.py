@@ -12,7 +12,6 @@ removes them when the run ends (`stop_shared`, from `conftest.py`)."""
 from __future__ import annotations
 
 import atexit
-import fcntl
 import json
 import os
 import shutil
@@ -28,6 +27,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
+from contraagent._internal.platform.locks import locks
 
 POSTGRES_IMAGE = "postgres:16.4"
 RUSTFS_IMAGE = "rustfs/rustfs:1.0.0"
@@ -128,7 +129,7 @@ def _shared_state() -> Iterator[dict | None]:
         yield None
         return
     with open(path.with_suffix(".lock"), "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        locks.lock(lock.fileno())
         try:
             state = json.loads(path.read_text())
         except (OSError, ValueError):

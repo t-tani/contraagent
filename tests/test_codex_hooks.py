@@ -8,7 +8,6 @@ key and hash as its hook discovery computes them (`codex-rs/hooks/src/engine/dis
 import hashlib
 import json
 import os
-import stat
 import subprocess
 import sys
 import tomllib
@@ -22,6 +21,7 @@ from contraagent._internal.plugins import hooks
 from contraagent.backends import CodexBackend, Launch
 from contraagent.config import ApiKey
 from contraagent.plugins import Plugin, new_plugin
+from fake_cli import write_fake_cli
 
 SESSION = "/<session-flags>/config.toml"
 
@@ -95,9 +95,7 @@ print(json.dumps({"type": "turn.completed", "usage": {}}))
 
 def launch_argv(tmp_path, **kw) -> list[str]:
     bindir = tmp_path / "bin"
-    bindir.mkdir(exist_ok=True)
-    (bindir / "codex").write_text(f"#!{sys.executable}\n{CODEX}")
-    (bindir / "codex").chmod(0o755 | stat.S_IEXEC)
+    write_fake_cli(bindir, "codex", CODEX)
     dump = tmp_path / "dump.json"
     base = {"PATH": f"{bindir}{os.pathsep}/usr/bin:/bin", "HOME": str(tmp_path / "home"), "XDG_CACHE_HOME": str(tmp_path / "cache")}
     base["MY_KEY"] = "sk-test"

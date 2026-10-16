@@ -2,6 +2,7 @@
 registry, signal handling and the run's teardown. Real child processes, sub-second
 limits."""
 
+import contextlib
 import inspect
 import logging
 import os
@@ -12,8 +13,8 @@ import sys
 import textwrap
 import threading
 import time
-from pathlib import Path
 
+import psutil
 import pytest
 
 from contraagent import Task
@@ -22,6 +23,8 @@ from contraagent._internal.backends.credentials import SecretField
 from contraagent._internal.backends.launch import STDIN_THRESHOLD
 from contraagent._internal.backends.process import run_process
 from contraagent._internal.execution import teardown
+from contraagent._internal.platform import processes
+from contraagent._internal.platform.groups import groups
 from contraagent.backends import Launch, Stop
 from contraagent.config import Limits
 from contraagent.engine import Run
@@ -41,16 +44,12 @@ def _py(code: str) -> list[str]:
     return [sys.executable, "-c", textwrap.dedent(code)]
 
 
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    # A zombie still answers kill(0); it has exited all the same.
-    try:
-        return Path(f"/proc/{pid}/stat").read_text().split(") ")[1][0] != "Z"
-    except OSError:
-        return False
+_alive = processes.alive
+
+#: A child that sleeps, in a group of its own as an agent is.
+_SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
+
+posix = pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
 
 
 # --- pydantic lower bound ------------------------------------------------
@@ -82,8 +81,8 @@ def test_exit_and_stream_capture(tmp_path):
 def test_timeout_kills_the_process_group(tmp_path):
     pidfile = tmp_path / "grandchild"
     code = f"""
-        import subprocess, time
-        p = subprocess.Popen(["sleep", "30"])
+        import subprocess, sys, time
+        p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
         open({str(pidfile)!r}, "w").write(str(p.pid))
         print("started", flush=True)
         time.sleep(30)
@@ -93,7 +92,8 @@ def test_timeout_kills_the_process_group(tmp_path):
     assert killed is Stop.TIMEOUT
     assert time.monotonic() - t0 < 5
     assert out == b"started\n"
-    assert exit_code == -signal.SIGTERM
+    if sys.platform != "win32":  # Windows has no signal to report: the job is ended
+        assert exit_code == -signal.SIGTERM
     grandchild = int(pidfile.read_text())
     deadline = time.monotonic() + 2
     while _alive(grandchild) and time.monotonic() < deadline:
@@ -176,12 +176,12 @@ def test_long_prompt_goes_over_stdin(tmp_path):
 
 
 def test_teardown_does_not_disable_later_runs():
-    first = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    first = subprocess.Popen(_SLEEP, **groups.popen_options())
     live_processes.register(first)
     assert live_processes.stop_all(timeout=2) == 1
     assert first.poll() is not None
 
-    second = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    second = subprocess.Popen(_SLEEP, **groups.popen_options())
     try:
         live_processes.register(second, since=live_processes.epoch())
         time.sleep(0.1)
@@ -194,7 +194,7 @@ def test_teardown_does_not_disable_later_runs():
 def test_launch_racing_a_teardown_is_stopped():
     since = live_processes.epoch()  # the worker notes the epoch, then spawns
     live_processes.stop_all(timeout=1)  # ... while a teardown runs
-    late = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    late = subprocess.Popen(_SLEEP, **groups.popen_options())
     live_processes.register(late, since=since)
     assert late.poll() is not None
     assert live_processes.live_count() == 0
@@ -208,7 +208,7 @@ def test_register_during_teardown_is_stopped(monkeypatch):
     real_stop = lp._stop
 
     def stop_and_race(procs, timeout):
-        p = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        p = subprocess.Popen(_SLEEP, **groups.popen_options())
         lp.register(p)
         racer.append(p)
         return real_stop(procs, timeout)
@@ -258,6 +258,7 @@ def test_host_handler_is_restored_and_called(restore_signals):
 #: A pipeline whose coding agent sleeps, launched by `run_process` as any agent is, with a
 #: token on its command line to find it by.
 _DRIVER = """
+import os
 import sys
 from contraagent import Pipeline, agent_task
 from contraagent.backends import Backend
@@ -280,7 +281,7 @@ class Sleeper(Backend):
         return [sys.executable, "-c", "import time; time.sleep(300)", token]
 
     def env(self, launch):
-        return {"PATH": "/usr/bin:/bin"}
+        return dict(os.environ)
 
     def fold(self, launch):
         return Done()
@@ -293,22 +294,15 @@ Pipeline(backends={"sleeper": Sleeper()}, runs_dir=runs).run(lambda: work("a"), 
 
 def _with_token(token: str) -> list[int]:
     """The pids whose command line holds `token`."""
-    out = []
-    for d in Path("/proc").iterdir():
-        if d.name.isdigit():
-            try:
-                if token.encode() in (d / "cmdline").read_bytes():
-                    out.append(int(d.name))
-            except OSError:
-                pass
-    return out
+    return [p.pid for p in processes.scan().values() if token in p.cmd]
 
 
-@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT, signal.SIGKILL])
-def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, sig):
-    """SIGTERM and Ctrl-C reach the run's teardown; SIGKILL, which runs nothing, leaves
-    the watchdog to stop the agent. Either way no agent outlives its pipeline."""
-    token = f"contraagent-test-{os.getpid()}-{sig.name}-{time.monotonic_ns()}"
+@pytest.mark.parametrize("how", [pytest.param("SIGTERM", marks=posix), pytest.param("SIGINT", marks=posix), "kill"])
+def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, how):
+    """SIGTERM and Ctrl-C reach the run's teardown; a kill (SIGKILL; TerminateProcess on
+    Windows), which runs nothing, leaves the watchdog (the job on Windows) to stop the
+    agent. Either way no agent outlives its pipeline."""
+    token = f"contraagent-test-{os.getpid()}-{how}-{time.monotonic_ns()}"
     script = tmp_path / "driver.py"
     script.write_text(_DRIVER)
     driver = subprocess.Popen([sys.executable, str(script), token, str(tmp_path / "runs")], stderr=subprocess.PIPE)
@@ -318,21 +312,26 @@ def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, sig):
         while not agents() and time.monotonic() < deadline:
             time.sleep(0.1)
         [agent] = agents()
-        os.kill(driver.pid, sig)
+        if how == "kill":
+            driver.kill()
+        else:
+            os.kill(driver.pid, getattr(signal, how))
         driver.wait(timeout=20)
         deadline = time.monotonic() + 15
         while _alive(agent) and time.monotonic() < deadline:
             time.sleep(0.1)
-        assert not _alive(agent), f"the agent outlived its pipeline ({sig.name})"
+        assert not _alive(agent), f"the agent outlived its pipeline ({how})"
     finally:
         driver.kill()
         driver.wait()
         if driver.stderr is not None:
             driver.stderr.close()
         for pid in _with_token(token):
-            os.kill(pid, signal.SIGKILL)
+            with contextlib.suppress(psutil.Error):
+                psutil.Process(pid).kill()
 
 
+@posix
 def test_run_lock_is_not_world_writable(tmp_path):
     run = Run("r", tmp_path)
     try:
