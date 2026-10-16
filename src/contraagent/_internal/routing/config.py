@@ -78,7 +78,9 @@ def _unknown_keys(where: str, unknown: set[str], allowed, elsewhere: tuple[str, 
 WARN_PCT_RANGE = "is not a whole percent from 1 to 99"
 
 
-CORRECTIONS_RANGE = f"is not a whole number from 0 to {MAX_CORRECTIONS_LIMIT}"
+CORRECTIONS_RANGE = (
+    f"is not a whole number from 0 to {MAX_CORRECTIONS_LIMIT} (contraagent docs contracts, Checked twice, by the same rules)"
+)
 
 
 def _is_corrections(value: object) -> bool:

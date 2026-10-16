@@ -372,7 +372,7 @@ def _flow_command(args) -> int:
         )
     except Exception as exc:  # the declarations themselves: a missing role, an unknown key, a bad config
         kind = "" if isinstance(exc, ContraagentError) else f"{type(exc).__name__}: "
-        print(f"✗ {args.flow}\n  error: {where(exc)}{kind}{exc}\n  read: `contraagent docs tasks`")
+        print(f"✗ {args.flow}\n  error: {where(exc)}{kind}{exc}\n  read: (contraagent docs tasks)")
         return 1
     if args.cmd == "check":
         report = pipeline.check(flow, **kwargs)
@@ -433,7 +433,7 @@ def _examples_refused(result, stub) -> str:
     return (
         f"{tasks} failed checks on the examples the stub agent wrote ({refused}), so the tasks that need "
         f"{'its output' if count == 1 else 'their outputs'} did not run. Give each output model an example that "
-        "passes its validators: `contraagent docs testing`"
+        "passes its validators (contraagent docs testing, Stub run: the whole flow on examples, nothing called)"
     )
 
 

@@ -15,6 +15,8 @@ from contraagent.engine import RoutingPlan
 DENIED = ("Bash(rm:*)", "WebFetch")
 BUDGET = {"max_turns": 1, "timeout_s": 1}
 
+POINTER = "(contraagent docs agents, What each one does)"
+
 
 def test_a_task_table_and_a_declaration_take_it_and_check_it():
     tables = PipelineConfig({"tasks": {"w": {"disallowed_tools": list(DENIED)}}}).task_tables()
@@ -64,13 +66,14 @@ def test_routing_refuses_an_agent_that_cannot_deny_them_on_any_hop():
 
 def test_pi_denies_whole_tools_and_codex_none():
     assert PiBackend.tool_deny_problem(("Bash", "WebFetch")) is None
-    assert PiBackend.tool_deny_problem(DENIED) == "pi denies whole tools only, not Bash(rm:*)"
-    assert CodexBackend.tool_deny_problem(("WebFetch",)) == "codex has no way to deny a tool"
+    assert PiBackend.tool_deny_problem(DENIED) == f"pi cannot hold Bash(rm:*): it denies whole tools only {POINTER}"
+    assert CodexBackend.tool_deny_problem(("WebFetch",)) == f"codex has no way to deny a tool {POINTER}"
     assert CodexBackend.tool_deny_problem(()) is None
     assert OpencodeBackend.tool_deny_problem(DENIED) is None
     assert OpencodeBackend.tool_deny_problem(("Read(secrets/**)", "WebFetch(domain:x.com)", "Skill(deploy)")) is None
     assert OpencodeBackend.tool_deny_problem(("Grep(*.env)", "WebFetch(https://x.com)")) == (
-        "opencode denies these tools whole only, not Grep(*.env), WebFetch(https://x.com)"
+        "opencode cannot hold Grep(*.env), WebFetch(https://x.com): it holds a pattern of Bash, Read, Write, Edit, MultiEdit, "
+        f"NotebookEdit, Skill and WebFetch(domain:...) only; deny such a tool whole {POINTER}"
     )
 
 
@@ -109,7 +112,8 @@ def test_omp_denies_whole_tools_and_the_patterns_its_extension_sees():
     taken = ("Read(secrets/**)", "Edit(//etc/hosts)", "WebFetch(domain:x.com)", "Skill(deploy)", "mcp__srv__q")
     assert OmpBackend.tool_deny_problem(taken) is None
     assert OmpBackend.tool_deny_problem(("Grep(*.env)", "WebFetch(https://x.com)", "Agent(explore)")) == (
-        "omp denies these tools whole only, not Grep(*.env), WebFetch(https://x.com), Agent(explore)"
+        "omp cannot hold Grep(*.env), WebFetch(https://x.com), Agent(explore): it holds a pattern of Bash, Read, Write, Edit, "
+        f"MultiEdit, Skill and WebFetch(domain:...) only; deny such a tool whole {POINTER}"
     )
 
 

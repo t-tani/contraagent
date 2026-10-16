@@ -121,7 +121,14 @@ reference to the task's future output:
 - `priority=` breaks ties in the queue, higher first (see below).
 - `credential=` (an agent task's) names the `[credentials.<name>]` that task runs
   as on every route of its kind, in place of the kind's own; how it ranks, fails
-  over and rests is in [Routing](routing.md#a-task-calls-credential).
+  over and rests is in [Routing](routing.md#a-task-calls-credential). A Python task
+  runs no coding agent, so it has no credential: its call refuses `credential=`
+  unless its function has a parameter of that name.
+- A call that the run could not make raises `TypeError` at the call, and
+  `contraagent check` reports it at the flow's line: a `key` that is not a
+  string, an `after` that is not a list of tasks, a `priority` that is not a
+  number, and for a Python task a keyword its function has no parameter for, or a
+  required parameter left out.
 - After the run, `pending.output` is the checked value.
 
 `contraagent run <file.py>:<flow> --config ... --kwargs '{...}'` runs a flow from
@@ -499,10 +506,15 @@ A service is a function, so it is not an argument of the command line: a pipelin
 with services is checked and run from a program, `Pipeline(config, services=...)`
 with `.check(...)` and `.run(...)` (the example's `pipeline()`; `examples/runner/run.py`
 is such a program). `contraagent check` and `contraagent run` know no service, and a
-Python task that calls `service_address` in such a run raises `KeyError`.
+Python task that calls `service_address` in such a run raises `KeyError`, which says
+that the pipeline defines no service of that name.
 
-A stub run and a replay start services as any run does, for each task that claims
-them, played or executed, since the Python tasks they execute may need them. A scope ("Around each attempt", below) suits a helper of one
+A stub run and a replay start a service only for a task that really runs: a Python
+task whose function runs (a kind given to `execute`, or every kind with
+`execute_all`), and an agent task that launches a coding agent (a task with no
+recording, under `record_missing`). A task they play holds no service: no service
+starts for it, and its launch has no `CONTRAAGENT_SERVICE_<NAME>` variable, so a
+stub's reply finds none. A scope ("Around each attempt", below) suits a helper of one
 attempt; a service suits one that the tasks of a claim share.
 
 ## Concurrency: how many tasks run at once

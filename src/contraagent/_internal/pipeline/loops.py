@@ -122,18 +122,18 @@ def max_passes[F: Callable[..., Any]](n: int, /) -> Callable[[F], F]:
         code = getattr(fn, "__code__", None)
         name = getattr(fn, "__qualname__", repr(fn))
         if not isinstance(code, CodeType) or not code.co_flags & inspect.CO_GENERATOR:
-            raise TypeError(f"@max_passes({n}) on {name}: only the loops of a generator function are counted ({_TOPIC})")
+            raise TypeError(f"@max_passes({n}) on {name}: only the loops of a generator function are counted {_TOPIC}")
         info = loops_of(code) if flow_code(code.co_filename) else _analyse(code)
         whiles = [loop.line for loop in info.loops.values() if loop.while_]
         if not whiles:
-            raise TypeError(f"@max_passes({n}) on {name}: it has no `while` loop to bound; a `for` loop ends with its iterable ({_TOPIC})")
+            raise TypeError(f"@max_passes({n}) on {name}: it has no `while` loop to bound; a `for` loop ends with its iterable {_TOPIC}")
         _bounds.update({(code.co_filename, line): n for line in whiles})
         return fn
 
     return bounded
 
 
-_TOPIC = "`contraagent docs tasks`, Loops and passes"
+_TOPIC = "(contraagent docs tasks, Loops and passes)"
 
 
 def loops_of(code: CodeType) -> _Code:

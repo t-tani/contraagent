@@ -370,10 +370,10 @@ This repository holds four packages, and each has its own documentation.
 | `@contraagent/api` (npm) | the typed client for the monitor's API | [web/packages/api/](web/packages/api/README.md) |
 
 [The documentation site](https://t-tani.github.io/contraagent/) renders all four, and `pnpm run docs` in `web/`
-serves it from this checkout. The npm
-packages are not published to the npm registry. `pnpm tarballs` in `web/` packs them
-so that you can install them from this checkout, and `pnpm --dir web screenshots`
-makes the screenshots in this README.
+serves it from this checkout. The npm packages are in the npm registry
+(`npm install @contraagent/ui`). `pnpm tarballs` in `web/` packs the version of this
+checkout to install instead, and `pnpm --dir web screenshots` makes the screenshots in
+this README.
 
 [AGENTS.md](AGENTS.md) is for work on contraagent itself, and
 [CHANGELOG.md](CHANGELOG.md) lists the changes. contraagent is MIT licensed.

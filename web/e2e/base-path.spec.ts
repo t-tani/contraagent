@@ -71,3 +71,9 @@ test('the page, the API and the live feeds all go through the base path', async 
   expect(asked.filter((u) => !u.startsWith(site) && !u.startsWith('data:'))).toEqual([]);
   expect(outside).toEqual([]);
 });
+
+test('the monitor answers only the paths the proxy took the base path off', async ({ request }) => {
+  const monitor = `http://127.0.0.1:${MONITOR_PORT}`;
+  expect((await request.get(`${monitor}/api/runs`)).status()).toBe(200);
+  expect((await request.get(`${monitor}${BASE}/api/runs`)).status()).toBe(404);
+});

@@ -261,6 +261,26 @@ def test_the_plan_and_the_monitor_record_the_call_s_credential(tmp_path):
     assert nodes["note-b"]["credential"] == "company" and nodes["note-a"].get("credential", "") == ""
 
 
+def test_the_check_s_routes_and_the_run_s_progress_name_the_call_s_credential(tmp_path):
+    def flow():
+        note("a")
+        note("b", credential="company")
+        note("c", credential="company")
+
+    agent = StubAgent({"note": written})
+    report = pipeline(tmp_path, agent).check(flow)
+    assert report.ok, report
+    assert report.routes["note"].endswith("; credential=company for note-b, note-c, by their task calls")
+    assert "credential=company for note-b, note-c" in str(report)
+    overridden = pipeline(tmp_path, agent, overrides=Overrides(credential="other")).check(flow)
+    assert "by their task calls" not in overridden.routes["note"]  # the override outranks them
+
+    progress: list[str] = []
+    p = Pipeline(config(tmp_path), runs_dir=tmp_path / "runs", backends=agent.backends(), cwd=tmp_path, log=progress.append)
+    assert p.run(flow).ok
+    assert {"[start] note-a", "[start] note-b credential=company", "[start] note-c credential=company"} <= set(progress)
+
+
 def test_a_credential_that_is_not_a_name_is_refused_at_the_task_call(tmp_path):
     agent = StubAgent({"note": written})
     for i, bad in enumerate((3, "", " team")):

@@ -283,8 +283,20 @@ def test_service_address_names_what_the_running_task_claims(tmp_path):
 
     report = pipeline(tmp_path, services={"index": Server()}).run(lambda: look("a"))
     assert "claims no service of that name (its services: index)" in report.results["python:look-a"].reason
-    with pytest.raises(KeyError, match="its services: none"):
+    with pytest.raises(KeyError, match="no task is running here"):
         service_address("index")
+
+
+def test_service_address_says_the_pipeline_defines_no_service_the_task_claims(tmp_path):
+    @python_task(claims=["index"])
+    def look(unit: str) -> Found:
+        return Found(address=service_address("index") or "")
+
+    report = pipeline(tmp_path).run(lambda: look("a"))  # as `contraagent run` makes it: no services
+    reason = report.results["python:look-a"].reason
+    assert "the running task claims 'index', and the pipeline defines no service of that name" in reason
+    assert "Pipeline(services={'index': ...})" in reason and "(contraagent docs tasks, Services)" in reason
+    assert "its services: none" not in reason
 
 
 def test_a_task_that_claims_two_services_of_one_variable_fails(tmp_path):
@@ -371,16 +383,77 @@ def test_the_example_shares_one_index_server_among_the_tasks_that_claim_it(tmp_p
     assert "$CONTRAAGENT_SERVICE_INDEX" in review.prompt
 
 
-def test_a_stub_run_starts_services_as_any_run_does(tmp_path):
+def test_a_stub_run_starts_a_service_only_for_a_task_whose_function_runs(tmp_path):
     server = Server()
+    lookup = agent_task("lookup", instructions="Ask the index.", output=Written, claims=["index"], max_turns=3, timeout_s=60)
 
     @python_task(claims=["index"])
     def look(unit: str) -> Found:
         return Found(address=service_address("index") or "")
 
-    stub = StubAgent(execute=["look"])
+    @python_task(claims=["index"])
+    def played(unit: str) -> Found:
+        raise AssertionError("a stub run plays this kind")
+
+    def flow():
+        lookup("a")
+        played("b")
+
+    stub = StubAgent({"lookup": written, "played": {"address": "played"}}, execute=["look"])
     p = Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, stub=stub, services={"index": server}, log=lambda line: None)
-    report = p.run(lambda: look("a"))
+    report = p.run(flow)
     assert report.ok, report.failed
-    assert json.loads((report.run_dir / "out" / "look" / "a.json").read_text())["address"] == "http://index.local:1"
-    assert server.calls == [("start", "index"), ("stop", "index")]
+    assert server.calls == []  # the agent task is played, so is the Python task: neither starts it
+    assert not any(k.startswith("CONTRAAGENT_SERVICE_") for k in stub.launches[0].launch.env)
+    assert events(report) == []
+    report = p.run(lambda: [lookup("c"), look("d")], run_id="executed")
+    assert report.ok, report.failed
+    assert json.loads((report.run_dir / "out" / "look" / "d.json").read_text())["address"] == "http://index.local:1"
+    assert server.calls == [("start", "index"), ("stop", "index")]  # for the Python task it executes
+    assert [e["key"] for e in events(report) if e["event"] == "start"] == ["python:look-d"]
+
+
+def test_a_replay_starts_a_service_only_for_a_task_that_really_runs(tmp_path):
+    lookup = agent_task("lookup", instructions="Ask the index.", output=Written, claims=["index"], max_turns=3, timeout_s=60)
+
+    @python_task(claims=["index"])
+    def look(unit: str) -> Found:
+        return Found(address=service_address("index") or "")
+
+    def flow(units):
+        for u in units:
+            lookup(u)
+            look(u)
+
+    recordings = tmp_path / "recordings"
+    agent = StubAgent({"lookup": written})
+    recorded = pipeline(tmp_path, agent, services={"index": Server()}, record=recordings).run(flow, ["a"])
+    assert recorded.ok, recorded.failed
+
+    server = Server()
+    lines: list[str] = []
+    replay = Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, replay=recordings, services={"index": server}, log=lines.append)
+    report = replay.run(flow, ["a"])
+    assert report.ok, report.failed
+    assert server.calls == [] and events(report) == []  # every task played: no service started
+    executed = Pipeline(
+        None, runs_dir=tmp_path / "runs", cwd=tmp_path, replay=recordings, execute=["look"], services={"index": server}, log=lines.append
+    )
+    report = executed.run(flow, ["a"], run_id="executed")
+    assert report.ok, report.failed
+    assert [e["key"] for e in events(report) if e["event"] == "start"] == ["python:look-a"]
+    # With record_missing, a task with no recording launches, and holds its services.
+    server.calls.clear()
+    missing = Pipeline(
+        None,
+        runs_dir=tmp_path / "runs",
+        cwd=tmp_path,
+        replay=recordings,
+        record_missing=True,
+        backends=StubAgent({"lookup": written}).backends(),
+        services={"index": server},
+        log=lines.append,
+    )
+    report = missing.run(flow, ["a", "b"], run_id="missing")
+    assert report.ok, report.failed
+    assert sorted(e["key"] for e in events(report) if e["event"] == "start") in (["lookup-b"], ["python:look-b"])

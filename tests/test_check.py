@@ -158,6 +158,25 @@ def test_the_command_line_imports_a_flow_file_as_the_hook_would(tmp_path, plugin
     sys.modules.pop("tasks", None)
 
 
+def test_a_flow_module_that_prints_when_imported_passes_the_output_import_check(tmp_path, plugin_dir, capsys, monkeypatch):
+    (tmp_path / "loud_tasks.py").write_text(
+        "print('loading the tasks')\n"
+        "from pydantic import BaseModel\n"
+        "from contraagent import agent_task\n"
+        "class Summary(BaseModel):\n    points: list[str]\n"
+        "summarize = agent_task('summarize', plugin='plugins/summarize', output=Summary, max_turns=5, timeout_s=60)\n"
+        "def flow():\n    summarize('a')\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    assert main(["check", "loud_tasks.py:flow", "--stub"]) == 0
+    out = capsys.readouterr().out
+    assert "✓ 1 task, 1 kind: summarize 1" in out and "not checked" not in out
+    sys.modules.pop("loud_tasks", None)
+
+
 def test_every_routing_problem_is_reported_in_one_check(plugin_dir):
     summarize = agent_task("summarize", plugin=plugin_dir, output=Summary, max_turns=5, timeout_s=60)
     review = agent_task("review", plugin=plugin_dir, output=Summary)  # no budget
@@ -508,3 +527,42 @@ def test_a_class_of_other_code_is_not_followed(edit_board):
     assert reachable(shelf) == []
     assert reachable(shelf()) == []
     assert [spec.kind for spec in reachable(edit_board.Board)] == ["refine", "polish"]
+
+
+@python_task
+def tally(unit: str, n: int = 0) -> Doc:
+    return Doc(path=unit, words=n)
+
+
+@python_task
+def signed(unit: str, credential: str) -> Doc:
+    return Doc(path=credential, words=0)
+
+
+@pytest.mark.parametrize(
+    ("call", "says"),
+    [
+        ({"credential": "team"}, "credential= names the credential an agent task runs as, and a Python task runs no coding agent"),
+        ({"priority": "high"}, "priority must be a finite number, not 'high'"),
+        ({"after": "other"}, "after takes a list of tasks (each a task call's result or a task key), not 'other'"),
+        ({"after": [3]}, "not 3 in it"),
+        ({"key": 3}, "key must be a string (or None), not 3"),
+        ({"words": 2}, "the function cannot take this call: got an unexpected keyword argument 'words'"),
+    ],
+)
+def test_a_python_task_call_the_run_could_not_make_is_refused_at_the_call_and_reported(call, says):
+    def flow():
+        tally("a", **call)
+
+    with pytest.raises(TypeError, match=re.escape(says)):
+        flow()
+    report = pipeline().check(flow)
+    assert not report.ok and len(report.errors) == 1
+    assert f"{__file__}:" in report.errors[0] and says in report.errors[0]
+
+
+def test_a_python_task_whose_function_takes_a_credential_parameter_is_given_it(tmp_path):
+    p = Pipeline(None, runs_dir=tmp_path / "runs", cwd=tmp_path, log=lambda line: None)
+    report = p.run(lambda: signed("a", credential="team"))
+    assert report.ok, report.failed
+    assert json.loads((report.run_dir / "out" / "signed" / "a.json").read_text())["path"] == "team"

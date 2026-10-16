@@ -16,6 +16,8 @@ import os
 import re
 from pathlib import Path
 
+from contraagent._internal.backends.base import DENY_POINTER
+
 #: The variable the extension reads its rules from, as JSON.
 DENY_ENV = "CONTRAAGENT_OMP_DENY"
 #: The extension, loaded with `-e` into a launch that denies a tool.
@@ -125,7 +127,12 @@ def problem(denied: tuple[str, ...]) -> str | None:
         if name == "Bash" or name in PATH_TOOLS or name == "Skill" or (name == "WebFetch" and pattern.startswith("domain:")):
             continue
         odd.append(rule)
-    return f"omp denies these tools whole only, not {', '.join(odd)}" if odd else None
+    if not odd:
+        return None
+    return (
+        f"omp cannot hold {', '.join(odd)}: it holds a pattern of Bash, Read, Write, Edit, MultiEdit, Skill and "
+        f"WebFetch(domain:...) only; deny such a tool whole {DENY_POINTER}"
+    )
 
 
 def rules(denied: tuple[str, ...], cwd: Path, home: Path | None = None) -> list[dict]:

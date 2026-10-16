@@ -27,6 +27,11 @@ A task reaches a service by its address, what the context manager gives (a strin
 None for a service with nothing to reach): an agent task in its environment
 (`envvars.service(name)`), a Python task by `service_address(name)`. `services.jsonl`
 records each start and stop (`ServiceEvent`).
+
+Only a task that really runs holds its services: a Python task whose function runs, an
+agent task that launches a coding agent. A task a stub run or a replay plays holds
+none (`Services(plays=)`): no service starts for it, and nothing it plays reaches one
+(its launch has no `envvars.service` variable).
 """
 
 from __future__ import annotations
@@ -71,18 +76,31 @@ class ServiceFailed(Exception):
 
 
 _addresses: ContextVar[Mapping[str, str | None] | None] = ContextVar("contraagent_service_addresses", default=None)
+#: The claim names of the task running here, beside the addresses of its services.
+_claims: ContextVar[tuple[str, ...]] = ContextVar("contraagent_service_claims", default=())
+_POINTER = "(contraagent docs tasks, Services)"
 
 
 def service_address(name: str) -> str | None:
     """The address of the service claim name `name` stands for, in a Python task that
     claims the name: what its service gave as it started (None when it gives none).
-    Called on the thread the task runs on. KeyError when the running task claims no
-    service of that name, or no task is running here."""
+    Called on the thread the task runs on. KeyError when no task is running here, when
+    the running task does not claim `name`, or when the pipeline defines no service for
+    the name (a run of `contraagent run`, which knows no service); the message says
+    which."""
     held = _addresses.get()
-    if held is None or name not in held:
-        claimed = ", ".join(sorted(held)) if held else "none"
-        raise KeyError(f"service_address({name!r}): the running task claims no service of that name (its services: {claimed})")
-    return held[name]
+    if held is None:
+        raise KeyError(f"service_address({name!r}): no task is running here; call it in a Python task that claims {name!r} {_POINTER}")
+    if name in held:
+        return held[name]
+    if name in _claims.get():
+        raise KeyError(
+            f"service_address({name!r}): the running task claims {name!r}, and the pipeline defines no service of that name: "
+            f"give one in Pipeline(services={{{name!r}: ...}}) and run the flow from that program, since the command line "
+            f"knows no service {_POINTER}"
+        )
+    claimed = ", ".join(sorted(held)) or "none"
+    raise KeyError(f"service_address({name!r}): the running task claims no service of that name (its services: {claimed}) {_POINTER}")
 
 
 def service_environment() -> dict[str, str]:
@@ -121,7 +139,9 @@ class _State:
 class Services:
     """The services of one run, by the claim name or pattern each stands for. `run_dir`:
     where `services.jsonl` is written; `idle_s`: how long a service no task holds stays
-    up (None: until the run ends); `log`: a progress line, and whether it is a warning."""
+    up (None: until the run ends); `log`: a progress line, and whether it is a warning;
+    `plays(task)`: whether the run plays `task` (a stub run, a replay), so that it holds
+    no service."""
 
     def __init__(
         self,
@@ -130,8 +150,10 @@ class Services:
         *,
         idle_s: float | None = None,
         log: Callable[[str, bool], None] | None = None,
+        plays: Callable[[Task], bool] | None = None,
     ) -> None:
         self._services = dict(services)
+        self._plays = plays or (lambda task: False)
         self._file = run_dir / layout.SERVICES
         self._idle_s = idle_s
         self._log = log or (lambda line, warning: None)
@@ -152,10 +174,12 @@ class Services:
     @contextmanager
     def held(self, task: Task) -> Iterator[None]:
         """Hold every service `task` claims while the block runs: started first when not
-        up. ServiceFailed, before the block, when one cannot start."""
+        up; none for a task the run plays. ServiceFailed, before the block, when one cannot
+        start."""
         names = self.names(task)
-        if not names:
-            yield
+        if not names or self._plays(task):
+            with _running(task, {}):
+                yield
             return
         clashes = env_clashes(names)
         if clashes:
@@ -169,11 +193,10 @@ class Services:
             for name in addresses:
                 self._release(name)
             raise
-        token = _addresses.set(addresses)
         try:
-            yield
+            with _running(task, addresses):
+                yield
         finally:
-            _addresses.reset(token)
             for name in addresses:
                 self._release(name)
 
@@ -285,6 +308,17 @@ class Services:
             append_lines(self._file, [event.model_dump_json(exclude_none=True)])
         except OSError as exc:  # a record that cannot be written must not stop the service's tasks
             self._log(f"[service] {self._file.name}: {exc}", True)
+
+
+@contextmanager
+def _running(task: Task, addresses: Mapping[str, str | None]) -> Iterator[None]:
+    """`task` runs here, holding the services of `addresses` (`service_address`)."""
+    held, claims = _addresses.set(addresses), _claims.set(tuple(task.claims))
+    try:
+        yield
+    finally:
+        _claims.reset(claims)
+        _addresses.reset(held)
 
 
 def _since(t0: float) -> float:

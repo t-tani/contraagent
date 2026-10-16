@@ -9,4 +9,6 @@ it again for the next claim. A task reaches the service by the address its start
 an agent task's environment. A start that raises fails the tasks that claim the name
 with stop `launch_failed`. `services.jsonl` records each start and stop, the monitor
 shows them under "Services" (`Plan.services`, `ServiceSpan`), and `Pipeline.check`
-names a service that no task claims.
+names a service that no task claims. A stub run and a replay start a service only for
+a task that really runs: a Python task whose function runs, or an agent task that
+launches a coding agent; a task they play holds none.

@@ -265,7 +265,9 @@ class Pipeline:
         task in its environment (`CONTRAAGENT_SERVICE_<NAME>`), a Python task by
         `contraagent.service_address(name)`. A start that raises fails each task that
         claims the name, with stop `launch_failed`. `services.jsonl` records each start and
-        stop. `service_idle_s`: stop a service once no task has held it for that many
+        stop. A stub run or a replay starts none for a task it plays: only a Python task
+        whose function runs, or an agent task that launches a coding agent, holds its
+        services. `service_idle_s`: stop a service once no task has held it for that many
         seconds (0: as soon as the last one ends), and start it again for the next task
         that claims its name; None keeps every service running until the run ends."""
         if config is None:
@@ -420,7 +422,11 @@ class Pipeline:
         ) as run:
             run.stop_on_signals()  # SIGTERM or Ctrl-C stops the agents too (on the main thread)
             services = Services(
-                self.services, run.dir, idle_s=self.service_idle_s, log=lambda line, warning: run.progress(line, warning=warning)
+                self.services,
+                run.dir,
+                idle_s=self.service_idle_s,
+                log=lambda line, warning: run.progress(line, warning=warning),
+                plays=self._plays,
             )
             run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
             if self.stub is not None:
@@ -580,6 +586,13 @@ class Pipeline:
             return RunReport(
                 run_id=run.run_id, run_dir=run.dir, results=dict(graph.results), summary=summary, value=value, flow_errors=errors
             )
+
+    def _plays(self, task: Task) -> bool:
+        """Whether this run plays `task` (a stub run, a replay): no function of its runs and
+        no coding agent launches for it, so it holds no service."""
+        if self.stub is not None:
+            return task.fn is None or self.stub.plays(task.kind)
+        return self.replay is not None and self.replay.plays_task(task)
 
     def _route(self, spec: Any, runner: AgentRunner) -> None:
         """Route a kind while the run runs: one first created then, or one created by another

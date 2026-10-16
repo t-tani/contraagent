@@ -581,6 +581,15 @@ class Replay:
             playing = self._playing.get(key)
         return not self.record_missing or (playing is not None and playing.key is not None)
 
+    def plays_task(self, task: Task) -> bool:
+        """Whether this run plays `task`: no function of its runs and no coding agent
+        launches for it. False for a Python task of a kind it executes, and, with
+        `record_missing`, for a task with no recording it can play (chosen now, as its
+        first attempt would)."""
+        if task.fn is not None and (self.execute_all or kind_name(task.kind) in self.execute):
+            return False
+        return not self.record_missing or self._take(task).key is not None
+
     # --- ResultEnricher ------------------------------------------------------
 
     def snapshot(self, task: Task) -> None:

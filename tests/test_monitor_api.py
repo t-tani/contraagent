@@ -325,6 +325,9 @@ def test_under_a_base_path_the_page_names_it_in_every_url(tmp_path):
         assert c.get(url.removeprefix("/monitor")).status_code == 200, url
     assert c.get("/index.html").text == page.text
     assert c.get("/api/info").status_code == 200
+    # and only there: a request that still carries the base path is a proxy that did not take it off
+    for url in ("/monitor/api/info", "/monitor/api/runs", "/monitor/app.js", "/monitor/"):
+        assert c.get(url).status_code == 404, url
 
 
 def test_under_a_base_path_the_api_docs_name_it(tmp_path):

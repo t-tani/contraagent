@@ -590,7 +590,8 @@ class Run:
         elif event in ("start", "end") and task is not None:
             self._mark_inflight(task, running=event == "start")
             if event == "start":
-                self._log(logging.INFO, f"[start] {task.key}")
+                # The credential its task call names, when that is in effect (the kind's is in `[route]`).
+                self._log(logging.INFO, f"[start] {task.key}" + (f" credential={task.credential}" if task.credential else ""))
             elif fields.get("stop") == "skipped":
                 self._log(logging.INFO, f"[skip] {task.key}: finished in an earlier attempt of this run")
         if event == "deferred" and task is not None:

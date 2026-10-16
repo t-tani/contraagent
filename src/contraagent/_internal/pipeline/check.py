@@ -51,6 +51,9 @@ _NOT_OWN = tuple(
     {_PACKAGE, *(Path(p).resolve() for name in ("stdlib", "platstdlib", "purelib", "platlib") if (p := sysconfig.get_paths().get(name)))}
 )
 _LOG_TAG = re.compile(r"^\[\w+\] ")  # a log line's `[task]`, not part of the warning
+#: The one form of a message's pointer to the topic that explains it, and its section:
+#: `(contraagent docs <topic>, <section>)`, or `(contraagent docs <topic>)` for a whole topic.
+POINTER = re.compile(r"\(contraagent docs ([a-z][a-z-]*)(?:, ([^()]+))?\)")
 
 
 def _count(n: int, noun: str) -> str:
@@ -66,7 +69,8 @@ class CheckReport:
     warnings: list[str] = field(default_factory=list)
     #: Task count by kind, in the order the flow first called each kind.
     kinds: dict[str, int] = field(default_factory=dict)
-    #: The documentation topics that explain the errors (`contraagent docs <topic>`).
+    #: The documentation topics that explain the errors (`contraagent docs <topic>`): the
+    #: topic an error's own pointer names, else the topic of the check that found it.
     topics: list[str] = field(default_factory=list)
     #: False when the flow raised before its tasks could be added.
     built: bool = True
@@ -74,16 +78,25 @@ class CheckReport:
     routes: dict[str, str] = field(default_factory=dict)
     #: A generator flow's reachable kinds that its first step did not create, in the order found.
     later_kinds: list[str] = field(default_factory=list)
+    #: The pointer of each error, once: its own (`POINTER`), else its check's topic.
+    _pointers: list[str] = field(default_factory=list, init=False, repr=False, compare=False)
 
     @property
     def ok(self) -> bool:
         return not self.errors
 
     def add(self, topic: str, errors: list[str]) -> None:
-        """Errors, and the documentation topic that explains them."""
+        """Errors, and the documentation topic that explains them: `topic`, for an error
+        with no pointer of its own (`POINTER`)."""
         self.errors += errors
-        if errors and topic not in self.topics:
-            self.topics.append(topic)
+        for error in errors:
+            own = list(POINTER.finditer(error))
+            pointer = own[-1].group(0) if own else f"(contraagent docs {topic})"
+            named = own[-1].group(1) if own else topic
+            if named not in self.topics:
+                self.topics.append(named)
+            if pointer not in self._pointers:
+                self._pointers.append(pointer)
 
     def __str__(self) -> str:
         tasks = sum(self.kinds.values())
@@ -100,7 +113,7 @@ class CheckReport:
         lines += [f"  {kind}: {route}" for kind, route in self.routes.items()]
         lines += [f"  error: {e}" for e in self.errors]
         lines += [f"  warning: {w}" for w in self.warnings]
-        lines += [f"  read: {', '.join(f'`contraagent docs {t}`' for t in self.topics)}"] if self.topics else []
+        lines += [f"  read: {' '.join(self._pointers)}"] if self._pointers else []
         return "\n".join(lines)
 
 
@@ -378,29 +391,33 @@ def _has_examples(node: Any) -> bool:
 
 _IMPORT_PROBE = """
 import json, sys
+from pathlib import Path
 from contraagent._internal.contracts.calls import SchemaRef, import_schema
 out = {}
 for kind, ref in json.loads(sys.stdin.read()).items():
     if import_schema(SchemaRef(**ref)) is None:
         out[kind] = f"output {ref['module']}.{ref['qualname']} cannot be imported from {ref['search_path']} by the in-session hook"
-print(json.dumps(out))
+Path(sys.argv[1]).write_text(json.dumps(out), encoding="utf-8")
 """
 
 
 def _import_in_fresh_interpreter(refs: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """What the hook (`contraagent call validate`, same interpreter) would fail to import."""
+    """What the hook (`contraagent call validate`, same interpreter) would fail to import.
+    The probe writes its answer to a file, since a module it imports may print."""
     try:
-        proc = subprocess.run(
-            [sys.executable, "-c", _IMPORT_PROBE],
-            input=json.dumps(refs),
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return json.loads(proc.stdout)
+        with tempfile.TemporaryDirectory(prefix="probe-", dir=temp_root()) as tmp:
+            answer = Path(tmp) / "answer.json"
+            subprocess.run(
+                [sys.executable, "-c", _IMPORT_PROBE, str(answer)],
+                input=json.dumps(refs),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return json.loads(answer.read_text(encoding="utf-8"))
     except (subprocess.SubprocessError, ValueError, OSError) as exc:
         return {kind: f"output import not checked: {exc}" for kind in refs}
 
@@ -459,6 +476,9 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
     if plan is None:
         return
     report.routes = plan.routes()
+    if not pipeline.overrides.credential:  # an override outranks every call's credential
+        for kind, keys in _call_credentials(calls).items():
+            report.routes[kind] += "".join(f"; credential={c} for {', '.join(ks)}, by their task calls" for c, ks in keys.items())
     refused = [f"routing: {n.key}: credential={n.credential!r}: {p}" for n in calls for p in plan.call_problems(n.spec.kind, n.credential)]
     report.add("routing", refused)
     report.add("contracts", _partial_errors(specs, plan))
@@ -476,6 +496,14 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
         if backend is not None and backend.binary and shutil.which(backend.binary, path=backend.base_path()) is None:
             report.warnings.append(f"routing: {agent}: {backend.binary} is not on PATH; its launches would fail")
     _check_models(pipeline, plan, report)
+
+
+def _call_credentials(calls: list[Node]) -> dict[str, dict[str, list[str]]]:
+    """The task keys of `calls` by kind name and the credential each call names."""
+    out: dict[str, dict[str, list[str]]] = {}
+    for node in calls:
+        out.setdefault(kind_name(node.spec.kind), {}).setdefault(node.credential, []).append(node.key)
+    return out
 
 
 def _partial_errors(specs: dict[str, Any], plan: RoutingPlan) -> list[str]:

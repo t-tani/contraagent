@@ -21,7 +21,7 @@ import re
 import string
 import types
 import typing
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PureWindowsPath
 from typing import Any, Literal, TypeVar, overload
@@ -216,15 +216,13 @@ class AgentTask[Out]:
         carry the traits the task `requires` is refused before the task launches."""
         if self.params is not None:
             _check_param_names(self.kind, self.params, params)
-        return current_graph().add(
-            self,
-            unit=unit,
-            key=key,
-            after=after,
-            priority=_checked_priority(self.kind, priority),
-            credential=_checked_credential(self.kind, credential),
-            params=params,
-        )
+        words = {
+            "key": _checked_key(self.kind, key),
+            "after": _checked_after(self.kind, after),
+            "priority": _checked_priority(self.kind, priority),
+            "credential": _checked_credential(self.kind, credential),
+        }
+        return current_graph().add(self, unit=unit, params=params, **words)
 
 
 @overload
@@ -770,8 +768,35 @@ class PythonTask[Out]:
     ) -> Pending[Out]:
         """Queue this Python task for `unit`; the function runs with `kwargs` (Pending resolved).
         A function with a `unit` parameter is given the unit too. `priority`, as for an
-        agent task: a tie-breaker in the queue, higher first."""
-        return current_graph().add(self, unit=unit, key=key, after=after, priority=_checked_priority(self.kind, priority), params=kwargs)
+        agent task: a tie-breaker in the queue, higher first. A call the function could not
+        take (a keyword it has no parameter for, a required parameter left out) raises
+        TypeError here, and so does `credential=`: a Python task runs no coding agent, so
+        it has no credential (unless its function has a parameter of that name)."""
+        self._check_call(unit, kwargs)
+        words = {
+            "key": _checked_key(self.kind, key),
+            "after": _checked_after(self.kind, after),
+            "priority": _checked_priority(self.kind, priority),
+        }
+        return current_graph().add(self, unit=unit, params=kwargs, **words)
+
+    def _check_call(self, unit: str, kwargs: dict[str, Any]) -> None:
+        """TypeError when the function could not be called with `kwargs` (and the unit, for a
+        `unit` parameter), as `invoke` would call it."""
+        try:
+            signature = inspect.signature(self.fn)
+        except (TypeError, ValueError):  # a callable with no signature to read
+            return
+        given = {**kwargs, "unit": unit} if unit and "unit" not in kwargs and "unit" in signature.parameters else kwargs
+        try:
+            signature.bind(**given)
+        except TypeError as exc:
+            if "'credential'" in str(exc):
+                raise TypeError(
+                    f"{self.kind}(...): credential= names the credential an agent task runs as, and a Python task runs no "
+                    "coding agent, so it has no credential: drop credential= (contraagent docs routing, A task call's credential)"
+                ) from None
+            raise TypeError(f"{self.kind}(...): the function cannot take this call: {exc} (contraagent docs tasks, Python tasks)") from None
 
     def digest(self) -> str:
         """A digest of what defines this kind of task, part of each task's fingerprint: the
@@ -1081,6 +1106,24 @@ def _type_name(t: type) -> str:
 RESERVED_PARAMS = frozenset({"key", "after", "priority"})
 #: The keywords an agent task call takes itself: those of every task call, and `credential`.
 AGENT_CALL_WORDS = RESERVED_PARAMS | {"credential"}
+
+
+def _checked_key(kind: str, key: Any) -> str | None:
+    """A task call's `key`: a string, or None (or empty): the kind and unit make it."""
+    if key is not None and not isinstance(key, str):
+        raise TypeError(f"{kind}(...): key must be a string (or None), not {key!r}")
+    return key
+
+
+def _checked_after(kind: str, after: Any) -> tuple[Pending[Any] | str, ...]:
+    """A task call's `after`: a list of tasks, each a `Pending` or a task's key."""
+    if isinstance(after, (str, bytes, Pending)) or not isinstance(after, Iterable):
+        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {after!r}")
+    items = tuple(after)
+    odd = [a for a in items if not isinstance(a, Pending) and not (isinstance(a, str) and a)]
+    if odd:
+        raise TypeError(f"{kind}(...): after takes a list of tasks (each a task call's result or a task key), not {odd[0]!r} in it")
+    return items
 
 
 def _checked_priority(kind: str, priority: Any) -> float:
