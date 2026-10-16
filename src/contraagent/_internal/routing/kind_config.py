@@ -14,7 +14,7 @@ from dataclasses import dataclass, fields, replace
 from typing import Any
 
 from contraagent._internal.backends.launch import Limits, Stop
-from contraagent._internal.contracts.contract import DEFAULT_MAX_RESUMES
+from contraagent._internal.contracts.contract import DEFAULT_MAX_CORRECTIONS
 from contraagent._internal.dispatch.task import kind_name
 
 
@@ -64,8 +64,8 @@ class KindConfig:
     #: (`Changes.kept`) instead of removing them (`Changes.removed`).
     keep_failed_changes: bool = False
     #: The correction rounds after the first launch: how many times an output that fails its
-    #: checks goes back to the same session with the errors (`run_until_valid(max_resumes=)`).
-    max_corrections: int = DEFAULT_MAX_RESUMES
+    #: checks goes back to the same session with the errors (`run_until_valid(max_corrections=)`).
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS
 
     @property
     def partial_stops(self) -> frozenset[Stop]:

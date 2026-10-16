@@ -841,7 +841,7 @@ class KindConfig
         retry_backoff_base: float = 2.0,
         partial_on: tuple[str, ...] = (),
         keep_failed_changes: bool = False,
-        max_corrections: int = DEFAULT_MAX_RESUMES,
+        max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     ) -> None
     agent: str = 'claude'
     @classmethod
@@ -857,7 +857,7 @@ class KindConfig
     def limits(self) -> Limits
     max_budget_usd: float | None = None
     max_concurrent: int | None = None
-    max_corrections: int = DEFAULT_MAX_RESUMES
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS
     max_denials: int | None = None
     max_turns: int = 50
     model: str = ''
@@ -2229,7 +2229,7 @@ def run_until_valid(
     backend: Backend,
     launch: Launch,
     contracts: Sequence[OutputContract],
-    max_resumes: int = DEFAULT_MAX_RESUMES,
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     *,
     partial_on: Collection[Stop] = (),
 ) -> LaunchResult

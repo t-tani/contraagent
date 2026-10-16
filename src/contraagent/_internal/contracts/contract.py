@@ -57,7 +57,7 @@ _logger = logging.getLogger(__name__)
 #: Correction rounds after the first launch, a kind's `max_corrections` when neither its
 #: declaration nor the config gives one. Each one is a full agent turn, and an
 #: LLM that misreads the schema three times in a row is not converging.
-DEFAULT_MAX_RESUMES = 3
+DEFAULT_MAX_CORRECTIONS = 3
 
 #: Errors quoted per file in the correction prompt. Past this many the
 #: agent has the shape wrong, not a field, and the schema says more.
@@ -536,7 +536,7 @@ def run_until_valid(
     backend: Backend,
     launch: Launch,
     contracts: Sequence[OutputContract],
-    max_resumes: int = DEFAULT_MAX_RESUMES,
+    max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     *,
     partial_on: Collection[Stop] = (),
 ) -> LaunchResult:
@@ -546,10 +546,10 @@ def run_until_valid(
     tool use, turns) over all rounds (`fold_spend`: a coding agent that reports a
     resumed session's cost so far is not counted twice), `round_costs` each
     round's own cost, `rounds` set to the number of launches,
-    `round_errors` holding each failed round's errors and `max_corrections` set to
-    `max_resumes`. `max_resumes`: the correction rounds after the first launch (a kind's
-    `max_corrections`; 0, none). A
-    run that exhausts `max_resumes`, or whose session cannot be resumed,
+    `round_errors` holding each failed round's errors and `max_corrections` set to the
+    argument. `max_corrections`: the correction rounds after the first launch
+    (`KindConfig.max_corrections`; 0, none). A run that exhausts them, or whose session
+    cannot be resumed,
     ends `INVALID_OUTPUT` and not ok. A round that did not complete keeps
     its own stop. Each check compares a file with the file as it was before the
     first round (`OutputContract.before`); a result that is not ok puts back a file
@@ -571,7 +571,7 @@ def run_until_valid(
     result: LaunchResult | None = None
     before = {c.resolve(launch.cwd): c.before(launch.cwd) for c in contracts}
     try:
-        result = _loop(backend, resumable, contracts, max_resumes, before, frozenset(partial_on))
+        result = _loop(backend, resumable, contracts, max_corrections, before, frozenset(partial_on))
         if not (result.ok or result.partial):
             for path, was in before.items():
                 was.restore(path)
@@ -588,7 +588,7 @@ def _loop(
     backend: Backend,
     launch: Launch,
     contracts: Sequence[OutputContract],
-    max_resumes: int,
+    max_corrections: int,
     before: Mapping[Path, Before],
     partial_on: frozenset[Stop] = frozenset(),
 ) -> LaunchResult:
@@ -623,7 +623,7 @@ def _loop(
         found += [errors] if errors else []
         total.rounds = rounds
         total.round_errors = list(found)
-        total.max_corrections = max_resumes
+        total.max_corrections = max_corrections
         if not errors:
             if total.hollow and any(c.from_message for c in contracts):
                 # The final message is the output, and it passed its checks: text that reads
@@ -634,7 +634,7 @@ def _loop(
             return total
         if total.stop is not Stop.COMPLETED:
             return total
-        nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if rounds <= max_resumes else None
+        nxt = backend.resumed(launch, total, correction_prompt(contracts, checks)) if rounds <= max_corrections else None
         if nxt is not None:
             more = f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""
             _logger.info(f"[correction] {launch.label}: round {rounds} failed its checks, sent back: {errors[0]}{more}")
