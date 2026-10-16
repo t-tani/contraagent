@@ -41,7 +41,9 @@ def _launch(tmp_path, *, timeout=5.0, stall=None, prompt="", stream=True, **kw) 
 
 
 def _py(code: str) -> list[str]:
-    return [sys.executable, "-c", textwrap.dedent(code)]
+    """A Python child running `code`, whose print writes "\\n" on every OS (Windows' "\\r\\n"
+    would be passed through as an agent's output is)."""
+    return [sys.executable, "-c", "import sys; sys.stdout.reconfigure(newline='\\n')\n" + textwrap.dedent(code)]
 
 
 _alive = processes.alive
@@ -293,9 +295,9 @@ Pipeline(backends={"sleeper": Sleeper()}, runs_dir=runs).run(lambda: work("a"), 
 """
 
 
-def _with_token(token: str) -> list[int]:
-    """The pids whose command line holds `token`."""
-    return [p.pid for p in processes.scan().values() if token in p.cmd]
+def _with_token(*parts: str) -> list[int]:
+    """The pids whose command line holds each of `parts`."""
+    return [p.pid for p in processes.scan().values() if all(part in p.cmd for part in parts)]
 
 
 @pytest.mark.parametrize("how", [pytest.param("SIGTERM", marks=posix), pytest.param("SIGINT", marks=posix), "kill"])
@@ -308,20 +310,23 @@ def test_an_agent_ends_with_the_pipeline_that_launched_it(tmp_path, how):
     script.write_text(_DRIVER)
     driver = subprocess.Popen([sys.executable, str(script), token, str(tmp_path / "runs")], stderr=subprocess.PIPE)
     try:
-        agents = lambda: [pid for pid in _with_token(token) if pid != driver.pid]
+        # The agent's processes: one, or on Windows a venv's python.exe and the interpreter it
+        # starts, which carries the same command line (as the driver's own interpreter does).
+        agents = lambda: [pid for pid in _with_token(token, "sleep(300)") if pid != driver.pid]
         deadline = time.monotonic() + 30
         while not agents() and time.monotonic() < deadline:
             time.sleep(0.1)
-        [agent] = agents()
+        found = agents()
+        assert found, "the agent never started"
         if how == "kill":
             driver.kill()
         else:
             os.kill(driver.pid, getattr(signal, how))
         driver.wait(timeout=20)
         deadline = time.monotonic() + 15
-        while _alive(agent) and time.monotonic() < deadline:
+        while any(map(_alive, found)) and time.monotonic() < deadline:
             time.sleep(0.1)
-        assert not _alive(agent), f"the agent outlived its pipeline ({how})"
+        assert not any(map(_alive, found)), f"the agent outlived its pipeline ({how})"
     finally:
         driver.kill()
         driver.wait()

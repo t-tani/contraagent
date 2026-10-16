@@ -39,12 +39,11 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import socket
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from contraagent._internal.runs.names import is_plain
+from contraagent._internal.runs.names import is_plain, safe_chars
 
 #: The run format of a run directory this release writes, as `run.json` records it (`format`):
 #: this layout and the schemas of its records (`contraagent/docs/schemas/`). It goes up
@@ -91,9 +90,7 @@ def file_name(key: str) -> str:
     """The name task `key`'s files take, without a suffix: `key` with every character
     but a letter, a digit, `-`, `_` and `.` turned into `_`, as are a leading `.` and each
     `..`. Two keys can share a name (`a:b`, `a_b`); a run's keys rarely do."""
-    name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in key)
-    name = re.sub(r"\.\.+", lambda m: "_" * len(m.group()), name)
-    return "_" + name[1:] if name.startswith(".") else name or "_"
+    return safe_chars(key)
 
 
 def stream(key: str) -> str:

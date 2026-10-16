@@ -465,7 +465,7 @@ def test_the_public_modules_import_in_an_environment_without_the_extras(tmp_path
     assert uv is not None, "uv makes the environment"
     venv = tmp_path / "venv"
     subprocess.run([uv, "venv", "--quiet", "--python", sys.executable, str(venv)], check=True, capture_output=True)
-    python = venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    python = venv / "Scripts" / "python.exe" if sys.platform == "win32" else venv / "bin" / "python"
     pins = [f"{name}=={importlib.metadata.version(name)}" for name in ("pydantic", "psutil")]
     install = [uv, "pip", "install", "--quiet", "--python", str(python), *pins]
     if subprocess.run([*install, "--offline"], capture_output=True).returncode != 0:

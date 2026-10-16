@@ -12,7 +12,16 @@ import pytest
 
 import contraagent
 from contraagent._internal.runs import layout
-from contraagent._internal.runs.files import append_lines, lines_at, parse_rows, read_lines, read_rows, seek_line, write_document
+from contraagent._internal.runs.files import (
+    append_lines,
+    lines_at,
+    parse_rows,
+    read_document,
+    read_lines,
+    read_rows,
+    seek_line,
+    write_document,
+)
 from contraagent._internal.runs.times import iso_of, now_iso, parse_iso
 
 
@@ -72,7 +81,7 @@ def test_a_reader_listing_json_never_sees_a_temporary_or_a_part(tmp_path: Path):
                     errors.append(f"listed {p.name}")
                     continue
                 try:
-                    doc = json.loads(p.read_text())
+                    doc = json.loads(read_document(p))
                 except ValueError as e:
                     errors.append(f"{p.name}: {e}")
                     continue

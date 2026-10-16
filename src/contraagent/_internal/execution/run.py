@@ -59,6 +59,7 @@ from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
 from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, read_rows, write_document
+from contraagent._internal.runs.names import check_portable
 from contraagent._internal.runs.source import DirectorySource, parse_info
 from contraagent._internal.runs.times import iso_of, now_iso
 
@@ -181,8 +182,10 @@ class Run:
         `config` is the config file the run was started with; its pipeline tables are what
         `contraagent.pipeline_table` reads in the run (none without it).
         `fresh` refuses a run id whose journal already has rows (`RunExists`), before
-        anything is written: not its `run.json`, nor its lock file."""
-        self.run_id = run_id
+        anything is written: not its `run.json`, nor its lock file.
+        A `run_id` that is not a file name on every operating system (`<lambda>`, `a:b`,
+        `CON`, a trailing `.`) is refused with ValueError, on every system alike."""
+        self.run_id: str = check_portable(run_id, "run id")
         self.run_group: str = run_group or run_id
         self.runs_dir: Path = Path(runs_dir)
         self.dir: Path = self.runs_dir / run_id

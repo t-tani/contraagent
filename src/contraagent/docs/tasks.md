@@ -124,6 +124,14 @@ A deferred task (not launched: past a deadline, or on a resting credential) is i
 the flow returned. A `TaskDeferred` the flow does not catch ends the flow without
 its value, so it is a flow error and `ok` is False.
 
+A run id is a file name on every operating system, so that a pipeline written on
+Linux also runs on Windows. It holds no `/`, `\`, `<`, `>`, `:`, `"`, `|`, `?`, `*`
+or control character, no leading `.`, no `..` and no trailing `.` or space, and it
+is no Windows device name such as `CON` or `NUL`. Any other run id is refused with
+ValueError on every system. The default run id is the flow's name with each
+character but a letter, a digit, `-`, `_` and `.` turned into `_`, so a lambda
+runs as `_lambda_`.
+
 A run id that already holds a run is refused (`RunExists`) unless it is resumed
 (`resume=True`, `--resume`): the flow runs again, and every task whose key's last
 journal row is ok with the same fingerprint is skipped, its output read from the

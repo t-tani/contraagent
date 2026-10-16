@@ -126,6 +126,7 @@ def test_a_posix_group_stops_with_its_children(how):
     assert not g.terminate(proc)  # no group left
 
 
+@posix
 def test_posix_groups_send_the_signals_to_the_group():
     sent = []
     g = PosixGroups(killpg=lambda pgid, sig: sent.append((pgid, sig)))

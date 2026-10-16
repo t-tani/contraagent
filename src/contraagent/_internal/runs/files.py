@@ -36,7 +36,8 @@ _append_lock = threading.Lock()
 BINARY = getattr(os, "O_BINARY", 0)
 
 #: Windows: how long `write_document` tries again to replace a document another process holds
-#: open (a reader's open file is replaced only once it is closed there).
+#: open (a reader's open file is replaced only once it is closed there), and how long
+#: `read_document` tries again to open one that is being replaced.
 REPLACE_WAIT_S = 2.0
 
 
@@ -76,6 +77,22 @@ def _replace(tmp: Path, path: Path) -> None:
             return
         except PermissionError:
             if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
+
+
+def read_document(path: str | os.PathLike[str]) -> str:
+    """The document `path` whole, as UTF-8 (a byte that is none is replaced): the old one or
+    the new one while `write_document` replaces it. On Windows, opening a file at the moment
+    it is replaced raises `PermissionError`, so the open is tried again for `REPLACE_WAIT_S`.
+    `OSError` when `path` cannot be read."""
+    deadline = time.monotonic() + REPLACE_WAIT_S
+    while True:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                return f.read()
+        except PermissionError:
+            if sys.platform != "win32" or time.monotonic() >= deadline:
                 raise
             time.sleep(0.01)
 

@@ -46,6 +46,7 @@ from contraagent._internal.routing.config import ConfigError, PerTask, PipelineC
 from contraagent._internal.routing.plan import Overrides, RoutingPlan, check_task_tables
 from contraagent._internal.routing.preflight import PreflightPolicy, PreflightStopped, check_policy
 from contraagent._internal.routing.quota import QuotaRule
+from contraagent._internal.runs.names import portable
 
 
 @dataclass
@@ -353,7 +354,10 @@ class Pipeline:
         in `RunReport.flow_errors` (and `flow_calls.jsonl`) and the run goes on with
         the tasks already queued.
 
-        `run_id` defaults to the flow's name (`<flow>-stub` in a stub run). A run id that already holds a run is
+        `run_id` defaults to the flow's name (`<flow>-stub` in a stub run), with each character a
+        file name cannot hold on every operating system turned into `_` (`<lambda>` runs as
+        `_lambda_`). A `run_id` given that is not such a name (`a:b`, `CON`, a trailing `.`) is
+        refused with ValueError, on every system alike. A run id that already holds a run is
         refused (`RunExists`, before anything is written) unless `resume=True`, which runs the flow again from the
         start and skips every task whose key's last journal row is ok with the same
         fingerprint, reading its output from the run directory (a task declared
@@ -366,7 +370,7 @@ class Pipeline:
         stopped by a watchdog process: no agent outlives its run.
         """
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
-        run_id = run_id or f"{flow.__name__}{suffix}"
+        run_id = run_id or f"{portable(flow.__name__)}{suffix}"
         with Run(
             run_id, self.runs_dir, fresh=not resume, log=self.log, cwd=self.cwd, row_extras=self.row_extras, config=self.config
         ) as run:
