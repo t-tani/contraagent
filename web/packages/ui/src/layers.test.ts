@@ -1,4 +1,4 @@
-// The layers of the web packages (AGENTS.md "Layers"), checked over every import
+// The layers of the web packages (web/AGENTS.md, "Layers"), checked over every import
 // and `export … from` in packages/*/src and apps/*/src. eslint.config.js holds
 // the same folder rules for the editor; this test also holds the package-level
 // rules ESLint cannot express, and lists the whole table in one place.

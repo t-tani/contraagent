@@ -1,4 +1,4 @@
-"""The import rules of AGENTS.md ("Public modules and layers") hold: `lint-imports` checks the
+"""The import rules of AGENTS.md ("Public API and layers") hold: `lint-imports` checks the
 contracts in pyproject.toml's `[tool.importlinter]`."""
 
 import subprocess

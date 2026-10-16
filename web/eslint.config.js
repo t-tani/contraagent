@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import tseslint from 'typescript-eslint';
 import lit from 'eslint-plugin-lit';
 
-// The layers (AGENTS.md "Layers"): what each folder must not import. One
+// The layers (web/AGENTS.md, "Layers"): what each folder must not import. One
 // `no-restricted-imports` block per glob, generated from this table; the same
 // table, with what ESLint cannot express, is checked by
 // packages/ui/src/layers.test.ts. Keep the two in step.
