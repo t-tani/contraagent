@@ -73,9 +73,9 @@ if (how && list && nav) {
     aim = to;
     mark(to);
     list.scrollTo({ left: s.offsetLeft - (list.clientWidth - s.offsetWidth) / 2, behavior: reduced.matches ? 'auto' : 'smooth' });
-    // Where a browser has no scrollend: the scroll is over by then.
+    // The scroll's end says where it landed (scrollend); only a browser without the event guesses it is over by then.
     clearTimeout(aimTimer);
-    aimTimer = window.setTimeout(landed, 900);
+    if (!('onscrollend' in list)) aimTimer = window.setTimeout(landed, 900);
   };
   for (const b of [prev, next])
     b.addEventListener('click', () => {

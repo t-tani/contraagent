@@ -19,7 +19,7 @@
 // the run until the reader picks one, and its moments open from their disclosure; the
 // steps are a carousel that scrolls a card at a time, by a swipe and by its buttons,
 // whose long outputs open in full; and its controls are at least 44 px high.
-import { expect, firefox, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, firefox, test, type Browser, type Page } from '@playwright/test';
 import { clips, overflows, settle } from './fit.js';
 import { DOCS } from './docs-site.js';
 
@@ -199,24 +199,6 @@ async function smallTargets(page: Page): Promise<string[]> {
 }
 
 /** The step the carousel shows: the card whose middle is the list's, within 2 px, as its index; -1 when none is. */
-/** Resolves once `list` has kept one scroll position for five frames: a smooth scroll is over. */
-async function settled(list: Locator): Promise<void> {
-  await list.evaluate(
-    (e) =>
-      new Promise<void>((done) => {
-        let last = e.scrollLeft;
-        let still = 0;
-        const frame = () => {
-          still = e.scrollLeft === last ? still + 1 : 0;
-          last = e.scrollLeft;
-          if (still >= 5) done();
-          else requestAnimationFrame(frame);
-        };
-        requestAnimationFrame(frame);
-      }),
-  );
-}
-
 async function centredStep(page: Page): Promise<number> {
   return page.locator('.how-steps').evaluate((list) => {
     const mid = list.getBoundingClientRect().left + list.clientWidth / 2;
@@ -316,14 +298,24 @@ for (const size of PHONES)
       await expect(count).toContainText('Step 7 of 7');
       await expect(next).toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
-      // The keyboard: the button before, by Enter.
+      // The keyboard: the button before, by Enter; the swipe below comes once its scroll has ended there.
+      await list.evaluate((e) => {
+        const step = e.querySelectorAll<HTMLElement>('.how-step')[5]!;
+        const there = () => Math.abs(step.offsetLeft + step.offsetWidth / 2 - (e.scrollLeft + e.clientWidth / 2)) <= 2;
+        (window as unknown as { landed: Promise<void> }).landed = new Promise((done) => {
+          const end = () => {
+            if (!there()) return; // the end of an earlier scroll, or one cut short
+            e.removeEventListener('scrollend', end);
+            done();
+          };
+          e.addEventListener('scrollend', end);
+        });
+      });
       await prev.focus();
       await page.keyboard.press('Enter');
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
-      // The button's scroll is over (the card in the middle, the list still) before the swipe.
-      await expect.poll(() => centredStep(page)).toBe(5);
-      await settled(list);
+      await page.evaluate(() => (window as unknown as { landed: Promise<void> }).landed);
       // A swipe of part of a card back: the list snaps to the card before, not between two.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
