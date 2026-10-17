@@ -25,6 +25,7 @@ written are in `web/AGENTS.md`.
 | a retry (an attempt after a failed attempt of the same task) | retry; tooltip: An attempt after a failed attempt (retries) | リトライ |
 | stop `error` | error | エラー |
 | stop `denied` (a tool call the permissions did not allow) | permission denied; trends: Denied tool calls (never "refused") | 権限エラー; 権限エラーになったツール呼び出し |
+| a safety stop (`JournalRow.safety_stops`, `Trends.safety_stops`: a safety classifier stopped part of an agent session, which went on; not stop `refused`) and its part (`response`, `tool`, `unread`) | N safety stops (an attempt's mark; the attempt keeps its outcome); a line per stop: part \| model \| category \| tool \| time; parts: model response, tool request, unrecognized; trends: Safety stops, Stopped part; tooltip: A safety classifier stopped part of the agent session, and the session went on (safety_stops) | 安全分類器による停止 N 件; モデルの応答, ツールのリクエスト, 内容不明; 停止した部分 |
 | round after contract errors | correction; tooltip: Another round in the same agent session after failed checks (rounds) | 修正依頼 |
 | hop, failover | model switch; tooltip: A new agent session on the next model after a failed one (Router hops) | モデル切り替え |
 | contract, off-contract, valid | checked file, failed checks, passed (a checked file only; attempts and tasks are done) | 検証対象のファイル, 検証エラー, OK |

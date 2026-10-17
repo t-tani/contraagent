@@ -30,7 +30,7 @@ them all):
 | `claims` | one task at a time on a name, and the service a name stands for | "Claims" and "Services", below |
 | `changes`, `keep_failed_changes` | the files it changes beside its output, and whether the files of a failed attempt stay | "Files a task changes", below |
 | `requires` | what its data may be sent under | [Routing](routing.md#credentials) |
-| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
+| `agent`, `model`, `effort`, `credential`, `model_failover`, `fallbacks`, `safety_stop_failover` | where it runs, which the config outranks; one task's credential, which its call names (`credential=`), outranks the config | [Routing](routing.md) |
 | `max_turns`, `timeout_s`, `max_budget_usd`, `stall_s`, `context_budget`, `context_warn_pct`, `max_denials`, `disallowed_tools`, `max_concurrent`, `retries`, `retry_backoff_base` | its budget, and how its attempts run | [Routing](routing.md#budgets), and each coding agent's in [Coding agents](agents.md) |
 
 ## Python tasks

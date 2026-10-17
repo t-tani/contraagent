@@ -154,6 +154,31 @@ describe('ca-task-view', () => {
     el.remove();
   });
 
+  it('marks an attempt with its safety stops, still done, and lists each with its known facts', async () => {
+    const stopped: TaskDetail = {
+      ...emptyDetail('review-a'),
+      rows: [
+        row('review-a', { stop: 'error', ok: false, attempt: 0, safety_stops: [{ part: 'response', model: 'opus' }] }),
+        row('review-a', { attempt: 1, safety_stops: [{ part: 'tool', model: 'haiku', category: 'cyber', tool: 'WebFetch' }, { part: 'unread' }] }),
+      ],
+    };
+    const { client } = fakeClient({ 'review-a': stopped });
+    const el = await view({ client, taskKey: 'review-a' });
+    const chips = [...root(el).querySelectorAll('.runchip')];
+    expect(text(chips[1])).toBe('✓passed Attempt 2 | done | 1.5s | 2 safety stops');
+    expect(chips[1]!.className).toContain('ok');
+    const fold = [...root(el).querySelectorAll('details.io-fold')].find((d) => text(d.querySelector('summary')) === '3 safety stops');
+    expect(fold!.querySelector('summary')!.getAttribute('title')).toBe(
+      'A safety classifier stopped part of the agent session, and the session went on (safety_stops)',
+    );
+    expect([...fold!.querySelectorAll('li')].map(text)).toEqual([
+      'Attempt 1 | model response | opus',
+      'Attempt 2 | tool request | haiku | cyber | WebFetch',
+      'Attempt 2 | unrecognized',
+    ]);
+    el.remove();
+  });
+
   it("shows the pipeline's own columns: the latest attempt's, and each attempt's in its chip", async () => {
     const custom: TaskDetail = {
       ...emptyDetail('write-a'),

@@ -60,6 +60,9 @@ class KindConfig:
     #: The stops after which a launch's output, when it passes every check, is kept as a
     #: partial result (`agent_task(partial_on=)`): some of `PARTIAL_STOPS`.
     partial_on: tuple[str, ...] = ()
+    #: The parts whose safety stop moves a launch that ended well to the kind's next hop
+    #: (`SafetyStop.part`): some of `SAFETY_STOP_FAILOVER`.
+    safety_stop_failover: tuple[str, ...] = ()
     #: Leave the files a failed attempt created under its task's `changes` patterns in place
     #: (`Changes.kept`) instead of removing them (`Changes.removed`).
     keep_failed_changes: bool = False
@@ -80,6 +83,7 @@ class KindConfig:
         d["disallowed_tools"] = tuple(d.get("disallowed_tools") or ())
         d["requires"] = tuple(d.get("requires") or ())
         d["partial_on"] = tuple(d.get("partial_on") or ())
+        d["safety_stop_failover"] = tuple(d.get("safety_stop_failover") or ())
         return cls(**d)
 
     def limits(self) -> Limits:
@@ -101,6 +105,10 @@ class KindConfig:
 #: The stops a kind may keep a partial result after (`partial_on`): those the runner itself
 #: ends a launch on for time, with no word from the agent that it is done or why not.
 PARTIAL_STOPS: tuple[str, ...] = (Stop.TIMEOUT.value, Stop.STALLED.value)
+
+
+#: The parts of a launch whose safety stop a kind may fail over on (`safety_stop_failover`).
+SAFETY_STOP_FAILOVER: tuple[str, ...] = ("response", "tool")
 
 
 #: The numeric keys of a task table (`[tasks.<kind>]`), with the type each

@@ -85,6 +85,7 @@ from contraagent._internal.backends.base import Backend, ModelChains
 from contraagent._internal.backends.credentials import Credential, CredentialBinding
 from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.contracts.contract import OutputContract
+from contraagent._internal.dispatch.records import SafetyStop
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_ERROR, STOP_INVALID_INPUT, Task, TaskResult, kind_matches, kind_name
 from contraagent._internal.errors import ContraagentError
 from contraagent._internal.execution.changes import compare, excluded, scan, scan_tree
@@ -111,6 +112,7 @@ LAUNCH_FIELDS = (
     "stderr_tail",
     "hook_errors",
     "web_queries",
+    "safety_stops",
     "tool_uses",
 )
 
@@ -281,6 +283,7 @@ class Recorder:
         o: LaunchResult = result.launch_result
         launch = {name: getattr(o, name) for name in LAUNCH_FIELDS}
         launch["stop"] = o.stop.value
+        launch["safety_stops"] = [s.model_dump(mode="json", exclude_defaults=True) for s in o.safety_stops]
         attempt = {
             **self._facts(task, token, result),
             "route": result.route,
@@ -773,6 +776,7 @@ class Replay:
             stderr_tail="; ".join([*notes, tail] if tail else notes),
             hook_errors=list(recorded.get("hook_errors") or []),
             web_queries=list(recorded.get("web_queries") or []),
+            safety_stops=[SafetyStop.model_validate(s) for s in recorded.get("safety_stops") or []],
             tool_uses=dict(recorded.get("tool_uses") or {}),
             cost_usd=0.0,
         )

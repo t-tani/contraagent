@@ -83,6 +83,9 @@ credential = "subs"                 # a pool: two OAuth tokens taking turns
 model = "claude-sonnet-5-5"
 max_turns = 15
 timeout_s = 600
+# A launch that ended well after a safety stop of one of these parts starts again on the
+# next hop: "response" (its own model's response) and "tool" (a request of a tool's model).
+safety_stop_failover = ["response", "tool"]
 
 [[tasks.research.fallbacks]]        # another agent, another identity: omp through the gateway
 agent = "omp"

@@ -505,6 +505,12 @@ def _check_routing(pipeline: Pipeline, specs: dict[str, Any], report: CheckRepor
             if rc.keep_failed_changes and kind in specs and not specs[kind].changes
         ],
     )
+    report.warnings += [
+        f"routing: {kind}: safety_stop_failover = {list(rc.safety_stop_failover)} moves a launch to its next hop, "
+        f"and the kind has no failover chain; give it [[tasks.{kind}.fallbacks]]"
+        for kind, rc in plan.configs.items()
+        if rc.safety_stop_failover and kind in specs and (kind not in plan.routers or len(plan.routers[kind].routes) < 2)
+    ]
     agents = {rc.agent for rc in plan.configs.values()} | {r.agent for router in plan.routers.values() for r in router.routes}
     for agent in sorted(agents):
         backend = pipeline.backends.get(agent)

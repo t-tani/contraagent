@@ -5,6 +5,13 @@ One JSON event per line: `system` (`init`, `api_retry`, `permission_denied`, ...
 `assistant` (one content block per event, with the API call's usage), `user` (tool results,
 a Stop hook's feedback), `rate_limit_event` (the subscription's utilization) and the final
 `result`, which says how the session ended.
+
+A safety stop (`SafetyStop`) is worded, not structured: a `system` notice says that a
+model's safeguards stopped the response (`response`), with the tool calls the response left
+running ending `Interrupted: ...` and a synthetic `user` message naming the stopped message
+(`refused_message_id`); a tool's error result says that a model's safeguards flagged its
+request (`tool`). The `result` event counts them all (`safety_stops`); one counted there that
+the words did not show is `unread`.
 """
 
 from __future__ import annotations
@@ -14,7 +21,7 @@ import re
 from contraagent._internal.backends.launch import CallUsage, Launch, LaunchResult, Limits, Stop
 from contraagent._internal.backends.refusal import Ending, Signals
 from contraagent._internal.backends.wire import EventFold, feedback_errors, first_text, tokens, tool_preview
-from contraagent._internal.dispatch.records import OtherModel, QuotaReading, QuotaWindow
+from contraagent._internal.dispatch.records import OtherModel, QuotaReading, QuotaWindow, SafetyStop
 from contraagent._internal.runs.times import iso_of, now_iso
 
 #: A safety refusal in an error result's text (a result that is no error may say it in passing).
@@ -42,6 +49,15 @@ KNOWN_EVENTS = frozenset(
 WEB_SEARCH_TOOL = "WebSearch"
 #: Claude Code's web page tool; its input carries `url` and `prompt`.
 WEB_FETCH_TOOL = "WebFetch"
+#: A safety stop of a response: the `system` notice that follows it (Claude Code 2.1).
+RESPONSE_STOP_RE = re.compile(r"^(?P<model>.+?)'s safeguards stopped the response")
+#: A tool call the stopped response left running: its result.
+INTERRUPTED_RE = re.compile(r"stopped by a safety classifier")
+#: A safety stop of a tool's own request: the tool's error result.
+TOOL_STOP_RE = re.compile(r"(?:^|API Error: )(?P<model>[^\n:]+?)'s safeguards flagged")
+_CATEGORY_RE = re.compile(r"Details: `\[?(?P<category>[^`\]]+)\]?`")
+_REQUEST_ID_RE = re.compile(r"Request ID: (?P<id>\S+)")
+_MESSAGE_ID_RE = re.compile(r"Message ID: (?P<id>\S+)")
 # How Claude Code hands the agent what a Stop hook said: a user message starting so.
 STOP_HOOK_FEEDBACK = "Stop hook feedback:"
 # Hollow shape: <=1 turn, no tool use, raw tool-call text as the body.
@@ -176,13 +192,24 @@ class StreamReader(EventFold):
         self.retry_errors: dict[str, int] = {}
         self.denied: list[dict] = []  # `permission_denied`, ahead of result
         self.hook_errors: list[list[str]] = []  # what a Stop hook sent back, per objection
+        self.safety_stops: list[SafetyStop] = []
+        self._tool_names: dict[str, str] = {}  # tool_use id -> tool name
+        self._interrupted: list[str] = []  # tools a stopped response left running, before its notice
+        self._last_ts = ""  # the time of the latest event that carries one
 
     def feed(self, ev: dict) -> Stop | None:
         self.saw_any = True
         typ = str(ev.get("type") or "")
         if self.unknown(typ):
             return None
-        if typ == "system" and ev.get("subtype") == "init":
+        if isinstance(ev.get("timestamp"), str):
+            self._last_ts = ev["timestamp"]
+        if typ == "user":
+            self._safety_stops(ev)
+        if typ == "system" and ev.get("subtype") == "informational":
+            if m := RESPONSE_STOP_RE.match(str(ev.get("content") or "")):
+                self._response_stop(model=m["model"].strip())
+        elif typ == "system" and ev.get("subtype") == "init":
             self.session_id = str(ev.get("session_id") or "")
             self.cli_version = str(ev.get("claude_code_version") or "")
             self.api_key_source = str(ev.get("apiKeySource") or "")
@@ -217,6 +244,7 @@ class StreamReader(EventFold):
             if isinstance(b, dict) and b.get("type") == "tool_use":
                 # Claude Code's tool arguments are kept in its own result, not sampled here.
                 self.tool_uses[str(b.get("name"))] += 1
+                self._tool_names[str(b.get("id") or "")] = str(b.get("name") or "")
                 inp = b.get("input")
                 if b.get("name") == WEB_SEARCH_TOOL and isinstance(inp, dict):
                     self.note_web_query(inp.get("query"))
@@ -233,6 +261,49 @@ class StreamReader(EventFold):
                     output=tokens(u, "output_tokens"),
                 )
             )
+
+    def _safety_stops(self, ev: dict) -> None:
+        """The safety stops a `user` event shows: a tool's request its safeguards flagged, a
+        tool call a stopped response left running, the synthetic message after a stopped response."""
+        refused = ev.get("refused_message_id")
+        if isinstance(refused, str) and refused:
+            last = self.safety_stops[-1] if self.safety_stops else None
+            if last is not None and last.part == "response" and not last.message_id:
+                self.safety_stops[-1] = last.model_copy(update={"message_id": refused})
+            else:  # no notice before it: the notice's words changed
+                self._response_stop(message_id=refused)
+            return
+        content = (ev.get("message") or {}).get("content")
+        for b in content if isinstance(content, list) else []:
+            if not (isinstance(b, dict) and b.get("type") == "tool_result" and b.get("is_error")):
+                continue
+            text = _tool_result_text(b)
+            tool = self._tool_names.get(str(b.get("tool_use_id") or ""), "")
+            if m := TOOL_STOP_RE.search(text):
+                self.safety_stops.append(
+                    SafetyStop(
+                        part="tool",
+                        ts=self._last_ts,
+                        model=m["model"].strip(),
+                        category=_found(_CATEGORY_RE, text, "category"),
+                        tool=tool,
+                        request_id=_found(_REQUEST_ID_RE, text, "id"),
+                        message_id=_found(_MESSAGE_ID_RE, text, "id"),
+                    )
+                )
+            elif INTERRUPTED_RE.search(text):
+                self._interrupted.append(tool)
+
+    def _response_stop(self, *, model: str = "", message_id: str = "") -> None:
+        tool = self._interrupted[0] if self._interrupted else ""
+        self._interrupted = []
+        self.safety_stops.append(SafetyStop(part="response", ts=self._last_ts, model=model, tool=tool, message_id=message_id))
+
+    def _all_safety_stops(self) -> list[SafetyStop]:
+        """The safety stops read, and an `unread` one for each more the result counts."""
+        counted = (self.final or {}).get("safety_stops")
+        more = counted - len(self.safety_stops) if isinstance(counted, int) and not isinstance(counted, bool) else 0
+        return [*self.safety_stops, *(SafetyStop(part="unread") for _ in range(max(more, 0)))]
 
     def ending(self, *, exit_code: int | None, killed: Stop | None) -> Ending:
         """The result event decides: its API status, its text (where a quota, a refused
@@ -301,7 +372,13 @@ class StreamReader(EventFold):
             api_retries=self.api_retries,
             retry_errors=dict(self.retry_errors),
             hook_errors=list(self.hook_errors),
+            safety_stops=self._all_safety_stops(),
         )
+
+
+def _found(pattern: re.Pattern[str], text: str, group: str) -> str:
+    m = pattern.search(text)
+    return m[group].strip() if m else ""
 
 
 def _tool_result_text(block: dict) -> str:
@@ -388,6 +465,8 @@ def normalize_event(e: dict) -> dict:
                         "call": str(b.get("tool_use_id") or ""),
                     }
         return {"type": "skip"}
+    if typ == "system" and e.get("subtype") == "informational":
+        return {"type": "notice", "text": str(e.get("content") or "")[:800]}
     if typ == "system" and e.get("subtype") == "init":
         return {"type": "notice", "text": f"session init: model={e.get('model') or ''}"[:800]}
     if typ == "system" and e.get("subtype") == "api_retry":
