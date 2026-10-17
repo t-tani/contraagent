@@ -271,6 +271,7 @@ class Pipeline
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
         services: Mapping[str, Service] | None = None,
+        service_cooloff_s: float | None = None,
     ) -> None
     backends: dict[str, Backend]
     def check(self, flow: Callable[..., Any], /, *args: Any, **kwargs: Any) -> CheckReport
@@ -302,6 +303,7 @@ class Pipeline
     ) -> RunReport
     runs_dir: Path
     scopes: tuple[TaskScope, ...]
+    service_cooloff_s: float | None
     services: dict[str, Service]
     stub
 

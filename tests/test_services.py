@@ -31,10 +31,18 @@ def written(launch):
 class Server:
     """A service that counts its starts and stops, and the tasks that hold it at once."""
 
-    def __init__(self, *, fail_start: Exception | None = None, fail_stop: Exception | None = None, start_s: float = 0.0):
+    def __init__(
+        self,
+        *,
+        fail_start: Exception | None = None,
+        fail_starts: int | None = None,
+        fail_stop: Exception | None = None,
+        start_s: float = 0.0,
+    ):
         self.calls: list[tuple[str, str]] = []
         self.up: set[str] = set()
         self.fail_start, self.fail_stop, self.start_s = fail_start, fail_stop, start_s
+        self.fail_starts = fail_starts  # how many starts raise fail_start (None: every one)
         self._lock = threading.Lock()
 
     @contextlib.contextmanager
@@ -42,7 +50,8 @@ class Server:
         time.sleep(self.start_s)
         with self._lock:
             self.calls.append(("start", name))
-        if self.fail_start is not None:
+        starts = sum(1 for event, _ in self.calls if event == "start")
+        if self.fail_start is not None and (self.fail_starts is None or starts <= self.fail_starts):
             raise self.fail_start
         self.up.add(name)
         try:
@@ -152,6 +161,40 @@ def test_a_start_that_raises_fails_the_tasks_that_claim_the_name_and_the_run_goe
     assert rows["lookup-a"]["stop"] == "launch_failed" and rows["python:look-b"]["stop"] == "launch_failed"
     (start,) = events(report)
     assert start["event"] == "start" and start["error"] == "OSError: port 9000 in use" and "address" not in start
+
+
+def test_after_its_cool_off_a_claim_tries_a_failed_start_again(tmp_path):
+    server = Server(fail_start=OSError("not ready"), fail_starts=1)
+
+    @python_task(claims=["index"])
+    def look(unit: str) -> Found:
+        return Found(address=service_address("index") or "")
+
+    report = pipeline(tmp_path, services={"index": server}, service_cooloff_s=0).run(lambda: look("a"))
+    assert report.ok, report.failed  # its retry of launch_failed starts the service
+    assert server.calls == [("start", "index"), ("start", "index"), ("stop", "index")]
+    failed, started, stopped = events(report)
+    assert failed["error"] == "OSError: not ready" and started["address"] == "http://index.local:2"
+    assert stopped["event"] == "stop"
+    assert [row["stop"] for row in journal(report)] == ["launch_failed", "completed"]
+
+
+def test_within_its_cool_off_a_failed_start_fails_the_tasks_at_once(tmp_path):
+    server = Server(fail_start=OSError("not ready"), fail_starts=1)
+
+    @python_task(claims=["index"])
+    def look(unit: str) -> Found:
+        return Found(address="x")
+
+    report = pipeline(tmp_path, services={"index": server}, service_cooloff_s=3600).run(lambda: [look(u) for u in "ab"])
+    assert server.calls == [("start", "index")]
+    assert {result.stop for result in report.results.values()} == {"launch_failed"}
+
+
+@pytest.mark.parametrize("cooloff", [-1, True, "60"])
+def test_a_cool_off_is_a_non_negative_number(tmp_path, cooloff):
+    with pytest.raises(ValueError, match="service_cooloff_s"):
+        pipeline(tmp_path, service_cooloff_s=cooloff)
 
 
 def test_a_stop_that_raises_is_recorded_and_the_service_counts_as_stopped(tmp_path):
