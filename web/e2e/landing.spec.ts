@@ -7,11 +7,11 @@
 // no scroll-driven animations (the scene's fallback), when Playwright's Firefox is
 // installed.
 //
-// The replay's window fits one screen on a wide one: once the scroll has settled it
-// (when the replay starts), all of it is under the site's header and above the foot
-// of the screen, at 1280×720, 1366×768, 1440×900 and 1920×1080; and nothing in it is
-// wider than its box or cut off at the bottom (./fit.ts), while it plays and at its
-// last frame.
+// The replay's window fits one screen on a wide one: it starts once all of it is on
+// the screen, where all of it is under the site's header, at 1280×720, 1366×768,
+// 1440×900 and 1920×1080; and nothing in it is wider than its box or cut off at the
+// bottom (./fit.ts), while it plays and at its last frame. The replay's clock is the
+// test's (`page.clock`): what it shows at a time does not depend on the machine.
 //
 // On a phone (390×844 and 360×740, light and dark, with motion and with reduced
 // motion): the page stays within a height budget and nothing in it is wider than the
@@ -118,31 +118,40 @@ async function misfits(page: Page): Promise<string[]> {
   return [...(await overflows(page, '.rr-window')), ...(await clips(page, '.rr-window'))];
 }
 
+/** Scroll the page so that the foot of the replay's window is `fromFoot` px above the foot of the screen. */
+async function windowFootAt(page: Page, fromFoot: number): Promise<void> {
+  // Twice: the window rises as it comes on screen (a transform), and stands flat once all of it is on it.
+  for (let i = 0; i < 2; i++) {
+    await page.locator('.rr-window').evaluate((e, up) => {
+      const bottom = e.getBoundingClientRect().bottom;
+      window.scrollTo({ top: Math.round(scrollY + bottom - innerHeight + up), behavior: 'instant' });
+    }, fromFoot);
+    await settle(page);
+  }
+}
+
 for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 1080]] as const) {
-  test(`the replay's window fits the screen at ${width}×${height} once the scroll has settled it`, async ({ browser }) => {
+  test(`the replay's window plays once all of it is on the screen at ${width}×${height}, under the header`, async ({ browser }) => {
     test.setTimeout(60_000);
     const context = await browser.newContext({ viewport: { width, height }, colorScheme: 'dark' });
     const page = await context.newPage();
+    await page.clock.install();
     await page.goto(`${DOCS}/`);
     await page.waitForLoadState('networkidle');
-    // A reader's scroll, a step at a time, until the replay starts.
-    for (let i = 0; i < 200 && !(await page.locator('.rr.rr-playing').count()); i++) {
-      await page.mouse.wheel(0, 40);
-      await page.waitForTimeout(20);
-    }
-    await expect(page.locator('.rr')).toHaveClass(/rr-playing/);
-    // The scroll comes to rest (and snaps, the browser's proximity snap).
-    await expect.poll(async () => {
-      const y = await page.evaluate(() => scrollY);
-      await page.waitForTimeout(250);
-      return (await page.evaluate(() => scrollY)) === y;
-    }).toBe(true);
-    await settle(page);
+    const replay = page.locator('.rr');
+    // A third of the window below the screen: it has not started.
+    const tall = await page.locator('.rr-window').evaluate((e) => (e as HTMLElement).offsetHeight);
+    await windowFootAt(page, -Math.round(tall / 3));
+    await expect(replay).not.toHaveClass(/rr-playing/);
+    // All of it on the screen: it plays, and all of it is under the header.
+    await windowFootAt(page, 0);
+    await expect(replay).toHaveClass(/rr-playing/);
     const box = await windowBox(page);
     expect(box.top).toBeGreaterThanOrEqual(box.below);
     expect(box.bottom).toBeLessThanOrEqual(box.height);
-    // While it plays: the graph and the transcript have content.
-    await page.waitForTimeout(6000);
+    // Six seconds into the replay: the graph and the transcript have content, and nothing is cut off.
+    await page.clock.runFor(6000);
+    await settle(page);
     expect(await misfits(page)).toEqual([]);
     await context.close();
   });
@@ -165,11 +174,12 @@ for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 108
 const PHONE_BUDGET = 6000;
 const PHONES = [[390, 844], [360, 740]] as const;
 
-/** A phone's page, its theme and motion, loaded. */
+/** A phone's page, its theme and motion, loaded, with the test's clock (`page.clock`). */
 async function phone(browser: Browser, [width, height]: readonly [number, number], colorScheme: 'light' | 'dark', reducedMotion: 'reduce' | 'no-preference') {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme, reducedMotion, hasTouch: true });
   await context.addInitScript((s) => localStorage.setItem('starlight-theme', s), colorScheme);
   const page = await context.newPage();
+  await page.clock.install();
   await page.goto(`${DOCS}/`);
   await page.waitForLoadState('networkidle');
   return { context, page };
@@ -257,11 +267,12 @@ for (const size of PHONES)
     await expect(tab('Code')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('#rr-panel-code')).toBeVisible();
     await expect(page.locator('#rr-panel-graph')).toBeHidden();
-    await page.waitForTimeout(5000);
+    await page.clock.runFor(5000);
     await expect(tab('Code')).toHaveAttribute('aria-selected', 'true');
     // The numbers: one row that scrolls sideways, a region the keyboard reaches.
     const strip = page.getByRole('region', { name: 'The run in numbers' });
     await expect(strip).toHaveAttribute('tabindex', '0');
+    // Where the layout puts each tile (`offsetTop`): a tile whose value just changed grows a little for a moment (a transform).
     const tops = await page.locator('.rr-kpis ca-kpis').evaluate((e) => {
       const tiles: Element[] = [];
       const walk = (root: ParentNode): void => {
@@ -271,7 +282,7 @@ for (const size of PHONES)
         }
       };
       walk(e.shadowRoot!);
-      return tiles.map((t) => Math.round(t.getBoundingClientRect().top));
+      return tiles.map((t) => (t as HTMLElement).offsetTop);
     });
     expect(tops.length).toBeGreaterThan(3);
     expect(new Set(tops).size).toBe(1);
