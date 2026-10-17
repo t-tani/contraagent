@@ -204,7 +204,7 @@ jobs:
               echo "::notice::@contraagent/$name@$VERSION is on npm already"
               continue
             fi
-            npm publish "tarballs/contraagent-$name-$VERSION.tgz" --access public --provenance
+            npm publish "./tarballs/contraagent-$name-$VERSION.tgz" --access public --provenance
           done
 
   # The dry run's npm side: the same npm and the same tarballs, with nothing
@@ -227,7 +227,7 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
           for name in api elements ui; do
-            npm publish "tarballs/contraagent-$name-$VERSION.tgz" --access public --dry-run
+            npm publish "./tarballs/contraagent-$name-$VERSION.tgz" --access public --dry-run
           done
 
   release:
