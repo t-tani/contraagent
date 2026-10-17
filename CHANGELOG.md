@@ -10,6 +10,19 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.3.0] - 2026-10-17
+
+### Added
+
+- `Pipeline(service_cooloff_s=)` lets a service whose start failed start again: once that many seconds have passed since the failure, the next task that claims the name tries the start again. Without it, a failed start still fails every task that claims the name for the rest of the run.
+
+### Fixed
+
+- The npm packages hold only the files their sources build. A package built in a checkout
+  that had built it before also carried the outputs of source files that no longer exist
+  (in 0.1.0, old modules of `@contraagent/ui` such as `dist/core/route.js`); each package's
+  build now starts from an empty `dist/`.
+
 ## [0.2.0] - 2026-10-17
 
 ### Added

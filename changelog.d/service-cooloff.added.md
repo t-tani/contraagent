@@ -1,1 +1,0 @@
-`Pipeline(service_cooloff_s=)` lets a service whose start failed start again: once that many seconds have passed since the failure, the next task that claims the name tries the start again. Without it, a failed start still fails every task that claims the name for the rest of the run.
