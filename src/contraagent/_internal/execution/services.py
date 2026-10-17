@@ -13,8 +13,11 @@ service while it runs:
   claim: they all share the one service;
 * the service runs until the run ends;
 * a start that raises fails the task that started it and every task that claims the
-  name after it in the run, each with stop `launch_failed` and the start's exception
-  as its reason; the run goes on. A resumed run tries the start again;
+  name after it, each with stop `launch_failed` and the start's exception as its
+  reason; the run goes on. With a cool-off (`Services(cooloff_s=)`), the first task
+  that claims the name once the cool-off has passed since the failed start tries the
+  start again; without one, the start is not tried again in the run. A resumed run
+  tries the start again;
 * a stop that raises is recorded with its exception, and the service counts as
   stopped;
 * the run's end stops every service still up, in the reverse order of their starts:
@@ -129,7 +132,8 @@ class _State:
     holders: int = 0
     context: AbstractContextManager[str | None] | None = None
     address: str | None = None
-    failed: str = ""  # why its start failed: it is not tried again in this run
+    failed: str = ""  # why its last start failed
+    failed_at: float = 0.0  # when it failed (`time.monotonic`), for the cool-off
     started: int = 0  # the order of its last start, for the run's end
 
 
@@ -137,7 +141,8 @@ class Services:
     """The services of one run, by the claim name or pattern each stands for. `run_dir`:
     where `services.jsonl` is written; `log`: a progress line, and whether it is a warning;
     `plays(task)`: whether the run plays `task` (a stub run, a replay), so that it holds
-    no service."""
+    no service; `cooloff_s`: the seconds after a failed start before a task that claims
+    the name tries the start again (None: never in this run)."""
 
     def __init__(
         self,
@@ -146,8 +151,10 @@ class Services:
         *,
         log: Callable[[str, bool], None] | None = None,
         plays: Callable[[Task], bool] | None = None,
+        cooloff_s: float | None = None,
     ) -> None:
         self._services = dict(services)
+        self._cooloff_s = cooloff_s
         self._plays = plays or (lambda task: False)
         self._file = run_dir / layout.SERVICES
         self._log = log or (lambda line, warning: None)
@@ -223,7 +230,9 @@ class Services:
         state = self._state(name)
         with state.lock:
             if state.failed:
-                raise ServiceFailed(state.failed)
+                if self._cooloff_s is None or time.monotonic() - state.failed_at < self._cooloff_s:
+                    raise ServiceFailed(state.failed)
+                state.failed = ""
             if self._closed:
                 raise ServiceFailed(f"service {name!r} did not start: the run is ending")
             if state.context is None:
@@ -242,6 +251,7 @@ class Services:
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             state.failed = f"service {name!r} did not start: {error}"[:300]
+            state.failed_at = time.monotonic()
             self._record(ServiceEvent(ts=now_iso(), event="start", name=name, key=task.key, error=error, wall_s=_since(t0)))
             self._log(f"[service] {state.failed}", True)
             raise ServiceFailed(state.failed) from exc

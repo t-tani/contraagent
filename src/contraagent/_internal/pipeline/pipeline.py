@@ -181,6 +181,7 @@ class Pipeline:
         retry_wait_s: float = RETRY_WAIT_S,
         throttle_s: float = THROTTLE_S,
         services: Mapping[str, Service] | None = None,
+        service_cooloff_s: float | None = None,
     ) -> None:
         """`config`: the TOML file (`[defaults]`, `[tasks.<kind>]`, `[[defaults.fallbacks]]`,
         `[credentials.<name>]`); None runs on each task's declared defaults.
@@ -275,7 +276,10 @@ class Pipeline:
         that raises or is interrupted included. A task reaches it by its address: an agent
         task in its environment (`CONTRAAGENT_SERVICE_<NAME>`), a Python task by
         `contraagent.service_address(name)`. A start that raises fails each task that
-        claims the name, with stop `launch_failed`. `services.jsonl` records each start and
+        claims the name, with stop `launch_failed`, for the rest of the run, or, with
+        `service_cooloff_s`, until that many seconds have passed since it failed: the
+        first task that claims the name after them tries the start again.
+        `services.jsonl` records each start and
         stop. A stub run or a replay starts none for a task it plays: only a Python task
         whose function runs, or an agent task that launches a coding agent, holds its
         services."""
@@ -342,6 +346,12 @@ class Pipeline:
         capacity = {**config.claim_capacity([]), **given}
         #: The service each claim name or pattern stands for (`Service`).
         self.services: dict[str, Service] = _checked_services(services)
+        if service_cooloff_s is not None and (
+            isinstance(service_cooloff_s, bool) or not isinstance(service_cooloff_s, int | float) or service_cooloff_s < 0
+        ):
+            raise ValueError(f"Pipeline: service_cooloff_s={service_cooloff_s!r} is not a non-negative number of seconds")
+        #: The seconds after a failed start of a service before a task tries it again (None: never in the run).
+        self.service_cooloff_s: float | None = service_cooloff_s
         #: What the run's `WorkQueue` is given beside its runner (`Run.queue`).
         self.queue_options: dict[str, Any] = dict(
             deadline_s=deadline_s,
@@ -427,6 +437,7 @@ class Pipeline:
                 run.dir,
                 log=lambda line, warning: run.progress(line, warning=warning),
                 plays=self._plays,
+                cooloff_s=self.service_cooloff_s,
             )
             run.on_teardown(services.interrupted)  # SIGTERM or Ctrl-C stops them too
             if self.stub is not None:

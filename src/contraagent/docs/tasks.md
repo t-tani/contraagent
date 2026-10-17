@@ -553,10 +553,15 @@ outright (SIGKILL) runs no stop.
 A start that raises fails the task that started it, and every task that claims the
 name later in the run, with stop `launch_failed` and the start's exception as the
 reason (`service 'index' did not start: OSError: ...`); the other tasks of the run
-still run. The start is not tried again in the run: a service whose start can fail
-for a moment retries inside its own start. A resumed run starts it again for the
-tasks that run again; a task the resume skips starts nothing. A stop that raises is
-recorded with its exception, and the service counts as stopped.
+still run. By default the start is not tried again in the run. With
+`Pipeline(service_cooloff_s=)`, the failure holds only for that many seconds: the
+first task that claims the name after them tries the start again, and the tasks
+before it still fail at once. A task that failed this way gets its one retry of a
+`launch_failed` within `retry_wait_s`, so a cool-off shorter than `retry_wait_s` lets
+some retries find the service started again. A service whose start fails only for
+a moment can instead retry inside its own start. A resumed run starts it again for
+the tasks that run again; a task the resume skips starts nothing. A stop that raises
+is recorded with its exception, and the service counts as stopped.
 
 `services.jsonl` records each start (the task that started it, its address, how long
 it took, or the exception) and each stop (why: `run_end` or `interrupted`),
