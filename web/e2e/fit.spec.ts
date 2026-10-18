@@ -155,6 +155,9 @@ for (const path of PAGES) {
       test(`its live elements pass axe in ${theme}`, async ({ page }) => {
         test.setTimeout(60_000);
         await openDocs(page, path);
+        // One analysis of every frame (one per frame costs several times more); its time grows with the frames:
+        // about 0.8 s each alone (24 frames, 18 s), so the budget is a guard against a hang, not a race with the machine.
+        test.setTimeout(30_000 + (await page.locator('.ca-demo-frame').count()) * 5_000);
         await page.locator('.ca-demo').evaluateAll((figures, theme) => {
           for (const f of figures) {
             f.setAttribute('data-ca-theme', theme);

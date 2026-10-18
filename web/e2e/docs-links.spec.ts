@@ -146,15 +146,15 @@ for (const path of OPENED) {
 test('the search loads its index from under the base, and its results link under it', async ({ page }) => {
   const bad = watch(page);
   await page.goto(`${DOCS}/python/tutorial/`);
-  // The button opens the dialog only once the page's script has run: click until it opens.
+  // The button opens the dialog once Starlight's <site-search> is defined: its constructor binds the button.
+  await page.waitForFunction(() => customElements.get('site-search') !== undefined);
+  await page.getByRole('button', { name: 'Search' }).click();
   const input = page.locator('#starlight__search input');
-  await expect(async () => {
-    await page.getByRole('button', { name: 'Search' }).click();
-    await expect(input).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 20_000 });
+  await expect(input).toBeVisible();
   await input.fill('monitor');
+  // The results come once the index (fetched when the dialog opens) is read.
   const result = page.locator('#starlight__search a[href]').first();
-  await expect(result).toBeVisible();
+  await expect(result).toBeVisible({ timeout: 15_000 });
   expect(new URL((await result.getAttribute('href'))!, page.url()).pathname).toMatch(new RegExp(`^${BASE}/`));
   await page.waitForLoadState('networkidle');
   expect(bad).toEqual([]);
