@@ -67,6 +67,22 @@ describe('ca-overview', () => {
     expect(root.querySelector('.problems .fl-name')?.textContent).toContain('k · a');
   });
 
+  it('shows the first problems of a run with many, and leads to the rest in the history', async () => {
+    const root = await overview({ journal: Array.from({ length: 8 }, (_, i) => ({ ...row(`t${i}`, false), reason: 'x'.repeat(400) })) });
+    const problems = root.querySelector('.problems')!;
+    expect(problems.querySelectorAll('.fl')).toHaveLength(5);
+    const more = problems.querySelector<HTMLAnchorElement>('.more a')!;
+    expect(more.textContent?.trim()).toBe('3 more in history');
+    const went: unknown[] = [];
+    root.host.addEventListener('ca-navigate', (e) => went.push((e as CustomEvent).detail));
+    more.click();
+    expect(went).toEqual([{ tab: 'journal', stop: 'bad' }]);
+    // A long reason is one line; its whole text is in the tooltip.
+    const line = problems.querySelector<HTMLElement>('.fl > div.meta')!;
+    expect(line.title).toBe('x'.repeat(400));
+    expect(getComputedStyle(line).whiteSpace).toBe('nowrap');
+  });
+
   it('lists a task done after retrying apart from the problems: no problem, then the task under its own heading', async () => {
     const root = await overview({ journal: [row('a', false), { ...row('a', true), attempt: 1 }] });
     expect(root.querySelector('.problems .ok')?.textContent?.trim()).toBe('✓No problems');
