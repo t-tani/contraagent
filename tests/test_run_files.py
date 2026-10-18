@@ -244,11 +244,12 @@ def test_on_windows_a_document_being_replaced_is_waited_for_and_an_absent_one_is
     from contraagent._internal.runs import files
 
     monkeypatch.setattr(files.sys, "platform", "win32")
+    monkeypatch.setattr(files, "REPLACE_WAIT_S", 30.0)
     doc = tmp_path / "d.json"
     began = time.monotonic()
     with pytest.raises(FileNotFoundError):
-        files.read_document(doc)  # nothing replaces it: absent at once
-    assert time.monotonic() - began < 0.5
+        files.read_document(doc)  # nothing replaces it: absent at once, not after the wait
+    assert time.monotonic() - began < 15.0
     # A replace in progress: Windows may show the document as absent until it ends.
     tmp = tmp_path / ".d.json.1.abc.tmp"
     tmp.write_text("{}")

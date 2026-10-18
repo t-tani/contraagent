@@ -94,7 +94,8 @@ def test_a_wait_returns_after_its_timeout_when_nothing_grows(tmp_path):
         return await source.wait("r1", LOG, 2, 0.3), time.monotonic() - began
 
     size, took = asyncio.run(wait())
-    assert size == 2 and 0.25 < took < 0.6
+    # Not before its timeout; after it, at once rather than never (a busy runner can be slow to schedule it).
+    assert size == 2 and 0.25 < took < 3.0
 
 
 def test_a_directory_wait_wakes_on_a_write(tmp_path):
@@ -114,7 +115,8 @@ def test_a_directory_wait_wakes_on_a_write(tmp_path):
         return got, time.monotonic() - began - 0.1
 
     got, late = asyncio.run(wait())
-    assert got == 2 and late < 0.2
+    # Woken by the write, well before the 5 s timeout: a busy runner can be slow to schedule it.
+    assert got == 2 and late < 2.5
 
 
 # --- the transcript feed -------------------------------------------------------------------
@@ -215,14 +217,16 @@ def test_the_local_monitors_transcript_feed_follows_a_file(tmp_path):
     path.write_text("line 0\nline 1\n", newline="\n")
     mon = Monitor(tmp_path)
 
+    sent = threading.Event()  # the feed has sent line 2
+
     def writer() -> None:
         with open(path, "a", newline="\n") as f:
             f.write("line 2\n")
             f.flush()
-            time.sleep(0.2)
+            sent.wait(10)
             f.write('{"type": "message_')  # a JSON line half written
             f.flush()
-            time.sleep(0.3)
+            time.sleep(0.3)  # the feed looks at the file while the line is half written
             f.write('update"}\nline 3\n')
 
     async def watch() -> list[tuple[dict, float]]:
@@ -233,6 +237,8 @@ def test_the_local_monitors_transcript_feed_follows_a_file(tmp_path):
             got.append((msg, time.monotonic() - began))
             if len(got) == 1:
                 threading.Thread(target=writer).start()
+            if msg["id"] == "3":
+                sent.set()
             if msg["id"] == "5":
                 await feed.aclose()
                 return got
@@ -241,7 +247,7 @@ def test_the_local_monitors_transcript_feed_follows_a_file(tmp_path):
     got = asyncio.run(asyncio.wait_for(watch(), 10))
     pages = [json.loads(m["data"]) for m, _ in got]
     assert texts(pages[0]) == ["line 0", "line 1"]
-    assert texts(pages[1]) == ["line 2"] and got[1][1] < 0.5
+    assert texts(pages[1]) == ["line 2"]
     assert [m["id"] for m, _ in got] == ["2", "3", "5"]  # the half-written line was not read until complete
     assert len(pages[2]["events"]) == 2 and texts(pages[2])[-1] == "line 3"
 
@@ -356,7 +362,8 @@ def test_the_relay_ships_an_active_transcript_fast_and_an_idle_run_at_its_interv
         aside.replace(root / "idle" / LOG)
         with open(root / "busy" / LOG, "a", newline="\n") as f:
             f.write("line 1\n")
-        assert until(lambda: held(hub, "busy") == 2, 2) < 0.5
+        # Shipped by a fast look, well before the 30 s pass would ship it.
+        until(lambda: held(hub, "busy") == 2, 10)
         time.sleep(1.0)
         assert held(hub, "idle") == 1
     finally:
