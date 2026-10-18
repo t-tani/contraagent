@@ -117,7 +117,9 @@ through machine translation.
 - A change reaches `main` through a pull request: push a branch and open one. CI runs
   on the pull request only, and its jobs must pass, on a branch up to date with
   `main`, before the merge, a merge commit. Nobody pushes to `main` or rewrites it. A
-  pull request's description follows the same style as a commit message.
+  pull request's description follows the same style as a commit message, under
+  the headings of `.github/pull_request_template.md` (also when `gh pr create
+  --body` passes it).
 - Commit messages follow Google's CL description style: a short imperative first
   line, a blank line, then a body that says what changed and why, wrapped at about
   72 columns. No attribution trailers (`Co-Authored-By`, session links), no model
