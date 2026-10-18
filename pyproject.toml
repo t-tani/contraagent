@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "contraagent"
-version = "0.4.0"
+version = "0.5.0"
 description = "Run coding-agent CLIs (claude -p, omp) as typed, supervised, observable tasks: contracts, failover, scheduling, resume, live monitor"
 readme = "src/contraagent/docs/README.md"
 license = "MIT"
