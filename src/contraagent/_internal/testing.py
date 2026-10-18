@@ -25,7 +25,7 @@ from contraagent._internal.backends.wire import feedback_errors
 from contraagent._internal.contracts.calls import CallFile
 from contraagent._internal.contracts.contract import example
 from contraagent._internal.contracts.rows import rows_text
-from contraagent._internal.dispatch.records import QuotaReading
+from contraagent._internal.dispatch.records import QuotaReading, SafetyStop
 from contraagent._internal.dispatch.task import kind_matches
 from contraagent._internal.dispatch.templates import fill_example
 from contraagent._internal.platform.commands import commands
@@ -51,6 +51,8 @@ class Reply:
     cost_usd: float | None = None
     peak_context: int | None = None
     context_window: int | None = None
+    #: The safety stops the launch reports.
+    safety_stops: tuple[SafetyStop, ...] = ()
 
 
 def writes(
@@ -61,6 +63,7 @@ def writes(
     quota: QuotaReading | None = None,
     peak_context: int | None = None,
     context_window: int | None = None,
+    safety_stops: Iterable[SafetyStop] = (),
 ) -> Reply:
     """Write `value` to the call's output file: a pydantic model or any JSON value as JSON, a `str` as is;
     for rows (`Rows[Row]`), a list of models or dicts as one JSON object per line.
@@ -74,8 +77,18 @@ def writes(
     `peak_context`: the launch reports one API call of this many input tokens, its peak
     context (`LaunchResult.peak_context`), which `context_warn_pct` judges; without it the
     launch reports no API call. `context_window`: the context window the launch reports for
-    its model (`LaunchResult.context_window`); without it the launch reports none."""
-    return Reply(output=value, stop=stop, cost_usd=cost_usd, quota=quota, peak_context=peak_context, context_window=context_window)
+    its model (`LaunchResult.context_window`); without it the launch reports none.
+    `safety_stops`: the safety stops the launch reports (`SafetyStop`): it still ends on
+    `stop` with the file written, which `safety_stop_failover` judges."""
+    return Reply(
+        output=value,
+        stop=stop,
+        cost_usd=cost_usd,
+        quota=quota,
+        peak_context=peak_context,
+        context_window=context_window,
+        safety_stops=tuple(safety_stops),
+    )
 
 
 #: The output of `writes_example()`: built from the output's schema when it is played.
@@ -486,6 +499,7 @@ class StubAgent(Backend):
             stderr_tail=reply.reason,
             usage=Usage(calls=[CallUsage(launch.model, reply.peak_context, 0, 0, 0)]) if reply.peak_context is not None else Usage(),
             context_window=reply.context_window,
+            safety_stops=list(reply.safety_stops),
         )
 
 

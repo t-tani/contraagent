@@ -3,7 +3,7 @@
 A run's own views (`Monitor.plan`, `Monitor.runs`) say what one run did. Trends
 say what the runs of a **period** (days `from`..`to`, inclusive, in a time zone)
 did together: the cost of each day by kind, each kind's tasks, success and time,
-each model's tokens and cost, the causes of failures, the tool calls refused,
+each model's tokens and cost, the causes of failures, the tool calls refused, the safety stops,
 each account's utilization, the rests and deferrals, and when runs start.
 
 It works in two steps, so that any period, time zone or grouping costs little:
@@ -45,7 +45,7 @@ from contraagent._internal.runs.source import RunSource
 from contraagent._internal.runs.times import parse_iso
 
 #: Bumped when a digest's shape changes: a kept digest of another version is made again.
-DIGEST_VERSION = 12
+DIGEST_VERSION = 13
 
 #: A task's last attempt in a digest's `tasks` pairs, when its result was `partial` (1: passed, 0: not).
 PARTIAL = 2
@@ -177,7 +177,8 @@ def digest(source, run: str) -> dict[str, Any]:
     the whole run within one of its days (most runs: a period then adds one entry per run,
     not one per slot). `quota`: `[slot, credential, account, window, highest pct]`, every
     window a reading names (`five_hour`, `seven_day` and any other in its `windows`, as
-    `seven_day_opus`); `denied`: `[slot, tool, kind, count]`; `rests` (with the account
+    `seven_day_opus`); `denied`: `[slot, tool, kind, count]`; `safety_stops`: `[slot, part,
+    model, kind, count]`, by the attempt's end; `rests` (with the account
     and the reading a rule judged) and `deferred`: their rows."""
     info = source.info(run) or {}
     slots: dict[int, dict[str, Any]] = {}
@@ -186,6 +187,7 @@ def digest(source, run: str) -> dict[str, Any]:
     key_kind: dict[str, str] = {}
     attempts: dict[str, dict[str, list[int]]] = {}
     peaks: dict[tuple[int, str, str, str], float] = {}
+    safety: dict[tuple[int, str, str, str], int] = {}
     for e in parse_rows(source.lines(run, layout.JOURNAL)[0]):
         key, kind = str(e.get("key", "")), str(e.get("kind", "?"))
         key_kind[key] = kind
@@ -199,6 +201,10 @@ def digest(source, run: str) -> dict[str, Any]:
                 peaks[at] = max(peaks.get(at, 0.0), pct)
         if slot is None:
             continue
+        for stopped in e.get("safety_stops") or ():
+            if isinstance(stopped, dict):
+                at = (slot, str(stopped.get("part") or "unread"), str(stopped.get("model") or ""), kind)
+                safety[at] = safety.get(at, 0) + 1
         partial = e.get("stop") == "partial"  # ok, and counted apart: not passed, not failed
         ok = bool(e.get("ok")) and not partial
         wall, cost, usage = number(e.get("wall_s")) or 0.0, number(e.get("cost_usd")), token_counts(e.get("usage"))
@@ -301,6 +307,7 @@ def digest(source, run: str) -> dict[str, Any]:
         "tasks": {kind: [[v - first if i % 2 == 0 else v for i, v in enumerate(p)] for p in ks.values()] for kind, ks in attempts.items()},
         "quota": [[slot, credential, account, window, pct] for (slot, credential, account, window), pct in sorted(peaks.items())],
         "denied": [[slot, tool, kind, n] for (slot, tool, kind), n in sorted(denied.items())],
+        "safety_stops": [[slot, part, model, kind, n] for (slot, part, model, kind), n in sorted(safety.items())],
         "rests": rests,
         "deferred": deferred,
     }
@@ -402,6 +409,7 @@ def aggregate(digests: Iterable[dict[str, Any]], period: Period, groups: Mapping
     walls: dict[str, list[float]] = {}
     stops: dict[str, dict[str, Any]] = {}
     denied: dict[str, dict[str, Any]] = {}
+    safety: dict[tuple[str, str], dict[str, Any]] = {}
     models: dict[tuple[str, str], dict[str, Any]] = {}
     peaks: dict[tuple[str, str, str], dict[str, Any]] = {}
     rests, deferred, runs = [], [], []
@@ -501,6 +509,11 @@ def aggregate(digests: Iterable[dict[str, Any]], period: Period, groups: Mapping
                 t["count"] += c
                 if kind:
                     t["kinds"][kind] = t["kinds"].get(kind, 0) + c
+        for slot, part, model, kind, c in dg["safety_stops"]:
+            if at.holds(slot):
+                t = safety.setdefault((part, model), {"part": part, "model": model, "count": 0, "kinds": {}})
+                t["count"] += c
+                t["kinds"][kind] = t["kinds"].get(kind, 0) + c
         rests += [{**x, "run": run} for x in dg["rests"] if period.day_of(x.get("ts")) is not None]
         deferred += [{**x, "run": run} for x in dg["deferred"] if period.day_of(x.get("ts")) is not None]
         totals["runs"] += 1
@@ -550,6 +563,7 @@ def aggregate(digests: Iterable[dict[str, Any]], period: Period, groups: Mapping
         "models": list(models.values()),
         "stops": sorted(stops.values(), key=lambda s: (-s["attempts"], s["stop"])),
         "denials": sorted(denied.values(), key=lambda t: (-t["count"], t["tool"])),
+        "safety_stops": sorted(safety.values(), key=lambda t: (-t["count"], t["part"], t["model"])),
         "quota": quota,
         "rests": rests,
         "deferred": deferred,
@@ -689,6 +703,24 @@ def bodies(view: dict[str, Any]) -> dict[str, dict[str, Any]]:
         ],
         "rows": [{"tool": d["tool"], "count": d["count"], "kinds": ", ".join(sorted(d["kinds"]))} for d in view["denials"]],
     }
+    safety_stops = {
+        "type": "table",
+        "columns": [
+            {"id": "part", "label": "Stopped"},
+            {"id": "model", "label": "By model"},
+            {"id": "count", "label": "Safety stops", "align": "end", "bar": True},
+            {"id": "kinds", "label": "Kinds"},
+        ],
+        "rows": [
+            {
+                "part": s["part"],
+                "model": s["model"],
+                "count": s["count"],
+                "kinds": ", ".join(f"{k} {n}" for k, n in sorted(s["kinds"].items())),
+            }
+            for s in view["safety_stops"]
+        ],
+    }
     # An account is named only where one credential has had two (a token was replaced).
     accounts: dict[str, set[str]] = {}
     for q in view["quota"]:
@@ -749,6 +781,7 @@ def bodies(view: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "models": _blocks(models),
         "failures": _blocks(failures, deferred if view["deferred_causes"] else None),
         "denials": _blocks(denials),
+        "safety_stops": _blocks(safety_stops),
         "quota": _blocks(usage),
         "starts": _blocks(starts),
         "runs": _blocks(runs),

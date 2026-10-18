@@ -33,7 +33,7 @@ from contraagent._internal.backends.launch import Launch, LaunchResult, Stop
 from contraagent._internal.backends.process import signal_of
 from contraagent._internal.contracts.contract import check_input, fold_spend, record_contracts, run_checked
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope, enriched
-from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SkippedHop, TokenUsage
+from contraagent._internal.dispatch.records import DeferralCause, Hop, Rest, SafetyStop, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_PARTIAL, Deferral, Task, TaskResult, kind_name
 from contraagent._internal.execution.adapter import TaskAdapter
 from contraagent._internal.execution.changes import ChangesEnricher
@@ -485,6 +485,7 @@ class AgentRunner:
             started = router.now()
             result = self._run_once(task, route)
             trail.append(_hop(label, result))
+            stopped = self._safety_failover(task, result)  # before the fold: this hop's own
             # Tokens and cost of the hops before this one belong to the attempt too.
             if result.launch_result is not None:
                 if spent is not None:
@@ -500,11 +501,19 @@ class AgentRunner:
                 wall_s=round(sum(h.wall_s for h in trail), 1),
                 reason=prior_reason or result.reason,
             )
-            if result.stop != Stop.RATE_LIMITED and _fails_over(result):
+            if stopped and router.next_route_after(route) is None:
+                stopped = []  # the chain is spent: the launch's result stands
+            if result.stop != Stop.RATE_LIMITED and (_fails_over(result) or stopped):
                 nxt_route = router.next_route_after(route)
                 if nxt_route is None:
                     return replace(result, route=label)
-                what = "safeguard refusal" if result.stop == Stop.REFUSED else result.stop
+                what = (
+                    "safeguard refusal"
+                    if result.stop == Stop.REFUSED
+                    else f"{stopped[0].part} safety stop" + (f" by {stopped[0].model}" if stopped[0].model else "")
+                    if stopped
+                    else result.stop
+                )
                 prior_reason = (
                     f"{what} on {label}" + (f" ({own_reason})" if own_reason else "") + f"; failing over to {router.label_of(nxt_route)}"
                 )
@@ -530,6 +539,16 @@ class AgentRunner:
             prior_reason = f"rate limited on {label}; failing over to {nxt}"
             _logger.warning(f"[switch] {task.key}: {prior_reason}")
             last = replace(result, reason=prior_reason)
+
+    def _safety_failover(self, task: Task, result: TaskResult) -> list[SafetyStop]:
+        """The safety stops of `result`'s launch, which ended well, that move it to the next
+        hop (its kind's `safety_stop_failover`); an `unread` one, of no known part, moves it
+        when any part does. Empty for a launch that failed: it fails over anyway."""
+        parts = self.config(task).safety_stop_failover
+        o = result.launch_result
+        if not parts or not result.ok or o is None:
+            return []
+        return [s for s in o.safety_stops if s.part in parts or s.part == "unread"]
 
     def _run_once(self, task: Task, route: Route | None) -> TaskResult:
         """One launch on one route; on a pool credential, as many as it takes to find a

@@ -271,7 +271,8 @@ by default the last 14 days in UTC): the cost of each day by kind, or by group
 when the monitor has groups (`Monitor(groups=)`; the implementation kinds of a base kind are one group); each kind's tasks, how many
 passed, its attempts and their median time, tokens and cost; what each model was
 spent on; the outcomes that were not `completed`; the tool calls the coding
-agent's permissions refused; each account's utilization, by its highest reading
+agent's permissions refused; the safety stops, by the part stopped, the model
+and the kind; each account's utilization, by its highest reading
 of each day and of each hour; the rests and deferrals; the runs; and when runs start, by weekday
 and hour. An attempt counts on the day it ended, in the period's time zone; a
 stub run counts only with `stub=true`, and `run_group=` keeps one group's runs.

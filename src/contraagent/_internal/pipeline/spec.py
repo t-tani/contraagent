@@ -273,6 +273,7 @@ def agent_task[Out](
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal["response", "tool"]] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -319,6 +320,7 @@ def agent_task[Out](
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal["response", "tool"]] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -364,6 +366,7 @@ def agent_task[Out](
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal["response", "tool"]] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -488,6 +491,9 @@ def agent_task[Out](
     flag, so it may change model inside one launch.
     `fallbacks`: its failover chain, hop by hop, each a table as `[[tasks.<kind>.fallbacks]]`
     writes one (`{"agent": "omp", "model": "..."}`); it replaces `[[defaults.fallbacks]]`.
+    `safety_stop_failover`: the parts of a launch (`"response"`, `"tool"`) whose safety stop
+    (`SafetyStop`) moves a launch that ended well to the next hop of its failover chain,
+    which starts it again; the last hop's result stands. A launch that failed fails over anyway.
     `disallowed_tools`: tools its launches may not use, in Claude Code's names and patterns
     (`["WebFetch", "Bash(git push:*)"]`).
     `max_turns`: turns per launch. `timeout_s`: seconds per launch. `max_budget_usd`: cost per

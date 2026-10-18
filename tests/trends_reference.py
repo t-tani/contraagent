@@ -209,6 +209,12 @@ def digest(source, run: str) -> dict:
                         "pcts": {w: p for w, p in pcts.items() if p is not None},
                     }
                 )
+    safety = [
+        {"ts": e.get("ts", ""), "kind": str(e.get("kind", "?")), "part": str(x.get("part") or "unread"), "model": str(x.get("model") or "")}
+        for e in _parse(source.lines(run, layout.JOURNAL)[0])
+        for x in e.get("safety_stops") or ()
+        if isinstance(x, dict)
+    ]
     denied = []
     for launch in _parse(source.lines(run, layout.LAUNCHES)[0]):
         for d in launch.get("denied") or ():
@@ -242,6 +248,7 @@ def digest(source, run: str) -> dict:
         "rows": rows,
         "quota": quota,
         "denied": denied,
+        "safety_stops": safety,
         "rests": rests,
         "deferred": deferred,
     }
@@ -281,6 +288,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
     tasks: dict[str, dict[tuple[str, str], int]] = {}
     stops: dict[str, dict] = {}
     denied: dict[str, dict] = {}
+    safety: dict[tuple[str, str], dict] = {}
     peaks: dict[tuple[str, str, str], float] = {}
     readings: dict[tuple[str, str], dict[int, float]] = {}
     rests, deferred, runs, rows_in = [], [], [], []
@@ -363,6 +371,12 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
             t["count"] += 1
             if x["kind"]:
                 t["kinds"][x["kind"]] = t["kinds"].get(x["kind"], 0) + 1
+        for x in dg["safety_stops"]:
+            if period.day_of(x["ts"]) is None:
+                continue
+            t = safety.setdefault((x["part"], x["model"]), {"part": x["part"], "model": x["model"], "count": 0, "kinds": {}})
+            t["count"] += 1
+            t["kinds"][x["kind"]] = t["kinds"].get(x["kind"], 0) + 1
         rests += [{**x, "run": run} for x in dg["rests"] if period.day_of(x.get("ts")) is not None]
         deferred += [{**x, "run": run} for x in dg["deferred"] if period.day_of(x.get("ts")) is not None]
         totals["runs"] += 1
@@ -417,6 +431,7 @@ def aggregate(digests: Iterable[dict], period: Period, groups: Mapping[str, str]
         "models": model_usage(rows_in),
         "stops": sorted(stops.values(), key=lambda s: (-s["attempts"], s["stop"])),
         "denials": sorted(denied.values(), key=lambda t: (-t["count"], t["tool"])),
+        "safety_stops": sorted(safety.values(), key=lambda t: (-t["count"], t["part"], t["model"])),
         "quota": quota,
         "rests": rests,
         "deferred": deferred,

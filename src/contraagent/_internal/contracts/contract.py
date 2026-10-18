@@ -495,7 +495,7 @@ def add_other_models(a: dict[str, OtherModel], b: dict[str, OtherModel]) -> dict
 
 
 def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool = False, session_total: bool = False) -> LaunchResult:
-    """Carry the spend, the web searches, the unread events and a context warning from
+    """Carry the spend, the web searches, the safety stops, the unread events and a context warning from
     `total` into `nxt`, the launch after it; everything else is `nxt`'s, but for
     `context_window`: the window of the launch whose call is the peak context (the other
     launch's when that one reports none on the same model).
@@ -523,6 +523,7 @@ def fold_spend(total: LaunchResult | None, nxt: LaunchResult, *, resumed: bool =
     nxt.quota = total.quota + nxt.quota
     nxt.hook_errors = total.hook_errors + nxt.hook_errors
     nxt.web_queries = total.web_queries + nxt.web_queries
+    nxt.safety_stops = total.safety_stops + nxt.safety_stops
     nxt.context_warned = nxt.context_warned or total.context_warned
     for k, v in total.unread_events.items():
         nxt.unread_events[k] = nxt.unread_events.get(k, 0) + v

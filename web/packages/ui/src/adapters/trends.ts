@@ -7,6 +7,7 @@ import { accountLabel, windowName } from '../words/quota.js';
 import { deferredText } from '../words/rests.js';
 import { peakContextLabel, peakContextTip } from '../words/context.js';
 import { stopLabel } from '../words/stop.js';
+import { safetyPartColumn, safetyPartLabel, safetyStopsLabel, safetyStopTip } from '../words/safety.js';
 import { stateCount } from '../words/outcome.js';
 import { dayLabel, modelName, doneShare, pausedCause, perDay, restEvent, titled, trendWords, usageLine, weekdayLabels } from '../words/trends.js';
 
@@ -234,6 +235,32 @@ export function trendSections(t: Trends, locale?: string): TrendSection[] {
           tool: d.tool,
           count: d.count,
           kinds: Object.entries(d.kinds)
+            .map(([k, n]) => `${k} ${n}`)
+            .join(' | '),
+        })),
+      },
+    });
+  }
+
+  if (t.safety_stops.length) {
+    out.push({
+      id: 'safety-stops',
+      body: {
+        type: 'table',
+        collapsed: false,
+        title: safetyStopsLabel(),
+        columns: [
+          { id: 'part', label: safetyPartColumn(), tip: safetyStopTip() },
+          { id: 'model', label: w.model },
+          { id: 'count', label: safetyStopsLabel(), align: 'end', format: 'number', bar: true },
+          { id: 'kinds', label: w.kinds },
+        ],
+        rows: t.safety_stops.map((s) => ({
+          part: safetyPartLabel(s.part),
+          model: s.model || '—',
+          count: s.count,
+          kinds: Object.entries(s.kinds)
+            .sort((a, b) => b[1] - a[1])
             .map(([k, n]) => `${k} ${n}`)
             .join(' | '),
         })),
