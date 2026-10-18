@@ -10,6 +10,21 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.4.0] - 2026-10-18
+
+### Added
+
+- The monitor serves a pipeline's own pages and shows them as panels. `Monitor(apps={"name": app})`, or `contraagent monitor --apps module:APPS`, serves an ASGI app (`contraagent.monitor.App`) under `apps/<name>/` of the monitor, behind its base path, with its own routes and files. An `embed` panel body (`EmbedBody`) shows such a page, or any http(s) URL, in a frame, with the monitor's `theme` in its URL. The monitor's API version is 3.6.0.
+- Safety stops are recorded and can move a launch to its next hop. A safety stop is a safety classifier that stopped part of a launch while the launch went on: a response of the launch's own model (`response`), or a request of a model that a tool calls, as Claude Code's `WebFetch` does (`tool`). Such a launch often still ends `completed`.
+
+  - `LaunchResult.safety_stops` and the journal's `safety_stops` list each one (`SafetyStop`: its part, the model, the category, the tool, the time and the provider's ids), read from Claude Code's stream.
+  - The monitor marks an attempt that had them, and the trends count them by part, model and kind (`Trends.safety_stops`).
+  - `[tasks.<kind>] safety_stop_failover` and `agent_task(safety_stop_failover=)` name the parts whose safety stop moves a launch that ended well to the next hop of the failover chain. `contraagent check` warns of a kind that names them with no chain.
+
+### Changed
+
+- The overview's problems and outputs stay short in a run with many of them. Each group of problems (failed, not started, partly done) shows its first five tasks and the tasks done after a retry their first three, each followed by a link to the rest in the history, filtered to them; a failure shows the first four later tasks it stopped. A reason or an output's error is one line, its whole text in its tooltip.
+
 ## [0.3.0] - 2026-10-17
 
 ### Added
