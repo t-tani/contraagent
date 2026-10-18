@@ -10,6 +10,27 @@ The changes not released yet are the fragments in [`changelog.d/`](changelog.d/)
 
 <!-- towncrier release notes start -->
 
+## [0.5.0] - 2026-10-18
+
+### Added
+
+- A failover hop can name the stops it is for: `stops = ["rate_limited", "api_error"]` in a
+  `[[defaults.fallbacks]]` or `[[tasks.<kind>.fallbacks]]` block (`Route.stops`). A task whose
+  launch ends on another stop passes the hop over, a 429 opens the breaker only onto a hop for
+  `rate_limited`, and a safety stop moves the task to a hop for `refused`. With no hop left for
+  its stop, the launch's own stop stands. A block without `stops` is for every stop, as before.
+- A launch refused for its credential (`auth_failed`: a 401 or 403) rests that credential on
+  its coding agent and model for the rest of the run. Later tasks pass the hop over without a
+  launch (`skipped_hops`), a pool goes on to its next member at once, and `rests.jsonl` and the
+  monitor record the rest (`Rest.stop`, `Rest.agent`, `Rest.model`). A task with every hop
+  refused fails `auth_failed` without a launch rather than being deferred. An attempt whose
+  chain ends on a refused hop after a hop that ran ends on the stop of the hop that ran.
+
+### Changed
+
+- Renamed `contraagent.engine.QuotaRests` → `CredentialRests` and `Run.quota_rests` →
+  `Run.credential_rests`: a credential also rests after a refused launch, not only on its quota.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
