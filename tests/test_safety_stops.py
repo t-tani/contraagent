@@ -127,6 +127,22 @@ def test_a_safety_stop_of_another_part_or_on_the_last_hop_stands(tmp_path):
     assert agent.seen == ["m1"]  # none named: a safety stop moves nothing
 
 
+def test_a_safety_stop_moves_the_launch_to_the_next_hop_for_refusals(tmp_path):
+    agent = Agent(lambda m: ["response"] if m == "m1" else [])
+    router = Router(Route("claude", "m1"), (Route("claude", "m2", stops=("rate_limited",)), Route("claude", "m3", stops=("refused",))))
+    cfg = {"k": KindConfig(agent="claude", model="m1", max_turns=3, timeout_s=10, safety_stop_failover=("response",))}
+    res = AgentRunner({"claude": agent}, cfg, run_dir=tmp_path, adapter=TaskAdapter(), routers={"k": router}, cwd=tmp_path).run(
+        Task("k", key="t")
+    )
+    assert agent.seen == ["m1", "m3"] and res.ok and res.route.startswith("hop 3/3")
+    router = Router(Route("claude", "m1"), (Route("claude", "m2", stops=("rate_limited",)),))
+    agent = Agent(lambda m: ["response"])
+    res = AgentRunner({"claude": agent}, cfg, run_dir=tmp_path, adapter=TaskAdapter(), routers={"k": router}, cwd=tmp_path).run(
+        Task("k", key="t")
+    )
+    assert agent.seen == ["m1"] and res.ok  # no hop for refusals: the launch's result stands
+
+
 # --- a run ------------------------------------------------------------------------
 
 

@@ -91,6 +91,14 @@ safety_stop_failover = ["response", "tool"]
 agent = "omp"
 model = "litellm/claude-sonnet-5-5"
 credential = "company-gateway"
+# The stops of an earlier hop's launch this hop is for (without stops, every stop): a task
+# refused on the primary passes this hop over.
+stops = ["rate_limited", "api_error", "auth_failed"]
+
+[[tasks.research.fallbacks]]        # another model, for what the primary refused; a safety stop counts as "refused"
+agent = "claude"
+model = "claude-opus-5-5"
+stops = ["refused"]
 
 # A base kind's table: every implementation kind of it (review-python, review-go) starts from it.
 [tasks.review]                      # agent_task("review", implementations={"python": ..., "go": ...})

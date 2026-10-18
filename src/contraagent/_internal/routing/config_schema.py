@@ -36,6 +36,10 @@ class FallbackTable(_Table):
     agent: str = Field(description="a registered coding agent")
     model: str
     credential: str = Field("", description="a `[credentials.<name>]`; without it, the kind's own")
+    stops: list[str] | None = Field(
+        None,
+        description="the stops of an earlier hop's launch this hop is for (`rate_limited`, `refused`, ...); without it, every stop",
+    )
 
 
 class PerTaskTable(_Table):

@@ -1,4 +1,5 @@
-"""Quota rests: which credentials a run does not launch on now, because of their quota.
+"""Credential rests: which credentials a run does not launch on now, because of their
+quota or because a launch as them was refused.
 
 A subscription's utilization belongs to the account, not to a task: every task
 that launches as the credential spends from the same 5-hour and weekly windows.
@@ -38,11 +39,18 @@ the rule to judge again. The rest records the reading (`Rest.reading`) and its e
 `finishing_kinds` (the queue's) still launch on a resting credential for
 `grace_s` after it began resting, as they do past a deadline.
 
+A launch refused for its credential (`auth_failed`: a 401 or 403, an expired or revoked key,
+a model the key may not use) is refused the same way on every later launch. So the
+credential **rests** on that launch's coding agent and model for the rest of the run
+(`CredentialRests.refuse`): later tasks pass the hop over as they do a quota rest. Another
+model of the same credential still launches, since a key may be refused one model only.
+The rest has no end within the run; a resumed run starts with none.
+
 Why a credential rests is a `Rest` (`dispatch.records`): a sentence for logs
 (`Rest.text`) and the same as data for the monitor. `on_change("start" | "end", rest)`
 is told when a credential begins and stops resting (`rests.jsonl`).
 
-`QuotaRests` is one run's state, shared by every worker thread like a `Router`
+`CredentialRests` is one run's state, shared by every worker thread like a `Router`
 and a `CredentialPool`.
 """
 
@@ -142,8 +150,9 @@ def caps_of(credentials: Mapping[str, Credential]) -> list[QuotaCap]:
     return out
 
 
-class QuotaRests:
-    """The credentials of one run that rest, and why. Safe from worker threads.
+class CredentialRests:
+    """The credentials of one run that rest, and why: on their quota, and on the coding
+    agent and model a launch as them was refused on (`refuse`). Safe from worker threads.
 
     `credentials`: the run's, by name (`RoutingPlan.credentials`). `rule`: a domain's
     own `quota_rule`. `finishing_kinds`, `grace_s`: the queue's. `on_change(event, rest)`:
@@ -174,6 +183,24 @@ class QuotaRests:
         self._since: dict[tuple[str, str], float] = {}  # by credential and account: when it was first found resting
         self._resting: dict[tuple[str, str], Rest] = {}  # by credential and account: the rest it began with
         self._ruled: dict[tuple[str, str], tuple[Rest, datetime]] = {}  # rests the rule gave an end, and that end
+        self._refused: dict[tuple[str, str, str], Rest] = {}  # by credential, coding agent and model
+
+    def refuse(self, name: str, agent: str, model: str) -> Rest | None:
+        """A launch as credential `name` (a pool's member by its own name) on coding agent
+        `agent` and model `model` was refused (`auth_failed`): the credential rests there for
+        the rest of the run, and `on_change` is told `start`. Returns the rest when it began
+        now; None when it already rested."""
+        rest = Rest(credential=name, stop="auth_failed", agent=agent, model=model)
+        with self._lock:
+            if (name, agent, model) in self._refused:
+                return None
+            self._refused[(name, agent, model)] = rest
+        if self.on_change is not None:
+            try:
+                self.on_change("start", rest)
+            except Exception:  # a record that cannot be written must not stop a launch
+                pass
+        return rest
 
     def observe(self, reading: QuotaReading) -> None:
         """A reading the coding agent reported for `reading.credential` and `reading.account`;
@@ -195,32 +222,35 @@ class QuotaRests:
             found = [r for (n, a), r in self._latest.items() if n == name and (not account or a in (account, ""))]
         return max(found, key=lambda r: parse_iso(r.observed_at) or datetime.min.replace(tzinfo=UTC)) if found else None
 
-    def rests(self, name: str, kind: str = "", account: AccountOf | None = None) -> list[Rest]:
-        """Why credential `name` rests for a task of `kind` now: one `Rest`, or for a pool
-        one per member when every member rests; empty when it does not rest. `account(name)`
-        is the account a launch as that credential bills now (`Backend.account`); without
-        it, the newest reading of any account counts."""
+    def rests(self, name: str, kind: str = "", account: AccountOf | None = None, agent: str = "", model: str = "") -> list[Rest]:
+        """Why credential `name` rests for a task of `kind` on coding agent `agent` and model
+        `model` now: one `Rest`, or for a pool one per member when every member rests; empty
+        when it does not rest. `account(name)` is the account a launch as that credential
+        bills now (`Backend.account`); without it, the newest reading of any account counts."""
         cred = self.credentials.get(name)
         if isinstance(cred, Pool):
-            why = [self._member_rest(m, cred, kind, account) for m in cred.members]
+            why = [self._member_rest(m, cred, kind, account, agent, model) for m in cred.members]
             return [w for w in why if w is not None] if why and all(why) else []
-        one = self._member_rest(name, None, kind, account)
+        one = self._member_rest(name, None, kind, account, agent, model)
         return [one] if one is not None else []
 
-    def reason(self, name: str, kind: str = "", account: AccountOf | None = None) -> str:
+    def reason(self, name: str, kind: str = "", account: AccountOf | None = None, agent: str = "", model: str = "") -> str:
         """`rests` in one line; '' when it does not rest."""
-        return "; ".join(r.text() for r in self.rests(name, kind, account))
+        return "; ".join(r.text() for r in self.rests(name, kind, account, agent, model))
 
-    def resting_members(self, pool: str, kind: str = "", account: AccountOf | None = None) -> set[str]:
-        """The members of pool `pool` that rest for a task of `kind` now."""
+    def resting_members(self, pool: str, kind: str = "", account: AccountOf | None = None, agent: str = "", model: str = "") -> set[str]:
+        """The members of pool `pool` that rest for a task of `kind` on `agent` and `model` now."""
         cred = self.credentials.get(pool)
         if not isinstance(cred, Pool):
             return set()
-        return {m for m in cred.members if self._member_rest(m, cred, kind, account) is not None}
+        return {m for m in cred.members if self._member_rest(m, cred, kind, account, agent, model) is not None}
 
-    def _member_rest(self, name: str, pool: Pool | None, kind: str, account: AccountOf | None) -> Rest | None:
+    def _member_rest(self, name: str, pool: Pool | None, kind: str, account: AccountOf | None, agent: str, model: str) -> Rest | None:
         with self._lock:
+            refused = self._refused.get((name, agent, model))
             read = any(n == name for n, _ in self._latest)
+        if refused is not None:  # no grace window: a refused credential is refused again
+            return refused
         acct = account(name) if account is not None and read else ""  # asked only of a credential with readings
         reading = self.latest(name, acct)
         key = (name, acct)

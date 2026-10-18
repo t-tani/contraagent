@@ -516,7 +516,7 @@ credential = "capped_{a}"
 
 
 @pytest.mark.parametrize("agent", AGENTS)
-def test_a_credential_past_its_quota_rests_and_its_tasks_fall_over(ws, agent):
+def test_a_credential_past_its_credential_rests_and_its_tasks_fall_over(ws, agent):
     other = "omp" if agent == "claude" else "claude"
     config = QUOTA.format(a=agent, fallback_agent=ROUTES[other][0], fallback_model=ROUTES[other][1])
     say = "Write the output: one short sentence about ${unit} as `note`."

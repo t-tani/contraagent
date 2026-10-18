@@ -32,22 +32,35 @@ import threading
 import time
 import tomllib
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from contraagent._internal.backends import known_agents as registered_agents
+from contraagent._internal.backends.launch import Stop
 from contraagent._internal.errors import did_you_mean
 from contraagent._internal.routing.config import ConfigError
+
+#: The stops a task fails over on: every stop but `completed` and the two no hop can fix
+#: (`invalid_input`, `credential_mismatch`). A failover hop's `stops` are some of these.
+FAILOVER_STOPS: tuple[str, ...] = tuple(s.value for s in Stop if s not in (Stop.COMPLETED, Stop.INVALID_INPUT, Stop.CREDENTIAL_MISMATCH))
 
 
 @dataclass(frozen=True)
 class Route:
     """One (coding agent, model, credential) the run may use. `credential` names a
-    `[credentials.<name>]`; empty means the kind's own."""
+    `[credentials.<name>]`; empty means the kind's own. `stops`: the stops of an earlier
+    hop's launch a failover hop is for (some of `FAILOVER_STOPS`); empty, every one. A task
+    whose launch ends on another stop passes the hop over. The primary is where every task
+    starts, so its own `stops` are not read; they are not part of the route's identity."""
 
     agent: str
     model: str
     credential: str = ""
+    stops: tuple[str, ...] = field(default=(), compare=False)
+
+    def takes(self, stop: str) -> bool:
+        """Whether a task whose launch ended on `stop` may fail over to this hop."""
+        return not self.stops or stop in self.stops
 
     def __str__(self) -> str:
         base = f"{self.agent}/{self.model}" if self.model else self.agent
@@ -73,7 +86,7 @@ def on_credential(routes: Sequence[Route], credential: str) -> tuple[Route, ...]
     that becomes the same as one before it is dropped, so no hop repeats another."""
     out: dict[tuple[str, str], Route] = {}
     for r in routes:
-        out.setdefault((r.agent, r.model), Route(r.agent, r.model, credential))
+        out.setdefault((r.agent, r.model), replace(r, credential=credential))
     return tuple(out.values())
 
 
@@ -111,7 +124,7 @@ def parse_chain(entries, where: str, known_agents: tuple[str, ...] | None = None
             )
         if not model:
             raise ValueError(f"{where} {hop} is missing 'model'")
-        out.append(Route(agent=agent, model=model, credential=str(entry.get("credential") or "").strip()))
+        out.append(Route(agent=agent, model=model, credential=str(entry.get("credential") or "").strip(), stops=_stops(entry, where, hop)))
     seen: dict[tuple[str, str, str], int] = {}
     for i, r in enumerate(out):
         if r.identity in seen:
@@ -120,6 +133,23 @@ def parse_chain(entries, where: str, known_agents: tuple[str, ...] | None = None
             )
         seen[r.identity] = i
     return tuple(out)
+
+
+def _stops(entry: dict, where: str, hop: str) -> tuple[str, ...]:
+    """A block's `stops`: a non-empty list of `FAILOVER_STOPS`, in its order without repeats;
+    () when the block names none."""
+    if "stops" not in entry:
+        return ()
+    stops = entry["stops"]
+    if not isinstance(stops, list) or not stops or not all(isinstance(s, str) for s in stops):
+        raise ValueError(f'{where} {hop}: stops must be a non-empty list of stops, such as ["rate_limited", "api_error"]')
+    for s in stops:
+        if s not in FAILOVER_STOPS:
+            known = ", ".join(FAILOVER_STOPS)
+            raise ValueError(
+                f"{where} {hop}: stops names {s!r}{did_you_mean(s, FAILOVER_STOPS)}, not a stop a task fails over on; known: {known}"
+            )
+    return tuple(dict.fromkeys(stops))
 
 
 def load_fallbacks(path: Path | str) -> tuple[Route, ...]:
@@ -140,6 +170,11 @@ def load_fallbacks(path: Path | str) -> tuple[Route, ...]:
         return parse_chain(chain, f"{path} [[defaults.fallbacks]]:")
     except ValueError as exc:
         raise ConfigError(str(exc)) from exc
+
+
+def _with_stops(route: Route, label: str, index: int) -> str:
+    """`label`, and the stops of a failover hop for some stops only."""
+    return f"{label} on {', '.join(route.stops)}" if index and route.stops else label
 
 
 class Router:
@@ -195,8 +230,9 @@ class Router:
         """`hop 2/3 omp/...` for any route in this chain."""
         return route.label(self.hop_of(route), len(self.routes))
 
-    def next_route_after(self, route: Route) -> Route | None:
-        """The hop immediately after `route` in chain order, or None at the end.
+    def next_route_after(self, route: Route, stop: str = "") -> Route | None:
+        """The first hop after `route` in chain order that is for `stop` (`Route.takes`;
+        any hop with no `stop`), or None when there is none.
 
         Stateless on purpose: a per-task walk (a safeguard refusal is a
         property of the content, not of the provider) must not move the
@@ -204,9 +240,9 @@ class Router:
         `rate_limited` maintains for every other task.
         """
         idx = self._index_of(route)
-        if idx is None or idx + 1 >= len(self.routes):
+        if idx is None:
             return None
-        return self.routes[idx + 1]
+        return next((r for r in self.routes[idx + 1 :] if not stop or r.takes(stop)), None)
 
     def same_agent_after(self, route: Route) -> list[Route]:
         """Later hops on the same coding agent, in order.
@@ -221,8 +257,9 @@ class Router:
         idx = self._index_of(route)
         if idx is None:
             return []
-        # Same agent *and* same credential: the agent's own flag cannot switch identity.
-        return [r for r in self.routes[idx + 1 :] if r.agent == route.agent and r.credential == route.credential]
+        # Same agent *and* same credential: the agent's own flag cannot switch identity. A hop
+        # for some stops only is the Router's: the agent's flag would take it on any.
+        return [r for r in self.routes[idx + 1 :] if r.agent == route.agent and r.credential == route.credential and not r.stops]
 
     def other_agents_after(self, route: Route) -> list[Route]:
         """Later hops that change coding agent. Always the Router's."""
@@ -232,8 +269,9 @@ class Router:
         return [r for r in self.routes[idx + 1 :] if r.agent != route.agent]
 
     def chain(self) -> str:
-        """The whole failover order on one line, primary first."""
-        return " -> ".join(r.label(i + 1, len(self.routes)) for i, r in enumerate(self.routes))
+        """The whole failover order on one line, primary first; a hop for some stops only
+        names them (`hop 2/2 omp/m2 on rate_limited, api_error`)."""
+        return " -> ".join(_with_stops(r, r.label(i + 1, len(self.routes)), i) for i, r in enumerate(self.routes))
 
     # --- selection -------------------------------------------------------
 
@@ -292,15 +330,16 @@ class Router:
                 # A fallback also refused: keep walking the chain.
                 idx = self._index_of(route)
                 self._index = self._index if idx is None else idx
-            if self._index + 1 >= len(self.routes):
+            nxt = next((i for i in range(self._index + 1, len(self.routes)) if self.routes[i].takes(Stop.RATE_LIMITED.value)), None)
+            if nxt is None:
                 self._exhausted = True
                 return ""
-            self._index += 1
+            here, self._index = self._index, nxt
             self._opened_at = now
             self._interval = self.probe_interval_s
             self._probe_at = now + self._interval
             n = len(self.routes)
-            self._switches.append((self.routes[self._index - 1].label(self._index, n), self.routes[self._index].label(self._index + 1, n)))
+            self._switches.append((self.routes[here].label(here + 1, n), self.routes[self._index].label(self._index + 1, n)))
             return self.routes[self._index].label(self._index + 1, n)
 
     def succeeded(self, route: Route | None, started: float | None = None) -> None:
@@ -345,8 +384,8 @@ class Router:
                 return f"exhausted after hop {n}/{n}"
             here = self.routes[self._index].label(self._index + 1, n)
             if self._index == 0:
-                rest = " -> ".join(hop.label(i + 2, n) for i, hop in enumerate(self.routes[1:]))
-                return f"{here} primary; on 429: {rest}"
+                rest = " -> ".join(hop.label(i + 2, n) for i, hop in enumerate(self.routes[1:]) if hop.takes(Stop.RATE_LIMITED.value))
+                return f"{here} primary; on 429: {rest or 'no hop'}"
             left = n - self._index - 1
             tail = f"; then {left} more" if left else "; last hop"
             return f"{here} fallback{tail}"

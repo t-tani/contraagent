@@ -519,7 +519,7 @@ class Pipeline:
                         raise
                     run.update_info(preflight=preflight.model_dump(mode="json"))
                     plan.log()
-                    rests = run.quota_rests(
+                    rests = run.credential_rests(
                         plan.credentials,
                         self.quota_rule,
                         finishing_kinds=self.queue_options.get("finishing_kinds", ()),

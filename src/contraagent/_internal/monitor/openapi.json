@@ -1628,6 +1628,25 @@
             ],
             "title": "Reading"
           },
+          "stop": {
+            "type": "string",
+            "enum": [
+              "",
+              "auth_failed"
+            ],
+            "title": "Stop",
+            "default": ""
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          },
           "since": {
             "type": "string",
             "title": "Since",
@@ -4993,14 +5012,28 @@
             ],
             "title": "Reading"
           },
-          "route": {
+          "stop": {
             "type": "string",
-            "title": "Route",
+            "enum": [
+              "",
+              "auth_failed"
+            ],
+            "title": "Stop",
+            "default": ""
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
             "default": ""
           },
           "model": {
             "type": "string",
             "title": "Model",
+            "default": ""
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
             "default": ""
           }
         },
@@ -5010,7 +5043,7 @@
           "credential"
         ],
         "title": "SkippedHop",
-        "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest."
+        "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model (`model`), and the rest."
       },
       "StageEntry": {
         "properties": {
@@ -6929,6 +6962,25 @@
               }
             ],
             "title": "Reading"
+          },
+          "stop": {
+            "type": "string",
+            "enum": [
+              "",
+              "auth_failed"
+            ],
+            "title": "Stop",
+            "default": ""
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
           },
           "ts": {
             "type": "string",

@@ -16,7 +16,7 @@ from contraagent._internal.backends.claude.wire import StreamReader
 from contraagent._internal.backends.launch import ACCOUNT_SECRET, ACCOUNT_UUID, account_digest
 from contraagent.backends import Backend, ClaudeBackend, Launch, LaunchResult, OmpBackend, Stop
 from contraagent.config import AMBIENT, Bedrock, KindConfig, Limits, OAuthToken, QuotaReading, QuotaWindow, Route, Secret, Subscription
-from contraagent.engine import AgentRunner, QuotaRests, Router, TaskAdapter
+from contraagent.engine import AgentRunner, CredentialRests, Router, TaskAdapter
 from fake_cli import write_fake_cli
 
 FIXTURES = Path(__file__).parent / "fixtures" / "claude"
@@ -151,7 +151,7 @@ def reading(credential="personal", week=99.0, account="", minutes=0) -> QuotaRea
 
 def test_a_reading_of_another_account_does_not_rest_a_credential(tmp_path):
     """The token behind `personal` was replaced: the old account's 99% does not rest the new one."""
-    r = QuotaRests(creds(tmp_path), now=lambda: NOW)
+    r = CredentialRests(creds(tmp_path), now=lambda: NOW)
     r.observe(reading(account="old"))
     assert r.reason("personal", account=lambda name: "new") == ""
     assert r.reason("personal", account=lambda name: "old") == "personal rests: weekly usage 99%, max 90%"
@@ -163,7 +163,7 @@ def test_a_reading_of_another_account_does_not_rest_a_credential(tmp_path):
 
 def test_a_reading_that_names_no_account_counts_for_every_account(tmp_path):
     """Journals of an older contraagent name no account: their readings still count."""
-    r = QuotaRests(creds(tmp_path), now=lambda: NOW)
+    r = CredentialRests(creds(tmp_path), now=lambda: NOW)
     r.observe(reading(account=""))
     assert r.reason("personal", account=lambda name: "any") != ""
 
@@ -171,7 +171,7 @@ def test_a_reading_that_names_no_account_counts_for_every_account(tmp_path):
 def test_ambient_on_two_coding_agents_is_two_accounts(tmp_path):
     """Claude Code's login and omp's login, both `ambient`: a rule rests only the busy one."""
     rule = lambda cred, rd: f"pace {rd.seven_day_pct:.0f}%" if (rd.seven_day_pct or 0) > 50 else None
-    r = QuotaRests(creds(tmp_path), rule, now=lambda: NOW)
+    r = CredentialRests(creds(tmp_path), rule, now=lambda: NOW)
     r.observe(reading("ambient", week=98.0, account="omp-login"))
     r.observe(reading("ambient", week=11.0, account="claude-login", minutes=1))
     assert r.reason("ambient", account=lambda name: "claude-login") == ""
@@ -221,7 +221,7 @@ def make_runner(tmp_path, agent, rests):
 
 
 def test_the_runner_names_each_reading_s_account_and_asks_once(tmp_path):
-    rests = QuotaRests(creds(tmp_path), now=lambda: NOW)
+    rests = CredentialRests(creds(tmp_path), now=lambda: NOW)
     rests.observe(reading(account=account_digest(ACCOUNT_SECRET, "old token")))  # a recent run's, on the old token
     agent = Agent(account_digest(ACCOUNT_SECRET, "new token"), week=20.0)
     r = make_runner(tmp_path, agent, rests)

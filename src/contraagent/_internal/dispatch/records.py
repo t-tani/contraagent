@@ -322,9 +322,11 @@ class QuotaReading(BaseModel):
 class Rest(BaseModel):
     """Why credential `credential` rests: past the cap of one window (`window` `five_hour`
     or `seven_day`, its reading `pct`, the cap `cap`), or by the quota rule (`rule`, what it
-    said, `reading`, the reading it judged; `window` empty). `until`, ISO 8601: when the
+    said, `reading`, the reading it judged; `window` empty), or because a launch as it was
+    refused (`stop` `auth_failed`: a 401 or 403), on that launch's coding agent `agent` and
+    model `model` only, for the rest of the run. `until`, ISO 8601: when the
     window resets, for a cap; for the rule, the end it gave, else when the reading it judged
-    stops standing (its earliest reset); empty when unknown."""
+    stops standing (its earliest reset); empty when unknown, and for a refused credential."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
 
@@ -339,28 +341,39 @@ class Rest(BaseModel):
     #: The reading the quota rule judged: `{observed_at, windows: {<window>: {pct, resets_at}}}`;
     #: None for a cap's rest.
     reading: dict[str, Any] | None = None
+    #: `auth_failed` for a credential a launch was refused as; '' for a quota rest.
+    stop: Literal["", "auth_failed"] = ""
+    #: The coding agent a refused credential rests on; '' for a quota rest, which holds on every one.
+    agent: str = ""
+    #: The model a refused credential rests on; '' for a quota rest, which holds on every one.
+    #: A skipped hop's is the hop's model.
+    model: str = ""
 
     def text(self) -> str:
-        """The rest in one line, for logs and the CLI: `personal rests: 5-hour usage 93%, max 90%`."""
+        """The rest in one line, for logs and the CLI: `personal rests: 5-hour usage 93%, max 90%`,
+        `personal rests on claude/m1: authentication failed (auth_failed)`."""
+        if self.stop:
+            return f"{self.credential} rests on {self.agent}/{self.model}: authentication failed ({self.stop})"
         if self.rule:
             return f"{self.credential} rests: {self.rule}"
         return f"{self.credential} rests: {window_words(self.window)} usage {self.pct or 0:.0f}%, max {self.cap or 0:g}%"
 
     def to_dict(self) -> dict[str, Any]:
-        """The rest as `rests.jsonl` and a deferral's cause record it: a cap's rest names no reading."""
-        return self.model_dump(mode="json", exclude={"reading"} if self.reading is None else None)
+        """The rest as `rests.jsonl` and a deferral's cause record it: a cap's rest names no
+        reading, a quota rest no stop, coding agent or model."""
+        empty = {k for k in ("stop", "agent", "model") if not getattr(self, k)}
+        return self.model_dump(mode="json", exclude=empty | ({"reading"} if self.reading is None else set()))
 
     def skipped(self, route: str, model: str) -> SkippedHop:
         """The hop `route` (its label) on `model` passed over because of this rest."""
-        return SkippedHop(route=route, model=model, **self.to_dict())
+        return SkippedHop(**{**self.to_dict(), "route": route, "model": model})
 
 
 class SkippedHop(Rest):
     """A hop of the failover chain an attempt passed over without a launch, because its
-    credential rested: its route label and model, and the rest."""
+    credential rested: its route label and model (`model`), and the rest."""
 
     route: str = ""
-    model: str = ""
 
 
 class RestEvent(Rest):

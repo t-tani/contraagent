@@ -448,7 +448,6 @@ class Service(Protocol)
     def __call__(self, name: str, /) -> AbstractContextManager[str | None]
 
 class SkippedHop(Rest)
-    model: str = ''
     route: str = ''
 
 @dataclass(frozen=True)
@@ -953,12 +952,14 @@ class QuotaWindow(BaseModel)
 
 @dataclass(frozen=True)
 class Route
-    def __init__(self, agent: str, model: str, credential: str = '') -> None
+    def __init__(self, agent: str, model: str, credential: str = '', stops: tuple[str, ...] = ()) -> None
     agent: str
     credential: str = ''
     @property identity: tuple[str, str, str]
     def label(self, hop: int, total: int) -> str
     model: str
+    stops: tuple[str, ...] = field(default=(), compare=False)
+    def takes(self, stop: str) -> bool
 
 @dataclass(frozen=True)
 class Secret
@@ -1661,7 +1662,7 @@ class AgentRunner
         cwd: Path | str | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        rests: QuotaRests | None = None,
+        rests: CredentialRests | None = None,
     )
     def account_of(self, backend: Backend, credential: Credential, model: str) -> str
     adapter: TaskAdapter
@@ -1733,6 +1734,51 @@ class ClaimCapacity(Protocol)
 
 class Created(Protocol)
     def __call__(self) -> Iterable[Task]
+
+class CredentialRests
+    def __init__(
+        self,
+        credentials: Mapping[str, Credential],
+        rule: QuotaRule | None = None,
+        *,
+        finishing_kinds: Iterable[str] = (),
+        grace_s: float = GRACE_S,
+        on_change: Callable[[str, Rest], None] | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None
+    credentials: dict[str, Credential]
+    finishing_kinds: frozenset[str]
+    grace_s
+    def latest(self, name: str, account: str | None = None) -> QuotaReading | None
+    def observe(self, reading: QuotaReading) -> None
+    on_change
+    def reason(
+        self,
+        name: str,
+        kind: str = '',
+        account: AccountOf | None = None,
+        agent: str = '',
+        model: str = '',
+    ) -> str
+    def refuse(self, name: str, agent: str, model: str) -> Rest | None
+    def resting_members(
+        self,
+        pool: str,
+        kind: str = '',
+        account: AccountOf | None = None,
+        agent: str = '',
+        model: str = '',
+    ) -> set[str]
+    def rests(
+        self,
+        name: str,
+        kind: str = '',
+        account: AccountOf | None = None,
+        agent: str = '',
+        model: str = '',
+    ) -> list[Rest]
+    rule
 
 class Cursor(BaseModel)
     completed_stages: list[str] = Field(default_factory=list)
@@ -1934,38 +1980,18 @@ class PythonTaskRunner
     def deferral(self, task: Task) -> Deferral | None
     def run(self, task: Task) -> TaskResult
 
-class QuotaRests
-    def __init__(
-        self,
-        credentials: Mapping[str, Credential],
-        rule: QuotaRule | None = None,
-        *,
-        finishing_kinds: Iterable[str] = (),
-        grace_s: float = GRACE_S,
-        on_change: Callable[[str, Rest], None] | None = None,
-        now: Callable[[], datetime] = lambda: datetime.now(UTC),
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None
-    credentials: dict[str, Credential]
-    finishing_kinds: frozenset[str]
-    grace_s
-    def latest(self, name: str, account: str | None = None) -> QuotaReading | None
-    def observe(self, reading: QuotaReading) -> None
-    on_change
-    def reason(self, name: str, kind: str = '', account: AccountOf | None = None) -> str
-    def resting_members(self, pool: str, kind: str = '', account: AccountOf | None = None) -> set[str]
-    def rests(self, name: str, kind: str = '', account: AccountOf | None = None) -> list[Rest]
-    rule
-
 class Rest(BaseModel)
     account: str = ''
+    agent: str = ''
     cap: float | None = None
     credential: str
+    model: str = ''
     model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
     pct: float | None = None
     reading: dict[str, Any] | None = None
     rule: str = ''
     def skipped(self, route: str, model: str) -> SkippedHop
+    stop: Literal['', 'auth_failed'] = ''
     def text(self) -> str
     def to_dict(self) -> dict[str, Any]
     until: str = ''
@@ -2001,7 +2027,7 @@ class Router
     def hop_of(self, route: Route) -> int
     def label_of(self, route: Route) -> str
     max_probe_interval_s
-    def next_route_after(self, route: Route) -> Route | None
+    def next_route_after(self, route: Route, stop: str = '') -> Route | None
     def now(self) -> float
     def on_credential(self, credential: str) -> Router
     def other_agents_after(self, route: Route) -> list[Route]
@@ -2080,10 +2106,18 @@ class Run
         cwd: Path | str | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        rests: QuotaRests | None = None,
+        rests: CredentialRests | None = None,
     ) -> AgentRunner
     def close(self) -> None
     config
+    def credential_rests(
+        self,
+        credentials: Mapping[str, Credential],
+        rule: QuotaRule | None = None,
+        *,
+        finishing_kinds: Iterable[str] = (),
+        grace_s: float = GRACE_S,
+    ) -> CredentialRests
     def cursor(
         self,
         *,
@@ -2127,14 +2161,6 @@ class Run
         overdue_s: float = OVERDUE_S,
         slack_s: float | None = None,
     ) -> WorkQueue
-    def quota_rests(
-        self,
-        credentials: Mapping[str, Credential],
-        rule: QuotaRule | None = None,
-        *,
-        finishing_kinds: Iterable[str] = (),
-        grace_s: float = GRACE_S,
-    ) -> QuotaRests
     def record_attempt(self, result: TaskResult) -> None
     def record_flow_call(
         self,

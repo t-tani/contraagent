@@ -715,6 +715,22 @@ export type components = {
                 [key: string]: unknown;
             } | null;
             /**
+             * Stop
+             * @default
+             * @enum {string}
+             */
+            stop?: "" | "auth_failed";
+            /**
+             * Agent
+             * @default
+             */
+            agent?: string;
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
+            /**
              * Since
              * @description when it began resting, ISO 8601
              */
@@ -2459,7 +2475,7 @@ export type components = {
         /**
          * SkippedHop
          * @description A hop of the failover chain an attempt passed over without a launch, because its
-         *     credential rested: its route label and model, and the rest.
+         *     credential rested: its route label and model (`model`), and the rest.
          */
         SkippedHop: {
             /** Credential */
@@ -2494,15 +2510,26 @@ export type components = {
                 [key: string]: unknown;
             } | null;
             /**
-             * Route
+             * Stop
+             * @default
+             * @enum {string}
+             */
+            stop?: "" | "auth_failed";
+            /**
+             * Agent
              * @default
              */
-            route?: string;
+            agent?: string;
             /**
              * Model
              * @default
              */
             model?: string;
+            /**
+             * Route
+             * @default
+             */
+            route?: string;
         } & {
             [key: string]: unknown;
         };
@@ -3369,6 +3396,22 @@ export type components = {
             reading?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Stop
+             * @default
+             * @enum {string}
+             */
+            stop?: "" | "auth_failed";
+            /**
+             * Agent
+             * @default
+             */
+            agent?: string;
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
             /** Ts */
             ts: string;
             /**

@@ -114,7 +114,7 @@ class Credential(BaseModel, frozen=True):
     #: (stored logins, keys in its own config) instead of this credential.
     isolate: bool = True
     #: Quota caps: past this 5-hour / weekly usage (%), as the coding agent last reported it
-    #: for this account, the credential rests until that window resets (`contraagent.engine.QuotaRests`).
+    #: for this account, the credential rests until that window resets (`contraagent.engine.CredentialRests`).
     #: On a pool, the cap of each member that sets none.
     max_five_hour_pct: float | None = Field(default=None, gt=0, le=100)
     max_seven_day_pct: float | None = Field(default=None, gt=0, le=100)

@@ -80,7 +80,7 @@
     },
     "SkippedHop": {
       "additionalProperties": true,
-      "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest.",
+      "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model (`model`), and the rest.",
       "properties": {
         "credential": {
           "title": "Credential",
@@ -148,14 +148,28 @@
           "default": null,
           "title": "Reading"
         },
-        "route": {
+        "stop": {
           "default": "",
-          "title": "Route",
+          "enum": [
+            "",
+            "auth_failed"
+          ],
+          "title": "Stop",
+          "type": "string"
+        },
+        "agent": {
+          "default": "",
+          "title": "Agent",
           "type": "string"
         },
         "model": {
           "default": "",
           "title": "Model",
+          "type": "string"
+        },
+        "route": {
+          "default": "",
+          "title": "Route",
           "type": "string"
         }
       },

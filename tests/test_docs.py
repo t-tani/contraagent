@@ -130,7 +130,9 @@ def test_the_reference_config_builds_a_routing_plan():
     assert [str(r) for r in plan.routers["research"].routes] == [
         "claude/claude-sonnet-5-5@subs",
         "omp/litellm/claude-sonnet-5-5@company-gateway",
+        "claude/claude-opus-5-5@subs",
     ]
+    assert [r.stops for r in plan.routers["research"].routes[1:]] == [("rate_limited", "api_error", "auth_failed"), ("refused",)]
     assert plan.credentials["subs"].members == ("token-a", "token-b")
     assert str(plan.routers["summarize"].routes[-1]) == "omp/opencode-go/glm-5.3"  # [[defaults.fallbacks]]
     assert config.table("report")["title"] == "Weekly summary"  # [pipeline.report]

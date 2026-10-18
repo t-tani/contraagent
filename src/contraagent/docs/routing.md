@@ -111,6 +111,28 @@ that is off-contract (nothing was launched) and a launch that ran as another
 identity than its credential (`credential_mismatch`). A launch ended by a signal
 (the run is stopping) does not either.
 
+A failover hop can name the stops it is for (`stops`): the stops of an earlier hop's
+launch after which a task may take it. A hop without `stops` is for every stop. A task
+whose launch ended on another stop passes the hop over and takes the next hop that is
+for its stop, so a mirror of the same model for quota does not get a task that the model
+refused. A 429 opens the breaker only onto a hop for `rate_limited`. When no hop after
+the launch is for its stop, the launch's own stop stands. The stops a hop can name are
+every stop but `completed`, `invalid_input` and `credential_mismatch`; the `[route]` line
+of a kind shows them (`hop 2/3 omp/... on rate_limited, api_error`). Claude Code's own
+model failover (`model_failover`) never takes a hop that names its stops.
+
+A launch refused for its credential (`auth_failed`: a 401 or 403, such as an expired or
+revoked key, or a model the key may not use) is refused the same way on every later
+launch. So the credential **rests** on that launch's coding agent and model for the rest
+of the run: later tasks pass the hop over without a launch, the rest in their journal row
+(`skipped_hops`, `stop: "auth_failed"`), and a pool goes on to its next member at once.
+Another model of the same credential still launches. A task with every hop refused
+fails `auth_failed` without a launch; it is not deferred, since nothing in the run changes
+the credential. When the last hop a task reached was refused after a hop that ran, the
+attempt ends on the stop of the hop that ran (`timeout`, for example), with the refused hop
+in its `hops`. `rests.jsonl` records the rest as it begins, and the monitor shows the
+identity paused on that model. A resumed run starts with no such rest.
+
 A launch that ended well can still have had a safety stop: a safety classifier
 stopped part of it, and it went on (`SafetyStop`, the journal's `safety_stops`). It
 may then have finished without the work, saying that it could not do it, in an
@@ -192,7 +214,8 @@ provider named after `provider`; its models are the gateway's own names.
 A **pool** uses several credentials as one. `in_order` uses the first member
 until it answers 429, then the next; `round_robin` turns to the next member on
 every launch. A member that answers 429 rests on that model for the provider's
-stated retry-after, and the task goes to the next member at once; with every
+stated retry-after, one refused for its credential rests on that model for the rest of
+the run, and the task goes to the next member at once; with every
 member resting, the route's own failover takes over. A pool carries only the
 traits every member carries.
 

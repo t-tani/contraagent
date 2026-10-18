@@ -70,6 +70,25 @@
       "default": null,
       "title": "Reading"
     },
+    "stop": {
+      "default": "",
+      "enum": [
+        "",
+        "auth_failed"
+      ],
+      "title": "Stop",
+      "type": "string"
+    },
+    "agent": {
+      "default": "",
+      "title": "Agent",
+      "type": "string"
+    },
+    "model": {
+      "default": "",
+      "title": "Model",
+      "type": "string"
+    },
     "ts": {
       "title": "Ts",
       "type": "string"

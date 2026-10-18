@@ -320,3 +320,72 @@ def test_a_credential_override_is_every_hops_credential(tmp_path):
     assert [r.credential for r in RoutingPlan.build(cfg, ["a"], backends).routers["a"].routes] == ["ambient", "other"]
     routes = RoutingPlan.build(cfg, ["a"], backends, Overrides(credential="mine")).routers["a"].routes
     assert [r.credential for r in routes] == ["mine", "mine"]
+
+
+# --- a hop's stops ---------------------------------------------------------------
+
+
+def stops_chain(*hops):
+    """`chain`, each hop after the first `(agent, model, stops)`."""
+    first, *rest = hops
+    return Router(Route(*first), tuple(Route(a, m, stops=s) for a, m, s in rest), probe_interval_s=900, clock=lambda: clock[0])
+
+
+def test_a_task_fails_over_to_the_next_hop_for_its_stop(tmp_path):
+    """A refusal passes over a hop for rate limits; a rate limit passes over a hop for refusals."""
+    script = {"m1": Stop.REFUSED}
+    a = Agent("claude", lambda m: script.get(m, Stop.COMPLETED))
+    router = stops_chain(("claude", "m1"), ("claude", "m2", ("rate_limited",)), ("claude", "m3", ("refused",)))
+    runner = build(tmp_path, {"claude": a}, {"k": router})
+    res = runner.run(Task("k", key="t1"))
+    assert res.ok and [m for m, _ in a.seen] == ["m1", "m3"] and res.route.startswith("hop 3/3")
+    assert "failing over to hop 3/3" in res.reason
+    script["m1"] = Stop.RATE_LIMITED
+    a.seen.clear()
+    res = runner.run(Task("k", key="t2"))
+    assert res.ok and [m for m, _ in a.seen] == ["m1", "m2"] and router.active().model == "m2"
+
+
+def test_the_breaker_opens_on_a_hop_for_rate_limits_only(tmp_path):
+    a = Agent("claude", lambda m: Stop.RATE_LIMITED if m == "m1" else Stop.COMPLETED)
+    router = stops_chain(("claude", "m1"), ("claude", "m2", ("refused",)), ("claude", "m3", ()))
+    runner = build(tmp_path, {"claude": a}, {"k": router})
+    assert runner.run(Task("k", key="t1")).ok and [m for m, _ in a.seen] == ["m1", "m3"]
+    assert router.active().model == "m3" and router.history() == [("hop 1/3 claude/m1", "hop 3/3 claude/m3")]
+
+
+def test_with_no_hop_for_its_stop_the_launch_s_own_stop_stands(tmp_path):
+    a = Agent("claude", lambda m: Stop.TIMEOUT if m == "m1" else Stop.COMPLETED)
+    router = stops_chain(("claude", "m1"), ("claude", "m2", ("rate_limited", "api_error")))
+    res = build(tmp_path, {"claude": a}, {"k": router}).run(Task("k", key="t1"))
+    assert not res.ok and res.stop == "timeout" and [m for m, _ in a.seen] == ["m1"] and len(res.hops) == 1
+
+
+def test_a_hop_s_stops_are_read_checked_and_shown(tmp_path):
+    cfg = PipelineConfig(
+        {
+            "tasks": {"a": {"max_turns": 3, "timeout_s": 10}},
+            "defaults": {"model": "m1", "fallbacks": [{"agent": "claude", "model": "m2", "stops": ["rate_limited", "api_error"]}]},
+        }
+    )
+    backends = {"claude": Agent("claude", lambda m: Stop.COMPLETED)}
+    router = RoutingPlan.build(cfg, ["a"], backends).routers["a"]
+    assert [r.stops for r in router.routes] == [(), ("rate_limited", "api_error")]
+    assert router.chain() == "hop 1/2 claude/m1 -> hop 2/2 claude/m2 on rate_limited, api_error"
+    assert router.on_credential("other").routes[1].stops == ("rate_limited", "api_error")
+    assert router.same_agent_after(router.routes[0]) == []  # the agent's own flag would take it on any stop
+    for stops, said in (
+        (["rate_limit"], "stops names 'rate_limit' (did you mean rate_limited?)"),
+        (["completed"], "not a stop a task fails over on"),
+        ([], "stops must be a non-empty list"),
+        ("refused", "stops must be a non-empty list"),
+    ):
+        bad = PipelineConfig(
+            {
+                "tasks": {"a": {"max_turns": 3, "timeout_s": 10}},
+                "defaults": {"fallbacks": [{"agent": "claude", "model": "m2", "stops": stops}]},
+            }
+        )
+        with pytest.raises(RoutingError, match="block 1 \\(hop 2\\)") as err:
+            RoutingPlan.build(bad, ["a"], backends)
+        assert said in str(err.value)

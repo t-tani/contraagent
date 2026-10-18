@@ -3228,6 +3228,10 @@
   <source><x id="0" equiv-text="${all - shown}"/> more in history</source>
   <target>履歴にほか <x id="0" equiv-text="${all - shown}"/> 件</target>
 </trans-unit>
+<trans-unit id="s05fd532bd52adeae">
+  <source>Authentication failed</source>
+  <target>認証エラー</target>
+</trans-unit>
 </body>
 </file>
 </xliff>
