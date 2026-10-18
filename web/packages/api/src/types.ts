@@ -36,8 +36,8 @@ export type JournalRow = S['JournalRow'];
 export type Stop = JournalRow['stop'];
 export type Hop = S['Hop'];
 export type SkippedHop = S['SkippedHop'];
-/** Why a credential rests (a cap or the quota rule): what a `SkippedHop` and a `CredentialRest` share. */
-export type Rest = Pick<S['SkippedHop'], 'credential' | 'window' | 'pct' | 'cap' | 'rule' | 'until'>;
+/** Why a credential rests (a cap, the quota rule, or a refused launch): what a `SkippedHop` and a `CredentialRest` share. */
+export type Rest = Pick<S['SkippedHop'], 'credential' | 'window' | 'pct' | 'cap' | 'rule' | 'until' | 'stop' | 'agent' | 'model'>;
 export type TokenUsage = S['TokenUsage'];
 export type QuotaReading = S['QuotaReading'];
 export type JournalPage = S['JournalPage'];

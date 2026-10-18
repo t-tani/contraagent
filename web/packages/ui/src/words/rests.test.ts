@@ -28,6 +28,13 @@ describe('restLine', () => {
   it('says what the usage rule said', () => {
     expect(restLine({ credential: 'personal', rule: 'over the pace' })).toBe('Identity personal paused | Usage rule: over the pace');
   });
+  it('names the model a refused identity is paused on', () => {
+    const refused = { credential: 'personal', stop: 'auth_failed' as const, agent: 'claude', model: 'claude-opus-5-5' };
+    expect(restLine(refused)).toBe('Identity personal paused | Authentication failed | claude-opus-5-5');
+    expect(restSpan({ ...refused, since: UNTIL, ended: '' })).toBe(
+      `Paused since ${localTime(UNTIL)} | Authentication failed | claude-opus-5-5`,
+    );
+  });
 });
 
 describe('deferredText', () => {

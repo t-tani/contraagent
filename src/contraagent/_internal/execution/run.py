@@ -55,7 +55,7 @@ from contraagent._internal.platform.locks import locks
 from contraagent._internal.routing.capacity import sized
 from contraagent._internal.routing.config import PerTask, PipelineConfig
 from contraagent._internal.routing.kind_config import KindConfig
-from contraagent._internal.routing.quota import QuotaRests, QuotaRule, caps_of
+from contraagent._internal.routing.quota import CredentialRests, QuotaRule, caps_of
 from contraagent._internal.routing.router import Router
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import append_lines, parse_rows, read_rows, write_document
@@ -168,7 +168,7 @@ class Run:
                                 (`state`, `error`)
         deferred.jsonl          one row per deferred task: its key and why it was not launched
                                 (`reason`, and `cause` as data: `Deferral`)
-        rests.jsonl             each start and end of a credential's quota rest (`QuotaRests`)
+        rests.jsonl             each start and end of a credential's quota rest (`CredentialRests`)
         services.jsonl          each start and stop of a service (`execution.services`)
         inflight/<key>.json     one marker per running task
         contracts/, definitions/  what each task declared, for the monitor
@@ -433,7 +433,7 @@ class Run:
         cwd: Path | str | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        rests: QuotaRests | None = None,
+        rests: CredentialRests | None = None,
     ) -> AgentRunner:
         """An `AgentRunner` whose launches are attributed to this run and recorded under it;
         every argument is the `AgentRunner`'s."""
@@ -488,20 +488,20 @@ class Run:
             self._estimates = JournalEstimates(self.runs_dir)
         return self._estimates
 
-    def quota_rests(
+    def credential_rests(
         self,
         credentials: Mapping[str, Credential],
         rule: QuotaRule | None = None,
         *,
         finishing_kinds: Iterable[str] = (),
         grace_s: float = GRACE_S,
-    ) -> QuotaRests:
-        """The run's quota rests (`QuotaRests`) over `credentials`, told the utilization
+    ) -> CredentialRests:
+        """The run's quota rests (`CredentialRests`) over `credentials`, told the utilization
         readings of the recent runs' journals (this run's included, when resumed): an
-        account's windows outlast a run. `finishing_kinds`, `grace_s`: the `QuotaRests`'.
+        account's windows outlast a run. `finishing_kinds`, `grace_s`: the `CredentialRests`'.
         `run.json` records the caps (`quota_caps`, by credential) and the rule's name
         (`quota_rule`, '' for none); `rests.jsonl` each start and end of a rest."""
-        rests = QuotaRests(credentials, rule, finishing_kinds=finishing_kinds, grace_s=grace_s, on_change=self._record_rest)
+        rests = CredentialRests(credentials, rule, finishing_kinds=finishing_kinds, grace_s=grace_s, on_change=self._record_rest)
         caps = {c.credential: c.model_dump(exclude={"credential"}, exclude_none=True) for c in caps_of(credentials)}
         self.update_info(quota_caps=caps, quota_rule=_name_of(rule) if rule is not None else "")
         source = DirectorySource(self.runs_dir)

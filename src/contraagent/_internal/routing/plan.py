@@ -19,7 +19,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from contraagent._internal.backends import Backend, backend_class, known_agents
@@ -266,7 +266,7 @@ def build_routers(
         if dropped:
             _logger.warning(f"[route] {name}: dropping hop(s) {', '.join(str(r) for r in dropped)} — no such backend in this run")
         # A hop that names no credential keeps the kind's own; an overriding credential is every hop's.
-        usable = tuple(Route(r.agent, r.model, overrides.credential or r.credential or rc.credential) for r in chain if r.agent in backends)
+        usable = tuple(replace(r, credential=overrides.credential or r.credential or rc.credential) for r in chain if r.agent in backends)
         router = Router(Route(agent=rc.agent, model=rc.model or overrides.model or "", credential=rc.credential), usable)
         if len(router.routes) == 1:
             if chain:

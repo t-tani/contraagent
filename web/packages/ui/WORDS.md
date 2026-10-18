@@ -20,6 +20,7 @@ written are in `web/AGENTS.md`.
 | a credential's quota rest (`Rest`, `rests.jsonl`, deferral cause `rest`) | Identity `name` paused \| 5-hour usage 93% \| limit 90% \| until `time`; a pill: paused until `time`; over a run: Paused `time` → `time` | 認証情報 `name` は休止中; `time` まで休止; 休止 `time` → `time` |
 | a quota cap (`max_five_hour_pct`, `max_seven_day_pct`) | limit 90%; Limits: weekly 95% \| 5-hour 90% | 上限 |
 | the quota rule (`Pipeline(quota_rule=)`) and what it said | Usage rule; Usage rule: `text` | 利用率のルール |
+| a credential refused on one model (`Rest.stop` `auth_failed`, `rests.jsonl`) | Identity `name` paused \| Authentication failed \| `model`; a pill: paused | 認証情報 `name` は休止中 \| 認証エラー \| `model` |
 | a skipped hop (`skipped_hops`), in a model switch | `model` (identity paused) → `model` | （認証情報が休止中） |
 | attempt | attempt N | N 回目 |
 | a retry (an attempt after a failed attempt of the same task) | retry; tooltip: An attempt after a failed attempt (retries) | リトライ |

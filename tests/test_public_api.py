@@ -409,10 +409,10 @@ def test_agent_task_takes_each_task_table_key_by_name():
 
 def test_the_scheduling_arguments_are_the_queues():
     """`Pipeline`'s scheduling arguments, and `Run.queue`'s, are `WorkQueue`'s, with its
-    defaults; `Run.agent_runner`'s are `AgentRunner`'s and `Run.quota_rests`' are
-    `QuotaRests`'."""
+    defaults; `Run.agent_runner`'s are `AgentRunner`'s and `Run.credential_rests`' are
+    `CredentialRests`'."""
     from contraagent import Pipeline
-    from contraagent.engine import AgentRunner, QuotaRests, Run, WorkQueue
+    from contraagent.engine import AgentRunner, CredentialRests, Run, WorkQueue
 
     queue = _keywords(WorkQueue, leave=("runner",))
     pipeline = _keywords(Pipeline)
@@ -422,7 +422,7 @@ def test_the_scheduling_arguments_are_the_queues():
     assert set(run_queue) == set(queue) - {"on_event", "on_result"}
     assert [k for k in run_queue if run_queue[k] != queue[k]] == ["retry_on", "throttle_on"]  # a coding agent's stops
     assert _keywords(Run.agent_runner) == _keywords(AgentRunner, leave=("run_dir", "run_id"))
-    assert _keywords(Run.quota_rests) == _keywords(QuotaRests, leave=("on_change", "now", "clock"))
+    assert _keywords(Run.credential_rests) == _keywords(CredentialRests, leave=("on_change", "now", "clock"))
 
 
 def test_published_classes_keep_their_annotations_and_pickle():

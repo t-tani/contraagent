@@ -255,6 +255,14 @@
           "description": "a `[credentials.<name>]`; without it, the kind's own",
           "title": "Credential",
           "type": "string"
+        },
+        "stops": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "the stops of an earlier hop's launch this hop is for (`rate_limited`, `refused`, ...); without it, every stop",
+          "title": "Stops"
         }
       },
       "required": [

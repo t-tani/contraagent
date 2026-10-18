@@ -1,4 +1,5 @@
-// A credential's quota rest (the reader's "paused identity") and why the queue
+// A credential's rest (the reader's "paused identity": on its quota, or refused on one
+// model) and why the queue
 // deferred a task, in words. The data says it (`Rest`, `DeferralCause`);
 // the recorded English sentence (`PlanNode.deferred`) is only the fallback for a
 // cause these words do not know.
@@ -19,11 +20,16 @@ const capPct = (cap: number | null | undefined): string => (cap == null ? '—' 
 /** A cap in words: `limit 90%`. */
 export const capLabel = (cap: number | null | undefined): string => msg(str`limit ${capPct(cap)}`);
 
+/** A refused identity's facts: `Authentication failed | claude-opus-5-5`, the model it is paused on. */
+const refusedFacts = (r: Rest): string => facts(msg('Authentication failed'), r.model ?? '');
+
 /**
  * Why an identity is paused, its facts after its name:
- * `5-hour usage 93% | limit 90% | until 10/14 14:30`, or `Usage rule: over the pace`.
+ * `5-hour usage 93% | limit 90% | until 10/14 14:30`, `Usage rule: over the pace`, or
+ * `Authentication failed | claude-opus-5-5` (refused on that model for the rest of the run).
  */
 export function restFacts(r: Rest): string {
+  if (r.stop) return refusedFacts(r);
   if (r.rule) return msg(str`Usage rule: ${r.rule}`);
   return facts(usage(r.window ?? '', r.pct), capLabel(r.cap), r.until ? msg(str`until ${localTime(r.until, true)}`) : '');
 }
@@ -82,6 +88,7 @@ export const skippedHopStep = (h: SkippedHop): string => msg(str`${h.model || h.
 /** One rest of an identity over a run: `Paused 10:31 → 10:45 | 5-hour usage 93% | limit 90%`; still paused: `Paused since 10:31 | ...`. */
 export function restSpan(r: CredentialRest): string {
   const when = r.ended ? msg(str`Paused ${localTime(r.since)} → ${localTime(r.ended)}`) : msg(str`Paused since ${localTime(r.since)}`);
+  if (r.stop) return facts(when, refusedFacts(r));
   return facts(when, r.rule ? msg(str`Usage rule: ${r.rule}`) : facts(usage(r.window ?? '', r.pct), capLabel(r.cap)));
 }
 

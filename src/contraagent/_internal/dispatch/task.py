@@ -235,7 +235,7 @@ class Deferral:
     The queue's own causes: `deadline`, `grace_window` (past the deadline's grace window),
     `cannot_finish` (`need_s`, `left_s`) and `dependency_not_queued`; the first three name
     the time box's `flow_call` when the deadline is one's (`TimeBox`), not the run's. A
-    runner adds its own (`rest`: its credential rests, `QuotaRests`)."""
+    runner adds its own (`rest`: its credential rests, `CredentialRests`)."""
 
     reason: str
     cause: DeferralCause

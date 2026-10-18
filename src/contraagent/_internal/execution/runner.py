@@ -42,7 +42,7 @@ from contraagent._internal.platform import envvars, telemetry
 from contraagent._internal.platform.commands import commands
 from contraagent._internal.routing.kind_config import KindConfig
 from contraagent._internal.routing.pool import CredentialPool, pools_of
-from contraagent._internal.routing.quota import QuotaRests
+from contraagent._internal.routing.quota import CredentialRests
 from contraagent._internal.routing.router import Route, Router
 from contraagent._internal.runs import layout
 from contraagent._internal.runs.files import write_document
@@ -66,13 +66,35 @@ def _rest_deferral(rests: Sequence[SkippedHop]) -> Deferral:
     return Deferral("; ".join(_texts(rests)), DeferralCause(cause="rest", rests=tuple(rests)))
 
 
+def _quota_rest(rests: Sequence[Rest]) -> bool:
+    """Whether one of `rests` is a quota rest, which ends: a task that has no hop left for
+    rests that are all refused credentials (`auth_failed`) fails, as nothing will change in
+    the run; with a quota rest among them it is deferred."""
+    return any(not r.stop for r in rests)
+
+
+def _rest_stop(rests: Sequence[Rest]) -> str:
+    """The stop a resting hop passes a task on as, choosing the hop after it (`Route.takes`):
+    `auth_failed` for a refused credential, `rate_limited` for a quota rest."""
+    return Stop.RATE_LIMITED.value if _quota_rest(rests) else Stop.AUTH_FAILED.value
+
+
+def _tried(tried: Mapping[str, str]) -> str:
+    """The pool members that did not run, each with why: `a, b rate limited, c refused`."""
+    by: dict[str, list[str]] = {}
+    for label, why in tried.items():
+        by.setdefault(why, []).append(label)
+    return ", ".join(f"{', '.join(labels)} {why}" for why, labels in by.items())
+
+
 def telemetry_line(task: Task, run_id: str, role: str | None) -> str:
     """The telemetry line of `task` (`contraagent._internal.platform.telemetry`), first in every prompt."""
     return telemetry.line(run_id, kind_name(task.kind), task.unit, task.key, role)
 
 
 #: Failures another hop cannot fix: nothing was launched (an input is off-contract), or the
-#: agent ran as another identity than the one chosen. Every other failure moves the task on.
+#: agent ran as another identity than the one chosen. Every other failure moves the task on,
+#: to the next hop for its stop (`Route.takes`).
 NO_FAILOVER = frozenset({Stop.INVALID_INPUT.value, Stop.CREDENTIAL_MISMATCH.value})
 
 
@@ -131,7 +153,7 @@ class AgentRunner:
         cwd: Path | str | None = None,
         scopes: Sequence[TaskScope] = (),
         enrichers: Sequence[ResultEnricher] = (),
-        rests: QuotaRests | None = None,
+        rests: CredentialRests | None = None,
     ):
         """
         `backends`: every coding agent a kind or a route may name, keyed by
@@ -146,9 +168,10 @@ class AgentRunner:
         (`RoutingPlan.credentials`); `ambient` is always there.
         `model`, `model_failover`, `env`: run-wide launch defaults a kind's own
         config outranks.
-        `rests`: the run's quota rests (`QuotaRests`): a hop whose credential rests is
+        `rests`: the run's credential rests (`CredentialRests`): a hop whose credential rests is
         skipped without a launch, a pool's resting members too, and a task with no hop
-        left is deferred. Each launch's utilization readings are told to it.
+        left is deferred, or fails `auth_failed` when every one was refused. Each launch's
+        utilization readings are told to it, and each launch refused for its credential.
         `scopes` / `enrichers`: wrap each dispatch (`TaskScope`, `ResultEnricher`). The
         task's changes (`TaskAdapter.changes`) are recorded by a built-in enricher that
         runs before them, so theirs see `TaskResult.changes`.
@@ -304,10 +327,14 @@ class AgentRunner:
         with self._accounts_lock:
             return self._accounts.setdefault(key, found)
 
+    def _model_on(self, task: Task, route: Route | None) -> str:
+        """The model a launch of this task on `route` runs on (`launch`)."""
+        return (route.model if route is not None and route.model else "") or self.config(task).model or self.model
+
     def _accounts_on(self, task: Task, route: Route | None) -> Callable[[str], str]:
-        """`account(credential)` for a launch of this task on `route` (`QuotaRests.rests`)."""
+        """`account(credential)` for a launch of this task on `route` (`CredentialRests.rests`)."""
         backend = self.backend_for_route(task, route)
-        model = (route.model if route is not None and route.model else "") or self.config(task).model or self.model
+        model = self._model_on(task, route)
 
         def account(name: str) -> str:
             cred = self.credentials.get(name)
@@ -316,25 +343,41 @@ class AgentRunner:
         return account
 
     def _rest(self, task: Task, route: Route | None) -> list[Rest]:
-        """Why `route`'s credential rests for this task now (`QuotaRests`), judged by the
+        """Why `route`'s credential rests for this task now (`CredentialRests`), judged by the
         readings of the account a launch on it bills; empty when it does not."""
         if self.rests is None:
             return []
-        return self.rests.rests(self._credential_name(task, route), kind_name(task.kind), self._accounts_on(task, route))
+        return self.rests.rests(
+            self._credential_name(task, route),
+            kind_name(task.kind),
+            self._accounts_on(task, route),
+            self.backend_for_route(task, route).name,
+            self._model_on(task, route),
+        )
 
-    def _usable(self, task: Task, route: Route, router: Router, skipped: list[SkippedHop]) -> Route | None:
+    def _usable(self, task: Task, route: Route, router: Router, skipped: list[SkippedHop], stop: str = "") -> Route | None:
         """`route`, or the first hop after it whose credential does not rest; None when every
-        one rests. Each hop passed over is added to `skipped`: its label and model, and why
-        its credential rests. Stateless for the router: a rest is the credential's, not a
-        hop's 429."""
+        one rests. A hop after a resting one is for `stop`, the stop that moved the task to
+        `route`, or for the rest's own (`_rest_stop`). Each hop passed over is added to
+        `skipped`: its label and model, and why its credential rests. Stateless for the
+        router: a rest is the credential's, not a hop's 429."""
         here: Route | None = route
         while here is not None:
             why = self._rest(task, here)
             if not why:
                 return here
             skipped += [r.skipped(router.label_of(here), here.model) for r in why]
-            here = router.next_route_after(here)
+            here = router.next_route_after(here, stop or _rest_stop(why))
         return None
+
+    def _passed_over(self, task: Task, skipped: Sequence[SkippedHop]) -> TaskResult:
+        """The result of a task that launched nothing, every hop it could take resting:
+        deferred when one of the rests is a quota rest, else (its credentials were refused)
+        failed `auth_failed`, with the hops it passed over."""
+        if _quota_rest(skipped):
+            return TaskResult.deferred(task, _rest_deferral(skipped))
+        result = self._refuse(task, Stop.AUTH_FAILED, "; ".join(_texts(skipped)))
+        return replace(result, skipped_hops=tuple(skipped))
 
     def deferral(self, task: Task) -> Deferral | None:
         """Why this task cannot launch now: every hop it could take, from the one its kind's
@@ -344,12 +387,14 @@ class AgentRunner:
         router = self.router_for(task)
         if router is None:
             why = self._rest(task, None)
-            return _rest_deferral([SkippedHop(**r.to_dict()) for r in why]) if why else None
+            return _rest_deferral([SkippedHop(**r.to_dict()) for r in why]) if _quota_rest(why) else None
         route = router.pick()
         if route is None:  # every hop rate limited: the launch says so
             return None
         skipped: list[SkippedHop] = []
-        return _rest_deferral(skipped) if self._usable(task, route, router, skipped) is None else None
+        if self._usable(task, route, router, skipped) is not None or not _quota_rest(skipped):
+            return None  # a hop to launch on, or only refused credentials: the run fails the task
+        return _rest_deferral(skipped)
 
     def _model_chain(self, task: Task, route: Route | None, backend: Backend) -> str | None:
         """The same-agent remainder to hand the agent's own failover flag, when asked.
@@ -370,7 +415,7 @@ class AgentRunner:
     # --- execution ---------------------------------------------------------
 
     def run(self, task: Task) -> TaskResult:
-        """Run one task, failing over on a 429. A launch whose peak context passed its kind's
+        """Run one task, failing over on a 429 and on any other failure. A launch whose peak context passed its kind's
         `context_warn_pct` is noted (`TaskResult.notes["context_warned"]`).
 
         Brackets the whole dispatch (every failover hop) with every
@@ -440,7 +485,7 @@ class AgentRunner:
         if router is None:
             rest = self._rest(task, None)
             if rest:
-                return TaskResult.deferred(task, _rest_deferral([SkippedHop(**r.to_dict()) for r in rest]))
+                return self._passed_over(task, [SkippedHop(**r.to_dict()) for r in rest])
             result = self._run_once(task, None)
             o = result.launch_result
             if o is not None:
@@ -451,24 +496,30 @@ class AgentRunner:
 
     def _run_with_failover(self, task: Task, router: Router) -> TaskResult:
         """Walk `router`'s chain: a 429 moves the shared breaker for every task; any
-        other failure (`_fails_over`) moves only this task to the next hop."""
+        other failure (`_fails_over`) moves only this task to the next hop for its stop
+        (`Route.takes`). A hop refused for its credential (`auth_failed`) after a hop that
+        ran does not end the attempt on its own stop: the attempt ends on the stop of the
+        last hop that ran (`_own`)."""
         hops = 0
         prior_reason = ""  # what an earlier hop already said about this task
         pinned = None  # this task's own walk after a failure other than a 429
+        walk = ""  # the stop that moved this task to `pinned`
         trail: list[Hop] = []
         spent: LaunchResult | None = None  # the hops so far: their tokens and cost
         skipped: list[SkippedHop] = []  # the hops passed over without a launch (a resting credential)
         last: TaskResult | None = None
+        ran: tuple[TaskResult, str] | None = None  # the last hop not refused for its credential, and its label
         while True:
             route = pinned if pinned is not None else router.pick()
             if route is not None and self.rests is not None:
                 seen = len(skipped)
-                usable = self._usable(task, route, router, skipped)
+                usable = self._usable(task, route, router, skipped, walk)
                 notes = _texts(skipped[seen:])
                 if usable is None:
-                    if last is None:  # nothing launched: deferred, not failed
-                        return TaskResult.deferred(task, _rest_deferral(skipped))
-                    return replace(last, reason="; ".join([prior_reason, *notes] if prior_reason else notes), skipped_hops=tuple(skipped))
+                    if last is None:  # nothing launched: deferred, or failed on refused credentials
+                        return self._passed_over(task, skipped)
+                    reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
+                    return self._own(replace(last, reason=reason, skipped_hops=tuple(skipped)), ran)
                 if usable != route:
                     prior_reason = "; ".join([prior_reason, *notes] if prior_reason else notes)
                     _logger.info(f"[route] {task.key}: {notes[-1]}; on {router.label_of(usable)}")
@@ -486,11 +537,15 @@ class AgentRunner:
             result = self._run_once(task, route)
             trail.append(_hop(label, result))
             stopped = self._safety_failover(task, result)  # before the fold: this hop's own
+            refused = result.stop == Stop.AUTH_FAILED and ran is not None
             # Tokens and cost of the hops before this one belong to the attempt too.
             if result.launch_result is not None:
-                if spent is not None:
-                    fold_spend(spent, result.launch_result)
-                spent = result.launch_result
+                if refused and spent is not None:
+                    fold_spend(result.launch_result, spent)  # into the launch of the hop that ran, which the attempt keeps
+                else:
+                    if spent is not None:
+                        fold_spend(spent, result.launch_result)
+                    spent = result.launch_result
             own_reason = result.reason
             # The attempt's time is every hop's, not only the last one's: a model
             # switch after a rate limit still spent the time before it.
@@ -501,12 +556,16 @@ class AgentRunner:
                 wall_s=round(sum(h.wall_s for h in trail), 1),
                 reason=prior_reason or result.reason,
             )
-            if stopped and router.next_route_after(route) is None:
+            if not refused and result.stop != Stop.AUTH_FAILED:
+                ran = (result, label)
+            # A safety stop moves the task to a hop for refusals.
+            stop = Stop.REFUSED.value if stopped else result.stop
+            if stopped and router.next_route_after(route, stop) is None:
                 stopped = []  # the chain is spent: the launch's result stands
             if result.stop != Stop.RATE_LIMITED and (_fails_over(result) or stopped):
-                nxt_route = router.next_route_after(route)
+                nxt_route = router.next_route_after(route, stop)
                 if nxt_route is None:
-                    return replace(result, route=label)
+                    return self._own(replace(result, route=label), ran)
                 what = (
                     "safeguard refusal"
                     if result.stop == Stop.REFUSED
@@ -519,7 +578,7 @@ class AgentRunner:
                 )
                 _logger.warning(f"[switch] {task.key}: {prior_reason}")
                 last = replace(result, reason=prior_reason)
-                pinned = nxt_route
+                pinned, walk = nxt_route, stop
                 continue
             if result.stop != Stop.RATE_LIMITED:
                 router.succeeded(route, started=started)
@@ -539,6 +598,26 @@ class AgentRunner:
             prior_reason = f"rate limited on {label}; failing over to {nxt}"
             _logger.warning(f"[switch] {task.key}: {prior_reason}")
             last = replace(result, reason=prior_reason)
+
+    @staticmethod
+    def _own(result: TaskResult, ran: tuple[TaskResult, str] | None) -> TaskResult:
+        """The attempt's result when its chain ends on `result`: the result of `ran`, the
+        last hop that ran, when `result` is a hop refused for its credential after it; its
+        stop is the attempt's own, and every hop, the spend and the reason stay the attempt's.
+        Else `result`."""
+        if result.stop != Stop.AUTH_FAILED or ran is None:
+            return result
+        own, label = ran
+        refused = [h.route for h in result.hops if h.stop == Stop.AUTH_FAILED.value]
+        note = f"{Stop.AUTH_FAILED.value} on {', '.join(refused)}" if refused else ""
+        return replace(
+            own,
+            hops=result.hops,
+            skipped_hops=result.skipped_hops,
+            wall_s=result.wall_s,
+            route=label,
+            reason="; ".join(r for r in (result.reason, note) if r),
+        )
 
     def _safety_failover(self, task: Task, result: TaskResult) -> list[SafetyStop]:
         """The safety stops of `result`'s launch, which ended well, that move it to the next
@@ -563,16 +642,21 @@ class AgentRunner:
         return self._run_as(task, route, credential)
 
     def _run_pooled(self, task: Task, route: Route | None, pool) -> TaskResult:
-        """Walk the pool's members on this route: a member that answers 429 cools down and
-        the next one launches at once. With every member cooling the result is rate
-        limited, and the route's own failover (the Router) takes over."""
-        tried: list[str] = []
+        """Walk the pool's members on this route: a member that answers 429 cools down, one
+        refused for its credential (`auth_failed`) rests on the route for the run, and the
+        next one launches at once. With every member cooling or resting the result is the
+        last member's, and the route's own failover (the Router) takes over."""
+        tried: dict[str, str] = {}  # each member that launched and did not run: its label, and `rate limited` or `refused`
         last: TaskResult | None = None
-        spent = 0.0  # time on members that were rate limited, counted in the result
-        model = (route.model if route is not None and route.model else "") or self.config(task).model or self.model
-        # Members resting on their quota are passed over like those that answered 429.
+        spent = 0.0  # time on members that did not run, counted in the result
+        model = self._model_on(task, route)
+        # Members resting on their quota or refused on this route are passed over like those that answered 429.
         resting = (
-            self.rests.resting_members(pool.name, kind_name(task.kind), self._accounts_on(task, route)) if self.rests is not None else set()
+            self.rests.resting_members(
+                pool.name, kind_name(task.kind), self._accounts_on(task, route), self.backend_for_route(task, route).name, model
+            )
+            if self.rests is not None
+            else set()
         )
         while True:
             member = pool.pick(model, exclude=[*tried, *resting])
@@ -580,22 +664,25 @@ class AgentRunner:
                 if last is None:
                     last = self._refuse(task, Stop.RATE_LIMITED, f"every member of pool {pool.name} is cooling down")
                 if tried:
-                    reason = (f"pool {pool.name}: {', '.join(tried)} rate limited" + (f"; {last.reason}" if last.reason else ""))[:240]
+                    reason = (f"pool {pool.name}: {_tried(tried)}" + (f"; {last.reason}" if last.reason else ""))[:240]
                     last = replace(last, reason=reason)
                 return last
             prior = last.launch_result if last is not None else None
             last = self._run_as(task, route, member)
             last = replace(last, wall_s=last.wall_s + spent)
             if prior is not None and last.launch_result is not None:
-                fold_spend(prior, last.launch_result)  # members that were rate limited spent tokens too
-            if last.stop != Stop.RATE_LIMITED:
+                fold_spend(prior, last.launch_result)  # members that did not run spent tokens too
+            if last.stop not in (Stop.RATE_LIMITED, Stop.AUTH_FAILED):
                 if tried:
-                    note = f"pool {pool.name}: {', '.join(tried)} rate limited, ran on {member.label}"
+                    note = f"pool {pool.name}: {_tried(tried)}, ran on {member.label}"
                     last = replace(last, reason=f"{note}; {last.reason}" if last.reason else note)
                 return last
-            refusal = last.launch_result.quota_refusal if last.launch_result is not None else None
-            pool.rate_limited(member, model, refusal.retry_after_s if refusal is not None else None)
-            tried.append(member.label)
+            if last.stop == Stop.RATE_LIMITED:
+                refusal = last.launch_result.quota_refusal if last.launch_result is not None else None
+                pool.rate_limited(member, model, refusal.retry_after_s if refusal is not None else None)
+                tried[member.label] = "rate limited"
+            else:  # `_run_as` rested it on this route
+                tried[member.label] = "refused"
             spent = last.wall_s
 
     def _run_as(self, task: Task, route: Route | None, credential: Credential) -> TaskResult:
@@ -622,6 +709,11 @@ class AgentRunner:
             )
             if self.rests is not None:
                 self.rests.observe(reading)
+        if launch_result.stop == Stop.AUTH_FAILED and self.rests is not None:
+            # Refused for its credential: every later launch there would be refused too.
+            rest = self.rests.refuse(credential.label, backend.name, launch.model)
+            if rest is not None:
+                _logger.warning(f"[rest] {rest.text()}; no task of this run launches there again")
         launch_result.context_budget = launch.limits.context_budget
         launch_result.context_warned = launch_result.context_warned or launch.limits.context_warned(launch_result.peak_context)
         reason = (launch_result.stderr_tail or "")[-200:].strip()
@@ -676,7 +768,8 @@ class RetryingRunner:
     A failure *without* progress gets a fresh attempt, after full-jitter exponential
     backoff, up to the kind's `KindConfig.retries` of them after the first (`retries=2`:
     3 attempts at most); a safeguard refusal is not
-    retried (the hop walk already tried every route). This sits beside the
+    retried (the hop walk already tried every route), nor a task refused for its credential
+    (`auth_failed`: the credential rests for the run). This sits beside the
     queue's own `retry_on`, which covers a launch that never ran.
 
     `max_concurrent_overrides` sizes a per-kind budget for one queue without
@@ -728,8 +821,9 @@ class RetryingRunner:
                     # completed task.
                     traceback.print_exc()
             # A refusal was already tried on every route; an off-contract input is the same
-            # file on the next attempt. Neither is worth another launch.
-            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT) or not last.retryable:
+            # file on the next attempt; a refused credential rests for the run. None is worth
+            # another launch.
+            if last.ok or last.stop in (Stop.REFUSED, Stop.INVALID_INPUT, Stop.AUTH_FAILED) or not last.retryable:
                 break
             if attempt + 1 < attempts:
                 time.sleep(self.backoff(rc.retry_backoff_base, attempt))

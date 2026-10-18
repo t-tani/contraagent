@@ -12,7 +12,7 @@ from contraagent import Pipeline, PipelineConfig, Task, TaskResult, agent_task
 from contraagent._internal.monitor import api
 from contraagent.backends import Backend, LaunchResult, Stop
 from contraagent.config import KindConfig, QuotaReading, Route
-from contraagent.engine import AgentRunner, Deferral, QuotaRests, Router, TaskAdapter, WorkQueue
+from contraagent.engine import AgentRunner, CredentialRests, Deferral, Router, TaskAdapter, WorkQueue
 from contraagent.monitor import Monitor
 from contraagent.testing import StubAgent
 
@@ -55,11 +55,11 @@ members = ["personal", "sub-b"]
     return PipelineConfig.load(f)
 
 
-def rests(tmp_path, rule=None, **kw) -> QuotaRests:
-    return QuotaRests(config(tmp_path).credentials(), rule, now=lambda: NOW, **kw)
+def rests(tmp_path, rule=None, **kw) -> CredentialRests:
+    return CredentialRests(config(tmp_path).credentials(), rule, now=lambda: NOW, **kw)
 
 
-# --- QuotaRests --------------------------------------------------------------
+# --- CredentialRests --------------------------------------------------------------
 
 
 def test_a_credential_past_its_cap_rests_until_the_window_resets(tmp_path):
@@ -94,7 +94,7 @@ def test_a_rule_s_rest_records_its_reading_and_ends_when_that_reading_is_out_of_
     reading counts no more, and the next launch brings a fresh one."""
     clock = [NOW]
     events: list[tuple[str, dict]] = []
-    r = QuotaRests(
+    r = CredentialRests(
         config(tmp_path).credentials(),
         lambda cred, rd: "pace" if (rd.seven_day_pct or 0) > 50 else None,
         now=lambda: clock[0],
@@ -122,7 +122,7 @@ def test_a_rule_s_rest_records_its_reading_and_ends_when_that_reading_is_out_of_
 
 def test_a_rule_s_rest_on_a_reading_with_no_reset_lasts_its_window_s_length(tmp_path):
     clock = [NOW]
-    r = QuotaRests(config(tmp_path).credentials(), lambda cred, rd: "pace", now=lambda: clock[0])
+    r = CredentialRests(config(tmp_path).credentials(), lambda cred, rd: "pace", now=lambda: clock[0])
     r.observe(reading("sub-b", five=10, resets=None))
     # five_hour names no reset: it stands 5 hours after it was observed; seven_day resets in 3 days.
     assert r.rests("sub-b")[0].until == iso(NOW + timedelta(hours=5))
@@ -142,7 +142,9 @@ def test_a_rule_that_gives_an_end_rests_the_credential_to_then_and_is_not_asked_
         asked.append(clock[0])
         return ("over the daily pace", tomorrow) if clock[0] < tomorrow.replace(tzinfo=UTC) else None
 
-    r = QuotaRests(config(tmp_path).credentials(), rule, now=lambda: clock[0], on_change=lambda e, rest: events.append((e, rest.until)))
+    r = CredentialRests(
+        config(tmp_path).credentials(), rule, now=lambda: clock[0], on_change=lambda e, rest: events.append((e, rest.until))
+    )
     r.observe(reading("sub-b", five=10, week=20))  # the 5-hour window resets at NOW + 2h
     [rest] = r.rests("sub-b")
     assert rest.rule == "over the daily pace" and rest.until == iso(tomorrow.replace(tzinfo=UTC))
@@ -157,7 +159,7 @@ def test_a_rule_that_gives_an_end_rests_the_credential_to_then_and_is_not_asked_
 
 
 def test_a_rule_that_gives_no_end_keeps_the_reading_s_end(tmp_path):
-    r = QuotaRests(config(tmp_path).credentials(), lambda cred, rd: ("pace", None), now=lambda: NOW)
+    r = CredentialRests(config(tmp_path).credentials(), lambda cred, rd: ("pace", None), now=lambda: NOW)
     r.observe(reading("sub-b", five=10))
     assert r.rests("sub-b")[0].until == iso(NOW + timedelta(hours=2))
 
@@ -173,7 +175,7 @@ def test_a_pool_rests_when_every_member_does(tmp_path):
     r.observe(reading("personal", five=95))
     assert r.resting_members("subs") == {"personal"}
     assert r.reason("subs") == ""  # sub-b still launches
-    r2 = QuotaRests(
+    r2 = CredentialRests(
         config(tmp_path, '\n[credentials.capped]\ntype = "pool"\nmembers = ["sub-b"]\nmax_five_hour_pct = 50\n').credentials(),
         now=lambda: NOW,
     )
@@ -236,7 +238,7 @@ def runner(tmp_path, agent, credential="personal", fallback=True):
         credentials=creds,
         routers=routers,
         cwd=tmp_path,
-        rests=QuotaRests(creds, now=lambda: NOW),
+        rests=CredentialRests(creds, now=lambda: NOW),
     )
 
 

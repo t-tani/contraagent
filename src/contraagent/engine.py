@@ -19,7 +19,7 @@ from contraagent._internal.execution.runner import AgentRunner, RetryingRunner
 from contraagent._internal.execution.schemas import Cursor, HistoryEntry, Inflight, UnitCursor
 from contraagent._internal.public import publish
 from contraagent._internal.routing.plan import RoutingPlan
-from contraagent._internal.routing.quota import AccountOf, QuotaRests
+from contraagent._internal.routing.quota import AccountOf, CredentialRests
 from contraagent._internal.routing.router import Router
 
 __all__ = [
@@ -45,7 +45,7 @@ __all__ = [
     "OnResult",
     "OutputContract",
     "PythonTaskRunner",
-    "QuotaRests",
+    "CredentialRests",
     "Rest",
     "RetryingRunner",
     "Router",

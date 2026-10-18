@@ -11,7 +11,7 @@ from contraagent._internal.backends.launch import ACCOUNT_SECRET, account_digest
 from contraagent._internal.backends.omp.backend import dotenv_credentials, omp_dotenv_files
 from contraagent.backends import Launch, OmpBackend, OpencodeBackend, PiBackend
 from contraagent.config import AMBIENT, ApiKey, Gateway, QuotaReading, QuotaWindow, Subscription
-from contraagent.engine import QuotaRests
+from contraagent.engine import CredentialRests
 
 FIXTURES = Path(__file__).parent / "fixtures" / "opencode"
 KEY = "sk-test-opencode-go-0000"
@@ -169,7 +169,7 @@ def test_one_login_is_one_account_so_a_rest_on_one_agent_holds_on_the_others(tmp
     agents = [OpencodeBackend(base_env=env), PiBackend(base_env={**env, "PI_CODING_AGENT_DIR": str(pi_home)}), OmpBackend(base_env=env)]
     accounts = {be.name: be.account(sub, GO_MODEL) for be in agents}
     assert set(accounts.values()) == {login.account_of_key(KEY)}
-    rests = QuotaRests({"oc": sub})
+    rests = CredentialRests({"oc": sub})
     reading = login.go_reading(go_body(), KEY)
     assert isinstance(reading, QuotaReading)
     rests.observe(reading.model_copy(update={"credential": "oc"}))  # as the runner labels a reading of the opencode launch
