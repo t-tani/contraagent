@@ -3216,6 +3216,18 @@
   <note from="lit-localize">A safety stop the coding agent counted, in words this contraagent version does not recognize</note>
   <target>内容不明</target>
 </trans-unit>
+<trans-unit id="s041489fa7f9e6fe6">
+  <source><x id="0" equiv-text="${stopped.length - STOPPED_SHOWN}"/> more</source>
+  <target>ほか <x id="0" equiv-text="${stopped.length - STOPPED_SHOWN}"/> 件</target>
+</trans-unit>
+<trans-unit id="sde7cbc4291a82cc4">
+  <source>1 more in history</source>
+  <target>履歴にほか 1 件</target>
+</trans-unit>
+<trans-unit id="sbdc36a52f3bf5b79">
+  <source><x id="0" equiv-text="${all - shown}"/> more in history</source>
+  <target>履歴にほか <x id="0" equiv-text="${all - shown}"/> 件</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

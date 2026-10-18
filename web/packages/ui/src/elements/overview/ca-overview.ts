@@ -46,6 +46,12 @@ import './ca-workers.js';
 
 /** Failed outputs listed on the overview; the rest are behind a link to the outputs tab. */
 const OUTPUTS_SHOWN = 5;
+/** The problems of each group shown (failed, not started, partly done); the rest are in the history. */
+const PROBLEMS_SHOWN = 5;
+/** The tasks done after a retry shown: they are done, so fewer. */
+const RECOVERED_SHOWN = 3;
+/** The later tasks a failure stopped, shown as chips beside it. */
+const STOPPED_SHOWN = 4;
 
 const CT_ORDER = ['invalid', 'refused', 'failed', 'running', 'pending', 'valid'] as const satisfies readonly (keyof OutputTally)[];
 
@@ -147,7 +153,9 @@ export class CaOverview extends LitElement {
       .cu { display: grid; grid-template-columns: 90px 1fr 70px auto; gap: 8px; align-items: center; }
       .cu-bar { height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
       .cu-bar i { display: block; height: 100%; background: var(--meter); }
-      .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; }
+      /* one line each, the whole text in its tooltip: a long reason does not make the card taller */
+      .fl > div.meta { grid-column: 1 / 4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ofl > .meta { white-space: nowrap; }
       .stopped { grid-column: 1 / 4; color: var(--text-muted); font-size: 11px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
       .fl.muted { opacity: 0.7; }
       .problems h4.sub { margin: 10px 0 2px; font-size: 11px; font-weight: 600; color: var(--text-muted); display: flex; }
@@ -307,7 +315,7 @@ export class CaOverview extends LitElement {
           ${statusWord({ text: o.status ? contractStatusLabel(o.status) : '—', tone: contractTone(o.status), title: o.status ? contractStatusWhy(o.status) : null })}
           <b class="jmono" title=${c.key}>${kindUnit({ kind: c.kind, unit: c.unit === c.key ? '' : c.unit })}</b>
           <span class="meta">${formatOf(o)}</span>
-          <span class="meta">${runRelative(o.errors?.[0] || o.path, this.run).slice(0, 160)}</span>
+          <span class="meta" title=${runRelative(o.errors?.[0] || o.path, this.run)}>${runRelative(o.errors?.[0] || o.path, this.run)}</span>
         </button>`,
       )}
       ${bad.length > shown.length
@@ -422,49 +430,60 @@ export class CaOverview extends LitElement {
     const issues = failed.length + notStarted.length + partial.length;
     const ok = html`<div class="ok"><span aria-hidden="true">✓</span>${msg('No problems')}</div>`;
     if (!issues && !recovered.length) return ok;
-    const reason = (t: TaskOutcome) => runRelative(t.attempts[t.attempts.length - 1]?.reason || '—', this.run).slice(0, 200);
+    const reason = (t: TaskOutcome) => runRelative(t.attempts[t.attempts.length - 1]?.reason || '—', this.run);
     const stoppedLine = (stopped: TaskOutcome[]) =>
       stopped.length
         ? html`<div class="stopped">
             <span>${stopped.length === 1 ? msg('1 later task not started') : msg(str`${stopped.length} later tasks not started`)}</span>
-            ${stopped.map((x) => taskChip(this, this.name(x), x))}
+            ${stopped.slice(0, STOPPED_SHOWN).map((x) => taskChip(this, this.name(x), x))}
+            ${stopped.length > STOPPED_SHOWN ? html`<span>${msg(str`${stopped.length - STOPPED_SHOWN} more`)}</span>` : nothing}
           </div>`
+        : nothing;
+    // Each group shows its first few; a link leads to the rest, in the history filtered to them.
+    const rest = (all: number, shown: number, stop: string) =>
+      all > shown
+        ? html`<div class="more"><a class="lnk" href="#" @click=${(e: Event) => this.nav(e, () => emit(this, 'ca-navigate', { tab: 'journal', stop }))}>${all - shown === 1
+            ? msg('1 more in history')
+            : msg(str`${all - shown} more in history`)}</a></div>`
         : nothing;
     // The tasks done after retrying are done, not problems: a group of their own, after the problems.
     return html`${issues ? nothing : ok}${repeat(
-        failed,
+        failed.slice(0, PROBLEMS_SHOWN),
         (p) => p.task.key,
         (p) => {
           const last = p.task.attempts[p.task.attempts.length - 1];
           return html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, p.task)}>
             ${statusWord({ text: outcomeLabel('failed'), tone: 'failed' })}
             ${this.nameButton(p.task)}<span class="meta">${localTime(last?.ts, true)}</span>
-            <div class="meta">${stopLabel(last?.stop)}: ${reason(p.task)}</div>
+            <div class="meta" title=${reason(p.task)}>${stopLabel(last?.stop)}: ${reason(p.task)}</div>
             ${stoppedLine(p.stopped)}
           </div>`;
         },
       )}
+      ${rest(failed.length, PROBLEMS_SHOWN, 'bad')}
       ${repeat(
-        notStarted,
+        notStarted.slice(0, PROBLEMS_SHOWN),
         (t) => t.key,
         (t) => html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, t)}>
           ${statusWord({ text: outcomeLabel('not_started'), tone: 'attention' })}
           ${this.nameButton(t)}<span></span>
-          <div class="meta">${notStartedCause(t, outcomes, this.run) ? sentence(notStartedCause(t, outcomes, this.run)) : reason(t)}</div>
+          ${this.metaLine(notStartedCause(t, outcomes, this.run) ? sentence(notStartedCause(t, outcomes, this.run)) : reason(t))}
         </div>`,
       )}
+      ${rest(notStarted.length, PROBLEMS_SHOWN, 'invalid_input')}
       ${repeat(
-        partial,
+        partial.slice(0, PROBLEMS_SHOWN),
         (t) => t.key,
         (t) => html`<div class="fl" @click=${(e: MouseEvent) => this.openRow(e, t)}>
           ${statusWord({ text: outcomeLabel('partial'), tone: outcomeTone('partial') })}
           ${this.nameButton(t)}<span></span>
-          <div class="meta">${reason(t)}</div>
+          ${this.metaLine(reason(t))}
         </div>`,
       )}
+      ${rest(partial.length, PROBLEMS_SHOWN, 'partial')}
       ${recovered.length ? html`<h4 class="sub">${sentence(outcomeLabel('recovered'))} <span class="r">${recovered.length}</span></h4>` : nothing}
       ${repeat(
-        recovered,
+        recovered.slice(0, RECOVERED_SHOWN),
         (t) => t.key,
         (t) => {
           const fails = t.tries.filter((a) => !a.ok).length;
@@ -478,7 +497,13 @@ export class CaOverview extends LitElement {
           </div>`;
         },
       )}
+      ${rest(recovered.length, RECOVERED_SHOWN, 'retried')}
       ${this.nextStep(live, issues)}`;
+  }
+
+  /** A row's second line: one line, the whole of it in its tooltip. */
+  private metaLine(text: string) {
+    return html`<div class="meta" title=${text}>${text}</div>`;
   }
 
   /** For a finished run with problems: how many tasks are not done (the tasks resume=True runs again). */
