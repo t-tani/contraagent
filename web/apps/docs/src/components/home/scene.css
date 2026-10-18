@@ -341,9 +341,6 @@
   .ca-pin { height: calc(100svh - var(--sl-nav-height, 3.5rem) + var(--hero-pin)); }
   .ca-hero { position: sticky; top: var(--sl-nav-height, 3.5rem); height: calc(100svh - var(--sl-nav-height, 3.5rem)); min-height: 0; }
   [data-has-hero] .rr { margin-top: calc(-1 * var(--hero-pin)); }
-  /* A scroll that stops near the replay lands with all of its window on screen, under the header (Starlight's scroll padding less this margin). */
-  html[data-has-hero]:has([data-run-replay]) { scroll-snap-type: y proximity; }
-  [data-has-hero] .rr-window { scroll-snap-align: start; scroll-margin-top: -0.75rem; }
 
   /* Longhands: the animation shorthand resets animation-timeline. */
   @supports (animation-timeline: scroll()) {
