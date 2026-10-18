@@ -3,10 +3,11 @@
 // transcripts are given to <ca-pipeline-graph>, <ca-kpis> and <ca-transcript> as
 // they stood at each moment of the run, and the code lights the lines the running
 // tasks were created on; the code's pane follows the line typed last, then the lines
-// lit. One clock drives it all (requestAnimationFrame); it starts when the window is
-// on screen as a whole, settled (./scene.css), or on a narrow screen when the replay
-// reaches the upper half of the screen; it stops while it is off screen, and rests on
-// the last frame. On a narrow screen the window shows one panel at a time, chosen by
+// lit. One clock drives it all (requestAnimationFrame), and each frame is drawn from
+// the replay's time alone. Where the window is decides when it starts, not how the
+// scroll came there: on a wide screen once all of the window is on screen (where it
+// stands flat, ./scene.css), on a narrow one when it reaches the upper half of the
+// screen; it stops while it is off screen, and rests on the last frame. On a narrow screen the window shows one panel at a time, chosen by
 // its tabs: the code while it appears, then the panel of each moment of the run as it
 // comes (the graph, or the transcript of a correction), each for a while at least;
 // once the reader picks a tab, that panel stays.
@@ -23,9 +24,9 @@ const SPEED = 1.3;
 const LINE_MS = 80;
 /** The graph shows the plan as it stood when the run started, this long before the run plays (ms). */
 const GRAPH_MS = 900;
-/** The least time between two updates of the elements (ms). */
+/** The least replay time between two updates of the elements (ms). */
 const FRAME_MS = 90;
-/** The least time between two updates of the transcript (ms): a few new lines a second, as a log reads. */
+/** The least replay time between two updates of the transcript (ms): a few new lines a second, as a log reads. */
 const TRANSCRIPT_MS = 250;
 /** After the reader scrolls the code's pane, it stays where they left it this long (ms). */
 const READER_MS = 4000;
@@ -82,9 +83,10 @@ class Replay {
   private raf = 0;
   private visible = false;
   private paused = false;
+  /** What the graph and the numbers were last given, and at what replay time. */
   private pushed = '';
   private pushedAt = -Infinity;
-  /** What the transcript was last given, when, and whether it is fading to another task's. */
+  /** What the transcript was last given, at what replay time, and whether it is fading to another task's. */
   private tPushed = '';
   private tPushedAt = -Infinity;
   private tSpot = '';
@@ -254,7 +256,9 @@ class Replay {
     if (this.t >= this.total) {
       this.t = 0;
       this.pushed = '';
+      this.pushedAt = -Infinity;
       this.tPushed = '';
+      this.tPushedAt = -Infinity;
       this.followed = '';
       this.chosen = false;
       this.root.classList.remove('rr-ended');
@@ -396,10 +400,9 @@ class Replay {
     this.feedTranscript(spot, events, live, force || t >= this.total);
 
     const key = `${plan.nodes.map((n) => n.state[0]).join('')}|${journal.length}|${ended}`;
-    const now = performance.now();
-    if (key === this.pushed || (!force && !ended && now - this.pushedAt < FRAME_MS)) return;
+    if (key === this.pushed || (!force && !ended && t - this.pushedAt < FRAME_MS)) return;
     this.pushed = key;
-    this.pushedAt = now;
+    this.pushedAt = t;
     this.graph.live = !ended;
     this.graph.plan = plan;
     this.graph.journal = journal;
@@ -440,11 +443,10 @@ class Replay {
   private feedTranscript(spot: Timeline['spots'][number], events: Timeline['spots'][number]['events'], live: boolean, atOnce: boolean): void {
     const key = `${spot.key}:${events.length}|${live}`;
     if (key === this.tPushed || this.switching) return;
-    const now = performance.now();
     const other = this.tSpot !== '' && spot.key !== this.tSpot;
-    if (!atOnce && !other && now - this.tPushedAt < TRANSCRIPT_MS) return;
+    if (!atOnce && !other && this.t - this.tPushedAt < TRANSCRIPT_MS) return;
     this.tPushed = key;
-    this.tPushedAt = now;
+    this.tPushedAt = this.t;
     const give = (): void => {
       this.tSpot = spot.key;
       this.spotName.textContent = spot.name;
@@ -489,7 +491,6 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-run-replay]')) 
       started = true;
       replay.start();
     };
-    // A wide screen (./scene.css): the window fits the screen, and the replay starts once it is all on it.
     const wide = matchMedia('(min-width: 50rem)');
     new IntersectionObserver(
       ([e]) => {
@@ -500,6 +501,7 @@ for (const root of document.querySelectorAll<HTMLElement>('[data-run-replay]')) 
       },
       { rootMargin: '0px 0px -45% 0px' },
     ).observe(root);
+    // A wide screen: the window is no taller than the screen, and the replay starts once all of it is on it.
     new IntersectionObserver(
       ([e]) => {
         if (!e?.isIntersecting || !wide.matches) return;
