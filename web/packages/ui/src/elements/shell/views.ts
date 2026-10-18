@@ -61,7 +61,7 @@ export function tabView({ snap, viewRoute, derived, q, client, baseUrl }: TabVie
     default: {
       const name = viewRoute.tab.slice('panel:'.length);
       const info = snap.info.panels.find((p) => p.name === name);
-      return html`<ca-panel-view .name=${name} .panel=${info} .data=${state.panels[name]}></ca-panel-view>`;
+      return html`<ca-panel-view .name=${name} .panel=${info} .data=${state.panels[name]} base-url=${baseUrl}></ca-panel-view>`;
     }
   }
 }

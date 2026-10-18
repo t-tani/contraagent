@@ -83,12 +83,12 @@ exports[`the graph of each plan, frozen > branch 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "created: kind:check@ | kind:publish@",
       "created: kind:check@ | kind:escalate@",
+      "created: kind:check@ | kind:publish@",
     ],
     "edges": [
-      "kind:check > kind:publish created 1",
       "kind:check > kind:escalate created 1",
+      "kind:check > kind:publish created 1",
     ],
     "layers": [
       [
@@ -100,8 +100,8 @@ exports[`the graph of each plan, frozen > branch 1`] = `
       ],
     ],
     "lines": [
-      "kind:check > kind:publish: M126,76 C154,76 154,42 182,42",
       "kind:check > kind:escalate: M126,76 C154,76 154,110 182,110",
+      "kind:check > kind:publish: M126,76 C154,76 154,42 182,42",
     ],
     "nodes": [
       "kind:check [check-a check-b] []",
@@ -147,12 +147,12 @@ exports[`the graph of each plan, frozen > branch 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "created: kind:check@ | kind:publish@",
       "created: kind:check@ | kind:escalate@",
+      "created: kind:check@ | kind:publish@",
     ],
     "edges": [
-      "kind:check > kind:publish created 1",
       "kind:check > kind:escalate created 1",
+      "kind:check > kind:publish created 1",
     ],
     "layers": [
       [
@@ -164,8 +164,8 @@ exports[`the graph of each plan, frozen > branch 1`] = `
       ],
     ],
     "lines": [
-      "kind:check > kind:publish: M143,68 C143,88 75,88 75,108",
       "kind:check > kind:escalate: M143,68 C143,88 211,88 211,108",
+      "kind:check > kind:publish: M143,68 C143,88 75,88 75,108",
     ],
     "nodes": [
       "kind:check [check-a check-b] []",
@@ -295,12 +295,12 @@ exports[`the graph of each plan, frozen > crossing 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:x2@ | kind:y1@",
       "after: kind:x1@ | kind:y2@",
+      "after: kind:x2@ | kind:y1@",
     ],
     "edges": [
-      "kind:x2 > kind:y1 after 1",
       "kind:x1 > kind:y2 after 1",
+      "kind:x2 > kind:y1 after 1",
     ],
     "layers": [
       [
@@ -313,8 +313,8 @@ exports[`the graph of each plan, frozen > crossing 1`] = `
       ],
     ],
     "lines": [
-      "kind:x2 > kind:y1: M114,110 L170,110",
       "kind:x1 > kind:y2: M114,42 L170,42",
+      "kind:x2 > kind:y1: M114,110 L170,110",
     ],
     "nodes": [
       "kind:x1 [x1-u] []",
@@ -363,12 +363,12 @@ exports[`the graph of each plan, frozen > crossing 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:x2@ | kind:y1@",
       "after: kind:x1@ | kind:y2@",
+      "after: kind:x2@ | kind:y1@",
     ],
     "edges": [
-      "kind:x2 > kind:y1 after 1",
       "kind:x1 > kind:y2 after 1",
+      "kind:x2 > kind:y1 after 1",
     ],
     "layers": [
       [
@@ -381,8 +381,8 @@ exports[`the graph of each plan, frozen > crossing 1`] = `
       ],
     ],
     "lines": [
-      "kind:x2 > kind:y1: M179,68 L179,108",
       "kind:x1 > kind:y2: M65,68 L65,108",
+      "kind:x2 > kind:y1: M179,68 L179,108",
     ],
     "nodes": [
       "kind:x1 [x1-u] []",
@@ -439,8 +439,8 @@ exports[`the graph of each plan, frozen > cycle and waits inside a node 1`] = `
       "after: kind:b@ | kind:c@",
     ],
     "edges": [
-      "kind:c > kind:b after 1 back",
       "kind:b > kind:c after 1",
+      "kind:c > kind:b after 1 back",
     ],
     "layers": [
       [
@@ -501,8 +501,8 @@ exports[`the graph of each plan, frozen > cycle and waits inside a node 1`] = `
       "after: kind:b@ | kind:c@",
     ],
     "edges": [
-      "kind:c > kind:b after 1 back",
       "kind:b > kind:c after 1",
+      "kind:c > kind:b after 1 back",
     ],
     "layers": [
       [
@@ -1866,22 +1866,22 @@ exports[`the graph of each plan, frozen > into and out of a box 1`] = `
       "loop:7 <  passes 1 spread [[1,1]] [["kind:a@7"],["kind:b@7"],["kind:c@7"]]",
     ],
     "edgePaths": [
-      "after: kind:s@ | loop:7@ | kind:a@7@loop:7",
       "after: kind:a@7@loop:7 | kind:b@7@loop:7",
       "after: kind:b@7@loop:7 | kind:c@7@loop:7",
-      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
       "after: kind:b@7@loop:7 | loop:7@ | ~|by:loop:7|kind:b@7|after|1@ | kind:w@",
-      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
       "after: kind:c@7@loop:7 | loop:7@ | kind:w@",
+      "after: kind:s@ | loop:7@ | kind:a@7@loop:7",
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
+      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
     ],
     "edges": [
-      "kind:s > kind:a@7 after 1",
       "kind:a@7 > kind:b@7 after 1",
       "kind:b@7 > kind:c@7 after 1",
-      "kind:s > kind:c@7 after 1",
       "kind:b@7 > kind:w after 1",
-      "kind:s > kind:w after 1",
       "kind:c@7 > kind:w after 1",
+      "kind:s > kind:a@7 after 1",
+      "kind:s > kind:c@7 after 1",
+      "kind:s > kind:w after 1",
     ],
     "layers": [
       [
@@ -1895,13 +1895,13 @@ exports[`the graph of each plan, frozen > into and out of a box 1`] = `
       ],
     ],
     "lines": [
-      "kind:s > kind:a@7: M110,74 L166,74 L178,74",
       "kind:a@7 > kind:b@7: M272,74 L312,74",
       "kind:b@7 > kind:c@7: M406,74 L446,74",
-      "kind:s > kind:c@7: M110,74 C138,74 138,152 166,152 L406,152 C426,152 426,74 446,74",
       "kind:b@7 > kind:w: M406,74 C426,74 426,140 446,140 L552,140 C580,140 580,74 608,74",
-      "kind:s > kind:w: M110,74 C138,74 138,164 166,164 L552,164 C580,164 580,74 608,74",
       "kind:c@7 > kind:w: M540,74 L552,74 L608,74",
+      "kind:s > kind:a@7: M110,74 L166,74 L178,74",
+      "kind:s > kind:c@7: M110,74 C138,74 138,152 166,152 L406,152 C426,152 426,74 446,74",
+      "kind:s > kind:w: M110,74 C138,74 138,164 166,164 L552,164 C580,164 580,74 608,74",
     ],
     "nodes": [
       "kind:s [s-u] []",
@@ -1985,22 +1985,22 @@ exports[`the graph of each plan, frozen > into and out of a box 1`] = `
       "loop:7 <  passes 1 spread [[1,1]] [["kind:a@7"],["kind:b@7"],["kind:c@7"]]",
     ],
     "edgePaths": [
-      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:a@7@loop:7",
       "after: kind:a@7@loop:7 | kind:b@7@loop:7",
       "after: kind:b@7@loop:7 | kind:c@7@loop:7",
-      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
       "after: kind:b@7@loop:7 | loop:7@ | ~|by:loop:7|kind:b@7|after|1@ | kind:w@",
-      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
       "after: kind:c@7@loop:7 | loop:7@ | kind:w@",
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:a@7@loop:7",
+      "after: kind:s@ | ~|by:loop:7|>:kind:s|after|1@ | loop:7@ | kind:c@7@loop:7",
+      "after: kind:s@ | ~|kind:s|after|1@ | kind:w@",
     ],
     "edges": [
-      "kind:s > kind:a@7 after 1",
       "kind:a@7 > kind:b@7 after 1",
       "kind:b@7 > kind:c@7 after 1",
-      "kind:s > kind:c@7 after 1",
       "kind:b@7 > kind:w after 1",
-      "kind:s > kind:w after 1",
       "kind:c@7 > kind:w after 1",
+      "kind:s > kind:a@7 after 1",
+      "kind:s > kind:c@7 after 1",
+      "kind:s > kind:w after 1",
     ],
     "layers": [
       [
@@ -2014,13 +2014,13 @@ exports[`the graph of each plan, frozen > into and out of a box 1`] = `
       ],
     ],
     "lines": [
-      "kind:s > kind:a@7: M206,68 C206,88 202,88 202,108 L202,138 C202,148 73,148 73,158",
       "kind:a@7 > kind:b@7: M73,210 L73,242",
       "kind:b@7 > kind:c@7: M73,294 L73,326",
-      "kind:s > kind:c@7: M206,68 C206,88 202,88 202,108 L202,294 C202,310 73,310 73,326",
       "kind:b@7 > kind:w: M73,294 C73,310 190,310 190,326 L190,388 C190,408 73,408 73,428",
-      "kind:s > kind:w: M206,68 C206,88 214,88 214,108 L214,388 C214,408 73,408 73,428",
       "kind:c@7 > kind:w: M73,378 L73,388 L73,428",
+      "kind:s > kind:a@7: M206,68 C206,88 202,88 202,108 L202,138 C202,148 73,148 73,158",
+      "kind:s > kind:c@7: M206,68 C206,88 202,88 202,108 L202,294 C202,310 73,310 73,326",
+      "kind:s > kind:w: M206,68 C206,88 214,88 214,108 L214,388 C214,408 73,408 73,428",
     ],
     "nodes": [
       "kind:s [s-u] []",
@@ -2202,15 +2202,15 @@ exports[`the graph of each plan, frozen > long edge 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:a@ | kind:b@",
+      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
       "after: kind:b@ | kind:c@",
       "after: kind:c@ | kind:d@",
-      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
     ],
     "edges": [
       "kind:a > kind:b after 1",
+      "kind:a > kind:d after 1",
       "kind:b > kind:c after 1",
       "kind:c > kind:d after 1",
-      "kind:a > kind:d after 1",
     ],
     "layers": [
       [
@@ -2228,9 +2228,9 @@ exports[`the graph of each plan, frozen > long edge 1`] = `
     ],
     "lines": [
       "kind:a > kind:b: M110,42 L166,42",
+      "kind:a > kind:d: M110,42 C138,42 138,80 166,80 L260,80 L316,80 L410,80 C438,80 438,42 466,42",
       "kind:b > kind:c: M260,42 L316,42",
       "kind:c > kind:d: M410,42 L466,42",
-      "kind:a > kind:d: M110,42 C138,42 138,80 166,80 L260,80 L316,80 L410,80 C438,80 438,42 466,42",
     ],
     "nodes": [
       "kind:a [a-u] []",
@@ -2290,15 +2290,15 @@ exports[`the graph of each plan, frozen > long edge 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:a@ | kind:b@",
+      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
       "after: kind:b@ | kind:c@",
       "after: kind:c@ | kind:d@",
-      "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
     ],
     "edges": [
       "kind:a > kind:b after 1",
+      "kind:a > kind:d after 1",
       "kind:b > kind:c after 1",
       "kind:c > kind:d after 1",
-      "kind:a > kind:d after 1",
     ],
     "layers": [
       [
@@ -2316,9 +2316,9 @@ exports[`the graph of each plan, frozen > long edge 1`] = `
     ],
     "lines": [
       "kind:a > kind:b: M63,68 L63,108",
+      "kind:a > kind:d: M63,68 C63,88 122,88 122,108 L122,160 L122,200 L122,252 C122,272 63,272 63,292",
       "kind:b > kind:c: M63,160 L63,200",
       "kind:c > kind:d: M63,252 L63,292",
-      "kind:a > kind:d: M63,68 C63,88 122,88 122,108 L122,160 L122,200 L122,252 C122,272 63,272 63,292",
     ],
     "nodes": [
       "kind:a [a-u] []",
@@ -2751,18 +2751,18 @@ exports[`the graph of each plan, frozen > nested boxes 1`] = `
       "loop:30.33 < loop:30 passes 1 spread [[1,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
     ],
     "edgePaths": [
-      "created: kind:rank@ | loop:30@ | kind:propose@30@loop:30",
-      "after: kind:propose@30@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
-      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
       "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:refine@30.33@loop:30.33",
+      "after: kind:propose@30@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "created: kind:rank@ | loop:30@ | kind:propose@30@loop:30",
       "after: kind:refine@30.33@loop:30.33 | loop:30.33@loop:30 | loop:30@ | kind:report@",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
     ],
     "edges": [
-      "kind:rank > kind:propose@30 created 1",
-      "kind:propose@30 > kind:verify@30.33 after 1",
-      "kind:verify@30.33 > kind:refine@30.33 after 1",
       "kind:propose@30 > kind:refine@30.33 after 1",
+      "kind:propose@30 > kind:verify@30.33 after 1",
+      "kind:rank > kind:propose@30 created 1",
       "kind:refine@30.33 > kind:report after 1",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
     ],
     "layers": [
       [
@@ -2776,11 +2776,11 @@ exports[`the graph of each plan, frozen > nested boxes 1`] = `
       ],
     ],
     "lines": [
-      "kind:rank > kind:propose@30: M122,106 L178,106 L190,106",
-      "kind:propose@30 > kind:verify@30.33: M308,106 L348,106 L360,106",
-      "kind:verify@30.33 > kind:refine@30.33: M474,106 L514,106",
       "kind:propose@30 > kind:refine@30.33: M308,106 C328,106 328,172 348,172 L474,172 C494,172 494,106 514,106",
+      "kind:propose@30 > kind:verify@30.33: M308,106 L348,106 L360,106",
+      "kind:rank > kind:propose@30: M122,106 L178,106 L190,106",
       "kind:refine@30.33 > kind:report: M628,106 L640,106 L652,106 L708,106",
+      "kind:verify@30.33 > kind:refine@30.33: M474,106 L514,106",
     ],
     "nodes": [
       "kind:rank [rank-a] []",
@@ -2875,18 +2875,18 @@ exports[`the graph of each plan, frozen > nested boxes 1`] = `
       "loop:30.33 < loop:30 passes 1 spread [[1,1]] [["kind:verify@30.33"],["kind:refine@30.33"]]",
     ],
     "edgePaths": [
-      "created: kind:rank@ | ~|by:loop:30|>:kind:rank|created|1@ | loop:30@ | kind:propose@30@loop:30",
-      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
-      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
       "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:refine@30.33@loop:30.33",
+      "after: kind:propose@30@loop:30 | ~loop:30|by:loop:30.33|>loop:30:kind:propose@30|after|1@loop:30 | loop:30.33@loop:30 | kind:verify@30.33@loop:30.33",
+      "created: kind:rank@ | ~|by:loop:30|>:kind:rank|created|1@ | loop:30@ | kind:propose@30@loop:30",
       "after: kind:refine@30.33@loop:30.33 | loop:30.33@loop:30 | loop:30@ | kind:report@",
+      "after: kind:verify@30.33@loop:30.33 | kind:refine@30.33@loop:30.33",
     ],
     "edges": [
-      "kind:rank > kind:propose@30 created 1",
-      "kind:propose@30 > kind:verify@30.33 after 1",
-      "kind:verify@30.33 > kind:refine@30.33 after 1",
       "kind:propose@30 > kind:refine@30.33 after 1",
+      "kind:propose@30 > kind:verify@30.33 after 1",
+      "kind:rank > kind:propose@30 created 1",
       "kind:refine@30.33 > kind:report after 1",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
     ],
     "layers": [
       [
@@ -2900,11 +2900,11 @@ exports[`the graph of each plan, frozen > nested boxes 1`] = `
       ],
     ],
     "lines": [
-      "kind:rank > kind:propose@30: M311,68 L311,108 L311,138 C311,148 212,148 212,158",
-      "kind:propose@30 > kind:verify@30.33: M212,210 L212,242 L212,272 C212,282 93,282 93,292",
-      "kind:verify@30.33 > kind:refine@30.33: M93,344 L93,376",
       "kind:propose@30 > kind:refine@30.33: M212,210 L212,242 L212,344 C212,360 93,360 93,376",
+      "kind:propose@30 > kind:verify@30.33: M212,210 L212,242 L212,272 C212,282 93,282 93,292",
+      "kind:rank > kind:propose@30: M311,68 L311,108 L311,138 C311,148 212,148 212,158",
       "kind:refine@30.33 > kind:report: M93,428 L93,438 L93,448 L93,488",
+      "kind:verify@30.33 > kind:refine@30.33: M93,344 L93,376",
     ],
     "nodes": [
       "kind:rank [rank-a] []",
@@ -3201,8 +3201,8 @@ exports[`the graph of each plan, frozen > nested loops 1`] = `
     ],
     "edges": [
       "kind:propose@30 > kind:verify@30.33 after 3",
-      "kind:verify@30.33 > kind:refine@30.33 after 1",
       "kind:refine@30.33 > kind:verify@30.33 after 1 back",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
     ],
     "layers": [
       [
@@ -3295,8 +3295,8 @@ exports[`the graph of each plan, frozen > nested loops 1`] = `
     ],
     "edges": [
       "kind:propose@30 > kind:verify@30.33 after 3",
-      "kind:verify@30.33 > kind:refine@30.33 after 1",
       "kind:refine@30.33 > kind:verify@30.33 after 1 back",
+      "kind:verify@30.33 > kind:refine@30.33 after 1",
     ],
     "layers": [
       [
@@ -3601,22 +3601,22 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 3",
+      "kind:fix@7 > kind:score@7 after 3",
+      "kind:score@7 > kind:check@7 created 3",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 2",
-      "kind:check > kind:fix@7 after 2",
-      "kind:fix@7 > kind:score@7 after 3",
-      "kind:fix@7 > kind:check@7 after 3",
-      "kind:score@7 > kind:check@7 created 3",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -3630,12 +3630,12 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -3729,22 +3729,22 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 3",
+      "kind:fix@7 > kind:score@7 after 3",
+      "kind:score@7 > kind:check@7 created 3",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 2",
-      "kind:check > kind:fix@7 after 2",
-      "kind:fix@7 > kind:score@7 after 3",
-      "kind:fix@7 > kind:check@7 after 3",
-      "kind:score@7 > kind:check@7 created 3",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -3758,12 +3758,12 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -3881,12 +3881,12 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 2",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 2",
     ],
     "layers": [
       [
@@ -3900,8 +3900,8 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
       "flow:flows.review_loop > kind:report: M324,42 L380,42",
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b] []",
@@ -3951,12 +3951,12 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 2",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 2",
     ],
     "layers": [
       [
@@ -3970,8 +3970,8 @@ exports[`the graph of each plan, frozen > review loop, 2 passes 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
       "flow:flows.review_loop > kind:report: M83,160 L83,200",
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b] []",
@@ -4105,21 +4105,21 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       "loop:7 <  passes 1 spread [[1,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:check@7 after 1",
+      "kind:fix@7 > kind:score@7 after 1",
+      "kind:score@7 > kind:check@7 created 1",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 1",
-      "kind:check > kind:fix@7 after 1",
-      "kind:fix@7 > kind:score@7 after 1",
-      "kind:fix@7 > kind:check@7 after 1",
-      "kind:score@7 > kind:check@7 created 1",
     ],
     "layers": [
       [
@@ -4133,12 +4133,12 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -4232,21 +4232,21 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       "loop:7 <  passes 1 spread [[1,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 1",
+      "kind:fix@7 > kind:check@7 after 1",
+      "kind:fix@7 > kind:score@7 after 1",
+      "kind:score@7 > kind:check@7 created 1",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 1",
-      "kind:check > kind:fix@7 after 1",
-      "kind:fix@7 > kind:score@7 after 1",
-      "kind:fix@7 > kind:check@7 after 1",
-      "kind:score@7 > kind:check@7 created 1",
     ],
     "layers": [
       [
@@ -4260,12 +4260,12 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -4375,12 +4375,12 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 2",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 2",
     ],
     "layers": [
       [
@@ -4394,8 +4394,8 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
       "flow:flows.review_loop > kind:report: M324,42 L380,42",
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b] []",
@@ -4445,12 +4445,12 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 2",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 2",
     ],
     "layers": [
       [
@@ -4464,8 +4464,8 @@ exports[`the graph of each plan, frozen > review loop, calls 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
       "flow:flows.review_loop > kind:report: M83,160 L83,200",
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b] []",
@@ -4599,22 +4599,22 @@ exports[`the graph of each plan, frozen > review loop, calls, failed 1`] = `
       "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
       "kind:summarize > kind:check after 3",
       "kind:summarize > kind:fix@7 after 2",
-      "kind:check > kind:fix@7 after 2",
-      "kind:fix@7 > kind:score@7 after 2",
-      "kind:fix@7 > kind:check@7 after 2",
-      "kind:score@7 > kind:check@7 created 2",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -4628,12 +4628,12 @@ exports[`the graph of each plan, frozen > review loop, calls, failed 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -4728,22 +4728,22 @@ exports[`the graph of each plan, frozen > review loop, calls, failed 1`] = `
       "loop:7 <  passes 2 spread [[1,1],[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 2",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
       "kind:summarize > kind:check after 3",
       "kind:summarize > kind:fix@7 after 2",
-      "kind:check > kind:fix@7 after 2",
-      "kind:fix@7 > kind:score@7 after 2",
-      "kind:fix@7 > kind:check@7 after 2",
-      "kind:score@7 > kind:check@7 created 2",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -4757,12 +4757,12 @@ exports[`the graph of each plan, frozen > review loop, calls, failed 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -5075,22 +5075,22 @@ exports[`the graph of each plan, frozen > review loop, failed 1`] = `
       "loop:7 <  passes 3 spread [[1,1],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 3",
+      "kind:check@7 > kind:fix@7 after 3 back",
+      "kind:fix@7 > kind:check@7 after 5",
+      "kind:fix@7 > kind:score@7 after 5",
+      "kind:score@7 > kind:check@7 created 5",
       "kind:summarize > kind:check after 4",
       "kind:summarize > kind:fix@7 after 3",
-      "kind:check > kind:fix@7 after 3",
-      "kind:fix@7 > kind:score@7 after 5",
-      "kind:fix@7 > kind:check@7 after 5",
-      "kind:score@7 > kind:check@7 created 5",
-      "kind:check@7 > kind:fix@7 after 3 back",
     ],
     "layers": [
       [
@@ -5104,12 +5104,12 @@ exports[`the graph of each plan, frozen > review loop, failed 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -5205,22 +5205,22 @@ exports[`the graph of each plan, frozen > review loop, failed 1`] = `
       "loop:7 <  passes 3 spread [[1,1],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 3",
+      "kind:check@7 > kind:fix@7 after 3 back",
+      "kind:fix@7 > kind:check@7 after 5",
+      "kind:fix@7 > kind:score@7 after 5",
+      "kind:score@7 > kind:check@7 created 5",
       "kind:summarize > kind:check after 4",
       "kind:summarize > kind:fix@7 after 3",
-      "kind:check > kind:fix@7 after 3",
-      "kind:fix@7 > kind:score@7 after 5",
-      "kind:fix@7 > kind:check@7 after 5",
-      "kind:score@7 > kind:check@7 created 5",
-      "kind:check@7 > kind:fix@7 after 3 back",
     ],
     "layers": [
       [
@@ -5234,12 +5234,12 @@ exports[`the graph of each plan, frozen > review loop, failed 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -5567,22 +5567,22 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       "loop:7 <  passes 3 spread [[1,2],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 4",
+      "kind:check@7 > kind:fix@7 after 3 back",
+      "kind:fix@7 > kind:check@7 after 7",
+      "kind:fix@7 > kind:score@7 after 7",
+      "kind:score@7 > kind:check@7 created 7",
       "kind:summarize > kind:check after 5",
       "kind:summarize > kind:fix@7 after 4",
-      "kind:check > kind:fix@7 after 4",
-      "kind:fix@7 > kind:score@7 after 7",
-      "kind:fix@7 > kind:check@7 after 7",
-      "kind:score@7 > kind:check@7 created 7",
-      "kind:check@7 > kind:fix@7 after 3 back",
     ],
     "layers": [
       [
@@ -5596,12 +5596,12 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -5698,22 +5698,22 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       "loop:7 <  passes 3 spread [[1,2],[2,1],[3,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 4",
+      "kind:check@7 > kind:fix@7 after 3 back",
+      "kind:fix@7 > kind:check@7 after 7",
+      "kind:fix@7 > kind:score@7 after 7",
+      "kind:score@7 > kind:check@7 created 7",
       "kind:summarize > kind:check after 5",
       "kind:summarize > kind:fix@7 after 4",
-      "kind:check > kind:fix@7 after 4",
-      "kind:fix@7 > kind:score@7 after 7",
-      "kind:fix@7 > kind:check@7 after 7",
-      "kind:score@7 > kind:check@7 created 7",
-      "kind:check@7 > kind:fix@7 after 3 back",
     ],
     "layers": [
       [
@@ -5727,12 +5727,12 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -5862,12 +5862,12 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 5",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 5",
     ],
     "layers": [
       [
@@ -5881,8 +5881,8 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
       "flow:flows.review_loop > kind:report: M324,42 L380,42",
+      "kind:prepare > flow:flows.review_loop: M134,42 L190,42",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b prepare-c prepare-d prepare-e] []",
@@ -5935,12 +5935,12 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
     ],
     "boxes": [],
     "edgePaths": [
-      "after: kind:prepare@ | flow:flows.review_loop@",
       "after: flow:flows.review_loop@ | kind:report@",
+      "after: kind:prepare@ | flow:flows.review_loop@",
     ],
     "edges": [
-      "kind:prepare > flow:flows.review_loop after 5",
       "flow:flows.review_loop > kind:report after 1",
+      "kind:prepare > flow:flows.review_loop after 5",
     ],
     "layers": [
       [
@@ -5954,8 +5954,8 @@ exports[`the graph of each plan, frozen > review loop, spread 1`] = `
       ],
     ],
     "lines": [
-      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
       "flow:flows.review_loop > kind:report: M83,160 L83,200",
+      "kind:prepare > flow:flows.review_loop: M83,68 L83,108",
     ],
     "nodes": [
       "kind:prepare [prepare-a prepare-b prepare-c prepare-d prepare-e] []",
@@ -6016,15 +6016,15 @@ exports[`the graph of each plan, frozen > static demo 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6043,9 +6043,9 @@ exports[`the graph of each plan, frozen > static demo 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
       "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
       "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
-      "kind:review > kind:report: M486,42 L502,42 L558,42",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6112,15 +6112,15 @@ exports[`the graph of each plan, frozen > static demo 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6139,9 +6139,9 @@ exports[`the graph of each plan, frozen > static demo 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:review > kind:report: M73,252 L73,292",
       "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
       "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
-      "kind:review > kind:report: M73,252 L73,292",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6287,15 +6287,15 @@ exports[`the graph of each plan, frozen > static demo under one function 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6314,9 +6314,9 @@ exports[`the graph of each plan, frozen > static demo under one function 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
       "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
       "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
-      "kind:review > kind:report: M486,42 L502,42 L558,42",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6383,15 +6383,15 @@ exports[`the graph of each plan, frozen > static demo under one function 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6410,9 +6410,9 @@ exports[`the graph of each plan, frozen > static demo under one function 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:review > kind:report: M73,252 L73,292",
       "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
       "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
-      "kind:review > kind:report: M73,252 L73,292",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6484,15 +6484,15 @@ exports[`the graph of each plan, frozen > static demo, running 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6511,9 +6511,9 @@ exports[`the graph of each plan, frozen > static demo, running 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,84.5 L190,84.5",
+      "kind:review > kind:report: M486,42 L502,42 L558,42",
       "kind:summarize > kind:review: M316,84.5 C344,84.5 344,42 372,42",
       "kind:summarize > kind:write_note: M316,84.5 C344,84.5 344,110 372,110",
-      "kind:review > kind:report: M486,42 L502,42 L558,42",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6580,15 +6580,15 @@ exports[`the graph of each plan, frozen > static demo, running 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
+      "after: kind:review@ | kind:report@",
       "after: kind:summarize@ | kind:review@",
       "after: kind:summarize@ | kind:write_note@",
-      "after: kind:review@ | kind:report@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 6",
+      "kind:review > kind:report after 1",
       "kind:summarize > kind:review after 6",
       "kind:summarize > kind:write_note after 6",
-      "kind:review > kind:report after 1",
     ],
     "layers": [
       [
@@ -6607,9 +6607,9 @@ exports[`the graph of each plan, frozen > static demo, running 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M159.5,68 L159.5,108",
+      "kind:review > kind:report: M73,252 L73,292",
       "kind:summarize > kind:review: M159.5,160 C159.5,180 73,180 73,200",
       "kind:summarize > kind:write_note: M159.5,160 C159.5,180 211,180 211,200",
-      "kind:review > kind:report: M73,252 L73,292",
     ],
     "nodes": [
       "kind:prepare [prepare-alpha prepare-beta prepare-gamma prepare-delta prepare-epsilon prepare-zeta] []",
@@ -6759,27 +6759,27 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:summarize@ | loop:154@ | kind:score@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
-      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
-      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
       "after: kind:review@154@loop:154 | kind:revise@154@loop:154",
+      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
       "after: kind:revise@154@loop:154 | loop:154@ | kind:write_note@",
+      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
+      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
+      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
+      "after: kind:summarize@ | loop:154@ | kind:score@154@loop:154",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 8",
-      "kind:summarize > kind:score@154 after 8",
-      "kind:summarize > kind:review@154 after 8",
-      "kind:score@154 > kind:review@154 after 9",
-      "kind:summarize > kind:write_note after 7",
-      "kind:review@154 > kind:write_note created 8",
-      "kind:summarize > kind:revise@154 after 1",
       "kind:review@154 > kind:revise@154 after 1",
-      "kind:revise@154 > kind:score@154 after 1 back",
+      "kind:review@154 > kind:write_note created 8",
       "kind:revise@154 > kind:review@154 after 1 back",
+      "kind:revise@154 > kind:score@154 after 1 back",
       "kind:revise@154 > kind:write_note after 1",
+      "kind:score@154 > kind:review@154 after 9",
+      "kind:summarize > kind:review@154 after 8",
+      "kind:summarize > kind:revise@154 after 1",
+      "kind:summarize > kind:score@154 after 8",
+      "kind:summarize > kind:write_note after 7",
     ],
     "layers": [
       [
@@ -6797,14 +6797,14 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M134,80 L190,80",
-      "kind:summarize > kind:score@154: M316,80 L372,80 L384,80",
-      "kind:summarize > kind:review@154: M316,80 C344,80 344,164 372,164 L494,164 C514,164 514,80 534,80",
-      "kind:score@154 > kind:review@154: M494,80 L534,80",
-      "kind:summarize > kind:write_note: M316,80 C344,80 344,176 372,176 L814,176 C842,176 842,80 870,80",
-      "kind:review@154 > kind:write_note: M648,80 C668,80 668,152 688,152 L814,152 C842,152 842,80 870,80",
-      "kind:summarize > kind:revise@154: M316,80 C344,80 344,164 372,164 L648,164 C668,164 668,80 688,80",
       "kind:review@154 > kind:revise@154: M648,80 L688,80",
+      "kind:review@154 > kind:write_note: M648,80 C668,80 668,152 688,152 L814,152 C842,152 842,80 870,80",
       "kind:revise@154 > kind:write_note: M802,80 L814,80 L870,80",
+      "kind:score@154 > kind:review@154: M494,80 L534,80",
+      "kind:summarize > kind:review@154: M316,80 C344,80 344,164 372,164 L494,164 C514,164 514,80 534,80",
+      "kind:summarize > kind:revise@154: M316,80 C344,80 344,164 372,164 L648,164 C668,164 668,80 688,80",
+      "kind:summarize > kind:score@154: M316,80 L372,80 L384,80",
+      "kind:summarize > kind:write_note: M316,80 C344,80 344,176 372,176 L814,176 C842,176 842,80 870,80",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-eta python:prepare-theta python:prepare-iota python:prepare-kappa] []",
@@ -6904,27 +6904,27 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "edgePaths": [
       "after: kind:prepare@ | kind:summarize@",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:score@154@loop:154",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
-      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
-      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
-      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
-      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
       "after: kind:review@154@loop:154 | kind:revise@154@loop:154",
+      "created: kind:review@154@loop:154 | loop:154@ | ~|by:loop:154|kind:review@154|created|2@ | kind:write_note@",
       "after: kind:revise@154@loop:154 | loop:154@ | kind:write_note@",
+      "after: kind:score@154@loop:154 | kind:review@154@loop:154",
+      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:review@154@loop:154",
+      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:revise@154@loop:154",
+      "after: kind:summarize@ | ~|by:loop:154|>:kind:summarize|after|2@ | loop:154@ | kind:score@154@loop:154",
+      "after: kind:summarize@ | ~|kind:summarize|after|2@ | kind:write_note@",
     ],
     "edges": [
       "kind:prepare > kind:summarize after 8",
-      "kind:summarize > kind:score@154 after 8",
-      "kind:summarize > kind:review@154 after 8",
-      "kind:score@154 > kind:review@154 after 9",
-      "kind:summarize > kind:write_note after 7",
-      "kind:review@154 > kind:write_note created 8",
-      "kind:summarize > kind:revise@154 after 1",
       "kind:review@154 > kind:revise@154 after 1",
-      "kind:revise@154 > kind:score@154 after 1 back",
+      "kind:review@154 > kind:write_note created 8",
       "kind:revise@154 > kind:review@154 after 1 back",
+      "kind:revise@154 > kind:score@154 after 1 back",
       "kind:revise@154 > kind:write_note after 1",
+      "kind:score@154 > kind:review@154 after 9",
+      "kind:summarize > kind:review@154 after 8",
+      "kind:summarize > kind:revise@154 after 1",
+      "kind:summarize > kind:score@154 after 8",
+      "kind:summarize > kind:write_note after 7",
     ],
     "layers": [
       [
@@ -6942,14 +6942,14 @@ exports[`the graph of each plan, frozen > the demo run 1`] = `
     ],
     "lines": [
       "kind:prepare > kind:summarize: M211,80 L211,120",
-      "kind:summarize > kind:score@154: M211,184 C211,204 208,204 208,224 L208,254 C208,264 83,264 83,274",
-      "kind:summarize > kind:review@154: M211,184 C211,204 208,204 208,224 L208,338 C208,354 83,354 83,370",
-      "kind:score@154 > kind:review@154: M83,338 L83,370",
-      "kind:summarize > kind:write_note: M211,184 C211,204 220,204 220,224 L220,540 C220,560 83,560 83,580",
-      "kind:review@154 > kind:write_note: M83,434 C83,450 196,450 196,466 L196,540 C196,560 83,560 83,580",
-      "kind:summarize > kind:revise@154: M211,184 C211,204 208,204 208,224 L208,434 C208,450 83,450 83,466",
       "kind:review@154 > kind:revise@154: M83,434 L83,466",
+      "kind:review@154 > kind:write_note: M83,434 C83,450 196,450 196,466 L196,540 C196,560 83,560 83,580",
       "kind:revise@154 > kind:write_note: M83,530 L83,540 L83,580",
+      "kind:score@154 > kind:review@154: M83,338 L83,370",
+      "kind:summarize > kind:review@154: M211,184 C211,204 208,204 208,224 L208,338 C208,354 83,354 83,370",
+      "kind:summarize > kind:revise@154: M211,184 C211,204 208,204 208,224 L208,434 C208,450 83,450 83,466",
+      "kind:summarize > kind:score@154: M211,184 C211,204 208,204 208,224 L208,254 C208,264 83,264 83,274",
+      "kind:summarize > kind:write_note: M211,184 C211,204 220,204 220,224 L220,540 C220,560 83,560 83,580",
     ],
     "nodes": [
       "kind:prepare [python:prepare-alpha python:prepare-beta python:prepare-gamma python:prepare-delta python:prepare-eta python:prepare-theta python:prepare-iota python:prepare-kappa] []",
@@ -7209,22 +7209,22 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
       "loop:7 <  passes 2 spread [[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 1",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 1",
-      "kind:check > kind:fix@7 after 1",
-      "kind:fix@7 > kind:score@7 after 2",
-      "kind:fix@7 > kind:check@7 after 2",
-      "kind:score@7 > kind:check@7 created 2",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -7238,12 +7238,12 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
+      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
+      "kind:fix@7 > kind:score@7: M622,74 L662,74",
+      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "kind:summarize > kind:check: M286,74 L342,74",
       "kind:summarize > kind:fix@7: M286,74 C314,74 314,112 342,112 L452,112 C480,112 480,74 508,74 L520,74",
-      "kind:check > kind:fix@7: M452,74 L508,74 L520,74",
-      "kind:fix@7 > kind:score@7: M622,74 L662,74",
-      "kind:fix@7 > kind:check@7: M622,74 C642,74 642,112 662,112 L772,112 C792,112 792,74 812,74",
-      "kind:score@7 > kind:check@7: M772,74 L812,74",
       "stub:1:kind:prepare > kind:summarize: M104,74 L160,74",
     ],
     "nodes": [
@@ -7337,22 +7337,22 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
       "loop:7 <  passes 2 spread [[2,1]] [["kind:fix@7"],["kind:score@7"],["kind:check@7"]]",
     ],
     "edgePaths": [
+      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
+      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
+      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
+      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: kind:summarize@ | kind:check@",
       "after: kind:summarize@ | ~|kind:summarize|after|2@ | ~|by:loop:7|>:kind:summarize|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:check@ | ~|by:loop:7|>:kind:check|after|3@ | loop:7@ | kind:fix@7@loop:7",
-      "after: kind:fix@7@loop:7 | kind:score@7@loop:7",
-      "after: kind:fix@7@loop:7 | ~loop:7|kind:fix@7|after|1@loop:7 | kind:check@7@loop:7",
-      "created: kind:score@7@loop:7 | kind:check@7@loop:7",
       "after: stub:1:kind:prepare@ | kind:summarize@",
     ],
     "edges": [
+      "kind:check > kind:fix@7 after 1",
+      "kind:check@7 > kind:fix@7 after 1 back",
+      "kind:fix@7 > kind:check@7 after 2",
+      "kind:fix@7 > kind:score@7 after 2",
+      "kind:score@7 > kind:check@7 created 2",
       "kind:summarize > kind:check after 2",
       "kind:summarize > kind:fix@7 after 1",
-      "kind:check > kind:fix@7 after 1",
-      "kind:fix@7 > kind:score@7 after 2",
-      "kind:fix@7 > kind:check@7 after 2",
-      "kind:score@7 > kind:check@7 created 2",
-      "kind:check@7 > kind:fix@7 after 1 back",
     ],
     "layers": [
       [
@@ -7366,12 +7366,12 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
       ],
     ],
     "lines": [
+      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
+      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
+      "kind:fix@7 > kind:score@7: M81,364 L81,396",
+      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "kind:summarize > kind:check: M190,130 L190,170",
       "kind:summarize > kind:fix@7: M190,130 C190,150 257,150 257,170 L257,222 L257,262 L257,292 C257,302 81,302 81,312",
-      "kind:check > kind:fix@7: M190,222 L190,262 L190,292 C190,302 81,302 81,312",
-      "kind:fix@7 > kind:score@7: M81,364 L81,396",
-      "kind:fix@7 > kind:check@7: M81,364 C81,380 148,380 148,396 L148,448 C148,464 81,464 81,480",
-      "kind:score@7 > kind:check@7: M81,448 L81,480",
       "stub:1:kind:prepare > kind:summarize: M190,38 L190,78",
     ],
     "nodes": [
@@ -7464,17 +7464,17 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
     "boxes": [],
     "edgePaths": [
       "after: kind:a@ | kind:b@",
-      "after: kind:b@ | kind:c@",
-      "after: kind:c@ | kind:d@",
       "after: kind:a@ | ~|kind:a|after|1@ | ~|kind:a|after|2@ | kind:d@",
       "after: kind:a@ | kind:e@",
+      "after: kind:b@ | kind:c@",
+      "after: kind:c@ | kind:d@",
     ],
     "edges": [
       "kind:a > kind:b after 1",
-      "kind:b > kind:c after 1",
-      "kind:c > kind:d after 1",
       "kind:a > kind:d after 1",
       "kind:a > kind:e after 1",
+      "kind:b > kind:c after 1",
+      "kind:c > kind:d after 1",
     ],
     "layers": [
       [
@@ -7493,10 +7493,10 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
     ],
     "lines": [
       "kind:a > kind:b: M110,84.5 C138,84.5 138,42 166,42",
-      "kind:b > kind:c: M260,42 C288,42 288,46.5 316,46.5",
-      "kind:c > kind:d: M410,46.5 L466,46.5",
       "kind:a > kind:d: M110,84.5 C138,84.5 138,148 166,148 L260,148 C288,148 288,99.5 316,99.5 L410,99.5 C438,99.5 438,46.5 466,46.5",
       "kind:a > kind:e: M110,84.5 C138,84.5 138,110 166,110",
+      "kind:b > kind:c: M260,42 C288,42 288,46.5 316,46.5",
+      "kind:c > kind:d: M410,46.5 L466,46.5",
     ],
     "nodes": [
       "kind:a [a-u] []",
@@ -7561,14 +7561,14 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
     "edgePaths": [
       "after: kind:a@ | kind:b@",
       "after: kind:a@ | kind:c@",
-      "after: kind:z@ | kind:d@",
       "after: kind:z@ | kind:c@",
+      "after: kind:z@ | kind:d@",
     ],
     "edges": [
       "kind:a > kind:b after 1",
       "kind:a > kind:c after 1",
-      "kind:z > kind:d after 1",
       "kind:z > kind:c after 1",
+      "kind:z > kind:d after 1",
     ],
     "layers": [
       [
@@ -7584,8 +7584,8 @@ exports[`the graph of each plan, frozen > with a previous order 1`] = `
     "lines": [
       "kind:a > kind:b: M110,76 C138,76 138,42 166,42",
       "kind:a > kind:c: M110,76 C138,76 138,110 166,110",
-      "kind:z > kind:d: M110,144 C138,144 138,178 166,178",
       "kind:z > kind:c: M110,144 C138,144 138,110 166,110",
+      "kind:z > kind:d: M110,144 C138,144 138,178 166,178",
     ],
     "nodes": [
       "kind:a [a-u -] []",

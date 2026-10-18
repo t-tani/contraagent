@@ -3,7 +3,7 @@
   "info": {
     "title": "contraagent monitor",
     "description": "Read-only views over a contraagent runs directory. Models: contraagent.monitor.api.",
-    "version": "3.5.0"
+    "version": "3.6.0"
   },
   "paths": {
     "/api/info": {
@@ -253,6 +253,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/TreeBody"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EmbedBody"
                     },
                     {
                       "$ref": "#/components/schemas/BlocksBody"
@@ -711,6 +714,9 @@
                       "$ref": "#/components/schemas/TreeBody"
                     },
                     {
+                      "$ref": "#/components/schemas/EmbedBody"
+                    },
+                    {
                       "$ref": "#/components/schemas/BlocksBody"
                     },
                     {
@@ -1014,6 +1020,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/TreeBody"
+                },
+                {
+                  "$ref": "#/components/schemas/EmbedBody"
                 },
                 {
                   "$ref": "#/components/schemas/BlocksBody"
@@ -1894,6 +1903,72 @@
         ],
         "title": "DroppedRoute",
         "description": "A route the preflight dropped: not in its agent's model list, or its probe did not\ncomplete. `kinds`: the kinds whose chain held it."
+      },
+      "EmbedBody": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "a heading over the body"
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "shown folded, under its title",
+            "default": false
+          },
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor",
+            "description": "a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)"
+          },
+          "type": {
+            "type": "string",
+            "const": "embed",
+            "title": "Type",
+            "default": "embed"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "a path relative to the monitor (apps/<name>/...), or an http(s) URL"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 100.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height",
+            "description": "the frame's height in pixels; null: the screen's under the header"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "EmbedBody",
+        "description": "A page of its own, shown in a frame: one of the monitor's apps (`Monitor(apps=)`)\nby a path relative to the monitor (`apps/<name>/?run=<id>`, no leading `/`, so it\nholds behind any base path), or an http(s) URL. The frame's URL gets `theme`, `dark`\nor `light` as the monitor is shown. `height` is the frame's height in pixels; None:\nthe height of the screen under the monitor's header."
       },
       "ExportInfo": {
         "properties": {
@@ -3608,6 +3683,9 @@
               },
               {
                 "$ref": "#/components/schemas/TreeBody"
+              },
+              {
+                "$ref": "#/components/schemas/EmbedBody"
               },
               {
                 "$ref": "#/components/schemas/BlocksBody"

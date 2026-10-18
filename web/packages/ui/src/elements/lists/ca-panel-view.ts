@@ -25,6 +25,8 @@ export class CaPanelView extends LitElement {
   @property({ attribute: false }) panel: PanelInfo | undefined;
   /** Its body; undefined until the feed has sent it. */
   @property({ attribute: false }) data: PanelBody | undefined;
+  /** Where the monitor is served: an embedded page's path is relative to it. */
+  @property({ attribute: 'base-url' }) baseUrl = '';
 
   override render() {
     if (this.data === undefined) {
@@ -38,7 +40,7 @@ export class CaPanelView extends LitElement {
       <h3><span class="tab-ic" aria-hidden="true">${info?.icon || '▤'}</span>${info?.title || this.name}
         <span class="r">${msg('Custom view')}</span></h3>
       ${info?.description ? html`<div class="meta desc">${info.description}</div>` : nothing}
-      ${typedBody(this.data) ? html`<ca-panel-body .body=${this.data}></ca-panel-body>` : html`<cae-json-tree .value=${this.data}></cae-json-tree>`}
+      ${typedBody(this.data) ? html`<ca-panel-body .body=${this.data} base-url=${this.baseUrl} label=${info?.title || this.name}></ca-panel-body>` : html`<cae-json-tree .value=${this.data}></cae-json-tree>`}
     </section>`;
   }
 }

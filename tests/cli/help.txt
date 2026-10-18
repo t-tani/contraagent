@@ -29,8 +29,8 @@ $ contraagent monitor --help
 usage: contraagent monitor [-h] [--runs-dir RUNS_DIR] [--host HOST] [--port PORT]
                            [--allow-host NAME] [--cors-origin ORIGIN] [--base-path PATH]
                            [--title TITLE] [--stream-format AGENT=FORMAT] [--panels MODULE:ATTR]
-                           [--groups MODULE:ATTR] [--task-detail MODULE:ATTR] [--docs]
-                           [--openapi [PATH]]
+                           [--groups MODULE:ATTR] [--task-detail MODULE:ATTR] [--apps MODULE:ATTR]
+                           [--docs] [--openapi [PATH]]
                            {export} ...
 
 Live monitor for contraagent pipeline runs
@@ -58,6 +58,9 @@ options:
   --task-detail MODULE:ATTR
                         fn(run, key, rows) -> dict merged into each task's detail, as
                         path/to/views.py:detail or package.module:detail
+  --apps MODULE:ATTR    the pipeline's own pages: a dict of name -> ASGI app, each served under
+                        apps/<name>/ of the monitor, as path/to/views.py:APPS or
+                        package.module:APPS
   --docs                serve interactive API docs at /api/docs
   --openapi [PATH]      write the OpenAPI document to PATH (default: stdout) and exit
 
@@ -68,8 +71,9 @@ commands:
 $ contraagent monitor export --help
 usage: contraagent monitor export [-h] [--runs-dir RUNS_DIR] --out OUT [--runs RUNS]
                                   [--since ISO_TIME] [--panels MODULE:ATTR] [--groups MODULE:ATTR]
-                                  [--task-detail MODULE:ATTR] [--include-live] [--title TITLE]
-                                  [--days DAYS] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--tz TZ]
+                                  [--task-detail MODULE:ATTR] [--apps MODULE:ATTR]
+                                  [--include-live] [--title TITLE] [--days DAYS]
+                                  [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--tz TZ]
                                   [--keep {paths,host}] [--exclude KEY]
 
 Write the monitor's views of some runs as files a static server serves: no transcripts, no
@@ -88,6 +92,9 @@ options:
   --task-detail MODULE:ATTR
                         fn(run, key, rows) -> dict merged into each task's detail, as
                         path/to/views.py:detail or package.module:detail
+  --apps MODULE:ATTR    the pipeline's own pages: a dict of name -> ASGI app, each served under
+                        apps/<name>/ of the monitor, as path/to/views.py:APPS or
+                        package.module:APPS
   --include-live        write runs that are still running too (default: left out)
   --title TITLE
   --days DAYS           the trends' period: the last N days, today included (default: 14)

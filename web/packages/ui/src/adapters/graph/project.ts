@@ -269,9 +269,16 @@ export function projectTasks(ix: FlowIndex, path: readonly string[], inside: rea
     for (const dep of t.n.after ?? []) link(dep, 'after');
     for (const dep of t.from) link(dep, 'created');
   }
-  // A created_from edge is drawn only where no after edge joins the same two.
-  const all = [...pairs.values()].filter((e) => e.type === 'after' || !pairs.has(`${e.from}\u0000${e.to}\u0000after`));
-  const stubList = [...stubs.values()].filter((s) => s.type === 'after' || !stubs.has(`${s.id}\u0000${s.to}\u0000after`));
+  // A created_from edge is drawn only where no after edge joins the same two. In the order
+  // of their ends, not of the tasks that made them: the same plan draws the same graph,
+  // whichever of its tasks ran first.
+  const byEnds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+  const all = [...pairs.values()]
+    .filter((e) => e.type === 'after' || !pairs.has(`${e.from}\u0000${e.to}\u0000after`))
+    .sort((x, y) => byEnds(`${x.from}\u0000${x.to}\u0000${x.type}`, `${y.from}\u0000${y.to}\u0000${y.type}`));
+  const stubList = [...stubs.values()]
+    .filter((s) => s.type === 'after' || !stubs.has(`${s.id}\u0000${s.to}\u0000after`))
+    .sort((x, y) => byEnds(`${x.id}\u0000${x.to}\u0000${x.type}`, `${y.id}\u0000${y.to}\u0000${y.type}`));
 
   const boxes: LoopBox[] = [...boxParent.keys()].map((id) => {
     const spread = new Map<number, number>();

@@ -67,11 +67,13 @@ EXTENSIONS = {
     "groups": 'the plan\'s columns and the trends\' groups: a list of {"id", "label", "kinds"}, '
     "as path/to/views.py:GROUPS or package.module:GROUPS",
     "task_detail": "fn(run, key, rows) -> dict merged into each task's detail, as path/to/views.py:detail or package.module:detail",
+    "apps": "the pipeline's own pages: a dict of name -> ASGI app, each served under apps/<name>/ of the monitor, "
+    "as path/to/views.py:APPS or package.module:APPS",
 }
 
 
 def add_extensions(parser: argparse.ArgumentParser) -> None:
-    """`--panels`, `--groups`, `--task-detail`: what `Monitor(panels=, groups=, task_detail=)` takes."""
+    """`--panels`, `--groups`, `--task-detail`, `--apps`: what `Monitor(panels=, groups=, task_detail=, apps=)` takes."""
     for name, help in EXTENSIONS.items():
         parser.add_argument("--" + name.replace("_", "-"), default=None, metavar="MODULE:ATTR", help=help)
 
