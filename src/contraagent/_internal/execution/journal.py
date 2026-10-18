@@ -75,6 +75,7 @@ class Journal:
             cost_usd=(round(o.cost_usd, 6) if o is not None and o.cost_usd is not None else None),
             quota=[r for r in (o.quota if o is not None else []) if r.five_hour_pct is not None or r.seven_day_pct is not None],
             web_queries=list(o.web_queries) if o is not None else [],
+            safety_stops=list(o.safety_stops) if o is not None else [],
             unread_events=dict(o.unread_events) if o is not None else {},
             changes=result.changes,
             context_budget=getattr(o, "context_budget", None),

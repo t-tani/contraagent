@@ -420,7 +420,11 @@ def many_runs(root: Path, seed: int = 7) -> None:
                         quota=quota,
                         executor=executor,
                         tokens=rnd.randrange(5000),
-                    )
+                    ),
+                    "safety_stops": [
+                        {"part": rnd.choice(["response", "tool", "unread"]), "model": rnd.choice(["", "Sonnet 5.5", "Haiku 5.5"])}
+                        for _ in range(rnd.choice([0, 0, 0, 1, 2]))
+                    ],
                 }
             )
             if rnd.random() < 0.2:

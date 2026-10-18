@@ -1,4 +1,6 @@
+// @vitest-environment happy-dom
 import type { JournalRow } from '@contraagent/api';
+import { render } from 'lit';
 import { describe, expect, it } from 'vitest';
 import { journalColumns } from './journal-columns.js';
 import { customValue, customValues } from '../words/row-extras.js';
@@ -18,6 +20,22 @@ describe('journalColumns', () => {
     expect(effect!.tip).toBe('Custom column (row_extras)');
     expect(rows.map((r) => effect!.text!(r))).toEqual(['new', '{"kind":"merge"}']);
     expect(rows.map((r) => lines!.text!(r))).toEqual(['3', '—']);
+  });
+
+  it("counts an attempt's safety stops in its reason, each stop's facts in the tooltip", () => {
+    const rows = [row('write-a', { safety_stops: [{ part: 'tool', model: 'haiku', tool: 'WebFetch' }, { part: 'unread' }] }), row('write-b')];
+    const reason = journalColumns({ run: 'r', outcomes: new Map(), journal: rows, rows }).find((c) => c.id === 'reason')!;
+    const cell = (r: JournalRow) => {
+      const box = document.createElement('div');
+      render(reason.cell(r, 0), box);
+      return box;
+    };
+    const mark = cell(rows[0]!).querySelector('[data-tone="attention"]');
+    expect(mark!.textContent.trim()).toBe('2 safety stops');
+    expect(mark!.getAttribute('title')).toBe(
+      'A safety classifier stopped part of the agent session, and the session went on (safety_stops)\ntool request | haiku | WebFetch\nunrecognized',
+    );
+    expect(cell(rows[1]!).textContent).not.toContain('safety');
   });
 });
 

@@ -1345,6 +1345,8 @@ export type components = {
             quota?: components["schemas"]["QuotaReading"][];
             /** Web Queries */
             web_queries?: string[];
+            /** Safety Stops */
+            safety_stops?: components["schemas"]["SafetyStop"][];
             /** Unread Events */
             unread_events?: {
                 [key: string]: number;
@@ -2305,6 +2307,56 @@ export type components = {
              * @description the journal columns that are the pipeline's own (`Run(row_extras=)`), in the order they first appear
              */
             row_extras?: string[];
+        };
+        /**
+         * SafetyStop
+         * @description A safety classifier that stopped part of a launch while the launch went on (Claude
+         *     Code reports them). `response`: it stopped a response of the launch's own model, whose
+         *     unfinished tool calls did not run; the coding agent tells the model and goes on.
+         *     `tool`: it refused a request of a model that a tool calls (Claude Code's `WebFetch`
+         *     summarizes a page on a smaller model), and the tool call ended in an error. `unread`:
+         *     the coding agent counted one whose words its reader does not recognize. The launch
+         *     ends as it would have (`completed`, often); a refusal that ends the launch is stop
+         *     `refused` instead.
+         */
+        SafetyStop: {
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "response" | "tool" | "unread";
+            /**
+             * Ts
+             * @default
+             */
+            ts?: string;
+            /**
+             * Model
+             * @default
+             */
+            model?: string;
+            /**
+             * Category
+             * @default
+             */
+            category?: string;
+            /**
+             * Tool
+             * @default
+             */
+            tool?: string;
+            /**
+             * Request Id
+             * @default
+             */
+            request_id?: string;
+            /**
+             * Message Id
+             * @default
+             */
+            message_id?: string;
+        } & {
+            [key: string]: unknown;
         };
         /**
          * ServiceSpan
@@ -3328,6 +3380,29 @@ export type components = {
             stub: boolean;
         };
         /**
+         * TrendSafetyStop
+         * @description Safety stops of one part, by one model (journal `safety_stops`): a safety classifier
+         *     stopped part of a launch, which went on (`SafetyStop`).
+         */
+        TrendSafetyStop: {
+            /**
+             * Part
+             * @enum {string}
+             */
+            part: "response" | "tool" | "unread";
+            /**
+             * Model
+             * @description the model whose safeguards stopped it, as the coding agent names it; empty when not said
+             */
+            model: string;
+            /** Count */
+            count: number;
+            /** Kinds */
+            kinds: {
+                [key: string]: number;
+            };
+        };
+        /**
          * TrendStarts
          * @description Run starts by weekday (`weekdays`, Monday first) and hour (`hours`) in the period's time zone: `counts[weekday][hour]`.
          */
@@ -3404,6 +3479,8 @@ export type components = {
             stops: components["schemas"]["TrendStop"][];
             /** Denials */
             denials: components["schemas"]["TrendDenial"][];
+            /** Safety Stops */
+            safety_stops: components["schemas"]["TrendSafetyStop"][];
             /** Quota */
             quota: components["schemas"]["TrendQuota"][];
             /** Rests */

@@ -434,6 +434,16 @@ class RunReport
     summary: dict[str, Any] = field(default_factory=dict)
     value: Any = None
 
+class SafetyStop(BaseModel)
+    category: str = ''
+    message_id: str = ''
+    model: str = ''
+    model_config: ConfigDict = ConfigDict(extra='allow', frozen=True)
+    part: SafetyStopPart
+    request_id: str = ''
+    tool: str = ''
+    ts: str = ''
+
 class Service(Protocol)
     def __call__(self, name: str, /) -> AbstractContextManager[str | None]
 
@@ -620,6 +630,7 @@ def agent_task(
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal['response', 'tool']] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -664,6 +675,7 @@ def agent_task(
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal['response', 'tool']] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -707,6 +719,7 @@ def agent_task(
     credential: str | None = None,
     model_failover: bool | None = None,
     fallbacks: Sequence[Mapping[str, Any]] | None = None,
+    safety_stop_failover: Sequence[Literal['response', 'tool']] | None = None,
     disallowed_tools: Sequence[str] | None = None,
     max_turns: int | None = None,
     timeout_s: float | None = None,
@@ -844,6 +857,7 @@ class KindConfig
         retries: int = 2,
         retry_backoff_base: float = 2.0,
         partial_on: tuple[str, ...] = (),
+        safety_stop_failover: tuple[str, ...] = (),
         keep_failed_changes: bool = False,
         max_corrections: int = DEFAULT_MAX_CORRECTIONS,
     ) -> None
@@ -871,6 +885,7 @@ class KindConfig
     requires: tuple[str, ...] = ()
     retries: int = 2
     retry_backoff_base: float = 2.0
+    safety_stop_failover: tuple[str, ...] = ()
     settings: str = ''
     stall_s: float | None = None
     timeout_s: float = 600
@@ -1338,6 +1353,7 @@ class LaunchResult
         tool_uses: dict[str, int] = dict(),
         web_queries: list[str] = list(),
         hollow: bool = False,
+        safety_stops: list[SafetyStop] = list(),
         unread_events: dict[str, int] = dict(),
         init_model: str = '',
         init_tools: int = 0,
@@ -1392,6 +1408,7 @@ class LaunchResult
     round_costs: list[float | None] = field(default_factory=list)
     round_errors: list[list[str]] = field(default_factory=list)
     rounds: int | None = None
+    safety_stops: list[SafetyStop] = field(default_factory=list)
     session_id: str = ''
     started_at: str = ''
     stderr_tail: str = ''
@@ -2904,6 +2921,7 @@ class JournalRow(BaseModel)
     route: str = ''
     run_group: str = ''
     run_id: str = ''
+    safety_stops: list[SafetyStop] = Field(default_factory=list)
     signal: int | None = None
     skipped_hops: list[SkippedHop] = Field(default_factory=list)
     stop: str = Field(json_schema_extra={'enum': list(JOURNAL_STOPS)})
@@ -3365,6 +3383,13 @@ class TrendRun(Closed)
     stub: bool
     wall_s: float
 
+class TrendSafetyStop(Closed)
+    count: int
+    kinds: dict[str, int]
+    model: str = Field(description='the model whose safeguards stopped it, as the coding agent names it; empty when not said')
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    part: SafetyStopPart
+
 class TrendStarts(Closed)
     counts: list[list[int]]
     hours: list[int]
@@ -3401,6 +3426,7 @@ class Trends(Closed)
     quota: list[TrendQuota]
     rests: list[TrendRest]
     runs: list[TrendRun]
+    safety_stops: list[TrendSafetyStop]
     starts: TrendStarts
     stops: list[TrendStop]
     totals: TrendTotals
@@ -3435,6 +3461,7 @@ class Reply
         cost_usd: float | None = None,
         peak_context: int | None = None,
         context_window: int | None = None,
+        safety_stops: tuple[SafetyStop, ...] = (),
     ) -> None
     context_window: int | None = None
     cost_usd: float | None = None
@@ -3443,6 +3470,7 @@ class Reply
     quota: QuotaReading | None = None
     quota_refusal: QuotaRefusal | None = None
     reason: str = ''
+    safety_stops: tuple[SafetyStop, ...] = ()
     stop: Stop = Stop.COMPLETED
 
 class StubAgent(Backend)
@@ -3547,6 +3575,7 @@ def writes(
     quota: QuotaReading | None = None,
     peak_context: int | None = None,
     context_window: int | None = None,
+    safety_stops: Iterable[SafetyStop] = (),
 ) -> Reply
 
 def writes_example() -> Reply

@@ -361,9 +361,10 @@ def seed(tmp_path, five):
         "ok": True,
         "quota": [reading(five=five).model_dump() | {"credential": "personal"}],
     }
-    # A reading taken now, its window resetting in two hours from the real clock.
+    # A reading taken now, its windows resetting in two hours and three days from the real clock.
     row["quota"][0]["observed_at"] = datetime.now(UTC).isoformat()
     row["quota"][0]["five_hour_resets_at"] = (datetime.now(UTC) + timedelta(hours=2)).isoformat()
+    row["quota"][0]["seven_day_resets_at"] = (datetime.now(UTC) + timedelta(days=3)).isoformat()
     (old / "journal.jsonl").write_text(json.dumps(row) + "\n")
 
 

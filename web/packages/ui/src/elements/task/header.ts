@@ -9,6 +9,7 @@ import { facts, fmtDur, kindUnit, listText, localTime, tokenCount, unreadEvents,
 import { attemptNames, deferredText, changedFiles, changedFilesTip, changeLabel, credentialLabel, credentialTip, locksLabel, locksTip, modelSwitch, outcomeLabel, priorityText, priorityTip, replayedLabel, replayedTip, stopLabel, type ChangeKind } from '../../words/index.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine, peakContextTip, peakTry } from '../../words/context.js';
 import { readingShort, readingTip } from '../../words/quota.js';
+import { safetyStopCount, safetyStopLine, safetyStopTip } from '../../words/safety.js';
 import { customColumnTip, customValues } from '../../words/row-extras.js';
 import { isStop, type Tone } from '../../lib/tone.js';
 import { executorIcon } from '../../words/executor.js';
@@ -159,6 +160,7 @@ export function taskHeader(c: TaskContext, key: string, onSearch: (query: string
       ${customLine(tries, d.row_extras ?? [])}
       ${searchFold(tries, onSearch)}
       ${changesFold(tries)}
+      ${safetyFold(tries)}
       ${unreadEvents(tries)
         ? html`<div class="meta unread" title=${msg('Event types this contraagent version does not know (unread_events)')}>
             <span aria-hidden="true">⚠</span> ${msg(str`Unrecognized events: ${unreadEvents(tries)}`)}
@@ -227,6 +229,18 @@ function changesFold(tries: JournalRow[]) {
   </details>`;
 }
 
+/** The safety stops of the task's attempts, one per line (the attempt named when more than one has them); nothing when none had one. */
+function safetyFold(tries: JournalRow[]) {
+  const names = attemptNames(tries);
+  const withStops = tries.filter((r) => r.safety_stops?.length).length;
+  if (!withStops) return nothing;
+  const lines = tries.flatMap((r, i) => (r.safety_stops ?? []).map((s) => facts(withStops > 1 ? (names[i] ?? '') : '', safetyStopLine(s))));
+  return html`<details class="io-fold">
+    <summary title=${safetyStopTip()}>${safetyStopCount(lines.length)}</summary>
+    <ul class="meta searches">${lines.map((l) => html`<li>${l}</li>`)}</ul>
+  </details>`;
+}
+
 /** The latest attempt's custom columns (`row_extras`), name and value; each attempt's are in its chip's tooltip. */
 function customLine(tries: JournalRow[], extras: readonly string[]) {
   const last = tries[tries.length - 1];
@@ -269,12 +283,13 @@ function quotaLine(c: TaskContext, tries: JournalRow[]) {
   </div>`;
 }
 
-/** One finished attempt: how it ended, how long, its cost; the rest (when, corrections, model, model switch) in its tooltip. */
+/** One finished attempt: how it ended, how long, its cost, its safety stops; the rest (when, corrections, model, model switch) in its tooltip. */
 function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, extras: readonly string[]) {
   const look = r.stop === 'partial' ? 'part' : r.ok ? 'ok' : 'bad';
   const played = !!c.replayMarks && !!r.replayed;
   const reason = runRelative(r.reason, c.run);
   const sw = modelSwitch(r.hops, null, r.skipped_hops);
+  const safety = r.safety_stops?.length ? safetyStopCount(r.safety_stops.length) : '';
   const tip = [
     msg(str`Ended ${localTime(r.ts, true)}`),
     correctionsOf(r),
@@ -291,6 +306,6 @@ function runChip(c: TaskContext, r: JournalRow, name: string, session: boolean, 
     .join('\n');
   const cost = r.cost_usd !== null && r.cost_usd !== undefined ? usd(r.cost_usd) : '';
   return html`<span class="runchip ${look}" title=${tip}>
-    ${mark(r)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost, played ? replayedLabel() : '')}
+    ${mark(r)} ${facts(name, stopLabel(r.stop, r.reason), fmtDur(r.wall_s), cost, safety, played ? replayedLabel() : '')}
   </span>`;
 }
