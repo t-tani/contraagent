@@ -300,8 +300,10 @@ for (const size of PHONES)
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(5);
       // The keyboard: the button before, by Enter; the swipe below comes once its scroll has ended there.
       await list.evaluate((e) => {
-        const step = e.querySelectorAll<HTMLElement>('.how-step')[5]!;
-        const there = () => Math.abs(step.offsetLeft + step.offsetWidth / 2 - (e.scrollLeft + e.clientWidth / 2)) <= 2;
+        const steps = [...e.querySelectorAll<HTMLElement>('.how-step')];
+        const off = (s: HTMLElement) => Math.abs(s.offsetLeft + s.offsetWidth / 2 - (e.scrollLeft + e.clientWidth / 2));
+        // The scroll ended with the sixth card the nearest the middle (within a pixel or two of it, as the snap rounds).
+        const there = () => steps.reduce((best, s, k) => (off(s) < off(steps[best]!) ? k : best), 0) === 5;
         (window as unknown as { landed: Promise<void> }).landed = new Promise((done) => {
           const end = () => {
             if (!there()) return; // the end of an earlier scroll, or one cut short
@@ -316,6 +318,7 @@ for (const size of PHONES)
       await expect(count).toContainText('Step 6 of 7');
       await expect(page.locator('.how-loop-step.is-on')).toHaveCount(4);
       await page.evaluate(() => (window as unknown as { landed: Promise<void> }).landed);
+      await expect.poll(() => centredStep(page)).toBe(5);
       // A swipe of part of a card back: the list snaps to the card before, not between two.
       const width = await page.locator('.how-step').first().evaluate((e) => (e as HTMLElement).offsetWidth);
       await list.evaluate((e, dx) => e.scrollBy({ left: dx, behavior: 'instant' }), Math.round(-width * 0.6));
