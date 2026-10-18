@@ -13,6 +13,7 @@ import { attemptLabel, correctionsText, credentialLabel, credentialTip, modelSwi
 import { accountReading, readingShort } from '../words/quota.js';
 import { customColumnTip, customValue } from '../words/row-extras.js';
 import { contextWarnedText, contextWarnedTip, peakContextLine } from '../words/context.js';
+import { safetyStopCount, safetyStopLine, safetyStopTip } from '../words/safety.js';
 import { attemptFacts } from './filters.js';
 
 export interface JournalColumnsContext {
@@ -188,7 +189,12 @@ export function journalColumns(ctx: JournalColumnsContext): DataColumn<JournalRo
       width: 'minmax(200px,2.2fr)',
       cell: (e) => {
         const unread = unreadEvents([e]);
-        return html`<span class="jwhy" title=${e.reason || nothing}>${reason(e)}${unread
+        const stops = e.safety_stops ?? [];
+        return html`<span class="jwhy" title=${e.reason || nothing}>${reason(e)}${stops.length
+          ? html` <span class="tone-text nw" data-tone="attention" title=${[safetyStopTip(), ...stops.map(safetyStopLine)].join('\n')}
+              >${safetyStopCount(stops.length)}</span
+            >`
+          : nothing}${unread
           ? html` <span class="unread nw" title=${msg(str`Event types this contraagent version does not know (unread_events): ${unread}`)}
               ><span aria-hidden="true">⚠</span> ${msg('Unrecognized events')}</span
             >`

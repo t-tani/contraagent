@@ -78,6 +78,10 @@ class _TaskRouting(_Routing):
         min_length=1,
         description="the stops after which a launch's output that passes every check is a partial result",
     )
+    safety_stop_failover: list[Literal["response", "tool"]] | None = Field(
+        None,
+        description="the parts of a launch whose safety stop moves a launch that ended well to the next hop of the chain",
+    )
     keep_failed_changes: StrictBool | None = Field(
         None, description="leave the files a failed attempt created under the kind's `changes` patterns in place"
     )

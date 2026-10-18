@@ -28,7 +28,7 @@ from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, CredentialError, parse_credentials
 from contraagent._internal.errors import ContraagentError, did_you_mean
-from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, PARTIAL_STOPS, TASK_TABLE_KEYS
+from contraagent._internal.routing.kind_config import MAX_CORRECTIONS_LIMIT, PARTIAL_STOPS, SAFETY_STOP_FAILOVER, TASK_TABLE_KEYS
 
 #: A tool, or a tool with a pattern of what it is given, as Claude Code writes them: `WebFetch`,
 #: `Bash(git push:*)` (`[tasks.<kind>].disallowed_tools`).
@@ -50,7 +50,7 @@ ROUTING_KEYS = ("agent", "model", "effort", "credential", "model_failover", "fal
 DEFAULTS_KEYS = (*ROUTING_KEYS, "max_passes", "preflight", "claim_capacity", "context_warn_pct")
 
 #: The keys of a task table beside `TASK_TABLE_KEYS` and `TASK_ATTEMPT_KEYS` (and `_comment`).
-TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on")
+TASK_ROUTING_KEYS = (*ROUTING_KEYS, "disallowed_tools", "partial_on", "safety_stop_failover")
 
 #: The keys of a task table that say what becomes of an attempt's work: booleans.
 TASK_ATTEMPT_KEYS = ("keep_failed_changes",)
@@ -324,6 +324,17 @@ class PipelineConfig:
                 )
             else:
                 table["partial_on"] = list(dict.fromkeys(partial))
+        failover = entry.get("safety_stop_failover")
+        if failover is not None:
+            bad = [p for p in failover if p not in SAFETY_STOP_FAILOVER] if isinstance(failover, list) else [failover]
+            if bad:
+                _problem(
+                    errors,
+                    f"{self.source}: [tasks.{kind}].safety_stop_failover must be a list of "
+                    f"{' and '.join(repr(p) for p in SAFETY_STOP_FAILOVER)}, not {', '.join(repr(b) for b in bad)}",
+                )
+            else:
+                table["safety_stop_failover"] = list(dict.fromkeys(failover))
         fb = entry.get("fallbacks")
         if fb is not None:
             if not isinstance(fb, list):

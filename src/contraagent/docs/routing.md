@@ -111,6 +111,20 @@ that is off-contract (nothing was launched) and a launch that ran as another
 identity than its credential (`credential_mismatch`). A launch ended by a signal
 (the run is stopping) does not either.
 
+A launch that ended well can still have had a safety stop: a safety classifier
+stopped part of it, and it went on (`SafetyStop`, the journal's `safety_stops`). It
+may then have finished without the work, saying that it could not do it, in an
+output that passes its checks. A kind's `safety_stop_failover` names the parts whose
+safety stop moves such a launch to the next hop, which starts the task again:
+`"response"`, a response of the launch's own model, and `"tool"`, a request of a
+model that a tool calls (Claude Code's `WebFetch` summarizes a page on a smaller
+model of its own). A hop on another model of the same coding agent keeps that
+tool, so a `"tool"` safety stop needs a hop on another coding agent. The last hop's
+result stands. An output that a safety stop left off-contract fails its checks and
+fails over as any failure does, with no `safety_stop_failover`.
+
+::code{file="examples/reference/pipeline.toml" from="[tasks.research]" to="# A base kind's table"}
+
 An override of the agent or the model (`contraagent run --agent omp`) runs every
 kind there and nowhere else: no kind has failover hops. An override of the
 credential (`Overrides(credential=...)`) is every hop's credential as well.

@@ -2929,6 +2929,13 @@
             "type": "array",
             "title": "Web Queries"
           },
+          "safety_stops": {
+            "items": {
+              "$ref": "#/components/schemas/SafetyStop"
+            },
+            "type": "array",
+            "title": "Safety Stops"
+          },
           "unread_events": {
             "additionalProperties": {
               "type": "integer"
@@ -4790,6 +4797,56 @@
         ],
         "title": "RunSummary",
         "description": "One run directory, as the run picker lists it."
+      },
+      "SafetyStop": {
+        "properties": {
+          "part": {
+            "type": "string",
+            "enum": [
+              "response",
+              "tool",
+              "unread"
+            ],
+            "title": "Part"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "default": ""
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "default": ""
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id",
+            "default": ""
+          },
+          "message_id": {
+            "type": "string",
+            "title": "Message Id",
+            "default": ""
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "part"
+        ],
+        "title": "SafetyStop",
+        "description": "A safety classifier that stopped part of a launch while the launch went on (Claude\nCode reports them). `response`: it stopped a response of the launch's own model, whose\nunfinished tool calls did not run; the coding agent tells the model and goes on.\n`tool`: it refused a request of a model that a tool calls (Claude Code's `WebFetch`\nsummarizes a page on a smaller model), and the tool call ended in an error. `unread`:\nthe coding agent counted one whose words its reader does not recognize. The launch\nends as it would have (`completed`, often); a refusal that ends the launch is stop\n`refused` instead."
       },
       "ServiceSpan": {
         "properties": {
@@ -6981,6 +7038,45 @@
         "title": "TrendRun",
         "description": "One run of the period: its attempts in the period."
       },
+      "TrendSafetyStop": {
+        "properties": {
+          "part": {
+            "type": "string",
+            "enum": [
+              "response",
+              "tool",
+              "unread"
+            ],
+            "title": "Part"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model whose safeguards stopped it, as the coding agent names it; empty when not said"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Kinds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "part",
+          "model",
+          "count",
+          "kinds"
+        ],
+        "title": "TrendSafetyStop",
+        "description": "Safety stops of one part, by one model (journal `safety_stops`): a safety classifier\nstopped part of a launch, which went on (`SafetyStop`)."
+      },
       "TrendStarts": {
         "properties": {
           "weekdays": {
@@ -7144,6 +7240,13 @@
             "type": "array",
             "title": "Denials"
           },
+          "safety_stops": {
+            "items": {
+              "$ref": "#/components/schemas/TrendSafetyStop"
+            },
+            "type": "array",
+            "title": "Safety Stops"
+          },
           "quota": {
             "items": {
               "$ref": "#/components/schemas/TrendQuota"
@@ -7208,6 +7311,7 @@
           "models",
           "stops",
           "denials",
+          "safety_stops",
           "quota",
           "rests",
           "deferred",

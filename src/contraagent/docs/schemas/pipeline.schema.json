@@ -595,6 +595,18 @@
           "description": "the stops after which a launch's output that passes every check is a partial result",
           "title": "Partial On"
         },
+        "safety_stop_failover": {
+          "items": {
+            "enum": [
+              "response",
+              "tool"
+            ],
+            "type": "string"
+          },
+          "type": "array",
+          "description": "the parts of a launch whose safety stop moves a launch that ended well to the next hop of the chain",
+          "title": "Safety Stop Failover"
+        },
         "keep_failed_changes": {
           "type": "boolean",
           "description": "leave the files a failed attempt created under the kind's `changes` patterns in place",

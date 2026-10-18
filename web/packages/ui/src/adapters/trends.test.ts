@@ -22,6 +22,7 @@ export const TRENDS: Trends = {
     { stop: 'timeout', attempts: 1, kinds: { triage: 1 } },
   ],
   denials: [],
+  safety_stops: [],
   quota: [{ credential: 'ambient', window: 'seven_day', daily_peak: [90, null], hourly_peak: [] }],
   rests: [],
   deferred: [{ run: 'r2', ts: '2026-10-14T03:00:00+00:00', key: 'writer-x', kind: 'writer', cause: 'deadline', reason: 'deadline' }],
@@ -112,6 +113,25 @@ describe('trendSections', () => {
     const names = (s.find((x) => x.id === 'usage')!.body as LinesBody).series.map((x) => x.name);
     expect(names).toEqual(['sub | account aaaaaa | weekly', 'sub | account bbbbbb | weekly (opus)', 'other | 5-hour']);
     expect((s.find((x) => x.id === 'rests')!.body as TableBody).rows[0]).toMatchObject({ identity: 'sub | account bbbbbb' });
+  });
+
+  it('lists the safety stops after the denied tool calls, only when the period has any', () => {
+    const safety_stops: Trends['safety_stops'] = [
+      { part: 'tool', model: 'haiku', count: 3, kinds: { triage: 1, writer: 2 } },
+      { part: 'response', model: '', count: 1, kinds: { writer: 1 } },
+    ];
+    const denials: Trends['denials'] = [{ tool: 'Bash', count: 2, kinds: { writer: 2 } }];
+    const s = trendSections({ ...TRENDS, denials, safety_stops }, 'en');
+    expect(s.map((x) => x.id).slice(5, 9)).toEqual(['outcomes', 'denials', 'safety-stops', 'deferred']);
+    const body = s.find((x) => x.id === 'safety-stops')!.body as TableBody;
+    expect(body.title).toBe('Safety stops');
+    expect(body.columns.map((c) => c.label)).toEqual(['Stopped part', 'Model', 'Safety stops', 'Kinds']);
+    expect(body.columns.find((c) => c.id === 'count')).toMatchObject({ bar: true, format: 'number' });
+    expect(body.rows).toEqual([
+      { part: 'tool request', model: 'haiku', count: 3, kinds: 'writer 2 | triage 1' },
+      { part: 'model response', model: '—', count: 1, kinds: 'writer 1' },
+    ]);
+    expect(by('safety-stops')).toBeUndefined();
   });
 
   it('says why a task was not run, in words', () => {

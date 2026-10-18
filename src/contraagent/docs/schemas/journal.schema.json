@@ -324,6 +324,56 @@
       "title": "QuotaWindow",
       "type": "object"
     },
+    "SafetyStop": {
+      "additionalProperties": true,
+      "description": "A safety classifier that stopped part of a launch while the launch went on (Claude\nCode reports them). `response`: it stopped a response of the launch's own model, whose\nunfinished tool calls did not run; the coding agent tells the model and goes on.\n`tool`: it refused a request of a model that a tool calls (Claude Code's `WebFetch`\nsummarizes a page on a smaller model), and the tool call ended in an error. `unread`:\nthe coding agent counted one whose words its reader does not recognize. The launch\nends as it would have (`completed`, often); a refusal that ends the launch is stop\n`refused` instead.",
+      "properties": {
+        "part": {
+          "enum": [
+            "response",
+            "tool",
+            "unread"
+          ],
+          "title": "Part",
+          "type": "string"
+        },
+        "ts": {
+          "default": "",
+          "title": "Ts",
+          "type": "string"
+        },
+        "model": {
+          "default": "",
+          "title": "Model",
+          "type": "string"
+        },
+        "category": {
+          "default": "",
+          "title": "Category",
+          "type": "string"
+        },
+        "tool": {
+          "default": "",
+          "title": "Tool",
+          "type": "string"
+        },
+        "request_id": {
+          "default": "",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "message_id": {
+          "default": "",
+          "title": "Message Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "part"
+      ],
+      "title": "SafetyStop",
+      "type": "object"
+    },
     "SkippedHop": {
       "additionalProperties": true,
       "description": "A hop of the failover chain an attempt passed over without a launch, because its\ncredential rested: its route label and model, and the rest.",
@@ -702,6 +752,13 @@
         "type": "string"
       },
       "title": "Web Queries",
+      "type": "array"
+    },
+    "safety_stops": {
+      "items": {
+        "$ref": "#/$defs/SafetyStop"
+      },
+      "title": "Safety Stops",
       "type": "array"
     },
     "unread_events": {

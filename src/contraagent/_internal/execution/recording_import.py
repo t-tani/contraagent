@@ -309,6 +309,7 @@ def _launch(
         "stderr_tail": "",
         "hook_errors": list(row.get("hook_errors") or []),
         "web_queries": list(row.get("web_queries") or []),
+        "safety_stops": list(row.get("safety_stops") or []),
         "tool_uses": dict(launched.get("tool_uses") or {}),
     }
 

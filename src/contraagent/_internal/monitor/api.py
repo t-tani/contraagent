@@ -51,6 +51,7 @@ from contraagent._internal.dispatch.records import (
     Frame,
     Rest,
     RestEvent,
+    SafetyStopPart,
     ServiceStopCause,
     TimeBoxRecord,
     TokenUsage,
@@ -277,6 +278,16 @@ class TrendDenial(Closed):
     kinds: dict[str, int]
 
 
+class TrendSafetyStop(Closed):
+    """Safety stops of one part, by one model (journal `safety_stops`): a safety classifier
+    stopped part of a launch, which went on (`SafetyStop`)."""
+
+    part: SafetyStopPart
+    model: str = Field(description="the model whose safeguards stopped it, as the coding agent names it; empty when not said")
+    count: int
+    kinds: dict[str, int]
+
+
 class TrendQuota(Closed):
     """One account's utilization of one window over the period: each day's and each hour's highest reading.
     A credential whose token was replaced has one entry per account."""
@@ -344,6 +355,7 @@ class Trends(Closed):
     models: list[ModelUsage]
     stops: list[TrendStop]
     denials: list[TrendDenial]
+    safety_stops: list[TrendSafetyStop]
     quota: list[TrendQuota]
     rests: list[TrendRest]
     deferred: list[TrendDeferral]

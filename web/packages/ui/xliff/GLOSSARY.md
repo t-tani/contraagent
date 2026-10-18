@@ -92,6 +92,8 @@ wherever the UI shows a state or a count to the reader.
 | model switch (to the next failover hop, after a failure) | モデル切り替え |
 | retry (an attempt after a failed attempt of the same task) | リトライ |
 | permission denied (stop `denied`) / Denied tool calls (the trends' table; never "refused") | 権限エラー / 権限エラーになったツール呼び出し |
+| safety stop (a safety classifier stopped part of an agent session, which went on; not "refused by the model", stop `refused`) / N safety stops / Safety stops (the trends' table) | 安全分類器による停止 / 安全分類器による停止 N 件 / 安全分類器による停止（「拒否」「ブロック」は使わない） |
+| model response / tool request / unrecognized (what a safety stop stopped) / Stopped part | モデルの応答 / ツールのリクエスト / 内容不明 / 停止した部分 |
 | Done / Tasks done / Done 97% / Attempts not done (the trends' counts of attempts and tasks) | 完了 / 完了したタスク / 完了 97% / 完了しなかった試行 |
 | Totals of the runs in a period (the trends page's tooltip) | 期間内の実行の合計 |
 | checked file / failed checks / passed (a checked file only; attempts and tasks are done: 完了) | 検証対象のファイル / 検証エラー / OK |

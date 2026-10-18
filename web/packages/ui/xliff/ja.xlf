@@ -3180,6 +3180,42 @@
   <note from="lit-localize">A code body cut short: the lines shown of all its lines</note>
   <target>全 <x id="1" equiv-text="${total.toLocaleString(getLocale())}"/> 行のうち先頭 <x id="0" equiv-text="${shown.toLocaleString(getLocale())}"/> 行</target>
 </trans-unit>
+<trans-unit id="s2043c2041d0a5142">
+  <source>Safety stops</source>
+  <target>安全分類器による停止</target>
+</trans-unit>
+<trans-unit id="sa508a8fb4e60520e">
+  <source>1 safety stop</source>
+  <target>安全分類器による停止 1 件</target>
+</trans-unit>
+<trans-unit id="se8d06d5375424a9c">
+  <source><x id="0" equiv-text="${n}"/> safety stops</source>
+  <target>安全分類器による停止 <x id="0" equiv-text="${n}"/> 件</target>
+</trans-unit>
+<trans-unit id="s5226f85458fa03d2">
+  <source>A safety classifier stopped part of the agent session, and the session went on (safety_stops)</source>
+  <target>安全分類器がエージェントのセッションの一部を止め、セッションはそのまま続いた（safety_stops）</target>
+</trans-unit>
+<trans-unit id="s04f1babead09ec6b">
+  <source>Stopped part</source>
+  <note from="lit-localize">A column: what a safety classifier stopped (a model response, a tool request)</note>
+  <target>停止した部分</target>
+</trans-unit>
+<trans-unit id="sfa82224480602f92">
+  <source>tool request</source>
+  <note from="lit-localize">A safety stop of a request of a model that a tool calls; the tool call ended in an error</note>
+  <target>ツールのリクエスト</target>
+</trans-unit>
+<trans-unit id="scd16bc5ac18bdf91">
+  <source>model response</source>
+  <note from="lit-localize">A safety stop of a response of the model of the agent session</note>
+  <target>モデルの応答</target>
+</trans-unit>
+<trans-unit id="sf868eba1173ef02e">
+  <source>unrecognized</source>
+  <note from="lit-localize">A safety stop the coding agent counted, in words this contraagent version does not recognize</note>
+  <target>内容不明</target>
+</trans-unit>
 </body>
 </file>
 </xliff>

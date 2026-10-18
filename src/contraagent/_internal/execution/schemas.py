@@ -39,6 +39,7 @@ from contraagent._internal.dispatch.records import (
     Frame,
     Hop,
     QuotaReading,
+    SafetyStop,
     SkippedHop,
     TimeBoxRecord,
     TokenUsage,
@@ -104,6 +105,9 @@ class JournalRow(BaseModel):
     quota: list[QuotaReading] = Field(default_factory=list)
     #: The queries of the web searches the attempt made, in call order (rounds and hops included).
     web_queries: list[str] = Field(default_factory=list)
+    #: Each safety stop of the attempt, in order (rounds and hops included): a safety
+    #: classifier stopped part of a launch, and the launch went on (`SafetyStop`).
+    safety_stops: list[SafetyStop] = Field(default_factory=list)
     #: Event types the coding agent sent that this contraagent does not read, with their
     #: counts (rounds and hops summed): a newer coding agent than its reader.
     unread_events: dict[str, int] = Field(default_factory=dict)
@@ -193,6 +197,7 @@ class LaunchRow(BaseModel):
     hollow: bool
     tool_args: dict[str, list] = Field(description="by tool, the first 5 inputs of its calls")
     web_queries: list[str]
+    safety_stops: list[SafetyStop] = Field(default_factory=list)
     unread_events: dict[str, int]
     init_model: str
     init_tools: int

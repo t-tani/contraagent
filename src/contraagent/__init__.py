@@ -27,7 +27,7 @@ from contraagent._internal.contracts.rows import Rows
 from contraagent._internal.contracts.validators import CommandValidator, Validator
 from contraagent._internal.dispatch.flow import TaskDeferred, TaskFailed, time_box
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
-from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SkippedHop, TokenUsage
+from contraagent._internal.dispatch.records import Changes, DeferralCause, Frame, Hop, Loop, OtherModel, SafetyStop, SkippedHop, TokenUsage
 from contraagent._internal.dispatch.task import Origin, Partial, Task, TaskResult, TimeBox
 from contraagent._internal.errors import ContraagentDeprecationWarning, ContraagentError
 from contraagent._internal.execution.adapter import McpServers
@@ -86,6 +86,7 @@ __all__ = [
     "RunFormatError",
     "RunLocked",
     "RunReport",
+    "SafetyStop",
     "Service",
     "SkippedHop",
     "Task",

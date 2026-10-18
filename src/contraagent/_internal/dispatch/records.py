@@ -10,6 +10,7 @@ standard library and pydantic.
 * `Loop`, `Frame`: a flow path (`Origin.flow`, plan and flow call `flow`).
 * `Changes`: the files one attempt changed.
 * `TokenUsage`, `OtherModel`, `Hop`: one launch of an attempt on one route.
+* `SafetyStop`: a safety classifier that stopped part of a launch, which went on.
 * `Window`, `WINDOWS`, `QuotaWindow`, `QuotaReading`: a subscription's utilization, as a
   coding agent reports it, and the windows it is measured over.
 * `Rest`, `SkippedHop`, `RestEvent`: a credential that rests on its quota, a hop an
@@ -159,6 +160,39 @@ class Hop(BaseModel):
     #: What the hop spent on models other than `model`, by model (Claude Code summarizes a
     #: fetched page on a smaller one); their cost is in `cost_usd`, their tokens not in `usage`.
     other_models: dict[str, OtherModel] = Field(default_factory=dict)
+
+
+#: The part of a launch a safety stop stopped (`SafetyStop.part`): a response of the
+#: launch's own model, a request of a model that a tool calls, or one the coding agent
+#: counted in words its reader does not recognize.
+SafetyStopPart = Literal["response", "tool", "unread"]
+
+
+class SafetyStop(BaseModel):
+    """A safety classifier that stopped part of a launch while the launch went on (Claude
+    Code reports them). `response`: it stopped a response of the launch's own model, whose
+    unfinished tool calls did not run; the coding agent tells the model and goes on.
+    `tool`: it refused a request of a model that a tool calls (Claude Code's `WebFetch`
+    summarizes a page on a smaller model), and the tool call ended in an error. `unread`:
+    the coding agent counted one whose words its reader does not recognize. The launch
+    ends as it would have (`completed`, often); a refusal that ends the launch is stop
+    `refused` instead."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow", frozen=True)
+
+    part: SafetyStopPart
+    #: When it was seen; empty when the coding agent's event carries no time.
+    ts: str = ""
+    #: The model whose safeguards stopped it, as the coding agent names it (`Sonnet 5.5`); empty when not said.
+    model: str = ""
+    #: The classifier's category (`cyber`); empty when not said.
+    category: str = ""
+    #: The tool whose call it stopped: the tool that ended in an error (`tool`), or the
+    #: first tool call the stopped response left unfinished (`response`); empty when none.
+    tool: str = ""
+    #: The provider's ids of the stopped request and message, for its support; empty when not said.
+    request_id: str = ""
+    message_id: str = ""
 
 
 # --- quota -------------------------------------------------------------------

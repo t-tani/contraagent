@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from contraagent._internal.backends.credentials import AMBIENT, Credential
-from contraagent._internal.dispatch.records import OtherModel, QuotaReading, TokenUsage
+from contraagent._internal.dispatch.records import OtherModel, QuotaReading, SafetyStop, TokenUsage
 from contraagent._internal.runs.files import append_lines
 
 # Prompt text beyond this size goes over stdin, not argv (stdin takes 10MB). Linux caps one
@@ -339,6 +339,9 @@ class LaunchResult:
     #: `web_search`), in call order; kept without a transcript too.
     web_queries: list[str] = field(default_factory=list)
     hollow: bool = False
+    #: Each safety stop of the launch, in order (`SafetyStop`): a safety classifier stopped
+    #: part of it, and it went on. Claude Code reports them; other coding agents none.
+    safety_stops: list[SafetyStop] = field(default_factory=list)
     #: Event types the backend's reader does not know, with their counts: the coding
     #: agent sends something newer than the reader (omp's `KNOWN_EVENTS`).
     unread_events: dict[str, int] = field(default_factory=dict)
@@ -430,6 +433,7 @@ class LaunchResult:
             if isinstance(self.raw_result, dict)
             else {},
             "web_queries": list(self.web_queries),
+            "safety_stops": [s.model_dump(mode="json", exclude_defaults=True) for s in self.safety_stops],
             "unread_events": dict(self.unread_events),
             "init_model": self.init_model,
             "init_tools": self.init_tools,
