@@ -4,7 +4,9 @@
     serve(Monitor("runs"), port=8787)
 
 It reads what a run writes under `runs/<run>/` and never touches the pipeline. A
-`Panel` adds a custom view, its body one of the typed bodies below or any JSON object.
+`Panel` adds a custom view, its body one of the typed bodies below or any JSON object;
+an `App` is a page of the pipeline's own that the monitor serves, which a panel shows in
+a frame (`EmbedBody`).
 The web server (`serve`, `create_app`) needs the `monitor` extra
 (`pip install 'contraagent[monitor]'`: fastapi, uvicorn, sse-starlette) and is imported
 when first named; the rest of this module, and the HTTP response models in
@@ -22,6 +24,7 @@ from contraagent._internal.monitor.api import (
     ChartSeries,
     CodeBody,
     ColumnsBody,
+    EmbedBody,
     GridCell,
     HBar,
     HBarsBody,
@@ -38,7 +41,7 @@ from contraagent._internal.monitor.api import (
     TreeLink,
     TreeNode,
 )
-from contraagent._internal.monitor.core import Monitor, Panel, PanelFn, PeriodRuns, RunRecords, TaskDetailFn, TrendsPanelFn
+from contraagent._internal.monitor.core import App, Monitor, Panel, PanelFn, PeriodRuns, RunRecords, TaskDetailFn, TrendsPanelFn
 from contraagent._internal.monitor.export import ExportReport, export
 from contraagent._internal.monitor.trends import Period, PeriodError
 from contraagent._internal.public import publish
@@ -53,11 +56,13 @@ __all__ = [
     "CODE_LINES",
     "LANGUAGES",
     "PANEL_TYPES",
+    "App",
     "BlocksBody",
     "ChartSeries",
     "CodeBody",
     "ColumnsBody",
     "DirectorySource",
+    "EmbedBody",
     "ExportReport",
     "GridCell",
     "HBar",

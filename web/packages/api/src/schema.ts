@@ -414,7 +414,7 @@ export type components = {
              */
             type?: "blocks";
             /** Blocks */
-            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
+            blocks: (components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["EmbedBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             })[];
         };
@@ -863,6 +863,48 @@ export type components = {
              * @description the kinds whose chain held it
              */
             kinds: string[];
+        };
+        /**
+         * EmbedBody
+         * @description A page of its own, shown in a frame: one of the monitor's apps (`Monitor(apps=)`)
+         *     by a path relative to the monitor (`apps/<name>/?run=<id>`, no leading `/`, so it
+         *     holds behind any base path), or an http(s) URL. The frame's URL gets `theme`, `dark`
+         *     or `light` as the monitor is shown. `height` is the frame's height in pixels; None:
+         *     the height of the screen under the monitor's header.
+         */
+        EmbedBody: {
+            /**
+             * Title
+             * @description a heading over the body
+             */
+            title?: string | null;
+            /**
+             * Collapsed
+             * @description shown folded, under its title
+             * @default false
+             */
+            collapsed?: boolean;
+            /**
+             * Anchor
+             * @description a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)
+             */
+            anchor?: string | null;
+            /**
+             * Type
+             * @default embed
+             * @constant
+             */
+            type?: "embed";
+            /**
+             * Url
+             * @description a path relative to the monitor (apps/<name>/...), or an http(s) URL
+             */
+            url: string;
+            /**
+             * Height
+             * @description the frame's height in pixels; null: the screen's under the header
+             */
+            height?: number | null;
         };
         /**
          * ExportInfo
@@ -1740,7 +1782,7 @@ export type components = {
              */
             event: string;
             /** Data */
-            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
+            data: components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["EmbedBody"] | components["schemas"]["BlocksBody"] | {
                 [key: string]: unknown;
             };
         };
@@ -3687,7 +3729,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["EmbedBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };
@@ -3989,7 +4031,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["BlocksBody"] | {
+                    "application/json": components["schemas"]["TilesBody"] | components["schemas"]["TableBody"] | components["schemas"]["ColumnsBody"] | components["schemas"]["LinesBody"] | components["schemas"]["HeatmapBody"] | components["schemas"]["HBarsBody"] | components["schemas"]["StatusGridBody"] | components["schemas"]["NoteBody"] | components["schemas"]["CodeBody"] | components["schemas"]["TreeBody"] | components["schemas"]["EmbedBody"] | components["schemas"]["BlocksBody"] | {
                         [key: string]: unknown;
                     };
                 };

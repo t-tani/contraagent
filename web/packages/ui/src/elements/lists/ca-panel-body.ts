@@ -1,4 +1,4 @@
-import { typedBody, type CodeBody, type PanelBody, type TableBody, type TreeBody, type TreeLink, type TypedPanelBody } from '@contraagent/api';
+import { typedBody, type CodeBody, type EmbedBody, type PanelBody, type TableBody, type TreeBody, type TreeLink, type TypedPanelBody } from '@contraagent/api';
 import '@contraagent/elements/charts/define';
 import '@contraagent/elements/code/define';
 import '@contraagent/elements/data-table/define';
@@ -35,7 +35,9 @@ const CELLS = [
 
 /**
  * A pipeline's own view drawn from its typed body (`PanelBody`): tiles, a table, charts,
- * a status grid, notes, code, trees, and blocks of them one under another, each under its title
+ * a status grid, notes, code, trees, a page in a frame (an app the monitor serves, by a path
+ * relative to `base-url`, or an http(s) URL; given the theme shown as `theme`, `dark` or
+ * `light`), and blocks of them one under another, each under its title
  * (folded when the body says `collapsed`). A tree whose nodes hold code shows the selected
  * node's code beside it; a node with a link leads to a body of the panel (its `anchor`), a
  * run panel's tab or a task. A body of another shape, inside blocks, is shown as a JSON tree.
@@ -70,10 +72,16 @@ export class CaPanelBody extends LitElement {
       .pair > .tree { border: 1px solid var(--line); border-radius: var(--radius-md); max-height: 70vh; overflow: auto; }
       .pane { min-width: 0; }
       @media (max-width: 720px) { .pair { grid-template-columns: minmax(0, 1fr); } .pair > .tree { max-height: 40vh; } }
+      /* a page of the pipeline's own: as tall as the body says, else the screen under the monitor's header */
+      .embed { display: block; width: 100%; height: calc(100dvh - 160px); min-height: 320px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
     `,
   ];
 
   @property({ attribute: false }) body: PanelBody | undefined;
+  /** Where the monitor is served: an embedded page's path is relative to it. */
+  @property({ attribute: 'base-url' }) baseUrl = '';
+  /** The panel's title: the name of a framed page whose body has no title of its own. */
+  @property() label = '';
 
   /** The order of each table's rows, by the table's place in the body. */
   @state() private sorts = new Map<string, SortState>();
@@ -98,6 +106,15 @@ export class CaPanelBody extends LitElement {
   private code(c: CodeBody, path?: string): TemplateResult {
     return html`<cae-code .code=${c.text} .language=${c.language ?? ''} .start=${c.start ?? 1} .highlight=${c.highlight ?? []}
       .path=${c.path ?? path ?? ''} .label=${c.title ?? c.path ?? path ?? ''} ?wrap=${!!c.wrap} .strings=${codeStrings()}></cae-code>`;
+  }
+
+  /** A page in a frame: its URL against the monitor's, with the theme shown. */
+  private embed(b: EmbedBody): TemplateResult {
+    const base = new URL(this.baseUrl ? this.baseUrl.replace(/\/?$/, '/') : './', document.baseURI);
+    const url = new URL(b.url, base);
+    url.searchParams.set('theme', shownTheme(this));
+    return html`<iframe class="embed" src=${url.href} title=${b.title || this.label}
+      style=${b.height ? `height:${b.height}px` : nothing}></iframe>`;
   }
 
   /** A tree, and the selected node's code beside it: the texts come with the body, so a selection sends no request. */
@@ -167,6 +184,8 @@ export class CaPanelBody extends LitElement {
         return this.code(b);
       case 'tree':
         return this.tree(b, at);
+      case 'embed':
+        return this.embed(b);
       default:
         return html`${nothing}`;
     }
@@ -191,6 +210,15 @@ export class CaPanelBody extends LitElement {
       @cae-sort=${(e: CustomEvent<SortState>) => (this.sorts = new Map(this.sorts).set(at, e.detail))}
     ></cae-data-table>`;
   }
+}
+
+/** The theme `el` is shown in, `dark` or `light`: the nearest `data-ca-theme` above it, through shadow roots; else the screen's. */
+function shownTheme(el: Element): 'dark' | 'light' {
+  for (let n: Node | null = el; n; n = n.parentNode ?? (n instanceof ShadowRoot ? n.host : null)) {
+    const theme = n instanceof Element ? n.getAttribute('data-ca-theme') : null;
+    if (theme) return theme.includes('light') ? 'light' : 'dark';
+  }
+  return matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 declare global {

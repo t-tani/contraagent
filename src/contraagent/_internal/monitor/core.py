@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping, MutableMapping
 from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
@@ -223,6 +223,23 @@ def panel_body(value: Any) -> dict[str, Any]:
     return value
 
 
+class App(Protocol):
+    """An ASGI application, `await app(scope, receive, send)`: a page of the pipeline's own,
+    with its own routes and files, that the monitor serves under `apps/<name>/`
+    (`Monitor(apps=)`). A Starlette or FastAPI app is one, and so is
+    `starlette.staticfiles.StaticFiles(directory=...)` for a page that is only files. It is
+    given the paths under `apps/<name>/` with `root_path` `/apps/<name>`, so a page that
+    names its own files and routes by relative URLs works under any base path."""
+
+    def __call__(
+        self,
+        scope: MutableMapping[str, Any],
+        receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+        send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+        /,
+    ) -> Awaitable[None]: ...
+
+
 class TaskDetailFn(Protocol):
     """The `Monitor(task_detail=)` function: `fn(run, key, rows)`, given the run's id, the
     task's key and its journal rows (one per attempt, as JSON objects), returns facts of the
@@ -309,6 +326,7 @@ class Monitor:
         stream_formats: dict[str, str] | None = None,
         groups: list[dict[str, Any]] | None = None,
         keep_digests: bool = True,
+        apps: Mapping[str, App] | None = None,
     ):
         """`groups` are the plan's columns (`[{"id", "label", "kinds": [...]}]`);
         without them each kind is a group of its own. The implementation kinds of one base
@@ -323,7 +341,10 @@ class Monitor:
         `many_hosts`: the runs come from many hosts (a hub), so the UI offers its hosts.
         `keep_digests`: keep a finished run's trends digest in its directory
         (`layout.TRENDS`), so a restarted monitor reads it back instead of the logs;
-        it is always kept in memory."""
+        it is always kept in memory.
+        `apps`: the pipeline's own pages (`App`), each served under `apps/<name>/` of the
+        monitor, behind its base path; a panel shows one in a frame (`EmbedBody`). A name
+        that is not a plain name raises `ValueError`."""
         self.many_hosts = many_hosts
         self.runs_dir: Path = Path(runs_dir).resolve()
         self.source: RunSource = source if source is not None else DirectorySource(self.runs_dir)
@@ -336,6 +357,12 @@ class Monitor:
         self.title = title
         self.panels: dict[str, Panel] = {n: p if isinstance(p, Panel) else Panel(p, title=n) for n, p in (panels or {}).items()}
         self.task_detail_fn = task_detail
+        self.apps: dict[str, App] = {}
+        for name, app in (apps or {}).items():
+            check_name(name, "app name")
+            if not callable(app):
+                raise ValueError(f"Monitor(apps=) {name!r} = {app!r} is not an ASGI app (a callable of scope, receive and send)")
+            self.apps[name] = app
         self.static_dir: Path | None = Path(static_dir) if static_dir else None
         self.stream_formats: dict[str, str] = dict(stream_formats or {})
         self.group_defs: list[dict[str, Any]] = list(groups or [])

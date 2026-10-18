@@ -20,6 +20,7 @@ export type GridCell = S['GridCell'];
 export type NoteBody = S['NoteBody'];
 export type CodeBody = S['CodeBody'];
 export type TreeBody = S['TreeBody'];
+export type EmbedBody = S['EmbedBody'];
 export type TreeNode = S['TreeNode'];
 export type TreeLink = S['TreeLink'];
 export type BlocksBody = S['BlocksBody'];
@@ -39,12 +40,13 @@ export type TypedPanelBody =
   | NoteBody
   | CodeBody
   | TreeBody
+  | EmbedBody
   | BlocksBody;
 /** What a panel returns: a typed body, or any JSON object. */
 export type PanelBody = TypedPanelBody | JsonObject;
 
 /** The `type` of each typed body. */
-export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'blocks'] as const;
+export const PANEL_TYPES = ['tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'embed', 'blocks'] as const;
 
 /** `body` as a typed body, or null when it is any other JSON object (a JSON tree). */
 export function typedBody(body: unknown): TypedPanelBody | null {

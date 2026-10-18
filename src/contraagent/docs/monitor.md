@@ -180,7 +180,8 @@ status), `columns` (vertical bars, `stacked` or side by side), `lines`, a
 by its label), `hbars` (horizontal bars), a `note` (markdown beside the figures:
 what a part shows, how to read a number; any markup in it is shown as text),
 `code` (a text highlighted by its `language`, with line numbers; see below), a
-`tree` (nodes the reader folds and opens, such as files and directories), and
+`tree` (nodes the reader folds and opens, such as files and directories), an
+`embed` (a page of the pipeline's own in a frame; see below), and
 `blocks` of them one under another, each with an optional `title`, folded
 when `collapsed`, and an optional `anchor` that a tree node's link leads to. A tone is one of `failed`, `attention`, `done`, `running`,
 `muted` and `neutral`. The models are in `contraagent.monitor`
@@ -262,6 +263,31 @@ each time it changes, so a tree of large files is best kept in a panel of its ow
 A run's output files, one directory per kind:
 
 ::code{file="examples/panels/files.py" from="def files(" to="#: What"}
+
+### A page of its own
+
+A view that needs more than a typed body, such as a page with its own filters,
+detail panes and live updates, is an app: an ASGI app with its own routes and files
+(`App`; a Starlette or FastAPI app, or `StaticFiles(directory=...)` for a page that
+is only files). `Monitor(apps={"attempts": app})`, or `contraagent monitor --apps
+page.py:APPS`, serves it under `apps/attempts/` of the monitor, behind the same host
+check and behind the base path a proxy serves the monitor under. The app is given
+the paths under it, with `root_path` `/apps/attempts`; a page that names its own
+files and routes by relative URLs (`data`, not `/data`) works under any base path.
+Its address ends with `/` (`apps/attempts/`).
+
+An `embed` body (`EmbedBody`) shows a page in a frame: an app by a path relative to
+the monitor (`apps/attempts/?run=<id>`, with no leading `/`), or an http(s) URL. The
+frame's URL also gets `theme`, `dark` or `light` as the monitor is shown, and
+`height` sets the frame's height in pixels (by default, the screen's under the
+monitor's header). A run panel that returns one is a tab of each run, with the
+run's id in the URL it builds:
+
+::code{file="examples/panels/page.py" from="async def data(" to="#: What"}
+
+The whole example, the page and its panel, is `examples/panels/page.py`. An export
+and a hub serve no app: their frames show the page only when its URL is an http(s)
+URL another server answers.
 
 ## Over many runs: trends
 

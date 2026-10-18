@@ -194,9 +194,10 @@ describe('layerGraph: a generator flow', () => {
     const g = layerGraph(plan, autoLayer(plan));
     expect(g.path).toEqual([RUN, LOOP]);
     expect(rows(g)).toEqual([['kind:check'], ['kind:publish', 'kind:escalate']]);
+    // In the order of their ends, whichever task made its edge first.
     expect(g.edges.map((e) => [e.from, e.to, e.type])).toEqual([
-      ['kind:check', 'kind:publish', 'created'],
       ['kind:check', 'kind:escalate', 'created'],
+      ['kind:check', 'kind:publish', 'created'],
     ]);
     expect(byId(g).get('kind:publish')?.units.map((m) => m?.key ?? null)).toEqual(['publish-a', null]);
     expect(byId(g).get('kind:escalate')?.units.map((m) => m?.key ?? null)).toEqual([null, 'escalate-b']);

@@ -60,7 +60,7 @@ from contraagent._internal.execution.schemas import JournalRow, PlanRow, QuotaRe
 from contraagent._internal.routing.preflight import PreflightRecord
 from contraagent._internal.routing.quota import QuotaCap
 
-API_VERSION = "3.5.0"
+API_VERSION = "3.6.0"
 
 
 class Closed(BaseModel):
@@ -1107,6 +1107,26 @@ class NoteBody(_Body):
     tone: Tone | None = None
 
 
+class EmbedBody(_Body):
+    """A page of its own, shown in a frame: one of the monitor's apps (`Monitor(apps=)`)
+    by a path relative to the monitor (`apps/<name>/?run=<id>`, no leading `/`, so it
+    holds behind any base path), or an http(s) URL. The frame's URL gets `theme`, `dark`
+    or `light` as the monitor is shown. `height` is the frame's height in pixels; None:
+    the height of the screen under the monitor's header."""
+
+    type: Literal["embed"] = "embed"
+    url: str = Field(description="a path relative to the monitor (apps/<name>/...), or an http(s) URL")
+    height: int | None = Field(default=None, ge=100, description="the frame's height in pixels; null: the screen's under the header")
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, url: str) -> str:
+        scheme = url.split(":", 1)[0].lower() if ":" in url.split("/", 1)[0] else ""
+        if scheme in ("http", "https") or (not scheme and url and not url.startswith("/")):
+            return url
+        raise ValueError(f"{url!r}: a path relative to the monitor (apps/<name>/), with no leading /, or an http(s) URL")
+
+
 class GridCell(Closed):
     """One cell of a status grid: the state it is in, in words, and that state's tone.
     `tip` adds a fact about this cell to its tooltip (a run's id, a count)."""
@@ -1257,7 +1277,7 @@ class BlocksBody(_Body):
 
 
 #: The `type` of each typed body.
-PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "code", "tree", "blocks")
+PANEL_TYPES = ("tiles", "table", "columns", "lines", "heatmap", "hbars", "status_grid", "note", "code", "tree", "embed", "blocks")
 
 
 def _panel_kind(v: Any) -> str:
@@ -1277,6 +1297,7 @@ PanelBody = Annotated[
     | Annotated[NoteBody, Tag("note")]
     | Annotated[CodeBody, Tag("code")]
     | Annotated[TreeBody, Tag("tree")]
+    | Annotated[EmbedBody, Tag("embed")]
     | Annotated[BlocksBody, Tag("blocks")]
     | Annotated[dict[str, Any], Tag("untyped")],
     Discriminator(_panel_kind),

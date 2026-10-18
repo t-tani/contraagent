@@ -503,6 +503,10 @@ def create_app(
         # call a script text/plain, and a browser then refuses to run the page's module.
         return FileResponse(path, media_type=_MEDIA_TYPES[ext])
 
+    # The pipeline's own pages, each under apps/<name>/ (`Monitor(apps=)`), behind the same host check.
+    for name, sub in monitor.apps.items():
+        app.mount(f"/apps/{name}", sub, name=f"app_{name}")
+
     def openapi() -> dict:
         if app.openapi_schema is None:
             app.openapi_schema = _openapi(app)

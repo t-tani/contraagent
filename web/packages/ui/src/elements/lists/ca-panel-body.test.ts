@@ -150,6 +150,20 @@ describe('a panel body', () => {
     expect(grid.cells).toEqual([[{ label: 'done', tone: 'done' }, null]]);
   });
 
+  it('frames a page: a path against the monitor, given the theme shown, as tall as the body says', async () => {
+    const body = { type: 'embed', url: 'apps/page/?run=r1', height: 600 } as unknown as PanelBody;
+    const el = await mount<CaPanelBody>('ca-panel-body', { body, baseUrl: '/monitor', label: 'Attempts' });
+    const frame = el.shadowRoot!.querySelector('iframe')!;
+    const src = new URL(frame.src);
+    expect(src.pathname).toBe('/monitor/apps/page/');
+    expect(src.searchParams.get('run')).toBe('r1');
+    expect(['dark', 'light']).toContain(src.searchParams.get('theme'));
+    expect(frame.style.height).toBe('600px');
+    expect(frame.title).toBe('Attempts'); // the panel's title, the body having none
+    const away = await mount<CaPanelBody>('ca-panel-body', { body: { type: 'embed', url: 'https://example.com/x' } });
+    expect(new URL(away.shadowRoot!.querySelector('iframe')!.src).origin).toBe('https://example.com');
+  });
+
   it('is drawn by the panel view; any other body stays a JSON tree', async () => {
     const typed = await mount<CaPanelView>('ca-panel-view', { name: 'stats', data: BODY });
     expect(typed.shadowRoot!.querySelector('ca-panel-body')).not.toBeNull();

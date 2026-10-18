@@ -2280,6 +2280,15 @@ def new_plugin(directory: str | Path, name: str = '') -> list[Path]
 
 ## contraagent.monitor
 
+class App(Protocol)
+    def __call__(
+        self,
+        scope: MutableMapping[str, Any],
+        receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+        send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+        /,
+    ) -> Awaitable[None]
+
 class BlocksBody(_Body)
     anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
     blocks: list[PanelBody]
@@ -2359,6 +2368,15 @@ class DirectorySource
     def stat(self, run: str, name: str = '') -> Stat | None
     async def wait(self, run: str, log: str, beyond: int, timeout: float) -> int
 
+class EmbedBody(_Body)
+    anchor: str | None = Field(default=None, min_length=1, description="a name a tree node's link leads to: the body is scrolled into view (`TreeLink.anchor`)")
+    collapsed: bool = Field(default=False, description='shown folded, under its title')
+    height: int | None = Field(default=None, ge=100, description="the frame's height in pixels; null: the screen's under the header")
+    model_config: ConfigDict = ConfigDict(extra='forbid')
+    title: str | None = Field(default=None, description='a heading over the body')
+    type: Literal['embed'] = 'embed'
+    url: str = Field(description='a path relative to the monitor (apps/<name>/...), or an http(s) URL')
+
 @dataclass
 class ExportReport
     def __init__(self, out: Path, runs: list[str], bytes_by_run: dict[str, int], total_bytes: int) -> None
@@ -2437,7 +2455,9 @@ class Monitor
         stream_formats: dict[str, str] | None = None,
         groups: list[dict[str, Any]] | None = None,
         keep_digests: bool = True,
+        apps: Mapping[str, App] | None = None,
     )
+    apps: dict[str, App]
     def check_run(self, run: str) -> str
     def cursor(self, run: str) -> dict[str, Any] | None
     def definitions(self, run: str) -> list[dict[str, Any]]
@@ -2495,7 +2515,7 @@ class NoteBody(_Body)
     tone: Tone | None = None
     type: Literal['note'] = 'note'
 
-PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'blocks')
+PANEL_TYPES = ('tiles', 'table', 'columns', 'lines', 'heatmap', 'hbars', 'status_grid', 'note', 'code', 'tree', 'embed', 'blocks')
 
 @dataclass
 class Panel
@@ -2517,7 +2537,7 @@ class Panel
     tab: str = ''
     title: str = ''
 
-PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[CodeBody, Tag('code')] | Annotated[TreeBody, Tag('tree')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
+PanelBody = Annotated[Annotated[TilesBody, Tag('tiles')] | Annotated[TableBody, Tag('table')] | Annotated[ColumnsBody, Tag('columns')] | Annotated[LinesBody, Tag('lines')] | Annotated[HeatmapBody, Tag('heatmap')] | Annotated[HBarsBody, Tag('hbars')] | Annotated[StatusGridBody, Tag('status_grid')] | Annotated[NoteBody, Tag('note')] | Annotated[CodeBody, Tag('code')] | Annotated[TreeBody, Tag('tree')] | Annotated[EmbedBody, Tag('embed')] | Annotated[BlocksBody, Tag('blocks')] | Annotated[dict[str, Any], Tag('untyped')], Discriminator(_panel_kind)]
 
 class PanelFn(Protocol)
     def __call__(self, run: RunRecords, /) -> PanelBody | BaseModel | Mapping[str, Any]
@@ -2722,7 +2742,7 @@ def serve(
 
 ## contraagent.monitor.api
 
-API_VERSION = '3.5.0'
+API_VERSION = '3.6.0'
 
 class AccountQuota(Closed)
     account: str = Field('', description='the account the readings are of (`QuotaReading.account`); empty when not known')
