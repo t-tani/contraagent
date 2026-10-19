@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from './client.js';
 import { createExportClient, openExportFeed, taskFileName } from './export.js';
 import { MonitorStore } from './store.js';
@@ -125,7 +125,10 @@ describe('openExportFeed', () => {
     const got: string[] = [];
     const close = openExportFeed(client)('r1', [], { message: (m) => got.push(m.event) });
     close();
-    await new Promise((r) => setTimeout(r, 20));
+    // A feed left open would have replayed by the time a second one, opened now, is ready.
+    await new Promise<void>((done) => {
+      openExportFeed(client)('r1', [], { message: (m) => m.event === 'ready' && done() });
+    });
     expect(got).toEqual([]);
   });
 });
@@ -136,7 +139,7 @@ describe('MonitorStore over an export', () => {
     const store = new MonitorStore({ client, openRunFeed: openExportFeed(client), runsEveryMs: 0, batchMs: 0 });
     await store.start();
     store.selectRun('r1');
-    await new Promise((r) => setTimeout(r, 30));
+    await vi.waitFor(() => expect(store.snapshot.state.ready).toBe(true));
     const s = store.snapshot;
     expect(s.info.export?.exported_at).toBe('2026-10-14T21:30:00+09:00');
     expect(s.state.ready).toBe(true);

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, createMonitorClient, type MonitorClient } from './client.js';
 import { MonitorStore } from './store.js';
 import type { Info } from './types.js';
@@ -152,6 +152,7 @@ describe('MonitorStore', () => {
 describe('MonitorStore refreshes', () => {
   const info: Info = { title: 't', panels: [{ name: 'q', title: 'q', description: '', icon: '', scope: 'trends' }], api_version: '1' };
   const run = (last_ts: string) => ({ run: 'r1', last_ts, attempts: 1 });
+  afterEach(() => vi.useRealTimers());
 
   it('starts the next refresh only after the last one ended, however slow the answer', async () => {
     vi.useFakeTimers();
@@ -183,7 +184,6 @@ describe('MonitorStore refreshes', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(most).toBe(1);
     store.stop();
-    vi.useRealTimers();
   });
 
   it('asks for the trends and their panels again only when the runs changed, and shows each answer as it arrives', async () => {
@@ -220,6 +220,5 @@ describe('MonitorStore refreshes', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect([trends.length, panels.length]).toEqual([2, 2]);
     store.stop();
-    vi.useRealTimers();
   });
 });
