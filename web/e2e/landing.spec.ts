@@ -18,7 +18,9 @@
 // screen; the replay is one stage within the screen under the header, its tabs follow
 // the run until the reader picks one, and its moments open from their disclosure; the
 // steps are a carousel that scrolls a card at a time, by a swipe and by its buttons,
-// whose long outputs open in full; and its controls are at least 44 px high.
+// whose long outputs open in full; a fast flick of a finger moves it one card, long
+// or short, and a finger up or down scrolls the page; and its controls are at least
+// 44 px high.
 import { expect, firefox, test, type Browser, type Page } from '@playwright/test';
 import { clips, overflows, settle } from './fit.js';
 import { DOCS } from './docs-site.js';
@@ -217,12 +219,16 @@ for (const [width, height] of [[1280, 720], [1366, 768], [1440, 900], [1920, 108
 const PHONE_BUDGET = 6000;
 const PHONES = [[390, 844], [360, 740]] as const;
 
-/** A phone's page, its theme and motion, loaded, with the test's clock (`page.clock`). */
-async function phone(browser: Browser, [width, height]: readonly [number, number], colorScheme: 'light' | 'dark', reducedMotion: 'reduce' | 'no-preference') {
+/**
+ * A phone's page, its theme and motion, loaded, with the test's clock (`page.clock`)
+ * unless `clock` is false: that clock also sets the times of the page's events, which
+ * a finger's speed is measured by.
+ */
+async function phone(browser: Browser, [width, height]: readonly [number, number], colorScheme: 'light' | 'dark', reducedMotion: 'reduce' | 'no-preference', clock = true) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme, reducedMotion, hasTouch: true });
   await context.addInitScript((s) => localStorage.setItem('starlight-theme', s), colorScheme);
   const page = await context.newPage();
-  await page.clock.install();
+  if (clock) await page.clock.install();
   await page.goto(`${DOCS}/`);
   await page.waitForLoadState('networkidle');
   return { context, page };
@@ -388,5 +394,60 @@ for (const size of PHONES)
       // A short output has no button.
       await expect(page.locator('.how-step').first().locator('.how-more')).toBeHidden();
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size[0]);
+      await context.close();
+    });
+
+/**
+ * A finger on the steps (touch, through the Chrome DevTools Protocol): down, `dx` px
+ * sideways and `dy` px down in four moves `ms` apart, and up. The events carry the
+ * finger's times, so the page measures the same speed on any machine (on a page
+ * without the test's clock).
+ */
+async function drag(page: Page, dx: number, dy: number, ms: number): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const box = (await page.locator('.how-steps').boundingBox())!;
+  const [x, y] = [box.x + box.width / 2 - dx / 2, box.y + Math.min(120, box.height / 2) - dy / 2];
+  let at = Date.now() / 1000;
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', touchPoints: { x: number; y: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints, timestamp: at });
+  await touch('touchStart', [{ x, y }]);
+  for (let i = 1; i <= 4; i++) {
+    at += ms / 1000;
+    await touch('touchMove', [{ x: x + (dx * i) / 4, y: y + (dy * i) / 4 }]);
+  }
+  at += ms / 1000;
+  await touch('touchEnd', []);
+  await cdp.detach();
+}
+
+for (const size of PHONES)
+  for (const reducedMotion of ['no-preference', 'reduce'] as const)
+    test(`on a phone at ${size.join('×')}, motion ${reducedMotion}, a flick moves the steps one card`, async ({ browser }) => {
+      test.setTimeout(60_000);
+      const { context, page } = await phone(browser, size, 'light', reducedMotion, false);
+      const list = page.locator('.how-steps');
+      const count = page.locator('.how-at');
+      await list.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+      await expect(count).toContainText('Step 1 of 7');
+      // A flick of 300 px in 40 ms, which the browser's own momentum carries two cards on: one card, either way.
+      for (const [dx, step] of [[-300, 2], [-300, 3], [-300, 4], [300, 3], [300, 2], [300, 1]] as const) {
+        await drag(page, dx, 0, 8);
+        await expect.poll(() => settledStep(page)).toBe(step === 1 ? -1 : step - 1);
+        await expect(count).toContainText(`Step ${step} of 7`);
+        await expect(list).not.toHaveClass(/is-swiped/);
+      }
+      // The first card is at the list's start, not its middle.
+      expect(await list.evaluate((e) => e.scrollLeft)).toBe(0);
+      // A short flick, fast: on to the next card; as short, slow: back to the card it began on.
+      await drag(page, -60, 0, 8);
+      await expect.poll(() => settledStep(page)).toBe(1);
+      await drag(page, -60, 0, 80);
+      await expect.poll(() => settledStep(page)).toBe(1);
+      await expect(count).toContainText('Step 2 of 7');
+      await expect(list).not.toHaveClass(/is-swiped/);
+      // A finger up the steps scrolls the page, not the steps.
+      const top = await page.evaluate(() => window.scrollY);
+      await drag(page, 0, -200, 16);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 100);
+      expect(await settledStep(page)).toBe(1);
       await context.close();
     });
