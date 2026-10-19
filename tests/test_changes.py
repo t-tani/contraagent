@@ -11,7 +11,9 @@ import pytest
 from pydantic import BaseModel
 
 from contraagent import Pipeline, PipelineConfig, agent_task
-from contraagent._internal.execution.changes import compare, scan
+from contraagent._internal.dispatch.python_task import make_python_task
+from contraagent._internal.dispatch.task import TaskResult
+from contraagent._internal.execution.changes import ChangesEnricher, compare, scan
 from contraagent.backends import Stop
 from contraagent.plugins import new_plugin
 from contraagent.testing import StubAgent, fails
@@ -181,6 +183,25 @@ def test_the_patterns_are_part_of_the_task_definition(tmp_path, plugin_dir):
 def test_a_pattern_outside_the_working_directory_or_naming_an_unknown_field_is_refused(plugin_dir, pattern):
     with pytest.raises((ValueError, TypeError)):
         agent_task("write", plugin=plugin_dir, output=Note, changes=[pattern], max_turns=5, timeout_s=60)
+
+
+def test_a_rewrite_at_the_same_size_within_one_mtime_tick_is_a_modification(tmp_path):
+    enricher = ChangesEnricher(lambda task: ["notes/**"], tmp_path)
+    task = make_python_task("write", lambda: None, unit="a")
+    (tmp_path / "notes").mkdir()
+    rewritten, untouched, old = (tmp_path / "notes" / name for name in ("rewritten.md", "untouched.md", "old.md"))
+    for path in (rewritten, untouched, old):
+        path.write_text("attempt 1\n", encoding="utf-8", newline="\n")
+    long_ago = rewritten.stat().st_mtime_ns - 3_600_000_000_000
+    os.utime(old, ns=(long_ago, long_ago))
+    before = enricher.snapshot(task)
+    assert before is not None and sorted(before.digests) == ["notes/rewritten.md", "notes/untouched.md"]
+    tick = rewritten.stat().st_mtime_ns
+    rewritten.write_text("attempt 2\n", encoding="utf-8", newline="\n")
+    os.utime(rewritten, ns=(tick, tick))  # the same size and mtime, as on a file system with coarse ticks
+    result = enricher.enrich(task, before, TaskResult(task, True, "completed"))
+    assert result is not None and result.changes is not None
+    assert result.changes.modified == ("notes/rewritten.md",)
 
 
 def test_scan_covers_everything_under_a_matched_directory(tmp_path):

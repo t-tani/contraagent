@@ -1705,7 +1705,9 @@ class Before
         stamp: tuple[int, int] | None,
         preserved: Mapping[str, Any] = dict(),
         text: str | None = None,
+        digest: str | None = None,
     ) -> None
+    digest: str | None = None
     preserved: Mapping[str, Any] = field(default_factory=dict)
     def restore(self, path: Path) -> None
     stamp: tuple[int, int] | None
