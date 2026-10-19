@@ -3,3 +3,6 @@
 // end-to-end tests serve the built site under the same base (playwright.config.ts).
 export const SITE = 'https://t-tani.github.io';
 export const BASE = '/contraagent';
+
+/** The repository the site is built from: the header's GitHub link and the landing page's. */
+export const REPOSITORY = 'https://github.com/t-tani/contraagent';
