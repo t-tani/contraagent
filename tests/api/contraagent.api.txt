@@ -301,6 +301,15 @@ class Pipeline
         resume: bool = False,
         **kwargs: Any,
     ) -> RunReport
+    async def run_async(
+        self,
+        flow: Callable[..., Any],
+        /,
+        *args: Any,
+        run_id: str | None = None,
+        resume: bool = False,
+        **kwargs: Any,
+    ) -> RunReport
     runs_dir: Path
     scopes: tuple[TaskScope, ...]
     service_cooloff_s: float | None
@@ -2443,6 +2452,7 @@ class WorkQueue
     retry_on: frozenset[str]
     retry_wait_s
     def run(self) -> dict[str, Any]
+    async def run_async(self) -> dict[str, Any]
     runner
     slack_s: float
     def slots(self) -> int
