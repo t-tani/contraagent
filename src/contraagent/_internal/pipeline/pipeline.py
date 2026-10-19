@@ -30,6 +30,7 @@ from types import GeneratorType
 from typing import Any
 
 from contraagent._internal.backends import Backend, create_backend, known_agents
+from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.flow import FlowCall, FlowDriver
 from contraagent._internal.dispatch.interceptors import ResultEnricher, TaskScope
 from contraagent._internal.dispatch.queue import GRACE_S, OVERDUE_S, RETRY_WAIT_S, THROTTLE_S
@@ -425,6 +426,27 @@ class Pipeline:
         runs, then end the process as they would have; the handlers in place before are
         put back when it returns. An agent of a process killed outright (SIGKILL) is
         stopped by a watchdog process: no agent outlives its run.
+
+        The run's tasks are scheduled on a new asyncio event loop, as `run_async` runs
+        them. From a thread whose event loop is running (an `async def` function, a
+        notebook), `run` raises RuntimeError: `await pipeline.run_async(...)` there instead.
+        """
+        return run_sync(
+            lambda: self.run_async(flow, *args, run_id=run_id, resume=resume, **kwargs),
+            called="Pipeline.run()",
+            instead="await pipeline.run_async(...)",
+        )
+
+    async def run_async(
+        self, flow: Callable[..., Any], /, *args: Any, run_id: str | None = None, resume: bool = False, **kwargs: Any
+    ) -> RunReport:
+        """Run the flow as `run` does, on the running event loop, and return the same
+        `RunReport`: the parameters, the run directory and the signal handling are
+        those of `run`. Use it from an `async def` function, where `run` raises.
+
+        The flow's code and every callback run on the event loop's thread; the agents
+        and the Python tasks' functions run on threads of the run's own pool, so the
+        event loop stays free while tasks run.
         """
         suffix = "-stub" if self.stub is not None else "-replay" if self.replay is not None else ""
         run_id = run_id or f"{portable(flow.__name__)}{suffix}"
@@ -577,7 +599,7 @@ class Pipeline:
                     driver.past_grace = queue.past_hard_stop
                     journaled = len(run.rows())
                     queue.extend(tasks)
-                    summary = queue.run()
+                    summary = await queue.run_async()
                 finally:
                     try:
                         services.close()

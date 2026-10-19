@@ -13,7 +13,8 @@ ready when:
   each time the queue tries to start a task that claims the name, given how
   many running tasks hold it (a `PerTask` entry, sized by the host's free memory
   and cores). It may grow while tasks still run: the queue looks again each
-  second while any task runs (the wait in `run`), not only when one finishes. A task's kind
+  second while any task runs (`POLL_S`, the wait in `run_async`), not only when one
+  finishes. A task's kind
   or unit locks nothing: tasks that claim nothing run together whatever they are;
 * the kind's own cap (`runner.config(task).max_concurrent`) has room.
 
@@ -83,9 +84,16 @@ The queue records nothing itself. It reports through callbacks:
   `deferred`, `end`, `duplicate_key_refused` and `note` (a callback that raised, or
   what a runner reports beside a result: `TaskResult.notes`);
 * `on_result(result, attempt)` for every result, discarded retries included;
-* `follow_up(result) -> list[Task]` for the follow-up work (main thread only; an
-  exception there is reported as a `note` and isolated to that item). Its tasks
-  are queued with `extend()`.
+* `follow_up(result) -> list[Task]` for the follow-up work (on the queue's event
+  loop; an exception there is reported as a `note` and isolated to that item). Its
+  tasks are queued with `extend()`.
+
+The queue's loop is a coroutine (`run_async`) on an asyncio event loop; `run()` runs it
+on a new one. Each runner call (`TaskRunner.run`, synchronous) runs on a thread of the
+queue's own pool, at most `max_concurrent` at once. Every callback, and `add()` and
+`extend()`, run on the event loop's thread. A task added while the loop waits (by
+another coroutine on the same event loop) wakes it: the task may start at once, not
+when a running task finishes.
 
 `runner` only needs to satisfy `TaskRunner` (`.config(task).max_concurrent`
 and `.run(task)`); nothing here imports a concrete runner. A runner may also
@@ -101,14 +109,16 @@ cause as data (`on_event("deferred", task, reason=, cause=)`, a `DeferralCause`)
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import random
 import time
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Protocol
 
+from contraagent._internal.dispatch.entry import run_sync
 from contraagent._internal.dispatch.records import DeferralCause
 from contraagent._internal.dispatch.task import STOP_DEFERRED, STOP_DUPLICATE_KEY, Deferral, Task, TaskResult, TimeBox
 
@@ -139,6 +149,10 @@ RETRY_WAIT_S = 60.0
 
 #: How long two `throttle_on` results in a row halve the slots.
 THROTTLE_S = 300.0
+
+#: The longest the loop waits while tasks run before it looks at the queue again
+#: (a `ClaimCapacity` may have grown), when no task finishes and none is added.
+POLL_S = 1.0
 
 
 class OnEvent(Protocol):
@@ -218,8 +232,8 @@ class TaskRunner(Protocol):
 class WorkQueue:
     """Runs Tasks against one `TaskRunner`, enforcing the claim,
     ordering, concurrency-cap, retry, and throttle rules described in this
-    module's docstring. Construct one per run; `add()` tasks, then `run()`
-    to drain the queue to completion.
+    module's docstring. Construct one per run; `add()` tasks, then `run()` (or
+    `await run_async()` on an event loop) to drain the queue to completion.
     """
 
     def __init__(
@@ -288,7 +302,7 @@ class WorkQueue:
         # (see `_finish`): a finished key may be dispatched again; what this
         # guards against is two *concurrent* dispatches of the same work.
         self._inflight_keys: set[str] = set()
-        self._running: dict[Future, Task] = {}
+        self._running: dict[asyncio.Future[TaskResult], Task] = {}
         # Per claimed name: how many running tasks hold it.
         self._held: dict[str, int] = {}
         self._done: dict[str, TaskResult] = {}  # by .id
@@ -306,6 +320,8 @@ class WorkQueue:
         self._successors: dict[str, list[Task]] = {}  # by .key: known dependents
         # Tasks queued so far: a pass that queued any (a deferral's follow-ups) did not see them.
         self._added = 0
+        # Set by `add()` while `run_async` runs: what wakes its wait.
+        self._wake: asyncio.Event | None = None
 
     # --- queueing -----------------------------------------------------------
 
@@ -333,6 +349,8 @@ class WorkQueue:
             return True
         self._queued.append(task)
         self._added += 1
+        if self._wake is not None:
+            self._wake.set()
         return True
 
     def extend(self, tasks: Iterable[Task]) -> None:
@@ -412,31 +430,66 @@ class WorkQueue:
     # --- progress -----------------------------------------------------------
 
     def run(self) -> dict[str, Any]:
-        """Drain the queue or hit the driver timeout."""
+        """Run the queue to its end on a new event loop (`run_async`), and return its
+        summary: `wall_s`, `finished`, `ok`, `by_stop` (results by stop value), `by_kind`
+        (`n`, `ok`, `wall_s` of each kind) and `deferred` (the deferred tasks' keys).
+
+        From a thread whose event loop is running (an `async def` function, a notebook)
+        it raises RuntimeError: `await queue.run_async()` there instead. Ctrl-C ends the
+        loop's wait at once and raises `KeyboardInterrupt`, as in any Python code."""
+        return run_sync(self.run_async, called="WorkQueue.run()", instead="await queue.run_async()")
+
+    async def run_async(self) -> dict[str, Any]:
+        """Run the queue to its end on the running event loop, and return its summary
+        (`run` lists its keys). Each task's runner call runs on a thread of the queue's
+        own pool, so the event loop stays free while tasks run; every callback, and
+        `add()` and `extend()`, run on the event loop's thread. It ends when no task is
+        queued or running.
+
+        A task that another coroutine of the same event loop adds while the queue waits
+        (`add`, `extend`) wakes the queue: it may start at once. Await it once per queue:
+        a queue runs one loop at a time."""
         t0 = time.monotonic()
-        with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
-            while self._queued or self._running:
-                added = self._added
-                self._start_ready(pool)
-                if not self._running:
-                    if not self._queued:
-                        break
-                    # A deferral in the pass (a rest, a closed time box, work that cannot
-                    # finish) queued its follow-ups during it: the pass did not look at them.
-                    if self._added != added:
+        loop = asyncio.get_running_loop()
+        self._wake = asyncio.Event()
+        try:
+            with ThreadPoolExecutor(max_workers=self.max_concurrent) as pool:
+                while self._queued or self._running:
+                    added = self._added
+                    self._start_ready(loop, pool)
+                    if not self._running:
+                        if not self._queued:
+                            break
+                        # A deferral in the pass (a rest, a closed time box, work that cannot
+                        # finish) queued its follow-ups during it: the pass did not look at them.
+                        if self._added != added:
+                            continue
+                        # Nothing runs and nothing started of what the pass saw: what is queued
+                        # waits for a retry, or for a task that will never come.
+                        if await self._sleep_until_retry():
+                            continue
+                        self._defer_all(_NOT_QUEUED)
                         continue
-                    # Nothing runs and nothing started of what the pass saw: what is queued
-                    # waits for a retry, or for a task that will never come.
-                    if self._sleep_until_retry():
-                        continue
-                    self._defer_all(_NOT_QUEUED)
-                    continue
-                done, _ = wait(list(self._running), timeout=1.0, return_when=FIRST_COMPLETED)
-                for fut in done:
-                    task = self._running.pop(fut)
-                    self._release(task)
-                    self._on_done(task, fut)
+                    for fut in await self._wait(set(self._running), POLL_S):
+                        task = self._running.pop(fut)
+                        self._release(task)
+                        self._on_done(task, fut)
+        finally:
+            self._wake = None
         return self._summary(time.monotonic() - t0)
+
+    async def _wait(self, running: set[asyncio.Future[TaskResult]], timeout: float) -> set[asyncio.Future[TaskResult]]:
+        """Wait until one of `running` finishes, a task is added from outside the pass
+        (`add` sets `_wake`), or `timeout` passes; the futures of `running` that finished.
+        What the pass itself added is no reason to wake: the next pass sees it anyway."""
+        assert self._wake is not None
+        self._wake.clear()
+        woken = asyncio.ensure_future(self._wake.wait())
+        try:
+            done, _ = await asyncio.wait(running | {woken}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            woken.cancel()
+        return {fut for fut in running if fut in done}
 
     def _defer_closed(self, now: float) -> None:
         """Defer every queued task a time box no longer lets launch (`_closed`)."""
@@ -519,7 +572,7 @@ class WorkQueue:
         A `ClaimCapacity` is asked with the number of running tasks that hold it."""
         return self._capacity(name, self._held.get(name, 0))
 
-    def _start_ready(self, pool: ThreadPoolExecutor) -> None:
+    def _start_ready(self, loop: asyncio.AbstractEventLoop, pool: ThreadPoolExecutor) -> None:
         now = time.monotonic()
         self._defer_closed(now)
         for t in self._queued:  # each task's wait starts when it could start but for resources
@@ -560,7 +613,7 @@ class WorkQueue:
             self._attempt[task.id] = attempt
             self.on_event("start", task, attempt=attempt, running=len(self._running) + 1, slots=self.slots())
             self._occupy(task)
-            self._running[pool.submit(self.runner.run, task)] = task
+            self._running[loop.run_in_executor(pool, self.runner.run, task)] = task
 
     def _defer_late(self, memo: dict[str, float], now: float) -> bool:
         """In a time box's endgame, before its deadline: defer each task that could start
@@ -624,7 +677,7 @@ class WorkQueue:
             self.on_event("note", task, starting_failed=repr(exc)[:200])
             return task
 
-    def _on_done(self, task: Task, fut: Future) -> None:
+    def _on_done(self, task: Task, fut: asyncio.Future[TaskResult]) -> None:
         try:
             res: TaskResult = fut.result()
         except Exception as exc:  # one task must not stop the driver
@@ -705,13 +758,14 @@ class WorkQueue:
             return
         self.extend(follow_ups)
 
-    def _sleep_until_retry(self) -> bool:
-        """Wait for the next retry time when retries are pending."""
+    async def _sleep_until_retry(self) -> bool:
+        """Wait for the next retry time when retries are pending (a task added from
+        outside ends the wait early)."""
         now = time.monotonic()
         waits = [self._not_before[t.id] - now for t in self._queued if self._not_before.get(t.id, 0.0) > now]
         if not waits:
             return False
-        time.sleep(min(max(0.05, min(waits)), 5.0))
+        await self._wait(set(), min(max(0.05, min(waits)), 5.0))
         return True
 
     def _defer_all(self, deferral: Deferral) -> None:

@@ -359,6 +359,7 @@ VAR_KEYWORD_KEPT = {
     "contraagent.PythonTask.__call__": "kwargs",
     "contraagent.Pipeline.check": "kwargs",
     "contraagent.Pipeline.run": "kwargs",
+    "contraagent.Pipeline.run_async": "kwargs",
     "contraagent.TimeBox.cause": "fields",
     "contraagent.config.KindConfig.with_": "changes",
     "contraagent.config.QuotaReading.from_windows": "fields",
